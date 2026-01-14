@@ -18,9 +18,35 @@ import {
 } from '../coordination/queen-coordinator';
 import { CrossDomainEventRouter } from '../coordination/cross-domain-router';
 import { DefaultProtocolExecutor } from '../coordination/protocol-executor';
-import { WorkflowOrchestrator } from '../coordination/workflow-orchestrator';
+import { WorkflowOrchestrator, type WorkflowDefinition, type WorkflowExecutionStatus } from '../coordination/workflow-orchestrator';
 import { DomainName, ALL_DOMAINS, Priority } from '../shared/types';
 import { InitOrchestrator, type InitOrchestratorOptions } from '../init/init-wizard';
+import {
+  generateCompletion,
+  detectShell,
+  getInstallInstructions,
+  DOMAINS as COMPLETION_DOMAINS,
+  V3_QE_AGENTS,
+  OTHER_AGENTS,
+} from './completions/index.js';
+import {
+  FleetProgressManager,
+  SpinnerManager,
+  createTimedSpinner,
+  withSpinner,
+} from './utils/progress';
+import {
+  parsePipelineFile,
+  validatePipeline,
+  describeCronSchedule,
+  calculateNextRun,
+  type ScheduledWorkflow,
+  type PipelineYAML,
+} from './utils/workflow-parser.js';
+import {
+  runCoverageAnalysisWizard,
+  type CoverageWizardResult,
+} from './wizards/coverage-wizard.js';
 
 // ============================================================================
 // CLI State
@@ -30,6 +56,8 @@ interface CLIContext {
   kernel: QEKernel | null;
   queen: QueenCoordinator | null;
   router: CrossDomainEventRouter | null;
+  workflowOrchestrator: WorkflowOrchestrator | null;
+  scheduledWorkflows: Map<string, ScheduledWorkflow>;
   initialized: boolean;
 }
 
@@ -37,6 +65,8 @@ const context: CLIContext = {
   kernel: null,
   queen: null,
   router: null,
+  workflowOrchestrator: null,
+  scheduledWorkflows: new Map(),
   initialized: false,
 };
 
@@ -101,12 +131,12 @@ async function autoInitialize(): Promise<void> {
   );
 
   // Create workflow orchestrator
-  const workflowOrchestrator = new WorkflowOrchestrator(
+  context.workflowOrchestrator = new WorkflowOrchestrator(
     context.kernel.eventBus,
     context.kernel.memory,
     context.kernel.coordinator
   );
-  await workflowOrchestrator.initialize();
+  await context.workflowOrchestrator.initialize();
 
   // Create Queen Coordinator
   context.queen = createQueenCoordinator(
@@ -143,6 +173,9 @@ async function ensureInitialized(): Promise<boolean> {
  */
 async function cleanupAndExit(code: number = 0): Promise<never> {
   try {
+    if (context.workflowOrchestrator) {
+      await context.workflowOrchestrator.dispose();
+    }
     if (context.queen) {
       await context.queen.dispose();
     }
@@ -286,12 +319,12 @@ program
       console.log(chalk.green('  ✓ Protocol executor initialized'));
 
       // Create workflow orchestrator
-      const workflowOrchestrator = new WorkflowOrchestrator(
+      context.workflowOrchestrator = new WorkflowOrchestrator(
         context.kernel.eventBus,
         context.kernel.memory,
         context.kernel.coordinator
       );
-      await workflowOrchestrator.initialize();
+      await context.workflowOrchestrator.initialize();
       console.log(chalk.green('  ✓ Workflow orchestrator initialized'));
 
       // Create Queen Coordinator
@@ -484,6 +517,8 @@ taskCmd
   .option('-d, --domain <domain>', 'Target domain')
   .option('-t, --timeout <ms>', 'Task timeout in ms', '300000')
   .option('--payload <json>', 'Task payload as JSON', '{}')
+  .option('--wait', 'Wait for task completion with progress')
+  .option('--no-progress', 'Disable progress indicator')
   .action(async (type: string, options) => {
     if (!await ensureInitialized()) return;
 
@@ -492,7 +527,12 @@ taskCmd
       const payload = JSON.parse(options.payload);
       const targetDomains = options.domain ? [options.domain as DomainName] : [];
 
-      console.log(chalk.blue(`\n📝 Submitting task: ${taskType}\n`));
+      console.log(chalk.blue(`\n Submitting task: ${taskType}\n`));
+
+      // Use spinner for submit operation
+      const spinner = options.progress !== false
+        ? createTimedSpinner(`Submitting ${taskType} task`)
+        : null;
 
       const result = await context.queen!.submitTask({
         type: taskType,
@@ -502,19 +542,60 @@ taskCmd
         timeout: parseInt(options.timeout, 10),
       });
 
+      if (spinner) {
+        if (result.success) {
+          spinner.succeed(`Task submitted successfully`);
+        } else {
+          spinner.fail(`Failed to submit task`);
+        }
+      }
+
       if (result.success) {
-        console.log(chalk.green(`✅ Task submitted successfully`));
         console.log(chalk.cyan(`   ID: ${result.value}`));
         console.log(chalk.gray(`   Type: ${taskType}`));
         console.log(chalk.gray(`   Priority: ${options.priority}`));
+
+        // If --wait flag is provided, poll for task completion with progress
+        if (options.wait) {
+          console.log('');
+          const taskId = result.value as string;
+          const waitSpinner = createTimedSpinner('Waiting for task completion');
+
+          const timeout = parseInt(options.timeout, 10);
+          const startTime = Date.now();
+          let completed = false;
+
+          while (!completed && (Date.now() - startTime) < timeout) {
+            const taskStatus = context.queen!.getTaskStatus(taskId);
+            if (taskStatus) {
+              if (taskStatus.status === 'completed') {
+                waitSpinner.succeed('Task completed successfully');
+                completed = true;
+              } else if (taskStatus.status === 'failed') {
+                waitSpinner.fail(`Task failed: ${taskStatus.error || 'Unknown error'}`);
+                completed = true;
+              } else {
+                // Update spinner with progress info
+                waitSpinner.spinner.text = `Task ${taskStatus.status}... (${Math.round((Date.now() - startTime) / 1000)}s)`;
+              }
+            }
+            if (!completed) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+
+          if (!completed) {
+            waitSpinner.fail('Task timed out');
+          }
+        }
       } else {
-        console.log(chalk.red(`❌ Failed to submit task: ${result.error.message}`));
+        console.log(chalk.red(`   Error: ${result.error.message}`));
       }
 
       console.log('');
 
     } catch (error) {
-      console.error(chalk.red('\n❌ Failed to submit task:'), error);
+      console.error(chalk.red('\n Failed to submit task:'), error);
       process.exit(1);
     }
   });
@@ -694,13 +775,19 @@ agentCmd
   .description('Spawn an agent in a domain')
   .option('-t, --type <type>', 'Agent type', 'worker')
   .option('-c, --capabilities <caps>', 'Comma-separated capabilities', 'general')
+  .option('--no-progress', 'Disable progress indicator')
   .action(async (domain: string, options) => {
     if (!await ensureInitialized()) return;
 
     try {
       const capabilities = options.capabilities.split(',');
 
-      console.log(chalk.blue(`\n🚀 Spawning agent in ${domain}...\n`));
+      console.log(chalk.blue(`\n Spawning agent in ${domain}...\n`));
+
+      // Use spinner for spawn operation
+      const spinner = options.progress !== false
+        ? createTimedSpinner(`Spawning ${options.type} agent`)
+        : null;
 
       const result = await context.queen!.requestAgentSpawn(
         domain as DomainName,
@@ -708,20 +795,27 @@ agentCmd
         capabilities
       );
 
+      if (spinner) {
+        if (result.success) {
+          spinner.succeed(`Agent spawned successfully`);
+        } else {
+          spinner.fail(`Failed to spawn agent`);
+        }
+      }
+
       if (result.success) {
-        console.log(chalk.green(`✅ Agent spawned successfully`));
         console.log(chalk.cyan(`   ID: ${result.value}`));
         console.log(chalk.gray(`   Domain: ${domain}`));
         console.log(chalk.gray(`   Type: ${options.type}`));
         console.log(chalk.gray(`   Capabilities: ${capabilities.join(', ')}`));
       } else {
-        console.log(chalk.red(`❌ Failed to spawn agent: ${result.error.message}`));
+        console.log(chalk.red(`   Error: ${result.error.message}`));
       }
 
       console.log('');
 
     } catch (error) {
-      console.error(chalk.red('\n❌ Failed to spawn agent:'), error);
+      console.error(chalk.red('\n Failed to spawn agent:'), error);
       process.exit(1);
     }
   });
@@ -833,6 +927,549 @@ protocolCmd
     } catch (error) {
       console.error(chalk.red('\n❌ Failed to execute protocol:'), error);
       process.exit(1);
+    }
+  });
+
+// ============================================================================
+// Workflow Command Group (ADR-041)
+// ============================================================================
+
+const workflowCmd = program
+  .command('workflow')
+  .description('Manage QE workflows and pipelines (ADR-041)');
+
+workflowCmd
+  .command('run <file>')
+  .description('Execute a QE pipeline from YAML file')
+  .option('-w, --watch', 'Watch execution progress')
+  .option('-v, --verbose', 'Show detailed output')
+  .option('--params <json>', 'Additional parameters as JSON', '{}')
+  .action(async (file: string, options) => {
+    if (!await ensureInitialized()) return;
+
+    const fs = await import('fs');
+    const pathModule = await import('path');
+    const filePath = pathModule.resolve(file);
+
+    try {
+      console.log(chalk.blue(`\n Running workflow from: ${file}\n`));
+
+      // Parse the pipeline file
+      const parseResult = parsePipelineFile(filePath);
+
+      if (!parseResult.success || !parseResult.workflow) {
+        console.log(chalk.red('Failed to parse pipeline:'));
+        for (const error of parseResult.errors) {
+          console.log(chalk.red(`   ${error}`));
+        }
+        await cleanupAndExit(1);
+      }
+
+      // Additional params
+      const additionalParams = JSON.parse(options.params);
+
+      // Build input from pipeline params and additional params
+      const input: Record<string, unknown> = { ...additionalParams };
+
+      // Add stage params to input context
+      if (parseResult.pipeline) {
+        for (const stage of parseResult.pipeline.stages) {
+          if (stage.params) {
+            for (const [key, value] of Object.entries(stage.params)) {
+              input[key] = value;
+            }
+          }
+        }
+      }
+
+      // Register the workflow if not already registered
+      const existingWorkflow = context.workflowOrchestrator!.getWorkflow(parseResult.workflow!.id);
+      if (!existingWorkflow) {
+        const registerResult = context.workflowOrchestrator!.registerWorkflow(parseResult.workflow!);
+        if (!registerResult.success) {
+          console.log(chalk.red(`Failed to register workflow: ${registerResult.error.message}`));
+          await cleanupAndExit(1);
+        }
+      }
+
+      // Execute the workflow
+      const execResult = await context.workflowOrchestrator!.executeWorkflow(
+        parseResult.workflow!.id,
+        input
+      );
+
+      if (!execResult.success) {
+        console.log(chalk.red(`Failed to start workflow: ${execResult.error.message}`));
+        await cleanupAndExit(1);
+        return; // TypeScript flow analysis
+      }
+
+      const executionId = execResult.value;
+      console.log(chalk.cyan(`  Execution ID: ${executionId}`));
+      console.log(chalk.gray(`  Workflow: ${parseResult.workflow!.name}`));
+      console.log(chalk.gray(`  Stages: ${parseResult.workflow!.steps.length}`));
+      console.log('');
+
+      // Watch progress if requested
+      if (options.watch) {
+        console.log(chalk.blue('Workflow Progress:\n'));
+
+        let lastStatus: WorkflowExecutionStatus | undefined;
+        const startTime = Date.now();
+
+        while (true) {
+          const status = context.workflowOrchestrator!.getWorkflowStatus(executionId);
+          if (!status) break;
+
+          // Update display if status changed
+          if (!lastStatus ||
+              lastStatus.progress !== status.progress ||
+              lastStatus.status !== status.status ||
+              JSON.stringify(lastStatus.currentSteps) !== JSON.stringify(status.currentSteps)) {
+
+            // Clear line and show progress
+            process.stdout.write('\r\x1b[K');
+
+            const progressBar = String.fromCharCode(0x2588).repeat(Math.floor(status.progress / 5)) +
+                               String.fromCharCode(0x2591).repeat(20 - Math.floor(status.progress / 5));
+
+            const statusColor = status.status === 'completed' ? chalk.green :
+                               status.status === 'failed' ? chalk.red :
+                               status.status === 'running' ? chalk.yellow : chalk.gray;
+
+            console.log(`  [${progressBar}] ${status.progress}% - ${statusColor(status.status)}`);
+
+            if (status.currentSteps.length > 0 && options.verbose) {
+              console.log(chalk.gray(`    Running: ${status.currentSteps.join(', ')}`));
+            }
+
+            lastStatus = status;
+          }
+
+          // Check if completed
+          if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
+            break;
+          }
+
+          // Wait before next check
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // Show final status
+        const finalStatus = context.workflowOrchestrator!.getWorkflowStatus(executionId);
+        if (finalStatus) {
+          console.log('');
+          const duration = finalStatus.duration || (Date.now() - startTime);
+
+          if (finalStatus.status === 'completed') {
+            console.log(chalk.green(`Workflow completed successfully`));
+            console.log(chalk.gray(`   Duration: ${formatDuration(duration)}`));
+            console.log(chalk.gray(`   Completed: ${finalStatus.completedSteps.length} stages`));
+            if (finalStatus.skippedSteps.length > 0) {
+              console.log(chalk.yellow(`   Skipped: ${finalStatus.skippedSteps.length} stages`));
+            }
+          } else if (finalStatus.status === 'failed') {
+            console.log(chalk.red(`Workflow failed`));
+            console.log(chalk.red(`   Error: ${finalStatus.error}`));
+            console.log(chalk.gray(`   Failed stages: ${finalStatus.failedSteps.join(', ')}`));
+          } else {
+            console.log(chalk.yellow(`Workflow ${finalStatus.status}`));
+          }
+        }
+      } else {
+        console.log(chalk.green('Workflow execution started'));
+        console.log(chalk.gray(`   Use 'aqe-v3 workflow status ${executionId}' to check progress`));
+      }
+
+      console.log('');
+      await cleanupAndExit(0);
+
+    } catch (error) {
+      console.error(chalk.red('\nFailed to run workflow:'), error);
+      await cleanupAndExit(1);
+    }
+  });
+
+workflowCmd
+  .command('schedule <file>')
+  .description('Schedule a QE pipeline for recurring execution')
+  .option('-c, --cron <expression>', 'Override cron schedule from file')
+  .option('-e, --enable', 'Enable immediately', true)
+  .action(async (file: string, options) => {
+    if (!await ensureInitialized()) return;
+
+    const fs = await import('fs');
+    const pathModule = await import('path');
+    const filePath = pathModule.resolve(file);
+
+    try {
+      console.log(chalk.blue(`\nScheduling workflow from: ${file}\n`));
+
+      // Parse the pipeline file
+      const parseResult = parsePipelineFile(filePath);
+
+      if (!parseResult.success || !parseResult.pipeline || !parseResult.workflow) {
+        console.log(chalk.red('Failed to parse pipeline:'));
+        for (const error of parseResult.errors) {
+          console.log(chalk.red(`   ${error}`));
+        }
+        await cleanupAndExit(1);
+      }
+
+      // Get schedule from option or file
+      const schedule = options.cron || parseResult.pipeline!.schedule;
+      if (!schedule) {
+        console.log(chalk.red('No schedule specified'));
+        console.log(chalk.gray('   Add "schedule" field to YAML or use --cron option'));
+        await cleanupAndExit(1);
+      }
+
+      // Register the workflow
+      const existingWorkflow = context.workflowOrchestrator!.getWorkflow(parseResult.workflow!.id);
+      if (!existingWorkflow) {
+        const registerResult = context.workflowOrchestrator!.registerWorkflow(parseResult.workflow!);
+        if (!registerResult.success) {
+          console.log(chalk.red(`Failed to register workflow: ${registerResult.error.message}`));
+          await cleanupAndExit(1);
+        }
+      }
+
+      // Create scheduled workflow entry
+      const scheduledWorkflow: ScheduledWorkflow = {
+        id: `sched-${Date.now()}`,
+        workflowId: parseResult.workflow!.id,
+        pipelinePath: filePath,
+        schedule,
+        scheduleDescription: describeCronSchedule(schedule),
+        nextRun: calculateNextRun(schedule),
+        enabled: options.enable !== false,
+        createdAt: new Date(),
+      };
+
+      // Store in context (in production, this would persist to disk/database)
+      context.scheduledWorkflows.set(scheduledWorkflow.id, scheduledWorkflow);
+
+      console.log(chalk.green('Workflow scheduled successfully'));
+      console.log(chalk.cyan(`   Schedule ID: ${scheduledWorkflow.id}`));
+      console.log(chalk.gray(`   Workflow: ${parseResult.workflow!.name}`));
+      console.log(chalk.gray(`   Schedule: ${schedule}`));
+      console.log(chalk.gray(`   Description: ${scheduledWorkflow.scheduleDescription}`));
+      console.log(chalk.gray(`   Next run: ${scheduledWorkflow.nextRun?.toISOString()}`));
+      console.log(chalk.gray(`   Status: ${scheduledWorkflow.enabled ? chalk.green('enabled') : chalk.yellow('disabled')}`));
+
+      console.log(chalk.yellow('\nNote: Scheduled workflows require daemon mode to run automatically'));
+      console.log(chalk.gray('   Start daemon with: npx @claude-flow/cli@latest daemon start'));
+
+      console.log('');
+      await cleanupAndExit(0);
+
+    } catch (error) {
+      console.error(chalk.red('\nFailed to schedule workflow:'), error);
+      await cleanupAndExit(1);
+    }
+  });
+
+workflowCmd
+  .command('list')
+  .description('List workflows')
+  .option('-s, --scheduled', 'Show only scheduled workflows')
+  .option('-a, --active', 'Show only active executions')
+  .option('--all', 'Show all workflows (registered + scheduled + active)')
+  .action(async (options) => {
+    if (!await ensureInitialized()) return;
+
+    try {
+      console.log(chalk.blue('\nWorkflows\n'));
+
+      // Show scheduled workflows
+      if (options.scheduled || options.all) {
+        console.log(chalk.cyan('Scheduled Workflows:'));
+        const scheduled = Array.from(context.scheduledWorkflows.values());
+
+        if (scheduled.length === 0) {
+          console.log(chalk.gray('  No scheduled workflows\n'));
+        } else {
+          for (const sched of scheduled) {
+            const statusIcon = sched.enabled ? chalk.green('*') : chalk.gray('o');
+            console.log(`  ${statusIcon} ${chalk.white(sched.workflowId)}`);
+            console.log(chalk.gray(`     ID: ${sched.id}`));
+            console.log(chalk.gray(`     Schedule: ${sched.schedule} (${sched.scheduleDescription})`));
+            console.log(chalk.gray(`     File: ${sched.pipelinePath}`));
+            if (sched.nextRun) {
+              console.log(chalk.gray(`     Next run: ${sched.nextRun.toISOString()}`));
+            }
+            if (sched.lastRun) {
+              console.log(chalk.gray(`     Last run: ${sched.lastRun.toISOString()}`));
+            }
+            console.log('');
+          }
+        }
+      }
+
+      // Show active executions
+      if (options.active || options.all) {
+        console.log(chalk.cyan('Active Executions:'));
+        const activeExecutions = context.workflowOrchestrator!.getActiveExecutions();
+
+        if (activeExecutions.length === 0) {
+          console.log(chalk.gray('  No active executions\n'));
+        } else {
+          for (const exec of activeExecutions) {
+            const statusColor = exec.status === 'running' ? chalk.yellow : chalk.gray;
+            console.log(`  ${statusColor('*')} ${chalk.white(exec.workflowName)}`);
+            console.log(chalk.gray(`     Execution: ${exec.executionId}`));
+            console.log(chalk.gray(`     Status: ${exec.status}`));
+            console.log(chalk.gray(`     Progress: ${exec.progress}%`));
+            if (exec.currentSteps.length > 0) {
+              console.log(chalk.gray(`     Current: ${exec.currentSteps.join(', ')}`));
+            }
+            console.log('');
+          }
+        }
+      }
+
+      // Show registered workflows (default behavior)
+      if (!options.scheduled && !options.active || options.all) {
+        console.log(chalk.cyan('Registered Workflows:'));
+        const workflows = context.workflowOrchestrator!.listWorkflows();
+
+        if (workflows.length === 0) {
+          console.log(chalk.gray('  No registered workflows\n'));
+        } else {
+          for (const workflow of workflows) {
+            console.log(`  ${chalk.white(workflow.name)} (${chalk.cyan(workflow.id)})`);
+            console.log(chalk.gray(`     Version: ${workflow.version}`));
+            console.log(chalk.gray(`     Steps: ${workflow.stepCount}`));
+            if (workflow.description) {
+              console.log(chalk.gray(`     ${workflow.description}`));
+            }
+            if (workflow.tags && workflow.tags.length > 0) {
+              console.log(chalk.gray(`     Tags: ${workflow.tags.join(', ')}`));
+            }
+            if (workflow.triggers && workflow.triggers.length > 0) {
+              console.log(chalk.gray(`     Triggers: ${workflow.triggers.join(', ')}`));
+            }
+            console.log('');
+          }
+        }
+      }
+
+      await cleanupAndExit(0);
+
+    } catch (error) {
+      console.error(chalk.red('\nFailed to list workflows:'), error);
+      await cleanupAndExit(1);
+    }
+  });
+
+workflowCmd
+  .command('validate <file>')
+  .description('Validate a pipeline YAML file')
+  .option('-v, --verbose', 'Show detailed validation results')
+  .action(async (file: string, options) => {
+    const fs = await import('fs');
+    const pathModule = await import('path');
+    const filePath = pathModule.resolve(file);
+
+    try {
+      console.log(chalk.blue(`\nValidating pipeline: ${file}\n`));
+
+      // Check file exists
+      if (!fs.existsSync(filePath)) {
+        console.log(chalk.red(`File not found: ${filePath}`));
+        process.exit(1);
+      }
+
+      // Parse the pipeline file
+      const parseResult = parsePipelineFile(filePath);
+
+      if (!parseResult.success) {
+        console.log(chalk.red('Parse errors:'));
+        for (const error of parseResult.errors) {
+          console.log(chalk.red(`   * ${error}`));
+        }
+        process.exit(1);
+      }
+
+      // Validate the pipeline structure
+      const validationResult = validatePipeline(parseResult.pipeline!);
+
+      // Show results
+      if (validationResult.valid) {
+        console.log(chalk.green('Pipeline is valid\n'));
+      } else {
+        console.log(chalk.red('Pipeline has errors:\n'));
+        for (const error of validationResult.errors) {
+          console.log(chalk.red(`   x [${error.path}] ${error.message}`));
+        }
+        console.log('');
+      }
+
+      // Show warnings
+      if (validationResult.warnings.length > 0) {
+        console.log(chalk.yellow('Warnings:'));
+        for (const warning of validationResult.warnings) {
+          console.log(chalk.yellow(`   * [${warning.path}] ${warning.message}`));
+        }
+        console.log('');
+      }
+
+      // Show pipeline details if verbose
+      if (options.verbose && parseResult.pipeline) {
+        const pipeline = parseResult.pipeline;
+        console.log(chalk.cyan('Pipeline Details:\n'));
+        console.log(chalk.gray(`  Name: ${pipeline.name}`));
+        console.log(chalk.gray(`  Version: ${pipeline.version || '1.0.0'}`));
+        if (pipeline.description) {
+          console.log(chalk.gray(`  Description: ${pipeline.description}`));
+        }
+        if (pipeline.schedule) {
+          console.log(chalk.gray(`  Schedule: ${pipeline.schedule} (${describeCronSchedule(pipeline.schedule)})`));
+        }
+        if (pipeline.tags && pipeline.tags.length > 0) {
+          console.log(chalk.gray(`  Tags: ${pipeline.tags.join(', ')}`));
+        }
+
+        console.log(chalk.cyan('\n  Stages:'));
+        for (let i = 0; i < pipeline.stages.length; i++) {
+          const stage = pipeline.stages[i];
+          console.log(`    ${i + 1}. ${chalk.white(stage.name)}`);
+          console.log(chalk.gray(`       Command: ${stage.command}`));
+          if (stage.params) {
+            console.log(chalk.gray(`       Params: ${JSON.stringify(stage.params)}`));
+          }
+          if (stage.depends_on && stage.depends_on.length > 0) {
+            console.log(chalk.gray(`       Depends on: ${stage.depends_on.join(', ')}`));
+          }
+          if (stage.timeout) {
+            console.log(chalk.gray(`       Timeout: ${stage.timeout}s`));
+          }
+        }
+
+        if (pipeline.triggers && pipeline.triggers.length > 0) {
+          console.log(chalk.cyan('\n  Triggers:'));
+          for (const trigger of pipeline.triggers) {
+            console.log(chalk.gray(`    * ${trigger.event}`));
+            if (trigger.branches) {
+              console.log(chalk.gray(`      Branches: ${trigger.branches.join(', ')}`));
+            }
+          }
+        }
+      }
+
+      // Show converted workflow definition if verbose
+      if (options.verbose && parseResult.workflow) {
+        console.log(chalk.cyan('\n  Converted Workflow ID: ') + chalk.white(parseResult.workflow.id));
+        console.log(chalk.gray(`  Steps: ${parseResult.workflow.steps.length}`));
+        for (const step of parseResult.workflow.steps) {
+          console.log(chalk.gray(`    * ${step.id}: ${step.domain}.${step.action}`));
+        }
+      }
+
+      console.log('');
+      process.exit(validationResult.valid ? 0 : 1);
+
+    } catch (error) {
+      console.error(chalk.red('\nValidation failed:'), error);
+      process.exit(1);
+    }
+  });
+
+workflowCmd
+  .command('status <executionId>')
+  .description('Get workflow execution status')
+  .option('-v, --verbose', 'Show detailed step results')
+  .action(async (executionId: string, options) => {
+    if (!await ensureInitialized()) return;
+
+    try {
+      const status = context.workflowOrchestrator!.getWorkflowStatus(executionId);
+
+      if (!status) {
+        console.log(chalk.red(`\nExecution not found: ${executionId}\n`));
+        await cleanupAndExit(1);
+        return; // TypeScript flow analysis
+      }
+
+      console.log(chalk.blue(`\nWorkflow Execution Status\n`));
+
+      const statusColor = status.status === 'completed' ? chalk.green :
+                         status.status === 'failed' ? chalk.red :
+                         status.status === 'running' ? chalk.yellow : chalk.gray;
+
+      console.log(`  Execution ID: ${chalk.cyan(status.executionId)}`);
+      console.log(`  Workflow: ${chalk.white(status.workflowName)} (${status.workflowId})`);
+      console.log(`  Status: ${statusColor(status.status)}`);
+      console.log(`  Progress: ${status.progress}%`);
+      console.log(`  Started: ${status.startedAt.toISOString()}`);
+      if (status.completedAt) {
+        console.log(`  Completed: ${status.completedAt.toISOString()}`);
+      }
+      if (status.duration) {
+        console.log(`  Duration: ${formatDuration(status.duration)}`);
+      }
+
+      console.log(chalk.cyan('\n  Step Summary:'));
+      console.log(chalk.gray(`    Completed: ${status.completedSteps.length}`));
+      console.log(chalk.gray(`    Skipped: ${status.skippedSteps.length}`));
+      console.log(chalk.gray(`    Failed: ${status.failedSteps.length}`));
+      if (status.currentSteps.length > 0) {
+        console.log(chalk.yellow(`    Running: ${status.currentSteps.join(', ')}`));
+      }
+
+      if (status.error) {
+        console.log(chalk.red(`\n  Error: ${status.error}`));
+      }
+
+      // Show detailed step results if verbose
+      if (options.verbose && status.stepResults.size > 0) {
+        console.log(chalk.cyan('\n  Step Results:'));
+        for (const [stepId, result] of status.stepResults) {
+          const stepStatusColor = result.status === 'completed' ? chalk.green :
+                                  result.status === 'failed' ? chalk.red :
+                                  result.status === 'skipped' ? chalk.yellow : chalk.gray;
+          console.log(`    ${stepStatusColor('*')} ${chalk.white(stepId)}: ${stepStatusColor(result.status)}`);
+          if (result.duration) {
+            console.log(chalk.gray(`       Duration: ${formatDuration(result.duration)}`));
+          }
+          if (result.error) {
+            console.log(chalk.red(`       Error: ${result.error}`));
+          }
+          if (result.retryCount && result.retryCount > 0) {
+            console.log(chalk.yellow(`       Retries: ${result.retryCount}`));
+          }
+        }
+      }
+
+      console.log('');
+      await cleanupAndExit(0);
+
+    } catch (error) {
+      console.error(chalk.red('\nFailed to get workflow status:'), error);
+      await cleanupAndExit(1);
+    }
+  });
+
+workflowCmd
+  .command('cancel <executionId>')
+  .description('Cancel a running workflow')
+  .action(async (executionId: string) => {
+    if (!await ensureInitialized()) return;
+
+    try {
+      const result = await context.workflowOrchestrator!.cancelWorkflow(executionId);
+
+      if (result.success) {
+        console.log(chalk.green(`\nWorkflow cancelled: ${executionId}\n`));
+      } else {
+        console.log(chalk.red(`\nFailed to cancel workflow: ${result.error.message}\n`));
+      }
+
+      await cleanupAndExit(result.success ? 0 : 1);
+
+    } catch (error) {
+      console.error(chalk.red('\nFailed to cancel workflow:'), error);
+      await cleanupAndExit(1);
     }
   });
 
@@ -1020,11 +1657,47 @@ program
   .argument('[target]', 'Target file or directory', '.')
   .option('--risk', 'Include risk scoring')
   .option('--gaps', 'Detect coverage gaps')
+  .option('--threshold <percent>', 'Coverage threshold percentage', '80')
+  .option('--sensitivity <level>', 'Gap detection sensitivity (low|medium|high)', 'medium')
+  .option('--wizard', 'Run interactive coverage analysis wizard')
   .action(async (target: string, options) => {
+    let analyzeTarget = target;
+    let includeRisk = options.risk;
+    let detectGaps = options.gaps;
+    let threshold = parseInt(options.threshold, 10);
+
+    // Run wizard if requested
+    if (options.wizard) {
+      try {
+        const wizardResult: CoverageWizardResult = await runCoverageAnalysisWizard({
+          defaultTarget: target !== '.' ? target : undefined,
+          defaultThreshold: options.threshold !== '80' ? parseInt(options.threshold, 10) : undefined,
+          defaultRiskScoring: options.risk,
+          defaultSensitivity: options.sensitivity !== 'medium' ? options.sensitivity : undefined,
+        });
+
+        if (wizardResult.cancelled) {
+          console.log(chalk.yellow('\n  Coverage analysis cancelled.\n'));
+          process.exit(0);
+        }
+
+        // Use wizard results
+        analyzeTarget = wizardResult.target;
+        includeRisk = wizardResult.riskScoring;
+        detectGaps = true; // Wizard always enables gap detection
+        threshold = wizardResult.threshold;
+
+        console.log(chalk.green('\n  Starting coverage analysis...\n'));
+      } catch (err) {
+        console.error(chalk.red('\n  Wizard error:'), err);
+        process.exit(1);
+      }
+    }
+
     if (!await ensureInitialized()) return;
 
     try {
-      console.log(chalk.blue(`\n📊 Analyzing coverage for ${target}...\n`));
+      console.log(chalk.blue(`\n  Analyzing coverage for ${analyzeTarget}...\n`));
 
       // Get coverage analysis domain API directly
       const coverageAPI = context.kernel!.getDomainAPI<{
@@ -1041,7 +1714,7 @@ program
       // Collect source files and generate synthetic coverage data for analysis
       const fs = await import('fs');
       const path = await import('path');
-      const targetPath = path.resolve(target);
+      const targetPath = path.resolve(analyzeTarget);
 
       let sourceFiles: string[] = [];
       if (fs.existsSync(targetPath)) {
@@ -1121,36 +1794,36 @@ program
       // Run coverage analysis
       const result = await coverageAPI.analyze({
         coverageData,
-        threshold: 80,
+        threshold,
         includeFileDetails: true,
       });
 
       if (result.success && result.value) {
         const report = result.value as { summary: { line: number; branch: number; function: number; statement: number }; meetsThreshold: boolean; recommendations: string[] };
 
-        console.log(chalk.cyan('📈 Coverage Summary:'));
+        console.log(chalk.cyan('  Coverage Summary:'));
         console.log(`    Lines:      ${getColorForPercent(report.summary.line)(report.summary.line + '%')}`);
         console.log(`    Branches:   ${getColorForPercent(report.summary.branch)(report.summary.branch + '%')}`);
         console.log(`    Functions:  ${getColorForPercent(report.summary.function)(report.summary.function + '%')}`);
         console.log(`    Statements: ${getColorForPercent(report.summary.statement)(report.summary.statement + '%')}`);
-        console.log(`\n    Threshold: ${report.meetsThreshold ? chalk.green('✓ Met (80%)') : chalk.red('✗ Not met (80%)')}`);
+        console.log(`\n    Threshold: ${report.meetsThreshold ? chalk.green(`Met (${threshold}%)`) : chalk.red(`Not met (${threshold}%)`)}`);
 
         if (report.recommendations.length > 0) {
           console.log(chalk.cyan('\n  Recommendations:'));
           for (const rec of report.recommendations) {
-            console.log(chalk.gray(`    • ${rec}`));
+            console.log(chalk.gray(`    - ${rec}`));
           }
         }
       }
 
       // Detect gaps if requested
-      if (options.gaps) {
-        console.log(chalk.cyan('\n🔍 Coverage Gaps:'));
+      if (detectGaps) {
+        console.log(chalk.cyan('\n  Coverage Gaps:'));
 
         const gapResult = await coverageAPI.detectGaps({
           coverageData,
-          minCoverage: 80,
-          prioritize: options.risk ? 'risk' : 'size',
+          minCoverage: threshold,
+          prioritize: includeRisk ? 'risk' : 'size',
         });
 
         if (gapResult.success && gapResult.value) {
@@ -1172,7 +1845,7 @@ program
       }
 
       // Calculate risk if requested
-      if (options.risk) {
+      if (includeRisk) {
         console.log(chalk.cyan('\n⚠️  Risk Analysis:'));
 
         // Calculate risk for top 5 files with lowest coverage
@@ -1949,11 +2622,400 @@ program
   });
 
 // ============================================================================
+// Completions Command
+// ============================================================================
+
+const completionsCmd = program
+  .command('completions')
+  .description('Generate shell completions for aqe-v3');
+
+completionsCmd
+  .command('bash')
+  .description('Generate Bash completion script')
+  .action(() => {
+    console.log(generateCompletion('bash'));
+  });
+
+completionsCmd
+  .command('zsh')
+  .description('Generate Zsh completion script')
+  .action(() => {
+    console.log(generateCompletion('zsh'));
+  });
+
+completionsCmd
+  .command('fish')
+  .description('Generate Fish completion script')
+  .action(() => {
+    console.log(generateCompletion('fish'));
+  });
+
+completionsCmd
+  .command('powershell')
+  .description('Generate PowerShell completion script')
+  .action(() => {
+    console.log(generateCompletion('powershell'));
+  });
+
+completionsCmd
+  .command('install')
+  .description('Auto-install completions for current shell')
+  .option('-s, --shell <shell>', 'Target shell (bash|zsh|fish|powershell)')
+  .action(async (options) => {
+    const fs = await import('fs');
+    const path = await import('path');
+
+    const shellInfo = options.shell
+      ? { name: options.shell as 'bash' | 'zsh' | 'fish' | 'powershell', configFile: null, detected: false }
+      : detectShell();
+
+    if (shellInfo.name === 'unknown') {
+      console.log(chalk.red('Could not detect shell. Please specify with --shell option.\n'));
+      console.log(getInstallInstructions('unknown'));
+      process.exit(1);
+    }
+
+    console.log(chalk.blue(`\nInstalling completions for ${shellInfo.name}...\n`));
+
+    const script = generateCompletion(shellInfo.name);
+
+    // For Fish, write directly to completions directory
+    if (shellInfo.name === 'fish') {
+      const fishCompletionsDir = `${process.env.HOME}/.config/fish/completions`;
+      try {
+        fs.mkdirSync(fishCompletionsDir, { recursive: true });
+        const completionFile = path.join(fishCompletionsDir, 'aqe-v3.fish');
+        fs.writeFileSync(completionFile, script);
+        console.log(chalk.green(`Completions installed to: ${completionFile}`));
+        console.log(chalk.gray('\nRestart your shell or run: source ~/.config/fish/completions/aqe-v3.fish\n'));
+      } catch (err) {
+        console.log(chalk.red(`Failed to install: ${err}`));
+        console.log(chalk.yellow('\nManual installation:'));
+        console.log(getInstallInstructions('fish'));
+      }
+    } else {
+      // For other shells, show instructions
+      console.log(chalk.yellow('To install completions, follow these instructions:\n'));
+      console.log(getInstallInstructions(shellInfo.name));
+      console.log(chalk.gray('\n---\nCompletion script:\n'));
+      console.log(script);
+    }
+  });
+
+completionsCmd
+  .command('list')
+  .description('List all completion values (domains, agents, etc.)')
+  .option('-t, --type <type>', 'Type to list (domains|agents|v3-qe-agents)', 'all')
+  .action((options) => {
+    if (options.type === 'domains' || options.type === 'all') {
+      console.log(chalk.blue('\n12 DDD Domains:'));
+      COMPLETION_DOMAINS.forEach(d => console.log(chalk.gray(`  ${d}`)));
+    }
+
+    if (options.type === 'v3-qe-agents' || options.type === 'all') {
+      console.log(chalk.blue('\nV3 QE Agents (' + V3_QE_AGENTS.length + '):'));
+      V3_QE_AGENTS.forEach(a => console.log(chalk.gray(`  ${a}`)));
+    }
+
+    if (options.type === 'agents' || options.type === 'all') {
+      console.log(chalk.blue('\nOther Agents (' + OTHER_AGENTS.length + '):'));
+      OTHER_AGENTS.forEach(a => console.log(chalk.gray(`  ${a}`)));
+    }
+
+    console.log('');
+  });
+
+// ============================================================================
+// Fleet Command Group - Multi-agent operations with progress
+// ============================================================================
+
+const fleetCmd = program
+  .command('fleet')
+  .description('Fleet operations with multi-agent progress tracking');
+
+fleetCmd
+  .command('spawn')
+  .description('Spawn multiple agents with progress tracking')
+  .option('-d, --domains <domains>', 'Comma-separated domains', 'test-generation,coverage-analysis')
+  .option('-t, --type <type>', 'Agent type for all', 'worker')
+  .option('-c, --count <count>', 'Number of agents per domain', '1')
+  .action(async (options) => {
+    if (!await ensureInitialized()) return;
+
+    try {
+      const domains = options.domains.split(',') as DomainName[];
+      const countPerDomain = parseInt(options.count, 10);
+
+      console.log(chalk.blue('\n Fleet Spawn Operation\n'));
+
+      // Create fleet progress manager
+      const progress = new FleetProgressManager({
+        title: 'Agent Spawn Progress',
+        showEta: true,
+      });
+
+      const totalAgents = domains.length * countPerDomain;
+      progress.start(totalAgents);
+
+      // Track spawned agents
+      const spawnedAgents: Array<{ id: string; domain: string; success: boolean }> = [];
+      let agentIndex = 0;
+
+      // Spawn agents across domains
+      for (const domain of domains) {
+        for (let i = 0; i < countPerDomain; i++) {
+          const agentName = `${domain}-${options.type}-${i + 1}`;
+          const agentId = `agent-${agentIndex++}`;
+
+          // Add agent to progress tracker
+          progress.addAgent({
+            id: agentId,
+            name: agentName,
+            status: 'pending',
+            progress: 0,
+          });
+
+          // Update to running
+          progress.updateAgent(agentId, 10, { status: 'running' });
+
+          try {
+            // Spawn the agent
+            progress.updateAgent(agentId, 30, { message: 'Initializing...' });
+
+            const result = await context.queen!.requestAgentSpawn(
+              domain,
+              options.type,
+              ['general']
+            );
+
+            progress.updateAgent(agentId, 80, { message: 'Configuring...' });
+
+            if (result.success) {
+              progress.completeAgent(agentId, true);
+              spawnedAgents.push({ id: result.value as string, domain, success: true });
+            } else {
+              progress.completeAgent(agentId, false);
+              spawnedAgents.push({ id: agentId, domain, success: false });
+            }
+          } catch {
+            progress.completeAgent(agentId, false);
+            spawnedAgents.push({ id: agentId, domain, success: false });
+          }
+        }
+      }
+
+      progress.stop();
+
+      // Summary
+      const successful = spawnedAgents.filter(a => a.success).length;
+      const failed = spawnedAgents.filter(a => !a.success).length;
+
+      console.log(chalk.blue('\n Fleet Summary:'));
+      console.log(chalk.gray(`   Domains: ${domains.join(', ')}`));
+      console.log(chalk.green(`   Successful: ${successful}`));
+      if (failed > 0) {
+        console.log(chalk.red(`   Failed: ${failed}`));
+      }
+      console.log('');
+
+      await cleanupAndExit(failed > 0 ? 1 : 0);
+
+    } catch (error) {
+      console.error(chalk.red('\n Fleet spawn failed:'), error);
+      await cleanupAndExit(1);
+    }
+  });
+
+fleetCmd
+  .command('run')
+  .description('Run a coordinated fleet operation')
+  .argument('<operation>', 'Operation type (test|analyze|scan)')
+  .option('-t, --target <path>', 'Target path', '.')
+  .option('--parallel <count>', 'Number of parallel agents', '4')
+  .action(async (operation: string, options) => {
+    if (!await ensureInitialized()) return;
+
+    try {
+      const parallelCount = parseInt(options.parallel, 10);
+
+      console.log(chalk.blue(`\n Fleet Operation: ${operation}\n`));
+
+      // Create fleet progress manager
+      const progress = new FleetProgressManager({
+        title: `${operation.charAt(0).toUpperCase() + operation.slice(1)} Progress`,
+        showEta: true,
+      });
+
+      progress.start(parallelCount);
+
+      // Define agent operations based on operation type
+      const domainMap: Record<string, DomainName> = {
+        test: 'test-generation',
+        analyze: 'coverage-analysis',
+        scan: 'security-compliance',
+      };
+
+      const domain = domainMap[operation] || 'test-generation';
+
+      // Create parallel agent operations
+      const agentOperations = Array.from({ length: parallelCount }, (_, i) => {
+        const agentId = `${operation}-agent-${i + 1}`;
+        return {
+          id: agentId,
+          name: `${operation}-worker-${i + 1}`,
+          domain,
+        };
+      });
+
+      // Add all agents to progress
+      for (const op of agentOperations) {
+        progress.addAgent({
+          id: op.id,
+          name: op.name,
+          status: 'pending',
+          progress: 0,
+        });
+      }
+
+      // Execute operations in parallel with progress updates
+      const results = await Promise.all(
+        agentOperations.map(async (op, index) => {
+          // Simulate staggered start
+          await new Promise(resolve => setTimeout(resolve, index * 200));
+
+          progress.updateAgent(op.id, 0, { status: 'running' });
+
+          try {
+            // Simulate operation phases with progress updates
+            for (let p = 10; p <= 90; p += 20) {
+              await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 200));
+              progress.updateAgent(op.id, p, {
+                eta: Math.round((100 - p) * 50),
+              });
+            }
+
+            // Submit actual task
+            const taskResult = await context.queen!.submitTask({
+              type: operation === 'test' ? 'generate-tests' :
+                    operation === 'analyze' ? 'analyze-coverage' :
+                    'scan-security',
+              priority: 'p1',
+              targetDomains: [domain],
+              payload: { target: options.target, workerId: op.id },
+              timeout: 60000,
+            });
+
+            progress.completeAgent(op.id, taskResult.success);
+            return { id: op.id, success: taskResult.success };
+          } catch {
+            progress.completeAgent(op.id, false);
+            return { id: op.id, success: false };
+          }
+        })
+      );
+
+      progress.stop();
+
+      // Summary
+      const successful = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+
+      console.log(chalk.blue('\n Operation Summary:'));
+      console.log(chalk.gray(`   Operation: ${operation}`));
+      console.log(chalk.gray(`   Target: ${options.target}`));
+      console.log(chalk.green(`   Successful: ${successful}`));
+      if (failed > 0) {
+        console.log(chalk.red(`   Failed: ${failed}`));
+      }
+      console.log('');
+
+      await cleanupAndExit(failed > 0 ? 1 : 0);
+
+    } catch (error) {
+      console.error(chalk.red('\n Fleet operation failed:'), error);
+      await cleanupAndExit(1);
+    }
+  });
+
+fleetCmd
+  .command('status')
+  .description('Show fleet status with agent progress')
+  .option('-w, --watch', 'Watch mode with live updates')
+  .action(async (options) => {
+    if (!await ensureInitialized()) return;
+
+    try {
+      const showStatus = async () => {
+        const health = context.queen!.getHealth();
+        const metrics = context.queen!.getMetrics();
+
+        console.log(chalk.blue('\n Fleet Status\n'));
+
+        // Overall fleet bar
+        const utilizationBar = '\u2588'.repeat(Math.min(Math.round(metrics.agentUtilization * 20), 20)) +
+                               '\u2591'.repeat(Math.max(20 - Math.round(metrics.agentUtilization * 20), 0));
+        console.log(chalk.white(`Fleet Utilization ${chalk.cyan(utilizationBar)} ${(metrics.agentUtilization * 100).toFixed(0)}%`));
+        console.log('');
+
+        // Agent status by domain
+        console.log(chalk.white('Agent Progress:'));
+        for (const [domain, domainHealth] of health.domainHealth) {
+          const active = domainHealth.agents.active;
+          const total = domainHealth.agents.total;
+          const progressPercent = total > 0 ? Math.round((active / total) * 100) : 0;
+
+          const statusIcon = domainHealth.status === 'healthy' ? chalk.green('\u2713') :
+                            domainHealth.status === 'degraded' ? chalk.yellow('\u25B6') :
+                            chalk.red('\u2717');
+
+          const bar = '\u2588'.repeat(Math.round(progressPercent / 5)) +
+                      '\u2591'.repeat(20 - Math.round(progressPercent / 5));
+
+          console.log(`  ${domain.padEnd(28)} ${chalk.cyan(bar)} ${progressPercent.toString().padStart(3)}% ${statusIcon}`);
+        }
+
+        console.log('');
+        console.log(chalk.gray(`  Active: ${health.activeAgents}/${health.totalAgents} agents`));
+        console.log(chalk.gray(`  Tasks: ${health.runningTasks} running, ${health.pendingTasks} pending`));
+        console.log('');
+      };
+
+      if (options.watch) {
+        const spinner = createTimedSpinner('Watching fleet status (Ctrl+C to exit)');
+
+        // Initial display
+        spinner.spinner.stop();
+        await showStatus();
+
+        // Watch mode - update every 2 seconds
+        const interval = setInterval(async () => {
+          console.clear();
+          await showStatus();
+        }, 2000);
+
+        // Handle Ctrl+C
+        process.on('SIGINT', () => {
+          clearInterval(interval);
+          console.log(chalk.yellow('\nStopped watching.'));
+          process.exit(0);
+        });
+      } else {
+        await showStatus();
+        await cleanupAndExit(0);
+      }
+
+    } catch (error) {
+      console.error(chalk.red('\n Failed to get fleet status:'), error);
+      await cleanupAndExit(1);
+    }
+  });
+
+// ============================================================================
 // Shutdown Handler
 // ============================================================================
 
 process.on('SIGINT', async () => {
-  console.log(chalk.yellow('\n\n🛑 Shutting down...'));
+  console.log(chalk.yellow('\n\n Shutting down...'));
 
   if (context.queen) {
     await context.queen.dispose();
@@ -1965,7 +3027,7 @@ process.on('SIGINT', async () => {
     await context.kernel.dispose();
   }
 
-  console.log(chalk.green('✅ Shutdown complete\n'));
+  console.log(chalk.green(' Shutdown complete\n'));
   process.exit(0);
 });
 

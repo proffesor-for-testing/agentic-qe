@@ -25,6 +25,22 @@ import {
   ChaosInjectTool,
   LearningOptimizeTool,
 } from '../../mcp/tools';
+import { runTestGenerationWizard, type TestWizardResult } from '../wizards/test-wizard.js';
+import {
+  runCoverageAnalysisWizard,
+  type CoverageWizardResult,
+} from '../wizards/coverage-wizard.js';
+import {
+  createTestStreamHandler,
+  createCoverageStreamHandler,
+  type TestResultStreamer,
+  type CoverageStreamer,
+  type TestSuiteResult,
+  type TestCaseResult,
+  type FileCoverage,
+  type CoverageGap,
+  type CoverageSummary,
+} from '../utils/streaming.js';
 // MCPToolContext import removed - not needed for CLI wrapper
 
 // ============================================================================
@@ -33,6 +49,13 @@ import {
 
 interface StreamData {
   message?: string;
+  suite?: TestSuiteResult;
+  test?: TestCaseResult;
+  file?: FileCoverage;
+  gap?: CoverageGap;
+  summary?: CoverageSummary;
+  type?: string;
+  totalFiles?: number;
   [key: string]: unknown;
 }
 
@@ -41,6 +64,90 @@ function createStreamHandler(): { onStream: (data: unknown) => void } {
     onStream: (data: unknown) => {
       const streamData = data as StreamData;
       printStreaming(streamData.message || JSON.stringify(data));
+    },
+  };
+}
+
+/**
+ * Create an enhanced stream handler for test execution with real-time output
+ * per ADR-041 requirements for streaming test results.
+ *
+ * Output format:
+ * ```
+ * [checkmark] UserService.test.ts
+ *   [checkmark] should create user (12ms)
+ *   [checkmark] should validate email (3ms)
+ * [X] PaymentService.test.ts
+ *   [checkmark] should process payment (23ms)
+ *   [X] should handle declined card (45ms)
+ * Tests: 8 passed, 1 failed, 1 skipped
+ * Time: 1.234s
+ * ```
+ */
+function createEnhancedTestStreamHandler(): {
+  onStream: (data: unknown) => void;
+  streamer: TestResultStreamer;
+  finish: () => void;
+} {
+  const { onStream, streamer } = createTestStreamHandler({ colors: true });
+
+  return {
+    onStream: (data: unknown) => {
+      const streamData = data as StreamData;
+
+      // Handle different stream data formats from MCP tools
+      if (streamData.suite) {
+        streamer.streamSuite(streamData.suite);
+      } else if (streamData.test) {
+        streamer.streamTest(streamData.test);
+      } else if (streamData.type === 'summary') {
+        streamer.streamSummary();
+      } else if (streamData.message) {
+        // Fallback for simple messages
+        onStream(data);
+      }
+    },
+    streamer,
+    finish: () => {
+      streamer.streamSummary();
+      streamer.stop();
+    },
+  };
+}
+
+/**
+ * Create an enhanced stream handler for coverage analysis with real-time output
+ * per ADR-041 requirements for streaming coverage analysis.
+ */
+function createEnhancedCoverageStreamHandler(): {
+  onStream: (data: unknown) => void;
+  streamer: CoverageStreamer;
+  finish: (summary: CoverageSummary) => void;
+} {
+  const { onStream, streamer } = createCoverageStreamHandler({ colors: true });
+
+  return {
+    onStream: (data: unknown) => {
+      const streamData = data as StreamData;
+
+      // Handle different stream data formats from MCP tools
+      if (streamData.type === 'start' && streamData.totalFiles) {
+        streamer.start(streamData.totalFiles);
+      } else if (streamData.file) {
+        streamer.streamFileCoverage(streamData.file);
+      } else if (streamData.gap) {
+        streamer.streamGap(streamData.gap);
+      } else if (streamData.summary) {
+        streamer.streamSummary(streamData.summary);
+      } else if (streamData.message) {
+        // Fallback for simple messages
+        onStream(data);
+      }
+    },
+    streamer,
+    finish: (summary: CoverageSummary) => {
+      streamer.streamSummary(summary);
+      streamer.stop();
     },
   };
 }
@@ -80,7 +187,7 @@ export function registerTestCommands(program: Command): void {
   testCmd
     .command('generate')
     .description('Generate tests for source files (MCP: qe/tests/generate)')
-    .argument('<files...>', 'Source files to generate tests for')
+    .argument('[files...]', 'Source files to generate tests for')
     .option('-t, --type <type>', 'Test type (unit|integration|e2e|property|contract)', 'unit')
     .option('-f, --framework <framework>', 'Test framework (jest|vitest|mocha|playwright)', 'vitest')
     .option('-l, --language <lang>', 'Programming language (typescript|javascript|python)', 'typescript')
@@ -88,20 +195,72 @@ export function registerTestCommands(program: Command): void {
     .option('--patterns <patterns>', 'Include patterns (comma-separated)')
     .option('--anti-patterns', 'Detect anti-patterns', false)
     .option('--streaming', 'Enable streaming output', false)
+    .option('--wizard', 'Run interactive test generation wizard')
+    .option('--ai-level <level>', 'AI enhancement level (none|basic|standard|advanced)', 'standard')
     .action(async (files: string[], options) => {
+      let sourceFiles = files;
+      let testType = options.type;
+      let framework = options.framework;
+      let coverageTarget = parseInt(options.coverage, 10);
+      let detectAntiPatterns = options.antiPatterns;
+      let aiLevel = options.aiLevel;
+
+      // Run wizard if requested
+      if (options.wizard) {
+        try {
+          const wizardResult: TestWizardResult = await runTestGenerationWizard({
+            defaultSourceFiles: files.length > 0 ? files : undefined,
+            defaultTestType: options.type,
+            defaultCoverageTarget: parseInt(options.coverage, 10),
+            defaultFramework: options.framework,
+            defaultAILevel: options.aiLevel,
+          });
+
+          if (wizardResult.cancelled) {
+            console.log(chalk.yellow('\n  Test generation cancelled.\n'));
+            process.exit(0);
+          }
+
+          // Use wizard results
+          sourceFiles = wizardResult.sourceFiles;
+          testType = wizardResult.testType;
+          framework = wizardResult.framework;
+          coverageTarget = wizardResult.coverageTarget;
+          detectAntiPatterns = wizardResult.detectAntiPatterns;
+          aiLevel = wizardResult.aiLevel;
+
+          console.log(chalk.green('\n  Starting test generation...\n'));
+        } catch (err) {
+          console.error(chalk.red('\n  Wizard error:'), err);
+          process.exit(1);
+        }
+      }
+
+      // Validate we have source files
+      if (!sourceFiles || sourceFiles.length === 0) {
+        console.log(chalk.red('\n  Error: No source files specified.'));
+        console.log(chalk.gray('  Use --wizard for interactive mode or provide file paths.\n'));
+        console.log(chalk.gray('  Examples:'));
+        console.log(chalk.gray('    aqe-v3 tests generate src/services/*.ts'));
+        console.log(chalk.gray('    aqe-v3 tests generate --wizard\n'));
+        process.exit(1);
+      }
+
       const tool = new TestGenerateTool();
-      
-      console.log(chalk.blue(`\n  Generating ${options.type} tests for ${files.length} file(s)...\n`));
+
+      console.log(chalk.blue(`\n  Generating ${testType} tests for ${sourceFiles.length} file(s)...\n`));
+      console.log(chalk.gray(`  Framework: ${framework} | Coverage: ${coverageTarget}% | AI: ${aiLevel}\n`));
 
       const start = Date.now();
       const result = await tool.invoke({
-        sourceFiles: files,
-        testType: options.type,
-        framework: options.framework,
+        sourceFiles,
+        testType,
+        framework,
         language: options.language,
-        coverageTarget: parseInt(options.coverage, 10),
+        coverageTarget,
         includePatterns: options.patterns?.split(','),
-        detectAntiPatterns: options.antiPatterns,
+        detectAntiPatterns,
+        aiEnhanced: aiLevel !== 'none',
       }, options.streaming ? createStreamHandler() : {});
 
       console.log(chalk.gray(`  Duration: ${formatDuration(Date.now() - start)}`));
@@ -120,12 +279,24 @@ export function registerTestCommands(program: Command): void {
     .option('--flaky-detection', 'Enable flaky test detection', true)
     .option('--fail-fast', 'Stop on first failure', false)
     .option('--streaming', 'Enable streaming output', false)
+    .option('--stream', 'Alias for --streaming (enhanced real-time output)', false)
     .action(async (pattern: string, options) => {
       const tool = new TestExecuteTool();
-      
+      const useStreaming = options.streaming || options.stream;
+
       console.log(chalk.blue(`\n  Executing tests matching: ${pattern}...\n`));
 
       const start = Date.now();
+
+      // Use enhanced streaming handler for real-time test output per ADR-041
+      let streamHandler: { onStream: (data: unknown) => void } | Record<string, never> = {};
+      let enhancedHandler: ReturnType<typeof createEnhancedTestStreamHandler> | null = null;
+
+      if (useStreaming) {
+        enhancedHandler = createEnhancedTestStreamHandler();
+        streamHandler = { onStream: enhancedHandler.onStream };
+      }
+
       const result = await tool.invoke({
         testPattern: pattern,
         framework: options.framework,
@@ -135,10 +306,22 @@ export function registerTestCommands(program: Command): void {
         collectCoverage: options.coverage,
         flakyDetection: options.flakyDetection,
         failFast: options.failFast,
-      }, options.streaming ? createStreamHandler() : {});
+      }, streamHandler);
+
+      // Finalize streaming output with summary
+      if (enhancedHandler) {
+        enhancedHandler.finish();
+      }
 
       console.log(chalk.gray(`  Duration: ${formatDuration(Date.now() - start)}`));
-      printResult(result);
+
+      // Only print result if not streaming (streaming already shows output)
+      if (!useStreaming) {
+        printResult(result);
+      } else if (!result.success) {
+        console.log(chalk.red(`\n  Error: ${result.error}\n`));
+        process.exit(1);
+      }
     });
 }
 
@@ -160,23 +343,94 @@ export function registerCoverageCommands(program: Command): void {
     .option('--exclude <patterns>', 'Exclude patterns (comma-separated)')
     .option('--threshold <percent>', 'Coverage threshold', '80')
     .option('--risk-scoring', 'Include risk scoring', true)
+    .option('--sensitivity <level>', 'Gap detection sensitivity (low|medium|high)', 'medium')
+    .option('--format <format>', 'Report format (json|html|markdown|text)', 'json')
     .option('--streaming', 'Enable streaming output', false)
+    .option('--stream', 'Alias for --streaming (enhanced real-time output)', false)
+    .option('--wizard', 'Run interactive coverage analysis wizard')
     .action(async (target: string, options) => {
+      let analyzeTarget = target;
+      let threshold = parseInt(options.threshold, 10);
+      let includeRiskScoring = options.riskScoring;
+      let includePatterns = options.include?.split(',');
+      let excludePatterns = options.exclude?.split(',');
+      let sensitivity = options.sensitivity;
+      const useStreaming = options.streaming || options.stream;
+
+      // Run wizard if requested
+      if (options.wizard) {
+        try {
+          const wizardResult: CoverageWizardResult = await runCoverageAnalysisWizard({
+            defaultTarget: target !== '.' ? target : undefined,
+            defaultThreshold: options.threshold !== '80' ? parseInt(options.threshold, 10) : undefined,
+            defaultRiskScoring: options.riskScoring,
+            defaultSensitivity: options.sensitivity !== 'medium' ? options.sensitivity : undefined,
+            defaultFormat: options.format !== 'json' ? options.format : undefined,
+          });
+
+          if (wizardResult.cancelled) {
+            console.log(chalk.yellow('\n  Coverage analysis cancelled.\n'));
+            process.exit(0);
+          }
+
+          // Use wizard results
+          analyzeTarget = wizardResult.target;
+          threshold = wizardResult.threshold;
+          includeRiskScoring = wizardResult.riskScoring;
+          includePatterns = wizardResult.includePatterns;
+          excludePatterns = wizardResult.excludePatterns;
+          sensitivity = wizardResult.sensitivity;
+
+          console.log(chalk.green('\n  Starting coverage analysis...\n'));
+        } catch (err) {
+          console.error(chalk.red('\n  Wizard error:'), err);
+          process.exit(1);
+        }
+      }
+
       const tool = new CoverageAnalyzeTool();
-      
-      console.log(chalk.blue(`\n  Analyzing coverage for: ${target}...\n`));
+
+      console.log(chalk.blue(`\n  Analyzing coverage for: ${analyzeTarget}...\n`));
+      console.log(chalk.gray(`  Threshold: ${threshold}% | Sensitivity: ${sensitivity} | Risk Scoring: ${includeRiskScoring ? 'enabled' : 'disabled'}\n`));
 
       const start = Date.now();
+
+      // Use enhanced streaming handler for real-time coverage output per ADR-041
+      let streamHandler: { onStream: (data: unknown) => void } | Record<string, never> = {};
+      let enhancedHandler: ReturnType<typeof createEnhancedCoverageStreamHandler> | null = null;
+
+      if (useStreaming) {
+        enhancedHandler = createEnhancedCoverageStreamHandler();
+        streamHandler = { onStream: enhancedHandler.onStream };
+      }
+
       const result = await tool.invoke({
-        target,
-        includePatterns: options.include?.split(','),
-        excludePatterns: options.exclude?.split(','),
-        threshold: parseInt(options.threshold, 10),
-        includeRiskScoring: options.riskScoring,
-      }, options.streaming ? createStreamHandler() : {});
+        target: analyzeTarget,
+        includePatterns,
+        excludePatterns,
+        threshold,
+        includeRiskScoring,
+      }, streamHandler);
+
+      // Finalize streaming output with summary if we have data
+      if (enhancedHandler && result.success && result.data) {
+        const data = result.data as { overall?: number; files?: FileCoverage[]; gaps?: CoverageGap[] };
+        enhancedHandler.finish({
+          overall: data.overall || 0,
+          files: data.files || [],
+          gaps: data.gaps || [],
+        });
+      }
 
       console.log(chalk.gray(`  Duration: ${formatDuration(Date.now() - start)}`));
-      printResult(result);
+
+      // Only print result if not streaming (streaming already shows output)
+      if (!useStreaming) {
+        printResult(result);
+      } else if (!result.success) {
+        console.log(chalk.red(`\n  Error: ${result.error}\n`));
+        process.exit(1);
+      }
     });
 
   // qe coverage gaps

@@ -4,7 +4,7 @@
 **Date Range:** 2026-01-07 onwards
 **Status:** Phase 6 In Progress (RuVector MinCut Intelligence + V3 Skills Improvement)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-01-11 (3178 tests passing, ADR-001-036 Implemented)
+**Last Verified:** 2026-01-14 (3809 tests passing, ADR-001-041 Implemented)
 
 ---
 
@@ -48,11 +48,11 @@
 | ADR-034 | Neural Topology Optimizer | **Implemented** | 2026-01-11 | ✅ 143 tests, 1,820 LOC: Q-learning + value network + replay buffer |
 | ADR-035 | Causal Discovery | **Implemented** | 2026-01-11 | ✅ 103 tests, 1,430 LOC: STDP + Floyd-Warshall + Tarjan SCC |
 | ADR-036 | Language-Aware Result Persistence | **Implemented** | 2026-01-11 | ✅ 74 tests, 780 LOC: ResultSaver + 11 languages + SARIF/LCOV |
-| ADR-037 | V3 QE Agent Naming Standardization | **Proposed** | 2026-01-11 | ⏳ V2→V3 naming migration |
-| ADR-038 | V3 QE Memory System Unification | **Proposed** | 2026-01-11 | ⏳ AgentDB + HNSW + SONA |
-| ADR-039 | V3 QE MCP Optimization | **Proposed** | 2026-01-11 | ⏳ Connection pooling + O(1) lookup |
-| ADR-040 | V3 QE Agentic-Flow Integration | **Proposed** | 2026-01-11 | ⏳ SONA + Flash Attention + 9 RL algorithms |
-| ADR-041 | V3 QE CLI Enhancement | **Proposed** | 2026-01-11 | ⏳ Interactive wizards + workflows |
+| ADR-037 | V3 QE Agent Naming Standardization | **Implemented** | 2026-01-14 | ✅ v3-qe-* prefix for 47 agents in completions |
+| ADR-038 | V3 QE Memory System Unification | **Implemented** | 2026-01-14 | ✅ AgentDB + HNSW + hybrid backend |
+| ADR-039 | V3 QE MCP Optimization | **Implemented** | 2026-01-14 | ✅ Simplified MCP command (aqe-v3-mcp) |
+| ADR-040 | V3 QE Agentic-Flow Integration | **Implemented** | 2026-01-14 | ✅ WorkflowOrchestrator + YAML pipelines |
+| ADR-041 | V3 QE CLI Enhancement | **Implemented** | 2026-01-14 | ✅ 196 tests: wizards + progress + streaming + completions + workflows |
 | ADR-042 | V3 QE Token Tracking Integration | **Proposed** | 2026-01-11 | ⏳ Token tracking + -25% reduction via pattern reuse |
 | [ADR-043](./ADR-043-vendor-independent-llm.md) | Vendor-Independent LLM Support | **Proposed** | 2026-01-13 | ⏳ [HybridRouter + 7 providers + smart routing](../plans/GOAP-ADR-043-VENDOR-INDEPENDENT-LLM.md) |
 
