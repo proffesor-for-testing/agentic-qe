@@ -14,16 +14,20 @@ echo "📦 Preparing assets for npm publish..."
 mkdir -p "$V3_DIR/assets/skills"
 mkdir -p "$V3_DIR/assets/agents/v3"
 
-# Copy skills (exclude internal development skills and .claude-flow metadata)
+# Copy skills (QE-related skills: v2 testing skills + v3 qe-* skills)
 echo "📋 Copying skills..."
 if [ -d "$REPO_ROOT/.claude/skills" ]; then
-  # Copy all skills except internal ones
+  # V2 QE skills (testing-related with generic names)
+  V2_QE_SKILLS="accessibility-testing api-testing-patterns bug-reporting-excellence chaos-engineering-resilience code-review-quality compatibility-testing compliance-testing consultancy-practices context-driven-testing contract-testing database-testing exploratory-testing-advanced holistic-testing-pact localization-testing mobile-testing mutation-testing pair-programming performance-testing quality-metrics refactoring-patterns regression-testing risk-based-testing security-testing shift-left-testing shift-right-testing six-thinking-hats tdd-london-chicago technical-writing test-automation-strategy test-data-management test-design-techniques test-environment-management test-reporting-analytics verification-quality visual-testing-advanced xp-practices"
+
   for skill_dir in "$REPO_ROOT/.claude/skills"/*; do
     if [ -d "$skill_dir" ]; then
       skill_name=$(basename "$skill_dir")
-      # Skip internal/development skills and hidden directories
-      if [[ ! "$skill_name" =~ ^v3-(core|cli|ddd|integration|mcp|memory|performance|security|swarm|qe-core|qe-ddd|qe-cli|qe-memory|qe-performance|qe-security|qe-mcp|qe-mcp-optimization|qe-memory-unification|qe-integration|qe-agentic-flow|qe-fleet) ]] && \
-         [[ ! "$skill_name" =~ ^\.  ]]; then
+      # Include: qe-* skills (v3), agentic-quality-engineering (core), aqe-v2-v3-migration, and v2 QE skills
+      if [[ "$skill_name" =~ ^qe- ]] || \
+         [[ "$skill_name" == "agentic-quality-engineering" ]] || \
+         [[ "$skill_name" == "aqe-v2-v3-migration" ]] || \
+         [[ " $V2_QE_SKILLS " =~ " $skill_name " ]]; then
         cp -r "$skill_dir" "$V3_DIR/assets/skills/"
       fi
     fi
@@ -33,11 +37,11 @@ else
   echo "  ⚠️  Skills directory not found at $REPO_ROOT/.claude/skills"
 fi
 
-# Copy v3 agents (only v3-qe-* agents)
+# Copy v3 agents (qe-* agents - ADR-045 version-agnostic naming)
 echo "🤖 Copying agents..."
 if [ -d "$REPO_ROOT/.claude/agents/v3" ]; then
-  # Copy v3-qe-* agents only
-  for agent_file in "$REPO_ROOT/.claude/agents/v3"/v3-qe-*.md; do
+  # Copy qe-* agents (version-agnostic naming per ADR-045)
+  for agent_file in "$REPO_ROOT/.claude/agents/v3"/qe-*.md; do
     if [ -f "$agent_file" ]; then
       cp "$agent_file" "$V3_DIR/assets/agents/v3/"
     fi
@@ -46,7 +50,7 @@ if [ -d "$REPO_ROOT/.claude/agents/v3" ]; then
   # Copy subagents directory if it exists
   if [ -d "$REPO_ROOT/.claude/agents/v3/subagents" ]; then
     mkdir -p "$V3_DIR/assets/agents/v3/subagents"
-    for agent_file in "$REPO_ROOT/.claude/agents/v3/subagents"/v3-qe-*.md; do
+    for agent_file in "$REPO_ROOT/.claude/agents/v3/subagents"/qe-*.md; do
       if [ -f "$agent_file" ]; then
         cp "$agent_file" "$V3_DIR/assets/agents/v3/subagents/"
       fi

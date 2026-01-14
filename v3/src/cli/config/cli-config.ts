@@ -123,7 +123,7 @@ export const DEFAULT_CLI_CONFIG: QECLIConfig = {
  * Get the configuration directory path
  */
 export function getConfigDir(): string {
-  return join(homedir(), '.aqe-v3');
+  return join(homedir(), '.aqe');
 }
 
 /**

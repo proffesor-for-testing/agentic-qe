@@ -1,13 +1,13 @@
 {
   "name": "@agentic-qe/v3",
-  "version": "3.0.0-alpha.19",
+  "version": "3.0.0-alpha.20",
   "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 47 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "aqe-v3": "dist/cli/bundle.js",
-    "aqe-v3-mcp": "dist/mcp/bundle.js"
+    "aqe": "dist/cli/bundle.js",
+    "aqe-mcp": "dist/mcp/bundle.js"
   },
   "publishConfig": {
     "access": "public",

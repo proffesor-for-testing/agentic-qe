@@ -1,0 +1,141 @@
+# Agent Name Aliases for Backward Compatibility
+# ADR-042: Version-Agnostic Naming Migration
+#
+# These aliases map old v3-prefixed names to new semantic names.
+# Deprecated names will show warnings when used.
+#
+# Usage: Agent registry should check this file to resolve aliases.
+
+# V3 to Semantic Name Aliases (for users migrating from v3- prefixed names)
+v3_aliases:
+  # Test Generation Domain
+  v3-qe-test-architect: qe-test-architect
+  v3-qe-tdd-specialist: qe-tdd-specialist
+  v3-qe-integration-tester: qe-integration-tester
+  v3-qe-property-tester: qe-property-tester
+  v3-qe-bdd-generator: qe-bdd-generator
+
+  # Test Execution Domain
+  v3-qe-parallel-executor: qe-parallel-executor
+  v3-qe-flaky-hunter: qe-flaky-hunter
+  v3-qe-retry-handler: qe-retry-handler
+
+  # Coverage Analysis Domain
+  v3-qe-coverage-specialist: qe-coverage-specialist
+  v3-qe-gap-detector: qe-gap-detector
+  v3-qe-mutation-tester: qe-mutation-tester
+
+  # Quality Assessment Domain
+  v3-qe-quality-gate: qe-quality-gate
+  v3-qe-deployment-advisor: qe-deployment-advisor
+  v3-qe-code-complexity: qe-code-complexity
+  v3-qe-risk-assessor: qe-risk-assessor
+
+  # Defect Intelligence Domain
+  v3-qe-defect-predictor: qe-defect-predictor
+  v3-qe-pattern-learner: qe-pattern-learner
+  v3-qe-root-cause-analyzer: qe-root-cause-analyzer
+  v3-qe-regression-analyzer: qe-regression-analyzer
+
+  # Requirements Validation Domain
+  v3-qe-requirements-validator: qe-requirements-validator
+
+  # Code Intelligence Domain
+  v3-qe-code-intelligence: qe-code-intelligence
+  v3-qe-dependency-mapper: qe-dependency-mapper
+  v3-qe-kg-builder: qe-kg-builder
+  v3-qe-impact-analyzer: qe-impact-analyzer
+
+  # Security Compliance Domain
+  v3-qe-security-scanner: qe-security-scanner
+  v3-qe-security-auditor: qe-security-auditor
+
+  # Contract Testing Domain
+  v3-qe-contract-validator: qe-contract-validator
+  v3-qe-graphql-tester: qe-graphql-tester
+
+  # Visual Accessibility Domain
+  v3-qe-visual-tester: qe-visual-tester
+  v3-qe-accessibility-auditor: qe-accessibility-auditor
+  v3-qe-responsive-tester: qe-responsive-tester
+
+  # Chaos Resilience Domain
+  v3-qe-chaos-engineer: qe-chaos-engineer
+  v3-qe-load-tester: qe-load-tester
+  v3-qe-performance-tester: qe-performance-tester
+
+  # Learning Optimization Domain
+  v3-qe-learning-coordinator: qe-learning-coordinator
+  v3-qe-transfer-specialist: qe-transfer-specialist
+  v3-qe-metrics-optimizer: qe-metrics-optimizer
+
+  # Coordination
+  v3-qe-qx-partner: qe-qx-partner
+  v3-qe-fleet-commander: qe-fleet-commander
+  v3-qe-queen-coordinator: qe-queen-coordinator
+
+  # Architecture
+  v3-integration-architect: qe-integration-architect
+
+# V3 Subagent Aliases
+v3_subagent_aliases:
+  v3-qe-tdd-red: qe-tdd-red
+  v3-qe-tdd-green: qe-tdd-green
+  v3-qe-tdd-refactor: qe-tdd-refactor
+  v3-qe-code-reviewer: qe-code-reviewer
+  v3-qe-integration-reviewer: qe-integration-reviewer
+  v3-qe-performance-reviewer: qe-performance-reviewer
+  v3-qe-security-reviewer: qe-security-reviewer
+
+# V2 to V3 Semantic Aliases (for users migrating from v2)
+# These map old v2 names to their v3 semantic equivalents
+v2_aliases:
+  qe-test-generator: qe-test-architect
+  qe-coverage-analyzer: qe-coverage-specialist
+  qe-a11y-ally: qe-accessibility-auditor
+  qe-api-contract-validator: qe-contract-validator
+  qe-deployment-readiness: qe-deployment-advisor
+  qe-flaky-test-hunter: qe-flaky-hunter
+  qe-regression-risk-analyzer: qe-regression-analyzer
+  qe-test-executor: qe-parallel-executor
+  qx-partner: qe-qx-partner
+
+# V2 agents with no V3 equivalent (kept as-is, no alias needed)
+v2_keep:
+  - qe-production-intelligence   # Unique production monitoring
+  - qe-quality-analyzer          # Comprehensive quality metrics (different from qe-quality-gate)
+  - qe-test-data-architect       # Schema-aware data generation
+  - base-template-generator      # Utility agent for templates
+
+# V2 agents deprecated in favor of V3 equivalents (same semantic name)
+# These v2 agents will be superseded by the v3 version:
+v2_deprecated:
+  - qe-quality-gate              # Use v3's qe-quality-gate
+  - qe-security-scanner          # Use v3's qe-security-scanner
+  - qe-chaos-engineer            # Use v3's qe-chaos-engineer
+  - qe-code-complexity           # Use v3's qe-code-complexity
+  - qe-code-intelligence         # Use v3's qe-code-intelligence
+  - qe-fleet-commander           # Use v3's qe-fleet-commander
+  - qe-performance-tester        # Use v3's qe-performance-tester
+  - qe-requirements-validator    # Use v3's qe-requirements-validator
+  - qe-visual-tester             # Use v3's qe-visual-tester
+
+# Skill Name Aliases (for backward compatibility)
+skill_aliases:
+  v3-qe-test-generation: qe-test-generation
+  v3-qe-test-execution: qe-test-execution
+  v3-qe-coverage-analysis: qe-coverage-analysis
+  v3-qe-quality-assessment: qe-quality-assessment
+  v3-qe-defect-intelligence: qe-defect-intelligence
+  v3-qe-code-intelligence: qe-code-intelligence
+  v3-qe-contract-testing: qe-contract-testing
+  v3-qe-chaos-resilience: qe-chaos-resilience
+  v3-qe-requirements-validation: qe-requirements-validation
+  v3-qe-learning-optimization: qe-learning-optimization
+  v3-qe-visual-accessibility: qe-visual-accessibility
+  v3-qe-security-compliance: qe-security-compliance
+
+# CLI Command Aliases
+cli_aliases:
+  aqe-v3: aqe
+  aqe-v3-mcp: aqe-mcp

@@ -178,7 +178,7 @@ async function ensureInitialized(): Promise<boolean> {
     return true;
   } catch (err) {
     console.error(chalk.red('Failed to auto-initialize:'), err);
-    console.log(chalk.yellow('Try running `aqe-v3 init` manually.'));
+    console.log(chalk.yellow('Try running `aqe init` manually.'));
     return false;
   }
 }
@@ -213,8 +213,8 @@ async function cleanupAndExit(code: number = 0): Promise<never> {
 const program = new Command();
 
 program
-  .name('aqe-v3')
-  .description('Agentic QE v3 - Domain-Driven Quality Engineering')
+  .name('aqe')
+  .description('Agentic QE - Domain-Driven Quality Engineering')
   .version('3.0.0-alpha.1');
 
 // ============================================================================
@@ -280,9 +280,9 @@ program
           console.log(chalk.gray(`  • Total time: ${result.totalDurationMs}ms\n`));
 
           console.log(chalk.white('Next steps:'));
-          console.log(chalk.gray('  1. Add MCP: claude mcp add aqe-v3 -- aqe-v3-mcp'));
-          console.log(chalk.gray('  2. Run tests: aqe-v3 test <path>'));
-          console.log(chalk.gray('  3. Check status: aqe-v3 status\n'));
+          console.log(chalk.gray('  1. Add MCP: claude mcp add aqe -- aqe-mcp'));
+          console.log(chalk.gray('  2. Run tests: aqe test <path>'));
+          console.log(chalk.gray('  3. Check status: aqe status\n'));
         } else {
           console.log(chalk.red('❌ Initialization failed. Check errors above.\n'));
           process.exit(1);
@@ -1093,7 +1093,7 @@ workflowCmd
         }
       } else {
         console.log(chalk.green('Workflow execution started'));
-        console.log(chalk.gray(`   Use 'aqe-v3 workflow status ${executionId}' to check progress`));
+        console.log(chalk.gray(`   Use 'aqe workflow status ${executionId}' to check progress`));
       }
 
       console.log('');
@@ -1184,7 +1184,7 @@ workflowCmd
 
       console.log(chalk.yellow('\nNote: Scheduled workflows require daemon mode to run automatically'));
       console.log(chalk.gray('   Start daemon with: npx @claude-flow/cli@latest daemon start'));
-      console.log(chalk.gray('   Schedules are persisted to: ~/.aqe-v3/schedules.json'));
+      console.log(chalk.gray('   Schedules are persisted to: ~/.aqe/schedules.json'));
 
       console.log('');
       await cleanupAndExit(0);
@@ -1504,7 +1504,7 @@ workflowCmd
 // Shortcut Commands
 // ============================================================================
 
-// aqe-v3 test generate <source>
+// aqe test generate <source>
 program
   .command('test')
   .description('Test generation shortcut')
@@ -1677,7 +1677,7 @@ program
     }
   });
 
-// aqe-v3 coverage <target>
+// aqe coverage <target>
 program
   .command('coverage')
   .description('Coverage analysis shortcut')
@@ -1911,7 +1911,7 @@ function getColorForPercent(percent: number): (str: string) => string {
   return chalk.red;
 }
 
-// aqe-v3 quality
+// aqe quality
 program
   .command('quality')
   .description('Quality assessment shortcut')
@@ -1932,7 +1932,7 @@ program
 
       if (result.success) {
         console.log(chalk.green(`✅ Task submitted: ${result.value}`));
-        console.log(chalk.gray(`   Use 'aqe-v3 task status ${result.value}' to check progress`));
+        console.log(chalk.gray(`   Use 'aqe task status ${result.value}' to check progress`));
       } else {
         console.log(chalk.red(`❌ Failed: ${result.error.message}`));
       }
@@ -1945,7 +1945,7 @@ program
     }
   });
 
-// aqe-v3 security
+// aqe security
 program
   .command('security')
   .description('Security scanning shortcut')
@@ -2070,7 +2070,7 @@ program
     }
   });
 
-// aqe-v3 code (code intelligence)
+// aqe code (code intelligence)
 program
   .command('code')
   .description('Code intelligence analysis')
@@ -2368,14 +2368,14 @@ program
 
     const cwd = process.cwd();
     const v2Dir = path.join(cwd, '.agentic-qe');
-    const v3Dir = path.join(cwd, '.aqe-v3');
+    const v3Dir = path.join(cwd, '.aqe');
 
     // Step 1: Detect v2 installation
     console.log(chalk.white('1. Detecting v2 installation...'));
 
     if (!fs.existsSync(v2Dir)) {
       console.log(chalk.yellow('   ⚠ No v2 installation found at .agentic-qe/'));
-      console.log(chalk.gray('   This might be a fresh project. Use `aqe-v3 init` instead.'));
+      console.log(chalk.gray('   This might be a fresh project. Use `aqe init` instead.'));
       process.exit(0);
     }
 
@@ -2398,7 +2398,7 @@ program
     console.log(chalk.white('2. Checking v3 status...'));
 
     if (fs.existsSync(v3Dir) && !options.force) {
-      console.log(chalk.yellow('   ⚠ v3 directory already exists at .aqe-v3/'));
+      console.log(chalk.yellow('   ⚠ v3 directory already exists at .aqe/'));
       console.log(chalk.gray('   Use --force to overwrite existing v3 installation.'));
       process.exit(1);
     }
@@ -2412,20 +2412,20 @@ program
         const stats = fs.statSync(v2Files.memoryDb);
         console.log(chalk.gray(`  • Migrate memory.db (${(stats.size / 1024).toFixed(1)} KB)`));
         console.log(chalk.gray('    From: .agentic-qe/memory.db'));
-        console.log(chalk.gray('    To:   .aqe-v3/agentdb/'));
+        console.log(chalk.gray('    To:   .aqe/agentdb/'));
       }
 
       if (!options.skipConfig && hasConfig) {
         console.log(chalk.gray('  • Convert config.json to v3 format'));
         console.log(chalk.gray('    From: .agentic-qe/config.json'));
-        console.log(chalk.gray('    To:   .aqe-v3/config.json'));
+        console.log(chalk.gray('    To:   .aqe/config.json'));
       }
 
       if (!options.skipPatterns && hasPatterns) {
         const patternFiles = fs.readdirSync(v2Files.patterns);
         console.log(chalk.gray(`  • Migrate ${patternFiles.length} pattern files`));
         console.log(chalk.gray('    From: .agentic-qe/patterns/'));
-        console.log(chalk.gray('    To:   .aqe-v3/reasoning-bank/'));
+        console.log(chalk.gray('    To:   .aqe/reasoning-bank/'));
       }
 
       console.log(chalk.yellow('\n⚠ This is a dry run. No changes were made.'));
@@ -2544,7 +2544,7 @@ program
           },
           memory: {
             backend: 'hybrid',
-            path: '.aqe-v3/agentdb/',
+            path: '.aqe/agentdb/',
             hnsw: { M: 16, efConstruction: 200 },
           },
           learning: {
@@ -2637,12 +2637,12 @@ program
     console.log(chalk.gray('v2 installation (.agentic-qe/) was NOT modified.\n'));
 
     console.log(chalk.white('Next steps:'));
-    console.log(chalk.gray('  1. Run `aqe-v3 status` to verify the system'));
-    console.log(chalk.gray('  2. Add v3 MCP: `claude mcp add aqe-v3 -- aqe-v3-mcp`'));
-    console.log(chalk.gray('  3. Test with: `aqe-v3 test <path>`\n'));
+    console.log(chalk.gray('  1. Run `aqe status` to verify the system'));
+    console.log(chalk.gray('  2. Add MCP: `claude mcp add aqe -- aqe-mcp`'));
+    console.log(chalk.gray('  3. Test with: `aqe test <path>`\n'));
 
     console.log(chalk.yellow('Rollback:'));
-    console.log(chalk.gray('  If migration failed, simply delete .aqe-v3/'));
+    console.log(chalk.gray('  If migration failed, simply delete .aqe/'));
     console.log(chalk.gray('  Your v2 installation remains unchanged.\n'));
 
     process.exit(0);
@@ -2654,7 +2654,7 @@ program
 
 const completionsCmd = program
   .command('completions')
-  .description('Generate shell completions for aqe-v3');
+  .description('Generate shell completions for aqe');
 
 completionsCmd
   .command('bash')
@@ -2711,10 +2711,10 @@ completionsCmd
       const fishCompletionsDir = `${process.env.HOME}/.config/fish/completions`;
       try {
         fs.mkdirSync(fishCompletionsDir, { recursive: true });
-        const completionFile = path.join(fishCompletionsDir, 'aqe-v3.fish');
+        const completionFile = path.join(fishCompletionsDir, 'aqe.fish');
         fs.writeFileSync(completionFile, script);
         console.log(chalk.green(`Completions installed to: ${completionFile}`));
-        console.log(chalk.gray('\nRestart your shell or run: source ~/.config/fish/completions/aqe-v3.fish\n'));
+        console.log(chalk.gray('\nRestart your shell or run: source ~/.config/fish/completions/aqe.fish\n'));
       } catch (err) {
         console.log(chalk.red(`Failed to install: ${err}`));
         console.log(chalk.yellow('\nManual installation:'));
@@ -2872,9 +2872,9 @@ fleetCmd
 
       console.log(chalk.green('\n✅ Fleet initialized successfully!\n'));
       console.log(chalk.white('Next steps:'));
-      console.log(chalk.gray('  1. Spawn agents: aqe-v3 fleet spawn --domains test-generation'));
-      console.log(chalk.gray('  2. Run operation: aqe-v3 fleet run test --target ./src'));
-      console.log(chalk.gray('  3. Check status: aqe-v3 fleet status\n'));
+      console.log(chalk.gray('  1. Spawn agents: aqe fleet spawn --domains test-generation'));
+      console.log(chalk.gray('  2. Run operation: aqe fleet run test --target ./src'));
+      console.log(chalk.gray('  3. Check status: aqe fleet status\n'));
 
       process.exit(0);
     } catch (error) {

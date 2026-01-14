@@ -3,7 +3,7 @@
  * ADR-041: Workflow Scheduling with Persistence
  *
  * Provides persistence layer for scheduled workflows.
- * Stores schedules in ~/.aqe-v3/schedules.json with proper file handling.
+ * Stores schedules in ~/.aqe/schedules.json with proper file handling.
  *
  * Features:
  * - JSON file-based persistence
@@ -59,7 +59,7 @@ interface SchedulesFile {
  * Configuration for the PersistentScheduler
  */
 export interface PersistentSchedulerConfig {
-  /** Path to store schedules.json (defaults to ~/.aqe-v3/schedules.json) */
+  /** Path to store schedules.json (defaults to ~/.aqe/schedules.json) */
   schedulesPath?: string;
   /** Enable debug logging */
   debug?: boolean;
@@ -69,7 +69,7 @@ export interface PersistentSchedulerConfig {
 // Constants
 // ============================================================================
 
-const DEFAULT_CONFIG_DIR = '.aqe-v3';
+const DEFAULT_CONFIG_DIR = '.aqe';
 const SCHEDULES_FILE = 'schedules.json';
 const FILE_VERSION = '1.0.0';
 const LOCK_TIMEOUT_MS = 5000;

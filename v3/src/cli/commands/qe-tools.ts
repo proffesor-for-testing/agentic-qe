@@ -245,8 +245,8 @@ export function registerTestCommands(program: Command): void {
         console.log(chalk.red('\n  Error: No source files specified.'));
         console.log(chalk.gray('  Use --wizard for interactive mode or provide file paths.\n'));
         console.log(chalk.gray('  Examples:'));
-        console.log(chalk.gray('    aqe-v3 tests generate src/services/*.ts'));
-        console.log(chalk.gray('    aqe-v3 tests generate --wizard\n'));
+        console.log(chalk.gray('    aqe tests generate src/services/*.ts'));
+        console.log(chalk.gray('    aqe tests generate --wizard\n'));
         process.exit(1);
       }
 

@@ -14,13 +14,13 @@ npm install -g @agentic-qe/v3
 
 # Initialize your project
 cd your-project
-aqe-v3 init --wizard
+aqe init --wizard
 
 # Or with auto-configuration
-aqe-v3 init --auto
+aqe init --auto
 
 # Add MCP server to Claude Code (requires global install)
-claude mcp add aqe-v3 -- aqe-v3-mcp
+claude mcp add aqe -- aqe-mcp
 ```
 
 ## Architecture Overview
@@ -161,112 +161,112 @@ const results = await kernel.memory.search('authentication patterns', {
 
 ```bash
 # Interactive wizard
-aqe-v3 init --wizard
+aqe init --wizard
 
 # Auto-configure based on project
-aqe-v3 init --auto
+aqe init --auto
 
 # Manual configuration
-aqe-v3 init -d test-generation,coverage-analysis -m hybrid --max-agents 20
+aqe init -d test-generation,coverage-analysis -m hybrid --max-agents 20
 ```
 
 ### Status & Health
 
 ```bash
 # System status
-aqe-v3 status
-aqe-v3 status --verbose
+aqe status
+aqe status --verbose
 
 # Domain health
-aqe-v3 health
-aqe-v3 health -d test-generation
+aqe health
+aqe health -d test-generation
 ```
 
 ### Test Generation
 
 ```bash
 # Generate tests for a file
-aqe-v3 test generate src/services/user.ts
+aqe test generate src/services/user.ts
 
 # Generate with options
-aqe-v3 test generate src/ -t unit -f vitest
+aqe test generate src/ -t unit -f vitest
 ```
 
 ### Coverage Analysis
 
 ```bash
 # Analyze coverage
-aqe-v3 coverage ./src
+aqe coverage ./src
 
 # With gap detection and risk scoring
-aqe-v3 coverage ./src --gaps --risk
+aqe coverage ./src --gaps --risk
 ```
 
 ### Security Scanning
 
 ```bash
 # Run SAST scan
-aqe-v3 security --sast -t ./src
+aqe security --sast -t ./src
 
 # Check compliance
-aqe-v3 security --compliance gdpr,hipaa
+aqe security --compliance gdpr,hipaa
 ```
 
 ### Code Intelligence
 
 ```bash
 # Index codebase
-aqe-v3 code index ./src
+aqe code index ./src
 
 # Semantic search
-aqe-v3 code search "authentication middleware"
+aqe code search "authentication middleware"
 
 # Impact analysis
-aqe-v3 code impact ./src/auth.ts
+aqe code impact ./src/auth.ts
 
 # Dependency mapping
-aqe-v3 code deps ./src
+aqe code deps ./src
 ```
 
 ### Migration from v2
 
 ```bash
 # Preview migration
-aqe-v3 migrate --dry-run
+aqe migrate --dry-run
 
 # Run migration with backup
-aqe-v3 migrate --backup
+aqe migrate --backup
 
 # Full migration
-aqe-v3 migrate
+aqe migrate
 ```
 
 ### Task Management
 
 ```bash
 # Submit a task
-aqe-v3 task submit generate-tests -p p1 --payload '{"source":"src/"}'
+aqe task submit generate-tests -p p1 --payload '{"source":"src/"}'
 
 # List tasks
-aqe-v3 task list
-aqe-v3 task list -s running
+aqe task list
+aqe task list -s running
 
 # Task status
-aqe-v3 task status <task-id>
+aqe task status <task-id>
 
 # Cancel task
-aqe-v3 task cancel <task-id>
+aqe task cancel <task-id>
 ```
 
 ### Agent Management
 
 ```bash
 # List agents
-aqe-v3 agent list
-aqe-v3 agent list -d test-generation
+aqe agent list
+aqe agent list -d test-generation
 
 # Spawn agent
-aqe-v3 agent spawn test-generation -t worker -c unit-test,integration-test
+aqe agent spawn test-generation -t worker -c unit-test,integration-test
 ```
 
 ## MCP Integration
@@ -278,7 +278,7 @@ Add the v3 MCP server to Claude Code (requires global install):
 npm install -g @agentic-qe/v3
 
 # Then add to Claude Code
-claude mcp add aqe-v3 -- aqe-v3-mcp
+claude mcp add aqe -- aqe-mcp
 ```
 
 ### Available MCP Tools
@@ -385,7 +385,7 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Memory | SQLite only | HNSW + SQLite hybrid |
 | Learning | Basic patterns | ReasoningBank + SONA |
 | Agents | 31 | 47 QE agents |
-| CLI | `aqe` | `aqe-v3` |
+| CLI | `aqe` | `aqe` |
 | Package | `agentic-qe` | `@agentic-qe/v3` |
 
 ## Migration from v2
@@ -395,12 +395,12 @@ See the [Migration Guide](../docs/MIGRATION-GUIDE.md) for detailed instructions.
 ```bash
 # Quick migration
 npm install @agentic-qe/v3
-aqe-v3 migrate --backup
+aqe migrate --backup
 ```
 
 ## Configuration
 
-### Project Configuration (.aqe-v3/config.json)
+### Project Configuration (.aqe/config.json)
 
 ```json
 {

@@ -1,6 +1,7 @@
 /**
  * Shell Completions Tests
  * ADR-041: Shell Completions for Enhanced Developer Experience
+ * ADR-042: Version-Agnostic Naming Convention
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -13,7 +14,8 @@ import {
   detectShell,
   getInstallInstructions,
   DOMAINS,
-  V3_QE_AGENTS,
+  QE_AGENTS,
+  V3_QE_AGENTS, // Deprecated alias for backward compat
   OTHER_AGENTS,
   ALL_AGENTS,
   TASK_TYPES,
@@ -43,14 +45,16 @@ describe('Shell Completions', () => {
       expect(DOMAINS).toContain('learning-optimization');
     });
 
-    it('should have 47 V3 QE agents', () => {
-      expect(V3_QE_AGENTS).toHaveLength(47);
-      expect(V3_QE_AGENTS).toContain('v3-qe-test-architect');
-      expect(V3_QE_AGENTS).toContain('v3-qe-coverage-specialist');
-      expect(V3_QE_AGENTS).toContain('v3-qe-quality-gate');
-      expect(V3_QE_AGENTS).toContain('v3-qe-defect-predictor');
-      expect(V3_QE_AGENTS).toContain('v3-qe-tdd-red');
-      expect(V3_QE_AGENTS).toContain('v3-qe-security-scanner');
+    it('should have 47 QE agents (ADR-042 version-agnostic naming)', () => {
+      expect(QE_AGENTS).toHaveLength(47);
+      expect(QE_AGENTS).toContain('qe-test-architect');
+      expect(QE_AGENTS).toContain('qe-coverage-specialist');
+      expect(QE_AGENTS).toContain('qe-quality-gate');
+      expect(QE_AGENTS).toContain('qe-defect-predictor');
+      expect(QE_AGENTS).toContain('qe-tdd-red');
+      expect(QE_AGENTS).toContain('qe-security-scanner');
+      // V3_QE_AGENTS is deprecated but still available as alias
+      expect(V3_QE_AGENTS).toEqual(QE_AGENTS);
     });
 
     it('should have other agents including specialized ones', () => {
@@ -63,7 +67,7 @@ describe('Shell Completions', () => {
     });
 
     it('should combine all agents', () => {
-      expect(ALL_AGENTS.length).toBe(V3_QE_AGENTS.length + OTHER_AGENTS.length);
+      expect(ALL_AGENTS.length).toBe(QE_AGENTS.length + OTHER_AGENTS.length);
     });
 
     it('should have task types', () => {
@@ -118,8 +122,9 @@ describe('Shell Completions', () => {
 
     it('should generate valid bash script', () => {
       expect(script).toContain('#!/bin/bash');
-      expect(script).toContain('_aqe_v3_completions()');
-      expect(script).toContain('complete -F _aqe_v3_completions aqe-v3');
+      expect(script).toContain('_aqe_completions()');
+      // Backward compat: should support both aqe and aqe-v3
+      expect(script).toContain('complete -F _aqe_completions aqe');
     });
 
     it('should include all main commands', () => {
@@ -137,10 +142,10 @@ describe('Shell Completions', () => {
       expect(script).toContain('security-compliance');
     });
 
-    it('should include v3-qe agent types', () => {
-      expect(script).toContain('v3-qe-test-architect');
-      expect(script).toContain('v3-qe-coverage-specialist');
-      expect(script).toContain('v3-qe-quality-gate');
+    it('should include qe agent types (ADR-042 naming)', () => {
+      expect(script).toContain('qe-test-architect');
+      expect(script).toContain('qe-coverage-specialist');
+      expect(script).toContain('qe-quality-gate');
     });
 
     it('should include task types', () => {
@@ -175,12 +180,13 @@ describe('Shell Completions', () => {
     });
 
     it('should generate valid zsh compdef script', () => {
-      expect(script).toContain('#compdef aqe-v3');
-      expect(script).toContain('_aqe_v3()');
+      // ADR-042: Now uses aqe as primary, aqe-v3 for backward compat
+      expect(script).toContain('#compdef aqe');
+      expect(script).toContain('_aqe()');
     });
 
     it('should include command descriptions', () => {
-      expect(script).toContain("'init:Initialize the AQE v3 system'");
+      expect(script).toContain("'init:Initialize the AQE system'");
       expect(script).toContain("'status:Show system status'");
       expect(script).toContain("'completions:Generate shell completions'");
     });
@@ -190,9 +196,9 @@ describe('Shell Completions', () => {
       expect(script).toContain('coverage-analysis:coverage analysis domain');
     });
 
-    it('should include v3-qe agents', () => {
-      expect(script).toContain("'v3-qe-test-architect'");
-      expect(script).toContain("'v3-qe-coverage-specialist'");
+    it('should include qe agents (ADR-042 naming)', () => {
+      expect(script).toContain("'qe-test-architect'");
+      expect(script).toContain("'qe-coverage-specialist'");
     });
 
     it('should use zsh _arguments syntax', () => {
@@ -213,12 +219,13 @@ describe('Shell Completions', () => {
     });
 
     it('should generate valid fish completion script', () => {
-      expect(script).toContain('complete -c aqe-v3');
+      // ADR-042: Now uses aqe as primary
+      expect(script).toContain('complete -c aqe');
       expect(script).toContain('__fish_use_subcommand');
     });
 
     it('should include all main commands with descriptions', () => {
-      expect(script).toContain('-a "init" -d "Initialize the AQE v3 system"');
+      expect(script).toContain('-a "init" -d "Initialize the AQE system"');
       expect(script).toContain('-a "status" -d "Show system status"');
       expect(script).toContain('-a "completions" -d "Generate shell completions"');
     });
@@ -228,9 +235,9 @@ describe('Shell Completions', () => {
       expect(script).toContain('test-generation');
     });
 
-    it('should define v3-qe agents', () => {
-      expect(script).toContain('set -l v3_qe_agents');
-      expect(script).toContain('v3-qe-test-architect');
+    it('should define qe agents (ADR-042 naming)', () => {
+      expect(script).toContain('set -l qe_agents');
+      expect(script).toContain('qe-test-architect');
     });
 
     it('should include subcommand completion rules', () => {
@@ -267,9 +274,9 @@ describe('Shell Completions', () => {
       expect(script).toContain("'test-generation'");
     });
 
-    it('should define v3-qe agents array', () => {
-      expect(script).toContain('$script:AQE_V3_QE_AGENTS = @(');
-      expect(script).toContain("'v3-qe-test-architect'");
+    it('should define qe agents array (ADR-042 naming)', () => {
+      expect(script).toContain('$script:AQE_QE_AGENTS = @(');
+      expect(script).toContain("'qe-test-architect'");
     });
 
     it('should define commands hashtable', () => {
@@ -298,18 +305,19 @@ describe('Shell Completions', () => {
     it('should generate bash completion', () => {
       const script = generateCompletion('bash');
       expect(script).toContain('#!/bin/bash');
-      expect(script).toContain('_aqe_v3_completions');
+      expect(script).toContain('_aqe_completions');
     });
 
     it('should generate zsh completion', () => {
       const script = generateCompletion('zsh');
-      expect(script).toContain('#compdef aqe-v3');
-      expect(script).toContain('_aqe_v3');
+      // Zsh supports both commands via compdef
+      expect(script).toContain('#compdef aqe');
+      expect(script).toContain('_aqe');
     });
 
     it('should generate fish completion', () => {
       const script = generateCompletion('fish');
-      expect(script).toContain('complete -c aqe-v3');
+      expect(script).toContain('complete -c aqe');
     });
 
     it('should generate powershell completion', () => {
@@ -365,20 +373,20 @@ describe('Shell Completions', () => {
     it('should return bash install instructions', () => {
       const instructions = getInstallInstructions('bash');
       expect(instructions).toContain('~/.bashrc');
-      expect(instructions).toContain('eval "$(aqe-v3 completions bash)"');
+      expect(instructions).toContain('eval "$(aqe completions bash)"');
     });
 
     it('should return zsh install instructions', () => {
       const instructions = getInstallInstructions('zsh');
       expect(instructions).toContain('~/.zshrc');
-      expect(instructions).toContain('eval "$(aqe-v3 completions zsh)"');
+      expect(instructions).toContain('eval "$(aqe completions zsh)"');
       expect(instructions).toContain('compinit');
     });
 
     it('should return fish install instructions', () => {
       const instructions = getInstallInstructions('fish');
       expect(instructions).toContain('~/.config/fish/completions');
-      expect(instructions).toContain('aqe-v3.fish');
+      expect(instructions).toContain('aqe.fish');
     });
 
     it('should return powershell install instructions', () => {
@@ -397,53 +405,54 @@ describe('Shell Completions', () => {
     });
   });
 
-  describe('Agent Type Naming Convention (ADR-037)', () => {
-    it('should have v3-qe-* prefix for all V3 QE agents', () => {
-      for (const agent of V3_QE_AGENTS) {
-        expect(agent).toMatch(/^v3-qe-/);
+  describe('Agent Type Naming Convention (ADR-042 Version-Agnostic)', () => {
+    it('should have qe-* prefix for all QE agents (no v3 prefix)', () => {
+      for (const agent of QE_AGENTS) {
+        expect(agent).toMatch(/^qe-/);
+        expect(agent).not.toMatch(/^v3-/); // No v3 prefix
       }
     });
 
     it('should include TDD phase subagents', () => {
-      expect(V3_QE_AGENTS).toContain('v3-qe-tdd-red');
-      expect(V3_QE_AGENTS).toContain('v3-qe-tdd-green');
-      expect(V3_QE_AGENTS).toContain('v3-qe-tdd-refactor');
+      expect(QE_AGENTS).toContain('qe-tdd-red');
+      expect(QE_AGENTS).toContain('qe-tdd-green');
+      expect(QE_AGENTS).toContain('qe-tdd-refactor');
     });
 
     it('should include reviewer subagents', () => {
-      expect(V3_QE_AGENTS).toContain('v3-qe-code-reviewer');
-      expect(V3_QE_AGENTS).toContain('v3-qe-integration-reviewer');
-      expect(V3_QE_AGENTS).toContain('v3-qe-performance-reviewer');
-      expect(V3_QE_AGENTS).toContain('v3-qe-security-reviewer');
+      expect(QE_AGENTS).toContain('qe-code-reviewer');
+      expect(QE_AGENTS).toContain('qe-integration-reviewer');
+      expect(QE_AGENTS).toContain('qe-performance-reviewer');
+      expect(QE_AGENTS).toContain('qe-security-reviewer');
     });
   });
 
   describe('Domain Coverage', () => {
     it('should have agents for test-generation domain', () => {
-      expect(V3_QE_AGENTS).toContain('v3-qe-test-architect');
-      expect(V3_QE_AGENTS).toContain('v3-qe-tdd-specialist');
-      expect(V3_QE_AGENTS).toContain('v3-qe-property-tester');
+      expect(QE_AGENTS).toContain('qe-test-architect');
+      expect(QE_AGENTS).toContain('qe-tdd-specialist');
+      expect(QE_AGENTS).toContain('qe-property-tester');
     });
 
     it('should have agents for test-execution domain', () => {
-      expect(V3_QE_AGENTS).toContain('v3-qe-parallel-executor');
-      expect(V3_QE_AGENTS).toContain('v3-qe-flaky-hunter');
-      expect(V3_QE_AGENTS).toContain('v3-qe-retry-handler');
+      expect(QE_AGENTS).toContain('qe-parallel-executor');
+      expect(QE_AGENTS).toContain('qe-flaky-hunter');
+      expect(QE_AGENTS).toContain('qe-retry-handler');
     });
 
     it('should have agents for coverage-analysis domain', () => {
-      expect(V3_QE_AGENTS).toContain('v3-qe-coverage-specialist');
-      expect(V3_QE_AGENTS).toContain('v3-qe-gap-detector');
+      expect(QE_AGENTS).toContain('qe-coverage-specialist');
+      expect(QE_AGENTS).toContain('qe-gap-detector');
     });
 
     it('should have agents for security-compliance domain', () => {
-      expect(V3_QE_AGENTS).toContain('v3-qe-security-scanner');
-      expect(V3_QE_AGENTS).toContain('v3-qe-security-auditor');
+      expect(QE_AGENTS).toContain('qe-security-scanner');
+      expect(QE_AGENTS).toContain('qe-security-auditor');
     });
 
     it('should have agents for quality-assessment domain', () => {
-      expect(V3_QE_AGENTS).toContain('v3-qe-quality-gate');
-      expect(V3_QE_AGENTS).toContain('v3-qe-deployment-advisor');
+      expect(QE_AGENTS).toContain('qe-quality-gate');
+      expect(QE_AGENTS).toContain('qe-deployment-advisor');
     });
   });
 });

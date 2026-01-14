@@ -55,6 +55,8 @@
 | ADR-041 | V3 QE CLI Enhancement | **Implemented** | 2026-01-14 | ✅ 196 tests: wizards + progress + streaming + completions + workflows |
 | ADR-042 | V3 QE Token Tracking Integration | **Proposed** | 2026-01-11 | ⏳ Token tracking + -25% reduction via pattern reuse |
 | [ADR-043](./ADR-043-vendor-independent-llm.md) | Vendor-Independent LLM Support | **Proposed** | 2026-01-13 | ⏳ [HybridRouter + 7 providers + smart routing](../plans/GOAP-ADR-043-VENDOR-INDEPENDENT-LLM.md) |
+| [ADR-044](./ADR-044-domain-rl-integration-status.md) | Domain RL Integration Status | **Implemented** | 2026-01-14 | ✅ 6/6 domains with RL integration |
+| [ADR-045](./ADR-045-version-agnostic-naming.md) | Version-Agnostic Naming | **Implemented** | 2026-01-14 | ✅ qe-* naming convention, backward compat aliases |
 
 ---
 

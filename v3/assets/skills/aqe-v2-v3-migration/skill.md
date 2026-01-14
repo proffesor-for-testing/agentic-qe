@@ -36,7 +36,7 @@ When migrating from v2 to v3:
 npm install @agentic-qe/v3
 
 # Run migration
-npx aqe-v3 migrate
+npx aqe migrate
 
 # Or use this skill
 /aqe-v2-v3-migration
@@ -46,11 +46,11 @@ npx aqe-v3 migrate
 
 | Component | v2 Location | v3 Location | Auto-Migrate |
 |-----------|-------------|-------------|--------------|
-| Memory DB | `.agentic-qe/memory.db` | `.aqe-v3/agentdb/` | Yes |
-| Config | `.agentic-qe/config.json` | `.aqe-v3/config.json` | Yes |
-| Patterns | `.agentic-qe/patterns/` | `.aqe-v3/reasoning-bank/` | Yes |
-| Cache | `.agentic-qe/cache/` | `.aqe-v3/cache/` | Optional |
-| Logs | `.agentic-qe/logs/` | `.aqe-v3/logs/` | No (fresh start) |
+| Memory DB | `.agentic-qe/memory.db` | `.aqe/agentdb/` | Yes |
+| Config | `.agentic-qe/config.json` | `.aqe/config.json` | Yes |
+| Patterns | `.agentic-qe/patterns/` | `.aqe/reasoning-bank/` | Yes |
+| Cache | `.agentic-qe/cache/` | `.aqe/cache/` | Optional |
+| Logs | `.agentic-qe/logs/` | `.aqe/logs/` | No (fresh start) |
 
 ---
 
@@ -65,14 +65,14 @@ npx aqe-v3 migrate
 
 ### During Migration
 - [ ] Install v3: `npm install @agentic-qe/v3`
-- [ ] Run migration: `npx aqe-v3 migrate`
+- [ ] Run migration: `npx aqe migrate`
 - [ ] Review migration report
 - [ ] Verify data transferred correctly
 
 ### Post-Migration
-- [ ] Run v3 tests: `npx aqe-v3 test`
-- [ ] Check coverage: `npx aqe-v3 coverage`
-- [ ] Verify patterns loaded: `npx aqe-v3 patterns list`
+- [ ] Run v3 tests: `npx aqe test`
+- [ ] Check coverage: `npx aqe coverage`
+- [ ] Verify patterns loaded: `npx aqe patterns list`
 - [ ] Test MCP integration with Claude Code
 
 ---
@@ -107,7 +107,7 @@ v2 Structure:                    v3 Structure:
 
 | v2 API | v3 API | Notes |
 |--------|--------|-------|
-| `aqe init` | `aqe-v3 init` | Different binary |
+| `aqe init` | `aqe init` | Different binary |
 | `aqe.generateTests()` | `testGeneration.generate()` | Domain-based |
 | `aqe.analyzeGaps()` | `coverageAnalysis.findGaps()` | O(log n) now |
 | `memory.store()` | `agentDB.store()` | HNSW-indexed |
@@ -150,7 +150,7 @@ v2 Structure:                    v3 Structure:
   },
   "memory": {
     "backend": "agentdb",
-    "path": ".aqe-v3/agentdb/",
+    "path": ".aqe/agentdb/",
     "hnsw": {
       "M": 16,
       "efConstruction": 200
@@ -177,7 +177,7 @@ const patterns = db.prepare('SELECT * FROM patterns').all();
 
 // v3: AgentDB with HNSW
 import { AgentDB } from '@agentic-qe/v3';
-const db = new AgentDB('.aqe-v3/agentdb/');
+const db = new AgentDB('.aqe/agentdb/');
 await db.initialize({ dimensions: 128, M: 16 });
 
 // Migration script transfers and indexes
@@ -212,7 +212,7 @@ for (const pattern of v2Patterns) {
    aqe test --parallel
 
    # v3
-   aqe-v3 test --workers=4 --topology=mesh
+   aqe test --workers=4 --topology=mesh
    ```
 
 3. **MCP Server**
@@ -220,8 +220,8 @@ for (const pattern of v2Patterns) {
    # v2
    claude mcp add aqe -- npx aqe-mcp
 
-   # v3 (requires global install: npm install -g @agentic-qe/v3)
-   claude mcp add aqe-v3 -- aqe-v3-mcp
+   # v3
+   claude mcp add aqe -- npx @agentic-qe/v3 mcp
    ```
 
 ### Deprecated (Will Warn)
@@ -242,7 +242,7 @@ If migration fails or you need to revert:
 
 # 2. Remove v3 installation
 npm uninstall @agentic-qe/v3
-rm -rf .aqe-v3/
+rm -rf .aqe/
 
 # 3. Continue using v2
 aqe --version  # Should show 2.x.x
@@ -286,16 +286,16 @@ Task({
 | "Cannot find .agentic-qe/" | No v2 installation | Run `aqe init` first |
 | "Memory migration failed" | Corrupted SQLite | Use backup: `npm run backup:restore` |
 | "HNSW index error" | Dimension mismatch | Set `dimensions: 128` in config |
-| "Pattern not found" | Not migrated | Re-run: `aqe-v3 migrate --patterns` |
+| "Pattern not found" | Not migrated | Re-run: `aqe migrate --patterns` |
 
 ### Debug Mode
 
 ```bash
 # Run migration with debug output
-DEBUG=aqe:migrate npx aqe-v3 migrate
+DEBUG=aqe:migrate npx aqe migrate
 
 # Check migration logs
-cat .aqe-v3/logs/migration.log
+cat .aqe/logs/migration.log
 ```
 
 ---
