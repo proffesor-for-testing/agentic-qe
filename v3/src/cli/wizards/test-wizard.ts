@@ -8,7 +8,7 @@
 
 import { createInterface } from 'readline';
 import chalk from 'chalk';
-import { existsSync, readdirSync, statSync } from 'fs';
+import { existsSync, readdirSync, statSync, readFileSync } from 'fs';
 import { join, resolve, relative, extname, basename } from 'path';
 
 // ============================================================================
@@ -455,26 +455,44 @@ export class TestGenerationWizard {
 
   /**
    * Resolve source files from input (glob patterns, directories, files)
+   * Security: Validates that resolved paths stay within project directory to prevent path traversal
    */
   private resolveSourceFiles(input: string): string[] {
     const files: string[] = [];
     const parts = input.split(',').map(p => p.trim()).filter(p => p.length > 0);
+    // Normalize cwd for consistent comparison (resolve removes trailing slashes and normalizes)
+    const normalizedCwd = resolve(this.cwd);
 
     for (const part of parts) {
       const resolved = resolve(this.cwd, part);
 
+      // Security: Prevent path traversal - ensure resolved path is within project directory
+      if (!resolved.startsWith(normalizedCwd + '/') && resolved !== normalizedCwd) {
+        console.warn(`Warning: Skipping path outside project directory: ${part}`);
+        continue;
+      }
+
       if (existsSync(resolved)) {
         if (statSync(resolved).isDirectory()) {
           // Recursively get TypeScript files from directory
-          files.push(...this.getFilesFromDirectory(resolved));
+          const dirFiles = this.getFilesFromDirectory(resolved);
+          // Double-check each file is within project directory
+          files.push(...dirFiles.filter(f => f.startsWith(normalizedCwd + '/') || f === normalizedCwd));
         } else if (statSync(resolved).isFile()) {
           files.push(resolved);
         }
       } else if (part.includes('*')) {
         // Handle glob pattern - for now, just expand common patterns
         const baseDir = resolve(this.cwd, part.split('*')[0]);
+        // Security: Validate glob base directory is within project
+        if (!baseDir.startsWith(normalizedCwd + '/') && baseDir !== normalizedCwd) {
+          console.warn(`Warning: Skipping glob pattern outside project directory: ${part}`);
+          continue;
+        }
         if (existsSync(baseDir)) {
-          files.push(...this.getFilesFromDirectory(baseDir, part.includes('**')));
+          const dirFiles = this.getFilesFromDirectory(baseDir, part.includes('**'));
+          // Double-check each file is within project directory
+          files.push(...dirFiles.filter(f => f.startsWith(normalizedCwd + '/') || f === normalizedCwd));
         }
       } else {
         // Try to find file with common extensions
@@ -536,6 +554,7 @@ export class TestGenerationWizard {
 
   /**
    * Detect test framework from project configuration
+   * Security: Uses fs.readFileSync instead of require() to prevent code execution
    */
   private detectFramework(): TestFramework | null {
     const packageJsonPath = join(this.cwd, 'package.json');
@@ -545,7 +564,9 @@ export class TestGenerationWizard {
     }
 
     try {
-      const pkg = require(packageJsonPath);
+      // Security: Use readFileSync + JSON.parse instead of require() to prevent code execution
+      const content = readFileSync(packageJsonPath, 'utf-8');
+      const pkg = JSON.parse(content);
       const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
       if (deps.vitest) return 'vitest';
@@ -553,7 +574,7 @@ export class TestGenerationWizard {
       if (deps.mocha) return 'mocha';
       if (deps.playwright || deps['@playwright/test']) return 'playwright';
     } catch {
-      // Ignore errors
+      // Ignore errors (file read or JSON parse failures)
     }
 
     // Check for config files

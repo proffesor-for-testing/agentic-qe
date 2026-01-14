@@ -31,6 +31,10 @@ import {
   type CoverageWizardResult,
 } from '../wizards/coverage-wizard.js';
 import {
+  runSecurityScanWizard,
+  type SecurityWizardResult,
+} from '../wizards/security-wizard.js';
+import {
   createTestStreamHandler,
   createCoverageStreamHandler,
   type TestResultStreamer,
@@ -640,22 +644,61 @@ export function registerSecurityCommands(program: Command): void {
     .option('--compliance <frameworks>', 'Check compliance (comma-separated: owasp,gdpr,hipaa,soc2,pci)')
     .option('--severity <level>', 'Minimum severity to report (critical|high|medium|low)', 'medium')
     .option('--streaming', 'Enable streaming output', false)
+    .option('--wizard', 'Run interactive security scan wizard')
     .action(async (target: string, options) => {
+      let scanTarget = target;
+      let sast = options.sast;
+      let dast = options.dast;
+      let dependencies = options.dependencies;
+      let secrets = options.secrets;
+      let complianceFrameworks = options.compliance?.split(',');
+      let minSeverity = options.severity;
+
+      // Run wizard if requested (ADR-041)
+      if (options.wizard) {
+        try {
+          const wizardResult: SecurityWizardResult = await runSecurityScanWizard({
+            defaultTarget: target !== '.' ? target : undefined,
+            defaultScanTypes: undefined, // Use wizard defaults
+            defaultSeverity: options.severity !== 'medium' ? options.severity : undefined,
+          });
+
+          if (wizardResult.cancelled) {
+            console.log(chalk.yellow('\n  Security scan cancelled.\n'));
+            process.exit(0);
+          }
+
+          // Use wizard results
+          scanTarget = wizardResult.target;
+          sast = wizardResult.scanTypes.includes('sast');
+          dast = wizardResult.scanTypes.includes('dast');
+          dependencies = wizardResult.scanTypes.includes('dependency');
+          secrets = wizardResult.scanTypes.includes('secret');
+          complianceFrameworks = wizardResult.complianceFrameworks.length > 0 ? wizardResult.complianceFrameworks : undefined;
+          minSeverity = wizardResult.severity;
+
+          console.log(chalk.green('\n  Starting security scan...\n'));
+        } catch (err) {
+          console.error(chalk.red('\n  Wizard error:'), err);
+          process.exit(1);
+        }
+      }
+
       const tool = new SecurityScanTool();
-      
-      console.log(chalk.blue(`\n  Running security scan on: ${target}...\n`));
+
+      console.log(chalk.blue(`\n  Running security scan on: ${scanTarget}...\n`));
 
       const start = Date.now();
       const result = await tool.invoke({
-        target,
+        target: scanTarget,
         scanTypes: {
-          sast: options.sast,
-          dast: options.dast,
-          dependencies: options.dependencies,
-          secrets: options.secrets,
+          sast,
+          dast,
+          dependencies,
+          secrets,
         },
-        complianceFrameworks: options.compliance?.split(','),
-        minSeverity: options.severity,
+        complianceFrameworks,
+        minSeverity,
       }, options.streaming ? createStreamHandler() : {});
 
       console.log(chalk.gray(`  Duration: ${formatDuration(Date.now() - start)}`));

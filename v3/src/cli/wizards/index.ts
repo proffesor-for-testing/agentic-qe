@@ -24,6 +24,36 @@ export {
   type CoverageWizardOptions,
   type CoverageWizardResult,
   type GapSensitivity,
-  type ReportFormat,
+  type ReportFormat as CoverageReportFormat,
   type PriorityFocus,
 } from './coverage-wizard.js';
+
+// Security Scan Wizard
+export {
+  SecurityScanWizard,
+  runSecurityScanWizard,
+  getScanTypeConfig,
+  getComplianceConfig,
+  getSeverityConfig,
+  type SecurityWizardOptions,
+  type SecurityWizardResult,
+  type ScanType,
+  type ComplianceFramework,
+  type SeverityLevel,
+  type ReportFormat as SecurityReportFormat,
+} from './security-wizard.js';
+
+// Fleet Initialization Wizard
+export {
+  FleetInitWizard,
+  runFleetInitWizard,
+  getTopologyConfig,
+  getDomainConfig,
+  getMemoryBackendConfig,
+  getAllDomains,
+  type FleetWizardOptions,
+  type FleetWizardResult,
+  type TopologyType,
+  type DDDDomain,
+  type MemoryBackend,
+} from './fleet-wizard.js';

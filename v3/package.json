@@ -1,6 +1,6 @@
 {
   "name": "@agentic-qe/v3",
-  "version": "3.0.0-alpha.18",
+  "version": "3.0.0-alpha.19",
   "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 47 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
@@ -59,6 +59,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:perf": "vitest bench tests/performance/",
     "lint": "eslint src tests --ext .ts",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",

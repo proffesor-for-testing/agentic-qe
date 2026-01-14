@@ -150,12 +150,33 @@ const CRON_PATTERNS = {
 // ============================================================================
 
 /**
+ * Security limits for YAML parsing to prevent DoS attacks
+ */
+const YAML_MAX_LINES = 10000;
+const YAML_MAX_DEPTH = 20;
+const YAML_MAX_LINE_LENGTH = 10000;
+
+/**
  * Simple YAML parser for pipeline files
  * Handles basic YAML structures without external dependencies
  * Specifically designed for the pipeline format per ADR-041
+ * Security: Enforces size limits to prevent DoS attacks
  */
 export function parseYAMLContent(content: string): Record<string, unknown> {
   const lines = content.split('\n');
+
+  // Security: Check line count limit
+  if (lines.length > YAML_MAX_LINES) {
+    throw new Error(`YAML content exceeds maximum allowed lines (${YAML_MAX_LINES}). File has ${lines.length} lines.`);
+  }
+
+  // Security: Check line length limit
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].length > YAML_MAX_LINE_LENGTH) {
+      throw new Error(`YAML line ${i + 1} exceeds maximum allowed length (${YAML_MAX_LINE_LENGTH} characters).`);
+    }
+  }
+
   const result: Record<string, unknown> = {};
 
   // First pass: parse top-level scalars
@@ -258,7 +279,8 @@ export function parseYAMLContent(content: string): Record<string, unknown> {
 
             if (propValue === '') {
               // Nested structure - could be object or array
-              const nestedResult = parseNestedStructure(lines, i + 1, propIndent);
+              // Security: Pass depth=1 for first nested level from main parser
+              const nestedResult = parseNestedStructure(lines, i + 1, propIndent, 1);
               itemObj[propKey] = nestedResult.value;
               i = nestedResult.nextLine;
               continue;
@@ -281,12 +303,19 @@ export function parseYAMLContent(content: string): Record<string, unknown> {
 
 /**
  * Parse a nested structure (object or array) from YAML
+ * Security: Enforces depth limit to prevent stack overflow
  */
 function parseNestedStructure(
   lines: string[],
   startLine: number,
-  parentIndent: number
+  parentIndent: number,
+  depth: number = 0
 ): { value: unknown; nextLine: number } {
+  // Security: Check depth limit
+  if (depth > YAML_MAX_DEPTH) {
+    throw new Error(`YAML nesting exceeds maximum allowed depth (${YAML_MAX_DEPTH}).`);
+  }
+
   const result: Record<string, unknown> = {};
   let currentArray: unknown[] | null = null;
   let currentArrayKey: string | null = null;

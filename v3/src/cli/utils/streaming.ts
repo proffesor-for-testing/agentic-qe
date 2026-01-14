@@ -12,6 +12,7 @@
  */
 
 import chalk from 'chalk';
+import { getCLIConfig, shouldUseColors } from '../config/cli-config.js';
 
 // ============================================================================
 // Types
@@ -113,14 +114,20 @@ const ICONS = {
   bullet: '\u2022', // bullet
 };
 
-const DEFAULT_OPTIONS: Required<StreamingOptions> = {
-  bufferSize: 100,
-  updateIntervalMs: 50,
-  colors: true,
-  showTimestamps: false,
-  indentLevel: 0,
-  compact: false,
-};
+/**
+ * Get default streaming options from CLI config (ADR-041)
+ */
+function getDefaultOptions(): Required<StreamingOptions> {
+  const cliConfig = getCLIConfig();
+  return {
+    bufferSize: cliConfig.streaming.bufferSize,
+    updateIntervalMs: cliConfig.streaming.updateIntervalMs,
+    colors: shouldUseColors(),
+    showTimestamps: false,
+    indentLevel: 0,
+    compact: false,
+  };
+}
 
 // ============================================================================
 // Test Result Streaming
@@ -139,7 +146,7 @@ export class TestResultStreamer {
   private isActive = false;
 
   constructor(options: StreamingOptions = {}) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = { ...getDefaultOptions(), ...options };
   }
 
   /**
@@ -352,7 +359,7 @@ export class CoverageStreamer {
   private processedCount = 0;
 
   constructor(options: StreamingOptions = {}) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = { ...getDefaultOptions(), ...options };
   }
 
   /**
@@ -477,7 +484,7 @@ export class AgentActivityStreamer {
   private activities: AgentActivity[] = [];
 
   constructor(options: StreamingOptions = {}) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = { ...getDefaultOptions(), ...options };
   }
 
   /**
@@ -568,7 +575,7 @@ export class UnifiedStreamer {
   private options: Required<StreamingOptions>;
 
   constructor(options: StreamingOptions = {}) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = { ...getDefaultOptions(), ...options };
     this.testStreamer = new TestResultStreamer(options);
     this.coverageStreamer = new CoverageStreamer(options);
     this.agentStreamer = new AgentActivityStreamer(options);

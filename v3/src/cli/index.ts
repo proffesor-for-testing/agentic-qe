@@ -47,6 +47,16 @@ import {
   runCoverageAnalysisWizard,
   type CoverageWizardResult,
 } from './wizards/coverage-wizard.js';
+import {
+  runFleetInitWizard,
+  type FleetWizardResult,
+} from './wizards/fleet-wizard.js';
+import {
+  createPersistentScheduler,
+  createScheduleEntry,
+  type PersistentScheduler,
+} from './scheduler/index.js';
+import { getCLIConfig } from './config/cli-config.js';
 
 // ============================================================================
 // CLI State
@@ -58,6 +68,7 @@ interface CLIContext {
   router: CrossDomainEventRouter | null;
   workflowOrchestrator: WorkflowOrchestrator | null;
   scheduledWorkflows: Map<string, ScheduledWorkflow>;
+  persistentScheduler: PersistentScheduler | null;
   initialized: boolean;
 }
 
@@ -67,6 +78,7 @@ const context: CLIContext = {
   router: null,
   workflowOrchestrator: null,
   scheduledWorkflows: new Map(),
+  persistentScheduler: null,
   initialized: false,
 };
 
@@ -137,6 +149,9 @@ async function autoInitialize(): Promise<void> {
     context.kernel.coordinator
   );
   await context.workflowOrchestrator.initialize();
+
+  // Create persistent scheduler for workflow scheduling (ADR-041)
+  context.persistentScheduler = createPersistentScheduler();
 
   // Create Queen Coordinator
   context.queen = createQueenCoordinator(
@@ -1134,31 +1149,42 @@ workflowCmd
         }
       }
 
-      // Create scheduled workflow entry
-      const scheduledWorkflow: ScheduledWorkflow = {
-        id: `sched-${Date.now()}`,
+      // Create scheduled workflow entry using persistent scheduler (ADR-041)
+      const persistedSchedule = createScheduleEntry({
         workflowId: parseResult.workflow!.id,
         pipelinePath: filePath,
         schedule,
         scheduleDescription: describeCronSchedule(schedule),
-        nextRun: calculateNextRun(schedule),
         enabled: options.enable !== false,
-        createdAt: new Date(),
-      };
+      });
 
-      // Store in context (in production, this would persist to disk/database)
+      // Persist to disk using PersistentScheduler
+      await context.persistentScheduler!.saveSchedule(persistedSchedule);
+
+      // Also keep in memory for backward compatibility
+      const scheduledWorkflow: ScheduledWorkflow = {
+        id: persistedSchedule.id,
+        workflowId: persistedSchedule.workflowId,
+        pipelinePath: persistedSchedule.pipelinePath,
+        schedule: persistedSchedule.schedule,
+        scheduleDescription: persistedSchedule.scheduleDescription,
+        nextRun: new Date(persistedSchedule.nextRun),
+        enabled: persistedSchedule.enabled,
+        createdAt: new Date(persistedSchedule.createdAt),
+      };
       context.scheduledWorkflows.set(scheduledWorkflow.id, scheduledWorkflow);
 
-      console.log(chalk.green('Workflow scheduled successfully'));
-      console.log(chalk.cyan(`   Schedule ID: ${scheduledWorkflow.id}`));
+      console.log(chalk.green('Workflow scheduled successfully (persisted to disk)'));
+      console.log(chalk.cyan(`   Schedule ID: ${persistedSchedule.id}`));
       console.log(chalk.gray(`   Workflow: ${parseResult.workflow!.name}`));
       console.log(chalk.gray(`   Schedule: ${schedule}`));
-      console.log(chalk.gray(`   Description: ${scheduledWorkflow.scheduleDescription}`));
-      console.log(chalk.gray(`   Next run: ${scheduledWorkflow.nextRun?.toISOString()}`));
-      console.log(chalk.gray(`   Status: ${scheduledWorkflow.enabled ? chalk.green('enabled') : chalk.yellow('disabled')}`));
+      console.log(chalk.gray(`   Description: ${persistedSchedule.scheduleDescription}`));
+      console.log(chalk.gray(`   Next run: ${persistedSchedule.nextRun}`));
+      console.log(chalk.gray(`   Status: ${persistedSchedule.enabled ? chalk.green('enabled') : chalk.yellow('disabled')}`));
 
       console.log(chalk.yellow('\nNote: Scheduled workflows require daemon mode to run automatically'));
       console.log(chalk.gray('   Start daemon with: npx @claude-flow/cli@latest daemon start'));
+      console.log(chalk.gray('   Schedules are persisted to: ~/.aqe-v3/schedules.json'));
 
       console.log('');
       await cleanupAndExit(0);
@@ -1181,26 +1207,27 @@ workflowCmd
     try {
       console.log(chalk.blue('\nWorkflows\n'));
 
-      // Show scheduled workflows
+      // Show scheduled workflows (from PersistentScheduler)
       if (options.scheduled || options.all) {
         console.log(chalk.cyan('Scheduled Workflows:'));
-        const scheduled = Array.from(context.scheduledWorkflows.values());
+
+        // Load schedules from persistent storage (ADR-041)
+        const scheduled = await context.persistentScheduler!.getSchedules();
 
         if (scheduled.length === 0) {
           console.log(chalk.gray('  No scheduled workflows\n'));
         } else {
           for (const sched of scheduled) {
-            const statusIcon = sched.enabled ? chalk.green('*') : chalk.gray('o');
+            const statusIcon = sched.enabled ? chalk.green('●') : chalk.gray('○');
             console.log(`  ${statusIcon} ${chalk.white(sched.workflowId)}`);
             console.log(chalk.gray(`     ID: ${sched.id}`));
             console.log(chalk.gray(`     Schedule: ${sched.schedule} (${sched.scheduleDescription})`));
             console.log(chalk.gray(`     File: ${sched.pipelinePath}`));
-            if (sched.nextRun) {
-              console.log(chalk.gray(`     Next run: ${sched.nextRun.toISOString()}`));
-            }
+            console.log(chalk.gray(`     Next run: ${sched.nextRun}`));
             if (sched.lastRun) {
-              console.log(chalk.gray(`     Last run: ${sched.lastRun.toISOString()}`));
+              console.log(chalk.gray(`     Last run: ${sched.lastRun}`));
             }
+            console.log(chalk.gray(`     Status: ${sched.enabled ? chalk.green('enabled') : chalk.yellow('disabled')}`));
             console.log('');
           }
         }
@@ -2732,6 +2759,129 @@ completionsCmd
 const fleetCmd = program
   .command('fleet')
   .description('Fleet operations with multi-agent progress tracking');
+
+// Fleet init with wizard (ADR-041)
+fleetCmd
+  .command('init')
+  .description('Initialize fleet with interactive wizard')
+  .option('--wizard', 'Run interactive fleet initialization wizard')
+  .option('-t, --topology <type>', 'Fleet topology (hierarchical|mesh|ring|adaptive|hierarchical-mesh)', 'hierarchical-mesh')
+  .option('-m, --max-agents <count>', 'Maximum agent count (5-50)', '15')
+  .option('-d, --domains <domains>', 'Domains to enable (comma-separated or "all")', 'all')
+  .option('--memory <backend>', 'Memory backend (sqlite|agentdb|hybrid)', 'hybrid')
+  .option('--lazy', 'Enable lazy loading', true)
+  .option('--skip-patterns', 'Skip loading pre-trained patterns')
+  .action(async (options) => {
+    try {
+      let topology = options.topology;
+      let maxAgents = parseInt(options.maxAgents, 10);
+      let domains = options.domains;
+      let memoryBackend = options.memory;
+      let lazyLoading = options.lazy;
+      let loadPatterns = !options.skipPatterns;
+
+      // Run wizard if requested (ADR-041)
+      if (options.wizard) {
+        console.log(chalk.blue('\n🚀 Fleet Initialization Wizard\n'));
+
+        const wizardResult: FleetWizardResult = await runFleetInitWizard({
+          defaultTopology: options.topology !== 'hierarchical-mesh' ? options.topology : undefined,
+          defaultMaxAgents: options.maxAgents !== '15' ? parseInt(options.maxAgents, 10) : undefined,
+          defaultDomains: options.domains !== 'all' ? options.domains.split(',') : undefined,
+          defaultMemoryBackend: options.memory !== 'hybrid' ? options.memory : undefined,
+        });
+
+        if (wizardResult.cancelled) {
+          console.log(chalk.yellow('\n  Fleet initialization cancelled.\n'));
+          process.exit(0);
+        }
+
+        // Use wizard results
+        topology = wizardResult.topology;
+        maxAgents = wizardResult.maxAgents;
+        domains = wizardResult.domains.join(',');
+        memoryBackend = wizardResult.memoryBackend;
+        lazyLoading = wizardResult.lazyLoading;
+        loadPatterns = wizardResult.loadPatterns;
+
+        console.log(chalk.green('\n  Starting fleet initialization...\n'));
+      }
+
+      // Parse domains
+      const enabledDomains: DomainName[] =
+        domains === 'all'
+          ? [...ALL_DOMAINS]
+          : domains.split(',').filter((d: string) => ALL_DOMAINS.includes(d as DomainName));
+
+      console.log(chalk.blue('\n Fleet Configuration\n'));
+      console.log(chalk.gray(`  Topology: ${topology}`));
+      console.log(chalk.gray(`  Max Agents: ${maxAgents}`));
+      console.log(chalk.gray(`  Domains: ${enabledDomains.length}`));
+      console.log(chalk.gray(`  Memory: ${memoryBackend}`));
+      console.log(chalk.gray(`  Lazy Loading: ${lazyLoading ? 'enabled' : 'disabled'}`));
+      console.log(chalk.gray(`  Pre-trained Patterns: ${loadPatterns ? 'load' : 'skip'}\n`));
+
+      // Initialize if not already done
+      if (!context.initialized) {
+        context.kernel = new QEKernelImpl({
+          maxConcurrentAgents: maxAgents,
+          memoryBackend,
+          hnswEnabled: true,
+          lazyLoading,
+          enabledDomains,
+        });
+
+        await context.kernel.initialize();
+        console.log(chalk.green('  ✓ Kernel initialized'));
+
+        context.router = new CrossDomainEventRouter(context.kernel.eventBus);
+        await context.router.initialize();
+        console.log(chalk.green('  ✓ Cross-domain router initialized'));
+
+        context.workflowOrchestrator = new WorkflowOrchestrator(
+          context.kernel.eventBus,
+          context.kernel.memory,
+          context.kernel.coordinator
+        );
+        await context.workflowOrchestrator.initialize();
+        console.log(chalk.green('  ✓ Workflow orchestrator initialized'));
+
+        context.persistentScheduler = createPersistentScheduler();
+        console.log(chalk.green('  ✓ Persistent scheduler initialized'));
+
+        const getDomainAPI = <T>(domain: DomainName): T | undefined => {
+          return context.kernel!.getDomainAPI<T>(domain);
+        };
+        const protocolExecutor = new DefaultProtocolExecutor(
+          context.kernel.eventBus,
+          context.kernel.memory,
+          getDomainAPI
+        );
+
+        context.queen = createQueenCoordinator(
+          context.kernel,
+          context.router,
+          protocolExecutor,
+          undefined
+        );
+        await context.queen.initialize();
+        console.log(chalk.green('  ✓ Queen coordinator initialized'));
+
+        context.initialized = true;
+      }
+
+      console.log(chalk.green('\n✅ Fleet initialized successfully!\n'));
+      console.log(chalk.white('Next steps:'));
+      console.log(chalk.gray('  1. Spawn agents: aqe-v3 fleet spawn --domains test-generation'));
+      console.log(chalk.gray('  2. Run operation: aqe-v3 fleet run test --target ./src'));
+      console.log(chalk.gray('  3. Check status: aqe-v3 fleet status\n'));
+
+      process.exit(0);
+    } catch (error) {
+      console.error(chalk.red('\n Fleet initialization failed:'), error);
+      process.exit(1);
+    }
+  });
 
 fleetCmd
   .command('spawn')

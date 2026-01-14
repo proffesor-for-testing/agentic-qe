@@ -10,6 +10,7 @@
 import cliProgress, { SingleBar, MultiBar, Presets } from 'cli-progress';
 import ora, { Ora } from 'ora';
 import chalk from 'chalk';
+import { getCLIConfig, shouldUseColors } from '../config/cli-config.js';
 
 // ============================================================================
 // Types
@@ -57,16 +58,21 @@ export class FleetProgressManager {
   private isActive: boolean = false;
 
   constructor(options: FleetProgressOptions = {}) {
+    // Load config-based defaults (ADR-041 config integration)
+    const cliConfig = getCLIConfig();
+    const useColors = shouldUseColors();
+
     this.options = {
       title: 'Fleet Progress',
-      showEta: true,
+      showEta: cliConfig.progress.showETA,
       showPercentage: true,
       ...options,
     };
 
-    // Custom format for multi-bar display
+    // Custom format for multi-bar display (respects color config)
+    const barColor = useColors ? chalk.cyan('{bar}') : '{bar}';
     const format = this.options.format ||
-      `{name} ${chalk.cyan('{bar}')} {percentage}% | {status} {eta}`;
+      `{name} ${barColor} {percentage}% | {status} {eta}`;
 
     this.multiBar = new MultiBar({
       clearOnComplete: false,
@@ -75,6 +81,7 @@ export class FleetProgressManager {
       barCompleteChar: '\u2588',
       barIncompleteChar: '\u2591',
       forceRedraw: true,
+      fps: Math.round(1000 / cliConfig.progress.updateIntervalMs), // Use config update rate
     }, Presets.shades_classic);
   }
 

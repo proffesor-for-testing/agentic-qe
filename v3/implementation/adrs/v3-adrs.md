@@ -4,7 +4,7 @@
 **Date Range:** 2026-01-07 onwards
 **Status:** Phase 6 In Progress (RuVector MinCut Intelligence + V3 Skills Improvement)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-01-14 (3809 tests passing, ADR-001-041 Implemented)
+**Last Verified:** 2026-01-14 (4032 tests passing, ADR-001-041 Implemented)
 
 ---
 
@@ -2675,8 +2675,8 @@ Create enhanced `v3-qe-agentic-flow-integration` skill with:
 
 ## ADR-041: V3 QE CLI Enhancement
 
-**Status:** Proposed
-**Date:** 2026-01-11
+**Status:** Implemented
+**Date:** 2026-01-11 (Proposed) / 2026-01-14 (Implemented)
 **Decision Makers:** Architecture Team
 **Source:** V3 Skills Improvement Analysis
 
@@ -2693,7 +2693,75 @@ Enhance `v3-qe-cli` with:
 - Intelligent command completion
 - Streaming output for test execution
 
-**Enhanced Skill:** `.claude/skills/v3-qe-cli/SKILL.md` (to be updated)
+### Implementation Status (2026-01-14)
+
+#### Fully Implemented (100%)
+
+| Component | Description | Lines | Tests |
+|-----------|-------------|-------|-------|
+| **Interactive Wizards** | All 4 wizards (test, coverage, security, fleet) | 618-757 each | 61+ |
+| **Config System** | Validation, caching, persistence to ~/.aqe-v3/cli-config.json | Complete | 75 |
+| **Streaming Output** | TestResultStreamer, CoverageStreamer, AgentActivityStreamer, UnifiedStreamer | Complete | Yes |
+| **Persistent Scheduler** | File-based with locking, backup, corruption recovery | 528 lines | 26 |
+
+#### Integrated (Working)
+
+- Test Generation Wizard (`--wizard` flag on `tests generate`)
+- Coverage Analysis Wizard (`--wizard` flag on `coverage analyze`)
+- Security Scan Wizard (`--wizard` flag on `security scan`)
+- Streaming output (`--stream` flag on test/coverage commands)
+- Config integration in progress.ts and streaming.ts
+
+#### All Integrations Complete ✅
+
+| Component | Status | CLI Command |
+|-----------|--------|-------------|
+| Fleet Init Wizard | ✅ Integrated | `fleet init --wizard` (lines 2764-2884) |
+| Completions Command | ✅ Integrated | `completions bash\|zsh\|fish\|powershell` (lines 2655-2753) |
+| Workflow Commands | ✅ Integrated | `workflow run\|validate\|schedule\|list` (lines 952-1501) |
+| FleetProgressManager | ✅ Available | `progress.ts` with multi-bar support |
+
+#### Security Fixes Applied (2026-01-14)
+
+- Path traversal protection in test-wizard.ts
+- File size limits in YAML/JSON parsing
+- Prototype pollution protection in config deepMerge
+
+#### Test Coverage
+
+| Suite | Tests |
+|-------|-------|
+| Scheduler | 26 |
+| Config | 75 |
+| Wizards | 61+ |
+| **Total ADR-041** | 196+ |
+| **Overall v3** | 4032 |
+
+#### Files Added for ADR-041
+
+```
+src/cli/wizards/
+├── test-wizard.ts       (618 lines)
+├── coverage-wizard.ts   (631 lines)
+├── fleet-wizard.ts      (709 lines)
+└── security-wizard.ts   (757 lines)
+
+src/cli/utils/
+├── progress.ts          (multi-bar progress)
+├── streaming.ts         (streaming output)
+└── workflow-parser.ts   (990 lines)
+
+src/cli/scheduler/
+└── persistent-scheduler.ts (528 lines)
+
+src/cli/completions/
+└── index.ts             (shell completions)
+
+src/cli/config/
+└── cli-config.ts        (config system)
+```
+
+**Enhanced Skill:** `.claude/skills/v3-qe-cli/SKILL.md` (updated)
 
 **Full ADR:** [ADR-041-v3-qe-cli-enhancement.md](./ADR-041-v3-qe-cli-enhancement.md)
 
@@ -2764,21 +2832,22 @@ Implement comprehensive token tracking and consumption reduction:
 ---
 
 **Document Maintained By:** Architecture Team
-**Last Updated:** 2026-01-11 (ADR-042 Token Tracking Integration)
+**Last Updated:** 2026-01-14 (ADR-041 CLI Enhancement Implementation Status)
 **Next Review:** After V3 Skills Implementation Complete
 
-### Current Implementation Stats (2026-01-11)
+### Current Implementation Stats (2026-01-14)
 
 | Metric | Count |
 |--------|-------|
-| Source Files | 182+ |
-| Test Files | 91 |
-| Tests Passing | 2,335 |
-| ADRs Complete | 35/42 (ADR-020 ongoing, ADR-037-042 proposed) |
+| Source Files | 316+ |
+| Test Files | 100+ |
+| Tests Passing | 4,032 |
+| ADRs Complete | 41/43 (ADR-001-041 Implemented, ADR-042-043 proposed) |
 | RuVector MinCut ADRs | 6 (ADR-030 to ADR-035) |
 | Result Persistence ADR | 1 (ADR-036) |
-| V3 Skills Improvement ADRs | 6 (ADR-037 to ADR-042) |
+| V3 Skills Improvement ADRs | 5 implemented (ADR-037 to ADR-041), 2 proposed (ADR-042-043) |
 | V3 QE Skills | 24 (21 existing + 3 new enhanced) |
 | Init Module Tests | 73 |
 | Feedback Module Tests | 101 |
 | Optimization Module Tests | 103 |
+| CLI Enhancement Tests (ADR-041) | 196 |
