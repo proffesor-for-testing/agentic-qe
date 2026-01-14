@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Factors assessment of: Epic 3 - Outfit-First Shopping Experience</title>
+  <style>
+    :root {
+      --primary: #1e3a5f;
+      --primary-dark: #0f2744;
+      --primary-light: #2d5a8a;
+      --accent: #0066cc;
+      --success: #0d7a3f;
+      --warning: #b45309;
+      --danger: #b91c1c;
+      --info: #0369a1;
+      --purple: #7c3aed;
+      --bg-light: #f5f7fa;
+      --bg-white: #ffffff;
+      --text-dark: #1a1a2e;
+      --text-muted: #5c6370;
+      --border: #d1d5db;
+      --border-light: #e5e7eb;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-light); color: var(--text-dark); line-height: 1.6; font-size: 14px; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    header { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; padding: 32px 28px; margin-bottom: 24px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
+    header h1 { font-size: 1.75rem; margin-bottom: 8px; font-weight: 600; }
+    .section { background: var(--bg-white); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
+    .section h2 { color: var(--primary); font-size: 1.1rem; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; }
+    th { background: var(--bg-light); padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+    tr:hover { background: #fafbfc; }
+    .priority { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    .priority-p0 { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+    .priority-p1 { background: #fefce8; color: var(--warning); border: 1px solid #fef08a; }
+    .priority-p2 { background: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; }
+    .priority-p3 { background: #f0f9ff; color: var(--info); border: 1px solid #bae6fd; }
+    .subcategory { display: inline-block; background: #eff6ff; color: var(--primary); padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; }
+    .automation { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; }
+    .automation-api { background: #dbeafe; color: #1e40af; }
+    .automation-e2e { background: #fce7f3; color: #9d174d; }
+    .automation-integration { background: #d1fae5; color: #065f46; }
+    .automation-performance { background: #fef3c7; color: #92400e; }
+    .automation-concurrency { background: #ffedd5; color: #9a3412; }
+    .automation-security { background: #fee2e2; color: #991b1b; }
+    .automation-human { background: #f3e8ff; color: var(--purple); font-weight: 600; position: relative; }
+    .human-reason { display: block; font-size: 0.75rem; font-weight: 400; margin-top: 4px; padding: 6px 8px; background: #ede9fe; border-radius: 4px; color: #5b21b6; line-height: 1.4; }
+    .clarifying-questions { background: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 20px 25px; margin-top: 20px; }
+    .clarifying-questions h4 { color: #854d0e; margin-bottom: 16px; font-size: 1.1rem; border-bottom: 2px solid #fef08a; padding-bottom: 10px; }
+    .clarifying-intro { background: #fef9c3; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; }
+    .clarifying-intro .preamble { color: #713f12; font-size: 0.9rem; line-height: 1.5; margin: 0; }
+    .subcategory-questions { background: white; border: 1px solid #fef08a; border-radius: 6px; padding: 15px; margin-bottom: 15px; }
+    .subcategory-questions h5 { color: #854d0e; font-size: 0.95rem; margin-bottom: 8px; font-weight: 700; }
+    .subcategory-questions .rationale { color: #92400e; font-size: 0.85rem; margin-bottom: 12px; padding: 8px 12px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b; }
+    .clarifying-questions ul { list-style: none; margin: 0; padding: 0; }
+    .clarifying-questions li { padding: 8px 0 8px 20px; position: relative; border-bottom: 1px dashed #fef08a; color: var(--text-dark); font-size: 0.9rem; }
+    .clarifying-questions li:before { content: "?"; position: absolute; left: 0; color: #f59e0b; font-weight: bold; }
+    .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .chart-panel { background: var(--bg-white); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+    .chart-panel h3 { font-size: 1.1rem; color: var(--text-dark); margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; }
+    .bar-label { width: 90px; font-size: 0.8rem; font-weight: 600; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 24px; background: var(--bg-light); border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; min-width: 35px; }
+    .bar-value { width: 45px; font-size: 0.85rem; font-weight: 700; color: var(--text-dark); text-align: right; }
+    .bar-structure { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .bar-function { background: linear-gradient(90deg, #10b981, #059669); }
+    .bar-data { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-interfaces { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+    .bar-platform { background: linear-gradient(90deg, #14b8a6, #0d9488); }
+    .bar-operations { background: linear-gradient(90deg, #6366f1, #4f46e5); }
+    .bar-time { background: linear-gradient(90deg, #ec4899, #db2777); }
+    .bar-p0 { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .bar-p1 { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-p2 { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .bar-p3 { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .chart-total { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 0.9rem; }
+    .toc-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .toc-nav a { color: var(--primary); text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; background: var(--bg-light); border: 1px solid var(--border-light); display: inline-flex; align-items: center; gap: 6px; }
+    .toc-nav a:hover { background: var(--primary); color: white; }
+    .toc-nav .count { background: var(--primary); color: white; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; }
+    .toc-divider { color: var(--border); margin: 0 4px; }
+    .category-section { border-radius: 8px; margin-bottom: 16px; overflow: hidden; border-left: 4px solid var(--border-light); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .category-header { padding: 14px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+    .category-header h3 { margin: 0; font-size: 0.95rem; display: flex; align-items: center; gap: 10px; font-weight: 600; }
+    .category-header .badge { font-size: 0.7rem; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+    .category-content { padding: 16px; }
+    .cat-structure { border-left-color: #3b82f6; }
+    .cat-structure .category-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); }
+    .cat-structure .category-content { background: #f8faff; }
+    .cat-structure .badge { background: #3b82f6; color: white; }
+    .cat-function { border-left-color: #10b981; }
+    .cat-function .category-header { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); }
+    .cat-function .category-content { background: #f8fdfb; }
+    .cat-function .badge { background: #10b981; color: white; }
+    .cat-data { border-left-color: #f59e0b; }
+    .cat-data .category-header { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); }
+    .cat-data .category-content { background: #fffdf8; }
+    .cat-data .badge { background: #f59e0b; color: white; }
+    .cat-interfaces { border-left-color: #8b5cf6; }
+    .cat-interfaces .category-header { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); }
+    .cat-interfaces .category-content { background: #faf9ff; }
+    .cat-interfaces .badge { background: #8b5cf6; color: white; }
+    .cat-platform { border-left-color: #14b8a6; }
+    .cat-platform .category-header { background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); }
+    .cat-platform .category-content { background: #f8fefd; }
+    .cat-platform .badge { background: #14b8a6; color: white; }
+    .cat-operations { border-left-color: #6366f1; }
+    .cat-operations .category-header { background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); }
+    .cat-operations .category-content { background: #f8f9ff; }
+    .cat-operations .badge { background: #6366f1; color: white; }
+    .cat-time { border-left-color: #ec4899; }
+    .cat-time .category-header { background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%); }
+    .cat-time .category-content { background: #fefafc; }
+    .cat-time .badge { background: #ec4899; color: white; }
+    .collapsed .category-content { display: none; }
+    .collapse-icon { transition: transform 0.2s; font-size: 0.8rem; color: var(--text-muted); }
+    .collapsed .collapse-icon { transform: rotate(-90deg); }
+    .filter-row td { padding: 6px 8px; background: #f8fafc; }
+    .filter-input, .filter-select { width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.75rem; background: white; }
+    .test-id { font-family: 'SF Mono', 'Consolas', monospace; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+    .info-section .info-content { overflow: hidden; transition: max-height 0.3s ease-out; max-height: 1000px; }
+    .info-section.collapsed .info-content { max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+    .info-section.collapsed .collapse-icon { transform: rotate(-90deg); }
+    @media (max-width: 900px) { .charts-container { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Product Factors assessment of: Epic 3 - Outfit-First Shopping Experience</h1>
+      <div class="meta-inline" style="margin-top: 15px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9rem; opacity: 0.9;">
+        <span>Report generated on <strong>2026-01-13</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Total Test Ideas: <strong>127</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Product Factors covered: <strong>7/7</strong></span>
+      </div>
+      <nav class="toc" style="margin-top: 15px; background: rgba(255,255,255,0.1); padding: 12px 16px; border-radius: 6px;">
+        <div class="toc-nav">
+          <a href="#risk" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3);">Prioritization</a>
+          <a href="#charts" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3);">Overview</a>
+          <span class="toc-divider" style="color: rgba(255,255,255,0.4);">|</span>
+          <span style="color: rgba(255,255,255,0.8); font-size: 0.85em; font-weight: 500;">Test Ideas:</span>
+          <a href="#structure" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3);">Structure <span class="count" style="background: rgba(255,255,255,0.3);">18</span></a>
+          <a href="#function" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3);">Function <span class="count" style="background: rgba(255,255,255,0.3);">32</span></a>
+          <a href="#data" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3);">Data <span class="count" style="background: rgba(255,255,255,0.3);">19</span></a>
+          <a href="#interfaces" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3);">Interfaces <span class="count" style="background: rgba(255,255,255,0.3);">26</span></a>
+          <a href="#platform" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3);">Platform <span class="count" style="background: rgba(255,255,255,0.3);">12</span></a>
+          <a href="#operations" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3);">Operations <span class="count" style="background: rgba(255,255,255,0.3);">12</span></a>
+          <a href="#time" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3);">Time <span class="count" style="background: rgba(255,255,255,0.3);">8</span></a>
+        </div>
+      </nav>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 15px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How can this report help you?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <blockquote style="margin: 0 0 15px 0; padding: 12px 15px; border-left: 3px solid rgba(255,255,255,0.4); font-style: italic; opacity: 0.9;">
+            "Requirements are not an end in themselves, but a means to an end—the end of providing value to some person(s)." <span style="opacity: 0.7;">— Jerry Weinberg</span>
+          </blockquote>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">In the <a href="https://talesoftesting.com/wp-content/uploads/2022/10/Lalitkumar-Bhamare-Quality-Conscious-Software-Delivery-eBook.pdf" style="color: #93c5fd; text-decoration: underline;">QCSD framework</a>, it is recommended to conduct Product Coverage Sessions or Requirements Engineering Sessions on a regular basis. These sessions can be carried out at the epic level or for complex feature requests and user stories. Testers in the team can analyze the epic or feature story using SFDIPOT (a product factors checklist from <a href="https://www.satisfice.com/download/heuristic-test-strategy-model" style="color: #93c5fd; text-decoration: underline;">Heuristic Test Strategy Model</a> by James Bach) and come up with test ideas, questions about risks, missing information, unconsidered dependencies, identified risks, and more.</p>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">A guided discussion based on this analysis can help teams uncover hidden risks, assess the completeness of the requirements, create a clearer development plan, identify gaps and dependencies, improve estimation with better information at hand, and most importantly - avoid rework caused by discovering issues halfway through development.</p>
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">If we want to save time and cost while still delivering quality software, it is always cheaper to do things right the first time. The purpose of this report is to facilitate Product Coverage Sessions and help teams achieve exactly that: doing things right the first time.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">When to generate this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">The sooner the better! As soon as testers can access Epic/User Stories or any project artifact they use for test design, this report should be generated. Generate this report and organize "Product Coverage Session" discussion with relevant stakeholders such as programmers, Product Owners, Designers, Architects etc.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How to use this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0 0 12px 0; opacity: 0.9;">In this report you will find:</p>
+          <div style="margin-left: 5px; line-height: 1.8;">
+            <div style="margin-bottom: 8px;">☐ <strong>The Test Ideas</strong> generated for each product factor based on applicable subcategories. Review these test ideas carefully for context relevance, applicability and then derive specific test cases where needed.</div>
+            <div style="margin-bottom: 8px;">☐ <strong>Automation Fitness</strong> recommendations against each test idea that can help for drafting suitable automation strategy.</div>
+            <div>☐ <strong>The Clarifying Questions</strong> - that surface "unknown unknowns" by systematically checking which Product Factors (SFDIPOT) subcategories lack test coverage. Ensure that Epics, User Stories, Acceptance Criteria etc. are readily updated based on answers derived for each clarifying question listed.</div>
+          </div>
+          <p style="margin: 15px 0 0 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); opacity: 0.9; font-size: 0.95rem;">All in all, this report represents important and unique elements to be considered in the test strategy. <strong>Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.</strong></p>
+          <p style="margin: 10px 0 0 0; opacity: 0.85; font-style: italic; font-size: 0.9rem;">Testers are advised to carefully evaluate all the information using critical thinking and context awareness.</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="section" id="risk">
+      <h2>Risk-Based Prioritization</h2>
+      <p style="margin-bottom: 15px;">Test ideas are prioritized using a <strong>risk-based approach</strong> that considers:</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Business Impact</strong><br>Potential revenue loss, customer trust damage, or regulatory penalties</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Likelihood of Failure</strong><br>Complexity of implementation, external dependencies, new technology</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">User Exposure</strong><br>Number of users affected and frequency of feature usage</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Security &amp; Compliance</strong><br>Data protection requirements, payment processing, legal obligations</div>
+      </div>
+      <h3 style="margin-top: 20px; margin-bottom: 12px;">Priority Legend</h3>
+      <table>
+        <thead>
+          <tr><th>Priority</th><th>Risk Level</th><th>Description</th><th>Examples from this Epic</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="priority priority-p0">P0</span></td><td><strong>Critical</strong></td><td>Security vulnerabilities, payment/pricing errors, complete feature failure affecting all users</td><td>Price calculation errors in multi-item add, inventory race conditions, XSS in UGC</td></tr>
+          <tr><td><span class="priority priority-p1">P1</span></td><td><strong>High</strong></td><td>Core user journey failures, significant revenue impact, data integrity issues</td><td>Add Complete Look failure, piece swapper breaks outfit, occasion filter returns wrong results</td></tr>
+          <tr><td><span class="priority priority-p2">P2</span></td><td><strong>Medium</strong></td><td>Degraded experience with workarounds, affects subset of users</td><td>Slow preview updates, minor UI glitches, edge case filtering</td></tr>
+          <tr><td><span class="priority priority-p3">P3</span></td><td><strong>Low</strong></td><td>Edge cases, cosmetic issues, rarely used features</td><td>Rare timezone edge cases, unusual character handling, extreme scroll depths</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="charts">
+      <h2>Test Ideas Overview</h2>
+      <div class="charts-container">
+        <div class="chart-panel">
+          <h3>Test Ideas by Product Factor (SFDIPOT)</h3>
+          <div class="bar-chart">
+            <div class="bar-row"><div class="bar-label">Structure</div><div class="bar-track"><div class="bar-fill bar-structure" style="width: 56.25%"></div></div><div class="bar-value">18</div></div>
+            <div class="bar-row"><div class="bar-label">Function</div><div class="bar-track"><div class="bar-fill bar-function" style="width: 100%"></div></div><div class="bar-value">32</div></div>
+            <div class="bar-row"><div class="bar-label">Data</div><div class="bar-track"><div class="bar-fill bar-data" style="width: 59.375%"></div></div><div class="bar-value">19</div></div>
+            <div class="bar-row"><div class="bar-label">Interfaces</div><div class="bar-track"><div class="bar-fill bar-interfaces" style="width: 81.25%"></div></div><div class="bar-value">26</div></div>
+            <div class="bar-row"><div class="bar-label">Platform</div><div class="bar-track"><div class="bar-fill bar-platform" style="width: 37.5%"></div></div><div class="bar-value">12</div></div>
+            <div class="bar-row"><div class="bar-label">Operations</div><div class="bar-track"><div class="bar-fill bar-operations" style="width: 37.5%"></div></div><div class="bar-value">12</div></div>
+            <div class="bar-row"><div class="bar-label">Time</div><div class="bar-track"><div class="bar-fill bar-time" style="width: 25%"></div></div><div class="bar-value">8</div></div>
+          </div>
+          <div class="chart-total"><span>Product Factors: 7/7</span><span style="font-weight: 700; color: var(--primary);">127 Test Ideas</span></div>
+        </div>
+        <div class="chart-panel">
+          <h3>Test Ideas by Priority</h3>
+          <div class="bar-chart">
+            <div class="bar-row"><div class="bar-label">P0 - Critical</div><div class="bar-track"><div class="bar-fill bar-p0" style="width: 21.6%"></div></div><div class="bar-value">11 (9%)</div></div>
+            <div class="bar-row"><div class="bar-label">P1 - High</div><div class="bar-track"><div class="bar-fill bar-p1" style="width: 70.6%"></div></div><div class="bar-value">36 (28%)</div></div>
+            <div class="bar-row"><div class="bar-label">P2 - Medium</div><div class="bar-track"><div class="bar-fill bar-p2" style="width: 100%"></div></div><div class="bar-value">51 (40%)</div></div>
+            <div class="bar-row"><div class="bar-label">P3 - Low</div><div class="bar-track"><div class="bar-fill bar-p3" style="width: 56.9%"></div></div><div class="bar-value">29 (23%)</div></div>
+          </div>
+          <h4 style="font-size: 0.85rem; margin: 14px 0 8px 0; padding-top: 12px; border-top: 1px solid var(--border);">Test Ideas by Automation Fitness</h4>
+          <div class="bar-chart" style="font-size: 0.85rem;">
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">API level</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 72%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value">26</div></div>
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">E2E level</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value">36</div></div>
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">Integration</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 67%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value">24</div></div>
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">Human</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 53%; background: linear-gradient(90deg, #a855f7, #7c3aed);"></div></div><div class="bar-value">19 (15%)</div></div>
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">Performance</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 33%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value">12</div></div>
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">Concurrency</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 28%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value">10</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="test-ideas">
+      <h2>Test Ideas by Product Factor</h2>
+      <script>
+        function filterTable(tableId) {
+          var table = document.getElementById(tableId);
+          var filters = table.querySelectorAll('.filter-input, .filter-select');
+          var rows = table.querySelectorAll('tbody tr');
+          rows.forEach(function(row) {
+            var show = true;
+            filters.forEach(function(filter) {
+              var col = parseInt(filter.dataset.col);
+              var cell = row.cells[col];
+              if (cell) {
+                var text = cell.textContent.toLowerCase();
+                var val = filter.value.toLowerCase();
+                if (val && text.indexOf(val) === -1) { show = false; }
+              }
+            });
+            row.style.display = show ? '' : 'none';
+          });
+        }
+      </script>
+
+      <!-- STRUCTURE Section -->
+      <div class="category-section cat-structure" id="structure">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>STRUCTURE: Test ideas for everything that comprises the physical product <span class="badge">18</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-structure">
+            <thead>
+              <tr><th style="width: 100px;">ID</th><th style="width: 70px;">Priority</th><th style="width: 120px;">Subcategory</th><th>Test Idea</th><th style="width: 210px;">Automation Fitness</th></tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-structure')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-structure')"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-STRU-01A3F8B2</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Code</span></td><td>Inject malformed outfit composition data from CMS and confirm OutfitCard.tsx component renders graceful error state instead of crashing</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-02B4E9C3</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Code</span></td><td>Simulate PieceSwapper.tsx receiving empty alternatives array from StyleMatchSuggestions API and confirm fallback UI displays "No alternatives available"</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-03C5FAD4</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Code</span></td><td>Force OutfitCustomizer.tsx to handle 10 concurrent piece swap requests and measure memory consumption stays below 50MB increase</td><td><span class="automation automation-performance">Performance testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-STRU-04D6GBE5</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Code</span></td><td>Test QuickSizePicker.tsx with outfit containing 8 items all requiring size selection and confirm interaction completes under 3 seconds</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-05E7HCF6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Dependencies</span></td><td>Simulate Outfit Recommendation Engine returning HTTP 503 and confirm homepage gracefully degrades to show curated fallback outfits</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-06F8IDG7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Dependencies</span></td><td>Inject 5-second latency into Inventory Aggregation Service and confirm outfit cards show loading skeleton instead of stale data</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-07G9JEH8</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Dependencies</span></td><td>Trigger Image Recognition service timeout during UGC product matching and confirm submission queues for retry with user notification</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-08H0KFI9</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">Dependencies</span></td><td>Simulate complete Product Recommendation Engine failure and confirm core outfit browsing remains functional with static content</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-09I1LGJ0</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Documentation</span></td><td>Confirm API documentation for POST /api/v2/bag/add-outfit includes request/response examples with size selection scenarios</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-10J2MHK1</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Documentation</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE: Evaluate if error messages for out-of-stock items are understandable by non-technical users without fashion expertise</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE: Error message clarity requires human judgment of language comprehension</div></span></td></tr>
+              <tr><td class="test-id">TC-STRU-11K3NIL2</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Code</span></td><td>Stress OccasionFilter.tsx with rapid toggling of 6 occasion chips within 1 second and confirm no duplicate API calls or UI freezing</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-12L4OJM3</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Code</span></td><td>Simulate AddCompleteLookButton.tsx receiving partial inventory response and confirm it identifies which items need alternatives</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-13M5PKN4</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Dependencies</span></td><td>Test behavior when Outfits CMS returns outfit with discontinued product IDs and confirm graceful substitution logic activates</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-14N6QLO5</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Documentation</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: EXPERTISE: Domain expert validation that occasion categories (Wedding Guest, Work, etc.) match fashion industry standard terminology</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: EXPERTISE: Fashion industry terminology accuracy requires domain knowledge</div></span></td></tr>
+              <tr><td class="test-id">TC-STRU-15O7RMP6</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Code</span></td><td>Inject circular dependency in outfit composition data (item A suggests item B, B suggests A) and confirm infinite loop protection triggers</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-16P8SNQ7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Dependencies</span></td><td>Simulate UGC Moderation Pipeline returning inconsistent approval status and confirm outfit display handles state conflicts</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-17Q9TOR8</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Code</span></td><td>Test FilterChips.tsx keyboard navigation with screen reader and confirm ARIA labels announce occasion name and selection state</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-18R0UPS9</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Dependencies</span></td><td>Confirm Outfit Composition Service maintains eventual consistency when CMS updates outfit while user is mid-customization</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro"><p class="preamble">Since the user stories focus on <strong>outfit display, piece swapping, and occasion filtering</strong>, the following subcategories have limited coverage.</p></div>
+            <div class="subcategory-questions">
+              <h5>Hardware/Infrastructure</h5>
+              <p class="rationale"><em>Rationale: No explicit infrastructure requirements mentioned for outfit visualization rendering</em></p>
+              <ul>
+                <li>What are the minimum device specifications for smooth outfit preview rendering?</li>
+                <li>Is CDN caching strategy defined for outfit imagery across EU regions?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FUNCTION Section -->
+      <div class="category-section cat-function" id="function">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>FUNCTION: Test ideas for everything that the product does <span class="badge">32</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-function">
+            <thead>
+              <tr><th style="width: 100px;">ID</th><th style="width: 70px;">Priority</th><th style="width: 120px;">Subcategory</th><th>Test Idea</th><th style="width: 210px;">Automation Fitness</th></tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-function')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-function')"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-FUNC-01A3B4C5</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">Core Features</span></td><td>Trigger "Add Complete Look" with 4-item outfit and confirm all items added to bag with correct quantities, sizes, and combined subtotal</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-02B4C5D6</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">Calculations</span></td><td>Calculate combined outfit price with mixed currency items and confirm total matches sum of individual prices without rounding errors</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-03C5D6E7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Core Features</span></td><td>Click "Swap This Piece" on jeans within outfit and confirm alternatives panel shows only bottoms that stylistically match remaining pieces</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-04D6E7F8</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Core Features</span></td><td>Select alternative piece in swapper and confirm outfit preview updates within 500ms showing new item in context with other pieces</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-05E7F8G9</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Core Features</span></td><td>Swap 2 pieces in outfit then click "Add Complete Look" and confirm customized outfit (not original) is added to bag</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-06F8G9H0</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Customize outfit, navigate away, return within same session and confirm customizations are preserved for that outfit</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-07G9H0I1</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">Calculations</span></td><td>Swap to higher price point item and confirm total price updates in real-time with correct arithmetic (no negative prices)</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-08H0I1J2</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Core Features</span></td><td>Select "Wedding Guest" occasion filter and confirm only outfits tagged formal/semi-formal are displayed</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-09I1J2K3</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Select multiple occasions (Wedding Guest + Date Night) and confirm outfits matching ANY selected occasion are shown</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-10J2K3L4</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Clear all occasion filters and confirm full outfit catalog displays without filtering</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-11K3L4M5</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Core Features</span></td><td>Click "Add Complete Look" when one item requires size selection and confirm quick size picker appears only for that item</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-12L4M5N6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Core Features</span></td><td>Attempt "Add Complete Look" when one item out of stock in user's size and confirm alternatives shown before completing action</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-13M5N6O7</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Add complete look to bag and confirm items visually grouped as a look with combined subtotal in bag view</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-14N6O7P8</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Core Features</span></td><td>Select "Customer Looks" tab and confirm grid displays UGC outfits from real customers (not editorial content)</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-15O7P8Q9</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Tap customer outfit and confirm items identified with links to respective PDPs</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-16P8Q9R0</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Click item from customer outfit and confirm navigation to PDP with "As styled by [username]" context displayed</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-17Q9R0S1</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Navigate to account page after purchase and confirm "Share Your Look" option visible for outfit submission</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-18R0S1T2</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Submit outfit through moderation and confirm user receives notification when published</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-19S1T2U3</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Display customer outfit containing discontinued items and confirm "Similar Items" links shown instead of direct PDPs</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-20T2U3V4</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">Security</span></td><td>Inject XSS payload in UGC outfit submission username field and confirm sanitization prevents script execution</td><td><span class="automation automation-security">Security testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-21U3V4W5</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">Security</span></td><td>Attempt SQL injection in occasion filter API parameter and confirm parameterized queries prevent database manipulation</td><td><span class="automation automation-security">Security testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-22V4W5X6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Error Handling</span></td><td>Trigger network failure during "Add Complete Look" and confirm user sees retry option with items preserved</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-23W5X6Y7</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Error Handling</span></td><td>Apply filters returning zero outfits and confirm helpful message with suggestions to broaden filters displayed</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-24X6Y7Z8</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Error Handling</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE: Evaluate if error message tone feels helpful vs. blaming when outfit unavailable</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE: Error message emotional tone requires human judgment</div></span></td></tr>
+              <tr><td class="test-id">TC-FUNC-25Y7Z8A9</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Confirm piece swapper shows stylistically matching alternatives based on color palette and style rules of remaining outfit</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-26Z8A9B0</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Core Features</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Assess if piece swapper alternatives "look right" together - style matching is subjective aesthetic judgment</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Style coherence is subjective aesthetic judgment automation cannot assess</div></span></td></tr>
+              <tr><td class="test-id">TC-FUNC-27A9B0C1</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Calculations</span></td><td>Test outfit price calculation with promotional items and confirm discounts apply correctly to combined total</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-28B0C1D2</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Mobile: tap occasion chip and confirm page smoothly scrolls to outfit grid after filter applies</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-29C1D2E3</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Core Features</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: DISCOVERY: Exploratory testing of unexpected outfit customization paths not covered in requirements</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: DISCOVERY: Exploratory testing reveals interaction patterns not in specs</div></span></td></tr>
+              <tr><td class="test-id">TC-FUNC-30D2E3F4</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Core Features</span></td><td>Test piece swapper with outfit where all alternatives are out of stock and confirm appropriate messaging displayed</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-31E3F4G5</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Core Features</span></td><td>Swap piece to lower price point item and confirm savings clearly communicated in updated total</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-32F4G5H6</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Core Features</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: EXPERTISE: Fashion expert validates occasion categorization matches industry expectations for formal vs. semi-formal</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: EXPERTISE: Occasion formality categorization requires fashion domain knowledge</div></span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro"><p class="preamble">Since the user stories focus on <strong>one-click add, piece swapping, and occasion filtering</strong>, clarification needed on edge cases.</p></div>
+            <div class="subcategory-questions">
+              <h5>Calculations</h5>
+              <p class="rationale"><em>Rationale: Combined pricing has multiple edge cases not specified in ACs</em></p>
+              <ul>
+                <li>How should combined outfit price handle items with different VAT rates?</li>
+                <li>What rounding rules apply when outfit contains items from multiple currencies?</li>
+                <li>Should bundle discounts apply automatically to complete looks?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>Security</h5>
+              <p class="rationale"><em>Rationale: UGC submission introduces untrusted input handling requirements</em></p>
+              <ul>
+                <li>What moderation workflow exists for UGC outfit image content?</li>
+                <li>How are inappropriate images detected before publication?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DATA Section -->
+      <div class="category-section cat-data" id="data">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>DATA: Test ideas for everything that the product processes <span class="badge">19</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-data">
+            <thead>
+              <tr><th style="width: 100px;">ID</th><th style="width: 70px;">Priority</th><th style="width: 120px;">Subcategory</th><th>Test Idea</th><th style="width: 210px;">Automation Fitness</th></tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-data')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-data')"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-DATA-01A2B3C4</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Input Data</span></td><td>Submit outfit with maximum 8 items and confirm all items processed correctly in add-to-bag request</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-02B3C4D5</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Input Data</span></td><td>Test occasion filter API with empty occasions parameter and confirm all outfits returned (no filter applied)</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-03C4D5E6</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Input Data</span></td><td>Submit UGC outfit with product description containing German umlauts and confirm correct encoding preservation</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-04D5E6F7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Output Data</span></td><td>Confirm outfit total price formatted with correct locale separators for German market (1.234,56 EUR format)</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-05E6F7G8</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Output Data</span></td><td>Display outfit with 8 items and confirm all product names visible without truncation breaking words</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-06F7G8H9</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Output Data</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Evaluate if outfit price presentation hierarchy makes total immediately scannable within 3 seconds</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Visual hierarchy scannability requires human perception</div></span></td></tr>
+              <tr><td class="test-id">TC-DATA-07G8H9I0</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Boundaries</span></td><td>Test outfit API with limit=0 and confirm graceful handling (empty array or validation error, not crash)</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-08H9I0J1</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Boundaries</span></td><td>Request outfits with offset=10000 (beyond total count) and confirm empty results with appropriate response</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-09I0J1K2</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Boundaries</span></td><td>Test piece swapper with outfit at maximum item count boundary and confirm alternatives still load</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-10J1K2L3</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Persistence</span></td><td>Add customized outfit to bag, close browser, reopen and confirm customizations persist in bag across sessions</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-11K2L3M4</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Persistence</span></td><td>Customize outfit as guest, create account, and confirm customizations transfer to authenticated session</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-12L3M4N5</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Persistence</span></td><td>Submit UGC outfit and confirm data survives moderation queue processing without field corruption</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-13M4N5O6</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">Input Data</span></td><td>Inject malformed JSON in add-outfit request body and confirm API returns 400 with schema validation errors</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-14N5O6P7</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Input Data</span></td><td>Test outfit filter with invalid occasion value and confirm graceful error handling (not 500 error)</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-15O6P7Q8</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Output Data</span></td><td>Display outfit with extremely long product name (100+ characters) and confirm ellipsis truncation maintains readability</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-16P7Q8R9</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Boundaries</span></td><td>Test add-outfit API with negative item quantity and confirm validation rejects with clear error message</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-17Q8R9S0</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Persistence</span></td><td>Confirm outfit customization session data cleaned up after 24-hour expiry to prevent storage bloat</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-18R9S0T1</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Input Data</span></td><td>Submit UGC outfit image exceeding 10MB size limit and confirm clear file size error before upload completes</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-19S0T1U2</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Output Data</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE: Evaluate if UGC outfit attribution "As styled by [username]" feels authentic vs. commercial</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE: Authenticity perception is human judgment</div></span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro"><p class="preamble">Since the user stories focus on <strong>outfit data processing and UGC submission</strong>, data lifecycle needs clarification.</p></div>
+            <div class="subcategory-questions">
+              <h5>Persistence</h5>
+              <p class="rationale"><em>Rationale: Session customization storage not fully specified</em></p>
+              <ul>
+                <li>How long should outfit customizations persist in anonymous user sessions?</li>
+                <li>What happens to customization data when user logs out?</li>
+                <li>Is there a maximum number of customized outfits stored per session?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INTERFACES Section -->
+      <div class="category-section cat-interfaces" id="interfaces">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>INTERFACES: Test ideas for every interface through which the product communicates <span class="badge">26</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-interfaces">
+            <thead>
+              <tr><th style="width: 100px;">ID</th><th style="width: 70px;">Priority</th><th style="width: 120px;">Subcategory</th><th>Test Idea</th><th style="width: 210px;">Automation Fitness</th></tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-interfaces')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-interfaces')"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-INTF-01A1B2C3</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">User Interface</span></td><td>Tap "Add Complete Look" button on mobile (320px viewport) and confirm touch target minimum 44x44px for accessibility</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-02B2C3D4</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">User Interface</span></td><td>Navigate outfit grid using keyboard only (Tab, Enter, Arrow keys) and confirm all outfit cards accessible</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-03C3D4E5</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">User Interface</span></td><td>Enable screen reader and confirm outfit card aria-labels announce outfit name, item count, and total price</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-04D4E5F6</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">User Interface</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Evaluate if piece swapper interaction feels intuitive without instructions</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Intuitiveness requires human cognitive assessment</div></span></td></tr>
+              <tr><td class="test-id">TC-INTF-05E5F6G7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">APIs</span></td><td>Call POST /api/v2/bag/add-outfit with valid outfit and confirm 200 response with updated bag state</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-06F6G7H8</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">APIs</span></td><td>Call GET /api/v2/outfits with occasions filter and confirm response schema matches OpenAPI specification</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-07G7H8I9</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">APIs</span></td><td>Exceed API rate limit (100 req/min) and confirm 429 response with Retry-After header</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-08H8I9J0</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">APIs</span></td><td>Send malformed Authorization header to outfit API and confirm 401 response with clear error message</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-09I9J0K1</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">External</span></td><td>Simulate Inventory Aggregation Service returning partial product data and confirm outfit still renders with available items</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-10J0K1L2</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">External</span></td><td>Trigger Product Recommendation Engine timeout and confirm fallback curated outfits display within 3 seconds</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-11K1L2M3</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">External</span></td><td>Test Image Recognition service receiving unsupported image format and confirm clear error feedback to user</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-12L2M3N4</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">User Interface</span></td><td>Resize browser from 1440px to 320px during outfit customization and confirm layout adapts without losing state</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-13M3N4O5</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">User Interface</span></td><td>Confirm piece swapper panel closes when clicking outside and customization state preserved</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-14N4O5P6</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">User Interface</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Evaluate if occasion filter chips visual weight indicates selection state clearly</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Visual feedback clarity is subjective human assessment</div></span></td></tr>
+              <tr><td class="test-id">TC-INTF-15O5P6Q7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">APIs</span></td><td>Test add-outfit API with expired session token and confirm 401 with refresh token flow guidance</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-16P6Q7R8</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">APIs</span></td><td>Request outfit alternatives with non-existent product ID and confirm 404 with helpful error message</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-17Q7R8S9</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">External</span></td><td>Confirm outfit CMS content changes propagate to frontend within defined cache TTL (specify expected TTL)</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-18R8S9T0</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">User Interface</span></td><td>Test quick size picker with prefers-reduced-motion enabled and confirm no animations interfere</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-19S9T0U1</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">User Interface</span></td><td>Test outfit preview update latency during piece swap and confirm visual feedback within 500ms</td><td><span class="automation automation-performance">Performance testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-INTF-20T0U1V2</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">External</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Evaluate if third-party recommendation integration feels seamless vs. bolted-on</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Integration seamlessness is subjective user experience</div></span></td></tr>
+              <tr><td class="test-id">TC-INTF-21U1V2W3</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">APIs</span></td><td>Confirm outfit API response includes proper cache headers for CDN optimization</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-22V2W3X4</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">User Interface</span></td><td>Test outfit card hover state on desktop and confirm product details preview appears without jitter</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-23W3X4Y5</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">User Interface</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE: UX review - can target user (Anna, working mother) complete add-look in under 30 seconds?</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE: Task completion speed for persona requires contextual judgment</div></span></td></tr>
+              <tr><td class="test-id">TC-INTF-24X4Y5Z6</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">External</span></td><td>Test behavior when Outfits CMS returns stale data due to cache and confirm eventual consistency within 5 minutes</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-25Y5Z6A7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">User Interface</span></td><td>Confirm inline validation feedback appears within 200ms when selecting invalid size combination</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-26Z6A7B8</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">User Interface</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: DISCOVERY: Explore unexpected navigation patterns between outfit grid, swapper, and bag</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: DISCOVERY: Navigation edge cases require exploratory human testing</div></span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro"><p class="preamble">Since the user stories focus on <strong>UI interactions and API integration</strong>, accessibility needs clarification.</p></div>
+            <div class="subcategory-questions">
+              <h5>User Interface - Accessibility</h5>
+              <p class="rationale"><em>Rationale: WCAG compliance level not specified for outfit interactions</em></p>
+              <ul>
+                <li>What WCAG level (A, AA, AAA) is required for outfit customization features?</li>
+                <li>Should piece swapper support voice control for accessibility?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PLATFORM Section -->
+      <div class="category-section cat-platform" id="platform">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>PLATFORM: Test ideas for external components the product depends upon <span class="badge">12</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-platform">
+            <thead>
+              <tr><th style="width: 100px;">ID</th><th style="width: 70px;">Priority</th><th style="width: 120px;">Subcategory</th><th>Test Idea</th><th style="width: 210px;">Automation Fitness</th></tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-platform')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-platform')"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-PLAT-01A0B1C2</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Browser</span></td><td>Test outfit customization flow in Chrome, Firefox, Safari, Edge latest versions and confirm consistent behavior</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-02B1C2D3</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Browser</span></td><td>Test piece swapper touch interactions on iOS Safari and Android Chrome and confirm gesture recognition</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-03C2D3E4</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Browser</span></td><td>Disable JavaScript and confirm outfit grid displays static fallback content</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-04D3E4F5</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Browser</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Evaluate if outfit experience feels identical across browsers to typical user</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Cross-browser consistency perception requires human comparison</div></span></td></tr>
+              <tr><td class="test-id">TC-PLAT-05E4F5G6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Network</span></td><td>Test add-complete-look on 3G connection (500ms RTT) and confirm usable experience within 5 seconds</td><td><span class="automation automation-performance">Performance testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-06F5G6H7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Network</span></td><td>Simulate network interruption during piece swap selection and confirm recovery without data loss</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-07G6H7I8</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Network</span></td><td>Test outfit images loading on throttled connection and confirm progressive loading with placeholder</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-08H7I8J9</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Services</span></td><td>Confirm outfit functionality during Recommendation Engine maintenance window using cached data</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-09I8J9K0</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Services</span></td><td>Test UGC submission when Image Recognition service at capacity and confirm queue handling</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-10J9K0L1</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Network</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Evaluate if app feels fast enough on typical German mobile network conditions</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Perceived performance is subjective user experience</div></span></td></tr>
+              <tr><td class="test-id">TC-PLAT-11K0L1M2</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Browser</span></td><td>Test outfit customization in Samsung Internet browser (significant German market share)</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-12L1M2N3</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Services</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Evaluate if outfit features feel reliable or flaky during dependent service degradation</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Reliability perception during degradation requires human judgment</div></span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro"><p class="preamble">Since the user stories focus on <strong>cross-platform outfit shopping</strong>, platform support needs clarification.</p></div>
+            <div class="subcategory-questions">
+              <h5>Operating System</h5>
+              <p class="rationale"><em>Rationale: No native app mentioned but mobile web critical</em></p>
+              <ul>
+                <li>Is there a native app version requiring separate testing?</li>
+                <li>What minimum iOS/Android versions must be supported for mobile web?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OPERATIONS Section -->
+      <div class="category-section cat-operations" id="operations">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>OPERATIONS: Test ideas for how the product will be used <span class="badge">12</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-operations">
+            <thead>
+              <tr><th style="width: 100px;">ID</th><th style="width: 70px;">Priority</th><th style="width: 120px;">Subcategory</th><th>Test Idea</th><th style="width: 210px;">Automation Fitness</th></tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-operations')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-operations')"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-OPER-01A9B0C1</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Common Use</span></td><td>Complete happy path: browse outfits, filter by occasion, add complete look, proceed to checkout</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-02B0C1D2</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Common Use</span></td><td>Complete customize flow: view outfit, swap 1 piece, update preview, add customized look to bag</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-03C1D2E3</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Common Use</span></td><td>Browse customer looks tab, tap outfit, navigate to PDP, return to gallery without losing scroll position</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-04D2E3F4</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Extreme Use</span></td><td>Stress test with 100 concurrent users adding same outfit to bag and confirm inventory handling</td><td><span class="automation automation-concurrency">Concurrency testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-OPER-05E3F4G5</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Extreme Use</span></td><td>Load outfit page with 50 outfits and confirm UI remains responsive during infinite scroll</td><td><span class="automation automation-performance">Performance testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-OPER-06F4G5H6</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Extreme Use</span></td><td>Rapidly toggle all 6 occasion filters 20 times within 10 seconds and confirm no race conditions</td><td><span class="automation automation-concurrency">Concurrency testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-OPER-07G5H6I7</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">User Types</span></td><td>Test outfit flow as Anna persona (working mother): complete add-look within 2 minutes lunch break scenario</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-08H6I7J8</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">User Types</span></td><td>Test customization flow as Carla persona (fashion-conscious): swap multiple pieces maintaining style coherence</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-09I7J8K9</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">User Types</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: EXPERTISE: Validate David persona (occasional shopper) can find wedding guest outfit without fashion expertise</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: EXPERTISE: Persona needs validation requires contextual judgment</div></span></td></tr>
+              <tr><td class="test-id">TC-OPER-10J8K9L0</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Environment</span></td><td>Test outfit display with German locale (de-DE) and confirm all text localized correctly</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-11K9L0M1</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Environment</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: EXPERTISE: Native German speaker validates occasion translations feel natural vs. machine-translated</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: EXPERTISE: Translation naturalness requires native speaker judgment</div></span></td></tr>
+              <tr><td class="test-id">TC-OPER-12L0M1N2</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Common Use</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE: Evaluate if common outfit browsing workflow requires minimum clicks (target: 3 or fewer)</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE: Workflow efficiency judgment requires human assessment</div></span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro"><p class="preamble">Since the user stories focus on <strong>outfit shopping workflows</strong>, operational scenarios need clarification.</p></div>
+            <div class="subcategory-questions">
+              <h5>Extreme Use</h5>
+              <p class="rationale"><em>Rationale: Peak load scenarios not specified</em></p>
+              <ul>
+                <li>What is the expected peak concurrent users during Fashion Ball events?</li>
+                <li>What degradation is acceptable during traffic spikes?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIME Section -->
+      <div class="category-section cat-time" id="time">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>TIME: Test ideas for relationships between the product and time <span class="badge">8</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-time">
+            <thead>
+              <tr><th style="width: 100px;">ID</th><th style="width: 70px;">Priority</th><th style="width: 120px;">Subcategory</th><th>Test Idea</th><th style="width: 210px;">Automation Fitness</th></tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-time')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-time')"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-TIME-01A8B9C0</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Timing</span></td><td>Measure piece swap preview update latency and confirm 95th percentile under 500ms</td><td><span class="automation automation-performance">Performance testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-TIME-02B9C0D1</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Timing</span></td><td>Measure add-complete-look operation time with 4-item outfit and confirm under 2 seconds (excluding size selection)</td><td><span class="automation automation-performance">Performance testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-TIME-03C0D1E2</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">Concurrency</span></td><td>Simulate two users adding same outfit with last-available-size item and confirm inventory race condition handled</td><td><span class="automation automation-concurrency">Concurrency testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-TIME-04D1E2F3</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Concurrency</span></td><td>Two users customizing same base outfit simultaneously and confirm independent session isolation</td><td><span class="automation automation-concurrency">Concurrency testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-TIME-05E2F3G4</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Concurrency</span></td><td>User swaps piece while inventory updates and confirm no corrupt outfit state from eventual consistency</td><td><span class="automation automation-concurrency">Concurrency testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-TIME-06F3G4H5</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">State Changes</span></td><td>Test outfit display when item goes out of stock during user browsing session and confirm real-time update</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-TIME-07G4H5I6</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Timing</span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Evaluate if loading indicators reduce perceived wait time during piece swap</div></span></td><td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION: Perceived wait time is subjective human experience</div></span></td></tr>
+              <tr><td class="test-id">TC-TIME-08H5I6J7</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">State Changes</span></td><td>Test UGC moderation queue processing time and confirm user notified within 24 hours of submission</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro"><p class="preamble">Since the user stories focus on <strong>real-time outfit interactions</strong>, timing requirements need clarification.</p></div>
+            <div class="subcategory-questions">
+              <h5>Scheduling</h5>
+              <p class="rationale"><em>Rationale: No scheduled events mentioned but may exist</em></p>
+              <ul>
+                <li>Are there scheduled outfit collection launches requiring countdown handling?</li>
+                <li>Is there seasonal rotation of featured outfits requiring cache invalidation?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

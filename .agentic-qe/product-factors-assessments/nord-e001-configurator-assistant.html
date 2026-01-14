@@ -1,0 +1,608 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Factors assessment of: NORD-E001 Intelligent Drivetrain Configuration Assistant</title>
+  <style>
+    :root {
+      --primary: #1e3a5f;
+      --primary-dark: #0f2744;
+      --primary-light: #2d5a8a;
+      --accent: #0066cc;
+      --success: #0d7a3f;
+      --warning: #b45309;
+      --danger: #b91c1c;
+      --info: #0369a1;
+      --bg-light: #f5f7fa;
+      --bg-white: #ffffff;
+      --text-dark: #1a1a2e;
+      --text-muted: #5c6370;
+      --border: #d1d5db;
+      --border-light: #e5e7eb;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-light);
+      color: var(--text-dark);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 32px 28px;
+      margin-bottom: 24px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    }
+    header h1 { font-size: 1.75rem; margin-bottom: 8px; font-weight: 600; }
+    header .subtitle { font-size: 0.9rem; opacity: 0.9; line-height: 1.5; }
+    .section { background: var(--bg-white); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
+    .section h2 { color: var(--primary); font-size: 1.1rem; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); font-weight: 600; }
+    .section h3 { color: var(--text-dark); font-size: 1rem; margin: 20px 0 12px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 600; }
+    .section h3 .badge { background: var(--primary); color: white; padding: 3px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; }
+    th { background: var(--bg-light); padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+    tr:hover { background: #fafbfc; }
+    .priority { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    .priority-p0 { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+    .priority-p1 { background: #fefce8; color: var(--warning); border: 1px solid #fef08a; }
+    .priority-p2 { background: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; }
+    .priority-p3 { background: #f0f9ff; color: var(--info); border: 1px solid #bae6fd; }
+    .subcategory { display: inline-block; background: #eff6ff; color: var(--primary); padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; }
+    .automation { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; }
+    .automation-api { background: #dbeafe; color: #1e40af; }
+    .automation-e2e { background: #fce7f3; color: #9d174d; }
+    .automation-integration { background: #d1fae5; color: #065f46; }
+    .automation-performance { background: #fef3c7; color: #92400e; }
+    .automation-concurrency { background: #ffedd5; color: #9a3412; }
+    .automation-security { background: #fee2e2; color: #991b1b; }
+    .automation-human { background: #f3e8ff; color: #7c3aed; font-weight: 600; }
+    .clarifying-questions { background: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 20px 25px; margin-top: 20px; }
+    .clarifying-questions h4 { color: #854d0e; margin-bottom: 16px; font-size: 1.1rem; border-bottom: 2px solid #fef08a; padding-bottom: 10px; }
+    .clarifying-intro { background: #fef9c3; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; }
+    .clarifying-intro .preamble { color: #713f12; font-size: 0.9rem; line-height: 1.5; margin: 0; }
+    .subcategory-questions { background: white; border: 1px solid #fef08a; border-radius: 6px; padding: 15px; margin-bottom: 15px; }
+    .subcategory-questions h5 { color: #854d0e; font-size: 0.95rem; margin-bottom: 8px; font-weight: 700; }
+    .subcategory-questions .rationale { color: #92400e; font-size: 0.85rem; margin-bottom: 12px; padding: 8px 12px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b; }
+    .clarifying-questions ul { list-style: none; margin: 0; padding: 0; }
+    .clarifying-questions li { padding: 8px 0 8px 20px; position: relative; border-bottom: 1px dashed #fef08a; color: var(--text-dark); font-size: 0.9rem; }
+    .clarifying-questions li:before { content: "?"; position: absolute; left: 0; color: #f59e0b; font-weight: bold; }
+    .clarifying-questions li:last-child { border-bottom: none; }
+    .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .chart-panel { background: var(--bg-white); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+    .chart-panel h3 { font-size: 1.1rem; color: var(--text-dark); margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; }
+    .bar-label { width: 90px; font-size: 0.8rem; font-weight: 600; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 24px; background: var(--bg-light); border-radius: 4px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 0.75rem; font-weight: 600; color: white; min-width: 35px; transition: width 0.3s ease; }
+    .bar-value { width: 45px; font-size: 0.85rem; font-weight: 700; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-structure { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .bar-function { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+    .bar-data { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .bar-interfaces { background: linear-gradient(90deg, #10b981, #059669); }
+    .bar-platform { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-operations { background: linear-gradient(90deg, #ec4899, #db2777); }
+    .bar-time { background: linear-gradient(90deg, #6366f1, #4f46e5); }
+    .bar-p0 { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .bar-p1 { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-p2 { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .bar-p3 { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .chart-total { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 0.9rem; }
+    @media (max-width: 900px) { .charts-container { grid-template-columns: 1fr; } }
+    .test-id { font-family: 'SF Mono', 'Consolas', monospace; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+    .toc { background: var(--bg-white); padding: 16px 20px; border-radius: 8px; margin-bottom: 16px; }
+    .toc-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .toc-nav a { color: var(--primary); text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; background: var(--bg-light); border: 1px solid var(--border-light); transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+    .toc-nav a:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    .toc-nav .count { background: var(--primary); color: white; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+    .toc-nav a:hover .count { background: rgba(255,255,255,0.3); }
+    .toc-divider { color: var(--border); margin: 0 4px; }
+    .category-section { border-radius: 8px; margin-bottom: 16px; overflow: hidden; border-left: 4px solid var(--border-light); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .category-header { padding: 14px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+    .category-header:hover { filter: brightness(0.97); }
+    .category-header h3 { margin: 0; font-size: 0.95rem; display: flex; align-items: center; gap: 10px; font-weight: 600; }
+    .category-header .badge { font-size: 0.7rem; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+    .category-content { padding: 16px; }
+    .category-section.cat-structure { border-left-color: #3b82f6; }
+    .category-section.cat-structure .category-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); }
+    .category-section.cat-structure .category-content { background: #f8faff; }
+    .category-section.cat-structure .badge { background: #3b82f6; color: white; }
+    .category-section.cat-function { border-left-color: #10b981; }
+    .category-section.cat-function .category-header { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); }
+    .category-section.cat-function .category-content { background: #f8fdfb; }
+    .category-section.cat-function .badge { background: #10b981; color: white; }
+    .category-section.cat-data { border-left-color: #f59e0b; }
+    .category-section.cat-data .category-header { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); }
+    .category-section.cat-data .category-content { background: #fffdf8; }
+    .category-section.cat-data .badge { background: #f59e0b; color: white; }
+    .category-section.cat-interfaces { border-left-color: #8b5cf6; }
+    .category-section.cat-interfaces .category-header { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); }
+    .category-section.cat-interfaces .category-content { background: #faf9ff; }
+    .category-section.cat-interfaces .badge { background: #8b5cf6; color: white; }
+    .category-section.cat-platform { border-left-color: #14b8a6; }
+    .category-section.cat-platform .category-header { background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); }
+    .category-section.cat-platform .category-content { background: #f8fefd; }
+    .category-section.cat-platform .badge { background: #14b8a6; color: white; }
+    .category-section.cat-operations { border-left-color: #6366f1; }
+    .category-section.cat-operations .category-header { background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); }
+    .category-section.cat-operations .category-content { background: #f8f9ff; }
+    .category-section.cat-operations .badge { background: #6366f1; color: white; }
+    .category-section.cat-time { border-left-color: #ec4899; }
+    .category-section.cat-time .category-header { background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%); }
+    .category-section.cat-time .category-content { background: #fefafc; }
+    .category-section.cat-time .badge { background: #ec4899; color: white; }
+    .collapsed .category-content { display: none; }
+    .collapse-icon { transition: transform 0.2s; font-size: 0.8rem; color: var(--text-muted); }
+    .collapsed .collapse-icon { transform: rotate(-90deg); }
+    .filter-row td { padding: 6px 8px; background: #f8fafc; }
+    .filter-input, .filter-select { width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.75rem; background: white; }
+    .filter-input:focus, .filter-select:focus { outline: none; border-color: var(--primary); }
+    .info-section .info-content { overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; max-height: 1000px; }
+    .info-section.collapsed .info-content { max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+    .info-section.collapsed .collapse-icon { transform: rotate(-90deg); }
+    .info-header:hover { background: rgba(255,255,255,0.05); }
+  </style>
+  <script>
+    function toggleSection(id) {
+      const section = document.getElementById(id);
+      if (section) { section.classList.toggle('collapsed'); }
+    }
+    function toggleAllSections() {
+      var sections = document.querySelectorAll('.category-section');
+      var btn = document.getElementById('toggle-all-btn');
+      var shouldCollapse = btn.textContent === 'Collapse All';
+      sections.forEach(function(s) {
+        if (shouldCollapse) { s.classList.add('collapsed'); }
+        else { s.classList.remove('collapsed'); }
+      });
+      btn.textContent = shouldCollapse ? 'Expand All' : 'Collapse All';
+    }
+    function filterTable(tableId) {
+      var table = document.getElementById(tableId);
+      var filters = table.querySelectorAll('.filter-input, .filter-select');
+      var rows = table.querySelectorAll('tbody tr');
+      rows.forEach(function(row) {
+        var show = true;
+        filters.forEach(function(filter) {
+          var col = parseInt(filter.dataset.col);
+          var cell = row.cells[col];
+          if (cell) {
+            var text = cell.textContent.toLowerCase();
+            var val = filter.value.toLowerCase();
+            if (val && text.indexOf(val) === -1) { show = false; }
+          }
+        });
+        row.style.display = show ? '' : 'none';
+      });
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Product Factors assessment of: NORD-E001 Intelligent Drivetrain Configuration Assistant</h1>
+      <div class="meta-inline" style="margin-top: 15px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9rem; opacity: 0.9;">
+        <span>Report generated on <strong>2026-01-12</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Total Test Ideas: <strong>156</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Product Factors covered: <strong>7/7</strong></span>
+      </div>
+      <nav class="toc" style="margin-top: 15px;">
+        <div style="color: var(--text-muted); font-size: 0.85em; font-weight: 600; margin-bottom: 8px;">Quick Navigation</div>
+        <div class="toc-nav">
+          <a href="#risk">Prioritization</a>
+          <a href="#charts">Overview</a>
+          <span class="toc-divider">|</span>
+          <span style="color: var(--text-muted); font-size: 0.85em; font-weight: 500;">Test Ideas:</span>
+          <a href="#structure">Structure <span class="count">24</span></a>
+          <a href="#function">Function <span class="count">38</span></a>
+          <a href="#data">Data <span class="count">22</span></a>
+          <a href="#interfaces">Interfaces <span class="count">32</span></a>
+          <a href="#platform">Platform <span class="count">14</span></a>
+          <a href="#operations">Operations <span class="count">16</span></a>
+          <a href="#time">Time <span class="count">10</span></a>
+        </div>
+      </nav>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 15px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How can this report help you?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <blockquote style="margin: 0 0 15px 0; padding: 12px 15px; border-left: 3px solid rgba(255,255,255,0.4); font-style: italic; opacity: 0.9;">
+            "Requirements are not an end in themselves, but a means to an end—the end of providing value to some person(s)." <span style="opacity: 0.7;">— Jerry Weinberg</span>
+          </blockquote>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">In the <a href="https://talesoftesting.com/wp-content/uploads/2022/10/Lalitkumar-Bhamare-Quality-Conscious-Software-Delivery-eBook.pdf" style="color: #93c5fd; text-decoration: underline;">QCSD framework</a>, it is recommended to conduct Product Coverage Sessions or Requirements Engineering Sessions on a regular basis. These sessions can be carried out at the epic level or for complex feature requests and user stories. Testers in the team can analyze the epic or feature story using SFDIPOT (a product factors checklist from <a href="https://www.satisfice.com/download/heuristic-test-strategy-model" style="color: #93c5fd; text-decoration: underline;">Heuristic Test Strategy Model</a> by James Bach) and come up with test ideas, questions about risks, missing information, unconsidered dependencies, identified risks, and more.</p>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">A guided discussion based on this analysis can help teams uncover hidden risks, assess the completeness of the requirements, create a clearer development plan, identify gaps and dependencies, improve estimation with better information at hand, and most importantly - avoid rework caused by discovering issues halfway through development.</p>
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">If we want to save time and cost while still delivering quality software, it is always cheaper to do things right the first time. The purpose of this report is to facilitate Product Coverage Sessions and help teams achieve exactly that: doing things right the first time.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">When to generate this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">The sooner the better! As soon as testers can access Epic/User Stories or any project artifact they use for test design, this report should be generated. Generate this report and organize "Product Coverage Session" discussion with relevant stakeholders such as programmers, Product Owners, Designers, Architects etc.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How to use this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0 0 12px 0; opacity: 0.9;">In this report you will find:</p>
+          <div style="margin-left: 5px; line-height: 1.8;">
+            <div style="margin-bottom: 8px;">☐ <strong>The Test Ideas</strong> generated for each product factor based on applicable subcategories. Review these test ideas carefully for context relevance, applicability and then derive specific test cases where needed.</div>
+            <div style="margin-bottom: 8px;">☐ <strong>Automation Fitness</strong> recommendations against each test idea that can help for drafting suitable automation strategy.</div>
+            <div>☐ <strong>The Clarifying Questions</strong> - that surface "unknown unknowns" by systematically checking which Product Factors (SFDIPOT) subcategories lack test coverage. Ensure that Epics, User Stories, Acceptance Criteria etc. are readily updated based on answers derived for each clarifying question listed.</div>
+          </div>
+          <p style="margin: 15px 0 0 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); opacity: 0.9; font-size: 0.95rem;">All in all, this report represents important and unique elements to be considered in the test strategy. <strong>Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.</strong></p>
+          <p style="margin: 10px 0 0 0; opacity: 0.85; font-style: italic; font-size: 0.9rem;">Testers are advised to carefully evaluate all the information using critical thinking and context awareness.</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="section" id="risk">
+      <h2>Risk-Based Prioritization</h2>
+      <p style="margin-bottom: 15px;">Test ideas are prioritized using a <strong>risk-based approach</strong> that considers:</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Business Impact</strong><br>Configuration errors leading to incorrect quotes, ATEX compliance failures, or manufacturing defects</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Likelihood of Failure</strong><br>Complex engineering calculations, multi-system integrations, CAD generation dependencies</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">User Exposure</strong><br>Engineers configuring 50+ drivetrains annually, distributor application engineers, OEM customers</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Safety &amp; Compliance</strong><br>ATEX explosion-proof certification requirements, engineering liability for miscalculations</div>
+      </div>
+      <h3>Priority Legend</h3>
+      <table>
+        <thead>
+          <tr><th>Priority</th><th>Risk Level</th><th>Description</th><th>Examples from this Epic</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="priority priority-p0">P0</span></td><td><strong>Critical</strong></td><td>Safety-critical ATEX compliance failures, engineering calculation errors causing equipment damage, data integrity issues causing incorrect manufacturing specs.</td><td>ATEX zone filtering bypass, torque calculation overflow, CAD dimension inaccuracy, gear ratio miscalculation</td></tr>
+          <tr><td><span class="priority priority-p1">P1</span></td><td><strong>High</strong></td><td>Core validation failures preventing accurate configurations, API integration failures, authentication/authorization bypass in collaboration features.</td><td>Motor-gear incompatibility missed, efficiency calculation errors, validation API timeout, concurrent edit conflicts</td></tr>
+          <tr><td><span class="priority priority-p2">P2</span></td><td><strong>Medium</strong></td><td>Important features affecting user productivity and experience. Failures cause workarounds but don't compromise engineering accuracy.</td><td>3D viewer performance, comparison export formatting, template search relevance, presence indicator lag</td></tr>
+          <tr><td><span class="priority priority-p3">P3</span></td><td><strong>Low</strong></td><td>Edge cases, UI polish, and rarely exercised code paths. Minimal business impact.</td><td>Obscure mounting position combinations, legacy browser styling, tooltip truncation</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="charts">
+      <h2>Test Ideas Overview</h2>
+      <div class="charts-container">
+        <div class="chart-panel">
+          <h3>Test Ideas by Product Factor (SFDIPOT)</h3>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <div class="bar-label">Structure</div>
+              <div class="bar-track"><div class="bar-fill bar-structure" style="width: 63%"></div></div>
+              <div class="bar-value">24</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Function</div>
+              <div class="bar-track"><div class="bar-fill bar-function" style="width: 100%"></div></div>
+              <div class="bar-value">38</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Data</div>
+              <div class="bar-track"><div class="bar-fill bar-data" style="width: 58%"></div></div>
+              <div class="bar-value">22</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Interfaces</div>
+              <div class="bar-track"><div class="bar-fill bar-interfaces" style="width: 84%"></div></div>
+              <div class="bar-value">32</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Platform</div>
+              <div class="bar-track"><div class="bar-fill bar-platform" style="width: 37%"></div></div>
+              <div class="bar-value">14</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Operations</div>
+              <div class="bar-track"><div class="bar-fill bar-operations" style="width: 42%"></div></div>
+              <div class="bar-value">16</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Time</div>
+              <div class="bar-track"><div class="bar-fill bar-time" style="width: 26%"></div></div>
+              <div class="bar-value">10</div>
+            </div>
+          </div>
+          <div class="chart-total">
+            <span class="total-label">Product Factors: 7/7</span>
+            <span class="total-value">156 Test Ideas</span>
+          </div>
+        </div>
+        <div class="chart-panel">
+          <h3>Test Ideas by Priority</h3>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <div class="bar-label">P0 - Critical</div>
+              <div class="bar-track"><div class="bar-fill bar-p0" style="width: 26%"></div></div>
+              <div class="bar-value">16</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P1 - High</div>
+              <div class="bar-track"><div class="bar-fill bar-p1" style="width: 66%"></div></div>
+              <div class="bar-value">41</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P2 - Medium</div>
+              <div class="bar-track"><div class="bar-fill bar-p2" style="width: 100%"></div></div>
+              <div class="bar-value">62</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P3 - Low</div>
+              <div class="bar-track"><div class="bar-fill bar-p3" style="width: 60%"></div></div>
+              <div class="bar-value">37</div>
+            </div>
+          </div>
+          <h4 style="font-size: 0.85rem; color: var(--text-dark); margin: 14px 0 8px 0; padding-top: 12px; border-top: 1px solid var(--border); font-weight: 600;">Test Ideas by Automation Fitness</h4>
+          <div class="bar-chart" style="font-size: 0.85rem;">
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">API level</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">48</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">E2E level</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 75%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">36</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Integration level</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 58%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">28</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Human Exploration</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 42%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">20</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Performance</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 29%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">14</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Concurrency</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 21%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">10</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="test-ideas">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary);">
+        <h2 style="margin: 0; border: none; padding: 0;">Test Ideas by Product Factor</h2>
+        <button onclick="toggleAllSections()" id="toggle-all-btn" style="background: var(--bg-light); border: 1px solid var(--border); padding: 6px 14px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 500; color: var(--text-dark);">Collapse All</button>
+      </div>
+
+      <!-- STRUCTURE CATEGORY -->
+      <div class="category-section cat-structure" id="structure">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>STRUCTURE: Test ideas for everything that comprises the physical product <span class="badge">24</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-structure">
+            <thead>
+              <tr>
+                <th style="width: 100px;">ID</th>
+                <th style="width: 70px;">Priority</th>
+                <th style="width: 120px;">Subcategory</th>
+                <th>Test Idea</th>
+                <th style="width: 210px;">Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-structure')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-structure')"><option value="">All</option><option value="API">API level</option><option value="E2E">E2E level</option><option value="Integration">Integration level</option><option value="Human">Human Exploration</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="test-id">TC-STRU-4A7F2E91</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify RecommendationEngine.ts correctly maps ATEX zone inputs (Zone 0, 1, 2, 21, 22) to explosion-proof product series filtering, ensuring non-ATEX products are excluded when any ATEX zone is selected</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-B3C81D45</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify ConfigurationValidator.ts enforces motor input power limits against gear unit maximum ratings, rejecting combinations where motor kW exceeds gear unit capacity by any margin</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-E9D04FA2</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify ApplicationWizard.tsx state management correctly preserves user inputs across navigation between Configure by Application and Configure by Product entry paths</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-7FC29A18</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Service</span></td>
+                <td>Verify /api/v1/configure/recommend endpoint returns exactly 2-4 recommendations sorted by ranking criteria (Best Match, Most Economical, Most Compact, Highest Efficiency)</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-1B5E6D33</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Service</span></td>
+                <td>Verify /api/v1/configure/validate endpoint responds within 500ms SLA when called on each selection change during configuration workflow</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-C8A47E62</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Service</span></td>
+                <td>Verify /api/v1/cad/preview/{configurationId} endpoint returns valid glTF format that Three.js can parse without errors for all product series combinations</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-5D2B8F19</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Dependencies</span></td>
+                <td>Verify product compatibility matrix API integration handles version mismatches gracefully when NORD updates compatibility rules mid-session</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-A1F93C74</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Dependencies</span></td>
+                <td>Verify real-time pricing engine integration returns price ranges within acceptable latency (under 2s) for complex multi-component configurations</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-6E8D2B47</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Dependencies</span></td>
+                <td>Verify CAD model generation service correctly renders all optional accessories (brake, encoder, terminal box) in exported geometry</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-9C4A5F82</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify ConfigurationComparison.tsx highlights differing cells between configurations with correct visual styling and color contrast for accessibility</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-D7B61E95</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify CADViewer.tsx (Three.js) maintains 60fps during rotate/pan/zoom operations on models with 50K+ polygons typical of complex drivetrain assemblies</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-F2E8C4A6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify TemplateManager.tsx correctly handles template tagging with multiple tags (e.g., 'Packaging Line', 'Conveyor Drive', '3kW') and enables filtering by any combination</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-4B9D7C13</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify ProjectSharing.tsx generates share links with correct permission encoding (View Only, Comment, Edit) that cannot be manipulated client-side</td>
+                <td><span class="automation automation-security">Security testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-8A3E6F29</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify CollaborationPresence.ts WebSocket connection properly reconnects after network interruption without duplicating presence indicators</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-2C5B9D71</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Service</span></td>
+                <td>Verify /api/v1/compare/export generates PDF with correct NORD branding, QR code, and full comparison table without data truncation</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-E6A4F8B2</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Service</span></td>
+                <td>Verify /api/v1/quotes/request correctly bundles multiple configuration IDs into single RFQ submission to NORD sales backend</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-3F7C2E84</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Service</span></td>
+                <td>Verify WebSocket /api/v1/projects/{projectId}/presence broadcasts user join/leave events within 500ms to all connected collaborators</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-1D9A5B36</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify ValidationFeedback.tsx error messages include actionable remediation buttons ([Switch to synthetic] or [Change position]) that execute correct state mutations</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-7B4E9F52</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify ComparisonExport.ts Excel export includes all 12 comparison rows (Product series through Delivery lead time) with correct cell formatting</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-A8C3D167</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify CADExporter.ts populates SolidWorks custom properties with configuration metadata (part number, configuration ID, timestamp)</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-5E2F8A94</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Verify TemplateGallery.tsx search results are sorted by relevance when searching by name, then by recency for equal relevance scores</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-C9D4E728</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Dependencies</span></td>
+                <td>Verify application-to-product mapping database returns suggestions within 1s for all 6 application types (Conveyor, Pump, Mixer, Fan, Hoist, Other)</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-6F1B3C89</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">NonExecutable</span></td>
+                <td>Verify ATEX certification documentation links in recommendation cards point to valid, current NORD certificate PDFs</td>
+                <td><span class="automation automation-human">Human testers must explore</span></td>
+              </tr>
+            </tbody>
+          </table>
+          
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>application wizard, validation, comparison, CAD export, collaboration, templates</strong>, the following subcategories have limited or no test coverage.</p>
+            </div>
+            
+            <div class="subcategory-questions">
+              <h5>[Hardware]</h5>
+              <p class="rationale"><em>Rationale: The 3D CAD viewer relies on WebGL which has hardware acceleration dependencies not explicitly addressed.</em></p>
+              <ul>
+                <li>What are the minimum GPU requirements for smooth 3D model rendering? Should we support integrated graphics only?</li>
+                <li>How should the CAD viewer degrade on devices without WebGL 2.0 support?</li>
+                <li>Should tablet/touch devices be supported for 3D model interaction?</li>
+              </ul>
+            </div>
+
+            <div class="subcategory-questions">
+              <h5>[Documentation]</h5>
+              <p class="rationale"><em>Rationale: Complex engineering calculations and ATEX compliance require clear documentation for audit trails.</em></p>
+              <ul>
+                <li>Should configuration exports include calculation methodology documentation for engineering sign-off?</li>
+                <li>What ATEX compliance documentation must accompany explosion-proof recommendations?</li>
+                <li>How should version history be documented when templates are updated?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>

@@ -48,6 +48,9 @@ test-results/
 .vscode/
 .idea/
 *.swp
+
+# Local setup scripts
+setup-dev.sh
 *.swo
 *~
 

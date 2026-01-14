@@ -1,0 +1,2559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Factors assessment of: Epic 2 - Web-Native Content Platform (LLM + SFDIPOT)</title>
+  <style>
+
+    :root {
+      --primary: #1e3a5f;
+      --primary-dark: #0f2744;
+      --primary-light: #2d5a8a;
+      --accent: #0066cc;
+      --success: #0d7a3f;
+      --warning: #b45309;
+      --danger: #b91c1c;
+      --info: #0369a1;
+      --bg-light: #f5f7fa;
+      --bg-white: #ffffff;
+      --text-dark: #1a1a2e;
+      --text-muted: #5c6370;
+      --border: #d1d5db;
+      --border-light: #e5e7eb;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-light);
+      color: var(--text-dark);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 32px 28px;
+      margin-bottom: 24px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    }
+    header h1 { font-size: 1.75rem; margin-bottom: 8px; font-weight: 600; }
+    header .subtitle { font-size: 0.9rem; opacity: 0.9; line-height: 1.5; }
+    .section { background: var(--bg-white); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
+    .section h2 { color: var(--primary); font-size: 1.1rem; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); font-weight: 600; }
+    .section h3 { color: var(--text-dark); font-size: 1rem; margin: 20px 0 12px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 600; }
+    .section h3 .badge { background: var(--primary); color: white; padding: 3px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; }
+    th { background: var(--bg-light); padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+    tr:hover { background: #fafbfc; }
+    .priority { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    .priority-p0 { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+    .priority-p1 { background: #fefce8; color: var(--warning); border: 1px solid #fef08a; }
+    .priority-p2 { background: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; }
+    .priority-p3 { background: #f0f9ff; color: var(--info); border: 1px solid #bae6fd; }
+    .subcategory { display: inline-block; background: #eff6ff; color: var(--primary); padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; }
+    .automation { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; }
+    .automation-api { background: #dbeafe; color: #1e40af; }
+    .automation-e2e { background: #fce7f3; color: #9d174d; }
+    .automation-integration { background: #d1fae5; color: #065f46; }
+    .automation-visual { background: #fdf4ff; color: #86198f; }
+    .automation-performance { background: #fef3c7; color: #92400e; }
+    .automation-concurrency { background: #ffedd5; color: #9a3412; }
+    .automation-security { background: #fee2e2; color: #991b1b; }
+    .automation-accessibility { background: #ecfccb; color: #3f6212; }
+    .automation-human { background: #f3e8ff; color: #7c3aed; font-weight: 600; }
+    .clarifying-questions { background: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 20px 25px; margin-top: 20px; }
+    .clarifying-questions h4 { color: #854d0e; margin-bottom: 16px; font-size: 1.1rem; border-bottom: 2px solid #fef08a; padding-bottom: 10px; }
+    .clarifying-intro { background: #fef9c3; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; }
+    .clarifying-intro .preamble { color: #713f12; font-size: 0.9rem; line-height: 1.5; margin: 0; }
+    .subcategory-questions { background: white; border: 1px solid #fef08a; border-radius: 6px; padding: 15px; margin-bottom: 15px; }
+    .subcategory-questions h5 { color: #854d0e; font-size: 0.95rem; margin-bottom: 8px; font-weight: 700; }
+    .subcategory-questions .rationale { color: #92400e; font-size: 0.85rem; margin-bottom: 12px; padding: 8px 12px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b; }
+    .clarifying-questions ul { list-style: none; margin: 0; padding: 0; }
+    .clarifying-questions li { padding: 8px 0 8px 20px; position: relative; border-bottom: 1px dashed #fef08a; color: var(--text-dark); font-size: 0.9rem; }
+    .clarifying-questions li:before { content: "?"; position: absolute; left: 0; color: #f59e0b; font-weight: bold; }
+    .clarifying-questions li:last-child { border-bottom: none; }
+    .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .chart-panel { background: var(--bg-white); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+    .chart-panel h3 { font-size: 1.1rem; color: var(--text-dark); margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; }
+    .bar-label { width: 90px; font-size: 0.8rem; font-weight: 600; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 24px; background: var(--bg-light); border-radius: 4px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 0.75rem; font-weight: 600; color: white; min-width: 35px; transition: width 0.3s ease; }
+    .bar-value { width: 45px; font-size: 0.85rem; font-weight: 700; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-structure { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .bar-function { background: linear-gradient(90deg, #10b981, #059669); }
+    .bar-data { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-interfaces { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+    .bar-platform { background: linear-gradient(90deg, #14b8a6, #0d9488); }
+    .bar-operations { background: linear-gradient(90deg, #6366f1, #4f46e5); }
+    .bar-time { background: linear-gradient(90deg, #ec4899, #db2777); }
+    .bar-p0 { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .bar-p1 { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-p2 { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .bar-p3 { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .chart-total { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 0.9rem; }
+    .chart-total .total-label { color: var(--text-muted); }
+    .chart-total .total-value { font-weight: 700; color: var(--primary); }
+    @media (max-width: 900px) { .charts-container { grid-template-columns: 1fr; } }
+    .test-id { font-family: 'SF Mono', 'Consolas', monospace; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+    .toc { background: var(--bg-white); padding: 16px 20px; border-radius: 8px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
+    .toc h2 { font-size: 0.85rem; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+    .toc-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .toc-nav a { color: var(--primary); text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; background: var(--bg-light); border: 1px solid var(--border-light); transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+    .toc-nav a:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    .toc-nav .count { background: var(--primary); color: white; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+    .toc-nav a:hover .count { background: rgba(255,255,255,0.3); }
+    .toc-divider { color: var(--border); margin: 0 4px; }
+    .collapsible-header { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
+    .collapsible-header:hover { opacity: 0.8; }
+    .collapse-icon { transition: transform 0.2s; font-size: 0.8rem; color: var(--text-muted); }
+    .collapsed .collapse-icon { transform: rotate(-90deg); }
+    .collapsible-content { overflow: hidden; transition: max-height 0.3s ease-out; }
+    .collapsed .collapsible-content { max-height: 0 !important; padding-top: 0; padding-bottom: 0; }
+    .info-section .info-content { overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; max-height: 1000px; }
+    .info-section.collapsed .info-content { max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+    .info-section.collapsed .collapse-icon { transform: rotate(-90deg); }
+    .info-header:hover { background: rgba(255,255,255,0.05); }
+    .category-section { border-radius: 8px; margin-bottom: 16px; overflow: hidden; border-left: 4px solid var(--border-light); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .category-header { padding: 14px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+    .category-header:hover { filter: brightness(0.97); }
+    .category-header h3 { margin: 0; font-size: 0.95rem; display: flex; align-items: center; gap: 10px; font-weight: 600; }
+    .category-header .badge { font-size: 0.7rem; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+    .category-content { padding: 16px; }
+    .category-section.cat-structure { border-left-color: #3b82f6; }
+    .category-section.cat-structure .category-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); }
+    .category-section.cat-structure .category-content { background: #f8faff; }
+    .category-section.cat-structure .badge { background: #3b82f6; color: white; }
+    .category-section.cat-function { border-left-color: #10b981; }
+    .category-section.cat-function .category-header { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); }
+    .category-section.cat-function .category-content { background: #f8fdfb; }
+    .category-section.cat-function .badge { background: #10b981; color: white; }
+    .category-section.cat-data { border-left-color: #f59e0b; }
+    .category-section.cat-data .category-header { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); }
+    .category-section.cat-data .category-content { background: #fffdf8; }
+    .category-section.cat-data .badge { background: #f59e0b; color: white; }
+    .category-section.cat-interfaces { border-left-color: #8b5cf6; }
+    .category-section.cat-interfaces .category-header { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); }
+    .category-section.cat-interfaces .category-content { background: #faf9ff; }
+    .category-section.cat-interfaces .badge { background: #8b5cf6; color: white; }
+    .category-section.cat-platform { border-left-color: #14b8a6; }
+    .category-section.cat-platform .category-header { background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); }
+    .category-section.cat-platform .category-content { background: #f8fefd; }
+    .category-section.cat-platform .badge { background: #14b8a6; color: white; }
+    .category-section.cat-operations { border-left-color: #6366f1; }
+    .category-section.cat-operations .category-header { background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); }
+    .category-section.cat-operations .category-content { background: #f8f9ff; }
+    .category-section.cat-operations .badge { background: #6366f1; color: white; }
+    .category-section.cat-time { border-left-color: #ec4899; }
+    .category-section.cat-time .category-header { background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%); }
+    .category-section.cat-time .category-content { background: #fefafc; }
+    .category-section.cat-time .badge { background: #ec4899; color: white; }
+    .collapsed .category-content { display: none; }
+    .filter-row td { padding: 6px 8px; background: #f8fafc; }
+    .filter-input, .filter-select { width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.75rem; background: white; }
+    .filter-input:focus, .filter-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(30,58,95,0.1); }
+    .filter-input::placeholder { color: #94a3b8; }
+    /* Reality Check / Brutal Honesty styles */
+    .reality-check { border-left: 4px solid #f59e0b; background: linear-gradient(135deg, #fffbeb 0%, #fff 100%); }
+    .reality-check h2 { border-bottom-color: #f59e0b; }
+    .severity-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .severity-critical { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .severity-high { background: #fffbeb; color: #92400e; border: 1px solid #fef08a; }
+    .severity-medium { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+    .severity-low { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .quality-good { color: #10b981; }
+    .quality-warning { color: #f59e0b; }
+    .quality-poor { color: #f97316; }
+    .quality-critical { color: #ef4444; }
+    .finding-card { transition: transform 0.15s, box-shadow 0.15s; }
+    .finding-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    @media (max-width: 768px) {
+      header h1 { font-size: 1.4rem; }
+      table { display: block; overflow-x: auto; }
+      .toc-nav { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+  <script>
+
+    function toggleSection(id) {
+      const section = document.getElementById(id);
+      if (section) {
+        section.classList.toggle('collapsed');
+      }
+    }
+    function expandAll() {
+      document.querySelectorAll('.category-section').forEach(s => s.classList.remove('collapsed'));
+    }
+    function collapseAll() {
+      document.querySelectorAll('.category-section').forEach(s => s.classList.add('collapsed'));
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    
+    <header>
+      <h1>Product Factors assessment of: Epic 2 - Web-Native Content Platform (LLM + SFDIPOT)</h1>
+      <div class="meta-inline" style="margin-top: 15px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9rem; opacity: 0.9;">
+        <span>Report generated on <strong>2025-12-29</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Total Test Ideas: <strong>204</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Product Factors covered: <strong>7/7</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Requirements Quality: <strong class="quality-good">96/100</strong></span>
+      </div>
+      <nav class="toc" style="margin-top: 15px;">
+        <div style="color: var(--text-muted); font-size: 0.85em; font-weight: 600; margin-bottom: 8px;">Quick Navigation</div>
+        <div class="toc-nav">
+          <a href="#reality-check" style="background: #fef3c7; border-color: #f59e0b; color: #92400e;">Reality Check</a>
+          <a href="#risk">Prioritization</a>
+          <a href="#charts">Overview</a>
+          <span class="toc-divider">|</span>
+          <span style="color: var(--text-muted); font-size: 0.85em; font-weight: 500;">Test Ideas:</span>
+          <a href="#structure">Structure <span class="count">22</span></a>
+          <a href="#function">Function <span class="count">39</span></a>
+          <a href="#data">Data <span class="count">35</span></a>
+          <a href="#interfaces">Interfaces <span class="count">33</span></a>
+          <a href="#platform">Platform <span class="count">20</span></a>
+          <a href="#operations">Operations <span class="count">32</span></a>
+          <a href="#time">Time <span class="count">23</span></a>
+          <span class="toc-divider">|</span>
+          <a href="#traceability">Req. Traceability</a>
+        </div>
+      </nav>
+      
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 15px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How can this report help you?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <blockquote style="margin: 0 0 15px 0; padding: 12px 15px; border-left: 3px solid rgba(255,255,255,0.4); font-style: italic; opacity: 0.9;">
+            "Requirements are not an end in themselves, but a means to an end—the end of providing value to some person(s)." <span style="opacity: 0.7;">— Jerry Weinberg</span>
+          </blockquote>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">In the <a href="https://talesoftesting.com/wp-content/uploads/2022/10/Lalitkumar-Bhamare-Quality-Conscious-Software-Delivery-eBook.pdf" style="color: #93c5fd; text-decoration: underline;">QCSD framework</a>, it is recommended to conduct Product Coverage Sessions or Requirements Engineering Sessions on a regular basis. These sessions can be carried out at the epic level or for complex feature requests and user stories. Testers in the team can analyze the epic or feature story using SFDIPOT (a product factors checklist from <a href="https://www.satisfice.com/download/heuristic-test-strategy-model" style="color: #93c5fd; text-decoration: underline;">Heuristic Test Strategy Model</a> by James Bach) and come up with test ideas, questions about risks, missing information, unconsidered dependencies, identified risks, and more.</p>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">A guided discussion based on this analysis can help teams uncover hidden risks, assess the completeness of the requirements, create a clearer development plan, identify gaps and dependencies, improve estimation with better information at hand, and most importantly - avoid rework caused by discovering issues halfway through development.</p>
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">If we want to save time and cost while still delivering quality software, it is always cheaper to do things right the first time. The purpose of this report is to facilitate Product Coverage Sessions and help teams achieve exactly that: doing things right the first time.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">When to generate this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">The sooner the better! As soon as testers can access Epic/User Stories or any project artifact they use for test design, this report should be generated. Generate this report and organize "Product Coverage Session" discussion with relevant stakeholders such as programmers, Product Owners, Designers, Architects etc.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How to use this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0 0 12px 0; opacity: 0.9;">In this report you will find:</p>
+          <div style="margin-left: 5px; line-height: 1.8;">
+            <div style="margin-bottom: 8px;">☐ <strong>The Test Ideas</strong> generated for each product factor based on applicable subcategories. Review these test ideas carefully for context relevance, applicability and then derive specific test cases where needed.</div>
+            <div style="margin-bottom: 8px;">☐ <strong>Automation Fitness</strong> recommendations against each test idea that can help for drafting suitable automation strategy.</div>
+            <div>☐ <strong>The Clarifying Questions</strong> - that surface "unknown unknowns" by systematically checking which Product Factors (SFDIPOT) subcategories lack test coverage. Ensure that Epics, User Stories, Acceptance Criteria etc. are readily updated based on answers derived for each clarifying question listed.</div>
+          </div>
+          <p style="margin: 15px 0 0 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); opacity: 0.9; font-size: 0.95rem;">All in all, this report represents important and unique elements to be considered in the test strategy. <strong>Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.</strong></p>
+          <p style="margin: 10px 0 0 0; opacity: 0.85; font-style: italic; font-size: 0.9rem;">Testers are advised to carefully evaluate all the information using critical thinking and context awareness.</p>
+        </div>
+      </div>
+    </header>
+    
+    <section class="section reality-check" id="reality-check">
+      <h2>🎯 Reality Check: Brutal Honesty Analysis</h2>
+      <p style="margin-bottom: 15px; color: var(--text-muted);">
+        Powered by the <strong>brutal-honesty-review</strong> skill, this section surfaces issues that may be missed by conventional analysis.
+      </p>
+
+      
+      <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid var(--border-light);">
+        <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+          <div style="flex-shrink: 0;">
+            <div style="width: 80px; height: 80px; border-radius: 50%; background: conic-gradient(#10b981 96%, #e5e7eb 96%); display: flex; align-items: center; justify-content: center;">
+              <div style="width: 60px; height: 60px; border-radius: 50%; background: white; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700; color: #10b981;">
+                96
+              </div>
+            </div>
+          </div>
+          <div style="flex: 1; min-width: 200px;">
+            <h3 style="margin: 0 0 8px 0; font-size: 1.1rem; color: var(--text-dark);">Requirements Quality Score</h3>
+            <p style="margin: 0; color: var(--text-muted); font-size: 0.9rem;">Requirements are well-defined. Minor clarifications may help.</p>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 0.8rem;">
+            
+              <div style="background: white; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-light);">
+                <span style="text-transform: capitalize; color: var(--text-muted);">clarity:</span>
+                <strong style="color: #10b981;">100</strong>
+              </div>
+            
+              <div style="background: white; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-light);">
+                <span style="text-transform: capitalize; color: var(--text-muted);">completeness:</span>
+                <strong style="color: #10b981;">85</strong>
+              </div>
+            
+              <div style="background: white; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-light);">
+                <span style="text-transform: capitalize; color: var(--text-muted);">measurability:</span>
+                <strong style="color: #10b981;">100</strong>
+              </div>
+            
+              <div style="background: white; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-light);">
+                <span style="text-transform: capitalize; color: var(--text-muted);">realism:</span>
+                <strong style="color: #10b981;">100</strong>
+              </div>
+            
+              <div style="background: white; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-light);">
+                <span style="text-transform: capitalize; color: var(--text-muted);">domainCoverage:</span>
+                <strong style="color: #10b981;">100</strong>
+              </div>
+            
+          </div>
+        </div>
+      </div>
+      
+      <details style="background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+        <summary style="cursor: pointer; font-weight: 600; color: #854d0e; font-size: 0.95rem;">
+          📊 How is this score calculated? (Click to expand rubric)
+        </summary>
+        <div style="margin-top: 15px; font-size: 0.85rem; color: #713f12;">
+          <div style="white-space: pre-wrap; font-family: monospace; background: white; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+Quality scoring uses pattern-based detection across 5 categories:
+1. CLARITY (25%): Are requirements unambiguous and specific?
+2. COMPLETENESS (25%): Are all scenarios covered (happy path, errors, edge cases)?
+3. MEASURABILITY (20%): Can success be objectively measured?
+4. REALISM (15%): Are targets achievable?
+5. DOMAIN COVERAGE (15%): Are domain-specific requirements addressed?
+
+Each category starts at 100. Deductions are applied per issue found.
+Final score = weighted average of all categories.
+          </div>
+
+          <h5 style="margin: 15px 0 10px 0; color: #854d0e;">Score Interpretation:</h5>
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+            <tr style="background: #dcfce7;">
+              <td style="padding: 6px 10px; border: 1px solid #bbf7d0; width: 80px;"><strong>80-100</strong></td>
+              <td style="padding: 6px 10px; border: 1px solid #bbf7d0;">Requirements are well-defined. Minor clarifications may help, but development can proceed.</td>
+            </tr>
+            <tr style="background: #fef9c3;">
+              <td style="padding: 6px 10px; border: 1px solid #fde047;"><strong>60-79</strong></td>
+              <td style="padding: 6px 10px; border: 1px solid #fde047;">Requirements need clarification before development. Schedule Product Coverage Session.</td>
+            </tr>
+            <tr style="background: #fed7aa;">
+              <td style="padding: 6px 10px; border: 1px solid #fb923c;"><strong>40-59</strong></td>
+              <td style="padding: 6px 10px; border: 1px solid #fb923c;">Significant gaps detected. Development should NOT start without addressing findings.</td>
+            </tr>
+            <tr style="background: #fecaca;">
+              <td style="padding: 6px 10px; border: 1px solid #f87171;"><strong>0-39</strong></td>
+              <td style="padding: 6px 10px; border: 1px solid #f87171;">Requirements are NOT development-ready. Major rework needed.</td>
+            </tr>
+          </table>
+
+          <h5 style="margin: 15px 0 10px 0; color: #854d0e;">Deduction Rules:</h5>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px;">
+            
+              <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #ef4444;">
+                <div style="font-weight: 500; font-size: 0.8rem;">Vague improvement (improve/enhance/better)</div>
+                <div style="font-size: 0.75rem; color: #6b7280;">-10 pts: No measurable target</div>
+              </div>
+            
+              <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #ef4444;">
+                <div style="font-weight: 500; font-size: 0.8rem;">Marketing speak (seamless/intuitive)</div>
+                <div style="font-size: 0.75rem; color: #6b7280;">-10 pts: Subjective claim</div>
+              </div>
+            
+              <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #ef4444;">
+                <div style="font-weight: 500; font-size: 0.8rem;">Missing SLA (real-time/scalable/HA)</div>
+                <div style="font-size: 0.75rem; color: #6b7280;">-10 pts: No quantified target</div>
+              </div>
+            
+              <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #ef4444;">
+                <div style="font-weight: 500; font-size: 0.8rem;">Undefined condition (as needed/if required)</div>
+                <div style="font-size: 0.75rem; color: #6b7280;">-8 pts: Ambiguous trigger</div>
+              </div>
+            
+              <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #ef4444;">
+                <div style="font-weight: 500; font-size: 0.8rem;">Open-ended scope (etc./and more)</div>
+                <div style="font-size: 0.75rem; color: #6b7280;">-8 pts: Unbounded requirements</div>
+              </div>
+            
+              <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #ef4444;">
+                <div style="font-weight: 500; font-size: 0.8rem;">Impossible target (100%/zero/unlimited)</div>
+                <div style="font-size: 0.75rem; color: #6b7280;">-15 pts: Unrealistic expectation</div>
+              </div>
+            
+              <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #ef4444;">
+                <div style="font-weight: 500; font-size: 0.8rem;">Buzzword without spec (AI/ML/blockchain)</div>
+                <div style="font-size: 0.75rem; color: #6b7280;">-5 pts: Undefined technology</div>
+              </div>
+            
+              <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #ef4444;">
+                <div style="font-weight: 500; font-size: 0.8rem;">Missing acceptance criteria</div>
+                <div style="font-size: 0.75rem; color: #6b7280;">-20 pts: No testable definition of done</div>
+              </div>
+            
+          </div>
+        </div>
+      </details>
+      
+      <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+        <h4 style="margin: 0 0 15px 0; color: #1e40af; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+          📋 Acceptance Criteria Testability Analysis
+          <span style="background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
+            8 ACs analyzed
+          </span>
+        </h4>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px;">
+          <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.8rem; font-weight: 700; color: #f59e0b;">50%</div>
+            <div style="font-size: 0.75rem; color: #6b7280;">Average Testability</div>
+          </div>
+          <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.8rem; font-weight: 700; color: #10b981;">8</div>
+            <div style="font-size: 0.75rem; color: #6b7280;">Testable ACs</div>
+          </div>
+          <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.8rem; font-weight: 700; color: #ef4444;">0</div>
+            <div style="font-size: 0.75rem; color: #6b7280;">Need Rewriting</div>
+          </div>
+          <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.8rem; font-weight: 700; color: #6366f1;">100%</div>
+            <div style="font-size: 0.75rem; color: #6b7280;">Testable Rate</div>
+          </div>
+        </div>
+
+        
+          <details style="background: white; border-radius: 8px; padding: 15px;">
+            <summary style="cursor: pointer; font-weight: 600; color: #1e40af; font-size: 0.9rem;">
+              View Per-AC Breakdown (8 criteria)
+            </summary>
+            <div style="margin-top: 15px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                <thead>
+                  <tr style="background: #f1f5f9;">
+                    <th style="padding: 8px; text-align: left; border-bottom: 2px solid #e2e8f0;">ID</th>
+                    <th style="padding: 8px; text-align: left; border-bottom: 2px solid #e2e8f0;">Acceptance Criteria</th>
+                    <th style="padding: 8px; text-align: center; border-bottom: 2px solid #e2e8f0;">Score</th>
+                    <th style="padding: 8px; text-align: left; border-bottom: 2px solid #e2e8f0;">Issues</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  
+                      <tr style="background: #f0fdf4;">
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">AC-1</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; max-width: 300px;">AC1: Magazine articles published as individual web pages with proper SEO metadata</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+                          <span style="font-weight: 700; color: #f59e0b;">50</span>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 0.75rem; color: #6b7280;">
+                          <span style="color: #10b981;">✓ Well-defined</span>
+                        </td>
+                      </tr>
+                      <tr style="background: #f0fdf4;">
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">AC-2</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; max-width: 300px;">Responsive reading experience optimized for mobile, tablet, and desktop</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+                          <span style="font-weight: 700; color: #f59e0b;">50</span>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 0.75rem; color: #6b7280;">
+                          <span style="color: #10b981;">✓ Well-defined</span>
+                        </td>
+                      </tr>
+                      <tr style="background: #f0fdf4;">
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">AC-3</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; max-width: 300px;">Archive of past issues (2011-2025) migrated to web-native format</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+                          <span style="font-weight: 700; color: #f59e0b;">50</span>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 0.75rem; color: #6b7280;">
+                          <span style="color: #10b981;">✓ Well-defined</span>
+                        </td>
+                      </tr>
+                      <tr style="background: #f0fdf4;">
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">AC-4</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; max-width: 300px;">Reading time estimates displayed on all articles</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+                          <span style="font-weight: 700; color: #f59e0b;">50</span>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 0.75rem; color: #6b7280;">
+                          <span style="color: #10b981;">✓ Well-defined</span>
+                        </td>
+                      </tr>
+                      <tr style="background: #f0fdf4;">
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">AC-5</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; max-width: 300px;">Article-level social sharing (LinkedIn, Twitter/X, email)</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+                          <span style="font-weight: 700; color: #f59e0b;">50</span>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 0.75rem; color: #6b7280;">
+                          <span style="color: #10b981;">✓ Well-defined</span>
+                        </td>
+                      </tr>
+                      <tr style="background: #f0fdf4;">
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">AC-6</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; max-width: 300px;">Related articles recommendations based on category/tags</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+                          <span style="font-weight: 700; color: #f59e0b;">50</span>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 0.75rem; color: #6b7280;">
+                          <span style="color: #10b981;">✓ Well-defined</span>
+                        </td>
+                      </tr>
+                      <tr style="background: #f0fdf4;">
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">AC-7</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; max-width: 300px;">"Trending" algorithm updated to show actually popular recent content</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+                          <span style="font-weight: 700; color: #f59e0b;">50</span>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 0.75rem; color: #6b7280;">
+                          <span style="color: #10b981;">✓ Well-defined</span>
+                        </td>
+                      </tr>
+                      <tr style="background: #f0fdf4;">
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">AC-8</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; max-width: 300px;">PDF download remains available as alternate format</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+                          <span style="font-weight: 700; color: #f59e0b;">50</span>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 0.75rem; color: #6b7280;">
+                          <span style="color: #10b981;">✓ Well-defined</span>
+                        </td>
+                      </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+        
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
+          <h4 style="margin: 0 0 10px 0; color: #ef4444; font-size: 0.95rem;">Analysis Modes</h4>
+          <ul style="margin: 0; padding-left: 20px; font-size: 0.85rem; color: var(--text-dark);">
+            <li><strong>Bach Mode:</strong> BS detection in requirements (2 findings)</li>
+            <li><strong>Ramsay Mode:</strong> Test quality standards (0 findings)</li>
+            <li><strong>Linus Mode:</strong> Technical precision (0 findings)</li>
+          </ul>
+        </div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+          <h4 style="margin: 0 0 10px 0; color: #f59e0b; font-size: 0.95rem;">Findings by Severity</h4>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            
+            <span class="severity-badge severity-high">2 High</span>
+            
+            
+            
+          </div>
+        </div>
+      </div>
+
+      
+      <div class="findings-list">
+        <h3 style="margin: 20px 0 12px 0; font-size: 1rem; color: var(--text-dark);">
+          Detailed Findings <span class="badge" style="background: #6366f1; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">2</span>
+        </h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          
+      <div class="finding-card" style="background: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+          <span class="severity-badge severity-high">HIGH</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">🎭 Bach</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">BH-001</span>
+          <span style="margin-left: auto; font-size: 0.8rem; background: white; padding: 2px 8px; border-radius: 4px; color: var(--text-muted);">Missing Coverage</span>
+        </div>
+        <h4 style="margin: 0 0 8px 0; color: #92400e; font-size: 0.95rem;">No Error Handling Requirements</h4>
+        <p style="margin: 0 0 10px 0; color: var(--text-dark); font-size: 0.85rem;">Requirements focus only on happy path - no failure scenarios defined</p>
+        <div style="background: rgba(255,255,255,0.7); border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+          <p style="margin: 0 0 5px 0; font-size: 0.8rem;"><strong>Evidence:</strong> <code style="background: white; padding: 1px 4px; border-radius: 2px;">No error, exception, or failure handling patterns found</code></p>
+          <p style="margin: 0; font-size: 0.8rem;"><strong>Recommendation:</strong> Define behavior for: invalid input, network failures, timeouts, concurrent access conflicts.</p>
+        </div>
+        <p style="margin: 0; font-size: 0.8rem; color: #92400e; font-style: italic;">
+          <strong>Impact if ignored:</strong> Developers will implement ad-hoc error handling or none at all.
+        </p>
+      </div>
+      <div class="finding-card" style="background: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+          <span class="severity-badge severity-high">HIGH</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">🎭 Bach</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">BH-001</span>
+          <span style="margin-left: auto; font-size: 0.8rem; background: white; padding: 2px 8px; border-radius: 4px; color: var(--text-muted);">Missing Coverage</span>
+        </div>
+        <h4 style="margin: 0 0 8px 0; color: #92400e; font-size: 0.95rem;">No Error Handling Requirements</h4>
+        <p style="margin: 0 0 10px 0; color: var(--text-dark); font-size: 0.85rem;">Requirements focus only on happy path - no failure scenarios defined</p>
+        <div style="background: rgba(255,255,255,0.7); border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+          <p style="margin: 0 0 5px 0; font-size: 0.8rem;"><strong>Evidence:</strong> <code style="background: white; padding: 1px 4px; border-radius: 2px;">No error, exception, or failure handling patterns found</code></p>
+          <p style="margin: 0; font-size: 0.8rem;"><strong>Recommendation:</strong> Define behavior for: invalid input, network failures, timeouts, concurrent access conflicts.</p>
+        </div>
+        <p style="margin: 0; font-size: 0.8rem; color: #92400e; font-style: italic;">
+          <strong>Impact if ignored:</strong> Developers will implement ad-hoc error handling or none at all.
+        </p>
+      </div>
+        </div>
+      </div>
+    </section>
+    
+    <section class="section" id="risk">
+      <h2>Risk-Based Prioritization</h2>
+      <p style="margin-bottom: 15px;">Test ideas are prioritized using a <strong>risk-based approach</strong> that considers:</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Business Impact</strong><br>Potential revenue loss, customer trust damage, or regulatory penalties</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Likelihood of Failure</strong><br>Complexity of implementation, external dependencies, new technology</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">User Exposure</strong><br>Number of users affected and frequency of feature usage</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Security &amp; Compliance</strong><br>Data protection requirements, payment processing, legal obligations</div>
+      </div>
+      <h3>Priority Legend</h3>
+      <table>
+        <thead>
+          <tr><th>Priority</th><th>Risk Level</th><th>Description</th><th>Examples from this Epic</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="priority priority-p0">P0</span></td><td><strong>Critical</strong></td><td>Security vulnerabilities or core functionality that could cause immediate financial loss, data breach, or complete service failure. Must be tested before any release.</td><td>NonPhysical, Dependencies, Calculation</td></tr>
+          <tr><td><span class="priority priority-p1">P1</span></td><td><strong>High</strong></td><td>Core business flows and integrations essential for revenue generation. Failures would significantly impact user experience or business operations.</td><td>Code, Hardware, NonPhysical</td></tr>
+          <tr><td><span class="priority priority-p2">P2</span></td><td><strong>Medium</strong></td><td>Important features that support the core experience. Failures would cause inconvenience but workarounds exist.</td><td>Code, Hardware, NonPhysical</td></tr>
+          <tr><td><span class="priority priority-p3">P3</span></td><td><strong>Low</strong></td><td>Edge cases, cosmetic issues, or rarely used features. Failures have minimal business impact.</td><td>Code, Documentation, Hardware</td></tr>
+        </tbody>
+      </table>
+    </section>
+    
+    <section class="section" id="charts">
+      <h2>Test Ideas Overview</h2>
+      <div class="charts-container">
+        <div class="chart-panel">
+          <h3>Test Ideas by Product Factor (SFDIPOT)</h3>
+          <div class="bar-chart">
+            
+            <div class="bar-row">
+              <div class="bar-label">Structure</div>
+              <div class="bar-track"><div class="bar-fill bar-structure" style="width: 56.41025641025641%"></div></div>
+              <div class="bar-value">22</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Function</div>
+              <div class="bar-track"><div class="bar-fill bar-function" style="width: 100%"></div></div>
+              <div class="bar-value">39</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Data</div>
+              <div class="bar-track"><div class="bar-fill bar-data" style="width: 89.74358974358975%"></div></div>
+              <div class="bar-value">35</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Interfaces</div>
+              <div class="bar-track"><div class="bar-fill bar-interfaces" style="width: 84.61538461538461%"></div></div>
+              <div class="bar-value">33</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Platform</div>
+              <div class="bar-track"><div class="bar-fill bar-platform" style="width: 51.28205128205128%"></div></div>
+              <div class="bar-value">20</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Operations</div>
+              <div class="bar-track"><div class="bar-fill bar-operations" style="width: 82.05128205128204%"></div></div>
+              <div class="bar-value">32</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Time</div>
+              <div class="bar-track"><div class="bar-fill bar-time" style="width: 58.97435897435898%"></div></div>
+              <div class="bar-value">23</div>
+            </div>
+          </div>
+          <div class="chart-total">
+            <span class="total-label">Product Factors: 7/7</span>
+            <span class="total-value">204 Test Ideas</span>
+          </div>
+          <div style="margin-top: 10px; padding: 8px 12px; background: #fef9c3; border-radius: 4px; font-size: 0.8rem; color: #92400e;">
+            <strong>Clarifying Questions:</strong> Review each category for questions requiring stakeholder input
+          </div>
+        </div>
+        <div class="chart-panel">
+          <h3>Test Ideas by Priority</h3>
+          <div class="bar-chart">
+            
+            <div class="bar-row">
+              <div class="bar-label">P0 - Critical</div>
+              <div class="bar-track"><div class="bar-fill bar-p0" style="width: 24.59016393442623%"></div></div>
+              <div class="bar-value">30</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P1 - High</div>
+              <div class="bar-track"><div class="bar-fill bar-p1" style="width: 100%"></div></div>
+              <div class="bar-value">122</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P2 - Medium</div>
+              <div class="bar-track"><div class="bar-fill bar-p2" style="width: 40.16393442622951%"></div></div>
+              <div class="bar-value">49</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P3 - Low</div>
+              <div class="bar-track"><div class="bar-fill bar-p3" style="width: 2.459016393442623%"></div></div>
+              <div class="bar-value">3</div>
+            </div>
+          </div>
+
+          <h4 style="font-size: 0.85rem; color: var(--text-dark); margin: 14px 0 8px 0; padding-top: 12px; border-top: 1px solid var(--border); font-weight: 600;">Test Ideas by Automation Fitness</h4>
+          <div class="bar-chart" style="font-size: 0.85rem;">
+            
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Integration level</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">117</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">API level</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 22.22222222222222%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">26</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Human Exploration</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 13.675213675213676%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">16</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Performance</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 11.11111111111111%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">13</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Security</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 11.11111111111111%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">13</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Concurrency</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 5.982905982905983%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">7</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <section class="section" id="test-ideas">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary);">
+        <h2 style="margin: 0; border: none; padding: 0;">Test Ideas by Product Factor</h2>
+        <button onclick="toggleAllSections()" id="toggle-all-btn" style="background: var(--bg-light); border: 1px solid var(--border); padding: 6px 14px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 500; color: var(--text-dark);">Collapse All</button>
+      </div>
+      <script>
+        function toggleAllSections() {
+          var sections = document.querySelectorAll('.category-section');
+          var btn = document.getElementById('toggle-all-btn');
+          var shouldCollapse = btn.textContent === 'Collapse All';
+          sections.forEach(function(s) {
+            if (shouldCollapse) { s.classList.add('collapsed'); }
+            else { s.classList.remove('collapsed'); }
+          });
+          btn.textContent = shouldCollapse ? 'Expand All' : 'Collapse All';
+        }
+        function filterTable(tableId) {
+          var table = document.getElementById(tableId);
+          var filters = table.querySelectorAll('.filter-input, .filter-select');
+          var rows = table.querySelectorAll('tbody tr');
+          rows.forEach(function(row) {
+            var show = true;
+            filters.forEach(function(filter) {
+              var col = parseInt(filter.dataset.col);
+              var cell = row.cells[col];
+              if (cell) {
+                var text = cell.textContent.toLowerCase();
+                var val = filter.value.toLowerCase();
+                if (val && text.indexOf(val) === -1) { show = false; }
+              }
+            });
+            row.style.display = show ? '' : 'none';
+          });
+        }
+      </script>
+
+      
+        <div class="category-section cat-structure" id="structure">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>STRUCTURE: Test ideas for everything that comprises the physical product <span class="badge">22</span><span class="quality-badge quality-good" style="margin-left: 10px; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; background: #d1fae5; color: #065f46;">Quality: 99/100</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+          <span style="font-size: 1.1rem;">⚠️</span>
+          <strong style="color: #991b1b; font-size: 0.9rem;">Brutal Honesty Validation Findings</strong>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.8rem;">
+          
+          <span class="severity-badge severity-high">5 High</span>
+        </div>
+        <ul style="margin: 10px 0 0 20px; font-size: 0.8rem; color: #7f1d1d;">
+          <li><strong>Missing Test Coverage in STRUCTURE</strong>: Category lacks tests for: edge-cases, validation-failures</li><li><strong>Missing Test Coverage in STRUCTURE</strong>: Category lacks tests for: error-handling, edge-cases, validation-failures</li><li><strong>Missing Test Coverage in STRUCTURE</strong>: Category lacks tests for: error-handling, boundary-conditions, edge-cases</li>
+        </ul>
+      </div>
+            <table class="filterable-table" id="table-structure">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-structure')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-structure')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-STRU-845354FF</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Code</span></td>
+          <td>Verify all modules load without errors</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-416FA4AA</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Code</span></td>
+          <td>Test that code handles null/undefined inputs gracefully</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-1CFCBFB3</td>
+          <td><span class="priority priority-p3">P3</span></td>
+          <td><span class="subcategory">Code</span></td>
+          <td>Verify code style and linting rules are enforced</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-1B0A168D</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Code</span></td>
+          <td>Test error boundary behavior in component hierarchy</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-731916E9</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Code</span></td>
+          <td>Verify memory usage stays within acceptable limits</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-B01E15B0</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Hardware</span></td>
+          <td>Test behavior on devices with limited RAM (&lt; 2GB)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-D8EF4037</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Hardware</span></td>
+          <td>Verify application works on slow/throttled CPU</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-270EF89F</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Hardware</span></td>
+          <td>Test disk space handling when storage is nearly full</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-34FB7796</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Hardware</span></td>
+          <td>Verify network connectivity loss is handled gracefully</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-1BB13E10</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">NonPhysical</span></td>
+          <td>Verify environment variable configuration loads correctly</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-67D6B891</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">NonPhysical</span></td>
+          <td>Test behavior with missing or malformed config files</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-FEEC5B05</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">NonPhysical</span></td>
+          <td>Verify feature flags toggle functionality correctly</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-E73E6CFC</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">NonPhysical</span></td>
+          <td>Test license validation and expiration handling</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-495F9CA1</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Dependencies</span></td>
+          <td>Verify all dependencies are available and correct versions</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-08676F4C</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Dependencies</span></td>
+          <td>Test behavior when optional dependencies are missing</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-BD3ACDF8</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Dependencies</span></td>
+          <td>Check for security vulnerabilities in dependencies</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-9B1C7A5C</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Dependencies</span></td>
+          <td>Verify dependency version conflicts are detected</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-9807137C</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Dependencies</span></td>
+          <td>Test fallback when CDN-hosted dependencies fail</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-DDEC5DBD</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Documentation</span></td>
+          <td>Verify API documentation matches actual behavior</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-9E62A5B7</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Documentation</span></td>
+          <td>Test that code examples in documentation work</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-EDBB8B5C</td>
+          <td><span class="priority priority-p3">P3</span></td>
+          <td><span class="subcategory">Documentation</span></td>
+          <td>Verify inline code comments are accurate</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-STRU-4AD0B272</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Documentation</span></td>
+          <td>Test README installation steps produce working setup</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+              </tbody>
+            </table>
+
+        
+        
+          </div>
+        </div>
+
+        <div class="category-section cat-function" id="function">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>FUNCTION: Test ideas for everything that the product does <span class="badge">39</span><span class="quality-badge quality-good" style="margin-left: 10px; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; background: #d1fae5; color: #065f46;">Quality: 98/100</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+          <span style="font-size: 1.1rem;">⚠️</span>
+          <strong style="color: #991b1b; font-size: 0.9rem;">Brutal Honesty Validation Findings</strong>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.8rem;">
+          
+          <span class="severity-badge severity-high">7 High</span>
+        </div>
+        <ul style="margin: 10px 0 0 20px; font-size: 0.8rem; color: #7f1d1d;">
+          <li><strong>Missing Test Coverage in FUNCTION</strong>: Category lacks tests for: boundary-conditions, edge-cases, validation-failures</li><li><strong>Missing Test Coverage in FUNCTION</strong>: Category lacks tests for: error-handling, edge-cases, validation-failures</li><li><strong>Missing Test Coverage in FUNCTION</strong>: Category lacks tests for: happy-path, boundary-conditions, edge-cases, validation-failures</li>
+        </ul>
+      </div>
+            <table class="filterable-table" id="table-function">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-function')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-function')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-FUNC-1790E961</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Application</span></td>
+          <td>Verify feature works correctly for user</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-8417A3B2</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Application</span></td>
+          <td>Test feature with valid and invalid inputs</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-FDD5AEDC</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Application</span></td>
+          <td>Verify feature produces correct output</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-B425139B</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Application</span></td>
+          <td>Test feature interaction with related features</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-1FE110AC</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Application</span></td>
+          <td>Verify feature undo/redo functionality</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-05046B5D</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Calculation</span></td>
+          <td>Verify calculation accuracy with known test values</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-FDEE6FCE</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Calculation</span></td>
+          <td>Test calculation with boundary values (min, max, zero)</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-332CA797</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Calculation</span></td>
+          <td>Verify rounding and precision handling</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-AC57B0C5</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Calculation</span></td>
+          <td>Test calculation with negative numbers</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-2D5F9F64</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Calculation</span></td>
+          <td>Verify calculation audit trail is captured</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-08884F13</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ErrorHandling</span></td>
+          <td>Verify appropriate error messages for invalid operations</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-845ACB43</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ErrorHandling</span></td>
+          <td>Test recovery from transient failures</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-C921B48B</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ErrorHandling</span></td>
+          <td>Verify error logging captures necessary diagnostic info</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-E242C15E</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">ErrorHandling</span></td>
+          <td>Test error messages do not expose sensitive information</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-C30681D0</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ErrorHandling</span></td>
+          <td>Verify error handling under cascading failure conditions</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-72C13EA7</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">StateTransition</span></td>
+          <td>Verify all valid state transitions work correctly</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-14362D4B</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">StateTransition</span></td>
+          <td>Test that invalid state transitions are rejected</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-89FF65DE</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">StateTransition</span></td>
+          <td>Verify state is persisted correctly across sessions</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-4FD0B1A4</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">StateTransition</span></td>
+          <td>Test concurrent state transition attempts</td>
+          <td><span class="automation automation-concurrency">Concurrency testing required</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-FF480C72</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">StateTransition</span></td>
+          <td>Verify state rollback on transaction failure</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-737C8187</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Security</span></td>
+          <td>Verify authentication is required for protected resources</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-8D11B802</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Security</span></td>
+          <td>Test authorization enforcement for different roles</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-D36B825A</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Security</span></td>
+          <td>Verify sensitive data is encrypted at rest and in transit</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-7C3A0644</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Security</span></td>
+          <td>Test for common vulnerabilities (XSS, SQL injection, CSRF)</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-DD4C2EE4</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Security</span></td>
+          <td>Verify session management and timeout handling</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-EFE4989D</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Startup</span></td>
+          <td>Verify application starts within acceptable time</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-18606455</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Startup</span></td>
+          <td>Test startup with missing required dependencies</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-503B634F</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Startup</span></td>
+          <td>Verify startup order of dependent services</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-036E2896</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Startup</span></td>
+          <td>Test recovery from interrupted startup</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-77245448</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Startup</span></td>
+          <td>Verify database migrations run correctly on startup</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-48F5C879</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Shutdown</span></td>
+          <td>Verify graceful shutdown completes in-flight requests</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-638A70B8</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Shutdown</span></td>
+          <td>Test data is persisted before shutdown completes</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-BA758722</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Shutdown</span></td>
+          <td>Verify shutdown timeout handling</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-EBD6E064</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Shutdown</span></td>
+          <td>Test resource cleanup on shutdown (connections, files)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-9651298F</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Shutdown</span></td>
+          <td>Verify shutdown signal handling (SIGTERM, SIGINT)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-5E034C47</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Application</span></td>
+          <td>Explore feature with varied input combinations using SBTM session</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-8EB6488D</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Security</span></td>
+          <td>Test for SQL injection vulnerabilities in all input fields</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-627BFB65</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Security</span></td>
+          <td>Verify XSS prevention in user-generated content</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-0240C1DD</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Security</span></td>
+          <td>Test CSRF token validation on state-changing operations</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+              </tbody>
+            </table>
+
+        
+        
+          </div>
+        </div>
+
+        <div class="category-section cat-data" id="data">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>DATA: Test ideas for everything the product processes <span class="badge">35</span><span class="quality-badge quality-good" style="margin-left: 10px; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; background: #d1fae5; color: #065f46;">Quality: 99/100</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+          <span style="font-size: 1.1rem;">⚠️</span>
+          <strong style="color: #991b1b; font-size: 0.9rem;">Brutal Honesty Validation Findings</strong>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.8rem;">
+          
+          <span class="severity-badge severity-high">7 High</span>
+        </div>
+        <ul style="margin: 10px 0 0 20px; font-size: 0.8rem; color: #7f1d1d;">
+          <li><strong>Missing Test Coverage in DATA</strong>: Category lacks tests for: boundary-conditions, edge-cases</li><li><strong>Missing Test Coverage in DATA</strong>: Category lacks tests for: error-handling, boundary-conditions, edge-cases, validation-failures</li><li><strong>Missing Test Coverage in DATA</strong>: Category lacks tests for: error-handling, boundary-conditions, edge-cases, validation-failures</li>
+        </ul>
+      </div>
+            <table class="filterable-table" id="table-data">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-data')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-data')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-DATA-53D16867</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">InputOutput</span></td>
+          <td>Verify correct handling of valid data input</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-FF6FD35D</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">InputOutput</span></td>
+          <td>Test with malformed or invalid input data</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-C71E35ED</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">InputOutput</span></td>
+          <td>Verify output format matches specification</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-F28E4EDC</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">InputOutput</span></td>
+          <td>Test Unicode handling (emojis, RTL, special chars)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-21A90628</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">InputOutput</span></td>
+          <td>Verify large input handling (files, text blocks)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-A48F8CEF</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Lifecycle</span></td>
+          <td>Verify data creation with all required fields</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-EF49ACD4</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Lifecycle</span></td>
+          <td>Test data update preserves unmodified fields</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-88320187</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Lifecycle</span></td>
+          <td>Verify soft delete marks records correctly</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-E15D8D0C</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Lifecycle</span></td>
+          <td>Test hard delete removes all related data</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-EC521F0A</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Lifecycle</span></td>
+          <td>Verify audit trail captures all lifecycle events</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-9A9C0D2F</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Cardinality</span></td>
+          <td>Test one-to-one relationships enforce uniqueness</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-C67F4F61</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Cardinality</span></td>
+          <td>Verify one-to-many relationships with large child count</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-A867F9E9</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Cardinality</span></td>
+          <td>Test many-to-many relationship operations</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-10BCA6FD</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Cardinality</span></td>
+          <td>Verify orphan record prevention</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-8E09FA6D</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Boundaries</span></td>
+          <td>Test with minimum allowed values</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-D1C2C89E</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Boundaries</span></td>
+          <td>Test with maximum allowed values</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-2252EEFB</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Boundaries</span></td>
+          <td>Test with values just outside boundaries</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-3530C38D</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Boundaries</span></td>
+          <td>Test with empty/null values</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-F7C163C1</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Boundaries</span></td>
+          <td>Verify string length limits are enforced</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-C9257617</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Persistence</span></td>
+          <td>Verify data is persisted correctly to storage</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-CA5BB3E9</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Persistence</span></td>
+          <td>Test data retrieval returns correct values</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-509020A7</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Persistence</span></td>
+          <td>Verify data updates are reflected correctly</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-B7A6885A</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Persistence</span></td>
+          <td>Test data deletion removes all related records</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-EF90AA11</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Persistence</span></td>
+          <td>Verify backup and restore functionality</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-3D8C26CB</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Types</span></td>
+          <td>Test date/time handling across timezones</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-CB728E32</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Types</span></td>
+          <td>Verify currency precision and formatting</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-E8986C3C</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Types</span></td>
+          <td>Test boolean and enum type handling</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-19D9DA74</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Types</span></td>
+          <td>Verify JSON/BLOB storage and retrieval</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-F8A35813</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Types</span></td>
+          <td>Test date boundary handling (DST, leap year)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-280F1F92</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Selection</span></td>
+          <td>Verify search returns relevant results</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-A5B700EA</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Selection</span></td>
+          <td>Test filtering with multiple criteria</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-D6CFD8B6</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Selection</span></td>
+          <td>Verify sorting works correctly for all columns</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-B7EC8189</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Selection</span></td>
+          <td>Test pagination with large result sets</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-7AD13837</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Selection</span></td>
+          <td>Verify empty result handling</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-F7D10675</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Persistence</span></td>
+          <td>Test data integrity under concurrent modifications</td>
+          <td><span class="automation automation-concurrency">Concurrency testing required</span></td>
+        </tr>
+              </tbody>
+            </table>
+
+        
+        
+          </div>
+        </div>
+
+        <div class="category-section cat-interfaces" id="interfaces">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>INTERFACES: Test ideas for every conduit by which the product is accessed <span class="badge">33</span><span class="quality-badge quality-good" style="margin-left: 10px; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; background: #d1fae5; color: #065f46;">Quality: 98/100</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+          <span style="font-size: 1.1rem;">⚠️</span>
+          <strong style="color: #991b1b; font-size: 0.9rem;">Brutal Honesty Validation Findings</strong>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.8rem;">
+          
+          <span class="severity-badge severity-high">5 High</span>
+        </div>
+        <ul style="margin: 10px 0 0 20px; font-size: 0.8rem; color: #7f1d1d;">
+          <li><strong>Missing Test Coverage in INTERFACES</strong>: Category lacks tests for: error-handling, boundary-conditions, edge-cases, validation-failures</li><li><strong>Missing Test Coverage in INTERFACES</strong>: Category lacks tests for: error-handling, validation-failures</li><li><strong>Missing Test Coverage in INTERFACES</strong>: Category lacks tests for: boundary-conditions, edge-cases, validation-failures</li>
+        </ul>
+      </div>
+            <table class="filterable-table" id="table-interfaces">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-interfaces')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-interfaces')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-INTE-1493EF33</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">UserInterface</span></td>
+          <td>Verify UI renders correctly for user</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-70371326</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UserInterface</span></td>
+          <td>Test UI responsiveness across screen sizes</td>
+          <td><span class="automation automation-visual">Visual regression testing</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-0B94A6DE</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">UserInterface</span></td>
+          <td>Verify accessibility compliance (WCAG)</td>
+          <td><span class="automation automation-accessibility">Accessibility audit required</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-D612355B</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UserInterface</span></td>
+          <td>Test keyboard navigation and screen reader support</td>
+          <td><span class="automation automation-accessibility">Accessibility audit required</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-B47832D3</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UserInterface</span></td>
+          <td>Verify color contrast ratios meet WCAG requirements</td>
+          <td><span class="automation automation-accessibility">Accessibility audit required</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-7C0AE63C</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ApiSdk</span></td>
+          <td>Verify API endpoints return correct status codes</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-65FE815B</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ApiSdk</span></td>
+          <td>Test API response format matches schema</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-C36A7BB5</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ApiSdk</span></td>
+          <td>Verify API rate limiting works correctly</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-9338226B</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ApiSdk</span></td>
+          <td>Test API versioning and backward compatibility</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-0A7A9AB4</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ApiSdk</span></td>
+          <td>Test API pagination with various page sizes and edge cases</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-DDE25889</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">SystemInterface</span></td>
+          <td>Verify integration with external service works correctly</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-B2BA14CA</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">SystemInterface</span></td>
+          <td>Test behavior when external service is unavailable</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-4C351846</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">SystemInterface</span></td>
+          <td>Verify data transformation between systems</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-D70FB853</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">SystemInterface</span></td>
+          <td>Test retry logic for failed external calls</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-6A425DE2</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">SystemInterface</span></td>
+          <td>Verify webhook delivery and retry mechanism</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-B85A480A</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ImportExport</span></td>
+          <td>Verify CSV import with various formats and encodings</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-C509042E</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ImportExport</span></td>
+          <td>Test Excel/spreadsheet import functionality</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-0EA836E7</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ImportExport</span></td>
+          <td>Verify data export in multiple formats (CSV, JSON, PDF)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-2DE1EBCC</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">ImportExport</span></td>
+          <td>Test import with malformed or malicious files</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-0666284A</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ImportExport</span></td>
+          <td>Verify partial import failure handling</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-14865A7E</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Messaging</span></td>
+          <td>Verify message delivery to queues/topics</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-47B048AA</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Messaging</span></td>
+          <td>Test message ordering preservation</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-544ADA0E</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Messaging</span></td>
+          <td>Verify dead-letter queue handling</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-C86501B7</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Messaging</span></td>
+          <td>Test message deduplication</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-1E30A904</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Messaging</span></td>
+          <td>Verify message acknowledgment and retry</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-753C1746</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ApiSdk</span></td>
+          <td>Verify API contract compliance with OpenAPI/Swagger schema</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-EF3F1708</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ApiSdk</span></td>
+          <td>Test API pagination with various page sizes and edge cases</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-CFC9BAAB</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ApiSdk</span></td>
+          <td>Verify API error responses match documented formats</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-934D5B67</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">ApiSdk</span></td>
+          <td>Verify API authentication tokens cannot be reused after logout</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-DCBC1F00</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">UserInterface</span></td>
+          <td>Verify WCAG 2.1 AA compliance using automated scanning</td>
+          <td><span class="automation automation-accessibility">Accessibility audit required</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-6BAABC48</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">UserInterface</span></td>
+          <td>Test complete keyboard navigation without mouse</td>
+          <td><span class="automation automation-accessibility">Accessibility audit required</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-61F04A1F</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">UserInterface</span></td>
+          <td>Verify screen reader compatibility (NVDA/JAWS/VoiceOver)</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-E5FA89FE</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UserInterface</span></td>
+          <td>Test color contrast ratios meet WCAG requirements</td>
+          <td><span class="automation automation-visual">Visual regression testing</span></td>
+        </tr>
+              </tbody>
+            </table>
+
+        
+        
+          </div>
+        </div>
+
+        <div class="category-section cat-platform" id="platform">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>PLATFORM: Test ideas for everything on which the product depends that is outside the project <span class="badge">20</span><span class="quality-badge quality-good" style="margin-left: 10px; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; background: #d1fae5; color: #065f46;">Quality: 99/100</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+          <span style="font-size: 1.1rem;">⚠️</span>
+          <strong style="color: #991b1b; font-size: 0.9rem;">Brutal Honesty Validation Findings</strong>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.8rem;">
+          
+          <span class="severity-badge severity-high">5 High</span>
+        </div>
+        <ul style="margin: 10px 0 0 20px; font-size: 0.8rem; color: #7f1d1d;">
+          <li><strong>Missing Test Coverage in PLATFORM</strong>: Category lacks tests for: error-handling, boundary-conditions, validation-failures</li><li><strong>Missing Test Coverage in PLATFORM</strong>: Category lacks tests for: error-handling, boundary-conditions, edge-cases, validation-failures</li><li><strong>Missing Test Coverage in PLATFORM</strong>: Category lacks tests for: error-handling, edge-cases, validation-failures</li>
+        </ul>
+      </div>
+            <table class="filterable-table" id="table-platform">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-platform')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-platform')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-PLAT-61BAF1CB</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Browser</span></td>
+          <td>Test on Chrome, Firefox, Safari, Edge browsers</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-46EF0F85</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Browser</span></td>
+          <td>Verify mobile browser support (iOS Safari, Chrome Mobile)</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-44A5F4C7</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Browser</span></td>
+          <td>Test with JavaScript disabled</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-F544B5EE</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Browser</span></td>
+          <td>Verify behavior with ad blockers enabled</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-CC0CA0FB</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">OperatingSystem</span></td>
+          <td>Verify compatibility on Windows, macOS, Linux</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-EC134BAA</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">OperatingSystem</span></td>
+          <td>Test file path handling (forward/backslash)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-012A7042</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">OperatingSystem</span></td>
+          <td>Verify line ending normalization (CRLF/LF)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-52F5177F</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">OperatingSystem</span></td>
+          <td>Test case-sensitivity behavior across file systems</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-0C49CCBF</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Hardware</span></td>
+          <td>Test on low-end devices with limited resources</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-5927B20F</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Hardware</span></td>
+          <td>Verify touch/gesture support on mobile devices</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-27BB62E5</td>
+          <td><span class="priority priority-p3">P3</span></td>
+          <td><span class="subcategory">Hardware</span></td>
+          <td>Test print functionality and layout</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-15E5D8D6</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Hardware</span></td>
+          <td>Verify offline capability when network unavailable</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-DA041FD0</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ExternalSoftware</span></td>
+          <td>Verify compatibility with required external systems</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-8936D88D</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ExternalSoftware</span></td>
+          <td>Test with different versions of external dependencies</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-2EEF88FB</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ExternalSoftware</span></td>
+          <td>Verify database connection pool behavior under load</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-ED26C895</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ExternalSoftware</span></td>
+          <td>Test cache invalidation and consistency</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-2D7BF9DD</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">InternalComponents</span></td>
+          <td>Verify shared component version compatibility</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-F2A4E665</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">InternalComponents</span></td>
+          <td>Test component isolation and independence</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-4E8A9922</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">InternalComponents</span></td>
+          <td>Verify internal API contracts between services</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-D27F3CDC</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">InternalComponents</span></td>
+          <td>Test component hot-reload and updates</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+              </tbody>
+            </table>
+
+        
+        
+          </div>
+        </div>
+
+        <div class="category-section cat-operations" id="operations">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>OPERATIONS: Test ideas for how the product will be used <span class="badge">32</span><span class="quality-badge quality-good" style="margin-left: 10px; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; background: #d1fae5; color: #065f46;">Quality: 99/100</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+          <span style="font-size: 1.1rem;">⚠️</span>
+          <strong style="color: #991b1b; font-size: 0.9rem;">Brutal Honesty Validation Findings</strong>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.8rem;">
+          
+          <span class="severity-badge severity-high">6 High</span>
+        </div>
+        <ul style="margin: 10px 0 0 20px; font-size: 0.8rem; color: #7f1d1d;">
+          <li><strong>Missing Test Coverage in OPERATIONS</strong>: Category lacks tests for: error-handling, boundary-conditions, edge-cases, validation-failures</li><li><strong>Missing Test Coverage in OPERATIONS</strong>: Category lacks tests for: error-handling, boundary-conditions, validation-failures</li><li><strong>Missing Test Coverage in OPERATIONS</strong>: Category lacks tests for: error-handling, boundary-conditions, edge-cases, validation-failures</li>
+        </ul>
+      </div>
+            <table class="filterable-table" id="table-operations">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-operations')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-operations')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-OPER-EE4394E5</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">CommonUse</span></td>
+          <td>Verify typical user workflow completes successfully</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-99EEE14B</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">CommonUse</span></td>
+          <td>Test common user actions work as expected</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-8FD2EDF0</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">CommonUse</span></td>
+          <td>FedEx Tour: Follow data through the system end-to-end</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-A3528F6A</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">CommonUse</span></td>
+          <td>Garbage Collector Tour: Look for orphaned features and dead code paths</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-5B9772EE</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">CommonUse</span></td>
+          <td>Bad Neighborhood Tour: Focus on historically buggy areas</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-4CC2DD68</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UncommonUse</span></td>
+          <td>Test unusual navigation paths (back button, multiple tabs)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-646AEAE6</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">UncommonUse</span></td>
+          <td>Verify behavior when session expires mid-operation</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-28AF9C00</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">UncommonUse</span></td>
+          <td>Test with extreme input sizes (very long strings)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-9890B1A8</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UncommonUse</span></td>
+          <td>Landmark Tour: Visit features never or rarely used</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-37F5190F</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UncommonUse</span></td>
+          <td>Intellectual Tour: Test the most complex features</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-6843D78E</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ExtremeUse</span></td>
+          <td>Test system behavior under high load</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-947A4F97</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ExtremeUse</span></td>
+          <td>Verify performance with large data volumes</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-32E5E19D</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ExtremeUse</span></td>
+          <td>Test concurrent user scenarios</td>
+          <td><span class="automation automation-concurrency">Concurrency testing required</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-82767A49</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">ExtremeUse</span></td>
+          <td>Verify system recovery after crash or OOM</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-36F7E30C</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ExtremeUse</span></td>
+          <td>Obsessive-Compulsive Tour: Repeat actions obsessively</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-D03DDAC9</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">DisfavoredUse</span></td>
+          <td>Verify blocked operations are properly rejected</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-2B292D9B</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">DisfavoredUse</span></td>
+          <td>Test that abuse attempts are logged</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-6ABA2523</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">DisfavoredUse</span></td>
+          <td>Verify rate limiting prevents API abuse</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-2D4BFED9</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">DisfavoredUse</span></td>
+          <td>Test brute-force attack prevention</td>
+          <td><span class="automation automation-security">Security testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-2734FCC1</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">DisfavoredUse</span></td>
+          <td>Saboteur Tour: Try to break things intentionally</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-A290C151</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Users</span></td>
+          <td>Test user registration and onboarding flow</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-27AFFF44</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Users</span></td>
+          <td>Verify user role and permission management</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-6BAF25DD</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Users</span></td>
+          <td>Test user profile update and preferences</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-9C76E1A0</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Users</span></td>
+          <td>Verify user deletion and data cleanup (GDPR)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-C9F48A7C</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Environment</span></td>
+          <td>Verify staging environment matches production config</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-EC43F373</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Environment</span></td>
+          <td>Test deployment with zero-downtime (rolling update)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-C1AFE9C8</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Environment</span></td>
+          <td>Verify environment-specific configuration</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-09E69E48</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Environment</span></td>
+          <td>Test rollback procedure after failed deployment</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-2C6B39C8</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">CommonUse</span></td>
+          <td>FedEx Tour: Follow data through the system end-to-end</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-804F394B</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">CommonUse</span></td>
+          <td>Garbage Collector Tour: Look for orphaned features and dead code paths</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-6B19BB8E</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">CommonUse</span></td>
+          <td>Bad Neighborhood Tour: Focus on historically buggy areas</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-FD393C2C</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ExtremeUse</span></td>
+          <td>Stress test with 2x expected peak load</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+              </tbody>
+            </table>
+
+        
+        
+          </div>
+        </div>
+
+        <div class="category-section cat-time" id="time">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>TIME: Test ideas for any relationship between the product and time <span class="badge">23</span><span class="quality-badge quality-good" style="margin-left: 10px; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; background: #d1fae5; color: #065f46;">Quality: 99/100</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+          <span style="font-size: 1.1rem;">⚠️</span>
+          <strong style="color: #991b1b; font-size: 0.9rem;">Brutal Honesty Validation Findings</strong>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.8rem;">
+          
+          <span class="severity-badge severity-high">5 High</span>
+        </div>
+        <ul style="margin: 10px 0 0 20px; font-size: 0.8rem; color: #7f1d1d;">
+          <li><strong>Missing Test Coverage in TIME</strong>: Category lacks tests for: error-handling, boundary-conditions, edge-cases, validation-failures</li><li><strong>Missing Test Coverage in TIME</strong>: Category lacks tests for: error-handling, boundary-conditions, edge-cases, validation-failures</li><li><strong>Missing Test Coverage in TIME</strong>: Category lacks tests for: boundary-conditions, edge-cases, validation-failures</li>
+        </ul>
+      </div>
+            <table class="filterable-table" id="table-time">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-time')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-time')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-TIME-902CEE0C</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Timing</span></td>
+          <td>Verify response times meet SLA requirements</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-E19AB319</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Timing</span></td>
+          <td>Test timeout handling for slow operations</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-FA037B17</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Timing</span></td>
+          <td>Verify P95/P99 latency targets under load</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-6D3E1CED</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Timing</span></td>
+          <td>Test page load time on slow connections (3G)</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-61A1F7ED</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Concurrency</span></td>
+          <td>Test concurrent access to shared resources</td>
+          <td><span class="automation automation-concurrency">Concurrency testing required</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-656C04D3</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Concurrency</span></td>
+          <td>Verify locking mechanisms prevent data corruption</td>
+          <td><span class="automation automation-concurrency">Concurrency testing required</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-CD909392</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Concurrency</span></td>
+          <td>Test optimistic vs pessimistic locking strategies</td>
+          <td><span class="automation automation-concurrency">Concurrency testing required</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-3709993F</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Concurrency</span></td>
+          <td>Verify deadlock detection and resolution</td>
+          <td><span class="automation automation-concurrency">Concurrency testing required</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-6A758721</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Scheduling</span></td>
+          <td>Verify scheduled jobs run at correct times</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-5BD6840D</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Scheduling</span></td>
+          <td>Test behavior when scheduled job fails</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-356CAFD1</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Scheduling</span></td>
+          <td>Verify job overlap prevention (job still running)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-A4FEB6E1</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Scheduling</span></td>
+          <td>Test scheduled job retry and backoff logic</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-44FB95AA</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Timeout</span></td>
+          <td>Verify client-side request timeout handling</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-80FCDEC1</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Timeout</span></td>
+          <td>Test server-side operation timeout behavior</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-6CF02951</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Timeout</span></td>
+          <td>Verify database query timeout handling</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-D3916A7F</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Timeout</span></td>
+          <td>Test timeout cascade (request -&gt; service -&gt; DB)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-EFA9F0A1</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Sequencing</span></td>
+          <td>Verify operation order is preserved (FIFO)</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-965B4354</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Sequencing</span></td>
+          <td>Test behavior when events arrive out of order</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-3BEAC684</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">Sequencing</span></td>
+          <td>Verify idempotency for repeated requests</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-9A3C046F</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Sequencing</span></td>
+          <td>Test event replay and reprocessing</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-4BD045D4</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Timeout</span></td>
+          <td>Verify graceful handling of network timeouts</td>
+          <td><span class="automation automation-integration">Automate on Integration level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-900FF683</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Timing</span></td>
+          <td>Measure and verify P95 response times under normal load</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-6E4C4F6B</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Concurrency</span></td>
+          <td>Load test with expected concurrent user count</td>
+          <td><span class="automation automation-performance">Performance testing recommended</span></td>
+        </tr>
+              </tbody>
+            </table>
+
+        
+        
+          </div>
+        </div>
+    </section>
+    
+    <section class="section" id="traceability">
+      <h2>Requirements Traceability</h2>
+      <p style="margin-bottom: 15px;">Test ideas mapped to their source requirements for traceability:</p>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 300px;">Source Requirement</th>
+            <th style="width: 100px;">Test Count</th>
+            <th>Test IDs</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+          <tr>
+            <td>General</td>
+            <td style="text-align: center;">204</td>
+            <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-muted);">TC-STRU-845354FF, TC-STRU-416FA4AA, TC-STRU-1CFCBFB3, TC-STRU-1B0A168D, TC-STRU-731916E9, TC-STRU-B01E15B0, TC-STRU-D8EF4037, TC-STRU-270EF89F, TC-STRU-34FB7796, TC-STRU-1BB13E10, TC-STRU-67D6B891, TC-STRU-FEEC5B05, TC-STRU-E73E6CFC, TC-STRU-495F9CA1, TC-STRU-08676F4C, TC-STRU-BD3ACDF8, TC-STRU-9B1C7A5C, TC-STRU-9807137C, TC-STRU-DDEC5DBD, TC-STRU-9E62A5B7, TC-STRU-EDBB8B5C, TC-STRU-4AD0B272, TC-FUNC-1790E961, TC-FUNC-8417A3B2, TC-FUNC-FDD5AEDC, TC-FUNC-B425139B, TC-FUNC-1FE110AC, TC-FUNC-05046B5D, TC-FUNC-FDEE6FCE, TC-FUNC-332CA797, TC-FUNC-AC57B0C5, TC-FUNC-2D5F9F64, TC-FUNC-08884F13, TC-FUNC-845ACB43, TC-FUNC-C921B48B, TC-FUNC-E242C15E, TC-FUNC-C30681D0, TC-FUNC-72C13EA7, TC-FUNC-14362D4B, TC-FUNC-89FF65DE, TC-FUNC-4FD0B1A4, TC-FUNC-FF480C72, TC-FUNC-737C8187, TC-FUNC-8D11B802, TC-FUNC-D36B825A, TC-FUNC-7C3A0644, TC-FUNC-DD4C2EE4, TC-FUNC-EFE4989D, TC-FUNC-18606455, TC-FUNC-503B634F, TC-FUNC-036E2896, TC-FUNC-77245448, TC-FUNC-48F5C879, TC-FUNC-638A70B8, TC-FUNC-BA758722, TC-FUNC-EBD6E064, TC-FUNC-9651298F, TC-FUNC-5E034C47, TC-FUNC-8EB6488D, TC-FUNC-627BFB65, TC-FUNC-0240C1DD, TC-DATA-53D16867, TC-DATA-FF6FD35D, TC-DATA-C71E35ED, TC-DATA-F28E4EDC, TC-DATA-21A90628, TC-DATA-A48F8CEF, TC-DATA-EF49ACD4, TC-DATA-88320187, TC-DATA-E15D8D0C, TC-DATA-EC521F0A, TC-DATA-9A9C0D2F, TC-DATA-C67F4F61, TC-DATA-A867F9E9, TC-DATA-10BCA6FD, TC-DATA-8E09FA6D, TC-DATA-D1C2C89E, TC-DATA-2252EEFB, TC-DATA-3530C38D, TC-DATA-F7C163C1, TC-DATA-C9257617, TC-DATA-CA5BB3E9, TC-DATA-509020A7, TC-DATA-B7A6885A, TC-DATA-EF90AA11, TC-DATA-3D8C26CB, TC-DATA-CB728E32, TC-DATA-E8986C3C, TC-DATA-19D9DA74, TC-DATA-F8A35813, TC-DATA-280F1F92, TC-DATA-A5B700EA, TC-DATA-D6CFD8B6, TC-DATA-B7EC8189, TC-DATA-7AD13837, TC-DATA-F7D10675, TC-INTE-1493EF33, TC-INTE-70371326, TC-INTE-0B94A6DE, TC-INTE-D612355B, TC-INTE-B47832D3, TC-INTE-7C0AE63C, TC-INTE-65FE815B, TC-INTE-C36A7BB5, TC-INTE-9338226B, TC-INTE-0A7A9AB4, TC-INTE-DDE25889, TC-INTE-B2BA14CA, TC-INTE-4C351846, TC-INTE-D70FB853, TC-INTE-6A425DE2, TC-INTE-B85A480A, TC-INTE-C509042E, TC-INTE-0EA836E7, TC-INTE-2DE1EBCC, TC-INTE-0666284A, TC-INTE-14865A7E, TC-INTE-47B048AA, TC-INTE-544ADA0E, TC-INTE-C86501B7, TC-INTE-1E30A904, TC-INTE-753C1746, TC-INTE-EF3F1708, TC-INTE-CFC9BAAB, TC-INTE-934D5B67, TC-INTE-DCBC1F00, TC-INTE-6BAABC48, TC-INTE-61F04A1F, TC-INTE-E5FA89FE, TC-PLAT-61BAF1CB, TC-PLAT-46EF0F85, TC-PLAT-44A5F4C7, TC-PLAT-F544B5EE, TC-PLAT-CC0CA0FB, TC-PLAT-EC134BAA, TC-PLAT-012A7042, TC-PLAT-52F5177F, TC-PLAT-0C49CCBF, TC-PLAT-5927B20F, TC-PLAT-27BB62E5, TC-PLAT-15E5D8D6, TC-PLAT-DA041FD0, TC-PLAT-8936D88D, TC-PLAT-2EEF88FB, TC-PLAT-ED26C895, TC-PLAT-2D7BF9DD, TC-PLAT-F2A4E665, TC-PLAT-4E8A9922, TC-PLAT-D27F3CDC, TC-OPER-EE4394E5, TC-OPER-99EEE14B, TC-OPER-8FD2EDF0, TC-OPER-A3528F6A, TC-OPER-5B9772EE, TC-OPER-4CC2DD68, TC-OPER-646AEAE6, TC-OPER-28AF9C00, TC-OPER-9890B1A8, TC-OPER-37F5190F, TC-OPER-6843D78E, TC-OPER-947A4F97, TC-OPER-32E5E19D, TC-OPER-82767A49, TC-OPER-36F7E30C, TC-OPER-D03DDAC9, TC-OPER-2B292D9B, TC-OPER-6ABA2523, TC-OPER-2D4BFED9, TC-OPER-2734FCC1, TC-OPER-A290C151, TC-OPER-27AFFF44, TC-OPER-6BAF25DD, TC-OPER-9C76E1A0, TC-OPER-C9F48A7C, TC-OPER-EC43F373, TC-OPER-C1AFE9C8, TC-OPER-09E69E48, TC-OPER-2C6B39C8, TC-OPER-804F394B, TC-OPER-6B19BB8E, TC-OPER-FD393C2C, TC-TIME-902CEE0C, TC-TIME-E19AB319, TC-TIME-FA037B17, TC-TIME-6D3E1CED, TC-TIME-61A1F7ED, TC-TIME-656C04D3, TC-TIME-CD909392, TC-TIME-3709993F, TC-TIME-6A758721, TC-TIME-5BD6840D, TC-TIME-356CAFD1, TC-TIME-A4FEB6E1, TC-TIME-44FB95AA, TC-TIME-80FCDEC1, TC-TIME-6CF02951, TC-TIME-D3916A7F, TC-TIME-EFA9F0A1, TC-TIME-965B4354, TC-TIME-3BEAC684, TC-TIME-9A3C046F, TC-TIME-4BD045D4, TC-TIME-900FF683, TC-TIME-6E4C4F6B</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 0.85rem; border-top: 1px solid var(--border-light); margin-top: 30px;">
+      <p>Generated by <strong>QE Product Factors Assessor Agent</strong></p>
+      <p>Based on James Bach's Heuristic Test Strategy Model (HTSM v6.3)</p>
+      <p style="margin-top: 10px; opacity: 0.7;">Agentic QE Fleet | SFDIPOT Analysis</p>
+    </footer>
+  </div>
+</body>
+</html>

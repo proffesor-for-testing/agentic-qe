@@ -1,0 +1,5889 @@
+{
+  "id": "TS-EF8B2714",
+  "name": "Product Factors (SFDIPOT) based Test Ideas - 2025-12-27",
+  "description": "HTSM-based test suite generated from 1 user stories",
+  "sourceRequirements": [
+    "US-601"
+  ],
+  "tests": [
+    {
+      "id": "TC-FUNC-A3D7A3E2",
+      "name": "Verify that author performance reports with article metrics",
+      "description": "Verify security: Author performance reports with article metrics",
+      "type": "security",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "SecurityRelated",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from risk-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P0",
+      "risk": {
+        "score": 1,
+        "factors": [
+          "critical-priority",
+          "security"
+        ],
+        "businessImpact": "critical",
+        "technicalComplexity": "high"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System is in a known initial state",
+        "User authentication is configured"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify security: author performance reports with article metrics is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:function",
+        "htsm:SecurityRelated",
+        "technique:risk-based",
+        "priority:P0",
+        "security",
+        "critical",
+        "smoke"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-OPER-B8A8D75E",
+      "name": "Verify protection against injection attacks",
+      "description": "Verify protection against injection attacks",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "DisfavoredUse",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from error-guessing analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P0",
+      "risk": {
+        "score": 1,
+        "factors": [
+          "critical-priority",
+          "misuse-prevention"
+        ],
+        "businessImpact": "critical",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a malicious input is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the malicious input is submitted"
+        },
+        {
+          "type": "then",
+          "text": "the system blocks the attempt"
+        },
+        {
+          "type": "and",
+          "text": "no security breach occurs"
+        },
+        {
+          "type": "and",
+          "text": "the attempt is logged"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation",
+        "Malicious input is blocked",
+        "Security is not compromised"
+      ],
+      "testData": {
+        "errorCases": [
+          "empty_input",
+          "null_value",
+          "special_characters",
+          "sql_injection_attempt",
+          "xss_attempt"
+        ]
+      },
+      "tags": [
+        "htsm:operations",
+        "htsm:DisfavoredUse",
+        "technique:error-guessing",
+        "priority:P0",
+        "security",
+        "critical",
+        "smoke"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-OPER-1FCBE7C7",
+      "name": "Verify protection against XSS attacks",
+      "description": "Verify protection against XSS attacks",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "DisfavoredUse",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from error-guessing analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P0",
+      "risk": {
+        "score": 1,
+        "factors": [
+          "critical-priority",
+          "misuse-prevention"
+        ],
+        "businessImpact": "critical",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a malicious input is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the malicious input is submitted"
+        },
+        {
+          "type": "then",
+          "text": "the system blocks the attempt"
+        },
+        {
+          "type": "and",
+          "text": "no security breach occurs"
+        },
+        {
+          "type": "and",
+          "text": "the attempt is logged"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation",
+        "Malicious input is blocked",
+        "Security is not compromised"
+      ],
+      "testData": {
+        "errorCases": [
+          "empty_input",
+          "null_value",
+          "special_characters",
+          "sql_injection_attempt",
+          "xss_attempt"
+        ]
+      },
+      "tags": [
+        "htsm:operations",
+        "htsm:DisfavoredUse",
+        "technique:error-guessing",
+        "priority:P0",
+        "security",
+        "critical",
+        "smoke"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-388F8A0B",
+      "name": "Verify that newsletter Service integrates correctly with User Service",
+      "description": "Verify Newsletter Service correctly integrates with User Service",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify newsletter service correctly integrates with user service"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-9671008D",
+      "name": "Verify that newsletter Service integrates correctly with Email Gateway",
+      "description": "Verify Newsletter Service correctly integrates with Email Gateway",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify newsletter service correctly integrates with email gateway"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-11BDBA93",
+      "name": "Verify that newsletter Service integrates correctly with Article Service",
+      "description": "Verify Newsletter Service correctly integrates with Article Service",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify newsletter service correctly integrates with article service"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-4E1C923B",
+      "name": "Verify that contributor Portal integrates correctly with User Service",
+      "description": "Verify Contributor Portal correctly integrates with User Service",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify contributor portal correctly integrates with user service"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-D8850AF4",
+      "name": "Verify that contributor Portal integrates correctly with Article Service",
+      "description": "Verify Contributor Portal correctly integrates with Article Service",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify contributor portal correctly integrates with article service"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-229FCA62",
+      "name": "Verify that contributor Portal integrates correctly with Media Service",
+      "description": "Verify Contributor Portal correctly integrates with Media Service",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify contributor portal correctly integrates with media service"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-B7E97AFB",
+      "name": "Verify that authentication Service integrates correctly with User Service",
+      "description": "Verify Authentication Service correctly integrates with User Service",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify authentication service correctly integrates with user service"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-1453F5D7",
+      "name": "Verify that authentication Service integrates correctly with Session Store",
+      "description": "Verify Authentication Service correctly integrates with Session Store",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify authentication service correctly integrates with session store"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-BAE64389",
+      "name": "Verify that user Service integrates correctly with User Database",
+      "description": "Verify User Service correctly integrates with User Database",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify user service correctly integrates with user database"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-C17E30E6",
+      "name": "Verify that user Service integrates correctly with Cache",
+      "description": "Verify User Service correctly integrates with Cache",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify user service correctly integrates with cache"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-CD09EF75",
+      "name": "Verify that article Service integrates correctly with Article Database",
+      "description": "Verify Article Service correctly integrates with Article Database",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify article service correctly integrates with article database"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-2F1C43AC",
+      "name": "Verify that article Service integrates correctly with Search Index",
+      "description": "Verify Article Service correctly integrates with Search Index",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify article service correctly integrates with search index"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-ABBE0B9C",
+      "name": "Verify that media Service integrates correctly with CDN",
+      "description": "Verify Media Service correctly integrates with CDN",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify media service correctly integrates with cdn"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-50CB5443",
+      "name": "Verify that media Service integrates correctly with Object Storage",
+      "description": "Verify Media Service correctly integrates with Object Storage",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify media service correctly integrates with object storage"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-E0ACE501",
+      "name": "Verify that aPI Gateway integrates correctly with Authentication Service",
+      "description": "Verify API Gateway correctly integrates with Authentication Service",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify api gateway correctly integrates with authentication service"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-C6C914A4",
+      "name": "Verify that web Frontend integrates correctly with API Gateway",
+      "description": "Verify Web Frontend correctly integrates with API Gateway",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify web frontend correctly integrates with api gateway"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-887AC756",
+      "name": "Check that newsletter Service service starts successfully and passes health checks",
+      "description": "Verify Newsletter Service service health and startup",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Service",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify newsletter service service health and startup"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Service",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-7AFB8FEC",
+      "name": "Check that contributor Portal service starts successfully and passes health checks",
+      "description": "Verify Contributor Portal service health and startup",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Service",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify contributor portal service health and startup"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Service",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-DE5821F0",
+      "name": "Check that authentication Service service starts successfully and passes health checks",
+      "description": "Verify Authentication Service service health and startup",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Service",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify authentication service service health and startup"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Service",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-C895BE7C",
+      "name": "Check that user Service service starts successfully and passes health checks",
+      "description": "Verify User Service service health and startup",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Service",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify user service service health and startup"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Service",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-D986D2C7",
+      "name": "Check that article Service service starts successfully and passes health checks",
+      "description": "Verify Article Service service health and startup",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Service",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify article service service health and startup"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Service",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-43D9A60C",
+      "name": "Check that media Service service starts successfully and passes health checks",
+      "description": "Verify Media Service service health and startup",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Service",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify media service service health and startup"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Service",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-DE270523",
+      "name": "Check that email Gateway service starts successfully and passes health checks",
+      "description": "Verify Email Gateway service health and startup",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Service",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify email gateway service health and startup"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Service",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-D7D026E5",
+      "name": "Check that search Index service starts successfully and passes health checks",
+      "description": "Verify Search Index service health and startup",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Service",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify search index service health and startup"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Service",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-299E8D71",
+      "name": "Check that CDN service starts successfully and passes health checks",
+      "description": "Verify CDN service health and startup",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Service",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify cdn service health and startup"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Service",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-19EA3814",
+      "name": "Verify that privacy-compliant analytics with GDPR cookie consent implemented",
+      "description": "Verify: Privacy-compliant analytics with GDPR cookie consent implemented",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-601",
+        "epicId": "EPIC-6"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: privacy-compliant analytics with gdpr cookie consent implemented is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-53186C9C",
+      "name": "Verify that content performance dashboard with key metrics (page views, time on page, scroll depth)",
+      "description": "Verify: Content performance dashboard with key metrics (page views, time on page, scroll depth)",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-601",
+        "epicId": "EPIC-6"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: content performance dashboard with key metrics (page views, time on page, scroll depth) is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-4D6442E7",
+      "name": "Verify that conversion tracking for newsletter, membership, contact goals",
+      "description": "Verify: Conversion tracking for newsletter, membership, contact goals",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-601",
+        "epicId": "EPIC-6"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: conversion tracking for newsletter, membership, contact goals is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-792A0AC2",
+      "name": "Verify that author performance reports with article metrics",
+      "description": "Verify: Author performance reports with article metrics",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-601",
+        "epicId": "EPIC-6"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: author performance reports with article metrics is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-C820DE80",
+      "name": "Verify that search Console integration for SEO insights",
+      "description": "Verify: Search Console integration for SEO insights",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-601",
+        "epicId": "EPIC-6"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: search console integration for seo insights is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-4C8F1DE5",
+      "name": "Verify that automated monthly report generation",
+      "description": "Verify: Automated monthly report generation",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-601",
+        "epicId": "EPIC-6"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: automated monthly report generation is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-E6C0D7EB",
+      "name": "Verify that real-time \"Trending\" algorithm based on actual traffic",
+      "description": "Verify: Real-time \"Trending\" algorithm based on actual traffic",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-601",
+        "epicId": "EPIC-6"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: real-time \"trending\" algorithm based on actual traffic is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-9E293158",
+      "name": "Verify that a/B testing capability for content optimization",
+      "description": "Verify: A/B testing capability for content optimization",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-601",
+        "epicId": "EPIC-6"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: a/b testing capability for content optimization is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-B1A4E164",
+      "name": "Verify data can be created successfully",
+      "description": "Verify data creation",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Lifecycle",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:data",
+        "htsm:Lifecycle",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-D89BE784",
+      "name": "Verify data can be modified successfully",
+      "description": "Verify data modification",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Lifecycle",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:data",
+        "htsm:Lifecycle",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-CFBAF298",
+      "name": "Verify data can be deleted successfully",
+      "description": "Verify data deletion",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Lifecycle",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:data",
+        "htsm:Lifecycle",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-2F7A6DAE",
+      "name": "Verify that newsletter API REST API endpoint responds correctly",
+      "description": "Verify API: Newsletter API (rest)",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-D06658EA",
+      "name": "Verify that POST /newsletter/subscribe endpoint processes requests correctly",
+      "description": "Verify endpoint: POST /newsletter/subscribe",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-42AB2AC2",
+      "name": "Verify that POST /newsletter/preferences endpoint processes requests correctly",
+      "description": "Verify endpoint: POST /newsletter/preferences",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-43F344ED",
+      "name": "Verify that GET /newsletter/history endpoint processes requests correctly",
+      "description": "Verify endpoint: GET /newsletter/history",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-1A4ECE19",
+      "name": "Verify that submissions API REST API endpoint responds correctly",
+      "description": "Verify API: Submissions API (rest)",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-1474141C",
+      "name": "Verify that POST /submissions endpoint processes requests correctly",
+      "description": "Verify endpoint: POST /submissions",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-03154D9C",
+      "name": "Verify that GET /submissions endpoint processes requests correctly",
+      "description": "Verify endpoint: GET /submissions",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-6C7989F4",
+      "name": "Verify that PUT /submissions/:id endpoint processes requests correctly",
+      "description": "Verify endpoint: PUT /submissions/:id",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-DEAC5583",
+      "name": "Verify that POST /submissions/:id/publish endpoint processes requests correctly",
+      "description": "Verify endpoint: POST /submissions/:id/publish",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-15AF6516",
+      "name": "Verify that moderation API REST API endpoint responds correctly",
+      "description": "Verify API: Moderation API (rest)",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-9CD5B0E5",
+      "name": "Verify that POST /reports endpoint processes requests correctly",
+      "description": "Verify endpoint: POST /reports",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-F0684999",
+      "name": "Verify that GET /moderation/queue endpoint processes requests correctly",
+      "description": "Verify endpoint: GET /moderation/queue",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-9638CD0D",
+      "name": "Verify that POST /moderation/action endpoint processes requests correctly",
+      "description": "Verify endpoint: POST /moderation/action",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-D8048919",
+      "name": "Verify that auth API REST API endpoint responds correctly",
+      "description": "Verify API: Auth API (rest)",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-3D03DF3E",
+      "name": "Verify that POST /auth/login endpoint processes requests correctly",
+      "description": "Verify endpoint: POST /auth/login",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-318FE46F",
+      "name": "Verify that POST /auth/register endpoint processes requests correctly",
+      "description": "Verify endpoint: POST /auth/register",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-15B4A4F3",
+      "name": "Verify that POST /auth/logout endpoint processes requests correctly",
+      "description": "Verify endpoint: POST /auth/logout",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-572AB21D",
+      "name": "Verify that POST /auth/password/reset endpoint processes requests correctly",
+      "description": "Verify endpoint: POST /auth/password/reset",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-DA20DDB9",
+      "name": "Verify that search API REST API endpoint responds correctly",
+      "description": "Verify API: Search API (rest)",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-A563539A",
+      "name": "Verify that GET /search endpoint processes requests correctly",
+      "description": "Verify endpoint: GET /search",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-813BDAA5",
+      "name": "Verify that GET /search/suggestions endpoint processes requests correctly",
+      "description": "Verify endpoint: GET /search/suggestions",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-876B0313",
+      "name": "Verify that real-time Events webhook event is processed correctly",
+      "description": "Verify API: Real-time Events (event)",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-EDADD946",
+      "name": "Verify that API endpoint eVENT /activity",
+      "description": "Verify endpoint: EVENT /activity",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-66AFD93D",
+      "name": "Verify that API endpoint eVENT /updates",
+      "description": "Verify endpoint: EVENT /updates",
+      "type": "api",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "ApiSdk",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "API server is running",
+        "Valid authentication token is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a valid API request is prepared"
+        },
+        {
+          "type": "and",
+          "text": "authentication headers are set"
+        },
+        {
+          "type": "when",
+          "text": "the API endpoint is called"
+        },
+        {
+          "type": "then",
+          "text": "a valid response is returned"
+        },
+        {
+          "type": "and",
+          "text": "the response matches the expected schema"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly",
+        "HTTP status code is correct",
+        "Response body matches schema"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-OPER-17ED68D3",
+      "name": "Verify functionality for user",
+      "description": "Verify functionality for user role: user",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "Users",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a user with the users profile"
+        },
+        {
+          "type": "when",
+          "text": "the user performs the workflow"
+        },
+        {
+          "type": "then",
+          "text": "the workflow completes as expected"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:operations",
+        "htsm:Users",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-OPER-927FAB24",
+      "name": "Verify that analytics & Growth Engine",
+      "description": "Verify common use: Analytics & Growth Engine",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "CommonUse",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "low"
+      },
+      "traceability": {
+        "userStoryId": "US-601",
+        "epicId": "EPIC-6"
+      },
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a user with the commonuse profile"
+        },
+        {
+          "type": "when",
+          "text": "the user performs the workflow"
+        },
+        {
+          "type": "then",
+          "text": "the workflow completes as expected"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:operations",
+        "htsm:CommonUse",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-OPER-EBC45D5B",
+      "name": "Verify behavior under high load conditions",
+      "description": "Verify behavior under high load",
+      "type": "performance",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "ExtremeUse",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from risk-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a user with the extremeuse profile"
+        },
+        {
+          "type": "when",
+          "text": "the user performs the workflow"
+        },
+        {
+          "type": "then",
+          "text": "the workflow completes as expected"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:operations",
+        "htsm:ExtremeUse",
+        "technique:risk-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-B0ECEEDD",
+      "name": "Verify that timeout handling works correctly",
+      "description": "Verify timeout handling",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "InputOutputTiming",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "time-sensitive data is set up"
+        },
+        {
+          "type": "when",
+          "text": "the time condition is triggered"
+        },
+        {
+          "type": "then",
+          "text": "the system responds within the expected timeframe"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:time",
+        "htsm:InputOutputTiming",
+        "technique:boundary-value-analysis",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-4D5CC326",
+      "name": "Verify that concurrent user access is handled correctly",
+      "description": "Verify concurrent user access",
+      "type": "performance",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "Concurrency",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "high"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized",
+        "Multiple test clients are ready"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "multiple concurrent users are ready"
+        },
+        {
+          "type": "when",
+          "text": "all users perform operations simultaneously"
+        },
+        {
+          "type": "then",
+          "text": "all operations complete without deadlock"
+        },
+        {
+          "type": "and",
+          "text": "data consistency is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit",
+        "No race conditions occur",
+        "Data consistency is preserved"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:time",
+        "htsm:Concurrency",
+        "technique:scenario-based",
+        "priority:P1",
+        "concurrency"
+      ],
+      "estimatedDurationMs": 15000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-65220918",
+      "name": "Verify that race conditions are prevented",
+      "description": "Verify race condition handling",
+      "type": "performance",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "Concurrency",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from risk-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "high"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized",
+        "Multiple test clients are ready"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "multiple concurrent users are ready"
+        },
+        {
+          "type": "when",
+          "text": "all users perform operations simultaneously"
+        },
+        {
+          "type": "then",
+          "text": "all operations complete without deadlock"
+        },
+        {
+          "type": "and",
+          "text": "data consistency is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit",
+        "No race conditions occur",
+        "Data consistency is preserved"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:time",
+        "htsm:Concurrency",
+        "technique:risk-based",
+        "priority:P1",
+        "concurrency"
+      ],
+      "estimatedDurationMs": 15000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-D57C94E3",
+      "name": "Verify that newsletter Service component has correct structure and dependencies",
+      "description": "Verify Newsletter Service component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify newsletter service component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-3DC96BDD",
+      "name": "Verify that contributor Portal component has correct structure and dependencies",
+      "description": "Verify Contributor Portal component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify contributor portal component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-72DBB05C",
+      "name": "Verify that authentication Service component has correct structure and dependencies",
+      "description": "Verify Authentication Service component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify authentication service component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-A75A2D03",
+      "name": "Verify that user Service component has correct structure and dependencies",
+      "description": "Verify User Service component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify user service component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-C389CCB6",
+      "name": "Verify that article Service component has correct structure and dependencies",
+      "description": "Verify Article Service component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify article service component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-7D3228D0",
+      "name": "Verify that media Service component has correct structure and dependencies",
+      "description": "Verify Media Service component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify media service component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-DA0355C1",
+      "name": "Verify that email Gateway component has correct structure and dependencies",
+      "description": "Verify Email Gateway component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify email gateway component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-3E55F99D",
+      "name": "Verify that user Database component has correct structure and dependencies",
+      "description": "Verify User Database component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify user database component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-A9BD4EF0",
+      "name": "Verify that article Database component has correct structure and dependencies",
+      "description": "Verify Article Database component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify article database component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-73E3D77A",
+      "name": "Verify that cache component has correct structure and dependencies",
+      "description": "Verify Cache component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify cache component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-04CED6B7",
+      "name": "Verify that search Index component has correct structure and dependencies",
+      "description": "Verify Search Index component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify search index component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-53580336",
+      "name": "Verify that CDN component has correct structure and dependencies",
+      "description": "Verify CDN component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify cdn component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-7A645232",
+      "name": "Verify that aPI Gateway component has correct structure and dependencies",
+      "description": "Verify API Gateway component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify api gateway component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-STRU-DFEB47A9",
+      "name": "Verify that web Frontend component has correct structure and dependencies",
+      "description": "Verify Web Frontend component structure and dependencies",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "STRUCTURE",
+          "subcategory": "Code",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify web frontend component structure and dependencies"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [],
+      "testData": {},
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-24843AB3",
+      "name": "Verify behavior with zero items (empty state)",
+      "description": "Verify behavior with zero items",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Cardinality",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:data",
+        "htsm:Cardinality",
+        "technique:boundary-value-analysis",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-C4E4DA9B",
+      "name": "Verify behavior with exactly one item",
+      "description": "Verify behavior with exactly one item",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Cardinality",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:data",
+        "htsm:Cardinality",
+        "technique:boundary-value-analysis",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-93E2E6F5",
+      "name": "Verify behavior with many items (bulk data)",
+      "description": "Verify behavior with many items",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Cardinality",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:data",
+        "htsm:Cardinality",
+        "technique:boundary-value-analysis",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-1131D92F",
+      "name": "Verify that content performance dashboard with key metrics (page views, time on page, scroll depth)",
+      "description": "Verify UI: Content performance dashboard with key metrics (page views, time on page, scroll depth)",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "UserInterfaces",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "low"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the user is on the relevant page"
+        },
+        {
+          "type": "when",
+          "text": "the user interacts with the interface"
+        },
+        {
+          "type": "then",
+          "text": "the interface responds correctly"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterfaces",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-AD0C9CD1",
+      "name": "Verify that author performance reports with article metrics",
+      "description": "Verify UI: Author performance reports with article metrics",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "UserInterfaces",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "low"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the user is on the relevant page"
+        },
+        {
+          "type": "when",
+          "text": "the user interacts with the interface"
+        },
+        {
+          "type": "then",
+          "text": "the interface responds correctly"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterfaces",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-CB372B7C",
+      "name": "Verify that memory usage is within acceptable limits",
+      "description": "Verify memory usage within acceptable limits",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ProductFootprint",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify memory usage within acceptable limits"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ProductFootprint",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-6723E093",
+      "name": "Verify that CPU usage is within acceptable limits",
+      "description": "Verify CPU usage within acceptable limits",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ProductFootprint",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify cpu usage within acceptable limits"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ProductFootprint",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-49362EF1",
+      "name": "Verify compatibility with Chrome",
+      "description": "Verify compatibility with Chrome",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ExternalSoftware",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify compatibility with chrome"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ExternalSoftware",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-69884093",
+      "name": "Verify compatibility with Firefox",
+      "description": "Verify compatibility with Firefox",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ExternalSoftware",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify compatibility with firefox"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ExternalSoftware",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-CD74EBCF",
+      "name": "Verify compatibility with Safari",
+      "description": "Verify compatibility with Safari",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ExternalSoftware",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify compatibility with safari"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ExternalSoftware",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-21D3EF23",
+      "name": "Verify compatibility with Edge",
+      "description": "Verify compatibility with Edge",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ExternalSoftware",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify compatibility with edge"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ExternalSoftware",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-OPER-C186E6DB",
+      "name": "Verify behavior under maximum data volume",
+      "description": "Verify behavior with maximum data volume",
+      "type": "performance",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "ExtremeUse",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a user with the extremeuse profile"
+        },
+        {
+          "type": "when",
+          "text": "the user performs the workflow"
+        },
+        {
+          "type": "then",
+          "text": "the workflow completes as expected"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:operations",
+        "htsm:ExtremeUse",
+        "technique:boundary-value-analysis",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-67023B6F",
+      "name": "Verify temporal behavior of content performance dashboard with key metrics (page views, time on page, scroll depth)",
+      "description": "Verify time handling: Content performance dashboard with key metrics (page views, time on page, scroll depth)",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "TimeRelatedData",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "time-sensitive data is set up"
+        },
+        {
+          "type": "when",
+          "text": "the time condition is triggered"
+        },
+        {
+          "type": "then",
+          "text": "the system responds within the expected timeframe"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:time",
+        "htsm:TimeRelatedData",
+        "technique:boundary-value-analysis",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-F6F5B0CA",
+      "name": "Verify temporal behavior of real-time \"Trending\" algorithm based on actual traffic",
+      "description": "Verify time handling: Real-time \"Trending\" algorithm based on actual traffic",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "TimeRelatedData",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "time-sensitive data is set up"
+        },
+        {
+          "type": "when",
+          "text": "the time condition is triggered"
+        },
+        {
+          "type": "then",
+          "text": "the system responds within the expected timeframe"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:time",
+        "htsm:TimeRelatedData",
+        "technique:boundary-value-analysis",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-0BD95F7C",
+      "name": "Check behavior with rapid input (burst traffic)",
+      "description": "Verify behavior with rapid input",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "Pacing",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "time-sensitive data is set up"
+        },
+        {
+          "type": "when",
+          "text": "the time condition is triggered"
+        },
+        {
+          "type": "then",
+          "text": "the system responds within the expected timeframe"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:time",
+        "htsm:Pacing",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-D0C7024F",
+      "name": "Check behavior with slow/delayed input",
+      "description": "Verify behavior with slow/delayed input",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "Pacing",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "time-sensitive data is set up"
+        },
+        {
+          "type": "when",
+          "text": "the time condition is triggered"
+        },
+        {
+          "type": "then",
+          "text": "the system responds within the expected timeframe"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:time",
+        "htsm:Pacing",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    }
+  ],
+  "htsmCoverage": {
+    "overall": 100,
+    "byCategory": {
+      "STRUCTURE": {
+        "category": "STRUCTURE",
+        "testCount": 39,
+        "subcategories": {
+          "Code": 30,
+          "Service": 9
+        },
+        "coverage": 100
+      },
+      "FUNCTION": {
+        "category": "FUNCTION",
+        "testCount": 9,
+        "subcategories": {
+          "SecurityRelated": 1,
+          "BusinessRules": 8
+        },
+        "coverage": 100
+      },
+      "DATA": {
+        "category": "DATA",
+        "testCount": 6,
+        "subcategories": {
+          "Lifecycle": 3,
+          "Cardinality": 3
+        },
+        "coverage": 100
+      },
+      "INTERFACES": {
+        "category": "INTERFACES",
+        "testCount": 26,
+        "subcategories": {
+          "ApiSdk": 24,
+          "UserInterfaces": 2
+        },
+        "coverage": 100
+      },
+      "PLATFORM": {
+        "category": "PLATFORM",
+        "testCount": 6,
+        "subcategories": {
+          "ProductFootprint": 2,
+          "ExternalSoftware": 4
+        },
+        "coverage": 100
+      },
+      "OPERATIONS": {
+        "category": "OPERATIONS",
+        "testCount": 6,
+        "subcategories": {
+          "DisfavoredUse": 2,
+          "Users": 1,
+          "CommonUse": 1,
+          "ExtremeUse": 2
+        },
+        "coverage": 100
+      },
+      "TIME": {
+        "category": "TIME",
+        "testCount": 7,
+        "subcategories": {
+          "InputOutputTiming": 1,
+          "Concurrency": 2,
+          "TimeRelatedData": 2,
+          "Pacing": 2
+        },
+        "coverage": 100
+      }
+    },
+    "gaps": []
+  },
+  "traceabilityMatrix": {
+    "requirements": [
+      {
+        "requirementId": "US-601",
+        "requirementDescription": "Analytics & Growth Engine",
+        "testCaseIds": [
+          "TC-FUNC-19EA3814",
+          "TC-FUNC-53186C9C",
+          "TC-FUNC-4D6442E7",
+          "TC-FUNC-792A0AC2",
+          "TC-FUNC-C820DE80",
+          "TC-FUNC-4C8F1DE5",
+          "TC-FUNC-E6C0D7EB",
+          "TC-FUNC-9E293158",
+          "TC-OPER-927FAB24",
+          "TC-STRU-388F8A0B",
+          "TC-STRU-4E1C923B",
+          "TC-STRU-B7E97AFB",
+          "TC-STRU-BAE64389",
+          "TC-STRU-C17E30E6",
+          "TC-STRU-C895BE7C",
+          "TC-OPER-17ED68D3",
+          "TC-STRU-A75A2D03",
+          "TC-STRU-3E55F99D",
+          "TC-TIME-B0ECEEDD",
+          "TC-TIME-4D5CC326",
+          "TC-TIME-65220918",
+          "TC-PLAT-CB372B7C",
+          "TC-PLAT-6723E093",
+          "TC-PLAT-49362EF1",
+          "TC-PLAT-69884093",
+          "TC-PLAT-CD74EBCF",
+          "TC-PLAT-21D3EF23",
+          "TC-TIME-67023B6F",
+          "TC-TIME-F6F5B0CA",
+          "TC-TIME-0BD95F7C",
+          "TC-TIME-D0C7024F"
+        ],
+        "htsmCategories": [
+          "FUNCTION",
+          "OPERATIONS",
+          "STRUCTURE",
+          "TIME",
+          "PLATFORM"
+        ],
+        "coverage": "full"
+      }
+    ],
+    "coverage": 100
+  },
+  "generatedAt": "2025-12-27T20:04:50.360Z"
+}
