@@ -439,6 +439,10 @@ export class RealQEReasoningBank {
         lastUsedAt: new Date(),
         successfulUses: 0,
         embedding,
+        // Token tracking fields (ADR-042)
+        reusable: false,
+        reuseCount: 0,
+        averageTokenSavings: 0,
       };
 
       // Store in SQLite

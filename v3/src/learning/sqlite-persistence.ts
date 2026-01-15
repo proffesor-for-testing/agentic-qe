@@ -461,6 +461,15 @@ export class SQLitePatternStore {
       lastUsedAt: row.last_used_at ? new Date(row.last_used_at) : new Date(row.created_at),
       successfulUses: row.successful_uses,
       embedding,
+      // Token tracking fields (ADR-042)
+      tokensUsed: row.tokens_used,
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      latencyMs: row.latency_ms,
+      reusable: row.reusable === 1,
+      reuseCount: row.reuse_count || 0,
+      averageTokenSavings: row.average_token_savings || 0,
+      totalTokensSaved: row.total_tokens_saved,
     };
   }
 

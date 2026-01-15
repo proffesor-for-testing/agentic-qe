@@ -28,6 +28,43 @@ import {
 // ============================================================================
 
 /**
+ * Token tracking configuration (ADR-042)
+ */
+export interface TokenTrackingConfig {
+  /** Enable token tracking */
+  enabled: boolean;
+
+  /** Track input and output tokens separately */
+  trackInputOutput: boolean;
+
+  /** Estimate costs based on token usage */
+  estimateCosts: boolean;
+
+  /** Cost per input token (e.g., 0.003 / 1000 = 0.000003) */
+  costPerInputToken: number;
+
+  /** Cost per output token (e.g., 0.015 / 1000 = 0.000015) */
+  costPerOutputToken: number;
+}
+
+/**
+ * Reuse optimization configuration (ADR-042)
+ */
+export interface ReuseOptimizationConfig {
+  /** Enable pattern reuse optimization */
+  enabled: boolean;
+
+  /** Minimum similarity threshold for reuse (0-1) */
+  minSimilarityForReuse: number;
+
+  /** Minimum success rate required for reuse (0-1) */
+  minSuccessRateForReuse: number;
+
+  /** Maximum age in days for pattern reuse */
+  maxAgeForReuse: number;
+}
+
+/**
  * Pattern store configuration
  */
 export interface PatternStoreConfig {
@@ -59,6 +96,12 @@ export interface PatternStoreConfig {
 
   /** Cleanup interval in milliseconds */
   cleanupIntervalMs: number;
+
+  /** Token tracking configuration (ADR-042) */
+  tokenTracking: TokenTrackingConfig;
+
+  /** Reuse optimization configuration (ADR-042) */
+  reuseOptimization: ReuseOptimizationConfig;
 }
 
 /**
@@ -78,6 +121,19 @@ export const DEFAULT_PATTERN_STORE_CONFIG: PatternStoreConfig = {
   maxPatternsPerDomain: 5000,
   autoCleanup: true,
   cleanupIntervalMs: 3600000, // 1 hour
+  tokenTracking: {
+    enabled: true,
+    trackInputOutput: true,
+    estimateCosts: true,
+    costPerInputToken: 0.000003, // $0.003 per 1K tokens
+    costPerOutputToken: 0.000015, // $0.015 per 1K tokens
+  },
+  reuseOptimization: {
+    enabled: true,
+    minSimilarityForReuse: 0.85,
+    minSuccessRateForReuse: 0.90,
+    maxAgeForReuse: 7, // 7 days
+  },
 };
 
 // ============================================================================
@@ -160,12 +216,29 @@ export interface PatternSearchOptions {
 }
 
 /**
- * Pattern search result
+ * Pattern search result with reuse optimization (ADR-042)
  */
 export interface PatternSearchResult {
+  /** The matched pattern */
   pattern: QEPattern;
+
+  /** Match score (0-1) */
   score: number;
+
+  /** How the pattern was matched */
   matchType: 'vector' | 'exact' | 'context';
+
+  /** Similarity score for vector matches (ADR-042) */
+  similarity: number;
+
+  /** Whether this pattern can be reused to skip LLM calls (ADR-042) */
+  canReuse: boolean;
+
+  /** Estimated tokens saved if this pattern is reused (ADR-042) */
+  estimatedTokenSavings: number;
+
+  /** Confidence level for reusing this pattern (0-1) (ADR-042) */
+  reuseConfidence: number;
 }
 
 // ============================================================================
@@ -450,6 +523,10 @@ export class PatternStore implements IPatternStore {
       createdAt: now,
       lastUsedAt: now,
       successfulUses: 0,
+      // Token tracking fields (ADR-042)
+      reusable: false, // Not reusable until proven successful
+      reuseCount: 0,
+      averageTokenSavings: 0,
     };
 
     const storeResult = await this.store(pattern);
@@ -532,10 +609,15 @@ export class PatternStore implements IPatternStore {
         for (const result of hnswResults) {
           const pattern = await this.get(result.key);
           if (pattern && this.matchesFilters(pattern, options)) {
+            const reuseInfo = this.calculateReuseInfo(pattern, result.score);
             results.push({
               pattern,
               score: result.score,
               matchType: 'vector',
+              similarity: result.score,
+              canReuse: reuseInfo.canReuse,
+              estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
+              reuseConfidence: reuseInfo.reuseConfidence,
             });
           }
         }
@@ -619,15 +701,63 @@ export class PatternStore implements IPatternStore {
       }
 
       if (score > 0 || !queryLower) {
+        const reuseInfo = this.calculateReuseInfo(pattern, score);
         results.push({
           pattern,
           score: score || pattern.qualityScore,
           matchType: queryLower ? 'exact' : 'context',
+          similarity: score || pattern.qualityScore,
+          canReuse: reuseInfo.canReuse,
+          estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
+          reuseConfidence: reuseInfo.reuseConfidence,
         });
       }
     }
 
     return results;
+  }
+
+  /**
+   * Calculate reuse information for a pattern (ADR-042)
+   */
+  private calculateReuseInfo(
+    pattern: QEPattern,
+    similarity: number
+  ): { canReuse: boolean; estimatedTokenSavings: number; reuseConfidence: number } {
+    const { reuseOptimization } = this.config;
+
+    // Check if pattern meets reuse criteria
+    const meetsMinSimilarity = similarity >= reuseOptimization.minSimilarityForReuse;
+    const meetsMinSuccessRate = pattern.successRate >= reuseOptimization.minSuccessRateForReuse;
+
+    // Check age criteria
+    const ageInDays = (Date.now() - pattern.lastUsedAt.getTime()) / (1000 * 60 * 60 * 24);
+    const meetsAgeCriteria = ageInDays <= reuseOptimization.maxAgeForReuse;
+
+    // Pattern must be explicitly marked reusable and meet all criteria
+    const canReuse =
+      reuseOptimization.enabled &&
+      pattern.reusable &&
+      meetsMinSimilarity &&
+      meetsMinSuccessRate &&
+      meetsAgeCriteria;
+
+    // Estimate token savings based on pattern's historical data
+    const estimatedTokenSavings = canReuse
+      ? pattern.averageTokenSavings > 0
+        ? pattern.averageTokenSavings
+        : pattern.tokensUsed || 0
+      : 0;
+
+    // Calculate reuse confidence based on multiple factors
+    const similarityFactor = similarity;
+    const successFactor = pattern.successRate;
+    const usageFactor = Math.min(pattern.reuseCount / 10, 1); // Cap at 10 reuses
+    const reuseConfidence = canReuse
+      ? (similarityFactor * 0.4 + successFactor * 0.4 + usageFactor * 0.2)
+      : 0;
+
+    return { canReuse, estimatedTokenSavings, reuseConfidence };
   }
 
   /**

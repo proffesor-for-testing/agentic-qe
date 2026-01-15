@@ -168,13 +168,13 @@ export interface QEPattern {
   readonly latencyMs?: number;
 
   /** Whether this pattern can be reused to skip LLM calls */
-  readonly reusable?: boolean;
+  readonly reusable: boolean;
 
   /** Number of times this pattern has been reused */
-  readonly reuseCount?: number;
+  readonly reuseCount: number;
 
   /** Average tokens saved when this pattern is reused */
-  readonly averageTokenSavings?: number;
+  readonly averageTokenSavings: number;
 
   /** Total tokens saved across all reuses */
   readonly totalTokensSaved?: number;
