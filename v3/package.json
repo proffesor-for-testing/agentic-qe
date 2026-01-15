@@ -1,6 +1,6 @@
 {
   "name": "@agentic-qe/v3",
-  "version": "3.0.0-alpha.22",
+  "version": "3.0.0-alpha.23",
   "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 47 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
@@ -82,6 +82,7 @@
     "@types/uuid": "^10.0.0",
     "@vitest/coverage-v8": "^4.0.16",
     "esbuild": "^0.27.2",
+    "msw": "^2.12.7",
     "tsx": "^4.21.0",
     "vitest": "^4.0.16"
   },

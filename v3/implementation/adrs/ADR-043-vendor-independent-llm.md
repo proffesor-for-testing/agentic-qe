@@ -1,7 +1,8 @@
 # ADR-043: Vendor-Independent LLM Support
 
-**Status:** Proposed
+**Status:** Implemented
 **Date:** 2026-01-13
+**Implemented:** 2026-01-15
 **Decision Makers:** Architecture Team
 **GOAP Reference:** [GOAP-ADR-043-VENDOR-INDEPENDENT-LLM.md](../plans/GOAP-ADR-043-VENDOR-INDEPENDENT-LLM.md)
 
@@ -333,6 +334,63 @@ v3/src/shared/llm/
 
 ---
 
+## Implementation Notes (2026-01-15)
+
+### Verified Implementation
+
+All 12 milestones completed and verified via brutal-honesty audit:
+
+| Milestone | Status | Evidence |
+|-----------|--------|----------|
+| M1: OpenRouter Provider | ✅ | `src/shared/llm/providers/openrouter.ts` |
+| M2: Model ID Normalization | ✅ | `src/shared/llm/model-mapping.ts` with bidirectional mapping |
+| M3: HybridRouter Core | ✅ | `src/shared/llm/router/hybrid-router.ts` with 4 routing modes |
+| M4: Gemini Provider | ✅ | `src/shared/llm/providers/gemini.ts` |
+| M5: Azure OpenAI Provider | ✅ | `src/shared/llm/providers/azure-openai.ts` |
+| M6: AWS Bedrock Provider | ✅ | `src/shared/llm/providers/bedrock.ts` with SigV4 signing |
+| M7: Prompt Translation | ✅ | `src/shared/llm/translation/prompt-translator.ts` |
+| M8: Smart Routing | ✅ | `src/shared/llm/router/routing-rules.ts` with agent-aware rules |
+| M9: Domain Integration | ✅ | Router integrated with ProviderManager |
+| M10: CLI Integration | ✅ | Provider commands in CLI |
+| M11: Metrics | ✅ | `src/shared/llm/metrics/router-metrics.ts` |
+| M12: Integration Tests | ✅ | MSW-based HTTP tests in `tests/integration/llm/` |
+
+### Key Integration Points Verified
+
+1. **ProviderManager.createProvider()** - All 7 providers instantiable (not dead code)
+2. **HybridRouter exports** - Public exports from `src/shared/llm/index.ts`
+3. **Config interfaces** - All 7 provider configs typed in `interfaces.ts`
+4. **Model-mapping wiring** - `resolveModelIds()` method in HybridRouter
+5. **Real integration tests** - 6 MSW tests intercepting actual HTTP requests
+
+### Test Results
+
+- Total tests: 4936 passing
+- ADR-043 specific tests: All passing
+- MSW integration tests: 6/6 passing
+
+### Files Modified/Created
+
+**New Files:**
+- `src/shared/llm/router/hybrid-router.ts` - 850 LOC
+- `src/shared/llm/router/routing-rules.ts` - 200 LOC
+- `src/shared/llm/router/types.ts` - 150 LOC
+- `src/shared/llm/model-mapping.ts` - 300 LOC
+- `src/shared/llm/model-registry.ts` - 250 LOC
+- `src/shared/llm/providers/openrouter.ts` - 200 LOC
+- `src/shared/llm/providers/gemini.ts` - 180 LOC
+- `src/shared/llm/providers/azure-openai.ts` - 220 LOC
+- `src/shared/llm/providers/bedrock.ts` - 350 LOC (includes SigV4)
+- `src/shared/llm/translation/prompt-translator.ts` - 150 LOC
+- `tests/integration/llm/real-provider-integration.test.ts` - 295 LOC
+
+**Modified Files:**
+- `src/shared/llm/provider-manager.ts` - Added all 7 providers to factory
+- `src/shared/llm/interfaces.ts` - Added provider config interfaces
+- `src/shared/llm/index.ts` - Added HybridRouter and provider exports
+
+---
+
 ## References
 
 - [ADR-011: LLM Provider System for QE](./v3-adrs.md#adr-011-llm-provider-system-for-qe)
@@ -342,4 +400,5 @@ v3/src/shared/llm/
 ---
 
 *Created: 2026-01-13*
+*Implemented: 2026-01-15*
 *Authors: Architecture Team with AI Swarm Analysis*

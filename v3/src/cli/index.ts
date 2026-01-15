@@ -1916,6 +1916,10 @@ function getColorForPercent(percent: number): (str: string) => string {
 import { createTokenUsageCommand } from './commands/token-usage.js';
 program.addCommand(createTokenUsageCommand());
 
+// aqe llm (ADR-043)
+import { createLLMRouterCommand } from './commands/llm-router.js';
+program.addCommand(createLLMRouterCommand());
+
 // aqe quality
 program
   .command('quality')

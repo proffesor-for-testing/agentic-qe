@@ -16,7 +16,7 @@
 /**
  * Supported LLM provider types
  */
-export type LLMProviderType = 'claude' | 'openai' | 'ollama';
+export type LLMProviderType = 'claude' | 'openai' | 'ollama' | 'openrouter' | 'bedrock' | 'azure-openai' | 'gemini';
 
 /**
  * Message role in a conversation
@@ -191,6 +191,82 @@ export interface OllamaConfig extends LLMConfig {
 }
 
 /**
+ * OpenRouter-specific configuration (ADR-043)
+ */
+export interface OpenRouterConfig extends LLMConfig {
+  /** OpenRouter model ID (e.g., 'anthropic/claude-sonnet-4', 'openai/gpt-4o') */
+  model: string;
+  /** Site URL for attribution */
+  siteUrl?: string;
+  /** Site name for attribution */
+  siteName?: string;
+  /** Fallback models in order of preference */
+  fallbacks?: string[];
+  /** Provider preferences */
+  providerPreferences?: {
+    allow?: string[];
+    deny?: string[];
+    order?: string[];
+  };
+}
+
+/**
+ * Google Gemini-specific configuration (ADR-043)
+ */
+export interface GeminiConfig extends LLMConfig {
+  /** Gemini model (e.g., 'gemini-2.0-flash', 'gemini-1.5-pro') */
+  model: string;
+  /** Google Cloud project ID */
+  projectId?: string;
+  /** Google Cloud location */
+  location?: string;
+  /** Safety settings */
+  safetySettings?: Array<{
+    category: string;
+    threshold: string;
+  }>;
+  /** Generation config overrides */
+  generationConfig?: {
+    stopSequences?: string[];
+    candidateCount?: number;
+  };
+}
+
+/**
+ * Azure OpenAI-specific configuration (ADR-043)
+ */
+export interface AzureOpenAIConfig extends LLMConfig {
+  /** Azure deployment ID */
+  deploymentId: string;
+  /** Azure OpenAI resource name */
+  resourceName?: string;
+  /** Azure API version */
+  apiVersion?: string;
+  /** Azure endpoint URL (alternative to resourceName) */
+  endpoint?: string;
+  /** Model name (for reference, actual model determined by deployment) */
+  model: string;
+}
+
+/**
+ * AWS Bedrock-specific configuration (ADR-043)
+ */
+export interface BedrockConfig extends LLMConfig {
+  /** Bedrock model ID */
+  model: string;
+  /** AWS region */
+  region?: string;
+  /** AWS access key ID (if not using default credentials) */
+  accessKeyId?: string;
+  /** AWS secret access key (if not using default credentials) */
+  secretAccessKey?: string;
+  /** AWS session token (for temporary credentials) */
+  sessionToken?: string;
+  /** Inference profile ARN (for cross-region inference) */
+  inferenceProfileArn?: string;
+}
+
+/**
  * Provider manager configuration
  */
 export interface ProviderManagerConfig {
@@ -200,11 +276,15 @@ export interface ProviderManagerConfig {
   fallbacks: LLMProviderType[];
   /** Load balancing strategy */
   loadBalancing: 'round-robin' | 'least-cost' | 'least-latency' | 'random';
-  /** Provider-specific configurations */
+  /** Provider-specific configurations (ADR-043: All 7 providers) */
   providers: {
     claude?: ClaudeConfig;
     openai?: OpenAIConfig;
     ollama?: OllamaConfig;
+    openrouter?: OpenRouterConfig;
+    gemini?: GeminiConfig;
+    'azure-openai'?: AzureOpenAIConfig;
+    bedrock?: BedrockConfig;
   };
   /** Global settings */
   global?: {

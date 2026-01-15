@@ -61,6 +61,10 @@ export {
   type ClaudeConfig,
   type OpenAIConfig,
   type OllamaConfig,
+  type OpenRouterConfig,
+  type GeminiConfig,
+  type AzureOpenAIConfig,
+  type BedrockConfig,
   type ProviderManagerConfig,
 
   // Request types
@@ -98,7 +102,7 @@ export {
   isLLMError,
 } from './interfaces';
 
-// Providers
+// Providers (ADR-043: All 7 provider types)
 export {
   ClaudeProvider,
   DEFAULT_CLAUDE_CONFIG,
@@ -106,6 +110,15 @@ export {
   DEFAULT_OPENAI_CONFIG,
   OllamaProvider,
   DEFAULT_OLLAMA_CONFIG,
+  // ADR-043 New Providers
+  OpenRouterProvider,
+  DEFAULT_OPENROUTER_CONFIG,
+  GeminiProvider,
+  DEFAULT_GEMINI_CONFIG,
+  AzureOpenAIProvider,
+  DEFAULT_AZURE_OPENAI_CONFIG,
+  BedrockProvider,
+  DEFAULT_BEDROCK_CONFIG,
 } from './providers';
 
 // Circuit breaker
@@ -138,3 +151,92 @@ export {
   createQEProviderManager,
   DEFAULT_PROVIDER_MANAGER_CONFIG,
 } from './provider-manager';
+
+// Model mapping (ADR-043)
+export {
+  mapModelId,
+  normalizeModelId,
+  getCanonicalName,
+  getModelFamily,
+  getModelTier,
+  isModelAvailableOnProvider,
+  getSupportedProviders,
+  listCanonicalModels,
+  listModelsByProvider,
+  listModelsByFamily,
+  listModelsByTier,
+  getModelMapping,
+  MODEL_MAPPINGS,
+  type ProviderType,
+  type ModelMapping,
+} from './model-mapping';
+
+// Model registry (ADR-043)
+export {
+  getModelCapabilities,
+  getModelCost,
+  getModelInfo,
+  listModels,
+  findModelsByCapability,
+  findModelsByCost,
+  findCheapestModel,
+  findBestModelInBudget,
+  getRecommendedModels,
+  getDeprecationStatus,
+  estimateRequestCost,
+  compareModels,
+  MODEL_REGISTRY,
+  type ModelCapabilities,
+  type ModelCostInfo,
+  type ModelInfo,
+} from './model-registry';
+
+// Metrics (ADR-043 Milestone 11)
+export {
+  RouterMetricsCollector,
+  createRouterMetricsCollector,
+  getGlobalRouterMetrics,
+  resetGlobalRouterMetrics,
+  CostMetricsCollector,
+  createCostMetricsCollector,
+  getGlobalCostMetrics,
+  resetGlobalCostMetrics,
+  type RoutingDecisionRecord,
+  type ProviderCallRecord,
+  type FallbackRecord,
+  type RouterMetricsSummary,
+  type ProviderMetrics as RouterProviderMetrics,
+  type AgentMetrics,
+  type MetricsTimeWindow,
+  type CostRecord,
+  type CostTrend,
+  type CostBreakdown,
+  type BudgetAlert,
+  type CostOptimizationSuggestion,
+} from './metrics';
+
+// HybridRouter (ADR-043: Intelligent provider routing)
+export {
+  HybridRouter,
+  createHybridRouter,
+  createQERouter,
+} from './router';
+
+// Router types and configuration (ADR-043)
+export type {
+  ExtendedProviderType,
+  RoutingMode,
+  RoutingDecision,
+  RouterConfig,
+  ChatParams,
+  ChatResponse,
+  FallbackChain,
+} from './router';
+
+export {
+  ALL_PROVIDER_TYPES,
+  DEFAULT_ROUTER_CONFIG,
+  DEFAULT_FALLBACK_BEHAVIOR,
+  RoutingRuleEngine,
+  DEFAULT_QE_ROUTING_RULES,
+} from './router';

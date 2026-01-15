@@ -34,6 +34,10 @@ import { CostTracker, getGlobalCostTracker } from './cost-tracker';
 import { ClaudeProvider } from './providers/claude';
 import { OpenAIProvider } from './providers/openai';
 import { OllamaProvider } from './providers/ollama';
+import { OpenRouterProvider } from './providers/openrouter';
+import { GeminiProvider } from './providers/gemini';
+import { AzureOpenAIProvider } from './providers/azure-openai';
+import { BedrockProvider } from './providers/bedrock';
 
 /**
  * Default provider manager configuration
@@ -369,6 +373,7 @@ export class ProviderManager {
 
   /**
    * Create a single provider instance
+   * ADR-043: Extended to support 7 providers
    */
   private createProvider(type: LLMProviderType): LLMProvider {
     switch (type) {
@@ -378,6 +383,19 @@ export class ProviderManager {
         return new OpenAIProvider(this.config.providers.openai);
       case 'ollama':
         return new OllamaProvider(this.config.providers.ollama);
+      case 'openrouter':
+        return new OpenRouterProvider(this.config.providers.openrouter);
+      case 'gemini':
+        return new GeminiProvider(this.config.providers.gemini);
+      case 'azure-openai': {
+        const azureConfig = this.config.providers['azure-openai'];
+        if (!azureConfig) {
+          throw new Error('Azure OpenAI provider requires configuration with deploymentId');
+        }
+        return new AzureOpenAIProvider(azureConfig);
+      }
+      case 'bedrock':
+        return new BedrockProvider(this.config.providers.bedrock);
       default:
         throw new Error(`Unknown provider type: ${type}`);
     }

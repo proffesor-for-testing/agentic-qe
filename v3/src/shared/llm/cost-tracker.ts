@@ -47,6 +47,62 @@ export const MODEL_PRICING: Record<
   'mixtral': { input: 0, output: 0, provider: 'ollama' },
   'phi3': { input: 0, output: 0, provider: 'ollama' },
   'qwen2': { input: 0, output: 0, provider: 'ollama' },
+
+  // OpenRouter models (provider prefixed)
+  'anthropic/claude-3.5-sonnet': { input: 3.0, output: 15.0, provider: 'openrouter' },
+  'anthropic/claude-3.5-sonnet:beta': { input: 3.0, output: 15.0, provider: 'openrouter' },
+  'anthropic/claude-3-opus': { input: 15.0, output: 75.0, provider: 'openrouter' },
+  'anthropic/claude-3-sonnet': { input: 3.0, output: 15.0, provider: 'openrouter' },
+  'anthropic/claude-3-haiku': { input: 0.25, output: 1.25, provider: 'openrouter' },
+  'openai/gpt-4o': { input: 5.0, output: 15.0, provider: 'openrouter' },
+  'openai/gpt-4o-mini': { input: 0.15, output: 0.6, provider: 'openrouter' },
+  'openai/gpt-4-turbo': { input: 10.0, output: 30.0, provider: 'openrouter' },
+  'openai/gpt-3.5-turbo': { input: 0.5, output: 1.5, provider: 'openrouter' },
+  'google/gemini-pro': { input: 0.125, output: 0.375, provider: 'openrouter' },
+  'google/gemini-pro-1.5': { input: 3.5, output: 10.5, provider: 'openrouter' },
+  'meta-llama/llama-3.1-70b-instruct': { input: 0.59, output: 0.79, provider: 'openrouter' },
+  'meta-llama/llama-3.1-8b-instruct': { input: 0.06, output: 0.06, provider: 'openrouter' },
+  'mistralai/mistral-large': { input: 2.0, output: 6.0, provider: 'openrouter' },
+  'mistralai/mixtral-8x7b-instruct': { input: 0.24, output: 0.24, provider: 'openrouter' },
+  'mistralai/mistral-7b-instruct': { input: 0.06, output: 0.06, provider: 'openrouter' },
+
+  // AWS Bedrock models (ARN-style model IDs)
+  // Pricing reflects Bedrock's pricing which may differ slightly from Anthropic direct
+  'anthropic.claude-opus-4-5-v1:0': { input: 15.0, output: 75.0, provider: 'bedrock' },
+  'anthropic.claude-opus-4-v1:0': { input: 15.0, output: 75.0, provider: 'bedrock' },
+  'anthropic.claude-sonnet-4-5-v2:0': { input: 3.0, output: 15.0, provider: 'bedrock' },
+  'anthropic.claude-sonnet-4-v1:0': { input: 3.0, output: 15.0, provider: 'bedrock' },
+  'anthropic.claude-3-5-haiku-v1:0': { input: 1.0, output: 5.0, provider: 'bedrock' },
+  // Legacy Claude 3 models on Bedrock
+  'anthropic.claude-3-opus-20240229-v1:0': { input: 15.0, output: 75.0, provider: 'bedrock' },
+  'anthropic.claude-3-sonnet-20240229-v1:0': { input: 3.0, output: 15.0, provider: 'bedrock' },
+  'anthropic.claude-3-haiku-20240307-v1:0': { input: 0.25, output: 1.25, provider: 'bedrock' },
+  'anthropic.claude-3-5-sonnet-20241022-v2:0': { input: 3.0, output: 15.0, provider: 'bedrock' },
+
+  // Azure OpenAI models (same pricing as OpenAI)
+  // Azure uses deployment names, but we map to base model names for cost calculation
+  'azure/gpt-4o': { input: 5.0, output: 15.0, provider: 'azure-openai' },
+  'azure/gpt-4o-mini': { input: 0.15, output: 0.6, provider: 'azure-openai' },
+  'azure/gpt-4-turbo': { input: 10.0, output: 30.0, provider: 'azure-openai' },
+  'azure/gpt-4': { input: 30.0, output: 60.0, provider: 'azure-openai' },
+  'azure/gpt-35-turbo': { input: 0.5, output: 1.5, provider: 'azure-openai' },
+  // Text embedding models on Azure
+  'azure/text-embedding-ada-002': { input: 0.1, output: 0, provider: 'azure-openai' },
+  'azure/text-embedding-3-small': { input: 0.02, output: 0, provider: 'azure-openai' },
+  'azure/text-embedding-3-large': { input: 0.13, output: 0, provider: 'azure-openai' },
+
+  // Google Gemini models (direct API)
+  'gemini-pro': { input: 0.5, output: 1.5, provider: 'gemini' },
+  'gemini-1.0-pro': { input: 0.5, output: 1.5, provider: 'gemini' },
+  'gemini-1.5-pro': { input: 3.5, output: 10.5, provider: 'gemini' },
+  'gemini-1.5-pro-latest': { input: 3.5, output: 10.5, provider: 'gemini' },
+  'gemini-1.5-flash': { input: 0.075, output: 0.3, provider: 'gemini' },
+  'gemini-1.5-flash-latest': { input: 0.075, output: 0.3, provider: 'gemini' },
+  'gemini-2.0-flash-exp': { input: 0.075, output: 0.3, provider: 'gemini' },
+  'gemini-ultra': { input: 7.0, output: 21.0, provider: 'gemini' },
+  'gemini-1.0-ultra': { input: 7.0, output: 21.0, provider: 'gemini' },
+  // Gemini embedding models
+  'text-embedding-004': { input: 0.025, output: 0, provider: 'gemini' },
 };
 
 /**
@@ -170,6 +226,10 @@ export class CostTracker {
       claude: 0,
       openai: 0,
       ollama: 0,
+      openrouter: 0,
+      bedrock: 0,
+      'azure-openai': 0,
+      gemini: 0,
     };
 
     const byModel: Record<string, number> = {};
