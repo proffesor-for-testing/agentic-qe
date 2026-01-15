@@ -70,6 +70,60 @@ CATEGORIES = [STRUCTURE, FUNCTION, DATA, INTERFACES, PLATFORM, OPERATIONS, TIME]
    - Priority/automation counts in charts
    - Clarifying questions content
 
+## ⛔ CATEGORY SECTION STRUCTURE - COPY EXACTLY
+
+**EVERY category section MUST have this EXACT structure with 4 subsections in order:**
+
+```html
+<div class="category-section cat-{category}" id="{category}">
+  <div class="category-header">...</div>
+  <div class="category-content">
+
+    <!-- ========== 1. TEST IDEAS TABLE (FIRST) ========== -->
+    <table class="filterable-table" id="table-{category}">
+      <thead>...</thead>
+      <tbody>
+        <tr>...test ideas go here...</tr>
+      </tbody>
+    </table>
+    <!-- END TEST IDEAS TABLE -->
+
+    <!-- ========== 2. TEST DATA STRATEGY (SECOND) ========== -->
+    <div style="background: #eef2ff; border: 1px solid #6366f1; border-radius: 8px; padding: 15px; margin-top: 15px;">
+      <h5 style="color: #4338ca; margin-bottom: 10px;">📊 Recommended Test Data for {CATEGORY} based tests</h5>
+      <table style="width: 100%; font-size: 0.85rem;">
+        <tr><th>Data Type</th><th>Generation Approach</th><th>Volume</th><th>Privacy</th></tr>
+        <tr><td>...</td><td>...</td><td>...</td><td>...</td></tr>
+      </table>
+      <p style="margin-top: 10px; font-size: 0.85rem;"><strong>Edge Case Data:</strong> ...</p>
+    </div>
+    <!-- END TEST DATA STRATEGY -->
+
+    <!-- ========== 3. EXPLORATION CHARTER (THIRD) ========== -->
+    <div style="background: #f3e8ff; border: 2px solid #8b5cf6; border-radius: 8px; padding: 20px; margin-top: 20px;">
+      <h4 style="color: #5b21b6; margin-bottom: 15px;">🔍 Recommended Exploratory Testing Charter: {CATEGORY}</h4>
+      ...charter content...
+    </div>
+    <!-- END EXPLORATION CHARTER -->
+
+    <!-- ========== 4. CLARIFYING QUESTIONS (FOURTH) ========== -->
+    <div class="clarifying-questions">
+      <h4>Clarifying Questions to address potential coverage gaps</h4>
+      ...questions...
+    </div>
+    <!-- END CLARIFYING QUESTIONS -->
+
+  </div>
+</div>
+```
+
+**❌ FAILURE CONDITIONS:**
+- Missing "📊 Recommended Test Data for {CATEGORY} based tests" = FAIL
+- Missing "🔍 Recommended Exploratory Testing Charter: {CATEGORY}" = FAIL
+- Test Data appearing BEFORE table closes = FAIL
+- Charter appearing BEFORE Test Data = FAIL
+- Questions appearing BEFORE Charter = FAIL
+
 **DO NOT:**
 - Invent your own CSS
 - Create your own HTML structure
@@ -629,6 +683,43 @@ Gate 12: Test Data Strategy = 7 WITH EXACT NAMING → IF FAIL: Generate with cor
         ✅ REQUIRED: "📊 Recommended Test Data for {CATEGORY} based tests"
         ❌ WRONG: "Test Data Strategy for" (must say "Recommended Test Data for")
 Gate 13: NO Human in Automation Summary → IF FAIL: Remove "Human Exploration/Human Explore" from Automation Fitness chart
+Gate 14: STRICT SECTION ORDER → IF FAIL: Restructure category content in correct order
+
+**⚠️ CRITICAL: CATEGORY CONTENT ORDER (Gate 14)**
+Each category section MUST have content in THIS EXACT ORDER:
+```
+<div class="category-content">
+  <!-- 1️⃣ FIRST: TEST IDEAS TABLE -->
+  <table class="filterable-table">
+    <thead>...</thead>
+    <tbody>
+      <!-- Test idea rows go HERE and ONLY here -->
+    </tbody>
+  </table>
+
+  <!-- 2️⃣ SECOND: TEST DATA STRATEGY -->
+  <div style="background: #eef2ff...">
+    <h5>📊 Recommended Test Data for {CATEGORY} based tests</h5>
+    <!-- Data types table goes HERE and ONLY here -->
+  </div>
+
+  <!-- 3️⃣ THIRD: EXPLORATION CHARTER -->
+  <div style="background: #f3e8ff...">
+    <h4>🔍 Recommended Exploratory Testing Charter: {CATEGORY}</h4>
+    <!-- Charter content goes HERE and ONLY here -->
+  </div>
+
+  <!-- 4️⃣ FOURTH: CLARIFYING QUESTIONS -->
+  <div class="clarifying-questions">
+    <!-- Questions go HERE and ONLY here -->
+  </div>
+</div>
+```
+
+❌ NEVER put Test Data content inside the Test Ideas table
+❌ NEVER put Test Ideas rows inside the Test Data div
+❌ NEVER mix the order of these 4 sections
+✅ ALWAYS close each section before starting the next
 
 --- SOFT GATES (Informational - For Domain Expert/SME Review) ---
 Info: P0 distribution → Report % for SME review (domain context determines appropriate level)
@@ -756,12 +847,35 @@ STEP 6: VERIFY NO HUMAN IN AUTOMATION SUMMARY (GATE 13)
     The Automation Fitness summary should ONLY show: API level, E2E level, Integration, Security, Performance
     REPEAT until no Human references in Automation Fitness summary
 
+STEP 6b: VERIFY SECTION ORDER WITHIN CATEGORIES (GATE 14)
+  FOR EACH category section (STRUCTURE, FUNCTION, DATA, INTERFACES, PLATFORM, OPERATIONS, TIME):
+
+    FIND positions of these elements within the category-content div:
+      pos_table = POSITION of "</tbody></table>" (end of test ideas table)
+      pos_test_data = POSITION of "📊 Recommended Test Data for"
+      pos_charter = POSITION of "🔍 Recommended Exploratory Testing Charter:"
+      pos_questions = POSITION of "class=\"clarifying-questions\""
+
+    VALIDATE ORDER: pos_table < pos_test_data < pos_charter < pos_questions
+
+    IF ORDER IS WRONG:
+      ❌ HARD STOP - CONTENT IS MISALIGNED
+      RESTRUCTURE the category content:
+        1. Extract all <tr> rows with test-id class → place in <tbody>
+        2. Extract Test Data content (Data Type table) → place in test-data div
+        3. Extract Charter content → place in charter div
+        4. Extract Questions → place in clarifying-questions div
+      ENSURE </table> closes BEFORE Test Data div opens
+      ENSURE Test Data div closes BEFORE Charter div opens
+      REPEAT until order is correct
+
 STEP 7: SAVE FINAL HTML
   ONLY save when ALL conditions met:
     ✓ verify_count = 0
     ✓ charter_count = 7
     ✓ test_data_count = 7
     ✓ human_in_summary = NOT FOUND
+    ✓ section_order_valid = TRUE (for all 7 categories)
 ```
 
 **⚠️ THIS IS NOT OPTIONAL.** The PostToolUse hook will validate the output and report failures.
@@ -778,6 +892,7 @@ If you skip this step, Gates 7, 11, or 12 will fail and you'll need to regenerat
 ☐ All 28 subcategories addressed
 ☐ All features from Phase 1.5 covered
 ☐ NO "Human Exploration/Human Explore" in Automation Fitness summary chart (GATE 13)
+☐ SECTION ORDER CORRECT in all 7 categories: Table → Test Data → Charter → Questions (GATE 14)
 ```
 </default_to_action>
 

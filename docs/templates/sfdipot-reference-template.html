@@ -30,8 +30,14 @@
     .section { background: var(--bg-white); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
     .section h2 { color: var(--primary); font-size: 1.1rem; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); font-weight: 600; }
     table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; }
+    .filterable-table { table-layout: fixed; }
+    .filterable-table th:nth-child(1), .filterable-table td:nth-child(1) { width: 100px; overflow: hidden; text-overflow: ellipsis; }
+    .filterable-table th:nth-child(2), .filterable-table td:nth-child(2) { width: 70px; }
+    .filterable-table th:nth-child(3), .filterable-table td:nth-child(3) { width: 120px; }
+    .filterable-table th:nth-child(4), .filterable-table td:nth-child(4) { width: auto; }
+    .filterable-table th:nth-child(5), .filterable-table td:nth-child(5) { width: 180px; }
     th { background: var(--bg-light); padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
-    td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); vertical-align: top; word-wrap: break-word; }
     tr:hover { background: #fafbfc; }
     .priority { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
     .priority-p0 { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
