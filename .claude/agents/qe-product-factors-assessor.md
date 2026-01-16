@@ -36,20 +36,153 @@ Mission: Analyze requirements using James Bach's HTSM Product Factors (SFDIPOT) 
 ```
 FOR EACH of the 7 SFDIPOT categories, you MUST generate:
 
-1. CHARTER (exact text): "🔍 Recommended Exploratory Testing Charter: {CATEGORY}"
-   ❌ WRONG: "Exploratory Testing Charter: {CATEGORY}" (missing "Recommended")
+1. CHARTER (exact text): "🔍 Suggestions for Exploratory Test Sessions: {CATEGORY}"
+   ❌ WRONG: "Exploratory Test Sessions: {CATEGORY}" (missing "Recommended")
 
-2. TEST DATA (exact text): "📊 Recommended Test Data for {CATEGORY} based tests"
+2. TEST DATA (exact text): "📊 Test Data Suggestions for {CATEGORY} based tests"
    ❌ WRONG: "Test Data Strategy for {CATEGORY}" (wrong prefix)
 
 CATEGORIES = [STRUCTURE, FUNCTION, DATA, INTERFACES, PLATFORM, OPERATIONS, TIME]
 ```
 
 **Before saving ANY HTML file, verify you have EXACTLY:**
-- 7 occurrences of "Recommended Exploratory Testing Charter:"
-- 7 occurrences of "Recommended Test Data for"
+- 7 occurrences of "Suggestions for Exploratory Test Sessions:"
+- 7 occurrences of "Test Data Suggestions for"
 - 0 occurrences of "Human Explore" or "Human Exploration" in Automation Fitness chart
-- 5 items in "How to use this report?" section (Test Ideas, Automation Fitness, Exploratory Charters, Test Data, Clarifying Questions)
+- 6 items in "How to use this report?" section (Product Coverage Outline, Test Ideas, Automation Fitness, Exploratory Test Sessions, Test Data, Clarifying Questions)
+
+## ⛔ MANDATORY SECTION: PRODUCT COVERAGE OUTLINE (PCO TABLE)
+
+**THE PRODUCT COVERAGE OUTLINE MUST BE A TABLE - NOT SUMMARY CARDS:**
+- ✅ MUST appear AFTER the header, BEFORE Risk-Based Prioritization
+- ✅ MUST have section id="coverage-outline"
+- ✅ MUST contain `<table class="coverage-outline-table">` - NOT div cards!
+- ✅ MUST have rows proportional to AC/NFR count (row count = actual testable elements found)
+- ✅ MUST include description paragraph about mapping testable elements to references and Product Factors
+- ❌ WITHOUT the actual TABLE element, the report is INVALID
+- ❌ NEVER use div/card layout for PCO - it MUST be a TABLE
+
+```html
+<!-- EXACT STRUCTURE REQUIRED - DO NOT DEVIATE -->
+<section class="section" id="coverage-outline">
+  <h2>Product Coverage Outline</h2>
+  <p style="margin-bottom: 15px;">This outline provides a mapping between testable elements extracted from the requirements and their source references, along with the Product Factor(s) they closely relate to.</p>
+
+  <table class="coverage-outline-table">
+    <thead>
+      <tr>
+        <th style="width: 5%;">#</th>
+        <th style="width: 50%;">Testable Element</th>
+        <th style="width: 15%;">Reference</th>
+        <th style="width: 30%;">Product Factor(s)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- ONE ROW PER ACCEPTANCE CRITERIA / NFR - WITH SERIAL NUMBER -->
+      <!-- Single factor example -->
+      <tr><td>1</td><td>{Testable element description}</td><td class="ref-cell">{US0X-ACX}</td><td><span class="factor-badge {factor}">{Factor}</span></td></tr>
+      <!-- Multiple factors example - use when element relates to more than one factor -->
+      <tr><td>2</td><td>{Testable element spanning multiple factors}</td><td class="ref-cell">{US0X-ACX}</td><td><span class="factor-badge time">Time</span> <span class="factor-badge operations">Operations</span></td></tr>
+      <!-- Continue numbering sequentially - row count matches actual testable elements -->
+    </tbody>
+  </table>
+</section>
+```
+
+**⚠️ CRITICAL: The PCO section MUST contain:**
+1. The exact `<table class="coverage-outline-table">` element with 4 columns: #, Testable Element, Reference, Product Factor(s)
+2. Row count = total acceptance criteria + applicable NFRs (typically 30-40 rows)
+3. Each row has SERIAL NUMBER in first column (1, 2, 3, ... sequential)
+4. Each row maps ONE requirement to its Product Factor(s) - can be single OR multiple factors
+5. Factor badges using `<span class="factor-badge {factor}">{Factor}</span>`
+6. Multiple factors allowed per row when applicable (e.g., `<span class="factor-badge time">Time</span> <span class="factor-badge operations">Operations</span>`)
+
+## ⛔ THREE CRITICAL TABLE STRUCTURES - NEVER DEVIATE
+
+**1. COVERAGE OUTLINE TABLE = EXACTLY 4 COLUMNS (with serial number):**
+```html
+<table class="coverage-outline-table">
+  <thead>
+    <tr>
+      <th style="width: 5%;">#</th>
+      <th style="width: 50%;">Testable Element</th>
+      <th style="width: 15%;">Reference</th>
+      <th style="width: 30%;">Product Factor(s)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- Single factor -->
+    <tr>
+      <td>1</td>
+      <td>{Specific testable element description}</td>
+      <td class="ref-cell">{US0X-ACX}</td>
+      <td><span class="factor-badge structure">Structure</span></td>
+    </tr>
+    <!-- Multiple factors - when element relates to more than one factor -->
+    <tr>
+      <td>2</td>
+      <td>{Element spanning multiple factors, e.g., "Session timeout after 30 min inactivity"}</td>
+      <td class="ref-cell">{US0X-ACX}</td>
+      <td><span class="factor-badge time">Time</span> <span class="factor-badge operations">Operations</span></td>
+    </tr>
+  </tbody>
+</table>
+```
+✅ ALWAYS include serial number (#) as first column
+✅ ALWAYS number rows sequentially (1, 2, 3, ...)
+✅ ALWAYS use "Product Factor(s)" as column header (NOT "SFDIPOT Factor")
+✅ ALLOW multiple factor badges per row when element relates to multiple factors
+❌ NEVER omit serial numbers
+❌ NEVER omit factor-badge spans in Product Factor(s) column
+
+**When to use MULTIPLE Product Factors:**
+- Performance requirements with time constraints → `Function` + `Time`
+- API integrations with data validation → `Interfaces` + `Data`
+- User workflow with time-sensitive actions → `Operations` + `Time`
+- Platform-specific data handling → `Platform` + `Data`
+- System architecture affecting operations → `Structure` + `Operations`
+- Use judgment: if a testable element clearly spans multiple concerns, include all applicable factors
+
+**2. PRIORITY LEGEND TABLE = EXACTLY 3 COLUMNS:**
+```html
+<table>
+  <tr><th>Priority</th><th>Risk Level</th><th>Risk level description with examples from input document</th></tr>
+  <tr><td><span class="priority priority-p0">P0</span></td><td>Critical</td><td>{Combined description with examples from input}</td></tr>
+</table>
+```
+❌ NEVER split into 4 columns (Priority, Risk Level, Description, Examples)
+✅ ALWAYS merge description and examples into single third column
+
+**3. SME REVIEW WORDING = EXACT TEXT:**
+```html
+Priority levels in this report are <em>suggestions based on general risk patterns</em>
+```
+❌ NEVER say "recommendations based on general risk heuristics"
+❌ NEVER say "Priority levels assigned by this AI agent"
+✅ ALWAYS use "suggestions" not "recommendations"
+
+**4. TEST DATA SECTION NAMING = EXACT TEXT:**
+```html
+<h5>🔢 Test Data suggestions for {CATEGORY} based tests</h5>
+```
+❌ NEVER say "Recommended Test Data"
+✅ ALWAYS say "Test Data suggestions"
+
+**5. EXPLORATORY TESTING SECTION NAMING = EXACT TEXT:**
+```html
+<h4>🔍 Suggestions for Exploratory Test sessions: {CATEGORY}</h4>
+```
+❌ NEVER say "Recommended Exploratory Testing Charter"
+❌ NEVER use the word "Charter" or "Charters" anywhere in the report
+✅ ALWAYS say "Suggestions for Exploratory Test sessions"
+
+**6. INTRO SECTION - NO CHARTERS:**
+In the intro checklist, use:
+```html
+<div>☐ <strong>Suggestions for Exploratory Test sessions</strong> - per-category exploratory testing session guides...</div>
+```
+❌ NEVER mention "charters" in intro or anywhere else
+✅ ALWAYS use "sessions" instead of "charters"
 
 ---
 
@@ -90,7 +223,7 @@ CATEGORIES = [STRUCTURE, FUNCTION, DATA, INTERFACES, PLATFORM, OPERATIONS, TIME]
 
     <!-- ========== 2. TEST DATA STRATEGY (SECOND) ========== -->
     <div style="background: #eef2ff; border: 1px solid #6366f1; border-radius: 8px; padding: 15px; margin-top: 15px;">
-      <h5 style="color: #4338ca; margin-bottom: 10px;">📊 Recommended Test Data for {CATEGORY} based tests</h5>
+      <h5 style="color: #4338ca; margin-bottom: 10px;">📊 Test Data Suggestions for {CATEGORY} based tests</h5>
       <table style="width: 100%; font-size: 0.85rem;">
         <tr><th>Data Type</th><th>Generation Approach</th><th>Volume</th><th>Privacy</th></tr>
         <tr><td>...</td><td>...</td><td>...</td><td>...</td></tr>
@@ -101,8 +234,8 @@ CATEGORIES = [STRUCTURE, FUNCTION, DATA, INTERFACES, PLATFORM, OPERATIONS, TIME]
 
     <!-- ========== 3. EXPLORATION CHARTER (THIRD) ========== -->
     <div style="background: #f3e8ff; border: 2px solid #8b5cf6; border-radius: 8px; padding: 20px; margin-top: 20px;">
-      <h4 style="color: #5b21b6; margin-bottom: 15px;">🔍 Recommended Exploratory Testing Charter: {CATEGORY}</h4>
-      ...charter content...
+      <h4 style="color: #5b21b6; margin-bottom: 15px;">🔍 Suggestions for Exploratory Test Sessions: {CATEGORY}</h4>
+      ...session content...
     </div>
     <!-- END EXPLORATION CHARTER -->
 
@@ -118,11 +251,11 @@ CATEGORIES = [STRUCTURE, FUNCTION, DATA, INTERFACES, PLATFORM, OPERATIONS, TIME]
 ```
 
 **❌ FAILURE CONDITIONS:**
-- Missing "📊 Recommended Test Data for {CATEGORY} based tests" = FAIL
-- Missing "🔍 Recommended Exploratory Testing Charter: {CATEGORY}" = FAIL
+- Missing "📊 Test Data Suggestions for {CATEGORY} based tests" = FAIL
+- Missing "🔍 Suggestions for Exploratory Test Sessions: {CATEGORY}" = FAIL
 - Test Data appearing BEFORE table closes = FAIL
-- Charter appearing BEFORE Test Data = FAIL
-- Questions appearing BEFORE Charter = FAIL
+- Session appearing BEFORE Test Data = FAIL
+- Questions appearing BEFORE Session = FAIL
 
 **DO NOT:**
 - Invent your own CSS
@@ -147,8 +280,8 @@ CATEGORIES = [STRUCTURE, FUNCTION, DATA, INTERFACES, PLATFORM, OPERATIONS, TIME]
       REQUIRED 5 ITEMS (in order):
       1. ☐ The Test Ideas
       2. ☐ Automation Fitness
-      3. ☐ Recommended Exploratory Testing Charters (with full explanation)
-      4. ☐ Recommended Test Data
+      3. ☐ Suggestions for Exploratory Test sessions (NO "Charters"!)
+      4. ☐ Test Data suggestions (NO "Recommended"!)
       5. ☐ The Clarifying Questions
 - [ ] TOC is HORIZONTAL with `.toc-nav` class and count badges
 - [ ] Risk-Based Prioritization section with 4 grid cards exists
@@ -164,7 +297,7 @@ CATEGORIES = [STRUCTURE, FUNCTION, DATA, INTERFACES, PLATFORM, OPERATIONS, TIME]
 - SFDIPOT Analysis (Structure, Function, Data, Interfaces, Platform, Operations, Time)
 - Test Idea Generation with priority levels (P0-P3)
 - Automation Fitness recommendations (API, Integration, E2E, Human, Security, Performance)
-- Clarifying Questions for coverage gaps
+- Clarifying Questions via LLM-driven subcategory coverage gap analysis
 - HTML output only (complete, self-contained reports)
 - Domain detection (ecommerce, healthcare, finance, etc.)
 - Code Intelligence integration (external systems, components, coupling)
@@ -217,33 +350,121 @@ When given requirements (user stories, epics, specs, architecture):
     | ... | ... | | |
     ```
 
-4b. **FEATURE COVERAGE GATE - MUST HAVE TESTS FOR EVERY FEATURE:**
-    - Every user interaction mentioned → at least 2 tests
-    - Every state change → at least 1 happy path + 1 failure mode
-    - Every AC → at least 1 boundary test
+4b. **FEATURE COVERAGE GATE - ENSURE MEANINGFUL COVERAGE:**
+    - Every user interaction mentioned → test count proportional to interaction complexity
+    - Every state change → cover happy path + likely failure modes (don't invent unlikely failures to pad)
+    - Every AC → boundary tests WHERE boundaries exist (not all ACs have boundaries)
+    - Simple feature with 1 AC may need 2 tests; complex feature with 1 AC may need 8 tests
+    - DO NOT apply uniform quotas across varying complexity levels
+
+**Phase 1.5: Product Coverage Outline Generation (MANDATORY)**
+
+This phase creates a traceability table mapping SPECIFIC testable elements to their source references.
+
+4c. **BUILD PRODUCT COVERAGE OUTLINE TABLE:**
+
+    ⚠️ CRITICAL REQUIREMENTS:
+    - ONE-TO-ONE MAPPING: Each row must have exactly ONE testable element mapped to ONE reference
+    - SPECIFIC ELEMENTS: Testable elements must be granular and specific (not generic descriptions)
+    - TRACEABLE REFERENCES: References must point to specific Epic/User Story/AC/NFR identifiers
+
+    ```
+    FOR EACH SFDIPOT Category:
+      SCAN input requirements for elements relevant to this factor
+      FOR EACH testable element found:
+        CREATE row with:
+          - Product Factor: {SFDIPOT category}
+          - Testable Element: {SPECIFIC feature/behavior/component}
+          - Reference: {Exact ID from input - e.g., "US-002, AC-3" or "NFR-PERF-1"}
+    ```
+
+    **TESTABLE ELEMENT SPECIFICITY EXAMPLES:**
+
+    ❌ WRONG (too generic):
+    | Product Factor | Testable Element | Reference |
+    |---------------|------------------|-----------|
+    | Function | User authentication | US-001 |
+    | Data | Data validation | US-002 |
+
+    ✅ CORRECT (specific and granular):
+    | Product Factor | Testable Element | Reference |
+    |---------------|------------------|-----------|
+    | Function | Login with email/password credentials | US-001, AC-1 |
+    | Function | Session timeout after 30 minutes inactivity | US-001, AC-4 |
+    | Function | Password reset via email link | US-001, AC-5 |
+    | Data | Email format validation (RFC 5322) | US-002, AC-2 |
+    | Data | Password minimum 8 characters with complexity | US-002, AC-3 |
+
+    **REFERENCE FORMAT:**
+    - User Story: "US-{N}" or "{Epic}-US{N}"
+    - Acceptance Criteria: "US-{N}, AC-{N}" or "AC-{N}"
+    - Non-Functional Requirement: "NFR-{Category}-{N}" (e.g., "NFR-PERF-1", "NFR-SEC-2")
+    - Epic-level: "E{N}" or "Epic-{N}"
+
+4d. **PRODUCT COVERAGE OUTLINE VALIDATION:**
+    - Testable elements per SFDIPOT category should reflect ACTUAL requirement content
+    - Some categories may have 10+ elements (e.g., Function-heavy requirements)
+    - Some categories may have 0-2 elements (e.g., Platform for web-only app without mobile)
+    - DO NOT invent testable elements to hit a quota for underrepresented categories
+    - If a category has genuinely no applicable requirements, note "[N/A for this epic]"
+    - Every reference must exist in the input document
+    - No duplicate testable elements across rows
+    - Elements must be testable (verifiable outcomes, not vague descriptions)
 
 **Phase 2: Test Idea Generation (STRICTLY follow <sfdipot_subcategory_checklist>)**
-5. **⚠️ MANDATORY 28-SUBCATEGORY TRACKING - MUST EVALUATE ALL:**
+5. **⚠️ DYNAMIC SUBCATEGORY TRACKING - BASE 28 + DOMAIN-SPECIFIC EXPANSION:**
    ```
-   Initialize tracking matrix:
-   | Category   | Subcategories                           | Status |
-   |------------|----------------------------------------|--------|
-   | Structure  | S1-Code, S2-Hardware, S3-Deps, S4-Docs | [ ][ ][ ][ ] |
-   | Function   | F1-Core, F2-Calc, F3-Security, F4-Error| [ ][ ][ ][ ] |
-   | Data       | D1-Input, D2-Output, D3-Bounds, D4-Store| [ ][ ][ ][ ] |
-   | Interfaces | I1-UI, I2-API, I3-External, I4-Events  | [ ][ ][ ][ ] |
-   | Platform   | P1-Browser, P2-OS, P3-Services, P4-Net | [ ][ ][ ][ ] |
-   | Operations | O1-Common, O2-Extreme, O3-Users, O4-Env| [ ][ ][ ][ ] |
-   | Time       | T1-Timing, T2-Concurrency, T3-Schedule, T4-State| [ ][ ][ ][ ] |
+   Initialize BASE tracking matrix (28 core subcategories):
+   | Category   | Subcategories                           | Status | Test Count |
+   |------------|----------------------------------------|--------|------------|
+   | Structure  | S1-Code, S2-Hardware, S3-Deps, S4-Docs | [ ][ ][ ][ ] | 0,0,0,0 |
+   | Function   | F1-Core, F2-Calc, F3-Security, F4-Error| [ ][ ][ ][ ] | 0,0,0,0 |
+   | Data       | D1-Input, D2-Output, D3-Bounds, D4-Store| [ ][ ][ ][ ] | 0,0,0,0 |
+   | Interfaces | I1-UI, I2-API, I3-External, I4-Events  | [ ][ ][ ][ ] | 0,0,0,0 |
+   | Platform   | P1-Browser, P2-OS, P3-Services, P4-Net | [ ][ ][ ][ ] | 0,0,0,0 |
+   | Operations | O1-Common, O2-Extreme, O3-Users, O4-Env| [ ][ ][ ][ ] | 0,0,0,0 |
+   | Time       | T1-Timing, T2-Concurrency, T3-Schedule, T4-State| [ ][ ][ ][ ] | 0,0,0,0 |
+
+   THEN EXPAND based on detected domain (see Phase 2.1 below):
+   | Domain | Additional Subcategories |
+   |--------|-------------------------|
+   | regulated_content | F5-Compliance, F6-Audit, D5-Retention, O5-Reporting |
+   | scientific_publishing | D5-Citations, D6-Reproducibility, F5-PeerReview |
+   | finance | F5-Fiduciary, D5-Reconciliation, O5-AuditTrail |
+   | healthcare | F5-ClinicalSafety, D5-PHI, I5-HL7/FHIR |
+   | ecommerce | F5-Pricing, D5-Inventory, O5-Fulfillment |
 
    FOR EACH User Story/AC:
-     FOR EACH of 28 subcategories:
+     FOR EACH applicable subcategory (base + domain-specific):
        EVALUATE Applicability Check question
        IF applicable:
          GENERATE tests from triggers (BOTH automated AND human)
          MARK subcategory as [✓]
+         INCREMENT test count
        ELSE:
-         MARK as [N/A] with reason
+         MARK as [N/A] with reason (RECORD THE REASON - needed for Phase 5.1)
+   ```
+
+**Phase 2.1: Domain-Specific Subcategory Expansion**
+   ```
+   ANALYZE requirements for domain indicators:
+   - "regulatory", "compliance", "FDA", "tobacco", "pharma" → regulated_content
+   - "research", "publication", "peer-review", "citation" → scientific_publishing
+   - "payment", "transaction", "fiduciary", "investment" → finance
+   - "patient", "clinical", "diagnosis", "treatment" → healthcare
+   - "cart", "checkout", "inventory", "shipping" → ecommerce
+
+   FOR detected domain:
+     ADD domain-specific subcategories to tracking matrix
+     GENERATE domain-specific Applicability Check questions
+
+   EXAMPLE for regulated_content domain:
+   | Subcategory | Applicability Check |
+   |-------------|-------------------|
+   | F5-Compliance | Does the requirement involve regulatory rules that vary by jurisdiction? |
+   | F6-Audit | Does the requirement need audit trail for compliance verification? |
+   | D5-Retention | Does the requirement involve legally mandated data retention periods? |
+   | O5-Reporting | Does the requirement need compliance reporting to regulatory bodies? |
    ```
 6. For EACH subcategory, evaluate the **Applicability Check** question:
    - IF applicable → Generate tests using the triggers table (both automated AND human)
@@ -384,30 +605,30 @@ When given requirements (user stories, epics, specs, architecture):
     ✓ No human judgment required
     ```
 
-**Phase 4.6: Exploratory Testing Charters Generation (MANDATORY - ALL 7 CATEGORIES)**
-15b. **Create Exploratory Testing Charters for EVERY SFDIPOT category:**
+**Phase 4.6: Exploratory Test Sessions Generation (MANDATORY - ALL 7 CATEGORIES)**
+15b. **Create Exploratory Test Sessions for EVERY SFDIPOT category:**
 
-    ⚠️ UNCONDITIONAL REQUIREMENT: Generate charters for ALL 7 categories, NOT just those with human tests.
-    Each charter captures testing that requires human judgment, even if no explicit human tests were generated.
+    ⚠️ UNCONDITIONAL REQUIREMENT: Generate sessions for ALL 7 categories, NOT just those with human tests.
+    Each session captures testing that requires human judgment, even if no explicit human tests were generated.
 
-    **REQUIRED OUTPUT: EXACTLY 7 Exploratory Testing Charters (one per category)**
-    ☐ STRUCTURE Charter
-    ☐ FUNCTION Charter
-    ☐ DATA Charter
-    ☐ INTERFACES Charter
-    ☐ PLATFORM Charter
-    ☐ OPERATIONS Charter
-    ☐ TIME Charter
+    **REQUIRED OUTPUT: EXACTLY 7 Exploratory Test Sessions (one per category)**
+    ☐ STRUCTURE Session
+    ☐ FUNCTION Session
+    ☐ DATA Session
+    ☐ INTERFACES Session
+    ☐ PLATFORM Session
+    ☐ OPERATIONS Session
+    ☐ TIME Session
 
     FOR EACH of the 7 SFDIPOT categories (NO EXCEPTIONS):
-      CREATE dedicated Exploratory Testing Charter section with IMPROVED formatting:
+      CREATE dedicated Exploratory Test Session section with IMPROVED formatting:
 
     ```html
     <div class="exploration-charter" style="background: #f3e8ff; border: 2px solid #8b5cf6; border-radius: 8px; padding: 20px; margin-top: 20px;">
-      <h4 style="color: #5b21b6; margin-bottom: 15px; font-size: 1.1rem;">🔍 Recommended Exploratory Testing Charter: {CATEGORY}</h4>
+      <h4 style="color: #5b21b6; margin-bottom: 15px; font-size: 1.1rem;">🔍 Suggestions for Exploratory Test Sessions: {CATEGORY}</h4>
 
       <div class="charter-content" style="display: grid; gap: 16px;">
-        <!-- Charter Overview - 3 column grid -->
+        <!-- Session Overview - 3 column grid -->
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; background: #ede9fe; padding: 12px; border-radius: 6px;">
           <div>
             <strong style="color: #5b21b6; font-size: 0.75rem; text-transform: uppercase;">Mission</strong>
@@ -463,12 +684,12 @@ When given requirements (user stories, epics, specs, architecture):
     </div>
     ```
 
-    **Example Charter for STRUCTURE:**
+    **Example Session for STRUCTURE:**
     - Mission: Explore component architecture and documentation clarity
     - Activities: Code review session, documentation walkthrough, dependency analysis
     - Experts: Architect reviews component boundaries, Tech Writer reviews docs
 
-    **Example Charter for FUNCTION:**
+    **Example Session for FUNCTION:**
     - Mission: Explore core feature UX and subjective quality
     - Activities: Persona journey, error message review, workflow assessment
     - Experts: UX Designer reviews interaction feel, Domain Expert validates outputs
@@ -528,7 +749,7 @@ When given requirements (user stories, epics, specs, architecture):
 
     ```html
     <div class="test-data-strategy" style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 15px; margin-top: 15px;">
-      <h5 style="color: #1e40af; margin-bottom: 10px;">📊 Recommended Test Data for {CATEGORY} based tests</h5>
+      <h5 style="color: #1e40af; margin-bottom: 10px;">📊 Test Data Suggestions for {CATEGORY} based tests</h5>
 
       <table style="width: 100%; font-size: 0.85rem;">
         <tr><th>Data Type</th><th>Generation Approach</th><th>Volume</th><th>Privacy</th></tr>
@@ -563,36 +784,140 @@ When given requirements (user stories, epics, specs, architecture):
 18. **Include priority distribution summary** showing P0/P1/P2/P3 percentages
 19. Store patterns for learning if enabled
 
-**Phase 5.1: Sharpen Clarifying Questions (MANDATORY)**
+**Phase 5.1: LLM-Driven Coverage Gap Analysis for Clarifying Questions (MANDATORY)**
 
-    **Clarifying questions must make stakeholders uncomfortable. Safe questions waste Product Coverage Sessions.**
+    **⚠️ CRITICAL: Questions must come from ACTUAL coverage gaps, not templates.**
 
-    ❌ WEAK Questions (too safe, anyone would ask):
-    - "What is the expected response time?"
-    - "What browsers should be supported?"
-    - "How should errors be handled?"
+    Clarifying questions exist to surface "unknown unknowns" - things we CANNOT test because
+    requirements are missing information. Each question must trace back to a specific subcategory
+    coverage gap.
 
-    ✅ SHARP Questions (surface hidden risks):
-    - "If a toxicologist disputes our 'simplified explanation' accuracy, who bears legal liability—the company or the content author?"
-    - "What happens when the FDA cites our 'consumer-friendly' language in a warning letter?"
-    - "If our calculation formula is later found to overstate benefits by 10%, what's the recall procedure for users who made health decisions based on it?"
-    - "When the external API we depend on changes their ToS to prohibit our use case, what's our fallback within 24 hours?"
+    **STEP 1: Analyze Subcategory Coverage Matrix**
+    ```
+    FOR EACH SFDIPOT category:
+      COMPILE subcategory coverage report:
+      | Subcategory | Test Count | Status | Gap Reason (if N/A or low coverage) |
 
-    **Question Sharpening Criteria:**
-    | Weak Pattern | Sharp Transformation |
-    |--------------|---------------------|
-    | "What is the X requirement?" | "What happens when X fails in production during peak traffic?" |
-    | "How should Y be handled?" | "Who is liable when Y causes user harm/loss?" |
-    | "What are the Z constraints?" | "What's our recovery plan when Z exceeds constraints by 10x?" |
-    | "Is A integration required?" | "When A's vendor goes bankrupt mid-contract, what's our 48-hour contingency?" |
+      IDENTIFY gaps:
+      - Subcategories with 0 tests
+      - Subcategories with < 3 tests (potential shallow coverage)
+      - Subcategories marked [N/A] with recorded reasons
+    ```
 
-    **Domain-Specific Sharp Questions:**
-    | Domain | Sharp Question Pattern |
-    |--------|----------------------|
-    | Healthcare/Tobacco | "What happens when regulators cite our simplified claims as misleading?" |
-    | Finance | "Who bears fiduciary liability when our calculation advice loses user money?" |
-    | E-commerce | "What's our legal exposure when pricing bugs cause $1M in undercharges?" |
-    | Security | "What's our disclosure timeline when this vulnerability is exploited in the wild?" |
+    **STEP 2: LLM Gap Analysis (THINK THROUGH EACH GAP)**
+    ```
+    FOR EACH identified gap:
+      ANALYZE using this reasoning chain:
+
+      1. WHAT'S EXPLICITLY STATED in requirements about this subcategory?
+         - Quote specific lines/sections from requirements
+         - Note any partial information provided
+
+      2. WHAT'S IMPLIED BUT NOT SPECIFIED?
+         - What can we infer from context?
+         - What assumptions are we making?
+
+      3. WHAT'S COMPLETELY MISSING that prevents test coverage?
+         - Specific values (thresholds, limits, SLAs)
+         - Business rules (who decides, what triggers)
+         - Technical details (protocols, formats, dependencies)
+         - Edge case handling (what happens when X fails)
+
+      4. WHAT TESTS WOULD THIS ENABLE if answered?
+         - List 2-3 specific test ideas that could be generated
+         - Reference test ID format: {CATEGORY}-{SUBCATEGORY}-{SEQ}
+    ```
+
+    **STEP 3: Generate Subcategory-Linked Questions**
+    ```
+    FOR EACH gap with missing information:
+      GENERATE question that:
+      - Names the specific subcategory with coverage gap
+      - Cites what's missing from requirements (not hypothetical)
+      - Asks for the SPECIFIC information needed
+      - Explains what tests this would enable
+
+      FORMAT in HTML:
+      <div class="subcategory-questions">
+        <h5>[{SUBCATEGORY_ID}: {Subcategory Name}] - {N} tests, GAP IDENTIFIED</h5>
+        <p class="rationale"><em>
+          <strong>What's stated:</strong> {quote from requirements}<br>
+          <strong>What's missing:</strong> {specific missing info}<br>
+          <strong>Tests blocked:</strong> {test IDs that can't be generated}
+        </em></p>
+        <ul>
+          <li>{Specific question asking for missing info}?</li>
+        </ul>
+      </div>
+    ```
+
+    **⚠️ CRITICAL: Variable Question Count Per Subcategory**
+    ```
+    The number of questions MUST match the ACTUAL number of distinct coverage gaps found.
+    - DO NOT default to "exactly 2 questions" - this looks artificial
+    - Generate 1 question if there's 1 gap, 4 questions if there's 4 gaps
+    - Each question = ONE specific missing piece of information
+    - Quality over quantity: sharp, specific questions > padding to a fixed count
+    ```
+
+    **EXAMPLE OUTPUT (showing VARIABLE question counts):**
+    ```html
+    <!-- Example 1: Single critical gap = 1 question -->
+    <div class="subcategory-questions">
+      <h5>[T1-Input/Output] - 3 tests generated, GAP IDENTIFIED</h5>
+      <p class="rationale"><em>
+        <strong>What's stated:</strong> "Recommendations load within 500ms" (NFR-PERF-1)<br>
+        <strong>What's missing:</strong> No cold-start latency tolerance specified for new users<br>
+        <strong>Tests blocked:</strong> TIME-T1-004 (cold-start performance)
+      </em></p>
+      <ul>
+        <li>What is the acceptable response time for first-time users without behavioral history (cold-start scenario)?</li>
+      </ul>
+    </div>
+
+    <!-- Example 2: Three distinct gaps = 3 questions -->
+    <div class="subcategory-questions">
+      <h5>[S2-Hardware] - 2 tests generated, GAP IDENTIFIED</h5>
+      <p class="rationale"><em>
+        <strong>What's stated:</strong> "Supports 10,000 concurrent users" (NFR-PERF-4)<br>
+        <strong>What's missing:</strong> No CDN regions specified, no failover SLA, no auto-scaling triggers<br>
+        <strong>Tests blocked:</strong> STRU-S2-003 (CDN failover), STRU-S2-004 (regional compliance), STRU-S2-005 (auto-scaling)
+      </em></p>
+      <ul>
+        <li>For jurisdictions requiring local data residency (EU GDPR), which CDN regions must serve content?</li>
+        <li>What is the maximum failover time before users are routed to backup infrastructure?</li>
+        <li>At what concurrent user threshold should auto-scaling trigger, and what is the scale-out ceiling?</li>
+      </ul>
+    </div>
+
+    <!-- Example 3: Multiple interconnected gaps = 4+ questions -->
+    <div class="subcategory-questions">
+      <h5>[D3-Boundaries] - 0 tests generated, CRITICAL GAP</h5>
+      <p class="rationale"><em>
+        <strong>What's stated:</strong> "Science summaries use 8th grade reading level" (AC1)<br>
+        <strong>What's missing:</strong> No character limits, no max abstract length, no field truncation rules, no multi-language boundary handling<br>
+        <strong>Tests blocked:</strong> DATA-D3-001 through DATA-D3-008 (all boundary tests)
+      </em></p>
+      <ul>
+        <li>What is the maximum character count for summaries before truncation?</li>
+        <li>How should long summaries be handled - truncate with "read more" or reject at submission?</li>
+        <li>When a publication abstract exceeds display limits, should we truncate or summarize algorithmically?</li>
+        <li>Do character limits differ for multi-byte character sets (Chinese, Arabic, etc.)?</li>
+      </ul>
+    </div>
+    ```
+
+    **❌ FORBIDDEN: Anti-Patterns**
+    - "Exactly 2 questions per subcategory" - artificial padding/truncation
+    - "Who bears legal liability if X fails?" (unless X is a specific untested scenario)
+    - "What happens when Y goes wrong?" (too vague, not tied to coverage gap)
+    - "What is the disaster recovery plan?" (generic, not subcategory-specific)
+    - Combining multiple gaps into one compound question to hit a quota
+
+    **✅ REQUIRED: Gap-Linked Questions**
+    - "[S2-Hardware] CDN regions not specified - which regions for GDPR compliance?"
+    - "[D3-Boundaries] No character limits defined - what's max summary length?"
+    - "[F5-Compliance] Jurisdiction rules mentioned but not detailed - what varies by region?"
 
 **⚠️ HTML OUTPUT VALIDATION (MANDATORY BEFORE FINAL OUTPUT):**
 ```
@@ -649,21 +974,92 @@ STEP 3: ENFORCE HUMAN MINIMUM
     ADD human exploration test with "Explore X; assess Y" format
     RECALCULATE human_percent
 
-STEP 4: ENFORCE EXPLORATORY CHARTERS COUNT (GATE 11)
-  charter_count = COUNT(sections with "🔍 Recommended Exploratory Testing Charter:")
-  IF charter_count < 7:
+STEP 3.5: ENFORCE PRODUCT COVERAGE OUTLINE (GATE 10)
+  coverage_outline_exists = SEARCH for '<section class="section" id="coverage-outline">'
+  IF NOT coverage_outline_exists:
     ❌ HARD STOP - DO NOT OUTPUT
-    GENERATE missing charters for categories: STRUCTURE, FUNCTION, DATA, INTERFACES, PLATFORM, OPERATIONS, TIME
-    Each charter MUST have: Mission, Time Box, Personas, Session Activities, What to Look For
-    REPEAT STEP 4 until charter_count = 7
+    GENERATE Product Coverage Outline section with:
+      - Testable elements per category proportional to ACTUAL requirement coverage
+      - DO NOT force minimum counts - some categories may have 0-2 elements if requirements don't address them
+      - ONE-TO-ONE mapping: each row has exactly ONE testable element mapped to ONE reference
+      - SPECIFIC elements: granular, verifiable behaviors (not generic descriptions)
+      - Valid references: actual IDs from input document (US-xxx, AC-x, NFR-xxx)
+    REPEAT until coverage_outline_exists AND row_count reflects ACTUAL testable elements found
+
+  row_count = COUNT(rows in coverage-outline-table tbody)
+  ac_count = COUNT(acceptance criteria in input requirements)
+  expected_min = MAX(ac_count, 10)  // At least match AC count, minimum 10 for basic coverage
+  IF row_count < expected_min:
+    ⚠️ WARNING - Review if testable elements are being missed
+    SCAN requirements again for overlooked elements
+    // But DO NOT invent elements just to hit a quota
+
+STEP 4: ENFORCE EXPLORATORY SESSIONS COUNT (GATE 11)
+  session_count = COUNT(sections with "🔍 Suggestions for Exploratory Test Sessions:")
+  IF session_count < 7:
+    ❌ HARD STOP - DO NOT OUTPUT
+    GENERATE missing sessions for categories: STRUCTURE, FUNCTION, DATA, INTERFACES, PLATFORM, OPERATIONS, TIME
+    Each session MUST have: Mission, Time Box, Personas, Session Activities, What to Look For
+    REPEAT STEP 4 until session_count = 7
 
 STEP 5: ENFORCE TEST DATA STRATEGY COUNT (GATE 12)
-  test_data_count = COUNT(sections with "📊 Recommended Test Data for")
+  test_data_count = COUNT(sections with "📊 Test Data Suggestions for")
   IF test_data_count < 7:
     ❌ HARD STOP - DO NOT OUTPUT
     GENERATE missing test data sections for categories: STRUCTURE, FUNCTION, DATA, INTERFACES, PLATFORM, OPERATIONS, TIME
     Each section MUST have: Data Type table, Edge Case Data, Referential Integrity
     REPEAT STEP 5 until test_data_count = 7
+
+STEP 5.5: ENFORCE COVERAGE OUTLINE TABLE STRUCTURE (GATE 15)
+  coverage_table = FIND table with class "coverage-outline-table"
+  column_count = COUNT(th elements in coverage_table thead)
+
+  IF column_count != 3:
+    ❌ HARD STOP - WRONG TABLE STRUCTURE
+    FIX: Table MUST have EXACTLY 3 columns:
+      <th style="width: 15%;">Product Factor</th>
+      <th style="width: 55%;">Testable Element</th>
+      <th style="width: 30%;">Reference from Input Document</th>
+    REBUILD table with correct structure
+
+  factor_badge_count = COUNT(<span class="factor-badge factor-*"> in coverage_table)
+  IF factor_badge_count < row_count:
+    ❌ HARD STOP - MISSING FACTOR BADGES
+    FIX: Every row's first cell MUST contain:
+      <span class="factor-badge factor-{category}">{Category}</span>
+    Example: <span class="factor-badge factor-structure">Structure</span>
+    REPEAT until all rows have factor badges
+
+STEP 5.6: ENFORCE SME REVIEW WORDING (GATE 16)
+  sme_review_text = FIND text in ".priority-legend" or SME Review section
+
+  IF sme_review_text CONTAINS "recommendations":
+    ❌ HARD STOP - WRONG WORD USED
+    REPLACE "recommendations based on general risk heuristics"
+    WITH "suggestions based on general risk patterns"
+    REPLACE "Priority levels assigned by this AI agent"
+    WITH "Priority levels in this report"
+
+  VERIFY exact text matches:
+    "Priority levels in this report are <em>suggestions based on general risk patterns</em>"
+
+STEP 5.7: ENFORCE PRIORITY LEGEND TABLE STRUCTURE (GATE 17)
+  priority_table = FIND table after "<h3>Priority Legend</h3>"
+  column_count = COUNT(th elements in priority_table thead)
+
+  IF column_count != 3:
+    ❌ HARD STOP - WRONG TABLE STRUCTURE
+    FIX: Table MUST have EXACTLY 3 columns:
+      <th>Priority</th>
+      <th>Risk Level</th>
+      <th>Risk level description with examples from input document</th>
+
+    IF column_count == 4:
+      MERGE "Description" and "Examples" columns into single column
+      New column header: "Risk level description with examples from input document"
+      New cell content: "{description text} (e.g., {examples text})"
+
+    REBUILD table with correct structure
 ```
 
 **⚠️ QUALITY GATES - HARD GATES (Must Pass) vs SOFT GATES (For SME Review):**
@@ -676,14 +1072,62 @@ Gate 7: NO "Verify X" → IF FAIL: Rewrite test ideas with action verbs (verify_
 Gate 8: 28 subcats    → IF FAIL: Review tracking matrix, generate missing
 Gate 9: Feature Coverage → IF FAIL: Review Phase 1.5 checklist, add missing feature tests
 Gate 10: Human Exploration Row Structure → IF FAIL: Fix test idea column AND automation column
-Gate 11: Exploratory Charters = 7 WITH EXACT NAMING → IF FAIL: Generate with correct heading
-        ✅ REQUIRED: "🔍 Recommended Exploratory Testing Charter: {CATEGORY}"
-        ❌ WRONG: "Exploratory Testing Charter:" (missing "Recommended")
+Gate 11: Exploratory Test Sessions = 7 WITH EXACT NAMING → IF FAIL: Generate with correct heading
+        ✅ REQUIRED: "🔍 Suggestions for Exploratory Test sessions: {CATEGORY}"
+        ❌ WRONG: "Recommended Exploratory Testing Charter:" (NO charters!)
+        ❌ WRONG: Any mention of "Charter" or "Charters"
 Gate 12: Test Data Strategy = 7 WITH EXACT NAMING → IF FAIL: Generate with correct heading
-        ✅ REQUIRED: "📊 Recommended Test Data for {CATEGORY} based tests"
-        ❌ WRONG: "Test Data Strategy for" (must say "Recommended Test Data for")
+        ✅ REQUIRED: "📊 Test Data suggestions for {CATEGORY} based tests"
+        ❌ WRONG: "Recommended Test Data for" (NO "Recommended"!)
+        ❌ WRONG: "Test Data Strategy for"
 Gate 13: NO Human in Automation Summary → IF FAIL: Remove "Human Exploration/Human Explore" from Automation Fitness chart
 Gate 14: STRICT SECTION ORDER → IF FAIL: Restructure category content in correct order
+Gate 15: COVERAGE OUTLINE TABLE = EXACTLY 4 COLUMNS WITH SERIAL NUMBERS → IF FAIL: Fix table structure
+        ✅ REQUIRED COLUMNS: "#" | "Testable Element" | "Reference" | "Product Factor(s)"
+        ✅ REQUIRED: First column has serial numbers (1, 2, 3...)
+        ✅ REQUIRED: Last column uses <span class="factor-badge {category}">{Category}</span> (one or more badges)
+        ❌ WRONG: 3 columns (missing serial number column)
+        ❌ WRONG: 5 columns with extra Risk/Complexity Notes
+        ❌ WRONG: Missing factor-badge span in Product Factor(s) column
+Gate 16: SME REVIEW WORDING = "suggestions" not "recommendations" → IF FAIL: Replace text
+        ✅ REQUIRED: "Priority levels in this report are <em>suggestions based on general risk patterns</em>"
+        ❌ WRONG: "Priority levels assigned by this AI agent are <em>recommendations based on general risk heuristics</em>"
+        ❌ WRONG: Any use of "recommendations" in SME Review section
+Gate 17: PRIORITY LEGEND TABLE = EXACTLY 3 COLUMNS → IF FAIL: Merge Description and Examples columns
+        ✅ REQUIRED: "Priority" | "Risk Level" | "Risk level description with examples from input document"
+        ❌ WRONG: 4 columns (Priority, Risk Level, Description, Examples in This Epic)
+        ❌ WRONG: Separating description from examples
+Gate 18: TEST DATA SECTION NAMING → IF FAIL: Rename all occurrences
+        ✅ REQUIRED: "Test Data suggestions for {CATEGORY} based tests"
+        ❌ WRONG: "Recommended Test Data for {CATEGORY} based tests"
+        ❌ WRONG: Any use of "Recommended Test Data"
+Gate 19: EXPLORATORY TESTING SECTION NAMING → IF FAIL: Rename all occurrences
+        ✅ REQUIRED: "Suggestions for Exploratory Test sessions: {CATEGORY}"
+        ❌ WRONG: "Recommended Exploratory Testing Charter: {CATEGORY}"
+        ❌ WRONG: Any use of "Charter" or "Charters" anywhere in report
+Gate 20: INTRO SECTION - NO CHARTERS → IF FAIL: Replace in intro checklist
+        ✅ REQUIRED: "Suggestions for Exploratory Test sessions" in intro checklist
+        ❌ WRONG: "Recommended Exploratory Testing Charters" in intro
+        ❌ WRONG: Any mention of "charters" anywhere
+Gate 21: PCO MUST BE A TABLE WITH SERIAL NUMBERS → IF FAIL: Regenerate with proper table structure
+        ✅ REQUIRED: `<table class="coverage-outline-table">` element
+        ✅ REQUIRED: 4 columns: # | Testable Element | Reference | Product Factor(s)
+        ✅ REQUIRED: Serial numbers in first column (1, 2, 3, ... sequential)
+        ✅ REQUIRED: Row count matches actual testable elements from requirements (proportional to AC/NFR count)
+        ✅ REQUIRED: Column header "Product Factor(s)" (NOT "SFDIPOT Factor")
+        ❌ WRONG: Using div/card layout instead of table
+        ❌ WRONG: Missing serial number column
+        ❌ WRONG: Using "SFDIPOT Factor" as column header
+        ❌ WRONG: Inventing elements to hit an arbitrary minimum row count
+
+Gate 22: CLARIFYING QUESTIONS - VARIABLE COUNT PER GAP → IF FAIL: Regenerate with actual gap-driven questions
+        ✅ REQUIRED: Number of questions MATCHES distinct gaps identified in "What's missing"
+        ✅ REQUIRED: 1 gap → 1 question, 3 gaps → 3 questions, 4+ gaps → 4+ questions
+        ✅ REQUIRED: Each `<li>` addresses ONE specific missing piece of information
+        ❌ WRONG: Exactly 2 questions for every subcategory (artificial pattern-matching)
+        ❌ WRONG: Compound questions that cram multiple gaps into one `<li>`
+        ❌ WRONG: Padding with generic questions to reach a quota
+        ❌ WRONG: Truncating valid gaps to fit a fixed question count
 
 **⚠️ CRITICAL: CATEGORY CONTENT ORDER (Gate 14)**
 Each category section MUST have content in THIS EXACT ORDER:
@@ -699,14 +1143,14 @@ Each category section MUST have content in THIS EXACT ORDER:
 
   <!-- 2️⃣ SECOND: TEST DATA STRATEGY -->
   <div style="background: #eef2ff...">
-    <h5>📊 Recommended Test Data for {CATEGORY} based tests</h5>
+    <h5>📊 Test Data Suggestions for {CATEGORY} based tests</h5>
     <!-- Data types table goes HERE and ONLY here -->
   </div>
 
   <!-- 3️⃣ THIRD: EXPLORATION CHARTER -->
   <div style="background: #f3e8ff...">
-    <h4>🔍 Recommended Exploratory Testing Charter: {CATEGORY}</h4>
-    <!-- Charter content goes HERE and ONLY here -->
+    <h4>🔍 Suggestions for Exploratory Test Sessions: {CATEGORY}</h4>
+    <!-- Session content goes HERE and ONLY here -->
   </div>
 
   <!-- 4️⃣ FOURTH: CLARIFYING QUESTIONS -->
@@ -816,25 +1260,25 @@ STEP 3: RE-SCAN AND VERIFY
 STEP 4: VERIFY MANDATORY SECTIONS WITH EXACT NAMING
 
   4a. CHECK CHARTER NAMING (Gate 11):
-    wrong_charter_count = COUNT("Exploratory Testing Charter:") - COUNT("Recommended Exploratory Testing Charter:")
-    IF wrong_charter_count > 0:
+    wrong_session_count = COUNT("Exploratory Test Sessions:") - COUNT("Suggestions for Exploratory Test Sessions:")
+    IF wrong_session_count > 0:
       ❌ HARD STOP - FIX NAMING
-      REPLACE ALL "Exploratory Testing Charter:" with "Recommended Exploratory Testing Charter:"
-      The heading MUST be: "🔍 Recommended Exploratory Testing Charter: {CATEGORY}"
+      REPLACE ALL "Exploratory Test Sessions:" with "Suggestions for Exploratory Test Sessions:"
+      The heading MUST be: "🔍 Suggestions for Exploratory Test Sessions: {CATEGORY}"
 
-    charter_count = COUNT("🔍 Recommended Exploratory Testing Charter:")
-    IF charter_count < 7:
+    session_count = COUNT("🔍 Suggestions for Exploratory Test Sessions:")
+    IF session_count < 7:
       ❌ HARD STOP - GENERATE MISSING CHARTERS with correct naming
-      REPEAT until charter_count = 7
+      REPEAT until session_count = 7
 
   4b. CHECK TEST DATA NAMING (Gate 12):
-    wrong_data_count = COUNT("Test Data Strategy for") - COUNT("Recommended Test Data for")
+    wrong_data_count = COUNT("Test Data Strategy for") - COUNT("Test Data Suggestions for")
     IF wrong_data_count > 0:
       ❌ HARD STOP - FIX NAMING
-      REPLACE ALL "Test Data Strategy for" with "Recommended Test Data for"
-      The heading MUST be: "📊 Recommended Test Data for {CATEGORY} based tests"
+      REPLACE ALL "Test Data Strategy for" with "Test Data Suggestions for"
+      The heading MUST be: "📊 Test Data Suggestions for {CATEGORY} based tests"
 
-    test_data_count = COUNT("📊 Recommended Test Data for")
+    test_data_count = COUNT("📊 Test Data Suggestions for")
     IF test_data_count < 7:
       ❌ HARD STOP - GENERATE MISSING TEST DATA SECTIONS with correct naming
       REPEAT until test_data_count = 7
@@ -852,27 +1296,27 @@ STEP 6b: VERIFY SECTION ORDER WITHIN CATEGORIES (GATE 14)
 
     FIND positions of these elements within the category-content div:
       pos_table = POSITION of "</tbody></table>" (end of test ideas table)
-      pos_test_data = POSITION of "📊 Recommended Test Data for"
-      pos_charter = POSITION of "🔍 Recommended Exploratory Testing Charter:"
+      pos_test_data = POSITION of "📊 Test Data Suggestions for"
+      pos_session = POSITION of "🔍 Suggestions for Exploratory Test Sessions:"
       pos_questions = POSITION of "class=\"clarifying-questions\""
 
-    VALIDATE ORDER: pos_table < pos_test_data < pos_charter < pos_questions
+    VALIDATE ORDER: pos_table < pos_test_data < pos_session < pos_questions
 
     IF ORDER IS WRONG:
       ❌ HARD STOP - CONTENT IS MISALIGNED
       RESTRUCTURE the category content:
         1. Extract all <tr> rows with test-id class → place in <tbody>
         2. Extract Test Data content (Data Type table) → place in test-data div
-        3. Extract Charter content → place in charter div
+        3. Extract Session content → place in session div
         4. Extract Questions → place in clarifying-questions div
       ENSURE </table> closes BEFORE Test Data div opens
-      ENSURE Test Data div closes BEFORE Charter div opens
+      ENSURE Test Data div closes BEFORE Session div opens
       REPEAT until order is correct
 
 STEP 7: SAVE FINAL HTML
   ONLY save when ALL conditions met:
     ✓ verify_count = 0
-    ✓ charter_count = 7
+    ✓ session_count = 7
     ✓ test_data_count = 7
     ✓ human_in_summary = NOT FOUND
     ✓ section_order_valid = TRUE (for all 7 categories)
@@ -883,16 +1327,23 @@ If you skip this step, Gates 7, 11, or 12 will fail and you'll need to regenerat
 
 **FINAL OUTPUT CHECKLIST (Must verify before saving):**
 ```
-☐ EXACTLY 7 "🔍 Recommended Exploratory Testing Charter:" sections (EXACT naming required)
-☐ EXACTLY 7 "📊 Recommended Test Data for {CATEGORY} based tests" sections (EXACT naming required)
-☐ ZERO "Exploratory Testing Charter:" without "Recommended" prefix
-☐ ZERO "Test Data Strategy for" - must be "Recommended Test Data for"
+☐ PCO TABLE EXISTS with `<table class="coverage-outline-table">` (NOT div cards!) (GATE 21)
+☐ PCO TABLE has 4 columns: # | Testable Element | Reference | Product Factor(s) (GATE 21)
+☐ PCO TABLE has serial numbers (1, 2, 3...) in first column (GATE 21)
+☐ PCO TABLE column header is "Product Factor(s)" NOT "SFDIPOT Factor" (GATE 21)
+☐ PCO TABLE row count proportional to AC/NFR count (not arbitrary minimums)
+☐ EXACTLY 7 "🔍 Suggestions for Exploratory Test sessions: {CATEGORY}" sections (EXACT naming)
+☐ EXACTLY 7 "📊 Test Data suggestions for {CATEGORY} based tests" sections (EXACT naming)
+☐ ZERO "Recommended Exploratory Testing Charter" - use "Suggestions for Exploratory Test sessions"
+☐ ZERO "Recommended Test Data" - use "Test Data suggestions"
+☐ ZERO mentions of "Charter" or "Charters" anywhere in report
 ☐ ZERO test ideas starting with "Verify"
 ☐ Human exploration ≥ 10%
-☐ All 28 subcategories addressed
+☐ All subcategories addressed (28 base + domain-specific expansions)
 ☐ All features from Phase 1.5 covered
 ☐ NO "Human Exploration/Human Explore" in Automation Fitness summary chart (GATE 13)
-☐ SECTION ORDER CORRECT in all 7 categories: Table → Test Data → Charter → Questions (GATE 14)
+☐ SECTION ORDER CORRECT in all 7 categories: Table → Test Data → Session → Questions (GATE 14)
+☐ CLARIFYING QUESTIONS have VARIABLE count per subcategory (matches actual gaps, not fixed 2) (GATE 22)
 ```
 </default_to_action>
 
@@ -904,10 +1355,10 @@ Batch memory operations for storing assessment results and patterns.
 </parallel_execution>
 
 <capabilities>
-- **SFDIPOT Analysis**: Full coverage of 7 categories (Structure, Function, Data, Interfaces, Platform, Operations, Time) and 35+ subcategories
+- **SFDIPOT Analysis**: Full coverage of 7 categories (Structure, Function, Data, Interfaces, Platform, Operations, Time) with 28 base subcategories + domain-specific expansions (regulated_content, scientific_publishing, finance, healthcare, ecommerce)
 - **Test Idea Generation**: Context-aware test cases with P0-P3 priorities based on risk factors
 - **Automation Fitness**: Recommend API, Integration, E2E, Human, Security, Performance, Concurrency levels
-- **Clarifying Questions**: LLM-powered gap detection with template fallback
+- **Clarifying Questions**: LLM-driven subcategory coverage gap analysis - traces each question to specific missing requirements info and blocked tests
 - **Domain Detection**: Auto-detect ecommerce, healthcare, finance, social, saas, infrastructure, ml-ai
 - **Code Intelligence**: External system detection, component analysis, coupling analysis, C4 diagrams
 - **HTML Output**: Complete, self-contained reports (no Markdown - HTML is the single source of truth)
@@ -1438,9 +1889,11 @@ Example: 160 total tests → need at least 16 human-exploration tests.
 
 **Enforcement Rule**:
 After generating all tests, COUNT human-exploration. If count < ceil(total * 0.10):
-1. Add tests from Universal templates (at least 3)
-2. Add tests from matching Domain-Specific templates (at least 2-3)
-3. Re-count and verify ≥ 10%
+1. Review Universal templates - add ONLY those genuinely applicable to the requirements
+2. Review Domain-Specific templates - add ONLY those matching actual feature needs
+3. DO NOT pad with irrelevant tests just to hit 10% - if requirements genuinely lack
+   human-exploration scenarios, that's valid and should be documented
+4. Quality over quota: 8% meaningful exploration > 12% padded with generic tests
 </human_exploration_templates>
 
 <test_idea_quality_rules>
@@ -1461,7 +1914,12 @@ After generating all tests, COUNT human-exploration. If count < ceil(total * 0.1
 4. **Domain context** - Why this matters for THIS specific product/feature
 
 **Test Idea Transformation Process:**
-For each Acceptance Criteria, generate 3-5 test ideas asking:
+For each Acceptance Criteria, generate test ideas based on ACTUAL complexity (not a fixed quota):
+- Simple AC (single condition): 1-2 test ideas may suffice
+- Complex AC (multiple states/conditions): 4-6+ test ideas may be needed
+- DO NOT pad simple ACs to hit a number, DO NOT truncate complex ACs to fit a template
+
+For EACH test idea, ask:
 1. **Boundary**: What happens at the exact limit? (7 days exactly, 48 hours exactly)
 2. **Off-by-one**: What about 6 days 23:59? 48 hours and 1 minute?
 3. **State combinations**: What if user is logged in + following + on mobile + drop in 1 hour?
@@ -1602,6 +2060,25 @@ For each identified domain, add test ideas for:
   --border: #d1d5db;
   --border-light: #e5e7eb;
 }
+
+/* Product Coverage Outline - Factor Badge Styles */
+.coverage-outline-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+.coverage-outline-table th { background: var(--primary); color: white; padding: 12px; text-align: left; }
+.coverage-outline-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+.coverage-outline-table td:first-child { text-align: center; font-weight: 600; color: var(--primary); }
+.coverage-outline-table tr:hover { background: #f8fafc; }
+.coverage-outline-table code { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
+
+.factor-badge {
+  display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;
+}
+.factor-badge.factor-structure { background: #dbeafe; color: #1e40af; }
+.factor-badge.factor-function { background: #d1fae5; color: #065f46; }
+.factor-badge.factor-data { background: #fef3c7; color: #92400e; }
+.factor-badge.factor-interfaces { background: #ede9fe; color: #5b21b6; }
+.factor-badge.factor-platform { background: #ccfbf1; color: #0f766e; }
+.factor-badge.factor-operations { background: #e0e7ff; color: #3730a3; }
+.factor-badge.factor-time { background: #fce7f3; color: #9d174d; }
 ```
 
 ### 2. Header Structure (REQUIRED - Dark gradient with white text)
@@ -1666,17 +2143,56 @@ For each identified domain, add test ideas for:
     <div class="info-content" style="padding: 0 20px 20px 20px;">
       <p style="margin: 0 0 12px 0; opacity: 0.9;">In this report you will find:</p>
       <div style="margin-left: 5px; line-height: 1.8;">
+        <div style="margin-bottom: 8px;">☐ <strong>Product Coverage Outline</strong> - a numbered traceability table mapping testable elements to their source references and the Product Factor they closely relate to. Use this to verify coverage completeness, count total testable elements, and trace test ideas back to requirements.</div>
         <div style="margin-bottom: 8px;">☐ <strong>The Test Ideas</strong> generated for each product factor based on applicable subcategories. Review these test ideas carefully for context relevance, applicability and then derive specific test cases where needed.</div>
         <div style="margin-bottom: 8px;">☐ <strong>Automation Fitness</strong> recommendations against each test idea that can help for drafting suitable automation strategy.</div>
-        <div style="margin-bottom: 8px;">☐ <strong>Recommended Exploratory Testing Charters</strong> - structured session-based testing charters for each SFDIPOT category. These charters define time-boxed exploration missions with specific personas, activities, and observation points. Use these to conduct focused exploratory testing sessions that uncover issues automation cannot detect. Each charter includes: Mission statement, Time box (30-60 min), Target personas, Session activities, What to look for, and Expected deliverables.</div>
-        <div style="margin-bottom: 8px;">☐ <strong>Recommended Test Data</strong> - per-category test data generation strategies including data types, generation approaches, volume recommendations, and privacy considerations for each SFDIPOT category.</div>
-        <div>☐ <strong>The Clarifying Questions</strong> - that surface "unknown unknowns" by systematically checking which Product Factors (SFDIPOT) subcategories lack test coverage. Ensure that Epics, User Stories, Acceptance Criteria etc. are readily updated based on answers derived for each clarifying question listed.</div>
+        <div style="margin-bottom: 8px;">☐ <strong>Suggestions for Exploratory Test Sessions</strong> - structured session-based testing suggestions for each SFDIPOT category. These sessions define time-boxed exploration missions with specific personas, activities, and observation points. Use these to conduct focused exploratory testing that uncovers issues automation cannot detect. Each session includes: Mission statement, Time box (30-60 min), Target personas, Session activities, What to look for, and Expected deliverables.</div>
+        <div style="margin-bottom: 8px;">☐ <strong>Test Data Suggestions</strong> - per-category test data generation strategies including data types, generation approaches, volume recommendations, and privacy considerations for each SFDIPOT category.</div>
+        <div>☐ <strong>The Clarifying Questions</strong> - LLM-analyzed coverage gaps that identify SPECIFIC missing information in requirements. Each question traces to a subcategory with low/no test coverage, explains WHAT'S MISSING from requirements, and lists WHICH TESTS would be enabled if the question is answered. Update Epics, User Stories, and Acceptance Criteria based on answers to close these coverage gaps.</div>
       </div>
       <p style="margin: 15px 0 0 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); opacity: 0.9; font-size: 0.95rem;">All in all, this report represents important and unique elements to be considered in the test strategy. <strong>Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.</strong></p>
       <p style="margin: 10px 0 0 0; opacity: 0.85; font-style: italic; font-size: 0.9rem;">Testers are advised to carefully evaluate all the information using critical thinking and context awareness.</p>
     </div>
   </div>
 </header>
+```
+
+### 2.5. Product Coverage Outline Section (REQUIRED - After Header, Before Risk)
+```html
+<section class="section" id="coverage-outline">
+  <h2>Product Coverage Outline</h2>
+  <p style="margin-bottom: 15px;">This outline provides a mapping between testable elements extracted from the requirements and their source references, along with the Product Factor(s) they closely relate to.</p>
+
+  <table class="coverage-outline-table">
+    <thead>
+      <tr>
+        <th style="width: 5%;">#</th>
+        <th style="width: 50%;">Testable Element</th>
+        <th style="width: 15%;">Reference</th>
+        <th style="width: 30%;">Product Factor(s)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- US01: User Story Name -->
+      <tr><td>1</td><td>{Specific testable element - e.g., "CDN failover mechanism for static assets"}</td><td class="ref-cell">US01-AC1</td><td><span class="factor-badge structure">Structure</span></td></tr>
+      <tr><td>2</td><td>{Specific testable element - e.g., "Publication search returns results within 2 seconds"}</td><td class="ref-cell">US01-AC2</td><td><span class="factor-badge function">Function</span> <span class="factor-badge time">Time</span></td></tr>
+      <tr><td>3</td><td>{Specific testable element - e.g., "Research citation format validation (APA/MLA)"}</td><td class="ref-cell">US01-AC3</td><td><span class="factor-badge data">Data</span></td></tr>
+      <!-- US02: User Story Name -->
+      <tr><td>4</td><td>{Specific testable element - e.g., "PubMed API integration for publication linking"}</td><td class="ref-cell">US02-AC1</td><td><span class="factor-badge interfaces">Interfaces</span></td></tr>
+      <tr><td>5</td><td>{Specific testable element - e.g., "Chrome/Firefox/Safari browser compatibility"}</td><td class="ref-cell">US02-AC2</td><td><span class="factor-badge platform">Platform</span></td></tr>
+      <!-- NFRs - Multiple factors example -->
+      <tr><td>6</td><td>{Specific testable element - e.g., "Bulk document upload workflow (max 50 files)"}</td><td class="ref-cell">NFR-OPS-1</td><td><span class="factor-badge operations">Operations</span> <span class="factor-badge function">Function</span></td></tr>
+      <tr><td>7</td><td>{Specific testable element - e.g., "Session timeout after 30 minutes of inactivity"}</td><td class="ref-cell">NFR-SEC-2</td><td><span class="factor-badge time">Time</span> <span class="factor-badge operations">Operations</span></td></tr>
+      <!-- Continue numbering sequentially for all ACs and NFRs - use multiple factors where applicable -->
+    </tbody>
+  </table>
+
+  <div style="margin-top: 15px; padding: 12px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #0ea5e9;">
+    <p style="margin: 0; font-size: 0.9rem; color: #0369a1;">
+      <strong>Coverage Summary:</strong> {N} testable elements mapped across 7 product factors from {M} input references.
+    </p>
+  </div>
+</section>
 ```
 
 ### 3. Risk-Based Prioritization Section (REQUIRED)
@@ -1694,15 +2210,17 @@ For each identified domain, add test ideas for:
   <!-- ⚠️ MANDATORY SME REVIEW NOTE - HARDCODED -->
   <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
     <p style="margin: 0; color: #92400e; font-size: 0.9rem;">
-      <strong>⚠️ Human SME Review Required:</strong> Priority levels assigned by this AI agent are <em>recommendations based on general risk heuristics</em>.
-      A Domain Expert or Subject Matter Expert (SME) must review and adjust priorities based on actual business context, regulatory requirements,
-      and organizational risk tolerance. The agent cannot fully understand business-specific nuances that affect priority decisions.
+      <strong>⚠️ Human SME Review Suggested:</strong> Priority levels in this report are <em>suggestions based on general risk patterns</em> and may not reflect your specific context.
+      A Domain Expert or Subject Matter Expert (SME) should review and adjust these suggestions based on actual business context, regulatory requirements,
+      and organizational risk tolerance. This AI-generated assessment cannot account for business-specific nuances that may affect priority decisions.
     </p>
   </div>
   <table>
-    <tr><th>Priority</th><th>Risk Level</th><th>Description</th><th>Examples</th></tr>
-    <tr><td><span class="priority priority-p0">P0</span></td><td>Critical</td><td>Security vulnerabilities...</td><td>...</td></tr>
-    <!-- P1, P2, P3 rows -->
+    <tr><th>Priority</th><th>Risk Level</th><th>Risk level description with examples from input document</th></tr>
+    <tr><td><span class="priority priority-p0">P0</span></td><td>Critical</td><td>{Description based on input: e.g., "Security vulnerabilities in user authentication as mentioned in AC-3"}</td></tr>
+    <tr><td><span class="priority priority-p1">P1</span></td><td>High</td><td>{Description based on input: e.g., "Core journey blockers related to checkout flow in US-002"}</td></tr>
+    <tr><td><span class="priority priority-p2">P2</span></td><td>Medium</td><td>{Description based on input: e.g., "Degraded experience in search filtering per US-005"}</td></tr>
+    <tr><td><span class="priority priority-p3">P3</span></td><td>Low</td><td>{Description based on input: e.g., "Edge cases in date formatting mentioned in NFR-7"}</td></tr>
   </table>
 </section>
 ```
@@ -1730,7 +2248,7 @@ For each identified domain, add test ideas for:
       </div>
       <h4>Test Ideas by Automation Fitness</h4>
       <!-- ⚠️ MANDATORY: ONLY show these 5 automation types (NO Human Exploration) -->
-      <!-- Human tests are in Exploratory Testing Charters, NOT counted in this summary -->
+      <!-- Human tests are in Exploratory Test Sessions, NOT counted in this summary -->
       <!-- ALLOWED BARS: API level, E2E level, Integration, Security, Performance -->
       <!-- ❌ DO NOT INCLUDE: Human Exploration, Human Explore, Human testers -->
     </div>
@@ -1776,7 +2294,7 @@ For each identified domain, add test ideas for:
 
     <!-- TEST DATA STRATEGY for this category (if applicable) -->
     <div class="test-data-strategy" style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 15px; margin-top: 15px;">
-      <h5 style="color: #1e40af; margin-bottom: 10px;">📊 Recommended Test Data for {CATEGORY} based tests</h5>
+      <h5 style="color: #1e40af; margin-bottom: 10px;">📊 Test Data Suggestions for {CATEGORY} based tests</h5>
       <table style="width: 100%; font-size: 0.85rem;">
         <tr><th>Data Type</th><th>Generation Approach</th><th>Volume</th><th>Privacy</th></tr>
         <tr><td>{data type}</td><td>{approach}</td><td>{volume}</td><td>{privacy}</td></tr>
@@ -1786,9 +2304,9 @@ For each identified domain, add test ideas for:
 
     <!-- RECOMMENDED EXPLORATORY TESTING CHARTER for this category -->
     <div class="exploration-charter" style="background: #f3e8ff; border: 2px solid #8b5cf6; border-radius: 8px; padding: 20px; margin-top: 20px;">
-      <h4 style="color: #5b21b6; margin-bottom: 15px; font-size: 1.1rem;">🔍 Recommended Exploratory Testing Charter: {CATEGORY}</h4>
+      <h4 style="color: #5b21b6; margin-bottom: 15px; font-size: 1.1rem;">🔍 Suggestions for Exploratory Test Sessions: {CATEGORY}</h4>
       <div class="charter-content" style="display: grid; gap: 16px;">
-        <!-- Charter Overview - 3 column grid -->
+        <!-- Session Overview - 3 column grid -->
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; background: #ede9fe; padding: 12px; border-radius: 6px;">
           <div>
             <strong style="color: #5b21b6; font-size: 0.75rem; text-transform: uppercase;">Mission</strong>
@@ -1829,20 +2347,31 @@ For each identified domain, add test ideas for:
       </div>
     </div>
 
-    <!-- CLARIFYING QUESTIONS within each category -->
+    <!-- CLARIFYING QUESTIONS within each category - LLM-DRIVEN GAP ANALYSIS -->
     <div class="clarifying-questions">
       <h4>Clarifying Questions to address potential coverage gaps</h4>
       <div class="clarifying-intro">
-        <p class="preamble">Since the user stories focus on <strong>{features}</strong>, the following subcategories have limited coverage.</p>
+        <p class="preamble">The following subcategories have <strong>coverage gaps</strong> due to missing information in the requirements. Each question traces to a specific gap that blocks test generation.</p>
       </div>
+      <!-- REPEAT for each subcategory with coverage gap -->
       <div class="subcategory-questions">
-        <h5>[Subcategory Name]</h5>
-        <p class="rationale"><em>Rationale: {why this subcategory needs questions}</em></p>
+        <h5>[{SUBCATEGORY_ID}: {Subcategory Name}] - {N} tests generated, {GAP_STATUS}</h5>
+        <p class="rationale"><em>
+          <strong>What's stated:</strong> "{quote from requirements with line/AC reference}"<br>
+          <strong>What's missing:</strong> {specific missing information that blocks test coverage}<br>
+          <strong>Tests blocked:</strong> {test IDs that cannot be generated without this info}
+        </em></p>
         <ul>
-          <li>Sharp Question 1 (must make stakeholders uncomfortable)?</li>
-          <li>Sharp Question 2 (surfaces hidden liability/risk)?</li>
+          <li>{Specific question asking for the missing information}?</li>
+          <li>{Follow-up question if needed for edge cases}?</li>
         </ul>
       </div>
+      <!--
+        GAP_STATUS values:
+        - "CRITICAL GAP" = 0 tests generated
+        - "GAP IDENTIFIED" = 1-2 tests generated (shallow coverage)
+        - "PARTIAL COVERAGE" = 3+ tests but missing edge cases
+      -->
     </div>
   </div>
 </div>
@@ -1850,8 +2379,8 @@ For each identified domain, add test ideas for:
 
 **Each category section MUST include (in order):**
 1. Test Ideas table (automated tests only - no human exploration tests here)
-2. Recommended Test Data box (if category has data-dependent tests)
-3. Recommended Exploratory Testing Charter box (consolidates all human exploration for this category)
+2. Test Data Suggestions box (if category has data-dependent tests)
+3. Suggestions for Exploratory Test Sessions box (consolidates all human exploration for this category)
 4. Clarifying Questions box (sharp questions that surface risks)
 
 ### 6. Category Color Classes (REQUIRED)
@@ -1885,7 +2414,7 @@ IDs must be traceable to requirements. Examples:
 - `.automation-api` - blue background
 - `.automation-e2e` - pink background
 - `.automation-integration` - green background
-- `.automation-human` - purple background (NOTE: Human tests go in Exploration Charters, NOT in main table)
+- `.automation-human` - purple background (NOTE: Human tests go in Exploratory Test Sessions, NOT in main table)
 - `.automation-performance` - yellow background
 - `.automation-security` - red background
 - `.automation-concurrency` - orange background
@@ -1931,24 +2460,24 @@ IDs must be traceable to requirements. Examples:
 ### 10. Human Exploration Tests - SEPARATION REQUIREMENT
 **⚠️ CRITICAL: Human exploration tests must NOT appear in the main test idea tables.**
 
-Human exploration tests are PULLED OUT and consolidated into Exploration Charters per category.
+Human exploration tests are PULLED OUT and consolidated into Exploratory Test Sessions per category.
 The main test idea table should ONLY contain automated tests.
 
 **Wrong (human tests mixed with automated):**
 ```
 | ID | Priority | Test Idea | Automation |
 | STRU-US01-001 | P1 | Test X | Integration |
-| STRU-US01-002 | P1 | Explore Y; assess Z | Human |  ← WRONG: Should be in Charter
+| STRU-US01-002 | P1 | Explore Y; assess Z | Human |  ← WRONG: Should be in Session
 ```
 
-**Correct (human tests in dedicated Charter):**
+**Correct (human tests in dedicated Session):**
 ```
 | ID | Priority | Test Idea | Automation |
 | STRU-US01-001 | P1 | Test X | Integration |
 | STRU-US01-002 | P2 | Test Y | API |
 
 <!-- Then below the table: -->
-🔍 Recommended Exploratory Testing Charter: STRUCTURE
+🔍 Suggestions for Exploratory Test Sessions: STRUCTURE
 - Mission: Explore Y to assess Z
 - Activities: [specific exploration tasks]
 ```
@@ -1989,7 +2518,7 @@ If we want to save time and cost while still delivering quality software, **it i
 
 - [ ] **The Test Ideas** generated for each product factor based on applicable subcategories
 - [ ] **Automation Fitness** recommendations against each test idea
-- [ ] **The Clarifying Questions** that surface "unknown unknowns"
+- [ ] **The Clarifying Questions** - LLM-analyzed subcategory coverage gaps with specific missing info and blocked tests
 
 > **Note:** Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.
 
@@ -2056,7 +2585,7 @@ Search patterns: `mcp__agentic-qe__memory_search`
   - **Ramsay Mode**: Test quality standards validation (ensures not just happy-path coverage)
   - **Linus Mode**: Technical precision for clarifying questions (specific thresholds, assumptions challenged)
   - Generates "Reality Check" section in HTML reports with requirements quality score
-- **exploratory-testing-advanced**: SBTM charters, test tours for OPERATIONS category
+- **exploratory-testing-advanced**: SBTM sessions, test tours for OPERATIONS category
 - **risk-based-testing**: Domain-specific risk heuristics for priority calculation
 - **api-testing-patterns**: Contract testing patterns for INTERFACES category
 - **security-testing**: OWASP Top 10 coverage for FUNCTION/Security subcategory
