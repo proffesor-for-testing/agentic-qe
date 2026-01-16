@@ -341,8 +341,12 @@ describe('Shell Completions', () => {
     it('should detect bash from SHELL env', () => {
       const originalShell = process.env.SHELL;
       const originalComSpec = process.env.ComSpec;
-      // Clear Windows-specific env vars to ensure SHELL takes precedence
+      const originalPSModulePath = process.env.PSModulePath;
+      const originalPSVersionTable = process.env.PSVersionTable;
+      // Clear Windows/PowerShell env vars to ensure SHELL takes precedence
       delete process.env.ComSpec;
+      delete process.env.PSModulePath;
+      delete process.env.PSVersionTable;
       process.env.SHELL = '/bin/bash';
 
       const info = detectShell();
@@ -350,12 +354,19 @@ describe('Shell Completions', () => {
 
       process.env.SHELL = originalShell;
       if (originalComSpec) process.env.ComSpec = originalComSpec;
+      if (originalPSModulePath) process.env.PSModulePath = originalPSModulePath;
+      if (originalPSVersionTable) process.env.PSVersionTable = originalPSVersionTable;
     });
 
     it('should detect zsh from SHELL env', () => {
       const originalShell = process.env.SHELL;
       const originalComSpec = process.env.ComSpec;
+      const originalPSModulePath = process.env.PSModulePath;
+      const originalPSVersionTable = process.env.PSVersionTable;
+      // Clear Windows/PowerShell env vars to ensure SHELL takes precedence
       delete process.env.ComSpec;
+      delete process.env.PSModulePath;
+      delete process.env.PSVersionTable;
       process.env.SHELL = '/usr/bin/zsh';
 
       const info = detectShell();
@@ -363,12 +374,19 @@ describe('Shell Completions', () => {
 
       process.env.SHELL = originalShell;
       if (originalComSpec) process.env.ComSpec = originalComSpec;
+      if (originalPSModulePath) process.env.PSModulePath = originalPSModulePath;
+      if (originalPSVersionTable) process.env.PSVersionTable = originalPSVersionTable;
     });
 
     it('should detect fish from SHELL env', () => {
       const originalShell = process.env.SHELL;
       const originalComSpec = process.env.ComSpec;
+      const originalPSModulePath = process.env.PSModulePath;
+      const originalPSVersionTable = process.env.PSVersionTable;
+      // Clear Windows/PowerShell env vars to ensure SHELL takes precedence
       delete process.env.ComSpec;
+      delete process.env.PSModulePath;
+      delete process.env.PSVersionTable;
       process.env.SHELL = '/usr/bin/fish';
 
       const info = detectShell();
@@ -376,6 +394,8 @@ describe('Shell Completions', () => {
 
       process.env.SHELL = originalShell;
       if (originalComSpec) process.env.ComSpec = originalComSpec;
+      if (originalPSModulePath) process.env.PSModulePath = originalPSModulePath;
+      if (originalPSVersionTable) process.env.PSVersionTable = originalPSVersionTable;
     });
   });
 

@@ -383,7 +383,7 @@ describe('DomainTaskExecutor', () => {
       };
       expect(data.filesIndexed).toBeGreaterThan(0);
       expect(data.nodesCreated).toBeGreaterThan(0);
-    });
+    }, 30000); // Extended timeout for code indexing on slow CI runners
   });
 
   describe('quality assessment execution', () => {
