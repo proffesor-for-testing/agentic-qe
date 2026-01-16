@@ -19,6 +19,7 @@ import {
 } from '../interfaces';
 import { DomainName, ALL_DOMAINS } from '../../shared/types';
 import { LearningOptimizationAPI } from '../../domains/learning-optimization/plugin';
+import { DreamEngine, type EngineResult as DreamCycleResult, type PatternImportData } from '../../learning/dream/index.js';
 
 const CONFIG: WorkerConfig = {
   id: 'learning-consolidation',
@@ -51,6 +52,9 @@ interface ConsolidationResult {
   newInsights: number;
   strategyUpdates: number;
   crossDomainPatterns: number;
+  /** ADR-046: Dream cycle insights */
+  dreamInsights: number;
+  dreamPatternsCreated: number;
 }
 
 export class LearningConsolidationWorker extends BaseWorker {
@@ -80,6 +84,11 @@ export class LearningConsolidationWorker extends BaseWorker {
     // Generate optimization recommendations
     this.generateOptimizations(patterns, findings, recommendations);
 
+    // ADR-046: Run dream cycle for pattern discovery
+    const dreamResult = await this.runDreamCycle(context, patterns, findings, recommendations);
+    result.dreamInsights = dreamResult.insights;
+    result.dreamPatternsCreated = dreamResult.patternsCreated;
+
     // Store consolidated results
     await context.memory.set('learning:lastConsolidation', result);
     await context.memory.set('learning:consolidatedPatterns', patterns);
@@ -105,6 +114,9 @@ export class LearningConsolidationWorker extends BaseWorker {
           patternsConsolidated: result.patternsConsolidated,
           newInsights: result.newInsights,
           crossDomainPatterns: result.crossDomainPatterns,
+          // ADR-046: Dream cycle metrics
+          dreamInsights: result.dreamInsights,
+          dreamPatternsCreated: result.dreamPatternsCreated,
         },
       },
       findings,
@@ -240,7 +252,114 @@ export class LearningConsolidationWorker extends BaseWorker {
       newInsights,
       strategyUpdates: 0,
       crossDomainPatterns: crossDomain.length,
+      dreamInsights: 0, // Will be updated by runDreamCycle
+      dreamPatternsCreated: 0, // Will be updated by runDreamCycle
     };
+  }
+
+  /**
+   * Run dream cycle for pattern discovery (ADR-046)
+   *
+   * The DreamEngine discovers novel associations between patterns
+   * that may not be obvious from direct analysis.
+   */
+  private async runDreamCycle(
+    context: WorkerContext,
+    patterns: LearningPattern[],
+    findings: WorkerFinding[],
+    recommendations: WorkerRecommendation[]
+  ): Promise<{ insights: number; patternsCreated: number }> {
+    // Skip dream cycle if we don't have enough patterns
+    if (patterns.length < 10) {
+      context.logger.debug('Skipping dream cycle - insufficient patterns', {
+        patternCount: patterns.length,
+        required: 10,
+      });
+      return { insights: 0, patternsCreated: 0 };
+    }
+
+    let engine: DreamEngine | null = null;
+
+    try {
+      // Initialize DreamEngine
+      engine = new DreamEngine();
+      await engine.initialize();
+
+      // Import patterns as concepts
+      const importData: PatternImportData[] = patterns.map(pattern => ({
+        id: pattern.id,
+        name: pattern.pattern,
+        description: `${pattern.type} pattern from ${pattern.domain} (effectiveness: ${pattern.effectiveness})`,
+        domain: pattern.domain,
+        patternType: pattern.type,
+        confidence: pattern.confidence,
+        successRate: pattern.effectiveness,
+      }));
+      await engine.loadPatternsAsConcepts(importData);
+
+      // Run the dream cycle
+      context.logger.debug('Starting dream cycle', { patternCount: patterns.length });
+      const dreamResult: DreamCycleResult = await engine.dream();
+
+      // Process dream insights
+      const actionableInsights = dreamResult.insights.filter(
+        insight => insight.actionable && insight.confidenceScore > 0.7
+      );
+
+      if (actionableInsights.length > 0) {
+        findings.push({
+          type: 'dream-insights',
+          severity: 'info',
+          domain: 'learning-optimization',
+          title: 'Dream Cycle Insights Generated',
+          description: `${actionableInsights.length} actionable insights discovered through pattern association`,
+          context: {
+            totalInsights: dreamResult.insights.length,
+            actionableInsights: actionableInsights.length,
+            topInsight: actionableInsights[0]?.description,
+            activationIterations: dreamResult.activationStats.totalIterations,
+          },
+        });
+
+        recommendations.push({
+          priority: 'p2',
+          domain: 'learning-optimization',
+          action: 'Apply Dream Insights',
+          description: `${actionableInsights.length} insights from dream cycle can improve pattern effectiveness`,
+          estimatedImpact: 'medium',
+          effort: 'low',
+          autoFixable: true,
+        });
+      }
+
+      // Store dream insights in memory for later application
+      await context.memory.set('learning:dreamInsights', {
+        cycleId: dreamResult.cycle.id,
+        insights: actionableInsights,
+        timestamp: new Date().toISOString(),
+      });
+
+      context.logger.info('Dream cycle completed', {
+        insights: dreamResult.insights.length,
+        actionable: actionableInsights.length,
+        duration: dreamResult.cycle.durationMs,
+      });
+
+      return {
+        insights: dreamResult.insights.length,
+        patternsCreated: dreamResult.patternsCreated,
+      };
+    } catch (error) {
+      // Log but don't fail the consolidation on dream errors
+      context.logger.warn('Dream cycle failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { insights: 0, patternsCreated: 0 };
+    } finally {
+      if (engine) {
+        await engine.close();
+      }
+    }
   }
 
   private findCrossDomainPatterns(patterns: LearningPattern[]): Array<{
@@ -432,6 +551,9 @@ export class LearningConsolidationWorker extends BaseWorker {
 
     // Bonus for cross-domain patterns
     score += Math.min(15, result.crossDomainPatterns * 3);
+
+    // ADR-046: Bonus for dream insights (novel pattern discovery)
+    score += Math.min(10, result.dreamInsights * 2);
 
     // Penalty for pruned patterns (indicates churn)
     const pruneRate = result.patternsPruned / result.patternsAnalyzed;

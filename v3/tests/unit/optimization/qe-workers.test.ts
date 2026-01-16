@@ -36,8 +36,8 @@ function createMockContext(): WorkerContext {
 }
 
 describe('QE_OPTIMIZATION_WORKER_CONFIGS', () => {
-  it('should have 4 worker configurations', () => {
-    expect(Object.keys(QE_OPTIMIZATION_WORKER_CONFIGS)).toHaveLength(4);
+  it('should have 5 worker configurations', () => {
+    expect(Object.keys(QE_OPTIMIZATION_WORKER_CONFIGS)).toHaveLength(5);
   });
 
   it('should have pattern-consolidator config', () => {

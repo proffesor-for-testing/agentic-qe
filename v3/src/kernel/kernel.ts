@@ -18,6 +18,9 @@ import { InMemoryEventBus } from './event-bus';
 import { DefaultAgentCoordinator } from './agent-coordinator';
 import { DefaultPluginLoader } from './plugin-loader';
 import { InMemoryBackend } from './memory-backend';
+import { HybridMemoryBackend } from './hybrid-backend';
+import * as path from 'path';
+import * as fs from 'fs';
 
 // Import domain plugin factories
 import { createTestGenerationPlugin } from '../domains/test-generation/plugin';
@@ -53,12 +56,33 @@ const DOMAIN_FACTORIES: Record<DomainName, PluginFactoryFn> = {
   'coordination': (eb, m, c) => createCoordinationPlugin(eb, m, c),
 };
 
+/**
+ * Find the project root by looking for package.json or .git
+ */
+function findProjectRoot(): string {
+  let dir = process.cwd();
+  const root = path.parse(dir).root;
+
+  while (dir !== root) {
+    // Check for project markers
+    if (fs.existsSync(path.join(dir, 'package.json')) ||
+        fs.existsSync(path.join(dir, '.git'))) {
+      return dir;
+    }
+    dir = path.dirname(dir);
+  }
+
+  // Fallback to cwd if no project root found
+  return process.cwd();
+}
+
 const DEFAULT_CONFIG: KernelConfig = {
   maxConcurrentAgents: 15,
   memoryBackend: 'hybrid',
   hnswEnabled: true,
   lazyLoading: true,
   enabledDomains: [...ALL_DOMAINS],
+  dataDir: undefined, // Will use project root + .agentic-qe
 };
 
 export class QEKernelImpl implements QEKernel {
@@ -74,8 +98,34 @@ export class QEKernelImpl implements QEKernel {
     this._config = { ...DEFAULT_CONFIG, ...config };
     this._startTime = new Date();
 
-    // Initialize core components
-    this._memory = new InMemoryBackend();
+    // Determine data directory
+    const projectRoot = findProjectRoot();
+    const dataDir = this._config.dataDir || path.join(projectRoot, '.agentic-qe');
+
+    // Ensure data directory exists
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+
+    // Initialize memory backend based on config
+    if (this._config.memoryBackend === 'memory') {
+      // Use in-memory backend only when explicitly requested (for testing)
+      this._memory = new InMemoryBackend();
+    } else {
+      // Use hybrid backend for persistent storage (default)
+      // All data goes to unified memory.db via UnifiedMemoryManager
+      this._memory = new HybridMemoryBackend({
+        sqlite: {
+          path: path.join(dataDir, 'memory.db'),
+          walMode: true,
+          poolSize: 3,
+          busyTimeout: 5000,
+        },
+        enableFallback: true,
+        defaultNamespace: 'qe-kernel',
+      });
+    }
+
     this._eventBus = new InMemoryEventBus();
     this._coordinator = new DefaultAgentCoordinator(this._config.maxConcurrentAgents);
     this._plugins = new DefaultPluginLoader(
@@ -244,7 +294,18 @@ export class QEKernelImpl implements QEKernel {
     }
 
     const activeCount = this._coordinator.getActiveCount();
-    const memStats = (this._memory as InMemoryBackend).getStats();
+
+    // Get memory stats - handle both backend types
+    let memUsed = 0;
+    let memAvailable = Number.MAX_SAFE_INTEGER;
+    if (this._memory instanceof InMemoryBackend) {
+      const memStats = this._memory.getStats();
+      memUsed = memStats.entries + memStats.vectors;
+    } else {
+      // For HybridMemoryBackend, we don't track in-memory usage
+      // but it has persistent storage
+      memUsed = 0; // Could query DB size if needed
+    }
 
     return {
       status: this.determineOverallStatus(domains),
@@ -256,8 +317,8 @@ export class QEKernelImpl implements QEKernel {
         maxAllowed: this._config.maxConcurrentAgents,
       },
       memory: {
-        used: memStats.entries + memStats.vectors,
-        available: Number.MAX_SAFE_INTEGER, // In-memory has no limit
+        used: memUsed,
+        available: memAvailable,
       },
     };
   }

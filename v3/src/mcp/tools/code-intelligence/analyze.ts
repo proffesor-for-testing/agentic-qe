@@ -9,7 +9,7 @@
  * - ImpactAnalyzerService for change impact analysis
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base';
 import { ToolResult } from '../../types';
 import { KnowledgeGraphService } from '../../../domains/code-intelligence/services/knowledge-graph';
 import { SemanticAnalyzerService } from '../../../domains/code-intelligence/services/semantic-analyzer';
@@ -124,11 +124,11 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
   /**
    * Get or create the knowledge graph service
    */
-  private getKnowledgeGraph(context: MCPToolContext): KnowledgeGraphService {
+  private async getKnowledgeGraph(context: MCPToolContext): Promise<KnowledgeGraphService> {
     if (!this.knowledgeGraph) {
       const memory = (context as any).memory as MemoryBackend | undefined;
       this.knowledgeGraph = new KnowledgeGraphService(
-        memory || createMinimalMemoryBackend()
+        memory || await getSharedMemoryBackend()
       );
     }
     return this.knowledgeGraph;
@@ -137,11 +137,11 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
   /**
    * Get or create the semantic analyzer service
    */
-  private getSemanticAnalyzer(context: MCPToolContext): SemanticAnalyzerService {
+  private async getSemanticAnalyzer(context: MCPToolContext): Promise<SemanticAnalyzerService> {
     if (!this.semanticAnalyzer) {
       const memory = (context as any).memory as MemoryBackend | undefined;
       this.semanticAnalyzer = new SemanticAnalyzerService(
-        memory || createMinimalMemoryBackend()
+        memory || await getSharedMemoryBackend()
       );
     }
     return this.semanticAnalyzer;
@@ -150,12 +150,12 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
   /**
    * Get or create the impact analyzer service
    */
-  private getImpactAnalyzer(context: MCPToolContext): ImpactAnalyzerService {
+  private async getImpactAnalyzer(context: MCPToolContext): Promise<ImpactAnalyzerService> {
     if (!this.impactAnalyzer) {
       const memory = (context as any).memory as MemoryBackend | undefined;
-      const knowledgeGraph = this.getKnowledgeGraph(context);
+      const knowledgeGraph = await this.getKnowledgeGraph(context);
       this.impactAnalyzer = new ImpactAnalyzerService(
-        memory || createMinimalMemoryBackend(),
+        memory || await getSharedMemoryBackend(),
         knowledgeGraph
       );
     }
@@ -231,7 +231,7 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
       message: `Indexing ${paths.length} paths (${incremental ? 'incremental' : 'full'})`,
     });
 
-    const service = this.getKnowledgeGraph(context);
+    const service = await this.getKnowledgeGraph(context);
 
     // Expand paths to actual files
     const files = await this.expandPaths(paths);
@@ -279,7 +279,7 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
       message: `Searching for: ${query}`,
     });
 
-    const service = this.getSemanticAnalyzer(context);
+    const service = await this.getSemanticAnalyzer(context);
 
     // Use real semantic search
     const result = await service.search({
@@ -434,7 +434,7 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
     });
 
     try {
-      const service = this.getImpactAnalyzer(context);
+      const service = await this.getImpactAnalyzer(context);
 
       // Use real impact analysis
       const result = await service.analyzeImpact({
@@ -492,7 +492,7 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
       message: `Mapping dependencies to depth ${depth}`,
     });
 
-    const service = this.getKnowledgeGraph(context);
+    const service = await this.getKnowledgeGraph(context);
 
     // Expand paths to actual files
     const files = await this.expandPaths(paths);
@@ -677,69 +677,3 @@ function extractHighlights(content: string, query: string): string[] {
   return highlights;
 }
 
-/**
- * Create minimal memory backend for standalone operation
- */
-function createMinimalMemoryBackend(): MemoryBackend {
-  const store = new Map<string, { value: unknown; metadata?: unknown }>();
-  const vectors = new Map<string, { embedding: number[]; metadata?: unknown }>();
-
-  return {
-    async initialize(): Promise<void> {
-      // No initialization needed
-    },
-    async dispose(): Promise<void> {
-      store.clear();
-      vectors.clear();
-    },
-    async set(key: string, value: unknown, _options?: unknown): Promise<void> {
-      store.set(key, { value });
-    },
-    async get<T>(key: string): Promise<T | undefined> {
-      const entry = store.get(key);
-      return entry ? (entry.value as T) : undefined;
-    },
-    async delete(key: string): Promise<boolean> {
-      return store.delete(key);
-    },
-    async has(key: string): Promise<boolean> {
-      return store.has(key);
-    },
-    async search(pattern: string, limit?: number): Promise<string[]> {
-      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-      const matches = Array.from(store.keys()).filter((key) => regex.test(key));
-      return limit ? matches.slice(0, limit) : matches;
-    },
-    async vectorSearch(embedding: number[], k: number): Promise<VectorSearchResult[]> {
-      // Simple cosine similarity search
-      const results = Array.from(vectors.entries())
-        .map(([key, data]) => ({
-          key,
-          score: cosineSimilarity(embedding, data.embedding),
-          metadata: data.metadata,
-        }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, k);
-      return results;
-    },
-    async storeVector(key: string, embedding: number[], metadata?: unknown): Promise<void> {
-      vectors.set(key, { embedding, metadata });
-    },
-  };
-}
-
-/**
- * Calculate cosine similarity between two vectors
- */
-function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) return 0;
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
-}

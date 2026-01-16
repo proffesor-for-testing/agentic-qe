@@ -21,6 +21,7 @@ import { ProjectAnalyzer, createProjectAnalyzer } from './project-analyzer.js';
 import { SelfConfigurator, createSelfConfigurator } from './self-configurator.js';
 import { SkillsInstaller, createSkillsInstaller, type SkillsInstallResult } from './skills-installer.js';
 import { AgentsInstaller, createAgentsInstaller, type AgentsInstallResult } from './agents-installer.js';
+import { N8nInstaller, createN8nInstaller, type N8nInstallResult } from './n8n-installer.js';
 
 // ============================================================================
 // Internal Types
@@ -127,6 +128,13 @@ export interface InitOrchestratorOptions {
   pretrainedLibrary?: PretrainedLibrary;
   /** Custom wizard answers */
   wizardAnswers?: Record<string, unknown>;
+  /** Install n8n workflow testing agents and skills */
+  withN8n?: boolean;
+  /** N8n API configuration */
+  n8nApiConfig?: {
+    baseUrl?: string;
+    apiKey?: string;
+  };
 }
 
 export class InitOrchestrator {
@@ -163,7 +171,12 @@ export class InitOrchestrator {
         return this.applyWizardAnswers(analysis);
       });
 
-      // Step 3: Initialize learning system
+      // Step 3: Initialize persistence database (REQUIRED)
+      await this.runStep('Persistence Database Setup', async () => {
+        return await this.initializePersistenceDatabase();
+      });
+
+      // Step 4: Initialize learning system
       const patternsLoaded = await this.runStep('Learning System Setup', async () => {
         if (config.learning.enabled && !this.options.skipPatterns) {
           return await this.initializeLearningSystem(config);
@@ -171,7 +184,7 @@ export class InitOrchestrator {
         return 0;
       });
 
-      // Step 4: Configure hooks
+      // Step 5: Configure hooks
       const hooksConfigured = await this.runStep('Hooks Configuration', async () => {
         if (config.hooks.claudeCode) {
           return await this.configureHooks(config);
@@ -179,17 +192,17 @@ export class InitOrchestrator {
         return false;
       });
 
-      // Step 5: Configure MCP server
+      // Step 6: Configure MCP server
       const mcpConfigured = await this.runStep('MCP Configuration', async () => {
         return await this.configureMCP();
       });
 
-      // Step 6: Generate CLAUDE.md
+      // Step 7: Generate CLAUDE.md
       const claudeMdGenerated = await this.runStep('CLAUDE.md Generation', async () => {
         return await this.generateCLAUDEmd(config);
       });
 
-      // Step 7: Start workers
+      // Step 8: Start workers
       const workersStarted = await this.runStep('Background Workers', async () => {
         if (config.workers.daemonAutoStart) {
           return await this.startWorkers(config);
@@ -197,7 +210,7 @@ export class InitOrchestrator {
         return 0;
       });
 
-      // Step 8: Install skills
+      // Step 9: Install skills
       const skillsInstalled = await this.runStep('Skills Installation', async () => {
         if (config.skills.install) {
           return await this.installSkills(config);
@@ -205,12 +218,23 @@ export class InitOrchestrator {
         return 0;
       });
 
-      // Step 9: Install agents
+      // Step 10: Install agents
       const agentsInstalled = await this.runStep('Agents Installation', async () => {
         return await this.installAgents();
       });
 
-      // Step 10: Write configuration file
+      // Step 11: Install n8n platform (optional)
+      let n8nInstalled: { agents: number; skills: number } | undefined;
+      if (this.options.withN8n) {
+        const n8nResult = await this.runStep('N8n Platform Installation', async () => {
+          return await this.installN8n(config);
+        });
+        if (n8nResult) {
+          n8nInstalled = n8nResult;
+        }
+      }
+
+      // Step 12: Write configuration file
       await this.runStep('Save Configuration', async () => {
         return await this.saveConfig(config);
       });
@@ -229,6 +253,7 @@ export class InitOrchestrator {
           mcpConfigured,
           claudeMdGenerated,
           workersStarted,
+          n8nInstalled,
         },
         totalDurationMs: Date.now() - startTime,
         timestamp: new Date(),
@@ -349,6 +374,89 @@ export class InitOrchestrator {
   }
 
   /**
+   * Initialize the persistence database (REQUIRED)
+   * Creates the SQLite database file with proper schema
+   * This MUST succeed or initialization fails - no fallbacks
+   */
+  private async initializePersistenceDatabase(): Promise<boolean> {
+    // Check that better-sqlite3 is available (use dynamic import for ESM/test compatibility)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let Database: any = null;
+    try {
+      // Use dynamic import for proper mocking in tests
+      const mod = await import('better-sqlite3');
+      Database = mod.default;
+    } catch (error) {
+      throw new Error(
+        'SQLite persistence REQUIRED but better-sqlite3 is not installed.\n' +
+        'Install it with: npm install better-sqlite3\n' +
+        'If you see native compilation errors, ensure build tools are installed:\n' +
+        '  - macOS: xcode-select --install\n' +
+        '  - Ubuntu/Debian: sudo apt-get install build-essential python3\n' +
+        '  - Alpine: apk add build-base python3'
+      );
+    }
+
+    // Create .agentic-qe directory
+    const dataDir = join(this.projectRoot, '.agentic-qe');
+    if (!existsSync(dataDir)) {
+      mkdirSync(dataDir, { recursive: true });
+    }
+
+    // Create database file
+    const dbPath = join(dataDir, 'memory.db');
+
+    try {
+      const db = new Database!(dbPath);
+
+      // Configure for performance
+      db.pragma('journal_mode = WAL');
+      db.pragma('busy_timeout = 5000');
+
+      // Create the kv_store table schema
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS kv_store (
+          key TEXT NOT NULL,
+          namespace TEXT NOT NULL,
+          value TEXT NOT NULL,
+          expires_at INTEGER,
+          created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+          PRIMARY KEY (namespace, key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_kv_namespace ON kv_store(namespace);
+        CREATE INDEX IF NOT EXISTS idx_kv_expires ON kv_store(expires_at) WHERE expires_at IS NOT NULL;
+      `);
+
+      // Verify the table exists
+      const tableCheck = db.prepare(`
+        SELECT name FROM sqlite_master WHERE type='table' AND name='kv_store'
+      `).get();
+
+      if (!tableCheck) {
+        throw new Error('Failed to create kv_store table');
+      }
+
+      // Write a test entry to verify write access
+      const stmt = db.prepare(`
+        INSERT OR REPLACE INTO kv_store (key, namespace, value)
+        VALUES (?, ?, ?)
+      `);
+      stmt.run('_init_test', '_system', JSON.stringify({ initialized: new Date().toISOString() }));
+
+      db.close();
+
+      console.log(`✓ SQLite persistence initialized: ${dbPath}`);
+      return true;
+    } catch (error) {
+      throw new Error(
+        `SQLite persistence initialization FAILED: ${error}\n` +
+        `Database path: ${dbPath}\n` +
+        'Ensure the directory is writable and has sufficient disk space.'
+      );
+    }
+  }
+
+  /**
    * Initialize the learning system
    * Creates database, initializes HNSW index, loads pre-trained patterns
    */
@@ -434,6 +542,7 @@ export class InitOrchestrator {
   /**
    * Configure Claude Code hooks
    * Creates or updates .claude/settings.json with AQE hooks
+   * Uses Claude Code's actual environment variables ($TOOL_INPUT_*, $TOOL_SUCCESS, etc.)
    */
   private async configureHooks(config: AQEInitConfig): Promise<boolean> {
     if (!config.hooks.claudeCode) {
@@ -460,25 +569,40 @@ export class InitOrchestrator {
       }
     }
 
-    // Configure hooks based on config
+    // Configure hooks with Claude Code's actual environment variables
     const hooks: Record<string, unknown> = {
       // Pre-tool hooks for learning
       PreToolUse: [
         {
-          matcher: 'Edit|Write|MultiEdit',
+          matcher: '^(Write|Edit|MultiEdit)$',
           hooks: [
             {
               type: 'command',
-              command: `npx @claude-flow/cli@latest hooks pre-edit --file "$AQE_FILE"`,
+              command: '[ -n "$TOOL_INPUT_file_path" ] && npx @agentic-qe/v3 hooks pre-edit --file "$TOOL_INPUT_file_path" 2>/dev/null || true',
+              timeout: 5000,
+              continueOnError: true,
             },
           ],
         },
         {
-          matcher: 'Bash',
+          matcher: '^Bash$',
           hooks: [
             {
               type: 'command',
-              command: `npx @claude-flow/cli@latest hooks pre-command --command "$AQE_COMMAND"`,
+              command: '[ -n "$TOOL_INPUT_command" ] && npx @agentic-qe/v3 hooks pre-command --command "$TOOL_INPUT_command" 2>/dev/null || true',
+              timeout: 5000,
+              continueOnError: true,
+            },
+          ],
+        },
+        {
+          matcher: '^Task$',
+          hooks: [
+            {
+              type: 'command',
+              command: '[ -n "$TOOL_INPUT_prompt" ] && npx @agentic-qe/v3 hooks pre-task --task-id "task-$(date +%s)" --description "$TOOL_INPUT_prompt" 2>/dev/null || true',
+              timeout: 5000,
+              continueOnError: true,
             },
           ],
         },
@@ -487,55 +611,109 @@ export class InitOrchestrator {
       // Post-tool hooks for learning
       PostToolUse: [
         {
-          matcher: 'Edit|Write|MultiEdit',
+          matcher: '^(Write|Edit|MultiEdit)$',
           hooks: [
             {
               type: 'command',
-              command: `npx @claude-flow/cli@latest hooks post-edit --file "$AQE_FILE" --success "$AQE_SUCCESS"`,
+              command: '[ -n "$TOOL_INPUT_file_path" ] && npx @agentic-qe/v3 hooks post-edit --file "$TOOL_INPUT_file_path" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
+              timeout: 5000,
+              continueOnError: true,
             },
           ],
         },
         {
-          matcher: 'Bash',
+          matcher: '^Bash$',
           hooks: [
             {
               type: 'command',
-              command: `npx @claude-flow/cli@latest hooks post-command --command "$AQE_COMMAND" --exit-code "$AQE_EXIT_CODE"`,
+              command: '[ -n "$TOOL_INPUT_command" ] && npx @agentic-qe/v3 hooks post-command --command "$TOOL_INPUT_command" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
+              timeout: 5000,
+              continueOnError: true,
+            },
+          ],
+        },
+        {
+          matcher: '^Task$',
+          hooks: [
+            {
+              type: 'command',
+              command: '[ -n "$TOOL_RESULT_agent_id" ] && npx @agentic-qe/v3 hooks post-task --task-id "$TOOL_RESULT_agent_id" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
+              timeout: 5000,
+              continueOnError: true,
             },
           ],
         },
       ],
 
-      // Session hooks (new format with matcher)
+      // User prompt routing hook
+      UserPromptSubmit: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '[ -n "$PROMPT" ] && npx @agentic-qe/v3 hooks route --task "$PROMPT" 2>/dev/null || true',
+              timeout: 5000,
+              continueOnError: true,
+            },
+          ],
+        },
+      ],
+
+      // Session hooks
       SessionStart: [
         {
-          matcher: {},
           hooks: [
             {
               type: 'command',
-              command: `npx @claude-flow/cli@latest hooks session-start`,
+              command: '[ -n "$SESSION_ID" ] && npx @agentic-qe/v3 hooks session-start --session-id "$SESSION_ID" 2>/dev/null || true',
+              timeout: 10000,
+              continueOnError: true,
             },
           ],
         },
       ],
 
-      SessionEnd: [
+      Stop: [
         {
-          matcher: {},
           hooks: [
             {
               type: 'command',
-              command: `npx @claude-flow/cli@latest hooks session-end --save-state`,
+              command: 'npx @agentic-qe/v3 hooks session-end --save-state 2>/dev/null || true',
+              timeout: 5000,
+              continueOnError: true,
             },
           ],
         },
       ],
     };
 
-    // Merge with existing settings
-    settings.hooks = {
-      ...(settings.hooks as Record<string, unknown> || {}),
-      ...hooks,
+    // Merge with existing settings (preserve existing hooks, add AQE hooks)
+    const existingHooks = settings.hooks as Record<string, unknown[]> || {};
+    const mergedHooks: Record<string, unknown[]> = {};
+
+    // For each hook type, merge arrays
+    for (const [hookType, hookArray] of Object.entries(hooks)) {
+      const existing = existingHooks[hookType] || [];
+      // Add AQE hooks after existing ones
+      mergedHooks[hookType] = [...existing, ...(hookArray as unknown[])];
+    }
+
+    // Preserve any hooks not in our list
+    for (const [hookType, hookArray] of Object.entries(existingHooks)) {
+      if (!mergedHooks[hookType]) {
+        mergedHooks[hookType] = hookArray;
+      }
+    }
+
+    settings.hooks = mergedHooks;
+
+    // Add AQE environment variables
+    const existingEnv = settings.env as Record<string, string> || {};
+    settings.env = {
+      ...existingEnv,
+      AQE_MEMORY_PATH: '.agentic-qe/memory.db',
+      AQE_V3_MODE: 'true',
+      AQE_LEARNING_ENABLED: config.learning.enabled ? 'true' : 'false',
     };
 
     // Add AQE metadata
@@ -544,6 +722,12 @@ export class InitOrchestrator {
       initialized: new Date().toISOString(),
       hooksConfigured: true,
     };
+
+    // Add MCP server enablement
+    const existingMcp = settings.enabledMcpjsonServers as string[] || [];
+    if (!existingMcp.includes('aqe')) {
+      settings.enabledMcpjsonServers = [...existingMcp, 'aqe'];
+    }
 
     // Write settings
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
@@ -580,11 +764,11 @@ export class InitOrchestrator {
       mcpConfig.mcpServers = {};
     }
 
-    // Add AQE v3 MCP server configuration
-    // Uses the globally installed aqe-v3-mcp binary (npm install -g @agentic-qe/v3)
+    // Add AQE MCP server configuration
+    // Uses the globally installed aqe-mcp binary (npm install -g @agentic-qe/v3)
     const servers = mcpConfig.mcpServers as Record<string, unknown>;
-    servers['aqe-v3'] = {
-      command: 'aqe-v3-mcp',
+    servers['aqe'] = {
+      command: 'aqe-mcp',
       args: [],
       env: {
         AQE_PROJECT_ROOT: this.projectRoot,
@@ -635,6 +819,7 @@ export class InitOrchestrator {
 
   /**
    * Generate CLAUDE.md content
+   * Comprehensive AQE instructions for Claude Code integration
    */
   private generateCLAUDEmdContent(config: AQEInitConfig): string {
     const enabledDomains = config.domains.enabled.slice(0, 6).join(', ');
@@ -644,20 +829,143 @@ export class InitOrchestrator {
 
 This project uses **Agentic QE v3** - a Domain-Driven Quality Engineering platform with 12 bounded contexts, ReasoningBank learning, and HNSW vector search.
 
-### Quick Reference
+---
+
+## 🐝 AQE FLEET ORCHESTRATION
+
+### Fleet Initialization
+
+**For QE-specific tasks, initialize the AQE fleet:**
+
+\`\`\`javascript
+// Initialize AQE Fleet with MCP tool
+mcp__agentic-qe__mcp__agentic_qe__fleet_init({
+  config: {
+    topology: "hierarchical",  // Queen-led for QE coordination
+    maxAgents: 15,
+    testingFocus: ["unit", "integration", "e2e", "performance"],
+    frameworks: ["vitest", "jest", "playwright"],
+    environments: ["node", "browser"]
+  },
+  projectContext: {
+    language: "typescript",
+    buildSystem: "npm"
+  }
+})
+\`\`\`
+
+### 12 DDD Domains → Agent Mapping
+
+| Domain | Primary Agents | Focus Area |
+|--------|---------------|------------|
+| \`test-generation\` | qe-test-architect, qe-tdd-specialist | AI-powered test creation |
+| \`test-execution\` | qe-parallel-executor, qe-flaky-hunter, qe-retry-handler | Parallel execution, flaky detection |
+| \`coverage-analysis\` | qe-coverage-specialist, qe-gap-detector | O(log n) sublinear coverage |
+| \`quality-assessment\` | qe-quality-gate, qe-deployment-advisor | Quality gates, risk scoring |
+| \`defect-intelligence\` | qe-defect-predictor, qe-root-cause-analyzer | ML-powered defect prediction |
+| \`learning-optimization\` | qe-learning-coordinator, qe-pattern-learner | Cross-domain pattern learning |
+| \`requirements-validation\` | qe-tdd-specialist, qe-property-tester | BDD scenarios, property tests |
+| \`code-intelligence\` | qe-knowledge-manager, code-analyzer | Knowledge graphs, 80% token reduction |
+| \`security-compliance\` | qe-security-scanner, qe-security-auditor | OWASP, CVE detection |
+| \`contract-testing\` | qe-contract-validator, qe-api-tester | Pact, schema validation |
+| \`visual-accessibility\` | qe-visual-tester, qe-a11y-validator | Visual regression, WCAG |
+| \`chaos-resilience\` | qe-chaos-engineer, qe-performance-tester | Fault injection, load testing |
+
+### Fleet MCP Tools
+
+\`\`\`javascript
+// Spawn specialized QE agent
+mcp__agentic-qe__mcp__agentic_qe__agent_spawn({
+  spec: {
+    type: "test-generator",  // or: coverage-analyzer, quality-gate, performance-tester, security-scanner, chaos-engineer, visual-tester
+    capabilities: ["unit-tests", "integration-tests"],
+    name: "test-gen-1"
+  },
+  fleetId: "fleet-123"  // From fleet_init
+})
+
+// AI-enhanced test generation
+mcp__agentic-qe__mcp__agentic_qe__test_generate_enhanced({
+  sourceCode: "...",
+  language: "typescript",
+  testType: "unit",  // unit, integration, e2e, property-based, mutation
+  coverageGoal: 90,
+  aiEnhancement: true,
+  detectAntiPatterns: true
+})
+
+// Parallel test execution with retry
+mcp__agentic-qe__mcp__agentic_qe__test_execute_parallel({
+  testFiles: ["tests/**/*.test.ts"],
+  parallelism: 4,
+  retryFailures: true,
+  maxRetries: 3,
+  collectCoverage: true
+})
+
+// Orchestrate QE task across fleet
+mcp__agentic-qe__mcp__agentic_qe__task_orchestrate({
+  task: {
+    type: "comprehensive-testing",  // or: quality-gate, defect-prevention, performance-validation
+    priority: "high",
+    strategy: "adaptive",
+    maxAgents: 5
+  },
+  context: {
+    project: "my-project",
+    environment: "test"
+  },
+  fleetId: "fleet-123"
+})
+\`\`\`
+
+### QE Memory Operations
+
+\`\`\`javascript
+// Store QE pattern with namespace
+mcp__agentic-qe__mcp__agentic_qe__memory_store({
+  key: "coverage-pattern-auth",
+  value: { pattern: "...", successRate: 0.95 },
+  namespace: "qe-patterns",
+  ttl: 86400,  // 24 hours
+  persist: true
+})
+
+// Query memory with pattern matching
+mcp__agentic-qe__mcp__agentic_qe__memory_query({
+  pattern: "coverage-*",
+  namespace: "qe-patterns",
+  limit: 10
+})
+\`\`\`
+
+### QE Task Routing by Domain
+
+| Task Type | MCP Tool | Agents Spawned |
+|-----------|----------|----------------|
+| Generate tests | \`test_generate_enhanced\` | qe-test-architect, qe-tdd-specialist |
+| Run tests | \`test_execute_parallel\` | qe-parallel-executor, qe-retry-handler |
+| Analyze coverage | \`task_orchestrate\` (coverage) | qe-coverage-specialist, qe-gap-detector |
+| Quality gate | \`task_orchestrate\` (quality-gate) | qe-quality-gate, qe-deployment-advisor |
+| Security scan | \`agent_spawn\` (security-scanner) | qe-security-scanner, qe-security-auditor |
+| Chaos test | \`agent_spawn\` (chaos-engineer) | qe-chaos-engineer, qe-load-tester |
+
+---
+
+## Quick Reference
 
 \`\`\`bash
 # Run tests
 npm test -- --run
 
 # Check quality
-npx @agentic-qe/v3 quality assess
+aqe quality assess
 
 # Generate tests
-npx @agentic-qe/v3 test generate <file>
+aqe test generate <file>
 
 # Coverage analysis
-npx @agentic-qe/v3 coverage <path>
+aqe coverage <path>
 \`\`\`
 
 ### MCP Server
@@ -666,29 +974,16 @@ The AQE v3 MCP server is configured in \`.claude/mcp.json\`. Available tools:
 
 | Tool | Description |
 |------|-------------|
-| \`fleet_init\` | Initialize QE fleet |
-| \`task_submit\` | Submit QE tasks |
+| \`fleet_init\` | Initialize QE fleet with topology |
+| \`agent_spawn\` | Spawn specialized QE agent |
 | \`test_generate_enhanced\` | AI-powered test generation |
+| \`test_execute_parallel\` | Parallel test execution with retry |
+| \`task_orchestrate\` | Orchestrate multi-agent QE tasks |
 | \`coverage_analyze_sublinear\` | O(log n) coverage analysis |
 | \`quality_assess\` | Quality gate evaluation |
+| \`memory_store\` / \`memory_query\` | Pattern storage with namespacing |
 | \`security_scan_comprehensive\` | SAST/DAST scanning |
-
-### 12 DDD Bounded Contexts
-
-| Domain | Purpose |
-|--------|---------|
-| test-generation | AI-powered test creation |
-| test-execution | Parallel execution with retry |
-| coverage-analysis | Sublinear gap detection |
-| quality-assessment | Quality gates |
-| defect-intelligence | Defect prediction |
-| requirements-validation | BDD scenarios |
-| code-intelligence | Knowledge graph |
-| security-compliance | SAST/DAST |
-| contract-testing | API contracts |
-| visual-accessibility | Visual regression |
-| chaos-resilience | Chaos engineering |
-| learning-optimization | Cross-domain learning |
+| \`fleet_status\` | Get fleet and agent status |
 
 ### Configuration
 
@@ -701,17 +996,42 @@ The AQE v3 MCP server is configured in \`.claude/mcp.json\`. Available tools:
 
 V3 QE agents are installed in \`.claude/agents/v3/\`. Use with Claude Code's Task tool:
 
-\`\`\`
-# Example: Generate tests
-Task("Generate unit tests", "v3-qe-test-generator")
+\`\`\`javascript
+// Example: Generate tests
+Task({ prompt: "Generate unit tests for auth module", subagent_type: "qe-test-architect", run_in_background: true })
 
-# Example: Analyze coverage
-Task("Find coverage gaps", "v3-qe-coverage-specialist")
+// Example: Analyze coverage
+Task({ prompt: "Find coverage gaps in src/", subagent_type: "qe-coverage-specialist", run_in_background: true })
+
+// Example: Security scan
+Task({ prompt: "Run security audit", subagent_type: "qe-security-scanner", run_in_background: true })
+\`\`\`
+
+### Integration with Claude Flow
+
+**AQE Fleet + Claude Flow work together:**
+
+\`\`\`javascript
+// STEP 1: Initialize Claude Flow swarm for coordination
+Bash("npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 15")
+
+// STEP 2: Initialize AQE Fleet for QE-specific work
+mcp__agentic-qe__mcp__agentic_qe__fleet_init({
+  config: { topology: "hierarchical", maxAgents: 10, testingFocus: ["unit", "integration"] }
+})
+
+// STEP 3: Spawn agents via Claude Code Task tool (do the actual work)
+Task({ prompt: "Generate tests for auth module", subagent_type: "qe-test-architect", run_in_background: true })
+Task({ prompt: "Analyze coverage gaps", subagent_type: "qe-coverage-specialist", run_in_background: true })
+
+// STEP 4: Store learnings in both systems
+mcp__agentic-qe__mcp__agentic_qe__memory_store({ key: "pattern-1", value: "...", namespace: "qe-patterns", persist: true })
+Bash("npx @claude-flow/cli@latest memory store --key 'qe-pattern-1' --value '...' --namespace patterns")
 \`\`\`
 
 ### Data Storage
 
-- **Memory Backend**: \`.agentic-qe/data/memory.db\` (SQLite)
+- **Memory Backend**: \`.agentic-qe/memory.db\` (SQLite)
 - **Pattern Storage**: \`.agentic-qe/data/qe-patterns.db\` (ReasoningBank)
 - **HNSW Index**: \`.agentic-qe/data/hnsw/index.bin\`
 - **Configuration**: \`.agentic-qe/config.yaml\`
@@ -722,20 +1042,21 @@ Task("Find coverage gaps", "v3-qe-coverage-specialist")
 2. **Coverage Targets**: Aim for 80%+ coverage on critical paths
 3. **Quality Gates**: Run \`quality_assess\` before merging PRs
 4. **Pattern Learning**: AQE learns from successful test patterns - consistent naming helps
+5. **Fleet Coordination**: Use \`fleet_init\` before spawning multiple QE agents
+6. **Memory Persistence**: Use \`persist: true\` for patterns you want to keep across sessions
 
 ### Troubleshooting
 
 If MCP tools aren't working:
 \`\`\`bash
-# Verify MCP server is installed globally
-npm install -g @agentic-qe/v3
-aqe-v3-mcp --help
-
-# Check configuration
+# Verify MCP server is configured
 cat .claude/mcp.json
 
+# Check fleet status
+mcp__agentic-qe__mcp__agentic_qe__fleet_status({ includeAgentDetails: true })
+
 # Reinitialize if needed
-aqe-v3 init --auto
+aqe init --auto
 \`\`\`
 
 ---
@@ -823,10 +1144,11 @@ if [ -f "$PID_FILE" ]; then
   fi
 fi
 
-# Start daemon
-npx @claude-flow/cli@latest daemon start --project "$PROJECT_ROOT" &
-echo $! > "$PID_FILE"
-echo "Daemon started (PID: $!)"
+# Start daemon (AQE v3 native - no claude-flow dependency)
+# TODO: Implement aqe daemon command for background workers
+# For now, hooks work via CLI without daemon
+echo "AQE v3 hooks work via CLI commands (no daemon required)"
+echo "Use: npx aqe hooks session-start"
 `;
     writeFileSync(daemonScriptPath, daemonScript, { mode: 0o755 });
 
@@ -880,6 +1202,44 @@ echo "Daemon started (PID: $!)"
     }
 
     return result.installed.length;
+  }
+
+  /**
+   * Install n8n platform agents and skills
+   * Copies n8n v2 agents from .claude/agents/n8n/ to project
+   */
+  private async installN8n(config: AQEInitConfig): Promise<{ agents: number; skills: number }> {
+    const installer = createN8nInstaller({
+      projectRoot: this.projectRoot,
+      installAgents: true,
+      installSkills: true,
+      overwrite: false,
+      n8nApiConfig: this.options.n8nApiConfig,
+    });
+
+    const result = await installer.install();
+
+    // Log any errors
+    if (result.errors.length > 0) {
+      console.warn('N8n installation warnings:', result.errors);
+    }
+
+    // Update config with n8n platform settings
+    if (!config.platforms) {
+      config.platforms = {};
+    }
+    config.platforms.n8n = {
+      enabled: true,
+      installAgents: true,
+      installSkills: true,
+      installTypeScriptAgents: false,
+      n8nApiConfig: this.options.n8nApiConfig,
+    };
+
+    return {
+      agents: result.agentsInstalled.length,
+      skills: result.skillsInstalled.length,
+    };
   }
 
   /**

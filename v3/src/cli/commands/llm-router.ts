@@ -3,12 +3,12 @@
  * ADR-043: Vendor-Independent LLM Support - Milestone 10
  *
  * Provides CLI access to LLM router management:
- * - aqe-v3 llm providers - List all available providers and their status
- * - aqe-v3 llm models [--provider <name>] - List available models
- * - aqe-v3 llm route <task-description> - Test routing decision for a task
- * - aqe-v3 llm config [--set key=value] - Get/set router configuration
- * - aqe-v3 llm health - Check provider health status
- * - aqe-v3 llm cost <model> [--tokens <count>] - Estimate cost
+ * - aqe llm providers - List all available providers and their status
+ * - aqe llm models [--provider <name>] - List available models
+ * - aqe llm route <task-description> - Test routing decision for a task
+ * - aqe llm config [--set key=value] - Get/set router configuration
+ * - aqe llm health - Check provider health status
+ * - aqe llm cost <model> [--tokens <count>] - Estimate cost
  */
 
 import { Command } from 'commander';
@@ -78,12 +78,12 @@ export function createLLMRouterCommand(): Command {
     .description('LLM Router management (ADR-043)')
     .addHelpText('after', `
 Examples:
-  $ aqe-v3 llm providers              List available providers
-  $ aqe-v3 llm models --provider claude   List Claude models
-  $ aqe-v3 llm route "security audit"     Test routing for a task
-  $ aqe-v3 llm config --set mode=cost-optimized
-  $ aqe-v3 llm health                 Check provider health
-  $ aqe-v3 llm cost claude-sonnet-4 --tokens 10000
+  $ aqe llm providers              List available providers
+  $ aqe llm models --provider claude   List Claude models
+  $ aqe llm route "security audit"     Test routing for a task
+  $ aqe llm config --set mode=cost-optimized
+  $ aqe llm health                 Check provider health
+  $ aqe llm cost claude-sonnet-4 --tokens 10000
 `);
 
   // llm providers
@@ -388,7 +388,7 @@ async function executeCost(model: string, options: CostOptions): Promise<void> {
   const modelInfo = findModel(model);
   if (!modelInfo) {
     console.error(chalk.red(`Model not found: ${model}`));
-    console.log(chalk.gray('Use `aqe-v3 llm models` to list available models.'));
+    console.log(chalk.gray('Use `aqe llm models` to list available models.'));
     process.exit(1);
     return; // Ensure we don't continue if process.exit is mocked
   }

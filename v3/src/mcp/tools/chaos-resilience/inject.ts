@@ -8,7 +8,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base.js';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base.js';
 import { ToolResult } from '../../types.js';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
 import { ChaosEngineerService } from '../../../domains/chaos-resilience/services/chaos-engineer.js';
@@ -77,64 +77,6 @@ export interface Incident {
 }
 
 // ============================================================================
-// Minimal Memory Backend for Standalone Operation
-// ============================================================================
-
-function createMinimalMemoryBackend(): MemoryBackend {
-  const store = new Map<string, { value: unknown; ttl?: number; created: number }>();
-
-  return {
-    async initialize(): Promise<void> {
-      // Minimal implementation - no initialization needed
-    },
-    async dispose(): Promise<void> {
-      store.clear();
-    },
-    async get<T>(key: string): Promise<T | undefined> {
-      const entry = store.get(key);
-      if (!entry) return undefined;
-      if (entry.ttl && Date.now() - entry.created > entry.ttl * 1000) {
-        store.delete(key);
-        return undefined;
-      }
-      return entry.value as T;
-    },
-    async set(key: string, value: unknown, options?: { ttl?: number }): Promise<void> {
-      store.set(key, { value, ttl: options?.ttl, created: Date.now() });
-    },
-    async delete(key: string): Promise<boolean> {
-      return store.delete(key);
-    },
-    async has(key: string): Promise<boolean> {
-      const entry = store.get(key);
-      if (!entry) return false;
-      if (entry.ttl && Date.now() - entry.created > entry.ttl * 1000) {
-        store.delete(key);
-        return false;
-      }
-      return true;
-    },
-    async search(pattern: string, limit = 100): Promise<string[]> {
-      const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-      const matches: string[] = [];
-      for (const key of store.keys()) {
-        if (regex.test(key)) {
-          matches.push(key);
-          if (matches.length >= limit) break;
-        }
-      }
-      return matches;
-    },
-    async vectorSearch(_embedding: number[], _k = 10): Promise<VectorSearchResult[]> {
-      return [];
-    },
-    async storeVector(_key: string, _embedding: number[], _metadata?: Record<string, unknown>): Promise<void> {
-      // Minimal implementation
-    },
-  };
-}
-
-// ============================================================================
 // Tool Implementation
 // ============================================================================
 
@@ -150,9 +92,9 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
 
   private chaosEngineer: ChaosEngineerService | null = null;
 
-  private getService(context: MCPToolContext): ChaosEngineerService {
+  private async getService(context: MCPToolContext): Promise<ChaosEngineerService> {
     if (!this.chaosEngineer) {
-      const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || createMinimalMemoryBackend();
+      const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || await getSharedMemoryBackend();
       this.chaosEngineer = new ChaosEngineerService(memory, {
         enableDryRun: true,
         autoRollbackOnFailure: true,
@@ -175,7 +117,7 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
       rollbackOnFailure = true,
     } = params;
 
-    const chaosEngineer = this.getService(context);
+    const chaosEngineer = await this.getService(context);
 
     try {
       this.emitStream(context, {

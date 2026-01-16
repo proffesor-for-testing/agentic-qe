@@ -9,7 +9,7 @@
  * - TransferSpecialistService for knowledge transfer
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base.js';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base.js';
 import { ToolResult } from '../../types.js';
 import { DomainName, AgentId } from '../../../shared/types/index.js';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
@@ -130,64 +130,6 @@ export interface Milestone {
 }
 
 // ============================================================================
-// Minimal Memory Backend for Standalone Operation
-// ============================================================================
-
-function createMinimalMemoryBackend(): MemoryBackend {
-  const store = new Map<string, { value: unknown; ttl?: number; created: number }>();
-
-  return {
-    async initialize(): Promise<void> {
-      // No initialization needed
-    },
-    async dispose(): Promise<void> {
-      store.clear();
-    },
-    async get<T>(key: string): Promise<T | undefined> {
-      const entry = store.get(key);
-      if (!entry) return undefined;
-      if (entry.ttl && Date.now() - entry.created > entry.ttl * 1000) {
-        store.delete(key);
-        return undefined;
-      }
-      return entry.value as T;
-    },
-    async set(key: string, value: unknown, options?: { ttl?: number }): Promise<void> {
-      store.set(key, { value, ttl: options?.ttl, created: Date.now() });
-    },
-    async delete(key: string): Promise<boolean> {
-      return store.delete(key);
-    },
-    async has(key: string): Promise<boolean> {
-      const entry = store.get(key);
-      if (!entry) return false;
-      if (entry.ttl && Date.now() - entry.created > entry.ttl * 1000) {
-        store.delete(key);
-        return false;
-      }
-      return true;
-    },
-    async search(pattern: string, limit = 100): Promise<string[]> {
-      const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-      const matches: string[] = [];
-      for (const key of store.keys()) {
-        if (regex.test(key)) {
-          matches.push(key);
-          if (matches.length >= limit) break;
-        }
-      }
-      return matches;
-    },
-    async vectorSearch(_embedding: number[], _limit = 10): Promise<VectorSearchResult[]> {
-      return [];
-    },
-    async storeVector(_key: string, _embedding: number[], _metadata?: Record<string, unknown>): Promise<void> {
-      // Minimal implementation - no vector storage
-    },
-  };
-}
-
-// ============================================================================
 // Tool Implementation
 // ============================================================================
 
@@ -205,13 +147,13 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
   private metricsOptimizer: MetricsOptimizerService | null = null;
   private transferSpecialist: TransferSpecialistService | null = null;
 
-  private getServices(context: MCPToolContext): {
+  private async getServices(context: MCPToolContext): Promise<{
     learningCoordinator: LearningCoordinatorService;
     metricsOptimizer: MetricsOptimizerService;
     transferSpecialist: TransferSpecialistService;
-  } {
+  }> {
     if (!this.learningCoordinator || !this.metricsOptimizer || !this.transferSpecialist) {
-      const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || createMinimalMemoryBackend();
+      const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || await getSharedMemoryBackend();
       this.learningCoordinator = new LearningCoordinatorService(memory);
       this.metricsOptimizer = new MetricsOptimizerService(memory);
       this.transferSpecialist = new TransferSpecialistService(memory);
@@ -295,7 +237,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       return this.getDemoLearnResult(targetDomain);
     }
 
-    const { learningCoordinator } = this.getServices(context);
+    const { learningCoordinator } = await this.getServices(context);
 
     this.emitStream(context, {
       status: 'learning',
@@ -406,7 +348,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     objective: OptimizationObjective,
     context: MCPToolContext
   ): Promise<OptimizeResult> {
-    const { learningCoordinator, metricsOptimizer } = this.getServices(context);
+    const { learningCoordinator, metricsOptimizer } = await this.getServices(context);
 
     this.emitStream(context, {
       status: 'optimizing',
@@ -517,7 +459,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     targetDomain: DomainName,
     context: MCPToolContext
   ): Promise<TransferResult> {
-    const { transferSpecialist } = this.getServices(context);
+    const { transferSpecialist } = await this.getServices(context);
 
     this.emitStream(context, {
       status: 'transferring',
@@ -575,7 +517,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     domain: DomainName | undefined,
     context: MCPToolContext
   ): Promise<PatternResult> {
-    const { learningCoordinator } = this.getServices(context);
+    const { learningCoordinator } = await this.getServices(context);
 
     this.emitStream(context, {
       status: 'analyzing',
@@ -621,7 +563,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
   }
 
   private async executeDashboard(context: MCPToolContext): Promise<DashboardResult> {
-    const { learningCoordinator, transferSpecialist } = this.getServices(context);
+    const { learningCoordinator, transferSpecialist } = await this.getServices(context);
 
     this.emitStream(context, {
       status: 'aggregating',

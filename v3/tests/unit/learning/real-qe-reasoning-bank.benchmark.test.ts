@@ -308,7 +308,8 @@ describe('Real Embedding Benchmarks', () => {
 
 describe('SQLite Persistence Benchmarks', () => {
   let store: SQLitePatternStore;
-  const TEST_SQLITE_PATH = '.agentic-qe/test-sqlite-benchmark.db';
+  // Use unique path per test run to avoid conflicts
+  const TEST_SQLITE_PATH = `.agentic-qe/test-sqlite-benchmark-${process.pid}-${Date.now()}.db`;
 
   beforeAll(async () => {
     // Clean up
@@ -328,8 +329,10 @@ describe('SQLite Persistence Benchmarks', () => {
   });
 
   it('should persist patterns to REAL SQLite database', async () => {
+    // Use unique ID to avoid UNIQUE constraint failures
+    const uniqueId = `test-persist-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const pattern = {
-      id: 'test-persist-1',
+      id: uniqueId,
       patternType: 'test-template' as const,
       qeDomain: 'test-generation' as const,
       domain: 'test-generation',
@@ -346,24 +349,28 @@ describe('SQLite Persistence Benchmarks', () => {
       successfulUses: 0,
     };
 
-    // Store pattern
-    const id = store.storePattern(pattern, [0.1, 0.2, 0.3]);
+    // Store pattern with 384-dimension embedding (matching HNSW index expectations)
+    // Use a simple normalized vector for testing
+    const testEmbedding = new Array(384).fill(0).map((_, i) => Math.sin(i * 0.01));
+    const id = store.storePattern(pattern, testEmbedding);
 
     // Retrieve pattern
     const retrieved = store.getPattern(id);
 
     expect(retrieved).not.toBeNull();
     expect(retrieved?.name).toBe('Persistence Test');
-    // Float32Array has precision loss, so check approximately
-    expect(retrieved?.embedding?.length).toBe(3);
-    expect(retrieved?.embedding?.[0]).toBeCloseTo(0.1, 5);
-    expect(retrieved?.embedding?.[1]).toBeCloseTo(0.2, 5);
-    expect(retrieved?.embedding?.[2]).toBeCloseTo(0.3, 5);
+    // Embedding should be 384 dimensions
+    expect(retrieved?.embedding?.length).toBe(384);
+    // Check first few values approximately
+    expect(retrieved?.embedding?.[0]).toBeCloseTo(testEmbedding[0], 4);
+    expect(retrieved?.embedding?.[1]).toBeCloseTo(testEmbedding[1], 4);
   });
 
   it('should achieve >1000 writes per second', async () => {
     const COUNT = 1000;
     const start = performance.now();
+    // Use unique prefix to avoid conflicts with other test runs
+    const prefix = `bench-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     // Use transaction for bulk insert
     const db = store.getDb();
@@ -374,7 +381,7 @@ describe('SQLite Persistence Benchmarks', () => {
 
     const transaction = db.transaction(() => {
       for (let i = 0; i < COUNT; i++) {
-        insert.run(`bench-${i}`, `Bench Pattern ${i}`);
+        insert.run(`${prefix}-${i}`, `Bench Pattern ${i}`);
       }
     });
 

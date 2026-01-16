@@ -9,6 +9,9 @@ import { QEKernelImpl } from '../../kernel/kernel';
 import { ALL_DOMAINS, DomainName } from '../../shared/types';
 import { QueenCoordinator, createQueenCoordinator } from '../../coordination/queen-coordinator';
 import { CrossDomainEventRouter } from '../../coordination/cross-domain-router';
+import { resetServiceCaches } from '../../coordination/task-executor';
+import { resetTaskExecutor } from './domain-handlers';
+import { resetAllToolCaches } from '../tools/registry';
 import { DefaultProtocolExecutor } from '../../coordination/protocol-executor';
 import {
   ToolResult,
@@ -299,6 +302,11 @@ export async function handleFleetHealth(
 // ============================================================================
 
 export async function disposeFleet(): Promise<void> {
+  // Reset all cached services and tool instances to prevent stale memory backend references
+  resetServiceCaches();
+  resetTaskExecutor();
+  resetAllToolCaches();
+
   if (state.queen) {
     await state.queen.dispose();
     state.queen = null;

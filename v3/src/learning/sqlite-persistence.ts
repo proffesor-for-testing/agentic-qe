@@ -1,6 +1,7 @@
 /**
  * SQLite Persistence Layer for QE ReasoningBank
  * ADR-021: QE ReasoningBank for Pattern Learning
+ * ADR-046: Unified Persistence (uses UnifiedMemoryManager when available)
  *
  * Uses better-sqlite3 for real, performant SQLite persistence.
  * Features:
@@ -8,38 +9,50 @@
  * - Prepared statements for performance
  * - BLOB storage for embeddings
  * - JSON storage for pattern data
+ * - Unified storage via UnifiedMemoryManager (ADR-046)
  */
 
 import Database, { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
 /**
  * SQLite persistence configuration
  */
 export interface SQLitePersistenceConfig {
-  /** Database file path */
+  /** Database file path (ignored when useUnified=true) */
   dbPath: string;
 
-  /** Enable WAL mode for better concurrency */
+  /** Enable WAL mode for better concurrency (ignored when useUnified=true) */
   walMode: boolean;
 
-  /** Memory-mapped I/O size in bytes */
+  /** Memory-mapped I/O size in bytes (ignored when useUnified=true) */
   mmapSize: number;
 
-  /** Cache size in pages (-ve = KB) */
+  /** Cache size in pages (-ve = KB) (ignored when useUnified=true) */
   cacheSize: number;
 
-  /** Enable foreign keys */
+  /** Enable foreign keys (ignored when useUnified=true) */
   foreignKeys: boolean;
+
+  /**
+   * Use UnifiedMemoryManager instead of separate database (ADR-046)
+   * When true, uses shared .agentic-qe/memory.db
+   * When false, creates separate .agentic-qe/qe-patterns.db (legacy)
+   * @default true
+   */
+  useUnified: boolean;
 }
 
 export const DEFAULT_SQLITE_CONFIG: SQLitePersistenceConfig = {
+  // LEGACY: Ignored when useUnified=true (the default). All data goes to memory.db
   dbPath: '.agentic-qe/qe-patterns.db',
   walMode: true,
   mmapSize: 256 * 1024 * 1024, // 256MB
   cacheSize: -64000, // 64MB
   foreignKeys: true,
+  useUnified: true, // ADR-046: Use unified storage (memory.db) by default
 };
 
 /**
@@ -50,6 +63,7 @@ export class SQLitePatternStore {
   private readonly config: SQLitePersistenceConfig;
   private prepared: Map<string, Statement> = new Map();
   private initialized = false;
+  private unifiedMemory: UnifiedMemoryManager | null = null;
 
   constructor(config: Partial<SQLitePersistenceConfig> = {}) {
     this.config = { ...DEFAULT_SQLITE_CONFIG, ...config };
@@ -62,35 +76,44 @@ export class SQLitePatternStore {
     if (this.initialized) return;
 
     try {
-      // Ensure directory exists
-      const path = await import('path');
-      const fs = await import('fs');
-      const dir = path.dirname(this.config.dbPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
+      if (this.config.useUnified) {
+        // ADR-046: Use unified storage via UnifiedMemoryManager
+        this.unifiedMemory = getUnifiedMemory();
+        await this.unifiedMemory.initialize();
+        this.db = this.unifiedMemory.getDatabase();
+        // Schema is already created by UnifiedMemoryManager (v4 migration)
+        console.log(`[SQLitePatternStore] Using unified storage: ${this.unifiedMemory.getDbPath()}`);
+      } else {
+        // Legacy: Create separate database
+        const path = await import('path');
+        const fs = await import('fs');
+        const dir = path.dirname(this.config.dbPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
 
-      // Open database
-      this.db = new Database(this.config.dbPath);
+        // Open database
+        this.db = new Database(this.config.dbPath);
 
-      // Configure for performance
-      if (this.config.walMode) {
-        this.db.pragma('journal_mode = WAL');
-      }
-      this.db.pragma(`mmap_size = ${this.config.mmapSize}`);
-      this.db.pragma(`cache_size = ${this.config.cacheSize}`);
-      if (this.config.foreignKeys) {
-        this.db.pragma('foreign_keys = ON');
-      }
+        // Configure for performance
+        if (this.config.walMode) {
+          this.db.pragma('journal_mode = WAL');
+        }
+        this.db.pragma(`mmap_size = ${this.config.mmapSize}`);
+        this.db.pragma(`cache_size = ${this.config.cacheSize}`);
+        if (this.config.foreignKeys) {
+          this.db.pragma('foreign_keys = ON');
+        }
 
-      // Create schema
-      this.createSchema();
+        // Create schema (only for legacy mode)
+        this.createSchema();
+        console.log(`[SQLitePatternStore] Initialized (legacy): ${this.config.dbPath}`);
+      }
 
       // Prepare statements
       this.prepareStatements();
 
       this.initialized = true;
-      console.log(`[SQLitePatternStore] Initialized: ${this.config.dbPath}`);
     } catch (error) {
       throw new Error(`Failed to initialize SQLite: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -550,11 +573,17 @@ export class SQLitePatternStore {
    */
   close(): void {
     if (this.db) {
-      this.db.close();
+      // Only close if NOT using unified storage (we don't own the connection)
+      if (!this.unifiedMemory) {
+        this.db.close();
+        console.log('[SQLitePatternStore] Database closed');
+      } else {
+        console.log('[SQLitePatternStore] Detached from unified storage (not closing shared connection)');
+      }
       this.db = null;
+      this.unifiedMemory = null;
       this.initialized = false;
       this.prepared.clear();
-      console.log('[SQLitePatternStore] Database closed');
     }
   }
 

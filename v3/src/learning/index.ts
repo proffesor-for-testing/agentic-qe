@@ -292,3 +292,48 @@ export type {
   Timeframe,
   TokenCostConfig,
 } from './token-tracker.js';
+
+// ============================================================================
+// Dream System (ADR-021 - Dream Cycle Integration)
+// ============================================================================
+
+export {
+  // ConceptGraph
+  ConceptGraph,
+  createConceptGraph,
+
+  // Default config
+  DEFAULT_CONCEPT_GRAPH_CONFIG,
+} from './dream/index.js';
+
+export type {
+  // Concept types
+  ConceptType,
+  EdgeType,
+  InsightType,
+  DreamCycleStatus,
+
+  // Concept Node
+  ConceptNode,
+  CreateConceptNodeInput,
+
+  // Concept Edge
+  ConceptEdge,
+  CreateEdgeInput,
+
+  // Dream Cycle
+  DreamCycle,
+
+  // Dream Insight
+  DreamInsight,
+
+  // Statistics
+  ConceptGraphStats,
+
+  // Configuration
+  ConceptGraphConfig,
+
+  // Pattern Import
+  PatternImportData,
+  NeighborResult,
+} from './dream/index.js';

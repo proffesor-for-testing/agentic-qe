@@ -26,6 +26,30 @@ vi.mock('fs', async () => {
   };
 });
 
+// Mock better-sqlite3 for persistence database initialization
+// Now uses ESM dynamic import in production code
+vi.mock('better-sqlite3', () => {
+  const mockStatement = {
+    get: vi.fn().mockReturnValue({ name: 'kv_store' }),
+    run: vi.fn(),
+    all: vi.fn().mockReturnValue([]),
+    bind: vi.fn().mockReturnThis(),
+  };
+  const mockDb = {
+    pragma: vi.fn(),
+    exec: vi.fn(),
+    prepare: vi.fn().mockReturnValue(mockStatement),
+    close: vi.fn(),
+    transaction: vi.fn((fn: () => void) => fn),
+  };
+  // Use a proper function (not arrow) so it can be used as a constructor with `new`
+  function MockDatabase() {
+    return mockDb;
+  }
+  // ESM default export format
+  return { default: MockDatabase };
+});
+
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 
 const mockExistsSync = existsSync as ReturnType<typeof vi.fn>;
@@ -595,7 +619,7 @@ describe('InitOrchestrator', () => {
       expect(settingsContent.hooks.PreToolUse).toBeDefined();
       expect(settingsContent.hooks.PostToolUse).toBeDefined();
       expect(settingsContent.hooks.SessionStart).toBeDefined();
-      expect(settingsContent.hooks.SessionEnd).toBeDefined();
+      expect(settingsContent.hooks.Stop).toBeDefined(); // Claude Code uses 'Stop' for session end
       expect(settingsContent.aqe).toBeDefined();
       expect(settingsContent.aqe.hooksConfigured).toBe(true);
     });
@@ -774,7 +798,7 @@ describe('InitOrchestrator', () => {
       const content = claudeMdCall![1] as string;
       expect(content).toContain('Agentic QE v3');
       expect(content).toContain('MCP Server');
-      expect(content).toContain('DDD Bounded Contexts');
+      expect(content).toContain('12 DDD Domains');
       expect(content).toContain('V3 QE Agents');
       expect(content).toContain('Data Storage');
       expect(content).toContain('qe-patterns.db');
@@ -873,9 +897,9 @@ describe('InitOrchestrator', () => {
       // Verify content
       const mcpConfig = JSON.parse(mcpCall![1] as string);
       expect(mcpConfig.mcpServers).toBeDefined();
-      expect(mcpConfig.mcpServers['aqe-v3']).toBeDefined();
-      expect(mcpConfig.mcpServers['aqe-v3'].command).toBe('aqe-v3-mcp');
-      expect(mcpConfig.mcpServers['aqe-v3'].args).toEqual([]);
+      expect(mcpConfig.mcpServers['aqe']).toBeDefined();
+      expect(mcpConfig.mcpServers['aqe'].command).toBe('aqe-mcp');
+      expect(mcpConfig.mcpServers['aqe'].args).toEqual([]);
     });
   });
 });

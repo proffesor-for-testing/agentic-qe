@@ -613,7 +613,7 @@ export class FleetInitWizard {
     const patternLocations = [
       join(this.cwd, '.agentic-qe', 'patterns'),
       join(this.cwd, '.agentic-qe', 'memory.db'),
-      join(this.cwd, '.claude-flow', 'patterns'),
+      join(this.cwd, '.aqe', 'patterns'),
       join(this.cwd, 'data', 'patterns'),
     ];
 

@@ -60,10 +60,12 @@ export {
 export {
   QE_OPTIMIZATION_WORKER_CONFIGS,
   PatternConsolidatorWorker,
+  DreamConsolidatorWorker,
   CoverageGapScannerWorker,
   FlakyTestDetectorWorker,
   RoutingAccuracyMonitorWorker,
   createPatternConsolidatorWorker,
+  createDreamConsolidatorWorker,
   createCoverageGapScannerWorker,
   createFlakyTestDetectorWorker,
   createRoutingAccuracyMonitorWorker,
@@ -71,6 +73,7 @@ export {
 
 export type {
   PatternConsolidatorDeps,
+  DreamConsolidatorDeps,
   CoverageGapScannerDeps,
   FlakyTestDetectorDeps,
   RoutingAccuracyMonitorDeps,

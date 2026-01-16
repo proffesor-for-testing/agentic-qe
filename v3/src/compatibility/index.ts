@@ -94,7 +94,7 @@ export class V2CompatibilityLayer {
 
     if (this.deprecationWarnings.size > 0) {
       actions.push('Update agent names to v3 format (v3-qe-*)');
-      actions.push('Migrate CLI commands to aqe-v3 format');
+      actions.push('Migrate CLI commands to aqe format');
       actions.push('Update configuration to v3 schema');
     }
 

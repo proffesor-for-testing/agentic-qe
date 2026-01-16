@@ -7,10 +7,10 @@
  * Supports unit, integration, and e2e test generation with AI enhancement.
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base';
 import { ToolResult } from '../../types';
 import { TestGeneratorService } from '../../../domains/test-generation/services/test-generator';
-import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
+import { MemoryBackend } from '../../../kernel/interfaces';
 import { GenerateTestsRequest } from '../../../domains/test-generation/interfaces';
 import { TokenOptimizerService } from '../../../optimization/token-optimizer-service.js';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
@@ -73,12 +73,13 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
   private testGeneratorService: TestGeneratorService | null = null;
 
   /**
-   * Initialize or get the test generator service
+   * Initialize or get the test generator service with persistent storage
    */
-  private getService(): TestGeneratorService {
+  private async getService(): Promise<TestGeneratorService> {
     if (!this.testGeneratorService) {
+      const memory = await getSharedMemoryBackend();
       this.testGeneratorService = new TestGeneratorService(
-        createMinimalMemoryBackend(),
+        memory,
         {
           defaultFramework: 'vitest',
           maxTestsPerFile: 50,
@@ -146,7 +147,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
       }
 
       // Get the domain service and call it with the request
-      const service = this.getService();
+      const service = await this.getService();
 
       // Build the domain request from MCP params
       const domainRequest: GenerateTestsRequest = {
@@ -212,6 +213,14 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
         error: `Test generation failed: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
+  }
+
+  /**
+   * Reset instance-level service cache.
+   * Called when fleet is disposed to prevent stale backend references.
+   */
+  override resetInstanceCache(): void {
+    this.testGeneratorService = null;
   }
 }
 
@@ -519,53 +528,5 @@ function generateSuggestions(tests: GeneratedTest[], aiEnabled: boolean): string
   return suggestions;
 }
 
-// ============================================================================
-// Memory Backend Helper
-// ============================================================================
-
-/**
- * Create a minimal in-memory backend for when no context memory is available
- */
-function createMinimalMemoryBackend(): MemoryBackend {
-  const store = new Map<string, { value: unknown; metadata?: unknown }>();
-  const vectors = new Map<string, { embedding: number[]; metadata?: unknown }>();
-
-  return {
-    async initialize(): Promise<void> {
-      // No initialization needed
-    },
-    async dispose(): Promise<void> {
-      store.clear();
-      vectors.clear();
-    },
-    async set<T>(key: string, value: T, _options?: unknown): Promise<void> {
-      store.set(key, { value });
-    },
-    async get<T>(key: string): Promise<T | undefined> {
-      const entry = store.get(key);
-      return entry?.value as T | undefined;
-    },
-    async delete(key: string): Promise<boolean> {
-      return store.delete(key);
-    },
-    async has(key: string): Promise<boolean> {
-      return store.has(key);
-    },
-    async search(pattern: string, limit?: number): Promise<string[]> {
-      const allKeys = Array.from(store.keys());
-      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-      const filtered = allKeys.filter((k) => regex.test(k));
-      return limit ? filtered.slice(0, limit) : filtered;
-    },
-    async storeVector(key: string, embedding: number[], metadata?: unknown): Promise<void> {
-      vectors.set(key, { embedding, metadata });
-    },
-    async vectorSearch(
-      _embedding: number[],
-      _k: number
-    ): Promise<VectorSearchResult[]> {
-      // Simple implementation - return empty for minimal backend
-      return [];
-    },
-  };
-}
+// Note: Memory backend is now provided by getSharedMemoryBackend() from '../base'
+// This ensures all MCP tools share the same persistent storage

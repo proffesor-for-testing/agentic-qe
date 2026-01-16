@@ -83,11 +83,14 @@ describe('FeedbackLoop Integration with ReasoningBank', () => {
       try { unlinkSync(`${testDbPath}-wal`); } catch { /* ignore */ }
     }
 
-    // Create REAL ReasoningBank with test database
+    // Create REAL ReasoningBank with ISOLATED test database
+    // CRITICAL: useUnified: false ensures we don't use shared .agentic-qe/memory.db
+    // This prevents test pollution from other tests (ADR-046 unified storage fix)
     reasoningBank = new RealQEReasoningBank({
       sqlite: {
         dbPath: testDbPath,
         walMode: false, // Simpler for tests
+        useUnified: false, // IMPORTANT: Use isolated test database, not shared unified storage
       },
       embeddings: {
         quantized: true,
@@ -473,15 +476,22 @@ describe('FeedbackLoop with RoutingFeedback Integration', () => {
   const testDbPath = '.agentic-qe/test-routing-feedback.db';
 
   beforeEach(async () => {
-    // Clean up
+    // Clean up any existing test database
     for (const suffix of ['', '-shm', '-wal']) {
       if (existsSync(`${testDbPath}${suffix}`)) {
         try { unlinkSync(`${testDbPath}${suffix}`); } catch { /* ignore */ }
       }
     }
 
+    // Create REAL ReasoningBank with ISOLATED test database
+    // CRITICAL: useUnified: false ensures we don't use shared .agentic-qe/memory.db
+    // This prevents test pollution from other tests (ADR-046 unified storage fix)
     reasoningBank = new RealQEReasoningBank({
-      sqlite: { dbPath: testDbPath, walMode: false },
+      sqlite: {
+        dbPath: testDbPath,
+        walMode: false,
+        useUnified: false, // IMPORTANT: Use isolated test database, not shared unified storage
+      },
       embeddings: { quantized: true, enableCache: false },
       enableLearning: true,
       enableRouting: true,

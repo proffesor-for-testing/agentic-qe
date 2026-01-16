@@ -7,7 +7,7 @@
  * Uses actual code analysis, git history, and weighted feature prediction.
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base';
 import { ToolResult } from '../../types';
 import { DefectPredictorService } from '../../../domains/defect-intelligence/services/defect-predictor';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
@@ -104,16 +104,16 @@ export class DefectPredictTool extends MCPToolBase<DefectPredictParams, DefectPr
   /**
    * Get or create the defect predictor service
    */
-  private getService(context: MCPToolContext): DefectPredictorService {
+  private async getService(context: MCPToolContext): Promise<DefectPredictorService> {
     if (!this.predictorService) {
-      // Create a memory backend from context or use a minimal one
+      // Create a memory backend from context or use shared persistent backend
       const memory = (context as any).memory as MemoryBackend | undefined;
 
       if (memory) {
         this.predictorService = new DefectPredictorService(memory);
       } else {
-        // Create minimal memory backend for standalone operation
-        this.predictorService = new DefectPredictorService(createMinimalMemoryBackend());
+        // Use shared persistent memory backend
+        this.predictorService = new DefectPredictorService(await getSharedMemoryBackend());
       }
     }
     return this.predictorService;
@@ -154,7 +154,7 @@ export class DefectPredictTool extends MCPToolBase<DefectPredictParams, DefectPr
       }
 
       // Get the real service
-      const service = this.getService(context);
+      const service = await this.getService(context);
 
       // Use real prediction service - NO FALLBACKS
       const result = await service.predictDefects({
@@ -280,6 +280,14 @@ export class DefectPredictTool extends MCPToolBase<DefectPredictParams, DefectPr
         },
       },
     };
+  }
+
+  /**
+   * Reset instance-level service cache.
+   * Called when fleet is disposed to prevent stale backend references.
+   */
+  override resetInstanceCache(): void {
+    this.predictorService = null;
   }
 }
 
@@ -427,40 +435,3 @@ function generateGlobalRecommendations(predictions: FilePrediction[]): string[] 
   return [...new Set(recommendations)];
 }
 
-/**
- * Create minimal memory backend for standalone operation
- */
-function createMinimalMemoryBackend(): MemoryBackend {
-  const store = new Map<string, { value: unknown; metadata?: unknown }>();
-
-  return {
-    async initialize(): Promise<void> {
-      // No initialization needed
-    },
-    async dispose(): Promise<void> {
-      store.clear();
-    },
-    async set(key: string, value: unknown, _options?: unknown): Promise<void> {
-      store.set(key, { value });
-    },
-    async get<T>(key: string): Promise<T | undefined> {
-      const entry = store.get(key);
-      return entry ? (entry.value as T) : undefined;
-    },
-    async delete(key: string): Promise<boolean> {
-      return store.delete(key);
-    },
-    async has(key: string): Promise<boolean> {
-      return store.has(key);
-    },
-    async search(_pattern: string, _limit?: number): Promise<string[]> {
-      return [];
-    },
-    async vectorSearch(_embedding: number[], _k: number): Promise<VectorSearchResult[]> {
-      return [];
-    },
-    async storeVector(_key: string, _embedding: number[], _metadata?: unknown): Promise<void> {
-      // Minimal implementation
-    },
-  };
-}

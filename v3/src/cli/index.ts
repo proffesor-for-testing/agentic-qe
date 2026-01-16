@@ -58,6 +58,13 @@ import {
   type PersistentScheduler,
 } from './scheduler/index.js';
 import { getCLIConfig } from './config/cli-config.js';
+import {
+  QE_HOOK_EVENTS,
+  QEHookRegistry,
+  setupQEHooks,
+  createQEReasoningBank,
+  createSQLitePatternStore,
+} from '../learning/index.js';
 
 // ============================================================================
 // CLI State
@@ -233,6 +240,7 @@ program
   .option('--auto', 'Auto-configure based on project analysis')
   .option('--minimal', 'Minimal configuration (skip optional features)')
   .option('--skip-patterns', 'Skip loading pre-trained patterns')
+  .option('--with-n8n', 'Install n8n workflow testing agents and skills')
   .action(async (options) => {
     try {
       // Check if wizard mode requested
@@ -244,6 +252,7 @@ program
           autoMode: options.auto,
           minimal: options.minimal,
           skipPatterns: options.skipPatterns,
+          withN8n: options.withN8n,
         };
 
         const orchestrator = new InitOrchestrator(orchestratorOptions);
@@ -278,6 +287,10 @@ program
           console.log(chalk.gray(`  • Patterns loaded: ${result.summary.patternsLoaded}`));
           console.log(chalk.gray(`  • Hooks configured: ${result.summary.hooksConfigured ? 'Yes' : 'No'}`));
           console.log(chalk.gray(`  • Workers started: ${result.summary.workersStarted}`));
+          if (result.summary.n8nInstalled) {
+            console.log(chalk.gray(`  • N8n agents: ${result.summary.n8nInstalled.agents}`));
+            console.log(chalk.gray(`  • N8n skills: ${result.summary.n8nInstalled.skills}`));
+          }
           console.log(chalk.gray(`  • Total time: ${result.totalDurationMs}ms\n`));
 
           console.log(chalk.white('Next steps:'));
@@ -1184,7 +1197,7 @@ workflowCmd
       console.log(chalk.gray(`   Status: ${persistedSchedule.enabled ? chalk.green('enabled') : chalk.yellow('disabled')}`));
 
       console.log(chalk.yellow('\nNote: Scheduled workflows require daemon mode to run automatically'));
-      console.log(chalk.gray('   Start daemon with: npx @claude-flow/cli@latest daemon start'));
+      console.log(chalk.gray('   Start daemon with: npx aqe daemon start'));
       console.log(chalk.gray('   Schedules are persisted to: ~/.aqe/schedules.json'));
 
       console.log('');
@@ -3169,6 +3182,20 @@ fleetCmd
     }
   });
 
+// ============================================================================
+// Hooks Command (AQE v3 Independent Hooks - using QEHookRegistry)
+// ============================================================================
+
+import { createHooksCommand } from './commands/hooks.js';
+
+// Register the hooks command from the proper module (uses QEHookRegistry)
+const hooksCmd = createHooksCommand();
+program.addCommand(hooksCmd);
+
+// Note: All hooks functionality is now in ./commands/hooks.ts which uses:
+// - QEHookRegistry for event handling
+// - QEReasoningBank for pattern learning
+// - setupQEHooks() for proper initialization
 // ============================================================================
 // Shutdown Handler
 // ============================================================================

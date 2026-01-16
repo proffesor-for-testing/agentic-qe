@@ -46,10 +46,20 @@ export interface RuVectorConfig {
 
 /**
  * Default RuVector configuration
+ *
+ * NOTE: RuVector provides ML-based intelligence for QE operations.
+ * Uses unified memory.db via UnifiedMemoryManager (ADR-046).
+ *
+ * ARM64 binaries are available and working (verified 2026-01-16):
+ * - @ruvector/sona: SonaEngine for pattern adaptation
+ * - @ruvector/gnn: HNSW indexing and differentiable search
+ * - @ruvector/attention: Flash Attention with SIMD acceleration
  */
 export const DEFAULT_RUVECTOR_CONFIG: Required<RuVectorConfig> = {
-  enabled: false, // Disabled by default - OPTIONAL dependency
+  enabled: true, // ENABLED: ARM64 binaries verified working
   endpoint: 'http://localhost:8080',
+  // LEGACY: This path is ignored when RuVector uses unified storage (ADR-046)
+  // Kept for backward compatibility with external RuVector service configs
   databasePath: '.agentic-qe/ruvector-cache.db',
   timeout: 5000,
   cacheEnabled: true,

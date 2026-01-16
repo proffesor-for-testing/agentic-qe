@@ -88,8 +88,11 @@ export interface RealQEReasoningBankConfig {
 
 export const DEFAULT_REAL_CONFIG: RealQEReasoningBankConfig = {
   sqlite: {
-    dbPath: '.agentic-qe/qe-patterns.db',
+    // ADR-046: Now uses unified storage via UnifiedMemoryManager by default
+    // dbPath is ignored when useUnified=true (the default)
+    dbPath: '.agentic-qe/qe-patterns.db', // Legacy fallback path
     walMode: true,
+    useUnified: true, // Uses shared .agentic-qe/memory.db
   },
   embeddings: {
     modelName: 'Xenova/all-MiniLM-L6-v2',

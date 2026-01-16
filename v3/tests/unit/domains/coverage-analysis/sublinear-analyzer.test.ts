@@ -18,30 +18,30 @@ import {
   DEFAULT_ANALYZER_CONFIG,
   type IndexingResult,
 } from '../../../../src/domains/coverage-analysis/services/sublinear-analyzer';
-import { AgentDBBackend } from '../../../../src/kernel/agentdb-backend';
+import { HybridMemoryBackend } from '../../../../src/kernel/hybrid-backend';
 import type {
   CoverageData,
   FileCoverage,
   CoverageGap,
 } from '../../../../src/domains/coverage-analysis/interfaces';
 import { checkRuvectorPackagesAvailable } from '../../../../src/integrations/ruvector/wrappers';
+import { resetUnifiedMemory } from '../../../../src/kernel/unified-memory';
 
 // Check if @ruvector/gnn native operations work (required for HNSW)
 const canTest = checkRuvectorPackagesAvailable();
 
 describe.runIf(canTest.gnn)('SublinearCoverageAnalyzer', () => {
-  let memory: AgentDBBackend;
+  let memory: HybridMemoryBackend;
   let analyzer: SublinearCoverageAnalyzer;
 
   beforeEach(async () => {
-    memory = new AgentDBBackend({
-      hnsw: {
-        dimensions: 128,
-        M: 16,
-        efConstruction: 200,
-        efSearch: 100,
-        metric: 'cosine',
-      },
+    // Reset unified memory singleton for test isolation
+    resetUnifiedMemory();
+
+    // Create HybridMemoryBackend which uses UnifiedMemoryManager
+    memory = new HybridMemoryBackend({
+      sqlite: { path: ':memory:' },  // Use in-memory SQLite for tests
+      enableFallback: true,
     });
     await memory.initialize();
 
@@ -52,6 +52,7 @@ describe.runIf(canTest.gnn)('SublinearCoverageAnalyzer', () => {
   afterEach(async () => {
     await analyzer.clearIndex();
     await memory.dispose();
+    resetUnifiedMemory();
   });
 
   describe('initialize', () => {

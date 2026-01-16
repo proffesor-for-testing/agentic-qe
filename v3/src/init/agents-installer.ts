@@ -281,15 +281,15 @@ export class AgentsInstaller {
 
   /**
    * Filter agents based on installation options
-   * Only installs v3-qe-* agents (QE agents and subagents)
+   * Only installs qe-* agents (QE agents and subagents)
    * Does NOT install claude-flow core agents (adr-architect, memory-specialist, etc.)
    */
   private filterAgents(availableAgents: string[]): string[] {
-    // First, filter to only include v3-qe-* agents (AQE agents, not claude-flow agents)
+    // First, filter to only include qe-* agents (AQE agents, not claude-flow agents)
     let filtered = availableAgents.filter(a => {
       const name = a.includes('/') ? a.split('/')[1] : a;
-      // Only include agents that start with v3-qe- (our QE agents)
-      return name.startsWith('v3-qe-');
+      // Only include agents that start with qe- (our QE agents)
+      return name.startsWith('qe-');
     });
 
     // Apply include filter if specified
@@ -473,7 +473,7 @@ export class AgentsInstaller {
 
     const indexContent = `# AQE V3 Agents Index
 
-This directory contains V3 QE agents installed by \`aqe-v3 init\`.
+This directory contains V3 QE agents installed by \`aqe init\`.
 
 > **Note**: This directory only contains AQE-specific agents (v3-qe-*).
 > Claude-flow core agents (adr-architect, memory-specialist, etc.) are part of

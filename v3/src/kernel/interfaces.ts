@@ -250,8 +250,10 @@ export interface KernelHealth {
 
 export interface KernelConfig {
   maxConcurrentAgents: number;
-  memoryBackend: 'sqlite' | 'agentdb' | 'hybrid';
+  memoryBackend: 'sqlite' | 'agentdb' | 'hybrid' | 'memory';
   hnswEnabled: boolean;
   lazyLoading: boolean;
   enabledDomains: DomainName[];
+  /** Data directory for persistent storage (default: .agentic-qe relative to project root) */
+  dataDir?: string;
 }

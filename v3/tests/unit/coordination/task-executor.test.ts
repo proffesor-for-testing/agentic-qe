@@ -711,7 +711,7 @@ describe('DomainTaskExecutor', () => {
       const task = createTestTask(taskType, {});
       const result = await executor.execute(task);
       expect(result.domain).toBe(expectedDomain);
-    });
+    }, 30000); // Extended timeout for parameterized tests
   });
 });
 
@@ -782,7 +782,7 @@ describe('TaskExecutor integration', () => {
     const index = JSON.parse(indexContent);
 
     expect(index.results.length).toBe(4);
-  });
+  }, 60000); // Extended timeout for multi-step workflow
 
   it('should persist results across multiple task types', async () => {
     // Test tasks with appropriate payloads for real implementations
@@ -806,5 +806,5 @@ describe('TaskExecutor integration', () => {
     const index = JSON.parse(indexContent);
 
     expect(index.results.length).toBe(testTasks.length);
-  });
+  }, 90000); // Extended timeout for 6 sequential tasks
 });

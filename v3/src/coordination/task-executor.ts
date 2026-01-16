@@ -1144,3 +1144,15 @@ export function createTaskExecutor(
 ): DomainTaskExecutor {
   return new DomainTaskExecutor(kernel, kernel.eventBus, config);
 }
+
+/**
+ * Reset cached services - call when disposing fleet/kernel
+ * to ensure services don't hold references to disposed memory backends
+ */
+export function resetServiceCaches(): void {
+  coverageAnalyzer = null;
+  securityScanner = null;
+  testGenerator = null;
+  knowledgeGraph = null;
+  qualityAnalyzer = null;
+}

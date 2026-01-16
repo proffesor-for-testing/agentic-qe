@@ -106,6 +106,8 @@ const INTEGRATION_SKILLS = [
   'stream-chain',
   'agentic-jujutsu',
   'pair-programming',
+  'iterative-loop',
+  'qe-iterative-loop',
 ];
 
 /**
@@ -408,7 +410,7 @@ export class SkillsInstaller {
 
     const indexContent = `# AQE Skills Index
 
-This directory contains skills installed by \`aqe-v3 init\`.
+This directory contains skills installed by \`aqe init\`.
 
 ## Summary
 

@@ -8,7 +8,7 @@
  * Uses actual LCOV/JSON parsing and vector-based gap detection.
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base';
 import { ToolResult } from '../../types';
 import { CoverageAnalyzerService } from '../../../domains/coverage-analysis/services/coverage-analyzer';
 import { GapDetectorService } from '../../../domains/coverage-analysis/services/gap-detector';
@@ -110,60 +110,6 @@ export interface TestSuggestion {
 }
 
 // ============================================================================
-// Helper: Create Minimal Memory Backend
-// ============================================================================
-
-function createMinimalMemoryBackend(): MemoryBackend {
-  const store = new Map<string, { value: unknown; metadata?: unknown }>();
-  const vectors = new Map<string, { embedding: number[]; metadata: unknown }>();
-
-  return {
-    async initialize(): Promise<void> {
-      // No initialization needed
-    },
-    async dispose(): Promise<void> {
-      store.clear();
-      vectors.clear();
-    },
-    async set(key: string, value: unknown, _options?: unknown): Promise<void> {
-      store.set(key, { value });
-    },
-    async get<T>(key: string): Promise<T | undefined> {
-      const entry = store.get(key);
-      return entry ? (entry.value as T) : undefined;
-    },
-    async delete(key: string): Promise<boolean> {
-      return store.delete(key);
-    },
-    async has(key: string): Promise<boolean> {
-      return store.has(key);
-    },
-    async search(_pattern: string, _limit?: number): Promise<string[]> {
-      return [];
-    },
-    async vectorSearch(embedding: number[], k: number): Promise<VectorSearchResult[]> {
-      const results = Array.from(vectors.entries())
-        .map(([key, data]) => {
-          let dot = 0, normA = 0, normB = 0;
-          for (let i = 0; i < embedding.length; i++) {
-            dot += embedding[i] * (data.embedding[i] || 0);
-            normA += embedding[i] * embedding[i];
-            normB += (data.embedding[i] || 0) * (data.embedding[i] || 0);
-          }
-          const score = dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
-          return { key, score, metadata: data.metadata };
-        })
-        .sort((a, b) => b.score - a.score)
-        .slice(0, k);
-      return results;
-    },
-    async storeVector(key: string, embedding: number[], metadata?: unknown): Promise<void> {
-      vectors.set(key, { embedding, metadata });
-    },
-  };
-}
-
-// ============================================================================
 // Helper: Calculate Coverage Summary from Files
 // ============================================================================
 
@@ -243,11 +189,11 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
 
   private analyzerService: CoverageAnalyzerService | null = null;
 
-  private getService(context: MCPToolContext): CoverageAnalyzerService {
+  private async getService(context: MCPToolContext): Promise<CoverageAnalyzerService> {
     if (!this.analyzerService) {
       const memory = (context as any).memory as MemoryBackend | undefined;
       this.analyzerService = new CoverageAnalyzerService(
-        memory || createMinimalMemoryBackend()
+        memory || await getSharedMemoryBackend()
       );
     }
     return this.analyzerService;
@@ -317,7 +263,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
       const domainFiles = convertParsedToDomainFormat(parsedReport);
 
       // Use real analyzer service
-      const service = this.getService(context);
+      const service = await this.getService(context);
       const analyzeResult = await service.analyze({
         coverageData: { files: domainFiles, summary: calculateSummary(domainFiles) },
         threshold: thresholds.lines || 80,
@@ -471,6 +417,14 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
       },
     };
   }
+
+  /**
+   * Reset instance-level service cache.
+   * Called when fleet is disposed to prevent stale backend references.
+   */
+  override resetInstanceCache(): void {
+    this.analyzerService = null;
+  }
 }
 
 // ============================================================================
@@ -489,10 +443,10 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
 
   private gapService: GapDetectorService | null = null;
 
-  private getService(context: MCPToolContext): GapDetectorService {
+  private async getService(context: MCPToolContext): Promise<GapDetectorService> {
     if (!this.gapService) {
       const memory = (context as any).memory as MemoryBackend | undefined;
-      this.gapService = new GapDetectorService(memory || createMinimalMemoryBackend());
+      this.gapService = new GapDetectorService(memory || await getSharedMemoryBackend());
     }
     return this.gapService;
   }
@@ -556,7 +510,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
       const domainFiles = convertParsedToDomainFormat(parsedReport);
 
       // Use real gap detector service
-      const service = this.getService(context);
+      const service = await this.getService(context);
 
       // Map prioritization to service strategy
       const prioritizeStrategy = prioritization === 'change-frequency' ? 'recent-changes' : 'risk';
@@ -692,6 +646,14 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
         suggestedTests,
       },
     };
+  }
+
+  /**
+   * Reset instance-level service cache.
+   * Called when fleet is disposed to prevent stale backend references.
+   */
+  override resetInstanceCache(): void {
+    this.gapService = null;
   }
 }
 

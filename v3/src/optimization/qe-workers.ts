@@ -1,9 +1,11 @@
 /**
  * QE Optimization Workers
  * ADR-024: Self-Optimization Engine
+ * ADR-046: V2 Feature Integration (Dream Cycles)
  *
  * Background workers for QE-specific optimization tasks:
  * - Pattern consolidation
+ * - Dream cycle consolidation (ADR-046)
  * - Coverage gap scanning
  * - Flaky test detection
  * - Routing accuracy monitoring
@@ -17,6 +19,8 @@ import type {
   WorkerFinding,
   WorkerRecommendation,
 } from '../workers/interfaces.js';
+import type { DreamCycleResult } from '../learning/dream/dream-engine.js';
+import type { DreamInsight } from '../learning/dream/insight-generator.js';
 
 // ============================================================================
 // Worker Configurations
@@ -36,6 +40,17 @@ export const QE_OPTIMIZATION_WORKER_CONFIGS: Record<string, Omit<WorkerConfig, '
     timeoutMs: 60 * 1000, // 1 minute
     retryCount: 2,
     retryDelayMs: 5000,
+  },
+  'dream-consolidator': {
+    name: 'Dream Cycle Consolidator',
+    description: 'Runs dream cycles to discover novel pattern associations (ADR-046)',
+    intervalMs: 60 * 60 * 1000, // 1 hour (dreams need time to consolidate)
+    priority: 'low', // Dreams run during idle time
+    targetDomains: ['learning-optimization'],
+    enabled: true,
+    timeoutMs: 45 * 1000, // 45 seconds (dream cycle max is 30s + buffer)
+    retryCount: 1,
+    retryDelayMs: 30000, // Wait 30s before retry
   },
   'coverage-gap-scanner': {
     name: 'Coverage Gap Scanner',
@@ -189,6 +204,226 @@ export class PatternConsolidatorWorker extends BaseWorker {
         recommendations
       );
     } catch (error) {
+      throw error;
+    }
+  }
+}
+
+// ============================================================================
+// Dream Consolidator Worker (ADR-046)
+// ============================================================================
+
+/**
+ * Dependencies for dream consolidator
+ */
+export interface DreamConsolidatorDeps {
+  /** Run a dream cycle with the specified duration */
+  runDreamCycle: (durationMs: number) => Promise<DreamCycleResult>;
+
+  /** Get pending insights that haven't been applied */
+  getPendingInsights: (limit?: number) => Promise<DreamInsight[]>;
+
+  /** Apply an insight by converting it to a pattern */
+  applyInsight: (insightId: string) => Promise<{
+    success: boolean;
+    patternId?: string;
+    error?: string;
+  }>;
+
+  /** Get current pattern count for loading into dream engine */
+  getPatternCount: () => Promise<number>;
+
+  /** Load patterns into dream engine for dreaming */
+  loadPatternsForDreaming: () => Promise<number>;
+}
+
+/**
+ * Worker that runs dream cycles to discover novel pattern associations.
+ *
+ * ADR-046: V2 Feature Integration - Dream Cycles
+ *
+ * The dream cycle simulates the consolidation process that occurs during sleep,
+ * where the brain strengthens important associations and discovers new connections.
+ *
+ * This worker:
+ * 1. Loads current patterns into the ConceptGraph
+ * 2. Runs spreading activation (the "dreaming")
+ * 3. Finds novel associations from co-activated concepts
+ * 4. Generates insights from activation patterns
+ * 5. Applies high-confidence insights as new patterns
+ */
+export class DreamConsolidatorWorker extends BaseWorker {
+  private deps: DreamConsolidatorDeps;
+  private dreamDurationMs = 30000; // 30 second dream cycles
+  private minConfidenceToApply = 0.7;
+  private maxInsightsToApply = 5;
+
+  constructor(deps: DreamConsolidatorDeps) {
+    super({
+      id: 'dream-consolidator',
+      ...QE_OPTIMIZATION_WORKER_CONFIGS['dream-consolidator'],
+    });
+    this.deps = deps;
+  }
+
+  protected async doExecute(context: WorkerContext): Promise<WorkerResult> {
+    const startTime = Date.now();
+    const findings: WorkerFinding[] = [];
+    const recommendations: WorkerRecommendation[] = [];
+
+    try {
+      // 1. Check if we have enough patterns to dream about
+      const patternCount = await this.deps.getPatternCount();
+      context.logger.info(`Current pattern count: ${patternCount}`);
+
+      if (patternCount < 10) {
+        context.logger.info('Insufficient patterns for dreaming, skipping cycle');
+        return this.createResult(
+          Date.now() - startTime,
+          {
+            itemsAnalyzed: 0,
+            issuesFound: 0,
+            healthScore: 50,
+            trend: 'stable',
+            domainMetrics: {
+              patternsLoaded: 0,
+              dreamCycleRan: 0,
+              insightsGenerated: 0,
+              insightsApplied: 0,
+              reason: 'insufficient-patterns',
+            },
+          },
+          findings,
+          recommendations
+        );
+      }
+
+      // 2. Load patterns into dream engine
+      const patternsLoaded = await this.deps.loadPatternsForDreaming();
+      context.logger.info(`Loaded ${patternsLoaded} patterns for dreaming`);
+
+      // 3. Run the dream cycle
+      context.logger.info(`Starting dream cycle (${this.dreamDurationMs}ms)`);
+      const dreamResult = await this.deps.runDreamCycle(this.dreamDurationMs);
+
+      // Record dream cycle finding
+      findings.push({
+        type: 'dream-cycle-completed',
+        severity: 'info',
+        domain: 'learning-optimization',
+        title: 'Dream Cycle Completed',
+        description: `Processed ${dreamResult.activationStats.nodesActivated} concepts, ` +
+          `found ${dreamResult.cycle.associationsFound} associations, ` +
+          `generated ${dreamResult.insights.length} insights`,
+        resource: 'DreamEngine',
+        context: {
+          durationMs: dreamResult.cycle.durationMs,
+          iterations: dreamResult.activationStats.totalIterations,
+          peakActivation: dreamResult.activationStats.peakActivation,
+        },
+      });
+
+      // 4. Apply high-confidence insights
+      let appliedCount = 0;
+      const highConfidenceInsights = dreamResult.insights
+        .filter(i => i.confidenceScore >= this.minConfidenceToApply && i.actionable)
+        .slice(0, this.maxInsightsToApply);
+
+      for (const insight of highConfidenceInsights) {
+        const applyResult = await this.deps.applyInsight(insight.id);
+        if (applyResult.success && applyResult.patternId) {
+          appliedCount++;
+          findings.push({
+            type: 'insight-applied',
+            severity: 'info',
+            domain: 'learning-optimization',
+            title: `Dream Insight Applied: ${insight.type}`,
+            description: insight.description,
+            resource: applyResult.patternId,
+            context: {
+              noveltyScore: insight.noveltyScore,
+              confidenceScore: insight.confidenceScore,
+            },
+          });
+        }
+      }
+
+      // 5. Check for pending insights
+      const pendingInsights = await this.deps.getPendingInsights(20);
+      if (pendingInsights.length > 10) {
+        recommendations.push({
+          priority: 'p2',
+          domain: 'learning-optimization',
+          action: 'Review pending dream insights',
+          description: `${pendingInsights.length} insights awaiting review. ` +
+            'Consider lowering confidence threshold or manual review.',
+          estimatedImpact: 'medium',
+          effort: 'low',
+          autoFixable: false,
+        });
+      }
+
+      // 6. Check dream health
+      if (dreamResult.insights.length === 0 && patternsLoaded >= 20) {
+        recommendations.push({
+          priority: 'p3',
+          domain: 'learning-optimization',
+          action: 'Review dream configuration',
+          description: 'No insights generated despite sufficient patterns. ' +
+            'Consider adjusting novelty threshold or spread factor.',
+          estimatedImpact: 'low',
+          effort: 'low',
+          autoFixable: false,
+        });
+      }
+
+      const durationMs = Date.now() - startTime;
+      const healthScore = Math.min(100, 50 + (dreamResult.insights.length * 5) + (appliedCount * 10));
+
+      return this.createResult(
+        durationMs,
+        {
+          itemsAnalyzed: patternsLoaded,
+          issuesFound: 0,
+          healthScore,
+          trend: appliedCount > 0 ? 'improving' : 'stable',
+          domainMetrics: {
+            patternsLoaded,
+            dreamCycleRan: 1,
+            conceptsProcessed: dreamResult.activationStats.nodesActivated,
+            associationsFound: dreamResult.cycle.associationsFound,
+            insightsGenerated: dreamResult.insights.length,
+            insightsApplied: appliedCount,
+            pendingInsights: pendingInsights.length,
+            durationMs: dreamResult.cycle.durationMs ?? 0,
+          },
+        },
+        findings,
+        recommendations
+      );
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      // Handle expected errors gracefully
+      if (errorMsg.includes('Insufficient concepts')) {
+        context.logger.info('Dream cycle skipped: insufficient concepts');
+        return this.createResult(
+          Date.now() - startTime,
+          {
+            itemsAnalyzed: 0,
+            issuesFound: 0,
+            healthScore: 50,
+            trend: 'stable',
+            domainMetrics: {
+              dreamCycleRan: 0,
+              reason: 'insufficient-concepts',
+            },
+          },
+          [],
+          []
+        );
+      }
+
       throw error;
     }
   }
@@ -674,6 +909,15 @@ export function createPatternConsolidatorWorker(
   deps: PatternConsolidatorDeps
 ): PatternConsolidatorWorker {
   return new PatternConsolidatorWorker(deps);
+}
+
+/**
+ * Create dream consolidator worker (ADR-046)
+ */
+export function createDreamConsolidatorWorker(
+  deps: DreamConsolidatorDeps
+): DreamConsolidatorWorker {
+  return new DreamConsolidatorWorker(deps);
 }
 
 /**

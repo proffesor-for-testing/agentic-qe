@@ -1,11 +1,13 @@
 /**
  * Agentic QE v3 - Memory Backend Factory
  * Creates appropriate memory backend based on configuration
+ *
+ * NOTE: All backends now delegate to UnifiedMemoryManager for true unified storage.
+ * The 'agentdb' type is kept for backward compatibility but maps to HybridMemoryBackend.
  */
 
 import { MemoryBackend } from './interfaces';
 import { InMemoryBackend } from './memory-backend';
-import { AgentDBBackend, AgentDBConfig } from './agentdb-backend';
 import { HybridMemoryBackend, HybridBackendConfig, SQLiteConfig } from './hybrid-backend';
 
 // ============================================================================
@@ -14,8 +16,20 @@ import { HybridMemoryBackend, HybridBackendConfig, SQLiteConfig } from './hybrid
 
 /**
  * Supported memory backend types
+ *
+ * NOTE: 'agentdb' is now an alias for 'hybrid' - all vector operations
+ * are handled by the unified memory.db with built-in HNSW indexing.
  */
 export type MemoryBackendType = 'memory' | 'sqlite' | 'agentdb' | 'hybrid';
+
+/**
+ * AgentDB configuration (legacy - for backward compatibility)
+ * Now maps to HybridMemoryBackend which has HNSW built-in.
+ */
+export interface AgentDBConfig {
+  /** Database file path (uses unified memory.db) */
+  path?: string;
+}
 
 /**
  * Memory backend configuration union
@@ -32,7 +46,7 @@ export interface MemoryBackendConfig {
   /** SQLite backend options (type: 'sqlite') */
   sqlite?: Partial<SQLiteConfig>;
 
-  /** AgentDB backend options (type: 'agentdb') */
+  /** AgentDB backend options (type: 'agentdb') - legacy, maps to hybrid */
   agentdb?: Partial<AgentDBConfig>;
 
   /** Hybrid backend options (type: 'hybrid') */
@@ -64,22 +78,18 @@ export interface MemoryBackendResult {
  * // Simple in-memory backend
  * const memory = await createMemoryBackend({ type: 'memory' });
  *
- * // AgentDB with HNSW for vector search
+ * // Vector search via unified memory (agentdb is now alias for hybrid)
  * const vectorMemory = await createMemoryBackend({
  *   type: 'agentdb',
- *   agentdb: {
- *     path: './data/vectors.db',
- *     hnsw: { dimensions: 384, metric: 'cosine' }
- *   }
+ *   agentdb: { path: './data/memory.db' }
  * });
  *
- * // Hybrid: SQLite + AgentDB with fallback
+ * // Hybrid: SQLite with vector search built-in
  * const hybridMemory = await createMemoryBackend({
  *   type: 'hybrid',
  *   hybrid: {
  *     enableFallback: true,
- *     sqlite: { path: './data/memory.db' },
- *     agentdb: { path: './data/vectors.db' }
+ *     sqlite: { path: './data/memory.db' }
  *   }
  * });
  * ```
@@ -96,17 +106,20 @@ export async function createMemoryBackend(
       break;
 
     case 'sqlite':
-      // SQLite-only mode uses hybrid backend with AgentDB disabled
+      // SQLite-only mode uses hybrid backend
       backend = new HybridMemoryBackend({
         sqlite: config.sqlite,
         enableFallback: true,
-        // Don't initialize AgentDB for SQLite-only mode
-        agentdb: undefined,
       });
       break;
 
     case 'agentdb':
-      backend = new AgentDBBackend(config.agentdb);
+      // AgentDB now maps to HybridMemoryBackend which has HNSW built-in
+      // This maintains backward compatibility while using unified storage
+      backend = new HybridMemoryBackend({
+        sqlite: { path: config.agentdb?.path ?? '.agentic-qe/memory.db' },
+        enableFallback: true,
+      });
       break;
 
     case 'hybrid':
@@ -134,7 +147,7 @@ export async function createMemoryBackend(
  * Uses environment variables to determine backend type:
  * - AQE_MEMORY_BACKEND: 'memory' | 'sqlite' | 'agentdb' | 'hybrid'
  * - AQE_MEMORY_PATH: Path for persistent storage
- * - AQE_VECTOR_DIMENSIONS: Vector embedding dimensions
+ * - AQE_VECTOR_DIMENSIONS: Vector embedding dimensions (used by UnifiedMemory)
  *
  * @param autoInitialize - Whether to automatically initialize
  * @returns Configured memory backend
@@ -144,7 +157,6 @@ export async function createDefaultMemoryBackend(
 ): Promise<MemoryBackendResult> {
   const backendType = (process.env.AQE_MEMORY_BACKEND as MemoryBackendType) ?? 'memory';
   const storagePath = process.env.AQE_MEMORY_PATH ?? '.agentic-qe';
-  const vectorDimensions = parseInt(process.env.AQE_VECTOR_DIMENSIONS ?? '384', 10);
 
   const config: MemoryBackendConfig = {
     type: backendType,
@@ -153,29 +165,13 @@ export async function createDefaultMemoryBackend(
       walMode: true,
     },
     agentdb: {
-      path: `${storagePath}/vectors.db`,
-      hnsw: {
-        dimensions: vectorDimensions,
-        metric: 'cosine',
-        M: 16,
-        efConstruction: 200,
-        efSearch: 100,
-      },
+      // Now just uses unified memory.db
+      path: `${storagePath}/memory.db`,
     },
     hybrid: {
       enableFallback: true,
       sqlite: {
         path: `${storagePath}/memory.db`,
-      },
-      agentdb: {
-        path: `${storagePath}/vectors.db`,
-        hnsw: {
-          dimensions: vectorDimensions,
-          metric: 'cosine',
-          M: 16,
-          efConstruction: 200,
-          efSearch: 100,
-        },
       },
     },
   };
@@ -199,9 +195,9 @@ export function selectBackendType(requirements: {
   needsHighPerformance: boolean;
   maxMemoryMB?: number;
 }): MemoryBackendType {
-  // High-performance vector search -> AgentDB with HNSW
+  // High-performance vector search -> hybrid (has HNSW built-in)
   if (requirements.needsVectorSearch && requirements.needsHighPerformance) {
-    return 'agentdb';
+    return 'hybrid';
   }
 
   // Need both persistence and vectors -> Hybrid
@@ -209,7 +205,7 @@ export function selectBackendType(requirements: {
     return 'hybrid';
   }
 
-  // Only persistence needed -> SQLite
+  // Only persistence needed -> SQLite (via hybrid)
   if (requirements.needsPersistence) {
     return 'sqlite';
   }
@@ -240,7 +236,7 @@ export function getRecommendedConfig(
       };
 
     case 'production':
-      // Full hybrid with all features
+      // Full hybrid with unified memory.db
       return {
         type: 'hybrid',
         hybrid: {
@@ -249,17 +245,6 @@ export function getRecommendedConfig(
             walMode: true,
             poolSize: 10,
             busyTimeout: 10000,
-          },
-          agentdb: {
-            walEnabled: true,
-            cacheSize: 256 * 1024 * 1024, // 256MB
-            hnsw: {
-              M: 32, // Higher connectivity for better recall
-              efConstruction: 400,
-              efSearch: 200,
-              metric: 'cosine',
-              dimensions: 384,
-            },
           },
         },
       };
@@ -285,9 +270,7 @@ export function getRecommendedConfig(
 
 export {
   InMemoryBackend,
-  AgentDBBackend,
   HybridMemoryBackend,
-  type AgentDBConfig,
   type HybridBackendConfig,
   type SQLiteConfig,
 };

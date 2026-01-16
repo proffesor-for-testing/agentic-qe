@@ -354,7 +354,7 @@ export class PatternStore implements IPatternStore {
   }
 
   /**
-   * Initialize HNSW index
+   * Initialize HNSW index with timeout protection
    */
   private async initializeHNSW(): Promise<void> {
     try {
@@ -373,7 +373,14 @@ export class PatternStore implements IPatternStore {
         metric: 'cosine',
       });
 
-      await this.hnswIndex.initialize();
+      // Add timeout to prevent hanging on problematic databases
+      const timeoutMs = 5000;
+      const initPromise = this.hnswIndex.initialize();
+      const timeoutPromise = new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('HNSW init timeout')), timeoutMs)
+      );
+
+      await Promise.race([initPromise, timeoutPromise]);
       this.hnswAvailable = this.hnswIndex.isNativeAvailable();
 
       console.log(
@@ -382,26 +389,45 @@ export class PatternStore implements IPatternStore {
     } catch (error) {
       console.warn(
         '[PatternStore] HNSW not available, using memory backend search:',
-        error
+        error instanceof Error ? error.message : String(error)
       );
+      this.hnswIndex = null;
       this.hnswAvailable = false;
     }
   }
 
   /**
-   * Load existing patterns from memory
+   * Load existing patterns from memory with timeout protection
    */
   private async loadPatterns(): Promise<void> {
-    const keys = await this.memory.search(`${this.config.namespace}:pattern:*`, 10000);
+    try {
+      // Add timeout to prevent hanging on uninitialized/empty databases
+      const timeoutMs = 5000;
+      const searchPromise = this.memory.search(`${this.config.namespace}:pattern:*`, 10000);
+      const timeoutPromise = new Promise<string[]>((_, reject) =>
+        setTimeout(() => reject(new Error('Pattern load timeout')), timeoutMs)
+      );
 
-    for (const key of keys) {
-      const pattern = await this.memory.get<QEPattern>(key);
-      if (pattern) {
-        this.indexPattern(pattern);
+      const keys = await Promise.race([searchPromise, timeoutPromise]);
+
+      for (const key of keys) {
+        try {
+          const pattern = await this.memory.get<QEPattern>(key);
+          if (pattern) {
+            this.indexPattern(pattern);
+          }
+        } catch {
+          // Skip invalid patterns
+        }
       }
-    }
 
-    console.log(`[PatternStore] Loaded ${this.patternCache.size} patterns`);
+      console.log(`[PatternStore] Loaded ${this.patternCache.size} patterns`);
+    } catch (error) {
+      // Database may be empty or uninitialized - that's OK, we'll start fresh
+      console.log(`[PatternStore] Starting fresh (no existing patterns loaded): ${
+        error instanceof Error ? error.message : 'unknown error'
+      }`);
+    }
   }
 
   /**

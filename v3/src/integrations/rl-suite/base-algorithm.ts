@@ -2,6 +2,7 @@
  * Agentic QE v3 - Base RL Algorithm
  *
  * Abstract base class for all RL algorithm implementations.
+ * Supports Q-value persistence via QValueStore for cross-session learning.
  */
 
 import type {
@@ -21,6 +22,7 @@ import type {
   RLAlgorithmError
 } from './interfaces';
 import { RLTrainingError, RLPredictionError, RLConfigError } from './interfaces';
+import { QValueStore } from './persistence/q-value-store.js';
 
 // ============================================================================
 // Default Configuration
@@ -37,6 +39,26 @@ const DEFAULT_TRAINING_CONFIG: Required<RLTrainingConfig> = {
   explorationRate: 0.3,
   explorationDecay: 0.995,
   minExplorationRate: 0.01,
+};
+
+// ============================================================================
+// Persistence Configuration (ADR-046)
+// ============================================================================
+
+interface PersistenceConfig {
+  /** Enable Q-value persistence to SQLite */
+  enabled: boolean;
+  /** Agent ID for persistence (required if enabled) */
+  agentId?: string;
+  /** Auto-save interval in episodes (0 = disabled) */
+  autoSaveInterval: number;
+  /** Custom database path */
+  dbPath?: string;
+}
+
+const DEFAULT_PERSISTENCE_CONFIG: PersistenceConfig = {
+  enabled: false,
+  autoSaveInterval: 10, // Save every 10 episodes
 };
 
 // ============================================================================
@@ -57,15 +79,51 @@ export abstract class BaseRLAlgorithm implements RLAlgorithm {
   protected initialized = false;
   protected rewardSignals: RewardSignal[] = [];
 
+  // Persistence (ADR-046)
+  protected persistenceConfig: PersistenceConfig;
+  protected qValueStore: QValueStore | null = null;
+  protected lastSaveEpisode = 0;
+
   constructor(
     public readonly type: RLAlgorithmType,
     public readonly category: RLAlgorithmCategory,
     config: Partial<RLTrainingConfig> = {},
-    rewardSignals: RewardSignal[] = []
+    rewardSignals: RewardSignal[] = [],
+    persistenceConfig: Partial<PersistenceConfig> = {}
   ) {
     this.config = { ...DEFAULT_TRAINING_CONFIG, ...config };
     this.rewardSignals = rewardSignals;
+    this.persistenceConfig = { ...DEFAULT_PERSISTENCE_CONFIG, ...persistenceConfig };
     this.stats = this.createInitialStats();
+  }
+
+  // ============================================================================
+  // Persistence Public API (ADR-046)
+  // ============================================================================
+
+  /**
+   * Enable persistence for this algorithm instance
+   */
+  enablePersistence(agentId: string, dbPath?: string): void {
+    this.persistenceConfig.enabled = true;
+    this.persistenceConfig.agentId = agentId;
+    if (dbPath) {
+      this.persistenceConfig.dbPath = dbPath;
+    }
+  }
+
+  /**
+   * Check if persistence is enabled
+   */
+  isPersistenceEnabled(): boolean {
+    return this.persistenceConfig.enabled && !!this.persistenceConfig.agentId;
+  }
+
+  /**
+   * Get the agent ID used for persistence
+   */
+  getPersistenceAgentId(): string | undefined {
+    return this.persistenceConfig.agentId;
   }
 
   // ============================================================================
@@ -150,6 +208,9 @@ export abstract class BaseRLAlgorithm implements RLAlgorithm {
       );
       this.stats.explorationRate = this.config.explorationRate;
 
+      // ADR-046: Auto-save to persistent store if enabled
+      await this.autoSaveToPersistence();
+
       return this.stats;
     } catch (error) {
       throw new RLTrainingError(
@@ -157,6 +218,26 @@ export abstract class BaseRLAlgorithm implements RLAlgorithm {
         this.type,
         error as Error
       );
+    }
+  }
+
+  /**
+   * Auto-save to persistent store based on interval (ADR-046)
+   */
+  private async autoSaveToPersistence(): Promise<void> {
+    if (!this.isPersistenceEnabled()) return;
+    if (this.persistenceConfig.autoSaveInterval <= 0) return;
+
+    const episodesSinceLastSave = this.episodeCount - this.lastSaveEpisode;
+    if (episodesSinceLastSave >= this.persistenceConfig.autoSaveInterval) {
+      try {
+        await this.saveToStore(this.persistenceConfig.agentId!, this.qValueStore ?? undefined);
+        this.lastSaveEpisode = this.episodeCount;
+      } catch (error) {
+        // Log but don't fail training on persistence errors
+        // eslint-disable-next-line no-console
+        console.warn(`[${this.type}] Auto-save failed:`, (error as Error).message);
+      }
     }
   }
 
@@ -195,16 +276,40 @@ export abstract class BaseRLAlgorithm implements RLAlgorithm {
 
   /**
    * Reset algorithm state
+   * Saves to persistence before resetting if enabled (ADR-046)
    */
   async reset(): Promise<void> {
+    // ADR-046: Save current state before resetting
+    if (this.isPersistenceEnabled() && this.episodeCount > 0) {
+      await this.saveToStore(this.persistenceConfig.agentId!, this.qValueStore ?? undefined);
+    }
+
     this.replayBuffer = [];
     this.episodeCount = 0;
     this.totalReward = 0;
     this.rewardHistory = [];
+    this.lastSaveEpisode = 0;
     this.config.explorationRate = DEFAULT_TRAINING_CONFIG.explorationRate;
     this.stats = this.createInitialStats();
 
     await this.resetAlgorithm();
+  }
+
+  /**
+   * Close algorithm and release resources (ADR-046)
+   * Should be called when the algorithm is no longer needed
+   */
+  async close(): Promise<void> {
+    // Save final state if persistence is enabled
+    if (this.isPersistenceEnabled() && this.episodeCount > this.lastSaveEpisode) {
+      await this.saveToStore(this.persistenceConfig.agentId!, this.qValueStore ?? undefined);
+    }
+
+    // Close the QValueStore
+    if (this.qValueStore) {
+      await this.qValueStore.close();
+      this.qValueStore = null;
+    }
   }
 
   /**
@@ -275,6 +380,118 @@ export abstract class BaseRLAlgorithm implements RLAlgorithm {
         batchSize: this.config.batchSize,
       },
     };
+  }
+
+  // ============================================================================
+  // Q-Value Persistence (ADR-046)
+  // ============================================================================
+
+  /**
+   * Save model state to QValueStore for cross-session persistence
+   *
+   * @param agentId - Unique agent identifier
+   * @param store - QValueStore instance (creates default if not provided)
+   */
+  async saveToStore(agentId: string, store?: QValueStore): Promise<void> {
+    const qStore = store ?? new QValueStore();
+    await qStore.initialize();
+
+    // Export model data
+    const modelData = await this.exportModel();
+
+    // Store as a single JSON blob in the Q-value store
+    // Use special state_key format: __model_state__
+    await qStore.setQValue(
+      agentId,
+      '__model_state__',
+      '__weights__',
+      0, // Q-value not used for model storage
+      undefined,
+      { algorithm: this.type, domain: JSON.stringify(modelData) }
+    );
+  }
+
+  /**
+   * Load model state from QValueStore
+   *
+   * @param agentId - Unique agent identifier
+   * @param store - QValueStore instance (creates default if not provided)
+   * @returns true if model was loaded, false if no saved state found
+   */
+  async loadFromStore(agentId: string, store?: QValueStore): Promise<boolean> {
+    const qStore = store ?? new QValueStore();
+    await qStore.initialize();
+
+    try {
+      // Check if we have stored model data
+      const qValue = await qStore.getQValue(
+        agentId,
+        '__model_state__',
+        '__weights__',
+        this.type
+      );
+
+      // If q-value is 0, we might have stored data - need to get full entry
+      const entry = await qStore.getEntry(agentId, '__model_state__', '__weights__', this.type);
+
+      if (!entry?.domain) {
+        return false;
+      }
+
+      const modelData = JSON.parse(entry.domain);
+      await this.importModel(modelData);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Store individual Q-value for tabular algorithms
+   *
+   * @param agentId - Agent identifier
+   * @param stateKey - State representation
+   * @param actionKey - Action representation
+   * @param qValue - Q-value to store
+   * @param reward - Last reward received
+   * @param store - QValueStore instance
+   */
+  async storeQValue(
+    agentId: string,
+    stateKey: string,
+    actionKey: string,
+    qValue: number,
+    reward?: number,
+    store?: QValueStore
+  ): Promise<void> {
+    const qStore = store ?? new QValueStore();
+    await qStore.initialize();
+    await qStore.setQValue(agentId, stateKey, actionKey, qValue, reward, { algorithm: this.type });
+  }
+
+  /**
+   * Retrieve stored Q-value for tabular algorithms
+   *
+   * @param agentId - Agent identifier
+   * @param stateKey - State representation
+   * @param actionKey - Action representation
+   * @param store - QValueStore instance
+   * @returns Q-value or null if not found
+   */
+  async retrieveQValue(
+    agentId: string,
+    stateKey: string,
+    actionKey: string,
+    store?: QValueStore
+  ): Promise<number | null> {
+    const qStore = store ?? new QValueStore();
+    await qStore.initialize();
+    try {
+      const qValue = await qStore.getQValue(agentId, stateKey, actionKey, this.type);
+      return qValue;
+    } catch {
+      return null;
+    }
   }
 
   // ============================================================================
@@ -383,9 +600,30 @@ export abstract class BaseRLAlgorithm implements RLAlgorithm {
 
   /**
    * Initialize algorithm (called before first training)
+   * Attempts to load persisted state if persistence is enabled (ADR-046)
    */
   protected async initialize(): Promise<void> {
+    // ADR-046: Try to load from persistent store if enabled
+    if (this.isPersistenceEnabled()) {
+      await this.initializePersistence();
+      const loaded = await this.loadFromStore(this.persistenceConfig.agentId!);
+      if (loaded) {
+        // Successfully restored from persistence
+        // eslint-disable-next-line no-console
+        console.log(`[${this.type}] Loaded persisted state for agent: ${this.persistenceConfig.agentId}`);
+      }
+    }
     this.initialized = true;
+  }
+
+  /**
+   * Initialize the QValueStore for persistence (ADR-046)
+   */
+  private async initializePersistence(): Promise<void> {
+    if (!this.qValueStore) {
+      this.qValueStore = new QValueStore();
+      await this.qValueStore.initialize();
+    }
   }
 
   /**

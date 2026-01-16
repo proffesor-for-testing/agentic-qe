@@ -174,6 +174,28 @@ export interface AutoTuningConfig {
 }
 
 /**
+ * N8n platform configuration
+ */
+export interface N8nPlatformConfig {
+  enabled: boolean;
+  installAgents: boolean;
+  installSkills: boolean;
+  installTypeScriptAgents: boolean;
+  n8nApiConfig?: {
+    baseUrl?: string;
+    apiKey?: string;
+  };
+}
+
+/**
+ * Platform integrations configuration
+ */
+export interface PlatformsConfig {
+  n8n?: N8nPlatformConfig;
+  // Future: github?, agentdb?, flow-nexus?
+}
+
+/**
  * Complete AQE initialization configuration
  */
 export interface AQEInitConfig {
@@ -191,6 +213,9 @@ export interface AQEInitConfig {
   hooks: HooksConfig;
   skills: SkillsConfig;
   autoTuning: AutoTuningConfig;
+
+  // Platform integrations (n8n, etc.)
+  platforms?: PlatformsConfig;
 
   // Domain-specific settings
   domains: {
@@ -238,6 +263,11 @@ export interface InitResult {
     mcpConfigured: boolean;
     claudeMdGenerated: boolean;
     workersStarted: number;
+    // Platform integration results
+    n8nInstalled?: {
+      agents: number;
+      skills: number;
+    };
   };
 
   totalDurationMs: number;
@@ -386,6 +416,13 @@ export const DEFAULT_AUTO_TUNING_CONFIG: AutoTuningConfig = {
   ],
   tuningIntervalMs: 7 * 24 * 60 * 60 * 1000, // Weekly
   evaluationPeriodMs: 5000,
+};
+
+export const DEFAULT_N8N_PLATFORM_CONFIG: N8nPlatformConfig = {
+  enabled: false, // Disabled by default, enabled with --with-n8n
+  installAgents: true,
+  installSkills: true,
+  installTypeScriptAgents: false,
 };
 
 export const ALL_DOMAINS = [

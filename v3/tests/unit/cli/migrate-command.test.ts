@@ -323,9 +323,9 @@ describe('Migrate Command', () => {
   describe('Next Steps After Migration', () => {
     it('should provide next steps', () => {
       const nextSteps = [
-        'Run `aqe-v3 status` to verify the system',
-        'Add v3 MCP: `claude mcp add aqe-v3 -- aqe-v3-mcp`',
-        'Test with: `aqe-v3 test <path>`',
+        'Run `aqe status` to verify the system',
+        'Add MCP: `claude mcp add aqe -- aqe-mcp`',
+        'Test with: `aqe test <path>`',
       ];
 
       expect(nextSteps.length).toBe(3);

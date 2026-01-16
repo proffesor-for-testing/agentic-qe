@@ -204,9 +204,9 @@ describe('Init Command', () => {
   describe('Init Success Output', () => {
     it('should define expected next steps', () => {
       const nextSteps = [
-        'Add MCP: claude mcp add aqe-v3 -- aqe-v3-mcp',
-        'Run tests: aqe-v3 test <path>',
-        'Check status: aqe-v3 status',
+        'Add MCP: claude mcp add aqe -- aqe-mcp',
+        'Run tests: aqe test <path>',
+        'Check status: aqe status',
       ];
 
       expect(nextSteps.length).toBe(3);

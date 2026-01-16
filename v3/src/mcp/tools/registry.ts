@@ -22,6 +22,7 @@ import { VisualCompareTool, A11yAuditTool } from './visual-accessibility';
 import { ChaosInjectTool } from './chaos-resilience/inject';
 import { LearningOptimizeTool } from './learning-optimization/optimize';
 import { TokenUsageTool } from './analysis/token-usage';
+import { GOAPPlanTool, GOAPExecuteTool, GOAPStatusTool } from './planning';
 
 // ============================================================================
 // Tool Names (ADR-010 Naming Convention)
@@ -68,6 +69,11 @@ export const QE_TOOL_NAMES = {
 
   // Analysis Tools (ADR-042)
   TOKEN_USAGE: 'qe/analysis/token_usage',
+
+  // GOAP Planning Tools
+  GOAP_PLAN: 'qe/planning/goap_plan',
+  GOAP_EXECUTE: 'qe/planning/goap_execute',
+  GOAP_STATUS: 'qe/planning/goap_status',
 } as const;
 
 // ============================================================================
@@ -118,6 +124,11 @@ export const QE_TOOLS: MCPToolBase[] = [
 
   // Analysis Tools (ADR-042)
   new TokenUsageTool(),
+
+  // GOAP Planning Tools
+  new GOAPPlanTool(),
+  new GOAPExecuteTool(),
+  new GOAPStatusTool(),
 ];
 
 // ============================================================================
@@ -196,6 +207,22 @@ export function getAllToolDefinitions(): Array<{
   inputSchema: Record<string, unknown>;
 }> {
   return QE_TOOLS.map(getToolDefinition);
+}
+
+/**
+ * Reset all instance-level caches in QE tools.
+ * Call this when disposing the fleet to prevent stale backend references.
+ *
+ * Tools with instance caches (e.g., TestGenerateTool, CoverageAnalyzeTool)
+ * cache their service instances for performance. When the fleet is disposed
+ * and reinitialized, these cached services may hold references to disposed
+ * memory backends. This function clears all tool caches to ensure fresh
+ * service instances are created on next use.
+ */
+export function resetAllToolCaches(): void {
+  for (const tool of QE_TOOLS) {
+    tool.resetInstanceCache();
+  }
 }
 
 // ============================================================================

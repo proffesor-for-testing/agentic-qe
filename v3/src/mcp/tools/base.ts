@@ -8,6 +8,89 @@
 import { v4 as uuidv4 } from 'uuid';
 import { DomainName } from '../../shared/types';
 import { ToolResult, ToolResultMetadata } from '../types';
+import { MemoryBackend } from '../../kernel/interfaces';
+import { HybridMemoryBackend } from '../../kernel/hybrid-backend';
+import * as path from 'path';
+import * as fs from 'fs';
+
+// ============================================================================
+// Shared Memory Backend for MCP Tools
+// ============================================================================
+
+let sharedMemoryBackend: MemoryBackend | null = null;
+let memoryInitPromise: Promise<MemoryBackend> | null = null;
+
+/**
+ * Find the project root by looking for package.json or .git
+ */
+function findProjectRoot(): string {
+  let dir = process.cwd();
+  const root = path.parse(dir).root;
+
+  while (dir !== root) {
+    if (fs.existsSync(path.join(dir, 'package.json')) ||
+        fs.existsSync(path.join(dir, '.git'))) {
+      return dir;
+    }
+    dir = path.dirname(dir);
+  }
+  return process.cwd();
+}
+
+/**
+ * Get or create the shared memory backend for MCP tools.
+ * All tools share the same backend to ensure data persistence.
+ */
+export async function getSharedMemoryBackend(): Promise<MemoryBackend> {
+  // Return existing backend if available
+  if (sharedMemoryBackend) {
+    return sharedMemoryBackend;
+  }
+
+  // Wait for initialization if in progress
+  if (memoryInitPromise) {
+    return memoryInitPromise;
+  }
+
+  // Initialize new backend
+  memoryInitPromise = (async () => {
+    const projectRoot = findProjectRoot();
+    const dataDir = path.join(projectRoot, '.agentic-qe');
+
+    // Ensure data directory exists
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+
+    // All data goes to unified memory.db via UnifiedMemoryManager
+    const backend = new HybridMemoryBackend({
+      sqlite: {
+        path: path.join(dataDir, 'memory.db'),
+        walMode: true,
+        poolSize: 3,
+        busyTimeout: 5000,
+      },
+      enableFallback: true,
+      defaultNamespace: 'mcp-tools',
+    });
+
+    await backend.initialize();
+    sharedMemoryBackend = backend;
+    return backend;
+  })();
+
+  return memoryInitPromise;
+}
+
+/**
+ * Get memory backend from context or create shared one
+ */
+export async function getMemoryBackend(context?: MCPToolContext): Promise<MemoryBackend> {
+  if (context?.memory) {
+    return context.memory;
+  }
+  return getSharedMemoryBackend();
+}
 
 // ============================================================================
 // Tool Schema Types (JSON Schema compatible)
@@ -68,6 +151,8 @@ export interface MCPToolContext {
   abortSignal?: AbortSignal;
   /** Explicit demo mode - when true, returns sample data without calling real services */
   demoMode?: boolean;
+  /** Shared memory backend for persistent storage */
+  memory?: import('../../kernel/interfaces').MemoryBackend;
 }
 
 /**
@@ -395,5 +480,18 @@ export abstract class MCPToolBase<
    */
   get supportsStreaming(): boolean {
     return this.config.streaming ?? false;
+  }
+
+  /**
+   * Reset any instance-level service caches.
+   * Override in tools that cache service instances to prevent
+   * stale references after fleet disposal/reinitialization.
+   *
+   * This is called by disposeFleet() to ensure all tool caches
+   * are cleared when the kernel/memory backend is disposed.
+   */
+  resetInstanceCache(): void {
+    // Default implementation does nothing.
+    // Override in tools that have instance-level service caches.
   }
 }

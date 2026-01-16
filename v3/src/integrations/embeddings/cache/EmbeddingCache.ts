@@ -2,12 +2,15 @@
  * Unified Embedding Cache
  *
  * Shared cache infrastructure between QE and claude-flow per ADR-040.
+ * ADR-046: Now supports unified storage via UnifiedMemoryManager.
+ *
  * Features:
  * - LRU eviction policy
  * - Persistent storage (sql.js WASM for cross-platform)
  * - Compression for memory efficiency
  * - Namespace separation
  * - HNSW indexing support
+ * - Unified storage via UnifiedMemoryManager (ADR-046)
  *
  * Performance:
  * - Get: O(1)
@@ -27,6 +30,7 @@ import type {
 import Database from 'better-sqlite3';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../../../kernel/unified-memory.js';
 
 /**
  * Database row representation from SQLite
@@ -55,6 +59,19 @@ interface CacheEntry {
 }
 
 /**
+ * Extended cache config with unified storage support (ADR-046)
+ */
+interface ExtendedCacheConfig extends Partial<ICacheConfig> {
+  /**
+   * Use UnifiedMemoryManager instead of separate database (ADR-046)
+   * When true, uses shared .agentic-qe/memory.db
+   * When false, creates separate .agentic-qe/embeddings-cache.db (legacy)
+   * @default true
+   */
+  useUnified?: boolean;
+}
+
+/**
  * Embedding cache with LRU eviction and persistent storage
  */
 export class EmbeddingCache {
@@ -65,12 +82,15 @@ export class EmbeddingCache {
   private compression: boolean;
   private db: Database.Database | null = null;
   private storagePath: string;
+  private useUnified: boolean;
+  private unifiedMemory: UnifiedMemoryManager | null = null;
 
-  constructor(config: Partial<ICacheConfig> = {}) {
+  constructor(config: ExtendedCacheConfig = {}) {
     this.maxSize = config.maxSize || 10000;
     this.ttl = config.ttl || 0;
     this.persistent = config.persistent ?? true;
     this.compression = config.compression ?? true;
+    this.useUnified = config.useUnified ?? true; // ADR-046: Default to unified
     this.storagePath = config.storagePath ||
       join(process.cwd(), '.agentic-qe', 'embeddings-cache.db');
 
@@ -92,38 +112,56 @@ export class EmbeddingCache {
    */
   private initializePersistentStorage(): void {
     try {
-      // Ensure directory exists
-      const dir = join(this.storagePath, '..');
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
+      if (this.useUnified) {
+        // ADR-046: Use unified storage via UnifiedMemoryManager
+        this.unifiedMemory = getUnifiedMemory();
+        // Note: initialize() is async, but we're in a sync constructor
+        // The tables are created by UnifiedMemoryManager during its initialization
+        // We need to call initialize before using the database
+        this.unifiedMemory.initialize().then(() => {
+          this.db = this.unifiedMemory!.getDatabase();
+          console.log(`[EmbeddingCache] Using unified storage: ${this.unifiedMemory!.getDbPath()}`);
+          this.loadFromDisk();
+        }).catch((error) => {
+          console.warn('[EmbeddingCache] Failed to initialize unified storage:', error);
+          this.db = null;
+          this.unifiedMemory = null;
+        });
+      } else {
+        // Legacy: Create separate database
+        const dir = join(this.storagePath, '..');
+        if (!existsSync(dir)) {
+          mkdirSync(dir, { recursive: true });
+        }
+
+        this.db = new Database(this.storagePath);
+        this.db.pragma('journal_mode = WAL');
+        this.db.pragma('synchronous = NORMAL');
+
+        // Create table if not exists (only for legacy mode)
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS embeddings (
+            key TEXT NOT NULL,
+            namespace TEXT NOT NULL,
+            vector BLOB NOT NULL,
+            dimension INTEGER NOT NULL,
+            text TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            quantization TEXT NOT NULL,
+            metadata TEXT,
+            access_count INTEGER DEFAULT 1,
+            last_access INTEGER NOT NULL,
+            PRIMARY KEY (key, namespace)
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_namespace ON embeddings(namespace);
+          CREATE INDEX IF NOT EXISTS idx_timestamp ON embeddings(timestamp);
+        `);
+
+        console.log(`[EmbeddingCache] Initialized (legacy): ${this.storagePath}`);
+        // Load existing entries into memory cache
+        this.loadFromDisk();
       }
-
-      this.db = new Database(this.storagePath);
-      this.db.pragma('journal_mode = WAL');
-      this.db.pragma('synchronous = NORMAL');
-
-      // Create table if not exists
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS embeddings (
-          key TEXT NOT NULL,
-          namespace TEXT NOT NULL,
-          vector BLOB NOT NULL,
-          dimension INTEGER NOT NULL,
-          text TEXT NOT NULL,
-          timestamp INTEGER NOT NULL,
-          quantization TEXT NOT NULL,
-          metadata TEXT,
-          access_count INTEGER DEFAULT 1,
-          last_access INTEGER NOT NULL,
-          PRIMARY KEY (key, namespace)
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_namespace ON embeddings(namespace);
-        CREATE INDEX IF NOT EXISTS idx_timestamp ON embeddings(timestamp);
-      `);
-
-      // Load existing entries into memory cache
-      this.loadFromDisk();
     } catch (error) {
       console.warn('Failed to initialize persistent storage:', error);
       this.db = null;
@@ -425,8 +463,15 @@ export class EmbeddingCache {
    */
   close(): void {
     if (this.db) {
-      this.db.close();
+      // Only close if NOT using unified storage (we don't own the connection)
+      if (!this.unifiedMemory) {
+        this.db.close();
+        console.log('[EmbeddingCache] Database closed');
+      } else {
+        console.log('[EmbeddingCache] Detached from unified storage (not closing shared connection)');
+      }
       this.db = null;
+      this.unifiedMemory = null;
     }
   }
 

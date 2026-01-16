@@ -9,7 +9,7 @@
  * - AccessibilityTesterService for WCAG compliance auditing
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base';
 import { ToolResult } from '../../types';
 import { VisualTesterService } from '../../../domains/visual-accessibility/services/visual-tester';
 import { AccessibilityTesterService } from '../../../domains/visual-accessibility/services/accessibility-tester';
@@ -170,11 +170,11 @@ export class VisualCompareTool extends MCPToolBase<VisualCompareParams, VisualCo
   /**
    * Get or create the visual tester service
    */
-  private getService(context: MCPToolContext): VisualTesterService {
+  private async getService(context: MCPToolContext): Promise<VisualTesterService> {
     if (!this.visualTester) {
       const memory = (context as any).memory as MemoryBackend | undefined;
       this.visualTester = new VisualTesterService(
-        memory || createMinimalMemoryBackend()
+        memory || await getSharedMemoryBackend()
       );
     }
     return this.visualTester;
@@ -205,7 +205,7 @@ export class VisualCompareTool extends MCPToolBase<VisualCompareParams, VisualCo
       // Mark as real data - this tool always uses real services
       this.markAsRealData();
 
-      const service = this.getService(context);
+      const service = await this.getService(context);
       const comparisons: VisualComparison[] = [];
       const newBaselines: string[] = [];
 
@@ -354,11 +354,11 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
   /**
    * Get or create the accessibility tester service
    */
-  private getService(context: MCPToolContext): AccessibilityTesterService {
+  private async getService(context: MCPToolContext): Promise<AccessibilityTesterService> {
     if (!this.accessibilityTester) {
       const memory = (context as any).memory as MemoryBackend | undefined;
       this.accessibilityTester = new AccessibilityTesterService(
-        memory || createMinimalMemoryBackend(),
+        memory || await getSharedMemoryBackend(),
         {
           enableColorContrastCheck: true,
           enableKeyboardCheck: true,
@@ -393,7 +393,7 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
       // Mark as real data - this tool always uses real services
       this.markAsRealData();
 
-      const service = this.getService(context);
+      const service = await this.getService(context);
       const audits: UrlAudit[] = [];
 
       // Map standard to WCAG level
@@ -748,44 +748,3 @@ function generateRemediationPlan(topIssues: TopIssue[]): RemediationItem[] {
   }));
 }
 
-/**
- * Create minimal memory backend for standalone operation
- */
-function createMinimalMemoryBackend(): MemoryBackend {
-  const store = new Map<string, { value: unknown; metadata?: unknown }>();
-  const vectors = new Map<string, { embedding: number[]; metadata?: unknown }>();
-
-  return {
-    async initialize(): Promise<void> {
-      // No initialization needed
-    },
-    async dispose(): Promise<void> {
-      store.clear();
-      vectors.clear();
-    },
-    async set(key: string, value: unknown, _options?: unknown): Promise<void> {
-      store.set(key, { value });
-    },
-    async get<T>(key: string): Promise<T | undefined> {
-      const entry = store.get(key);
-      return entry ? (entry.value as T) : undefined;
-    },
-    async delete(key: string): Promise<boolean> {
-      return store.delete(key);
-    },
-    async has(key: string): Promise<boolean> {
-      return store.has(key);
-    },
-    async search(pattern: string, limit?: number): Promise<string[]> {
-      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-      const matches = Array.from(store.keys()).filter((key) => regex.test(key));
-      return limit ? matches.slice(0, limit) : matches;
-    },
-    async vectorSearch(_embedding: number[], _k: number): Promise<VectorSearchResult[]> {
-      return [];
-    },
-    async storeVector(_key: string, _embedding: number[], _metadata?: unknown): Promise<void> {
-      // Minimal implementation
-    },
-  };
-}

@@ -12,7 +12,7 @@ const CLI_MAPPINGS: CLICommandMapping[] = [
   // Test commands
   {
     v2Command: 'aqe generate tests',
-    v3Command: 'aqe-v3 test generate',
+    v3Command: 'aqe test generate',
     argMapping: {
       '--file': '--file',
       '--coverage': '--coverage',
@@ -22,7 +22,7 @@ const CLI_MAPPINGS: CLICommandMapping[] = [
   },
   {
     v2Command: 'aqe run tests',
-    v3Command: 'aqe-v3 test run',
+    v3Command: 'aqe test run',
     argMapping: {
       '--parallel': '--parallel',
       '--workers': '--workers',
@@ -34,7 +34,7 @@ const CLI_MAPPINGS: CLICommandMapping[] = [
   // Coverage commands
   {
     v2Command: 'aqe analyze coverage',
-    v3Command: 'aqe-v3 coverage analyze',
+    v3Command: 'aqe coverage analyze',
     argMapping: {
       '--source': '--source',
       '--threshold': '--threshold',
@@ -43,19 +43,19 @@ const CLI_MAPPINGS: CLICommandMapping[] = [
   },
   {
     v2Command: 'aqe coverage gaps',
-    v3Command: 'aqe-v3 coverage gaps',
+    v3Command: 'aqe coverage gaps',
     deprecated: true,
   },
   {
     v2Command: 'aqe coverage report',
-    v3Command: 'aqe-v3 coverage report',
+    v3Command: 'aqe coverage report',
     deprecated: true,
   },
 
   // Quality commands
   {
     v2Command: 'aqe check quality',
-    v3Command: 'aqe-v3 quality assess',
+    v3Command: 'aqe quality assess',
     argMapping: {
       '--gates': '--gates',
     },
@@ -63,50 +63,50 @@ const CLI_MAPPINGS: CLICommandMapping[] = [
   },
   {
     v2Command: 'aqe quality gate',
-    v3Command: 'aqe-v3 quality assess --gates all',
+    v3Command: 'aqe quality assess --gates all',
     deprecated: true,
   },
 
   // Security commands
   {
     v2Command: 'aqe security scan',
-    v3Command: 'aqe-v3 security scan',
+    v3Command: 'aqe security scan',
     deprecated: true,
   },
   {
     v2Command: 'aqe security audit',
-    v3Command: 'aqe-v3 security compliance',
+    v3Command: 'aqe security compliance',
     deprecated: true,
   },
 
   // Code intelligence commands
   {
     v2Command: 'aqe kg index',
-    v3Command: 'aqe-v3 kg index',
+    v3Command: 'aqe kg index',
     deprecated: true,
   },
   {
     v2Command: 'aqe kg search',
-    v3Command: 'aqe-v3 kg search',
+    v3Command: 'aqe kg search',
     deprecated: true,
   },
 
   // Learning commands
   {
     v2Command: 'aqe learn status',
-    v3Command: 'aqe-v3 learn status',
+    v3Command: 'aqe learn status',
     deprecated: true,
   },
   {
     v2Command: 'aqe patterns list',
-    v3Command: 'aqe-v3 learn patterns',
+    v3Command: 'aqe learn patterns',
     deprecated: true,
   },
 
   // Init command
   {
     v2Command: 'aqe init',
-    v3Command: 'aqe-v3 init',
+    v3Command: 'aqe init',
     deprecated: true,
   },
 ];
@@ -143,7 +143,7 @@ export class CLIAdapter {
     const normalized = this.normalizeCommand(command);
 
     // Already v3 format
-    if (command.startsWith('aqe-v3')) {
+    if (command.startsWith('aqe')) {
       return {
         resolved: true,
         v3Command: command,

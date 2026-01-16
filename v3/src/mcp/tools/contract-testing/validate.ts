@@ -8,7 +8,7 @@
  * - ApiCompatibilityService for breaking change detection
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base.js';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base.js';
 import { ToolResult } from '../../types.js';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
 import { Version } from '../../../shared/value-objects/index.js';
@@ -100,64 +100,6 @@ export interface Deprecation {
 }
 
 // ============================================================================
-// Minimal Memory Backend for Standalone Operation
-// ============================================================================
-
-function createMinimalMemoryBackend(): MemoryBackend {
-  const store = new Map<string, { value: unknown; ttl?: number; created: number }>();
-
-  return {
-    async initialize(): Promise<void> {
-      // No initialization needed
-    },
-    async dispose(): Promise<void> {
-      store.clear();
-    },
-    async get<T>(key: string): Promise<T | undefined> {
-      const entry = store.get(key);
-      if (!entry) return undefined;
-      if (entry.ttl && Date.now() - entry.created > entry.ttl * 1000) {
-        store.delete(key);
-        return undefined;
-      }
-      return entry.value as T;
-    },
-    async set(key: string, value: unknown, options?: { ttl?: number }): Promise<void> {
-      store.set(key, { value, ttl: options?.ttl, created: Date.now() });
-    },
-    async delete(key: string): Promise<boolean> {
-      return store.delete(key);
-    },
-    async has(key: string): Promise<boolean> {
-      const entry = store.get(key);
-      if (!entry) return false;
-      if (entry.ttl && Date.now() - entry.created > entry.ttl * 1000) {
-        store.delete(key);
-        return false;
-      }
-      return true;
-    },
-    async search(pattern: string, limit = 100): Promise<string[]> {
-      const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-      const matches: string[] = [];
-      for (const key of store.keys()) {
-        if (regex.test(key)) {
-          matches.push(key);
-          if (matches.length >= limit) break;
-        }
-      }
-      return matches;
-    },
-    async vectorSearch(_embedding: number[], _limit = 10): Promise<VectorSearchResult[]> {
-      return [];
-    },
-    async storeVector(_key: string, _embedding: number[], _metadata?: Record<string, unknown>): Promise<void> {
-      // Minimal implementation
-    },
-  };
-}
-
-// ============================================================================
 // Tool Implementation
 // ============================================================================
 
@@ -174,12 +116,12 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
   private contractValidator: ContractValidatorService | null = null;
   private apiCompatibility: ApiCompatibilityService | null = null;
 
-  private getServices(context: MCPToolContext): {
+  private async getServices(context: MCPToolContext): Promise<{
     contractValidator: ContractValidatorService;
     apiCompatibility: ApiCompatibilityService;
-  } {
+  }> {
     if (!this.contractValidator || !this.apiCompatibility) {
-      const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || createMinimalMemoryBackend();
+      const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || await getSharedMemoryBackend();
       this.contractValidator = new ContractValidatorService(memory);
       this.apiCompatibility = new ApiCompatibilityService(memory);
     }
@@ -204,7 +146,7 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
       format = 'openapi',
     } = params;
 
-    const { contractValidator, apiCompatibility } = this.getServices(context);
+    const { contractValidator, apiCompatibility } = await this.getServices(context);
 
     try {
       if (!contractPath && !contractContent) {
