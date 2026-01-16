@@ -31,7 +31,19 @@ import {
   MemoryBackend,
   QEKernel,
 } from '../kernel/interfaces';
-import { CrossDomainRouter, ProtocolExecutor, WorkflowExecutor } from './interfaces';
+import {
+  CrossDomainRouter,
+  ProtocolExecutor,
+  WorkflowExecutor,
+} from './interfaces';
+import { TaskAuditLogger, createTaskAuditLogger } from './services';
+import {
+  QueenMinCutBridge,
+  createQueenMinCutBridge,
+  QueenMinCutConfig,
+} from './mincut/queen-integration';
+import { MinCutHealth } from './mincut/interfaces';
+import { getSharedMinCutGraph } from './mincut/shared-singleton';
 
 // ============================================================================
 // Types
@@ -288,6 +300,14 @@ export class QueenCoordinator implements IQueenCoordinator {
   private metricsTimer: NodeJS.Timeout | null = null;
   private startTime: Date = new Date();
 
+  // Store subscription IDs for proper cleanup (PAP-003 memory leak fix)
+  // These IDs are used to unsubscribe from events during dispose()
+  private eventSubscriptionIds: string[] = [];
+
+  // Atomic counter for concurrent task tracking (CC-002 race condition fix)
+  // This counter is incremented/decremented atomically to prevent TOCTOU race conditions
+  private runningTaskCounter = 0;
+
   // Metrics counters
   private tasksReceived = 0;
   private tasksCompleted = 0;
@@ -296,6 +316,12 @@ export class QueenCoordinator implements IQueenCoordinator {
   private taskDurations: number[] = [];
   private protocolsExecuted = 0;
   private workflowsExecuted = 0;
+
+  // SEC-003 Simplified: Lightweight audit logging for task operations
+  private readonly auditLogger: TaskAuditLogger;
+
+  // ADR-047: MinCut topology health monitoring
+  private minCutBridge: QueenMinCutBridge | null = null;
 
   constructor(
     private readonly eventBus: EventBus,
@@ -308,6 +334,13 @@ export class QueenCoordinator implements IQueenCoordinator {
     config: Partial<QueenConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // SEC-003 Simplified: Initialize lightweight audit logger
+    this.auditLogger = createTaskAuditLogger({
+      enableConsoleLog: this.config.enableMetrics,
+      maxEntries: 1000,
+      logPrefix: '[QUEEN]',
+    });
 
     // Initialize priority queues
     (['p0', 'p1', 'p2', 'p3'] as Priority[]).forEach(p => {
@@ -349,6 +382,16 @@ export class QueenCoordinator implements IQueenCoordinator {
     // Load persisted state
     await this.loadState();
 
+    // ADR-047: Initialize MinCut topology health monitoring
+    // Use shared graph singleton for proper MCP tools integration
+    this.minCutBridge = createQueenMinCutBridge(this.eventBus, this.agentCoordinator, {
+      autoUpdateFromEvents: true,
+      persistData: true,
+      includeInQueenHealth: true,
+      sharedGraph: getSharedMinCutGraph(), // Share graph with MCP tools
+    });
+    await this.minCutBridge.initialize();
+
     // Publish initialization event
     await this.publishEvent('QueenInitialized', {
       timestamp: new Date(),
@@ -370,6 +413,12 @@ export class QueenCoordinator implements IQueenCoordinator {
       this.metricsTimer = null;
     }
 
+    // ADR-047: Dispose MinCut bridge
+    if (this.minCutBridge) {
+      await this.minCutBridge.dispose();
+      this.minCutBridge = null;
+    }
+
     // Save state
     await this.saveState();
 
@@ -385,6 +434,13 @@ export class QueenCoordinator implements IQueenCoordinator {
       timestamp: new Date(),
       metrics: this.getMetrics(),
     });
+
+    // PAP-003 FIX: Unsubscribe from all events before disposing router
+    // This prevents memory leaks by removing all event handlers
+    for (const subscriptionId of this.eventSubscriptionIds) {
+      this.router.unsubscribe(subscriptionId);
+    }
+    this.eventSubscriptionIds = [];
 
     // Dispose router
     await this.router.dispose();
@@ -409,35 +465,56 @@ export class QueenCoordinator implements IQueenCoordinator {
       timeout: taskInput.timeout || this.config.defaultTaskTimeout,
     };
 
-    // Check concurrent task limit
-    const runningCount = this.getRunningTaskCount();
-    if (runningCount >= this.config.maxConcurrentTasks) {
-      // Queue the task instead of rejecting
-      this.enqueueTask(task);
-      const execution: TaskExecution = {
-        taskId,
-        task,
-        status: 'queued',
-        assignedAgents: [],
-        retryCount: 0,
-      };
-      this.tasks.set(taskId, execution);
+    // CC-002 FIX: Use atomic increment pattern to prevent TOCTOU race condition
+    // Atomically reserve a slot by incrementing counter BEFORE the check
+    this.runningTaskCounter++;
+
+    try {
+      // Check if we exceeded the limit (counter was already incremented)
+      if (this.runningTaskCounter > this.config.maxConcurrentTasks) {
+        // Release the reserved slot
+        this.runningTaskCounter--;
+
+        // Queue the task instead of rejecting
+        this.enqueueTask(task);
+        const execution: TaskExecution = {
+          taskId,
+          task,
+          status: 'queued',
+          assignedAgents: [],
+          retryCount: 0,
+        };
+        this.tasks.set(taskId, execution);
+        this.tasksReceived++;
+
+        // SEC-003 Simplified: Log task submission and queuing
+        this.auditLogger.logSubmit(taskId, { type: task.type, priority: task.priority });
+        this.auditLogger.logQueue(taskId, this.getQueuePosition(task));
+
+        await this.publishEvent('TaskQueued', { taskId, task, position: this.getQueuePosition(task) });
+        return ok(taskId);
+      }
+
+      // SEC-003 Simplified: Log task submission
+      this.auditLogger.logSubmit(taskId, { type: task.type, priority: task.priority });
+
+      // Assign task to appropriate domain(s)
+      const assignResult = await this.assignTask(task);
+      if (!assignResult.success) {
+        // Release the reserved slot on assignment failure
+        this.runningTaskCounter--;
+        return assignResult;
+      }
+
       this.tasksReceived++;
+      await this.publishEvent('TaskSubmitted', { taskId, task });
 
-      await this.publishEvent('TaskQueued', { taskId, task, position: this.getQueuePosition(task) });
       return ok(taskId);
+    } catch (error) {
+      // Release the reserved slot on any exception
+      this.runningTaskCounter--;
+      throw error;
     }
-
-    // Assign task to appropriate domain(s)
-    const assignResult = await this.assignTask(task);
-    if (!assignResult.success) {
-      return assignResult;
-    }
-
-    this.tasksReceived++;
-    await this.publishEvent('TaskSubmitted', { taskId, task });
-
-    return ok(taskId);
   }
 
   async cancelTask(taskId: string): Promise<Result<void, Error>> {
@@ -448,6 +525,11 @@ export class QueenCoordinator implements IQueenCoordinator {
 
     if (execution.status === 'completed' || execution.status === 'failed') {
       return err(new Error(`Task already finished: ${taskId}`));
+    }
+
+    // CC-002 FIX: Decrement the atomic counter when cancelling a running task
+    if (execution.status === 'running' || execution.status === 'assigned') {
+      this.runningTaskCounter = Math.max(0, this.runningTaskCounter - 1);
     }
 
     // Update status
@@ -465,6 +547,9 @@ export class QueenCoordinator implements IQueenCoordinator {
     for (const agentId of execution.assignedAgents) {
       await this.agentCoordinator.stop(agentId);
     }
+
+    // SEC-003 Simplified: Log task cancellation
+    this.auditLogger.logCancel(taskId);
 
     await this.publishEvent('TaskCancelled', { taskId });
 
@@ -594,6 +679,9 @@ export class QueenCoordinator implements IQueenCoordinator {
           const stealerDomain = idleDomains.shift()!;
           this.removeFromQueues(task);
 
+          // SEC-003 Simplified: Log work stealing for observability
+          this.auditLogger.logSteal(task.id, busyDomain, stealerDomain);
+
           // Reassign to idle domain
           await this.assignTaskToDomain(task, stealerDomain);
 
@@ -700,7 +788,7 @@ export class QueenCoordinator implements IQueenCoordinator {
       status = 'degraded';
     }
 
-    return {
+    const baseHealth: QueenHealth = {
       status,
       domainHealth,
       totalAgents: agents.length,
@@ -711,6 +799,13 @@ export class QueenCoordinator implements IQueenCoordinator {
       lastHealthCheck: new Date(),
       issues,
     };
+
+    // ADR-047: Extend health with MinCut topology data
+    if (this.minCutBridge) {
+      return this.minCutBridge.extendQueenHealth(baseHealth);
+    }
+
+    return baseHealth;
   }
 
   getMetrics(): QueenMetrics {
@@ -731,7 +826,7 @@ export class QueenCoordinator implements IQueenCoordinator {
       ? this.taskDurations.reduce((a, b) => a + b, 0) / this.taskDurations.length
       : 0;
 
-    return {
+    const baseMetrics: QueenMetrics = {
       tasksReceived: this.tasksReceived,
       tasksCompleted: this.tasksCompleted,
       tasksFailed: this.tasksFailed,
@@ -743,6 +838,21 @@ export class QueenCoordinator implements IQueenCoordinator {
       workflowsExecuted: this.workflowsExecuted,
       uptime: Date.now() - this.startTime.getTime(),
     };
+
+    // ADR-047: Extend metrics with MinCut topology data
+    if (this.minCutBridge) {
+      return this.minCutBridge.extendQueenMetrics(baseMetrics);
+    }
+
+    return baseMetrics;
+  }
+
+  /**
+   * Get MinCut bridge for direct topology access
+   * ADR-047: Allows QE agents to access topology health directly
+   */
+  getMinCutBridge(): QueenMinCutBridge | null {
+    return this.minCutBridge;
   }
 
   // ============================================================================
@@ -796,25 +906,33 @@ export class QueenCoordinator implements IQueenCoordinator {
   // ============================================================================
 
   private subscribeToEvents(): void {
+    // PAP-003 FIX: Store subscription IDs for proper cleanup during dispose()
+    // Clear any existing subscriptions first to prevent duplicates
+    this.eventSubscriptionIds = [];
+
     // Listen for task completion events from domains
     for (const domain of ALL_DOMAINS) {
-      this.router.subscribeToDoamin(domain, async (event) => {
+      const subscriptionId = this.router.subscribeToDoamin(domain, async (event) => {
         await this.handleDomainEvent(event);
       });
+      this.eventSubscriptionIds.push(subscriptionId);
     }
 
     // Listen for specific coordination events
-    this.router.subscribeToEventType('TaskCompleted', async (event) => {
+    const taskCompletedSubId = this.router.subscribeToEventType('TaskCompleted', async (event) => {
       await this.handleTaskCompleted(event);
     });
+    this.eventSubscriptionIds.push(taskCompletedSubId);
 
-    this.router.subscribeToEventType('TaskFailed', async (event) => {
+    const taskFailedSubId = this.router.subscribeToEventType('TaskFailed', async (event) => {
       await this.handleTaskFailed(event);
     });
+    this.eventSubscriptionIds.push(taskFailedSubId);
 
-    this.router.subscribeToEventType('AgentStatusChanged', async (event) => {
+    const agentStatusSubId = this.router.subscribeToEventType('AgentStatusChanged', async (event) => {
       await this.handleAgentStatusChanged(event);
     });
+    this.eventSubscriptionIds.push(agentStatusSubId);
   }
 
   private async handleDomainEvent(event: DomainEvent): Promise<void> {
@@ -830,6 +948,12 @@ export class QueenCoordinator implements IQueenCoordinator {
     const execution = this.tasks.get(taskId);
 
     if (execution) {
+      // CC-002 FIX: Decrement the atomic counter when task completes
+      // Only decrement if task was running (not queued)
+      if (execution.status === 'running' || execution.status === 'assigned') {
+        this.runningTaskCounter = Math.max(0, this.runningTaskCounter - 1);
+      }
+
       const duration = execution.startedAt
         ? Date.now() - execution.startedAt.getTime()
         : 0;
@@ -848,6 +972,9 @@ export class QueenCoordinator implements IQueenCoordinator {
       if (this.taskDurations.length > 1000) {
         this.taskDurations.shift();
       }
+
+      // SEC-003 Simplified: Log task completion
+      this.auditLogger.logComplete(taskId, execution.assignedAgents[0]);
     }
 
     // Process queue for next task
@@ -859,8 +986,17 @@ export class QueenCoordinator implements IQueenCoordinator {
     const execution = this.tasks.get(taskId);
 
     if (execution) {
+      // CC-002 FIX: Decrement the atomic counter when task fails
+      // Only decrement if task was running (not already queued)
+      if (execution.status === 'running' || execution.status === 'assigned') {
+        this.runningTaskCounter = Math.max(0, this.runningTaskCounter - 1);
+      }
+
       // Check if we should retry
       if (execution.retryCount < this.config.taskRetryLimit) {
+        // SEC-003 Simplified: Log failure for observability
+        this.auditLogger.logFail(taskId, execution.assignedAgents[0], error);
+
         // Retry the task
         const retried: TaskExecution = {
           ...execution,
@@ -885,6 +1021,9 @@ export class QueenCoordinator implements IQueenCoordinator {
           error,
         });
         this.tasksFailed++;
+
+        // SEC-003 Simplified: Log permanent failure
+        this.auditLogger.logFail(taskId, execution.assignedAgents[0], error);
       }
     }
 
@@ -962,6 +1101,11 @@ export class QueenCoordinator implements IQueenCoordinator {
     this.tasks.set(task.id, execution);
     this.domainLastActivity.set(domain, new Date());
 
+    // SEC-003 Simplified: Log task assignment for observability
+    for (const agentId of agentIds) {
+      this.auditLogger.logAssign(task.id, agentId, domain);
+    }
+
     await this.publishEvent('TaskAssigned', {
       taskId: task.id,
       domain,
@@ -1030,8 +1174,8 @@ export class QueenCoordinator implements IQueenCoordinator {
   }
 
   private async processQueue(): Promise<void> {
-    const runningCount = this.getRunningTaskCount();
-    if (runningCount >= this.config.maxConcurrentTasks) {
+    // CC-002 FIX: Use atomic counter for capacity check
+    if (this.runningTaskCounter >= this.config.maxConcurrentTasks) {
       return;
     }
 
@@ -1043,10 +1187,20 @@ export class QueenCoordinator implements IQueenCoordinator {
       const task = queue.shift();
       if (task) {
         this.removeFromQueues(task);
-        await this.assignTask(task);
 
-        // Check if we can process more
-        if (this.getRunningTaskCount() >= this.config.maxConcurrentTasks) {
+        // CC-002 FIX: Increment counter before assigning queued task
+        this.runningTaskCounter++;
+
+        try {
+          await this.assignTask(task);
+        } catch (error) {
+          // Decrement if assignment fails
+          this.runningTaskCounter--;
+          throw error;
+        }
+
+        // Check if we can process more using the atomic counter
+        if (this.runningTaskCounter >= this.config.maxConcurrentTasks) {
           return;
         }
       }

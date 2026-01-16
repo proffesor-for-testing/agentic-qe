@@ -178,9 +178,10 @@ if [ -f "$LEARNING_METRICS" ]; then
 fi
 
 # Count V3-QE agent definitions only
+# Note: Agents were renamed from v3-qe-*.md to qe-*.md pattern
 AGENTS_DIR="${PROJECT_DIR}/.claude/agents"
 if [ -d "$AGENTS_DIR/v3" ]; then
-  V3_QE_AGENTS=$(find "$AGENTS_DIR/v3" -name "v3-qe-*.md" 2>/dev/null | wc -l | tr -d ' ')
+  V3_QE_AGENTS=$(find "$AGENTS_DIR/v3" -name "qe-*.md" 2>/dev/null | wc -l | tr -d ' ')
 else
   V3_QE_AGENTS=0
 fi

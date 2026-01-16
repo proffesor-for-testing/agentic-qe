@@ -309,8 +309,14 @@ describe('FileReader', () => {
       const result = await fileReader.listFiles('*.ts', '/non/existent/path');
 
       expect(result.success).toBe(false);
+      // SEC-004: PathTraversalError is returned for paths escaping basePath
+      // FileReadError is returned for I/O errors on valid paths
+      // Both are valid error types for this scenario
       if (!result.success) {
-        expect(result.error).toBeInstanceOf(FileReadError);
+        expect(
+          result.error instanceof FileReadError ||
+            result.error.name === 'PathTraversalError'
+        ).toBe(true);
       }
     });
 

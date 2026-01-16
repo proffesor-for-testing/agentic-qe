@@ -48,6 +48,7 @@ import {
   runCoverageAnalysisWizard,
   type CoverageWizardResult,
 } from './wizards/coverage-wizard.js';
+import { parseJsonOption, parseJsonFile } from './helpers/safe-json.js';
 import {
   runFleetInitWizard,
   type FleetWizardResult,
@@ -553,7 +554,7 @@ taskCmd
 
     try {
       const taskType = type as TaskType;
-      const payload = JSON.parse(options.payload);
+      const payload = parseJsonOption(options.payload, 'payload');
       const targetDomains = options.domain ? [options.domain as DomainName] : [];
 
       console.log(chalk.blue(`\n Submitting task: ${taskType}\n`));
@@ -938,7 +939,7 @@ protocolCmd
     if (!await ensureInitialized()) return;
 
     try {
-      const params = JSON.parse(options.params);
+      const params = parseJsonOption(options.params, 'params');
 
       console.log(chalk.blue(`\n🔄 Executing protocol: ${protocolId}\n`));
 
@@ -994,8 +995,8 @@ workflowCmd
         await cleanupAndExit(1);
       }
 
-      // Additional params
-      const additionalParams = JSON.parse(options.params);
+      // Additional params (SEC-001: safe parsing prevents prototype pollution)
+      const additionalParams = parseJsonOption(options.params, 'params');
 
       // Build input from pipeline params and additional params
       const input: Record<string, unknown> = { ...additionalParams };
@@ -2539,7 +2540,8 @@ program
 
       try {
         const v2ConfigRaw = fs.readFileSync(v2Files.config, 'utf-8');
-        const v2Config = JSON.parse(v2ConfigRaw);
+        // SEC-001: Safe parsing prevents prototype pollution from malicious config files
+        const v2Config = parseJsonFile(v2ConfigRaw, v2Files.config);
 
         // Convert to v3 format
         const v3Config = {

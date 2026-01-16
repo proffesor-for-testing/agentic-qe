@@ -285,11 +285,12 @@ function getCveStatus(projectDir) {
 
 function getAgentCounts(projectDir, claudeInput) {
   // V3-QE agent definitions (from files)
+  // Note: Agents were renamed from v3-qe-*.md to qe-*.md pattern
   let v3QeAgents = 0;
   const agentsDir = path.join(projectDir, '.claude/agents/v3');
   if (fileExists(agentsDir)) {
     try {
-      v3QeAgents = parseInt(execQuiet(`find "${agentsDir}" -name "v3-qe-*.md" 2>/dev/null | wc -l`)) || 0;
+      v3QeAgents = parseInt(execQuiet(`find "${agentsDir}" -name "qe-*.md" 2>/dev/null | wc -l`)) || 0;
     } catch {
       // Ignore
     }

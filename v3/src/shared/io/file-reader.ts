@@ -6,6 +6,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { Result, ok, err } from '../types';
+import { validatePath, PathValidationResult } from '../../mcp/security/cve-prevention';
 
 // ============================================================================
 // Types
@@ -56,6 +57,20 @@ export class JsonParseError extends Error {
   ) {
     super(message);
     this.name = 'JsonParseError';
+  }
+}
+
+/**
+ * SEC-004: Path traversal error for security violations
+ */
+export class PathTraversalError extends Error {
+  constructor(
+    public readonly requestedPath: string,
+    public readonly issues: string[],
+    public readonly riskLevel: 'none' | 'low' | 'medium' | 'high' | 'critical'
+  ) {
+    super(`Path traversal detected: ${issues.join(', ')}`);
+    this.name = 'PathTraversalError';
   }
 }
 
@@ -267,9 +282,51 @@ export class FileReader {
 
   /**
    * Resolves a path to an absolute path
+   * SEC-004 FIX: Validates path to prevent directory traversal attacks
    */
   private resolvePath(filePath: string): string {
-    if (path.isAbsolute(filePath)) {
+    // Determine if path is absolute
+    const isAbsolutePath = path.isAbsolute(filePath);
+
+    // SEC-004 FIX: Validate path to prevent directory traversal
+    // For absolute paths, validate without basePath to avoid incorrect combination
+    // For relative paths, validate with basePath for proper containment check
+    const validation = validatePath(filePath, {
+      basePath: isAbsolutePath ? '' : this.basePath,
+      allowAbsolute: true,
+      // Allow common development file extensions
+      deniedExtensions: ['.exe', '.bat', '.cmd', '.ps1', '.dll', '.so'],
+    });
+
+    if (!validation.valid) {
+      throw new PathTraversalError(
+        filePath,
+        [validation.error || 'Path validation failed'],
+        validation.riskLevel
+      );
+    }
+
+    // For absolute paths, verify they stay within basePath if one is configured
+    if (isAbsolutePath && this.basePath) {
+      const normalizedBase = path.resolve(this.basePath);
+      const normalizedPath = path.resolve(filePath);
+      if (!normalizedPath.startsWith(normalizedBase)) {
+        throw new PathTraversalError(
+          filePath,
+          ['Path escapes base directory'],
+          'critical'
+        );
+      }
+      return normalizedPath;
+    }
+
+    // Use the normalized path from validation if available
+    if (validation.normalizedPath) {
+      return validation.normalizedPath;
+    }
+
+    // Fallback to original logic for valid paths
+    if (isAbsolutePath) {
       return filePath;
     }
     return path.resolve(this.basePath, filePath);
@@ -277,9 +334,21 @@ export class FileReader {
 
   /**
    * Read file contents as a string
+   * SEC-004: Now handles PathTraversalError from path validation
    */
-  async readFile(filePath: string): Promise<Result<string, FileReadError>> {
-    const absolutePath = this.resolvePath(filePath);
+  async readFile(filePath: string): Promise<Result<string, FileReadError | PathTraversalError>> {
+    let absolutePath: string;
+
+    // SEC-004: Handle path traversal errors from resolvePath
+    try {
+      absolutePath = this.resolvePath(filePath);
+    } catch (error) {
+      if (error instanceof PathTraversalError) {
+        return err(error);
+      }
+      throw error;
+    }
+
     this.stats.totalReads++;
 
     // Check cache first
@@ -327,13 +396,15 @@ export class FileReader {
 
   /**
    * Read and parse a JSON file
+   * SEC-004: Now handles PathTraversalError from path validation
    */
-  async readJSON<T>(filePath: string): Promise<Result<T, FileReadError | JsonParseError>> {
-    const absolutePath = this.resolvePath(filePath);
-    const readResult = await this.readFile(absolutePath);
+  async readJSON<T>(filePath: string): Promise<Result<T, FileReadError | JsonParseError | PathTraversalError>> {
+    // Delegate to readFile which handles path validation
+    // readFile already calls resolvePath internally, so we pass the original filePath
+    const readResult = await this.readFile(filePath);
 
     if (!readResult.success) {
-      return readResult as Result<T, FileReadError>;
+      return readResult as Result<T, FileReadError | PathTraversalError>;
     }
 
     try {
@@ -341,10 +412,17 @@ export class FileReader {
       return ok(parsed);
     } catch (error) {
       const parseError = error as SyntaxError;
+      // For the error message, resolve the path once
+      let resolvedPath = filePath;
+      try {
+        resolvedPath = this.resolvePath(filePath);
+      } catch {
+        // If path resolution fails here, use original path in error message
+      }
       return err(
         new JsonParseError(
-          'Invalid JSON in file: ' + absolutePath + ' - ' + parseError.message,
-          absolutePath,
+          'Invalid JSON in file: ' + resolvedPath + ' - ' + parseError.message,
+          resolvedPath,
           parseError
         )
       );
@@ -353,9 +431,20 @@ export class FileReader {
 
   /**
    * Check if a file exists
+   * SEC-004: Now handles PathTraversalError from path validation
    */
-  async fileExists(filePath: string): Promise<Result<boolean, FileReadError>> {
-    const absolutePath = this.resolvePath(filePath);
+  async fileExists(filePath: string): Promise<Result<boolean, FileReadError | PathTraversalError>> {
+    let absolutePath: string;
+
+    // SEC-004: Handle path traversal errors from resolvePath
+    try {
+      absolutePath = this.resolvePath(filePath);
+    } catch (error) {
+      if (error instanceof PathTraversalError) {
+        return err(error);
+      }
+      throw error;
+    }
 
     try {
       await fs.access(absolutePath, fs.constants.F_OK);
@@ -381,12 +470,23 @@ export class FileReader {
 
   /**
    * List files matching a glob pattern
+   * SEC-004: Now handles PathTraversalError from path validation
    */
   async listFiles(
     pattern: string,
     basePath?: string
-  ): Promise<Result<string[], FileReadError>> {
-    const searchBase = basePath ? this.resolvePath(basePath) : this.basePath;
+  ): Promise<Result<string[], FileReadError | PathTraversalError>> {
+    let searchBase: string;
+
+    // SEC-004: Handle path traversal errors from resolvePath
+    try {
+      searchBase = basePath ? this.resolvePath(basePath) : this.basePath;
+    } catch (error) {
+      if (error instanceof PathTraversalError) {
+        return err(error);
+      }
+      throw error;
+    }
 
     try {
       // Verify base path exists and is a directory
@@ -425,8 +525,11 @@ export class FileReader {
 
   /**
    * Invalidate cache for a specific file
+   * SEC-004: Now validates path before cache operations
    */
   invalidateCache(filePath: string): void {
+    // SEC-004: Path traversal in cache invalidation could be exploited
+    // Let the error propagate as this is a void method
     const absolutePath = this.resolvePath(filePath);
     this.cache.delete(absolutePath);
     this.updateCacheStats();
@@ -493,33 +596,37 @@ export function getFileReader(options?: FileReaderOptions): FileReader {
 
 /**
  * Convenience function: Read file contents
+ * SEC-004: Now returns PathTraversalError for invalid paths
  */
-export async function readFile(filePath: string): Promise<Result<string, FileReadError>> {
+export async function readFile(filePath: string): Promise<Result<string, FileReadError | PathTraversalError>> {
   return getFileReader().readFile(filePath);
 }
 
 /**
  * Convenience function: Read and parse JSON file
+ * SEC-004: Now returns PathTraversalError for invalid paths
  */
 export async function readJSON<T>(
   filePath: string
-): Promise<Result<T, FileReadError | JsonParseError>> {
+): Promise<Result<T, FileReadError | JsonParseError | PathTraversalError>> {
   return getFileReader().readJSON<T>(filePath);
 }
 
 /**
  * Convenience function: Check if file exists
+ * SEC-004: Now returns PathTraversalError for invalid paths
  */
-export async function fileExists(filePath: string): Promise<Result<boolean, FileReadError>> {
+export async function fileExists(filePath: string): Promise<Result<boolean, FileReadError | PathTraversalError>> {
   return getFileReader().fileExists(filePath);
 }
 
 /**
  * Convenience function: List files matching pattern
+ * SEC-004: Now returns PathTraversalError for invalid paths
  */
 export async function listFiles(
   pattern: string,
   basePath?: string
-): Promise<Result<string[], FileReadError>> {
+): Promise<Result<string[], FileReadError | PathTraversalError>> {
   return getFileReader().listFiles(pattern, basePath);
 }

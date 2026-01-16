@@ -15,6 +15,7 @@ export {
   // Error classes
   FileReadError,
   JsonParseError,
+  PathTraversalError, // SEC-004: Added for path traversal security
 
   // Convenience functions
   getFileReader,

@@ -53,7 +53,7 @@ export const DEFAULT_UNIFIED_MEMORY_CONFIG: UnifiedMemoryConfig = {
 // Schema Version for Migrations
 // ============================================================================
 
-const SCHEMA_VERSION = 4; // v4: adds QE patterns tables
+const SCHEMA_VERSION = 5; // v5: adds MinCut tables (ADR-047)
 
 const SCHEMA_VERSION_TABLE = `
   CREATE TABLE IF NOT EXISTS schema_version (
@@ -404,6 +404,114 @@ const QE_PATTERNS_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_executed_steps_action ON executed_steps(action_id);
 `;
 
+const MINCUT_SCHEMA = `
+  -- MinCut Graph Snapshots (ADR-047)
+  CREATE TABLE IF NOT EXISTS mincut_snapshots (
+    id TEXT PRIMARY KEY,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    vertex_count INTEGER NOT NULL,
+    edge_count INTEGER NOT NULL,
+    total_weight REAL NOT NULL DEFAULT 0.0,
+    is_connected INTEGER NOT NULL DEFAULT 1,
+    component_count INTEGER NOT NULL DEFAULT 1,
+    vertices_json TEXT NOT NULL,
+    edges_json TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  -- MinCut History (time-series MinCut values)
+  CREATE TABLE IF NOT EXISTS mincut_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    mincut_value REAL NOT NULL,
+    vertex_count INTEGER NOT NULL,
+    edge_count INTEGER NOT NULL,
+    algorithm TEXT NOT NULL DEFAULT 'weighted-degree',
+    duration_ms INTEGER,
+    snapshot_id TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (snapshot_id) REFERENCES mincut_snapshots(id) ON DELETE SET NULL
+  );
+
+  -- MinCut Weak Vertices (detected bottlenecks)
+  CREATE TABLE IF NOT EXISTS mincut_weak_vertices (
+    id TEXT PRIMARY KEY,
+    vertex_id TEXT NOT NULL,
+    weighted_degree REAL NOT NULL,
+    risk_score REAL NOT NULL,
+    reason TEXT NOT NULL,
+    domain TEXT,
+    vertex_type TEXT NOT NULL,
+    suggestions_json TEXT,
+    detected_at TEXT NOT NULL DEFAULT (datetime('now')),
+    resolved_at TEXT,
+    snapshot_id TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (snapshot_id) REFERENCES mincut_snapshots(id) ON DELETE SET NULL
+  );
+
+  -- MinCut Alerts
+  CREATE TABLE IF NOT EXISTS mincut_alerts (
+    id TEXT PRIMARY KEY,
+    severity TEXT NOT NULL,
+    message TEXT NOT NULL,
+    mincut_value REAL NOT NULL,
+    threshold REAL NOT NULL,
+    affected_vertices_json TEXT,
+    remediations_json TEXT,
+    acknowledged INTEGER DEFAULT 0,
+    acknowledged_at TEXT,
+    acknowledged_by TEXT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  -- MinCut Healing Actions (self-healing history)
+  CREATE TABLE IF NOT EXISTS mincut_healing_actions (
+    id TEXT PRIMARY KEY,
+    action_type TEXT NOT NULL,
+    action_params_json TEXT NOT NULL,
+    success INTEGER NOT NULL,
+    mincut_before REAL NOT NULL,
+    mincut_after REAL NOT NULL,
+    improvement REAL NOT NULL DEFAULT 0.0,
+    error_message TEXT,
+    duration_ms INTEGER NOT NULL,
+    triggered_by TEXT,
+    snapshot_before_id TEXT,
+    snapshot_after_id TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (snapshot_before_id) REFERENCES mincut_snapshots(id) ON DELETE SET NULL,
+    FOREIGN KEY (snapshot_after_id) REFERENCES mincut_snapshots(id) ON DELETE SET NULL
+  );
+
+  -- MinCut Strange Loop Observations (P1: self-organizing)
+  CREATE TABLE IF NOT EXISTS mincut_observations (
+    id TEXT PRIMARY KEY,
+    iteration INTEGER NOT NULL,
+    mincut_value REAL NOT NULL,
+    weak_vertex_count INTEGER NOT NULL DEFAULT 0,
+    weak_vertices_json TEXT,
+    snapshot_id TEXT,
+    prediction_json TEXT,
+    actual_vs_predicted_diff REAL,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (snapshot_id) REFERENCES mincut_snapshots(id) ON DELETE SET NULL
+  );
+
+  -- MinCut Indexes
+  CREATE INDEX IF NOT EXISTS idx_mincut_history_timestamp ON mincut_history(timestamp DESC);
+  CREATE INDEX IF NOT EXISTS idx_mincut_history_value ON mincut_history(mincut_value);
+  CREATE INDEX IF NOT EXISTS idx_mincut_weak_vertex ON mincut_weak_vertices(vertex_id);
+  CREATE INDEX IF NOT EXISTS idx_mincut_weak_risk ON mincut_weak_vertices(risk_score DESC);
+  CREATE INDEX IF NOT EXISTS idx_mincut_weak_resolved ON mincut_weak_vertices(resolved_at);
+  CREATE INDEX IF NOT EXISTS idx_mincut_alerts_severity ON mincut_alerts(severity);
+  CREATE INDEX IF NOT EXISTS idx_mincut_alerts_ack ON mincut_alerts(acknowledged);
+  CREATE INDEX IF NOT EXISTS idx_mincut_healing_type ON mincut_healing_actions(action_type);
+  CREATE INDEX IF NOT EXISTS idx_mincut_healing_success ON mincut_healing_actions(success);
+  CREATE INDEX IF NOT EXISTS idx_mincut_observations_iter ON mincut_observations(iteration);
+`;
+
 // ============================================================================
 // In-Memory HNSW Index for Fast Vector Search
 // ============================================================================
@@ -622,6 +730,11 @@ export class UnifiedMemoryManager {
         // v4: QE Patterns, Embedding Cache, Plan Executions (ADR-046)
         if (currentVersion < 4) {
           this.db!.exec(QE_PATTERNS_SCHEMA);
+        }
+
+        // v5: MinCut tables (ADR-047)
+        if (currentVersion < 5) {
+          this.db!.exec(MINCUT_SCHEMA);
         }
 
         // Update schema version
@@ -954,6 +1067,13 @@ export class UnifiedMemoryManager {
       'embeddings',
       'execution_results',
       'executed_steps',
+      // v5: MinCut tables (ADR-047)
+      'mincut_snapshots',
+      'mincut_history',
+      'mincut_weak_vertices',
+      'mincut_alerts',
+      'mincut_healing_actions',
+      'mincut_observations',
     ];
 
     const tableStats = tables.map(name => {

@@ -23,6 +23,7 @@ import { ChaosInjectTool } from './chaos-resilience/inject';
 import { LearningOptimizeTool } from './learning-optimization/optimize';
 import { TokenUsageTool } from './analysis/token-usage';
 import { GOAPPlanTool, GOAPExecuteTool, GOAPStatusTool } from './planning';
+import { MINCUT_TOOLS, MINCUT_TOOL_NAMES } from './mincut';
 
 // ============================================================================
 // Tool Names (ADR-010 Naming Convention)
@@ -74,6 +75,9 @@ export const QE_TOOL_NAMES = {
   GOAP_PLAN: 'qe/planning/goap_plan',
   GOAP_EXECUTE: 'qe/planning/goap_execute',
   GOAP_STATUS: 'qe/planning/goap_status',
+
+  // MinCut Topology Tools (ADR-047)
+  ...MINCUT_TOOL_NAMES,
 } as const;
 
 // ============================================================================
@@ -129,6 +133,9 @@ export const QE_TOOLS: MCPToolBase[] = [
   new GOAPPlanTool(),
   new GOAPExecuteTool(),
   new GOAPStatusTool(),
+
+  // MinCut Topology Tools (ADR-047)
+  ...MINCUT_TOOLS,
 ];
 
 // ============================================================================
