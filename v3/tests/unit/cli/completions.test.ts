@@ -340,32 +340,42 @@ describe('Shell Completions', () => {
 
     it('should detect bash from SHELL env', () => {
       const originalShell = process.env.SHELL;
+      const originalComSpec = process.env.ComSpec;
+      // Clear Windows-specific env vars to ensure SHELL takes precedence
+      delete process.env.ComSpec;
       process.env.SHELL = '/bin/bash';
 
       const info = detectShell();
       expect(info.name).toBe('bash');
 
       process.env.SHELL = originalShell;
+      if (originalComSpec) process.env.ComSpec = originalComSpec;
     });
 
     it('should detect zsh from SHELL env', () => {
       const originalShell = process.env.SHELL;
+      const originalComSpec = process.env.ComSpec;
+      delete process.env.ComSpec;
       process.env.SHELL = '/usr/bin/zsh';
 
       const info = detectShell();
       expect(info.name).toBe('zsh');
 
       process.env.SHELL = originalShell;
+      if (originalComSpec) process.env.ComSpec = originalComSpec;
     });
 
     it('should detect fish from SHELL env', () => {
       const originalShell = process.env.SHELL;
+      const originalComSpec = process.env.ComSpec;
+      delete process.env.ComSpec;
       process.env.SHELL = '/usr/bin/fish';
 
       const info = detectShell();
       expect(info.name).toBe('fish');
 
       process.env.SHELL = originalShell;
+      if (originalComSpec) process.env.ComSpec = originalComSpec;
     });
   });
 

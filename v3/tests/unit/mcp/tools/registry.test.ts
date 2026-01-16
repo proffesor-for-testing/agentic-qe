@@ -15,9 +15,10 @@ import {
 
 describe('QE Tool Registry', () => {
   describe('QE_TOOL_NAMES', () => {
-    it('should have all 15 tool names', () => {
+    it('should have all tool names', () => {
       const names = Object.values(QE_TOOL_NAMES);
-      expect(names.length).toBe(18);
+      // 15 original + 3 GOAP + 3 MinCut = 21 tools
+      expect(names.length).toBe(21);
     });
 
     it('should follow qe/* naming convention', () => {
@@ -85,14 +86,16 @@ describe('QE Tool Registry', () => {
   });
 
   describe('QE_TOOLS', () => {
-    it('should have 15 tool instances', () => {
-      expect(QE_TOOLS.length).toBe(18);
+    it('should have all tool instances', () => {
+      // 15 original + 3 GOAP + 3 MinCut = 21 tools
+      expect(QE_TOOLS.length).toBe(21);
     });
 
     it('should have all unique names', () => {
       const names = QE_TOOLS.map(t => t.name);
       const uniqueNames = new Set(names);
-      expect(uniqueNames.size).toBe(18);
+      // 15 original + 3 GOAP + 3 MinCut = 21 tools
+      expect(uniqueNames.size).toBe(21);
     });
 
     it('should have descriptions for all tools', () => {
@@ -200,8 +203,8 @@ describe('QE Tool Registry', () => {
   describe('getAllToolDefinitions', () => {
     it('should return all tool definitions', () => {
       const definitions = getAllToolDefinitions();
-      // 15 original + 3 GOAP tools (goap_plan, goap_execute, goap_status)
-      expect(definitions.length).toBe(18);
+      // 15 original + 3 GOAP + 3 MinCut = 21 tools
+      expect(definitions.length).toBe(21);
     });
 
     it('should return MCP-compatible definitions', () => {
@@ -219,8 +222,8 @@ describe('QE Tool Registry', () => {
       const definitions = getAllToolDefinitions();
       const names = definitions.map(d => d.name);
       const uniqueNames = new Set(names);
-      // 15 original + 3 GOAP tools (goap_plan, goap_execute, goap_status)
-      expect(uniqueNames.size).toBe(18);
+      // 15 original + 3 GOAP + 3 MinCut = 21 tools
+      expect(uniqueNames.size).toBe(21);
     });
   });
 
