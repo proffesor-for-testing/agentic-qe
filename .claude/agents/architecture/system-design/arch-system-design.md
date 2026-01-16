@@ -1,13 +1,12 @@
 ---
 name: "system-architect"
+description: "Expert agent for system architecture design, patterns, and high-level technical decisions"
 type: "architecture"
 color: "purple"
 version: "1.0.0"
 created: "2025-07-25"
 author: "Claude Code"
-
 metadata:
-  description: "Expert agent for system architecture design, patterns, and high-level technical decisions"
   specialization: "System design, architectural patterns, scalability planning"
   complexity: "complex"
   autonomous: false  # Requires human approval for major decisions

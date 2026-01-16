@@ -31,10 +31,10 @@ npm install -g @agentic-qe/v3
 
 # Initialize your project
 cd your-project
-aqe-v3 init --wizard
+aqe init --wizard
 
 # Or with auto-configuration
-aqe-v3 init --auto
+aqe init --auto
 
 # Add MCP server to Claude Code (optional)
 claude mcp add agentic-qe-v3 npx @agentic-qe/v3 mcp
@@ -49,13 +49,13 @@ Ask Claude to use V3 QE agents directly from your terminal:
 
 ```bash
 # Generate comprehensive tests with learning
-claude "Use v3-qe-test-architect to create tests for src/services/user-service.ts with 95% coverage"
+claude "Use qe-test-architect to create tests for src/services/user-service.ts with 95% coverage"
 
 # Run full quality pipeline with Queen coordination
-claude "Use v3-qe-queen-coordinator to orchestrate: test generation, coverage analysis, security scan, and quality gate"
+claude "Use qe-queen-coordinator to orchestrate: test generation, coverage analysis, security scan, and quality gate"
 
 # Detect flaky tests with root cause analysis
-claude "Use v3-qe-flaky-hunter to analyze the last 100 test runs and stabilize flaky tests"
+claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flaky tests"
 ```
 
 **What V3 provides:**
@@ -93,27 +93,27 @@ V3 is built on **12 DDD Bounded Contexts**, each with dedicated agents and clear
 
 | Domain | Purpose | Key Agents |
 |--------|---------|------------|
-| **test-generation** | AI-powered test creation | v3-qe-test-architect, v3-qe-tdd-specialist |
-| **test-execution** | Parallel execution & retry | v3-qe-parallel-executor, v3-qe-retry-handler |
-| **coverage-analysis** | O(log n) gap detection | v3-qe-coverage-specialist, v3-qe-gap-detector |
-| **quality-assessment** | Quality gates & decisions | v3-qe-quality-gate, v3-qe-risk-assessor |
-| **defect-intelligence** | Prediction & root cause | v3-qe-defect-predictor, v3-qe-root-cause-analyzer |
-| **requirements-validation** | BDD & testability | v3-qe-requirements-validator, v3-qe-bdd-generator |
-| **code-intelligence** | Knowledge graph & search | v3-qe-code-intelligence, v3-qe-kg-builder |
-| **security-compliance** | SAST/DAST & audit | v3-qe-security-scanner, v3-qe-security-auditor |
-| **contract-testing** | API contracts & GraphQL | v3-qe-contract-validator, v3-qe-graphql-tester |
-| **visual-accessibility** | Visual regression & a11y | v3-qe-visual-tester, v3-qe-accessibility-auditor |
-| **chaos-resilience** | Chaos engineering & load | v3-qe-chaos-engineer, v3-qe-load-tester |
-| **learning-optimization** | Cross-domain learning | v3-qe-learning-coordinator, v3-qe-pattern-learner |
+| **test-generation** | AI-powered test creation | qe-test-architect, qe-tdd-specialist |
+| **test-execution** | Parallel execution & retry | qe-parallel-executor, qe-retry-handler |
+| **coverage-analysis** | O(log n) gap detection | qe-coverage-specialist, qe-gap-detector |
+| **quality-assessment** | Quality gates & decisions | qe-quality-gate, qe-risk-assessor |
+| **defect-intelligence** | Prediction & root cause | qe-defect-predictor, qe-root-cause-analyzer |
+| **requirements-validation** | BDD & testability | qe-requirements-validator, qe-bdd-generator |
+| **code-intelligence** | Knowledge graph & search | qe-code-intelligence, qe-kg-builder |
+| **security-compliance** | SAST/DAST & audit | qe-security-scanner, qe-security-auditor |
+| **contract-testing** | API contracts & GraphQL | qe-contract-validator, qe-graphql-tester |
+| **visual-accessibility** | Visual regression & a11y | qe-visual-tester, qe-accessibility-auditor |
+| **chaos-resilience** | Chaos engineering & load | qe-chaos-engineer, qe-load-tester |
+| **learning-optimization** | Cross-domain learning | qe-learning-coordinator, qe-pattern-learner |
 
 ---
 
 ### 👑 Queen Coordinator & Hierarchical Orchestration
 
-The **v3-qe-queen-coordinator** manages the entire fleet with intelligent task distribution:
+The **qe-queen-coordinator** manages the entire fleet with intelligent task distribution:
 
 ```
-                    v3-qe-queen-coordinator
+                    qe-queen-coordinator
                            (Queen)
                              |
         +--------------------+--------------------+
@@ -134,7 +134,7 @@ The **v3-qe-queen-coordinator** manages the entire fleet with intelligent task d
 - Adaptive load balancing
 
 ```bash
-claude "Use v3-qe-queen-coordinator to orchestrate release validation for v2.1.0 with 90% coverage target"
+claude "Use qe-queen-coordinator to orchestrate release validation for v2.1.0 with 90% coverage target"
 ```
 
 ---
@@ -152,10 +152,10 @@ V3 agents learn and improve through the **ReasoningBank** pattern storage:
 
 ```bash
 # Check what agents have learned
-aqe-v3 memory search --query "test patterns" --namespace learning
+aqe memory search --query "test patterns" --namespace learning
 
 # View learning metrics
-aqe-v3 hooks metrics --v3-dashboard
+aqe hooks metrics --v3-dashboard
 ```
 
 ---
@@ -170,7 +170,7 @@ Efficient coverage gap detection using **Johnson-Lindenstrauss algorithms**:
 - **Trend tracking**: Monitor coverage changes over time
 
 ```bash
-claude "Use v3-qe-coverage-specialist to analyze gaps in src/ with risk scoring"
+claude "Use qe-coverage-specialist to analyze gaps in src/ with risk scoring"
 ```
 
 ---
@@ -190,7 +190,7 @@ V3 deeply integrates with [Claude Flow](https://github.com/ruvnet/claude-flow) f
 npx @claude-flow/cli@latest swarm init --topology hierarchical-mesh
 
 # Spawn V3 agents
-npx @claude-flow/cli@latest agent spawn -t v3-qe-test-architect --name test-gen
+npx @claude-flow/cli@latest agent spawn -t qe-test-architect --name test-gen
 ```
 
 ---
@@ -210,46 +210,46 @@ npx @claude-flow/cli@latest agent spawn -t v3-qe-test-architect --name test-gen
 
 | Agent | Domain | Purpose |
 |-------|--------|---------|
-| v3-qe-queen-coordinator | coordination | Hierarchical fleet orchestration |
-| v3-qe-test-architect | test-generation | AI-powered test creation |
-| v3-qe-tdd-specialist | test-generation | TDD workflow coordination |
-| v3-qe-parallel-executor | test-execution | Multi-worker test execution |
-| v3-qe-retry-handler | test-execution | Intelligent retry with backoff |
-| v3-qe-coverage-specialist | coverage-analysis | O(log n) coverage analysis |
-| v3-qe-gap-detector | coverage-analysis | Risk-weighted gap detection |
-| v3-qe-quality-gate | quality-assessment | Quality threshold validation |
-| v3-qe-risk-assessor | quality-assessment | Multi-factor risk scoring |
-| v3-qe-deployment-advisor | quality-assessment | Go/no-go deployment decisions |
-| v3-qe-defect-predictor | defect-intelligence | ML-powered defect prediction |
-| v3-qe-root-cause-analyzer | defect-intelligence | Systematic root cause analysis |
-| v3-qe-flaky-hunter | defect-intelligence | Flaky test detection & fix |
-| v3-qe-requirements-validator | requirements-validation | Testability analysis |
-| v3-qe-bdd-generator | requirements-validation | Gherkin scenario generation |
-| v3-qe-code-intelligence | code-intelligence | Semantic code search |
-| v3-qe-kg-builder | code-intelligence | Knowledge graph construction |
-| v3-qe-dependency-mapper | code-intelligence | Dependency analysis |
-| v3-qe-security-scanner | security-compliance | SAST/DAST scanning |
-| v3-qe-security-auditor | security-compliance | Security audit & compliance |
-| v3-qe-contract-validator | contract-testing | API contract validation |
-| v3-qe-graphql-tester | contract-testing | GraphQL testing |
-| v3-qe-visual-tester | visual-accessibility | Visual regression testing |
-| v3-qe-accessibility-auditor | visual-accessibility | WCAG compliance testing |
-| v3-qe-responsive-tester | visual-accessibility | Cross-viewport testing |
-| v3-qe-chaos-engineer | chaos-resilience | Controlled fault injection |
-| v3-qe-load-tester | chaos-resilience | Load & performance testing |
-| v3-qe-performance-tester | chaos-resilience | Performance validation |
-| v3-qe-learning-coordinator | learning-optimization | Fleet-wide learning |
-| v3-qe-pattern-learner | learning-optimization | Pattern discovery |
-| v3-qe-transfer-specialist | learning-optimization | Cross-project transfer |
-| v3-qe-metrics-optimizer | learning-optimization | Hyperparameter tuning |
-| v3-qe-integration-tester | test-execution | Component integration |
-| v3-qe-mutation-tester | test-generation | Test effectiveness validation |
-| v3-qe-property-tester | test-generation | Property-based testing |
-| v3-qe-regression-analyzer | defect-intelligence | Regression risk analysis |
-| v3-qe-impact-analyzer | code-intelligence | Change impact assessment |
-| v3-qe-code-complexity | code-intelligence | Complexity metrics |
-| v3-qe-qx-partner | quality-assessment | QA + UX collaboration |
-| v3-qe-fleet-commander | coordination | Large-scale orchestration |
+| qe-queen-coordinator | coordination | Hierarchical fleet orchestration |
+| qe-test-architect | test-generation | AI-powered test creation |
+| qe-tdd-specialist | test-generation | TDD workflow coordination |
+| qe-parallel-executor | test-execution | Multi-worker test execution |
+| qe-retry-handler | test-execution | Intelligent retry with backoff |
+| qe-coverage-specialist | coverage-analysis | O(log n) coverage analysis |
+| qe-gap-detector | coverage-analysis | Risk-weighted gap detection |
+| qe-quality-gate | quality-assessment | Quality threshold validation |
+| qe-risk-assessor | quality-assessment | Multi-factor risk scoring |
+| qe-deployment-advisor | quality-assessment | Go/no-go deployment decisions |
+| qe-defect-predictor | defect-intelligence | ML-powered defect prediction |
+| qe-root-cause-analyzer | defect-intelligence | Systematic root cause analysis |
+| qe-flaky-hunter | defect-intelligence | Flaky test detection & fix |
+| qe-requirements-validator | requirements-validation | Testability analysis |
+| qe-bdd-generator | requirements-validation | Gherkin scenario generation |
+| qe-code-intelligence | code-intelligence | Semantic code search |
+| qe-kg-builder | code-intelligence | Knowledge graph construction |
+| qe-dependency-mapper | code-intelligence | Dependency analysis |
+| qe-security-scanner | security-compliance | SAST/DAST scanning |
+| qe-security-auditor | security-compliance | Security audit & compliance |
+| qe-contract-validator | contract-testing | API contract validation |
+| qe-graphql-tester | contract-testing | GraphQL testing |
+| qe-visual-tester | visual-accessibility | Visual regression testing |
+| qe-accessibility-auditor | visual-accessibility | WCAG compliance testing |
+| qe-responsive-tester | visual-accessibility | Cross-viewport testing |
+| qe-chaos-engineer | chaos-resilience | Controlled fault injection |
+| qe-load-tester | chaos-resilience | Load & performance testing |
+| qe-performance-tester | chaos-resilience | Performance validation |
+| qe-learning-coordinator | learning-optimization | Fleet-wide learning |
+| qe-pattern-learner | learning-optimization | Pattern discovery |
+| qe-transfer-specialist | learning-optimization | Cross-project transfer |
+| qe-metrics-optimizer | learning-optimization | Hyperparameter tuning |
+| qe-integration-tester | test-execution | Component integration |
+| qe-mutation-tester | test-generation | Test effectiveness validation |
+| qe-property-tester | test-generation | Property-based testing |
+| qe-regression-analyzer | defect-intelligence | Regression risk analysis |
+| qe-impact-analyzer | code-intelligence | Change impact assessment |
+| qe-code-complexity | code-intelligence | Complexity metrics |
+| qe-qx-partner | quality-assessment | QA + UX collaboration |
+| qe-fleet-commander | coordination | Large-scale orchestration |
 
 </details>
 
@@ -258,13 +258,13 @@ npx @claude-flow/cli@latest agent spawn -t v3-qe-test-architect --name test-gen
 
 | Subagent | Phase | Purpose |
 |----------|-------|---------|
-| v3-qe-tdd-red | RED | Write failing tests |
-| v3-qe-tdd-green | GREEN | Implement minimal code |
-| v3-qe-tdd-refactor | REFACTOR | Improve code quality |
-| v3-qe-code-reviewer | REVIEW | Code quality validation |
-| v3-qe-integration-reviewer | REVIEW | Integration review |
-| v3-qe-performance-reviewer | REVIEW | Performance review |
-| v3-qe-security-reviewer | REVIEW | Security review |
+| qe-tdd-red | RED | Write failing tests |
+| qe-tdd-green | GREEN | Implement minimal code |
+| qe-tdd-refactor | REFACTOR | Improve code quality |
+| qe-code-reviewer | REVIEW | Code quality validation |
+| qe-integration-reviewer | REVIEW | Integration review |
+| qe-performance-reviewer | REVIEW | Performance review |
+| qe-security-reviewer | REVIEW | Security review |
 
 </details>
 
@@ -295,7 +295,7 @@ npx @claude-flow/cli@latest agent spawn -t v3-qe-test-architect --name test-gen
 ### Example 1: Queen-Coordinated Quality Pipeline
 
 ```bash
-claude "Use v3-qe-queen-coordinator to run full quality assessment:
+claude "Use qe-queen-coordinator to run full quality assessment:
 1. Generate tests for src/services/*.ts
 2. Execute tests with parallel workers
 3. Analyze coverage gaps with risk scoring
@@ -313,7 +313,7 @@ claude "Use v3-qe-queen-coordinator to run full quality assessment:
 ### Example 2: Learning-Enhanced Test Generation
 
 ```bash
-claude "Use v3-qe-test-architect to create tests for PaymentService with:
+claude "Use qe-test-architect to create tests for PaymentService with:
 - Property-based testing for validation
 - 95% coverage target
 - Apply learned patterns from similar services"
@@ -333,24 +333,24 @@ Learning stored: "payment-validation-patterns" (confidence: 0.94)
 ### Example 3: TDD Workflow with Subagents
 
 ```bash
-claude "Use v3-qe-tdd-specialist to implement UserAuthentication with full RED-GREEN-REFACTOR cycle"
+claude "Use qe-tdd-specialist to implement UserAuthentication with full RED-GREEN-REFACTOR cycle"
 ```
 
 **Workflow:**
-1. **v3-qe-tdd-red**: Writes failing tests defining behavior
-2. **v3-qe-tdd-green**: Implements minimal code to pass
-3. **v3-qe-tdd-refactor**: Improves code quality
-4. **v3-qe-code-reviewer**: Validates standards
-5. **v3-qe-security-reviewer**: Checks security concerns
+1. **qe-tdd-red**: Writes failing tests defining behavior
+2. **qe-tdd-green**: Implements minimal code to pass
+3. **qe-tdd-refactor**: Improves code quality
+4. **qe-code-reviewer**: Validates standards
+5. **qe-security-reviewer**: Checks security concerns
 
 ### Example 4: Cross-Domain Coordination
 
 ```bash
 claude "Coordinate security audit across the monorepo:
-- v3-qe-security-scanner for SAST/DAST
-- v3-qe-dependency-mapper for vulnerability scanning
-- v3-qe-contract-validator for API security
-- v3-qe-chaos-engineer for resilience testing"
+- qe-security-scanner for SAST/DAST
+- qe-dependency-mapper for vulnerability scanning
+- qe-contract-validator for API security
+- qe-chaos-engineer for resilience testing"
 ```
 
 ---
@@ -393,13 +393,13 @@ V3 provides automatic backward compatibility with V2:
 
 ```bash
 # Check migration status
-aqe-v3 migrate status
+aqe migrate status
 
 # Run migration with backup
-aqe-v3 migrate run --backup
+aqe migrate run --backup
 
 # Validate migration
-aqe-v3 migrate validate
+aqe migrate validate
 ```
 
 **What gets migrated:**
@@ -410,11 +410,11 @@ aqe-v3 migrate validate
 
 | V2 Agent | V3 Agent |
 |----------|----------|
-| qe-test-generator | v3-qe-test-architect |
-| qe-coverage-analyzer | v3-qe-coverage-specialist |
-| qe-quality-gate | v3-qe-quality-gate |
-| qe-security-scanner | v3-qe-security-scanner |
-| qe-coordinator | v3-qe-queen-coordinator |
+| qe-test-generator | qe-test-architect |
+| qe-coverage-analyzer | qe-coverage-specialist |
+| qe-quality-gate | qe-quality-gate |
+| qe-security-scanner | qe-security-scanner |
+| qe-coordinator | qe-queen-coordinator |
 
 ---
 
@@ -433,7 +433,7 @@ AQE V3 supports multiple LLM providers for maximum flexibility:
 ```bash
 # Configure provider
 export GROQ_API_KEY="gsk_..."
-aqe-v3 init --auto
+aqe init --auto
 ```
 
 ---

@@ -1,13 +1,12 @@
 ---
 name: "mobile-dev"
+description: "Expert agent for React Native mobile application development across iOS and Android"
 color: "teal"
 type: "specialized"
 version: "1.0.0"
 created: "2025-07-25"
 author: "Claude Code"
-
 metadata:
-  description: "Expert agent for React Native mobile application development across iOS and Android"
   specialization: "React Native, mobile UI/UX, native modules, cross-platform development"
   complexity: "complex"
   autonomous: true

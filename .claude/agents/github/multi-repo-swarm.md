@@ -52,7 +52,7 @@ REPO_DETAILS=$(echo "$REPOS" | jq -r '.name' | while read -r repo; do
 done | jq -s '.')
 
 # Initialize swarm with repository context
-npx claude-flow@v3alpha github multi-repo-init \
+npx ruv-swarm github multi-repo-init \
   --repo-details "$REPO_DETAILS" \
   --repos "org/frontend,org/backend,org/shared" \
   --topology hierarchical \
@@ -78,7 +78,7 @@ DEPS=$(echo "$REPOS" | jq -r '.name' | while read -r repo; do
 done | jq -s '.')
 
 # Discover and analyze
-npx claude-flow@v3alpha github discover-repos \
+npx ruv-swarm github discover-repos \
   --repos "$REPOS" \
   --dependencies "$DEPS" \
   --analyze-dependencies \
@@ -99,7 +99,7 @@ echo "$MATCHING_REPOS" | while read -r repo; do
   
   # Execute task
   cd /tmp/$repo
-  npx claude-flow@v3alpha github task-execute \
+  npx ruv-swarm github task-execute \
     --task "update-dependencies" \
     --repo "org/$repo"
   
@@ -123,7 +123,7 @@ done
 
 # Link related PRs
 PR_URLS=$(cat /tmp/created-prs.txt)
-npx claude-flow@v3alpha github link-prs --urls "$PR_URLS"
+npx ruv-swarm github link-prs --urls "$PR_URLS"
 ```
 
 ## Configuration
@@ -238,7 +238,7 @@ done
 ### Refactoring Operations
 ```bash
 # Coordinate large-scale refactoring
-npx claude-flow@v3alpha github multi-repo-refactor \
+npx ruv-swarm github multi-repo-refactor \
   --pattern "rename:OldAPI->NewAPI" \
   --analyze-impact \
   --create-migration-guide \
@@ -248,7 +248,7 @@ npx claude-flow@v3alpha github multi-repo-refactor \
 ### Security Updates
 ```bash
 # Coordinate security patches
-npx claude-flow@v3alpha github multi-repo-security \
+npx ruv-swarm github multi-repo-security \
   --scan-all \
   --patch-vulnerabilities \
   --verify-fixes \
@@ -316,7 +316,7 @@ kafka:
 ### 1. Distributed Task Queue
 ```bash
 # Create distributed task queue
-npx claude-flow@v3alpha github multi-repo-queue \
+npx ruv-swarm github multi-repo-queue \
   --backend redis \
   --workers 10 \
   --priority-routing \
@@ -326,7 +326,7 @@ npx claude-flow@v3alpha github multi-repo-queue \
 ### 2. Cross-Repo Testing
 ```bash
 # Run integration tests across repos
-npx claude-flow@v3alpha github multi-repo-test \
+npx ruv-swarm github multi-repo-test \
   --setup-test-env \
   --link-services \
   --run-e2e \
@@ -336,7 +336,7 @@ npx claude-flow@v3alpha github multi-repo-test \
 ### 3. Monorepo Migration
 ```bash
 # Assist in monorepo migration
-npx claude-flow@v3alpha github to-monorepo \
+npx ruv-swarm github to-monorepo \
   --analyze-repos \
   --suggest-structure \
   --preserve-history \
@@ -348,7 +348,7 @@ npx claude-flow@v3alpha github to-monorepo \
 ### Multi-Repo Dashboard
 ```bash
 # Launch monitoring dashboard
-npx claude-flow@v3alpha github multi-repo-dashboard \
+npx ruv-swarm github multi-repo-dashboard \
   --port 3000 \
   --metrics "agent-activity,task-progress,memory-usage" \
   --real-time
@@ -357,7 +357,7 @@ npx claude-flow@v3alpha github multi-repo-dashboard \
 ### Dependency Graph
 ```bash
 # Visualize repo dependencies
-npx claude-flow@v3alpha github dep-graph \
+npx ruv-swarm github dep-graph \
   --format mermaid \
   --include-agents \
   --show-data-flow
@@ -366,7 +366,7 @@ npx claude-flow@v3alpha github dep-graph \
 ### Health Monitoring
 ```bash
 # Monitor swarm health across repos
-npx claude-flow@v3alpha github health-check \
+npx ruv-swarm github health-check \
   --repos "org/*" \
   --check "connectivity,memory,agents" \
   --alert-on-issues
@@ -422,7 +422,7 @@ npx claude-flow@v3alpha github health-check \
 ### 1. Microservices Coordination
 ```bash
 # Coordinate microservices development
-npx claude-flow@v3alpha github microservices \
+npx ruv-swarm github microservices \
   --services "auth,users,orders,payments" \
   --ensure-compatibility \
   --sync-contracts \
@@ -432,7 +432,7 @@ npx claude-flow@v3alpha github microservices \
 ### 2. Library Updates
 ```bash
 # Update shared library across consumers
-npx claude-flow@v3alpha github lib-update \
+npx ruv-swarm github lib-update \
   --library "org/shared-lib" \
   --version "2.0.0" \
   --find-consumers \
@@ -443,7 +443,7 @@ npx claude-flow@v3alpha github lib-update \
 ### 3. Organization-Wide Changes
 ```bash
 # Apply org-wide policy changes
-npx claude-flow@v3alpha github org-policy \
+npx ruv-swarm github org-policy \
   --policy "add-security-headers" \
   --repos "org/*" \
   --validate-compliance \
@@ -475,7 +475,7 @@ npx claude-flow@v3alpha github org-policy \
 ### Caching Strategy
 ```bash
 # Implement cross-repo caching
-npx claude-flow@v3alpha github cache-strategy \
+npx ruv-swarm github cache-strategy \
   --analyze-patterns \
   --suggest-cache-layers \
   --implement-invalidation
@@ -484,7 +484,7 @@ npx claude-flow@v3alpha github cache-strategy \
 ### Parallel Execution
 ```bash
 # Optimize parallel operations
-npx claude-flow@v3alpha github parallel-optimize \
+npx ruv-swarm github parallel-optimize \
   --analyze-dependencies \
   --identify-parallelizable \
   --execute-optimal
@@ -493,7 +493,7 @@ npx claude-flow@v3alpha github parallel-optimize \
 ### Resource Pooling
 ```bash
 # Pool resources across repos
-npx claude-flow@v3alpha github resource-pool \
+npx ruv-swarm github resource-pool \
   --share-agents \
   --distribute-load \
   --monitor-usage
@@ -504,7 +504,7 @@ npx claude-flow@v3alpha github resource-pool \
 ### Connectivity Issues
 ```bash
 # Diagnose connectivity problems
-npx claude-flow@v3alpha github diagnose-connectivity \
+npx ruv-swarm github diagnose-connectivity \
   --test-all-repos \
   --check-permissions \
   --verify-webhooks
@@ -513,7 +513,7 @@ npx claude-flow@v3alpha github diagnose-connectivity \
 ### Memory Synchronization
 ```bash
 # Debug memory sync issues
-npx claude-flow@v3alpha github debug-memory \
+npx ruv-swarm github debug-memory \
   --check-consistency \
   --identify-conflicts \
   --repair-state
@@ -522,7 +522,7 @@ npx claude-flow@v3alpha github debug-memory \
 ### Performance Bottlenecks
 ```bash
 # Identify performance issues
-npx claude-flow@v3alpha github perf-analysis \
+npx ruv-swarm github perf-analysis \
   --profile-operations \
   --identify-bottlenecks \
   --suggest-optimizations
@@ -533,7 +533,7 @@ npx claude-flow@v3alpha github perf-analysis \
 ### Full-Stack Application Update
 ```bash
 # Update full-stack application
-npx claude-flow@v3alpha github fullstack-update \
+npx ruv-swarm github fullstack-update \
   --frontend "org/web-app" \
   --backend "org/api-server" \
   --database "org/db-migrations" \
@@ -543,7 +543,7 @@ npx claude-flow@v3alpha github fullstack-update \
 ### Cross-Team Collaboration
 ```bash
 # Facilitate cross-team work
-npx claude-flow@v3alpha github cross-team \
+npx ruv-swarm github cross-team \
   --teams "frontend,backend,devops" \
   --task "implement-feature-x" \
   --assign-by-expertise \

@@ -71,13 +71,73 @@ npm run backup:restore  # Restore from backup
 
 **CLI coordinates, Task tool agents do the actual work!**
 
+### 🤖 INTELLIGENT 3-TIER MODEL ROUTING (ADR-026)
+
+**The routing system has 3 tiers for optimal cost/performance:**
+
+| Tier | Handler | Latency | Cost | Use Cases |
+|------|---------|---------|------|-----------|
+| **1** | Agent Booster | <1ms | $0 | Simple transforms (var→const, add-types, remove-console) |
+| **2** | Haiku | ~500ms | $0.0002 | Simple tasks, bug fixes, low complexity |
+| **3** | Sonnet/Opus | 2-5s | $0.003-$0.015 | Architecture, security, complex reasoning |
+
+**Before spawning agents, get routing recommendation:**
+```bash
+npx @claude-flow/cli@latest hooks pre-task --description "[task description]"
+```
+
+**When you see these recommendations:**
+
+1. `[AGENT_BOOSTER_AVAILABLE]` → Skip LLM entirely, use Edit tool directly
+   - Intent types: `var-to-const`, `add-types`, `add-error-handling`, `async-await`, `add-logging`, `remove-console`
+
+2. `[TASK_MODEL_RECOMMENDATION] Use model="X"` → Use that model in Task tool:
+```javascript
+Task({
+  prompt: "...",
+  subagent_type: "coder",
+  model: "haiku"  // ← USE THE RECOMMENDED MODEL (haiku/sonnet/opus)
+})
+```
+
+**Benefits:** 75% cost reduction, 352x faster for Tier 1 tasks
+
+---
+
+### 🛡️ Anti-Drift Config (PREFERRED)
+
+**Use this to prevent agent drift:**
+```bash
+# Small teams (6-8 agents) - use hierarchical for tight control
+npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 8 --strategy specialized
+
+# Large teams (10-15 agents) - use hierarchical-mesh for V3 queen + peer communication
+npx @claude-flow/cli@latest swarm init --topology hierarchical-mesh --max-agents 15 --strategy specialized
+```
+
+**Valid Topologies:**
+- `hierarchical` - Queen controls workers directly (anti-drift for small teams)
+- `hierarchical-mesh` - V3 queen + peer communication (recommended for 10+ agents)
+- `mesh` - Fully connected peer network
+- `ring` - Circular communication pattern
+- `star` - Central coordinator with spokes
+- `hybrid` - Dynamic topology switching
+
+**Anti-Drift Guidelines:**
+- **hierarchical**: Coordinator catches divergence
+- **max-agents 6-8**: Smaller team = less drift
+- **specialized**: Clear roles, no overlap
+- **consensus**: raft (leader maintains state)
+
+---
+
 ### 🔄 Auto-Start Swarm Protocol (Background Execution)
 
 When the user requests a complex task, **spawn agents in background and WAIT for completion:**
 
 ```javascript
-// STEP 1: Initialize swarm coordination
-Bash("npx @claude-flow/cli@latest swarm init --topology hierarchical-mesh --max-agents 15")
+// STEP 1: Initialize swarm coordination (anti-drift config)
+Bash("npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 8 --strategy specialized")
 
 // STEP 2: Spawn ALL agents IN BACKGROUND in a SINGLE message
 // Use run_in_background: true so agents work concurrently
@@ -204,17 +264,18 @@ Bash("npx @claude-flow/cli@latest hooks worker dispatch --trigger optimize")
 - Finding a performance fix (store the optimization)
 - Discovering a security issue (store the vulnerability pattern)
 
-### 📋 Agent Routing by Task Type
+### 📋 Agent Routing (Anti-Drift)
 
-| Task Type | Required Agents | Topology |
-|-----------|-----------------|----------|
-| Bug Fix | researcher, coder, tester | mesh |
-| New Feature | coordinator, architect, coder, tester, reviewer | hierarchical |
-| Refactoring | architect, coder, reviewer | mesh |
-| Performance | researcher, performance-engineer, coder | hierarchical |
-| Security Audit | security-architect, security-auditor, reviewer | hierarchical |
-| Memory Optimization | memory-specialist, performance-engineer | mesh |
-| Documentation | researcher, api-docs | mesh |
+| Code | Task | Agents |
+|------|------|--------|
+| 1 | Bug Fix | coordinator, researcher, coder, tester |
+| 3 | Feature | coordinator, architect, coder, tester, reviewer |
+| 5 | Refactor | coordinator, architect, coder, reviewer |
+| 7 | Performance | coordinator, perf-engineer, coder |
+| 9 | Security | coordinator, security-architect, auditor |
+| 11 | Docs | researcher, api-docs |
+
+**Codes 1-9: hierarchical/specialized (anti-drift). Code 11: mesh/balanced**
 
 ### 🎯 Task Complexity Detection
 
@@ -236,57 +297,187 @@ Bash("npx @claude-flow/cli@latest hooks worker dispatch --trigger optimize")
 
 ---
 
-## 🤖 Agentic QE v3 Fleet Quick Reference
+## 🐝 AQE FLEET ORCHESTRATION (Quality Engineering Swarms)
 
-### Current Stats (2026-01-11)
-| Metric | Count |
-|--------|-------|
-| DDD Domains | 12/12 |
-| Source Files | 316 |
-| Tests Passing | 3303 |
-| V3-QE Agents | 59 |
-| Legacy QE Agents | 31 |
-| V3 Specialized | 12 |
-| ADRs | 38 |
-| Stubs Remaining | 0 |
+### Fleet Initialization
 
-### 12 DDD Bounded Contexts
-1. **test-generation** - AI-powered test creation
-2. **test-execution** - Parallel execution, retry, flaky detection
-3. **coverage-analysis** - Sublinear gap detection
-4. **quality-assessment** - Quality gates, deployment decisions
-5. **defect-intelligence** - Prediction, root cause analysis
-6. **requirements-validation** - BDD, testability scoring
-7. **code-intelligence** - Knowledge graph, semantic search
-8. **security-compliance** - SAST/DAST, compliance
-9. **contract-testing** - API contracts, GraphQL
-10. **visual-accessibility** - Visual regression, a11y
-11. **chaos-resilience** - Chaos engineering, load testing
-12. **learning-optimization** - Cross-domain learning
+**For QE-specific tasks, initialize the AQE fleet instead of generic swarm:**
 
-### 🎯 Quick Start
-
-**Spawn agents:**
 ```javascript
-Task("Generate tests", "Create test suite for UserService", "qe-test-generator")
-Task("Analyze coverage", "Find gaps using O(log n)", "qe-coverage-analyzer")
+// Initialize AQE Fleet with MCP tool
+mcp__agentic-qe__mcp__agentic_qe__fleet_init({
+  config: {
+    topology: "hierarchical",  // Queen-led for QE coordination
+    maxAgents: 15,
+    testingFocus: ["unit", "integration", "e2e", "performance"],
+    frameworks: ["vitest", "jest", "playwright"],
+    environments: ["node", "browser"]
+  },
+  projectContext: {
+    language: "typescript",
+    buildSystem: "npm"
+  }
+})
 ```
 
-**Check v3 status:**
-```bash
-cd v3 && npm test -- --run  # Run all v3 tests
-.claude/statusline-v3.sh     # Show v3 status
+### 12 DDD Domains → Agent Mapping
+
+| Domain | Primary Agents | Focus Area |
+|--------|---------------|------------|
+| `test-generation` | qe-test-architect, qe-tdd-specialist | AI-powered test creation |
+| `test-execution` | qe-parallel-executor, qe-flaky-hunter, qe-retry-handler | Parallel execution, flaky detection |
+| `coverage-analysis` | qe-coverage-specialist, qe-gap-detector | O(log n) sublinear coverage |
+| `quality-assessment` | qe-quality-gate, qe-deployment-advisor | Quality gates, risk scoring |
+| `defect-intelligence` | qe-defect-predictor, qe-root-cause-analyzer | ML-powered defect prediction |
+| `learning-optimization` | qe-learning-coordinator, qe-pattern-learner | Cross-domain pattern learning |
+| `requirements-validation` | qe-tdd-specialist, qe-property-tester | BDD scenarios, property tests |
+| `code-intelligence` | qe-knowledge-manager, code-analyzer | Knowledge graphs, 80% token reduction |
+| `security-compliance` | qe-security-scanner, qe-security-auditor | OWASP, CVE detection |
+| `contract-testing` | qe-contract-validator, qe-api-tester | Pact, schema validation |
+| `visual-accessibility` | qe-visual-tester, qe-a11y-validator | Visual regression, WCAG |
+| `chaos-resilience` | qe-chaos-engineer, qe-performance-tester | Fault injection, load testing |
+
+### Fleet MCP Tools
+
+```javascript
+// Spawn specialized QE agent
+mcp__agentic-qe__mcp__agentic_qe__agent_spawn({
+  spec: {
+    type: "test-generator",  // or: coverage-analyzer, quality-gate, performance-tester, security-scanner, chaos-engineer, visual-tester
+    capabilities: ["unit-tests", "integration-tests"],
+    name: "test-gen-1"
+  },
+  fleetId: "fleet-123"  // From fleet_init
+})
+
+// AI-enhanced test generation
+mcp__agentic-qe__mcp__agentic_qe__test_generate_enhanced({
+  sourceCode: "...",
+  language: "typescript",
+  testType: "unit",  // unit, integration, e2e, property-based, mutation
+  coverageGoal: 90,
+  aiEnhancement: true,
+  detectAntiPatterns: true
+})
+
+// Parallel test execution with retry
+mcp__agentic-qe__mcp__agentic_qe__test_execute_parallel({
+  testFiles: ["tests/**/*.test.ts"],
+  parallelism: 4,
+  retryFailures: true,
+  maxRetries: 3,
+  collectCoverage: true
+})
+
+// Orchestrate QE task across fleet
+mcp__agentic-qe__mcp__agentic_qe__task_orchestrate({
+  task: {
+    type: "comprehensive-testing",  // or: quality-gate, defect-prevention, performance-validation
+    priority: "high",
+    strategy: "adaptive",
+    maxAgents: 5
+  },
+  context: {
+    project: "agentic-qe",
+    environment: "test"
+  },
+  fleetId: "fleet-123"
+})
 ```
 
-### 💡 Key Principles
-- Use Task tool for agent execution (not just MCP)
-- Batch all operations in single messages (TodoWrite, file ops, etc.)
-- Test with actual databases, not mocks
-- Document only what actually works
+### QE Memory Operations
+
+```javascript
+// Store QE pattern with namespace
+mcp__agentic-qe__mcp__agentic_qe__memory_store({
+  key: "coverage-pattern-auth",
+  value: { pattern: "...", successRate: 0.95 },
+  namespace: "qe-patterns",
+  ttl: 86400,  // 24 hours
+  persist: true
+})
+
+// Query memory with pattern matching
+mcp__agentic-qe__mcp__agentic_qe__memory_query({
+  pattern: "coverage-*",
+  namespace: "qe-patterns",
+  limit: 10
+})
+```
+
+### QE Task Routing by Domain
+
+| Task Type | MCP Tool | Agents Spawned |
+|-----------|----------|----------------|
+| Generate tests | `test_generate_enhanced` | qe-test-architect, qe-tdd-specialist |
+| Run tests | `test_execute_parallel` | qe-parallel-executor, qe-retry-handler |
+| Analyze coverage | `task_orchestrate` (coverage) | qe-coverage-specialist, qe-gap-detector |
+| Quality gate | `task_orchestrate` (quality-gate) | qe-quality-gate, qe-deployment-advisor |
+| Security scan | `agent_spawn` (security-scanner) | qe-security-scanner, qe-security-auditor |
+| Chaos test | `agent_spawn` (chaos-engineer) | qe-chaos-engineer, qe-load-tester |
+
+### Integration with Claude Flow
+
+**AQE Fleet + Claude Flow work together:**
+
+```javascript
+// STEP 1: Initialize Claude Flow swarm for coordination
+Bash("npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 15")
+
+// STEP 2: Initialize AQE Fleet for QE-specific work
+mcp__agentic-qe__mcp__agentic_qe__fleet_init({
+  config: { topology: "hierarchical", maxAgents: 10, testingFocus: ["unit", "integration"] }
+})
+
+// STEP 3: Spawn agents via Claude Code Task tool (do the actual work)
+Task({ prompt: "Generate tests for auth module", subagent_type: "qe-test-architect", run_in_background: true })
+Task({ prompt: "Analyze coverage gaps", subagent_type: "qe-coverage-specialist", run_in_background: true })
+
+// STEP 4: Store learnings in both systems
+mcp__agentic-qe__mcp__agentic_qe__memory_store({ key: "pattern-1", value: "...", namespace: "qe-patterns", persist: true })
+Bash("npx @claude-flow/cli@latest memory store --key 'qe-pattern-1' --value '...' --namespace patterns")
+```
 
 ---
 
-## 🚀 V3 CLI Commands (26 Commands, 140+ Subcommands)
+## 🚨 CRITICAL: CONCURRENT EXECUTION & FILE MANAGEMENT
+
+**ABSOLUTE RULES**:
+1. ALL operations MUST be concurrent/parallel in a single message
+2. **NEVER save working files, text/mds and tests to the root folder**
+3. ALWAYS organize files in appropriate subdirectories
+4. **USE CLAUDE CODE'S TASK TOOL** for spawning agents concurrently, not just MCP
+
+### ⚡ GOLDEN RULE: "1 MESSAGE = ALL RELATED OPERATIONS"
+
+**MANDATORY PATTERNS:**
+- **TodoWrite**: ALWAYS batch ALL todos in ONE call (5-10+ todos minimum)
+- **Task tool (Claude Code)**: ALWAYS spawn ALL agents in ONE message with full instructions
+- **File operations**: ALWAYS batch ALL reads/writes/edits in ONE message
+- **Bash commands**: ALWAYS batch ALL terminal operations in ONE message
+- **Memory operations**: ALWAYS batch ALL memory store/retrieve in ONE message
+
+### 📁 File Organization Rules
+
+**NEVER save to root folder. Use these directories:**
+- `/src` - Source code files
+- `/tests` - Test files
+- `/docs` - Documentation and markdown files
+- `/config` - Configuration files
+- `/scripts` - Utility scripts
+- `/examples` - Example code
+
+## Project Config (Anti-Drift Defaults)
+
+- **Topology**: hierarchical (prevents drift)
+- **Max Agents**: 8 (smaller = less drift)
+- **Strategy**: specialized (clear roles)
+- **Consensus**: raft
+- **Memory**: hybrid
+- **HNSW**: Enabled
+- **Neural**: Enabled
+
+## 🚀 Claude Flow V3 CLI Commands (26 Commands, 140+ Subcommands)
 
 ### Core Commands
 
@@ -357,6 +548,12 @@ npx @claude-flow/cli@latest performance benchmark --suite all
 
 ### V3 Specialized Agents
 `security-architect`, `security-auditor`, `memory-specialist`, `performance-engineer`
+
+### 🔐 @claude-flow/security
+CVE remediation, input validation, path security:
+- `InputValidator` - Zod validation
+- `PathValidator` - Traversal prevention
+- `SafeExecutor` - Injection protection
 
 ### Swarm Coordination
 `hierarchical-coordinator`, `mesh-coordinator`, `adaptive-coordinator`, `collective-intelligence-coordinator`, `swarm-memory-manager`

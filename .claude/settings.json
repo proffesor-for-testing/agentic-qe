@@ -137,40 +137,13 @@
         ]
       }
     ],
-    "PreCompact": [
-      {
-        "matcher": "auto",
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 5000,
-            "command": "npx @claude-flow/cli@latest hooks session-end --save-state true --export-metrics true 2>/dev/null || true"
-          }
-        ]
-      },
-      {
-        "matcher": "manual",
-        "hooks": [
-          {
-            "type": "command",
-            "timeout": 5000,
-            "command": "npx @claude-flow/cli@latest hooks session-end --save-state true --export-metrics true 2>/dev/null || true"
-          },
-          {
-            "type": "command",
-            "timeout": 3000,
-            "command": "/bin/bash -c 'echo \"V3: 21 QE agents + 12 domains. Review CLAUDE.md for skills.\"'"
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "npx @claude-flow/cli@latest hooks session-end --save-state true 2>/dev/null || true",
-            "timeout": 3000
+            "command": "echo '{\"ok\": true}'",
+            "timeout": 1000
           }
         ]
       }
@@ -186,28 +159,6 @@
           }
         ]
       }
-    ],
-    "PermissionRequest": [
-      {
-        "matcher": "^mcp__claude-flow__.*$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '{\"decision\": \"allow\", \"reason\": \"claude-flow MCP tool auto-approved\"}'",
-            "timeout": 1000
-          }
-        ]
-      },
-      {
-        "matcher": "^Bash\\(npx @?claude-flow.*\\)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '{\"decision\": \"allow\", \"reason\": \"claude-flow CLI auto-approved\"}'",
-            "timeout": 1000
-          }
-        ]
-      }
     ]
   },
   "statusLine": {
@@ -218,9 +169,9 @@
   },
   "permissions": {
     "allow": [
-      "Bash(npx claude-flow*)",
-      "Bash(npx @claude-flow/*)",
-      "mcp__claude-flow__*",
+      "Bash(npx claude-flow:*)",
+      "Bash(npx @claude-flow/cli:*)",
+      "mcp__claude-flow__:*",
       "mcp__agentic_qe__*",
       "mcp__agentic-qe-v3__*"
     ],
@@ -395,19 +346,19 @@
       "qe-sync": {
         "priority": "high",
         "description": "Sync AQE memory with intelligence",
-        "agents": ["v3-qe-learning-coordinator"],
+        "agents": ["qe-learning-coordinator"],
         "v2Compat": ["qe-coordinator"]
       },
       "qe-learn": {
         "priority": "medium",
         "description": "Run QE self-learning cycle",
-        "agents": ["v3-qe-test-architect", "v3-qe-coverage-specialist"],
+        "agents": ["qe-test-architect", "qe-coverage-specialist"],
         "v2Compat": ["qe-test-generator", "qe-coverage-analyzer"]
       },
       "v3-test-generation": {
         "priority": "high",
         "description": "V3 test generation domain learning",
-        "agents": ["v3-qe-test-architect", "v3-qe-tdd-specialist"],
+        "agents": ["qe-test-architect", "qe-tdd-specialist"],
         "domain": "test-generation",
         "hooks": ["qe:pre-test-generation", "qe:post-test-generation"],
         "v2Compat": ["qe-test-generator", "qe-test-architect"]
@@ -415,7 +366,7 @@
       "v3-test-execution": {
         "priority": "high",
         "description": "V3 test execution domain learning",
-        "agents": ["v3-qe-parallel-executor", "v3-qe-flaky-hunter", "v3-qe-retry-handler"],
+        "agents": ["qe-parallel-executor", "qe-flaky-hunter", "qe-retry-handler"],
         "domain": "test-execution",
         "hooks": ["qe:test-execution-result"],
         "v2Compat": ["qe-test-executor", "qe-flaky-hunter"]
@@ -423,7 +374,7 @@
       "v3-coverage-analysis": {
         "priority": "high",
         "description": "V3 coverage analysis domain learning",
-        "agents": ["v3-qe-coverage-specialist", "v3-qe-gap-detector", "v3-qe-risk-scorer"],
+        "agents": ["qe-coverage-specialist", "qe-gap-detector", "qe-risk-scorer"],
         "domain": "coverage-analysis",
         "hooks": ["qe:pre-coverage-analysis", "qe:post-coverage-analysis", "qe:coverage-gap-identified"],
         "v2Compat": ["qe-coverage-analyzer", "qe-coverage-gap-analyzer"]
@@ -431,7 +382,7 @@
       "v3-quality-assessment": {
         "priority": "critical",
         "description": "V3 quality assessment domain learning",
-        "agents": ["v3-qe-quality-gate", "v3-qe-deployment-advisor", "v3-qe-risk-assessor"],
+        "agents": ["qe-quality-gate", "qe-deployment-advisor", "qe-risk-assessor"],
         "domain": "quality-assessment",
         "hooks": ["qe:quality-score", "qe:risk-assessment"],
         "v2Compat": ["qe-quality-gate", "qe-quality-analyzer"]
@@ -439,7 +390,7 @@
       "v3-defect-intelligence": {
         "priority": "high",
         "description": "V3 defect intelligence domain learning",
-        "agents": ["v3-qe-defect-predictor", "v3-qe-root-cause-analyzer", "v3-qe-flaky-hunter"],
+        "agents": ["qe-defect-predictor", "qe-root-cause-analyzer", "qe-flaky-hunter"],
         "domain": "defect-intelligence",
         "hooks": ["qe:pattern-learned", "qe:pattern-applied"],
         "v2Compat": ["qe-flaky-investigator"]
@@ -447,7 +398,7 @@
       "v3-learning-optimization": {
         "priority": "medium",
         "description": "V3 learning optimization domain",
-        "agents": ["v3-qe-learning-coordinator", "v3-qe-pattern-learner", "v3-qe-transfer-specialist", "v3-qe-metrics-optimizer"],
+        "agents": ["qe-learning-coordinator", "qe-pattern-learner", "qe-transfer-specialist", "qe-metrics-optimizer"],
         "domain": "learning-optimization",
         "hooks": ["qe:pattern-learned", "qe:pattern-applied", "qe:pattern-promoted"],
         "v2Compat": ["sona-learning-optimizer"]
@@ -455,7 +406,7 @@
       "v3-requirements-validation": {
         "priority": "medium",
         "description": "V3 requirements validation domain learning",
-        "agents": ["v3-qe-tdd-specialist", "v3-qe-property-tester"],
+        "agents": ["qe-tdd-specialist", "qe-property-tester"],
         "domain": "requirements-validation",
         "hooks": ["qe:pre-test-generation"],
         "v2Compat": ["qe-requirements-validator"]
@@ -463,7 +414,7 @@
       "v3-code-intelligence": {
         "priority": "medium",
         "description": "V3 code intelligence domain learning",
-        "agents": ["v3-qe-knowledge-manager", "code-analyzer"],
+        "agents": ["qe-knowledge-manager", "code-analyzer"],
         "domain": "code-intelligence",
         "hooks": ["qe:agent-routing", "qe:agent-completion"],
         "v2Compat": ["qe-code-intelligence", "qe-code-complexity"]
@@ -471,7 +422,7 @@
       "v3-security-compliance": {
         "priority": "critical",
         "description": "V3 security compliance domain learning",
-        "agents": ["v3-qe-security-scanner", "v3-qe-security-auditor", "security-architect"],
+        "agents": ["qe-security-scanner", "qe-security-auditor", "security-architect"],
         "domain": "security-compliance",
         "hooks": ["qe:risk-assessment"],
         "v2Compat": ["qe-security-auditor", "qe-security-scanner"]
@@ -479,7 +430,7 @@
       "v3-contract-testing": {
         "priority": "high",
         "description": "V3 contract testing domain learning",
-        "agents": ["v3-qe-integration-tester", "v3-qe-contract-validator"],
+        "agents": ["qe-integration-tester", "qe-contract-validator"],
         "domain": "contract-testing",
         "hooks": ["qe:pre-test-generation", "qe:post-test-generation"],
         "v2Compat": ["qe-api-contract-validator"]
@@ -487,7 +438,7 @@
       "v3-visual-accessibility": {
         "priority": "medium",
         "description": "V3 visual accessibility domain learning",
-        "agents": ["v3-qe-visual-tester", "v3-qe-a11y-validator"],
+        "agents": ["qe-visual-tester", "qe-a11y-validator"],
         "domain": "visual-accessibility",
         "hooks": ["qe:pre-test-generation", "qe:quality-score"],
         "v2Compat": ["qe-visual-tester", "qe-a11y-ally"]
@@ -495,7 +446,7 @@
       "v3-chaos-resilience": {
         "priority": "medium",
         "description": "V3 chaos resilience domain learning",
-        "agents": ["v3-qe-chaos-engineer", "v3-qe-performance-tester", "v3-qe-load-tester"],
+        "agents": ["qe-chaos-engineer", "qe-performance-tester", "qe-load-tester"],
         "domain": "chaos-resilience",
         "hooks": ["qe:test-execution-result", "qe:quality-score"],
         "v2Compat": ["qe-chaos-engineer", "qe-performance-tester", "qe-performance-validator"]
@@ -503,7 +454,7 @@
       "v3-aisp-validate": {
         "priority": "low",
         "description": "AISP specification validation",
-        "agents": ["v3-qe-test-architect"],
+        "agents": ["qe-test-architect"],
         "domain": "learning-optimization",
         "hooks": ["aisp:validate", "aisp:generate"]
       }
@@ -533,39 +484,39 @@
       "topology": "hierarchical",
       "coordination": "queen-led",
       "groups": {
-        "test-generation": ["v3-qe-test-architect", "v3-qe-tdd-specialist", "v3-qe-integration-tester", "v3-qe-property-tester"],
-        "quality-gates": ["v3-qe-quality-gate", "v3-qe-deployment-advisor", "v3-qe-risk-assessor"],
-        "intelligence": ["v3-qe-defect-predictor", "v3-qe-pattern-learner", "v3-qe-root-cause-analyzer"],
-        "execution": ["v3-qe-parallel-executor", "v3-qe-flaky-hunter", "v3-qe-retry-handler"],
-        "coverage": ["v3-qe-coverage-specialist", "v3-qe-gap-detector", "v3-qe-risk-scorer"],
-        "learning": ["v3-qe-learning-coordinator", "v3-qe-transfer-specialist", "v3-qe-metrics-optimizer", "v3-qe-knowledge-manager"],
-        "security": ["v3-qe-security-scanner", "v3-qe-security-auditor", "v3-qe-compliance-validator"],
-        "contracts": ["v3-qe-contract-validator", "v3-qe-api-tester", "v3-qe-schema-validator"],
-        "visual": ["v3-qe-visual-tester", "v3-qe-a11y-validator", "v3-qe-responsive-tester"],
-        "chaos": ["v3-qe-chaos-engineer", "v3-qe-performance-tester", "v3-qe-load-tester", "v3-qe-resilience-validator"]
+        "test-generation": ["qe-test-architect", "qe-tdd-specialist", "qe-integration-tester", "qe-property-tester"],
+        "quality-gates": ["qe-quality-gate", "qe-deployment-advisor", "qe-risk-assessor"],
+        "intelligence": ["qe-defect-predictor", "qe-pattern-learner", "qe-root-cause-analyzer"],
+        "execution": ["qe-parallel-executor", "qe-flaky-hunter", "qe-retry-handler"],
+        "coverage": ["qe-coverage-specialist", "qe-gap-detector", "qe-risk-scorer"],
+        "learning": ["qe-learning-coordinator", "qe-transfer-specialist", "qe-metrics-optimizer", "qe-knowledge-manager"],
+        "security": ["qe-security-scanner", "qe-security-auditor", "qe-compliance-validator"],
+        "contracts": ["qe-contract-validator", "qe-api-tester", "qe-schema-validator"],
+        "visual": ["qe-visual-tester", "qe-a11y-validator", "qe-responsive-tester"],
+        "chaos": ["qe-chaos-engineer", "qe-performance-tester", "qe-load-tester", "qe-resilience-validator"]
       },
       "v2CompatMapping": {
-        "qe-coordinator": "v3-qe-learning-coordinator",
-        "qe-test-generator": "v3-qe-test-architect",
-        "qe-test-architect": "v3-qe-test-architect",
-        "qe-coverage-analyzer": "v3-qe-coverage-specialist",
-        "qe-coverage-gap-analyzer": "v3-qe-gap-detector",
-        "qe-test-executor": "v3-qe-parallel-executor",
-        "qe-flaky-hunter": "v3-qe-flaky-hunter",
-        "qe-flaky-investigator": "v3-qe-flaky-hunter",
-        "qe-quality-gate": "v3-qe-quality-gate",
-        "qe-quality-analyzer": "v3-qe-quality-gate",
-        "qe-requirements-validator": "v3-qe-tdd-specialist",
-        "qe-api-contract-validator": "v3-qe-contract-validator",
-        "qe-security-scanner": "v3-qe-security-scanner",
-        "qe-security-auditor": "v3-qe-security-auditor",
-        "qe-visual-tester": "v3-qe-visual-tester",
-        "qe-a11y-ally": "v3-qe-a11y-validator",
-        "qe-chaos-engineer": "v3-qe-chaos-engineer",
-        "qe-performance-tester": "v3-qe-performance-tester",
-        "qe-performance-validator": "v3-qe-load-tester",
-        "qe-code-intelligence": "v3-qe-knowledge-manager",
-        "qe-code-complexity": "v3-qe-knowledge-manager"
+        "qe-coordinator": "qe-learning-coordinator",
+        "qe-test-generator": "qe-test-architect",
+        "qe-test-architect": "qe-test-architect",
+        "qe-coverage-analyzer": "qe-coverage-specialist",
+        "qe-coverage-gap-analyzer": "qe-gap-detector",
+        "qe-test-executor": "qe-parallel-executor",
+        "qe-flaky-hunter": "qe-flaky-hunter",
+        "qe-flaky-investigator": "qe-flaky-hunter",
+        "qe-quality-gate": "qe-quality-gate",
+        "qe-quality-analyzer": "qe-quality-gate",
+        "qe-requirements-validator": "qe-tdd-specialist",
+        "qe-api-contract-validator": "qe-contract-validator",
+        "qe-security-scanner": "qe-security-scanner",
+        "qe-security-auditor": "qe-security-auditor",
+        "qe-visual-tester": "qe-visual-tester",
+        "qe-a11y-ally": "qe-a11y-validator",
+        "qe-chaos-engineer": "qe-chaos-engineer",
+        "qe-performance-tester": "qe-performance-tester",
+        "qe-performance-validator": "qe-load-tester",
+        "qe-code-intelligence": "qe-knowledge-manager",
+        "qe-code-complexity": "qe-knowledge-manager"
       }
     },
     "performance": {
@@ -575,7 +526,7 @@
       "learningImprovement": "15%/sprint"
     },
     "adrs": {
-      "total": 29,
+      "total": 41,
       "path": "v3/implementation/adrs/v3-adrs.md",
       "aisp": ["ADR-026", "ADR-027", "ADR-028", "ADR-029"]
     },
