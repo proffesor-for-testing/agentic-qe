@@ -2541,7 +2541,10 @@ program
       try {
         const v2ConfigRaw = fs.readFileSync(v2Files.config, 'utf-8');
         // SEC-001: Safe parsing prevents prototype pollution from malicious config files
-        const v2Config = parseJsonFile(v2ConfigRaw, v2Files.config);
+        const v2Config = parseJsonFile(v2ConfigRaw, v2Files.config) as {
+          version?: string;
+          learning?: { patternRetention?: number };
+        };
 
         // Convert to v3 format
         const v3Config = {
