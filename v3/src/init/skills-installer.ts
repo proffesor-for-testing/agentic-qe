@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 
 export interface SkillInfo {
   name: string;
-  type: 'v2-methodology' | 'v3-domain' | 'platform' | 'integration';
+  type: 'v2-methodology' | 'v3-domain';
   description?: string;
   hasResources: boolean;
 }
@@ -36,8 +36,6 @@ export interface SkillsInstallerOptions {
   installV2Skills?: boolean;
   /** Install v3 domain skills (default: true) */
   installV3Skills?: boolean;
-  /** Install platform-specific skills like n8n, agentdb, etc. (default: true) */
-  installPlatformSkills?: boolean;
   /** Overwrite existing skills (default: false) */
   overwrite?: boolean;
   /** Skills to exclude by name pattern */
@@ -47,73 +45,40 @@ export interface SkillsInstallerOptions {
 }
 
 // ============================================================================
-// Skill Categories
+// Skill Categories (QE Skills Only - Claude Flow skills are managed separately)
 // ============================================================================
 
 /**
- * V3 domain skills (12 skills for v3-specific features)
+ * V3 QE domain skills - 12 bounded contexts + migration/iteration utilities
+ * These are QE-specific skills for v3's DDD architecture
  */
 const V3_DOMAIN_SKILLS = [
-  'v3-qe-test-generation',
-  'v3-qe-test-execution',
-  'v3-qe-coverage-analysis',
-  'v3-qe-quality-assessment',
-  'v3-qe-defect-intelligence',
-  'v3-qe-requirements-validation',
-  'v3-qe-code-intelligence',
-  'v3-qe-security-compliance',
-  'v3-qe-contract-testing',
-  'v3-qe-visual-accessibility',
-  'v3-qe-chaos-resilience',
-  'v3-qe-learning-optimization',
+  // 12 DDD bounded context skills
+  'qe-test-generation',         // AI-powered test synthesis
+  'qe-test-execution',          // Parallel execution, retry logic
+  'qe-coverage-analysis',       // O(log n) sublinear coverage
+  'qe-quality-assessment',      // Quality gates, deployment readiness
+  'qe-defect-intelligence',     // ML defect prediction, root cause
+  'qe-requirements-validation', // BDD scenarios, acceptance criteria
+  'qe-code-intelligence',       // Knowledge graphs, 80% token reduction
+  'qe-security-compliance',     // OWASP, CVE detection
+  'qe-contract-testing',        // Pact, schema validation
+  'qe-visual-accessibility',    // Visual regression, WCAG
+  'qe-chaos-resilience',        // Fault injection, resilience
+  'qe-learning-optimization',   // Transfer learning, self-improvement
+  // V3 utilities
+  'aqe-v2-v3-migration',        // Migration guide from v2 to v3
+  'qe-iterative-loop',          // QE iteration patterns
 ];
 
 /**
- * Platform-specific skills (agentdb, n8n, github, flow-nexus, etc.)
+ * Internal/excluded skills - NOT installed for end users
+ * Includes:
+ * - V3 internal development skills
+ * - Claude Flow platform skills (managed by claude-flow package)
  */
-const PLATFORM_SKILLS = [
-  'agentdb-advanced',
-  'agentdb-learning',
-  'agentdb-memory-patterns',
-  'agentdb-optimization',
-  'agentdb-vector-search',
-  'n8n-expression-testing',
-  'n8n-integration-testing-patterns',
-  'n8n-security-testing',
-  'n8n-trigger-testing-strategies',
-  'n8n-workflow-testing-fundamentals',
-  'github-code-review',
-  'github-multi-repo',
-  'github-project-management',
-  'github-release-management',
-  'github-workflow-automation',
-  'flow-nexus-neural',
-  'flow-nexus-platform',
-  'flow-nexus-swarm',
-  'reasoningbank-agentdb',
-  'reasoningbank-intelligence',
-];
-
-/**
- * Integration/orchestration skills
- */
-const INTEGRATION_SKILLS = [
-  'swarm-orchestration',
-  'swarm-advanced',
-  'sparc-methodology',
-  'hooks-automation',
-  'hive-mind-advanced',
-  'stream-chain',
-  'agentic-jujutsu',
-  'pair-programming',
-  'iterative-loop',
-  'qe-iterative-loop',
-];
-
-/**
- * Internal development skills (should NOT be installed for users)
- */
-const INTERNAL_SKILLS = [
+const EXCLUDED_SKILLS = [
+  // V3 internal development skills
   'v3-core-implementation',
   'v3-cli-modernization',
   'v3-ddd-architecture',
@@ -135,6 +100,34 @@ const INTERNAL_SKILLS = [
   'v3-qe-integration',
   'v3-qe-agentic-flow-integration',
   'v3-qe-fleet-coordination',
+  // Claude Flow platform skills (not QE skills)
+  'agentdb-advanced',
+  'agentdb-learning',
+  'agentdb-memory-patterns',
+  'agentdb-optimization',
+  'agentdb-vector-search',
+  'github-code-review',
+  'github-multi-repo',
+  'github-project-management',
+  'github-release-management',
+  'github-workflow-automation',
+  'flow-nexus-neural',
+  'flow-nexus-platform',
+  'flow-nexus-swarm',
+  'reasoningbank-agentdb',
+  'reasoningbank-intelligence',
+  'swarm-orchestration',
+  'swarm-advanced',
+  'sparc-methodology',
+  'hooks-automation',
+  'hive-mind-advanced',
+  'stream-chain',
+  'agentic-jujutsu',
+  'iterative-loop',
+  'performance-analysis',
+  'skill-builder',
+  // Claude Flow integration skill (not pure QE)
+  'qe-agentic-flow-integration',
 ];
 
 // ============================================================================
@@ -151,7 +144,6 @@ export class SkillsInstaller {
     this.options = {
       installV2Skills: true,
       installV3Skills: true,
-      installPlatformSkills: true,
       overwrite: false,
       exclude: [],
       include: undefined,
@@ -262,12 +254,13 @@ export class SkillsInstaller {
 
   /**
    * Filter skills based on installation options
+   * Only installs QE skills - Claude Flow skills are excluded
    */
   private filterSkills(availableSkills: string[]): string[] {
     let filtered = availableSkills;
 
-    // Always exclude internal development skills
-    filtered = filtered.filter(s => !INTERNAL_SKILLS.includes(s));
+    // Always exclude internal and Claude Flow skills
+    filtered = filtered.filter(s => !EXCLUDED_SKILLS.includes(s));
 
     // Apply include filter if specified
     if (this.options.include && this.options.include.length > 0) {
@@ -286,17 +279,9 @@ export class SkillsInstaller {
       filtered = filtered.filter(s => !V3_DOMAIN_SKILLS.includes(s));
     }
 
-    if (!this.options.installPlatformSkills) {
-      filtered = filtered.filter(s => !PLATFORM_SKILLS.includes(s));
-    }
-
     if (!this.options.installV2Skills) {
-      // V2 skills are everything that's not v3, platform, integration, or internal
-      filtered = filtered.filter(s =>
-        V3_DOMAIN_SKILLS.includes(s) ||
-        PLATFORM_SKILLS.includes(s) ||
-        INTEGRATION_SKILLS.includes(s)
-      );
+      // V2 skills are everything that's not v3-domain
+      filtered = filtered.filter(s => V3_DOMAIN_SKILLS.includes(s));
     }
 
     return filtered;
@@ -364,10 +349,8 @@ export class SkillsInstaller {
   /**
    * Get the type of a skill based on its name
    */
-  private getSkillType(skillName: string): 'v2-methodology' | 'v3-domain' | 'platform' | 'integration' {
+  private getSkillType(skillName: string): 'v2-methodology' | 'v3-domain' {
     if (V3_DOMAIN_SKILLS.includes(skillName)) return 'v3-domain';
-    if (PLATFORM_SKILLS.includes(skillName)) return 'platform';
-    if (INTEGRATION_SKILLS.includes(skillName)) return 'integration';
     return 'v2-methodology';
   }
 
@@ -405,44 +388,31 @@ export class SkillsInstaller {
   private async createSkillsIndex(skillsDir: string, installed: SkillInfo[]): Promise<void> {
     const v2Skills = installed.filter(s => s.type === 'v2-methodology');
     const v3Skills = installed.filter(s => s.type === 'v3-domain');
-    const platformSkills = installed.filter(s => s.type === 'platform');
-    const integrationSkills = installed.filter(s => s.type === 'integration');
 
     const indexContent = `# AQE Skills Index
 
-This directory contains skills installed by \`aqe init\`.
+This directory contains Quality Engineering skills installed by \`aqe init\`.
+
+> **Note**: Claude Flow platform skills (agentdb, n8n, github, flow-nexus, etc.) are managed
+> separately by the claude-flow package. This directory contains only QE-specific skills.
 
 ## Summary
 
 - **Total Skills**: ${installed.length}
 - **V2 Methodology Skills**: ${v2Skills.length}
 - **V3 Domain Skills**: ${v3Skills.length}
-- **Platform Skills**: ${platformSkills.length}
-- **Integration Skills**: ${integrationSkills.length}
 
 ## V2 Methodology Skills (${v2Skills.length})
 
-Version-agnostic quality engineering best practices.
+Version-agnostic quality engineering best practices from the QE community.
 
 ${v2Skills.map(s => `- **${s.name}**${s.description ? `: ${s.description}` : ''}`).join('\n')}
 
 ## V3 Domain Skills (${v3Skills.length})
 
-V3-specific implementation guides for the 12 bounded contexts.
+V3-specific implementation guides for the 12 DDD bounded contexts.
 
 ${v3Skills.map(s => `- **${s.name}**${s.description ? `: ${s.description}` : ''}`).join('\n')}
-
-## Platform Skills (${platformSkills.length})
-
-Platform-specific testing patterns (AgentDB, n8n, GitHub, etc.).
-
-${platformSkills.map(s => `- **${s.name}**${s.description ? `: ${s.description}` : ''}`).join('\n')}
-
-## Integration Skills (${integrationSkills.length})
-
-Swarm orchestration and integration patterns.
-
-${integrationSkills.map(s => `- **${s.name}**${s.description ? `: ${s.description}` : ''}`).join('\n')}
 
 ---
 

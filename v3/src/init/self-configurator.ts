@@ -395,11 +395,8 @@ export class SelfConfigurator {
     // Install v3 domain skills - v3-specific implementation guides
     config.installV3 = true;
 
-    // Install platform skills for detected frameworks
-    // Check for common platforms in the project
-    config.installPlatform = analysis.frameworks.some(f =>
-      ['playwright', 'cypress', 'jest', 'vitest', 'mocha'].includes(f.name.toLowerCase())
-    );
+    // Note: Platform skills (agentdb, n8n, github, etc.) are managed by claude-flow
+    // AQE only installs QE-specific skills (v2 methodology + v3 domain)
 
     return config;
   }

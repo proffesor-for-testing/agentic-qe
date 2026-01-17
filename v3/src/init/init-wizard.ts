@@ -1168,7 +1168,6 @@ echo "Use: npx aqe hooks session-start"
       projectRoot: this.projectRoot,
       installV2Skills: config.skills.installV2,
       installV3Skills: config.skills.installV3,
-      installPlatformSkills: config.skills.installPlatform,
       overwrite: config.skills.overwrite,
     });
 
@@ -1327,12 +1326,11 @@ echo "Use: npx aqe hooks session-start"
     lines.push(`  ciIntegration: ${config.hooks.ciIntegration}`);
     lines.push('');
 
-    // Skills section
+    // Skills section (QE skills only - platform skills managed by claude-flow)
     lines.push('skills:');
     lines.push(`  install: ${config.skills.install}`);
     lines.push(`  installV2: ${config.skills.installV2}`);
     lines.push(`  installV3: ${config.skills.installV3}`);
-    lines.push(`  installPlatform: ${config.skills.installPlatform}`);
     lines.push(`  overwrite: ${config.skills.overwrite}`);
     lines.push('');
 

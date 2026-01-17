@@ -157,8 +157,6 @@ export interface SkillsConfig {
   installV2: boolean;
   /** Install v3 domain skills (default: true) */
   installV3: boolean;
-  /** Install platform-specific skills (default: true) */
-  installPlatform: boolean;
   /** Overwrite existing skills (default: false) */
   overwrite: boolean;
 }
@@ -402,7 +400,6 @@ export const DEFAULT_SKILLS_CONFIG: SkillsConfig = {
   install: true,
   installV2: true,
   installV3: true,
-  installPlatform: true,
   overwrite: false,
 };
 
