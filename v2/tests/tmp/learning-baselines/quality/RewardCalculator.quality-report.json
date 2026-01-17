@@ -1,0 +1,18 @@
+{
+  "file": "src/learning/RewardCalculator.ts",
+  "lines": 254,
+  "functions": 17,
+  "classes": 1,
+  "complexity": {
+    "cyclomatic": 10,
+    "cognitive": 12,
+    "level": "low"
+  },
+  "metrics": {
+    "maintainability": 80,
+    "testability": 93,
+    "reliability": 100
+  },
+  "issues": [],
+  "analyzedAt": "2025-12-10T18:59:35.502Z"
+}

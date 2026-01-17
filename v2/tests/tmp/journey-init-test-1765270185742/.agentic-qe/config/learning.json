@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "learningRate": 0.1,
+  "discountFactor": 0.95,
+  "explorationRate": 0.2,
+  "explorationDecay": 0.995,
+  "minExplorationRate": 0.01,
+  "targetImprovement": 0.2,
+  "maxMemorySize": 104857600,
+  "batchSize": 32,
+  "updateFrequency": 10,
+  "replayBufferSize": 10000
+}

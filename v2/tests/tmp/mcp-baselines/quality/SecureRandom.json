@@ -1,0 +1,14 @@
+{
+  "file": "src/utils/SecureRandom.ts",
+  "lines": 267,
+  "complexity": {
+    "cyclomatic": 12,
+    "cognitive": 14,
+    "level": "medium"
+  },
+  "metrics": {
+    "maintainability": 76,
+    "testability": 98
+  },
+  "issues": []
+}

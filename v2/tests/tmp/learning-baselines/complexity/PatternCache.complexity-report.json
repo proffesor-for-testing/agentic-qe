@@ -1,0 +1,154 @@
+{
+  "file": "src/core/memory/PatternCache.ts",
+  "lines": 227,
+  "cyclomatic": 43,
+  "cognitive": 43,
+  "level": "high",
+  "halstead": {
+    "vocabulary": 177,
+    "length": 1154,
+    "volume": 8618,
+    "difficulty": 33.31,
+    "effort": 287071
+  },
+  "functions": [
+    {
+      "name": "constructor",
+      "startLine": 55,
+      "endLine": 57,
+      "lines": 3,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "get",
+      "startLine": 68,
+      "endLine": 93,
+      "lines": 26,
+      "complexity": 6,
+      "cognitive": 6
+    },
+    {
+      "name": "if",
+      "startLine": 70,
+      "endLine": 75,
+      "lines": 6,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "set",
+      "startLine": 100,
+      "endLine": 116,
+      "lines": 17,
+      "complexity": 4,
+      "cognitive": 4
+    },
+    {
+      "name": "if",
+      "startLine": 102,
+      "endLine": 109,
+      "lines": 8,
+      "complexity": 4,
+      "cognitive": 4
+    },
+    {
+      "name": "if",
+      "startLine": 104,
+      "endLine": 108,
+      "lines": 5,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "invalidate",
+      "startLine": 123,
+      "endLine": 134,
+      "lines": 12,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "clear",
+      "startLine": 138,
+      "endLine": 146,
+      "lines": 9,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 140,
+      "endLine": 145,
+      "lines": 6,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "getStats",
+      "startLine": 150,
+      "endLine": 166,
+      "lines": 17,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "has",
+      "startLine": 170,
+      "endLine": 177,
+      "lines": 8,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "size",
+      "startLine": 181,
+      "endLine": 184,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "resetStats",
+      "startLine": 188,
+      "endLine": 193,
+      "lines": 6,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "keys",
+      "startLine": 197,
+      "endLine": 200,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "pruneExpired",
+      "startLine": 205,
+      "endLine": 218,
+      "lines": 14,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "if",
+      "startLine": 210,
+      "endLine": 213,
+      "lines": 4,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "generateKey",
+      "startLine": 222,
+      "endLine": 225,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    }
+  ],
+  "hotspots": [],
+  "analyzedAt": "2025-12-10T18:59:38.770Z"
+}

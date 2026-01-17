@@ -1,0 +1,178 @@
+{
+  "file": "src/adapters/MemoryStoreAdapter.ts",
+  "lines": 615,
+  "cyclomatic": 144,
+  "cognitive": 161,
+  "level": "high",
+  "halstead": {
+    "vocabulary": 429,
+    "length": 4230,
+    "volume": 36991,
+    "difficulty": 46.27,
+    "effort": 1711633
+  },
+  "functions": [
+    {
+      "name": "constructor",
+      "startLine": 41,
+      "endLine": 45,
+      "lines": 5,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "validateCompatibility",
+      "startLine": 51,
+      "endLine": 76,
+      "lines": 26,
+      "complexity": 6,
+      "cognitive": 7
+    },
+    {
+      "name": "if",
+      "startLine": 52,
+      "endLine": 59,
+      "lines": 8,
+      "complexity": 3,
+      "cognitive": 4
+    },
+    {
+      "name": "for",
+      "startLine": 62,
+      "endLine": 68,
+      "lines": 7,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "if",
+      "startLine": 68,
+      "endLine": 75,
+      "lines": 8,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "initialize",
+      "startLine": 80,
+      "endLine": 83,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "store",
+      "startLine": 88,
+      "endLine": 89,
+      "lines": 2,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "retrieve",
+      "startLine": 98,
+      "endLine": 99,
+      "lines": 2,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "query",
+      "startLine": 109,
+      "endLine": 110,
+      "lines": 2,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "delete",
+      "startLine": 119,
+      "endLine": 120,
+      "lines": 2,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "clear",
+      "startLine": 128,
+      "endLine": 131,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "postHint",
+      "startLine": 136,
+      "endLine": 137,
+      "lines": 2,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "readHints",
+      "startLine": 144,
+      "endLine": 148,
+      "lines": 5,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "cleanExpired",
+      "startLine": 153,
+      "endLine": 156,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "close",
+      "startLine": 161,
+      "endLine": 164,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "stats",
+      "startLine": 169,
+      "endLine": 187,
+      "lines": 19,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "storeEvent",
+      "startLine": 210,
+      "endLine": 216,
+      "lines": 7,
+      "complexity": 1,
+      "cognitive": 2
+    },
+    {
+      "name": "queryEvents",
+      "startLine": 216,
+      "endLine": 220,
+      "lines": 5,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "getEventsBySource",
+      "startLine": 220,
+      "endLine": 224,
+      "lines": 5,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "storeWorkflowState",
+      "startLine": 224,
+      "endLine": 228,
+      "lines": 5,
+      "complexity": 1,
+      "cognitive": 1
+    }
+  ],
+  "hotspots": [],
+  "analyzedAt": "2025-12-10T18:59:39.570Z"
+}

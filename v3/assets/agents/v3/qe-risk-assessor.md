@@ -3,8 +3,8 @@ name: qe-risk-assessor
 version: "3.0.0"
 updated: "2026-01-10"
 description: Quality risk assessment with multi-factor scoring, impact analysis, and mitigation recommendations
-v2_compat: qe-regression-risk-analyzer
 domain: quality-assessment
+v3_new: true
 ---
 
 <qe_agent_definition>

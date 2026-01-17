@@ -1,16 +1,17 @@
-# Agentic QE v3
+# Agentic QE
 
-[![npm version](https://img.shields.io/npm/v/@agentic-qe/v3.svg)](https://www.npmjs.com/package/@agentic-qe/v3)
+[![npm version](https://img.shields.io/npm/v/agentic-qe.svg)](https://www.npmjs.com/package/agentic-qe)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-> Domain-Driven Quality Engineering with 12 Bounded Contexts, ReasoningBank Learning, and HNSW Vector Search
+> Domain-Driven Quality Engineering with 12 Bounded Contexts, 48 Specialized QE Agents (41 main + 7 subagents), ReasoningBank Learning, and HNSW Vector Search
 
 ## Quick Start
 
 ```bash
 # Install globally
-npm install -g @agentic-qe/v3
+npm install -g agentic-qe
 
 # Initialize your project
 cd your-project
@@ -23,9 +24,30 @@ aqe init --auto
 claude mcp add aqe -- aqe-mcp
 ```
 
+### Local Installation
+
+```bash
+# Install as dev dependency
+npm install --save-dev agentic-qe
+
+# Run via npx
+npx aqe init --wizard
+npx aqe test generate src/
+```
+
+## Why Agentic QE?
+
+- **48 Specialized QE Agents** - Domain-focused quality engineering agents (41 main + 7 subagents)
+- **12 DDD Bounded Contexts** - Modular, extensible architecture
+- **O(log n) Coverage Analysis** - Sublinear performance with HNSW indexing
+- **150x Faster Pattern Search** - HNSW-indexed vector storage
+- **ReasoningBank + SONA Learning** - Neural pattern learning and transfer
+- **Queen-led Coordination** - 3-5x throughput with work stealing
+- **Zero-Breaking-Changes Migration** - Full v2 backward compatibility
+
 ## Architecture Overview
 
-Agentic QE v3 uses a **Domain-Driven Design (DDD)** architecture with a microkernel pattern:
+Agentic QE uses a **Domain-Driven Design (DDD)** architecture with a microkernel pattern:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -79,7 +101,7 @@ Agentic QE v3 uses a **Domain-Driven Design (DDD)** architecture with a microker
 The microkernel provides core infrastructure:
 
 ```typescript
-import { QEKernelImpl } from '@agentic-qe/v3';
+import { QEKernelImpl } from 'agentic-qe';
 
 const kernel = new QEKernelImpl({
   maxConcurrentAgents: 15,
@@ -101,7 +123,7 @@ await kernel.initialize();
 Orchestrates tasks across all domains:
 
 ```typescript
-import { createQueenCoordinator } from '@agentic-qe/v3';
+import { createQueenCoordinator } from 'agentic-qe';
 
 const queen = createQueenCoordinator(kernel, router, executor);
 await queen.initialize();
@@ -271,14 +293,17 @@ aqe agent spawn test-generation -t worker -c unit-test,integration-test
 
 ## MCP Integration
 
-Add the v3 MCP server to Claude Code (requires global install):
+Add the MCP server to Claude Code (requires global install):
 
 ```bash
 # First install globally
-npm install -g @agentic-qe/v3
+npm install -g agentic-qe
 
 # Then add to Claude Code
 claude mcp add aqe -- aqe-mcp
+
+# Or run directly with npx (no global install)
+claude mcp add aqe -- npx agentic-qe mcp
 ```
 
 ### Available MCP Tools
@@ -317,7 +342,7 @@ claude mcp add aqe -- aqe-mcp
 ### Test Generation
 
 ```typescript
-import { QEKernelImpl } from '@agentic-qe/v3';
+import { QEKernelImpl } from 'agentic-qe';
 
 const kernel = new QEKernelImpl();
 await kernel.initialize();
@@ -384,19 +409,51 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Module System | CommonJS | ESM |
 | Memory | SQLite only | HNSW + SQLite hybrid |
 | Learning | Basic patterns | ReasoningBank + SONA |
-| Agents | 31 | 47 QE agents |
+| Agents | 32 | 48 QE agents |
+| Coverage | O(n) | O(log n) |
+| Pattern Search | Linear | 150x faster (HNSW) |
+| Coordination | Sequential | Queen + Work Stealing |
 | CLI | `aqe` | `aqe` |
-| Package | `agentic-qe` | `@agentic-qe/v3` |
+| Package | `agentic-qe@2` | `agentic-qe` |
 
 ## Migration from v2
 
-See the [Migration Guide](../docs/MIGRATION-GUIDE.md) for detailed instructions.
+Agentic QE v3 provides **zero-breaking-changes** migration. All v2 APIs, CLI commands, and configurations continue to work.
+
+### Quick Migration
 
 ```bash
-# Quick migration
-npm install @agentic-qe/v3
+# Install v3 (replaces v2)
+npm install agentic-qe
+
+# Run migration with backup
 aqe migrate --backup
+
+# Verify migration
+aqe migrate status
 ```
+
+### What Gets Migrated
+
+| Component | v2 Location | v3 Location | Auto-Migrate |
+|-----------|-------------|-------------|--------------|
+| Memory DB | `.agentic-qe/memory.db` | `.aqe/agentdb/` | Yes |
+| Config | `.agentic-qe/config.json` | `.aqe/config.json` | Yes |
+| Patterns | `.agentic-qe/patterns/` | `.aqe/reasoning-bank/` | Yes |
+
+### Backward Compatibility
+
+All v2 agent names and CLI commands remain functional:
+
+```bash
+# v2 commands still work
+aqe generate tests --file src/app.ts  # Mapped to: aqe test generate
+
+# v2 agent names still work
+qe-test-generator  # Mapped to: qe-test-architect
+```
+
+See the [Migration Guide](./docs/MIGRATION-GUIDE.md) for detailed instructions and the [Changelog](./docs/CHANGELOG-V3.md) for all changes.
 
 ## Configuration
 
@@ -424,9 +481,60 @@ aqe migrate --backup
 }
 ```
 
+## 48 QE Agents
+
+Agentic QE includes 48 specialized quality engineering agents (41 main + 7 subagents) organized by domain:
+
+### Test Generation Domain
+`qe-test-architect`, `qe-tdd-specialist`, `qe-tdd-red`, `qe-tdd-green`, `qe-tdd-refactor`, `qe-property-tester`, `qe-mutation-tester`, `qe-bdd-generator`
+
+### Test Execution Domain
+`qe-test-executor`, `qe-flaky-hunter`, `qe-retry-handler`, `qe-parallel-executor`
+
+### Coverage Analysis Domain
+`qe-coverage-specialist`, `qe-gap-detector`, `qe-risk-analyzer`
+
+### Quality Assessment Domain
+`qe-quality-gate`, `qe-metrics-optimizer`, `qe-deployment-advisor`
+
+### Defect Intelligence Domain
+`qe-defect-intelligence`, `qe-regression-analyzer`, `qe-root-cause-analyzer`
+
+### Code Intelligence Domain
+`qe-knowledge-manager`, `qe-dependency-mapper`, `qe-impact-analyzer`
+
+### Security Compliance Domain
+`qe-security-auditor`, `qe-security-scanner`, `qe-compliance-validator`
+
+### Contract Testing Domain
+`qe-contract-validator`, `qe-contract-testing`, `qe-graphql-tester`
+
+### Visual Accessibility Domain
+`qe-visual-accessibility`, `qe-responsive-tester`, `qe-accessibility-auditor`
+
+### Chaos Resilience Domain
+`qe-chaos-engineer`, `qe-load-tester`, `qe-resilience-tester`, `qe-performance-tester`
+
+### Learning Optimization Domain
+`qe-learning-optimization`, `qe-pattern-learner`, `qe-transfer-specialist`
+
+### Coordination
+`qe-queen-coordinator`, `qe-fleet-commander`, `qe-integration-tester`, `qe-data-generator`, `qe-code-reviewer`
+
+## Requirements
+
+- Node.js 18.0.0 or higher
+- npm 8.0.0 or higher
+
 ## Contributing
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
+
+## Documentation
+
+- [Migration Guide](./docs/MIGRATION-GUIDE.md) - Migrating from v2 to v3
+- [Changelog](./docs/CHANGELOG-V3.md) - Version history and changes
+- [API Reference](https://github.com/proffesor-for-testing/agentic-qe) - Full API documentation
 
 ## License
 

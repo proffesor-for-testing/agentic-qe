@@ -1,0 +1,14 @@
+{
+  "file": "src/core/memory/PatternCache.ts",
+  "lines": 227,
+  "complexity": {
+    "cyclomatic": 18,
+    "cognitive": 20,
+    "level": "medium"
+  },
+  "metrics": {
+    "maintainability": 64,
+    "testability": 92
+  },
+  "issues": []
+}

@@ -1,0 +1,445 @@
+# Agentic QE Fleet - Agent Reference
+
+This document provides comprehensive reference for all 19 QE agents in the Agentic Quality Engineering Fleet.
+
+## Overview
+
+The Agentic QE Fleet is a distributed swarm of AI agents for comprehensive software testing and quality assurance. Each agent specializes in specific quality engineering tasks and coordinates through the `aqe/*` memory namespace.
+
+---
+
+## Core Testing Agents (5 agents)
+
+### qe-test-generator
+**AI-powered test generation with sublinear optimization**
+
+**Capabilities:**
+- Generates unit, integration, and E2E tests
+- Supports Jest, Mocha, Vitest, Playwright
+- Sublinear optimization algorithms for test selection
+- Property-based testing generation
+- Edge case discovery
+
+**Usage:**
+```javascript
+Task("Generate tests", "Create comprehensive test suite for UserService", "qe-test-generator")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/test-plan/generated`
+- Reads: `aqe/coverage/gaps`
+
+---
+
+### qe-test-executor
+**Multi-framework test execution with parallel processing**
+
+**Capabilities:**
+- Executes tests across multiple frameworks
+- Parallel test execution with worker pools
+- Real-time progress streaming
+- Test retry logic for flaky tests
+- Coverage collection
+
+**Usage:**
+```javascript
+Task("Execute tests", "Run test plan with 90% coverage target", "qe-test-executor")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/test-results/*`
+- Reads: `aqe/test-plan/generated`
+
+---
+
+### qe-coverage-analyzer
+**Real-time gap detection with O(log n) algorithms**
+
+**Capabilities:**
+- Incremental coverage analysis
+- Sublinear gap detection algorithms
+- Critical path identification
+- Coverage visualization
+- Untested code hotspot detection
+
+**Usage:**
+```javascript
+Task("Analyze coverage", "Find gaps using O(log n) algorithms", "qe-coverage-analyzer")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/coverage/gaps`, `aqe/coverage/results`
+- Reads: `aqe/test-results/*`
+
+---
+
+### qe-quality-gate
+**Intelligent quality gate with risk assessment**
+
+**Capabilities:**
+- Multi-factor risk assessment
+- Customizable quality thresholds
+- Trend analysis
+- Deployment readiness scoring
+- Automated go/no-go decisions
+
+**Usage:**
+```javascript
+Task("Quality check", "Run quality gate validation", "qe-quality-gate")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/quality/gate-results`
+- Reads: `aqe/coverage/results`, `aqe/test-results/*`
+
+---
+
+### qe-quality-analyzer
+**Comprehensive quality metrics analysis**
+
+**Capabilities:**
+- Quality metrics collection and analysis
+- Trend detection and prediction
+- Technical debt calculation
+- Code health scoring
+- Actionable insights generation
+
+**Usage:**
+```javascript
+Task("Quality analysis", "Analyze project quality metrics", "qe-quality-analyzer")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/quality/metrics`
+- Reads: `aqe/quality/*`, `aqe/test-results/*`
+
+---
+
+## Performance & Security Agents (2 agents)
+
+### qe-performance-tester
+**Load testing with k6, JMeter, Gatling integration**
+
+**Capabilities:**
+- Load, stress, and spike testing
+- Performance baseline establishment
+- Bottleneck identification
+- SLA validation
+- Multi-tool integration (k6, JMeter, Gatling)
+
+**Usage:**
+```javascript
+Task("Performance test", "Load test critical paths with 1000 concurrent users", "qe-performance-tester")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/performance/results`
+- Reads: `aqe/test-plan/*`
+
+---
+
+### qe-security-scanner
+**Multi-layer security with SAST/DAST scanning**
+
+**Capabilities:**
+- SAST (Static Application Security Testing)
+- DAST (Dynamic Application Security Testing)
+- Dependency vulnerability scanning
+- OWASP Top 10 validation
+- Security compliance checking
+
+**Usage:**
+```javascript
+Task("Security scan", "Run comprehensive security checks", "qe-security-scanner")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/security/findings`
+- Reads: `aqe/test-plan/*`
+
+---
+
+## Strategic Planning Agents (3 agents)
+
+### qe-requirements-validator
+**INVEST criteria validation and BDD generation**
+
+**Capabilities:**
+- Requirements testability analysis
+- INVEST criteria validation
+- BDD scenario generation (Gherkin)
+- Acceptance criteria validation
+- Requirements ambiguity detection
+
+**Usage:**
+```javascript
+Task("Validate requirements", "Check testability and generate BDD scenarios", "qe-requirements-validator")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/requirements/validated`
+- Reads: `aqe/test-plan/*`
+
+---
+
+### qe-production-intelligence
+**Production data to test scenarios conversion**
+
+**Capabilities:**
+- Production incident replay
+- RUM (Real User Monitoring) analysis
+- Log-based test generation
+- Production pattern extraction
+- Edge case discovery from production
+
+**Usage:**
+```javascript
+Task("Production intelligence", "Convert production incidents to test scenarios", "qe-production-intelligence")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/production/insights`
+- Reads: Production logs, incident data
+
+---
+
+### qe-fleet-commander
+**Hierarchical fleet coordination (50+ agents)**
+
+**Capabilities:**
+- Multi-agent orchestration
+- Resource allocation
+- Task decomposition and distribution
+- Agent performance monitoring
+- Coordination topology optimization
+
+**Usage:**
+```javascript
+Task("Fleet coordination", "Orchestrate 20 agents for comprehensive testing", "qe-fleet-commander")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/swarm/coordination`
+- Reads: All `aqe/*` namespaces
+
+---
+
+## Deployment Agent (1 agent)
+
+### qe-deployment-readiness
+**Multi-factor risk assessment for deployments**
+
+**Capabilities:**
+- Deployment risk scoring
+- Rollback plan validation
+- Production readiness checklist
+- Release notes generation
+- Deployment window optimization
+
+**Usage:**
+```javascript
+Task("Deployment check", "Assess deployment readiness", "qe-deployment-readiness")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/deployment/readiness`
+- Reads: `aqe/quality/*`, `aqe/test-results/*`
+
+---
+
+## Advanced Testing Agents (4 agents)
+
+### qe-regression-risk-analyzer
+**Smart test selection with ML patterns**
+
+**Capabilities:**
+- Change impact analysis
+- Intelligent test selection
+- Regression risk prediction
+- Test prioritization
+- Historical failure pattern analysis
+
+**Usage:**
+```javascript
+Task("Regression analysis", "Select minimal test suite for code changes", "qe-regression-risk-analyzer")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/regression/risk-analysis`
+- Reads: `aqe/test-results/*`, learning patterns
+
+---
+
+### qe-test-data-architect
+**High-speed realistic data generation (10k+ records/sec)**
+
+**Capabilities:**
+- Schema-aware data generation
+- Relationship preservation
+- Edge case coverage
+- GDPR-compliant data masking
+- High-performance generation (10k+ records/sec)
+
+**Usage:**
+```javascript
+Task("Generate test data", "Create 10k realistic user records", "qe-test-data-architect")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/test-data/generated`
+- Reads: Database schemas
+
+---
+
+### qe-api-contract-validator
+**Breaking change detection across API versions**
+
+**Capabilities:**
+- API contract validation
+- Breaking change detection
+- Backward compatibility verification
+- OpenAPI/Swagger validation
+- Consumer-driven contract testing
+
+**Usage:**
+```javascript
+Task("Validate API contracts", "Check for breaking changes", "qe-api-contract-validator")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/api/contract-validation`
+- Reads: API specifications
+
+---
+
+### qe-flaky-test-hunter
+**Statistical flakiness detection and auto-stabilization**
+
+**Capabilities:**
+- Flaky test detection with ML
+- Root cause analysis
+- Auto-stabilization strategies
+- Statistical significance testing
+- Retry policy optimization
+
+**Usage:**
+```javascript
+Task("Hunt flaky tests", "Detect and stabilize flaky tests", "qe-flaky-test-hunter")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/flaky-tests/detected`
+- Reads: `aqe/test-results/*`, historical test data
+
+---
+
+## Specialized Agents (2 agents)
+
+### qe-visual-tester
+**Visual regression with AI-powered comparison**
+
+**Capabilities:**
+- Screenshot-based visual testing
+- AI-powered image comparison
+- Layout shift detection
+- Accessibility visual validation
+- Cross-browser visual testing
+
+**Usage:**
+```javascript
+Task("Visual testing", "Run visual regression tests", "qe-visual-tester")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/visual/results`
+- Reads: `aqe/test-plan/*`
+
+---
+
+### qe-chaos-engineer
+**Resilience testing with controlled fault injection**
+
+**Capabilities:**
+- Controlled fault injection
+- Resilience testing
+- Blast radius management
+- Recovery validation
+- System stability verification
+
+**Usage:**
+```javascript
+Task("Chaos testing", "Test system resilience with controlled failures", "qe-chaos-engineer")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/chaos/results`
+- Reads: `aqe/test-plan/*`
+
+---
+
+## MCP Tool Discovery System
+
+The Agentic QE Fleet uses **lazy-loaded MCP tools** to reduce initial context by 87%.
+
+### Tool Discovery
+
+```javascript
+// Discover available tool domains
+mcp__agentic_qe__tools_discover()
+// Returns: security, coverage, test-generation, test-execution, quality-gates,
+//          fleet-management, memory, learning, patterns, reporting
+
+// Load specific domain tools
+mcp__agentic_qe__tools_load_domain({ domain: "security" })
+mcp__agentic_qe__tools_load_domain({ domain: "coverage" })
+```
+
+### Automatic Loading
+
+Tools are **auto-loaded based on keywords** when agents work:
+- "security", "vulnerability" → loads security tools
+- "coverage", "gaps" → loads coverage tools
+- "generate", "create tests" → loads test-generation tools
+- "execute", "run tests" → loads test-execution tools
+
+### Benefits
+
+- **87% context reduction** (from 15,000 to 2,000 tokens initially)
+- **Faster agent spawning** with minimal overhead
+- **On-demand loading** only when tools are needed
+
+---
+
+## Agent Coordination
+
+All agents coordinate through the **`aqe/*` memory namespace**:
+
+- `aqe/test-plan/*` - Test planning and requirements
+- `aqe/coverage/*` - Coverage analysis and gaps
+- `aqe/quality/*` - Quality metrics and gates
+- `aqe/performance/*` - Performance test results
+- `aqe/security/*` - Security scan findings
+- `aqe/swarm/coordination` - Cross-agent coordination
+
+## Parallel Agent Execution
+
+Execute multiple agents concurrently for maximum efficiency:
+
+```javascript
+// Execute multiple agents in parallel
+Task("Test Generation", "Generate unit tests", "qe-test-generator")
+Task("Coverage Analysis", "Analyze current coverage", "qe-coverage-analyzer")
+Task("Security Scan", "Run security checks", "qe-security-scanner")
+Task("Performance Test", "Load test critical paths", "qe-performance-tester")
+```
+
+---
+
+**Related Documentation:**
+- [Skills Reference](skills.md) - All 34 QE skills
+- [Usage Guide](usage.md) - Complete usage examples
+- [AQE Hooks](../architecture/AQE-HOOKS.md) - Agent coordination details
+
+**Related Policies:**
+- [Release Verification Policy](../policies/release-verification.md)
+- [Test Execution Policy](../policies/test-execution.md)

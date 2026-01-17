@@ -3,8 +3,8 @@ name: qe-load-tester
 version: "3.0.0"
 updated: "2026-01-10"
 description: Load and performance testing with traffic simulation, stress testing, and baseline management
-v2_compat: qe-performance-tester
 domain: chaos-resilience
+v3_new: true
 ---
 
 <qe_agent_definition>

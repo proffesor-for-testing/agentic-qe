@@ -3,31 +3,30 @@
 <div align="center">
 
 [![npm version](https://img.shields.io/npm/v/agentic-qe.svg)](https://www.npmjs.com/package/agentic-qe)
-[![npm v3](https://img.shields.io/npm/v/@agentic-qe/v3.svg?label=v3%20alpha)](https://www.npmjs.com/package/@agentic-qe/v3)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 [![Run in Smithery](https://smithery.ai/badge/skills/proffesor-for-testing)](https://smithery.ai/skills?ns=proffesor-for-testing&utm_source=github&utm_medium=badge)
 
 
-**V3 Alpha** | [V2 Documentation](docs/V2-README.md) | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 59 specialized agents, ReasoningBank learning, HNSW vector search, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
+> **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 48 specialized QE agents, ReasoningBank learning, HNSW vector search, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
-🏗️ **DDD Architecture** | 🧠 **ReasoningBank Learning** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **46+ QE Skills**
+🏗️ **DDD Architecture** | 🧠 **ReasoningBank Learning** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **15 QE Skills**
 
 </div>
 
 ---
 
-## ⚡ Quick Start (V3)
+## ⚡ Quick Start
 
 ### Install & Initialize
 
 ```bash
-# Install V3 globally
-npm install -g @agentic-qe/v3
+# Install globally
+npm install -g agentic-qe
 
 # Initialize your project
 cd your-project
@@ -37,7 +36,7 @@ aqe init --wizard
 aqe init --auto
 
 # Add MCP server to Claude Code (optional)
-claude mcp add agentic-qe-v3 npx @agentic-qe/v3 mcp
+claude mcp add agentic-qe npx agentic-qe mcp
 
 # Verify connection
 claude mcp list
@@ -45,7 +44,7 @@ claude mcp list
 
 ### Use from Claude Code CLI
 
-Ask Claude to use V3 QE agents directly from your terminal:
+Ask Claude to use QE agents directly from your terminal:
 
 ```bash
 # Generate comprehensive tests with learning
@@ -60,13 +59,13 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 
 **What V3 provides:**
 - ✅ **12 DDD Bounded Contexts**: Organized by business domain (test-generation, coverage-analysis, security-compliance, etc.)
-- ✅ **59 Specialized Agents**: Including Queen Coordinator for hierarchical orchestration
+- ✅ **48 QE Agents**: Including Queen Coordinator for hierarchical orchestration (41 main + 7 TDD subagents)
 - ✅ **ReasoningBank Learning**: HNSW-indexed pattern storage with experience replay
 - ✅ **O(log n) Coverage Analysis**: Sublinear algorithms for efficient gap detection
 - ✅ **Claude Flow Integration**: Deep integration with MCP tools and swarm orchestration
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
-- ✅ **46+ QE Skills**: Context-driven testing, TDD, security, accessibility, and more
+- ✅ **15 QE Skills**: Domain-specific skills for testing, security, accessibility, and more
 
 ---
 
@@ -80,7 +79,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 | **AI testing tools are expensive** | Multi-model routing cuts costs by up to 70-81% by matching task complexity to model |
 | **No memory between test runs—every analysis starts from scratch** | ReasoningBank remembers patterns, strategies, and what works for your codebase |
 | **Agents waste tokens reading irrelevant code** | Code Intelligence provides token reduction with semantic search and knowledge graphs |
-| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 50+ agents across 12 domains automatically |
+| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 48 agents across 12 domains automatically |
 | **Tools don't understand your testing frameworks** | Works with Jest, Cypress, Playwright, Vitest, Mocha, Jasmine, AVA |
 
 ---
@@ -127,7 +126,7 @@ The **qe-queen-coordinator** manages the entire fleet with intelligent task dist
 ```
 
 **Capabilities:**
-- Orchestrate 50+ agents concurrently across 12 domains
+- Orchestrate 48 QE agents concurrently across 12 domains
 - Intelligent task routing based on learned patterns
 - Byzantine fault-tolerant consensus for critical decisions
 - Memory-backed cross-agent communication
@@ -195,18 +194,17 @@ npx @claude-flow/cli@latest agent spawn -t qe-test-architect --name test-gen
 
 ---
 
-### 📊 59 Specialized V3 Agents
+### 📊 48 Specialized QE Agents
 
 | Category | Count | Highlights |
 |----------|-------|------------|
-| **V3 QE Agents** | 40 | Test generation, coverage, security, performance, accessibility |
+| **Main QE Agents** | 41 | Test generation, coverage, security, performance, accessibility |
 | **TDD Subagents** | 7 | RED/GREEN/REFACTOR with code review |
-| **Core Specialized** | 12 | Queen coordinator, memory specialist, security architect |
 
 **V2 Backward Compatibility**: All V2 agents map to V3 equivalents automatically.
 
 <details>
-<summary><b>📋 View All V3 QE Agents (40)</b></summary>
+<summary><b>📋 View All Main QE Agents (41)</b></summary>
 
 | Agent | Domain | Purpose |
 |-------|--------|---------|
@@ -250,6 +248,7 @@ npx @claude-flow/cli@latest agent spawn -t qe-test-architect --name test-gen
 | qe-code-complexity | code-intelligence | Complexity metrics |
 | qe-qx-partner | quality-assessment | QA + UX collaboration |
 | qe-fleet-commander | coordination | Large-scale orchestration |
+| qe-integration-architect | code-intelligence | V3 integration design |
 
 </details>
 
@@ -265,26 +264,6 @@ npx @claude-flow/cli@latest agent spawn -t qe-test-architect --name test-gen
 | qe-integration-reviewer | REVIEW | Integration review |
 | qe-performance-reviewer | REVIEW | Performance review |
 | qe-security-reviewer | REVIEW | Security review |
-
-</details>
-
-<details>
-<summary><b>🏛️ Core Specialized Agents (12)</b></summary>
-
-| Agent | Purpose |
-|-------|---------|
-| adr-architect | Architecture Decision Records |
-| claims-authorizer | Claims-based authorization |
-| collective-intelligence-coordinator | Hive-mind consensus |
-| ddd-domain-expert | Domain modeling |
-| memory-specialist | Memory optimization |
-| performance-engineer | Performance profiling |
-| reasoningbank-learner | Pattern learning |
-| security-architect | Security design |
-| security-auditor | Security auditing |
-| sparc-orchestrator | SPARC methodology |
-| swarm-memory-manager | Distributed memory |
-| v3-integration-architect | V3 integration |
 
 </details>
 
@@ -355,7 +334,7 @@ claude "Coordinate security audit across the monorepo:
 
 ---
 
-## 🎓 46+ QE Skills
+## 🎓 15 QE Skills
 
 V3 agents automatically apply relevant skills from the comprehensive skill library:
 
@@ -445,10 +424,10 @@ aqe init --auto
 - [V3 CLI Reference](docs/guides/V3-CLI-REFERENCE.md) - All V3 commands
 - [DDD Architecture](docs/architecture/DDD-ARCHITECTURE.md) - Domain-driven design overview
 
-### V2 Documentation (Still Valid)
-- [V2 README](docs/V2-README.md) - Complete V2 documentation
-- [Quick Start Guide](docs/AQE-CLI.md) - V2 quick start
-- [User Guide](docs/USER-GUIDE.md) - V2 workflows and examples
+### V2 Documentation (Legacy)
+- [V2 README](v2/docs/V2-README.md) - Complete V2 documentation
+- [Quick Start Guide](v2/docs/AQE-CLI.md) - V2 quick start
+- [User Guide](v2/docs/USER-GUIDE.md) - V2 workflows and examples
 
 ### Feature Guides
 - [Learning System Guide](docs/guides/LEARNING-SYSTEM-USER-GUIDE.md) - ReasoningBank learning
@@ -462,11 +441,11 @@ aqe init --auto
 
 ---
 
-## 📊 V3 Architecture
+## 📊 Project Architecture
 
 ```
 agentic-qe/
-├── v3/                      # V3 DDD Implementation
+├── v3/                      # V3 DDD Implementation (Main Version)
 │   ├── src/
 │   │   ├── kernel/          # Shared kernel
 │   │   ├── domains/         # 12 bounded contexts
@@ -477,12 +456,21 @@ agentic-qe/
 │   │   ├── routing/         # Agent routing & registry
 │   │   ├── mcp/             # MCP server
 │   │   └── cli/             # V3 CLI
-│   └── tests/               # 1171+ tests
-├── src/                     # V2 Implementation
+│   ├── tests/               # 5,600+ tests
+│   └── assets/agents/       # 48 QE agent definitions (41 main + 7 subagents)
+├── v2/                      # V2 Implementation (Legacy)
+│   ├── src/                 # V2 source code
+│   ├── tests/               # V2 tests
+│   └── docs/                # V2 documentation
 ├── .claude/
-│   ├── agents/v3/           # 59 V3 agent definitions
-│   └── skills/              # 46+ skill definitions
-└── docs/                    # Documentation
+│   ├── agents/v3/           # V3 agent definitions (source)
+│   └── skills/              # 15 QE-specific skills
+├── docs/                    # Shared documentation
+│   ├── plans/               # Migration plans
+│   ├── policies/            # Project policies
+│   └── v3/                  # V3 specific docs
+├── package.json             # Points to v3 (main version)
+└── README.md                # This file
 ```
 
 ---

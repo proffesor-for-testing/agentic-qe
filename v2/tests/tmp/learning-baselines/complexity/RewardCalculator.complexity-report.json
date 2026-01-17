@@ -1,0 +1,154 @@
+{
+  "file": "src/learning/RewardCalculator.ts",
+  "lines": 254,
+  "cyclomatic": 30,
+  "cognitive": 33,
+  "level": "medium",
+  "halstead": {
+    "vocabulary": 205,
+    "length": 1436,
+    "volume": 11028,
+    "difficulty": 37.87,
+    "effort": 417608
+  },
+  "functions": [
+    {
+      "name": "for",
+      "startLine": 4,
+      "endLine": 12,
+      "lines": 9,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "constructor",
+      "startLine": 61,
+      "endLine": 63,
+      "lines": 3,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "calculateReward",
+      "startLine": 70,
+      "endLine": 110,
+      "lines": 41,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 90,
+      "endLine": 94,
+      "lines": 5,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "calculateSuccessReward",
+      "startLine": 115,
+      "endLine": 117,
+      "lines": 3,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "calculateTimeReward",
+      "startLine": 124,
+      "endLine": 136,
+      "lines": 13,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "if",
+      "startLine": 129,
+      "endLine": 132,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "calculateQualityReward",
+      "startLine": 142,
+      "endLine": 152,
+      "lines": 11,
+      "complexity": 2,
+      "cognitive": 3
+    },
+    {
+      "name": "if",
+      "startLine": 145,
+      "endLine": 149,
+      "lines": 5,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "calculateResourceReward",
+      "startLine": 157,
+      "endLine": 167,
+      "lines": 11,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "calculateFeedbackReward",
+      "startLine": 172,
+      "endLine": 185,
+      "lines": 14,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "calculatePenalties",
+      "startLine": 190,
+      "endLine": 204,
+      "lines": 15,
+      "complexity": 3,
+      "cognitive": 4
+    },
+    {
+      "name": "if",
+      "startLine": 193,
+      "endLine": 196,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 3
+    },
+    {
+      "name": "if",
+      "startLine": 198,
+      "endLine": 201,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "getRewardBreakdown",
+      "startLine": 208,
+      "endLine": 219,
+      "lines": 12,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "updateConfig",
+      "startLine": 242,
+      "endLine": 245,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "getConfig",
+      "startLine": 249,
+      "endLine": 252,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    }
+  ],
+  "hotspots": [],
+  "analyzedAt": "2025-12-10T18:59:39.115Z"
+}

@@ -1,0 +1,794 @@
+{
+  "release": {
+    "version": "2.6.0",
+    "baseVersion": "2.5.10",
+    "analysisDate": "2025-12-22",
+    "commitCount": 6,
+    "filesChanged": 153,
+    "insertions": 48072,
+    "deletions": 23,
+    "branchName": "working-with-agents"
+  },
+  "executiveSummary": {
+    "overallRisk": "MEDIUM-HIGH",
+    "riskScore": 68,
+    "confidence": 0.82,
+    "keyFindings": [
+      "Major new feature (Code Intelligence) adds 60+ new TypeScript files",
+      "Core integration points modified: FleetManager, BaseAgent, CLI init",
+      "New external dependencies: tree-sitter (with version mismatch), Ollama, PostgreSQL",
+      "31 new test files provide good coverage for new code",
+      "Existing test suite (579 tests) needs validation against new changes",
+      "Configuration migration risk for existing users",
+      "No breaking changes to existing agent APIs detected"
+    ],
+    "recommendation": "PROCEED WITH CAUTION - Comprehensive integration testing required",
+    "estimatedTestTime": "23m 45s (full integration suite + E2E smoke tests)"
+  },
+  "criticalPathAnalysis": {
+    "highRiskPaths": [
+      {
+        "path": "Agent Spawning & Lifecycle",
+        "risk": "HIGH",
+        "severity": 8,
+        "description": "CodeIntelligenceAgent added to QEAgentFactory, changes agent creation flow",
+        "affectedFiles": [
+          "src/agents/index.ts (lines 445-463)",
+          "src/agents/CodeIntelligenceAgent.ts"
+        ],
+        "blastRadius": [
+          "All agent spawning via mcp__agentic-qe__agent_spawn",
+          "FleetManager.spawnAgent()",
+          "BaseAgent factory patterns",
+          "Agent registry in 21 QE agents"
+        ],
+        "testGaps": [
+          "Integration test for CodeIntelligenceAgent spawning via MCP",
+          "Backward compatibility test for existing agent spawning"
+        ],
+        "mitigation": "Run full agent spawning test suite + MCP integration tests"
+      },
+      {
+        "path": "CLI Initialization Flow",
+        "risk": "HIGH",
+        "severity": 8,
+        "description": "New init phase for Code Intelligence added to initialization sequence",
+        "affectedFiles": [
+          "src/cli/init/index.ts (line 28)",
+          "src/cli/init/code-intelligence-init.ts"
+        ],
+        "blastRadius": [
+          "aqe init command (primary entry point)",
+          "All 13 initialization phases",
+          "New .claude/mcp.json generation",
+          "Database schema creation"
+        ],
+        "testGaps": [
+          "E2E test for aqe init with Code Intelligence enabled",
+          "E2E test for aqe init with Code Intelligence disabled",
+          "Rollback test for Code Intelligence init failure"
+        ],
+        "mitigation": "Test aqe init in clean environment + verify all phases complete"
+      },
+      {
+        "path": "Configuration Files",
+        "risk": "MEDIUM-HIGH",
+        "severity": 7,
+        "description": "New MCP server definition and settings changes",
+        "affectedFiles": [
+          ".claude/mcp.json (new file)",
+          ".claude/settings.json (modified)",
+          "src/cli/init/claude-config.ts (generateMcpJson function)"
+        ],
+        "blastRadius": [
+          "Existing Claude Code installations",
+          "MCP server registration",
+          "Learning system coordination"
+        ],
+        "testGaps": [
+          "Migration test for existing .claude/settings.json",
+          "Validation test for .claude/mcp.json format"
+        ],
+        "mitigation": "Provide migration guide + validate against existing installations"
+      }
+    ],
+    "mediumRiskPaths": [
+      {
+        "path": "MCP Tool Registration",
+        "risk": "MEDIUM",
+        "severity": 5,
+        "description": "91 existing MCP tools need to coexist with Code Intelligence features",
+        "affectedFiles": [
+          "src/mcp/server-instructions.ts",
+          "src/cli/commands/knowledge-graph.ts"
+        ],
+        "blastRadius": [
+          "All 91 MCP tools",
+          "Tool discovery and lazy loading",
+          "Context reduction (87% baseline)"
+        ],
+        "testGaps": [
+          "Regression test for existing MCP tool functionality",
+          "Performance test for tool discovery with new Code Intelligence tools"
+        ],
+        "mitigation": "Run MCP tool validation suite + verify lazy loading works"
+      },
+      {
+        "path": "Database Schema Changes",
+        "risk": "MEDIUM",
+        "severity": 6,
+        "description": "New PostgreSQL schema for knowledge graph",
+        "affectedFiles": [
+          "src/code-intelligence/config/database-schema.ts"
+        ],
+        "blastRadius": [
+          "Existing AgentDB schema (memory.db)",
+          "Learning system tables",
+          "RuVector tables"
+        ],
+        "testGaps": [
+          "Schema migration test for existing databases",
+          "Isolation test for Code Intelligence tables vs AgentDB tables"
+        ],
+        "mitigation": "Verify separate database isolation + no conflicts with memory.db"
+      }
+    ],
+    "lowRiskPaths": [
+      {
+        "path": "Documentation Files",
+        "risk": "LOW",
+        "severity": 2,
+        "description": "80+ new documentation files added",
+        "affectedFiles": [
+          "docs/code-intelligence/**",
+          "docs/guides/code-intelligence-quickstart.md",
+          "docs/reference/agents.md"
+        ],
+        "blastRadius": [
+          "User documentation",
+          "Developer guides"
+        ],
+        "testGaps": [],
+        "mitigation": "Manual review of documentation accuracy"
+      },
+      {
+        "path": "Example Files",
+        "risk": "LOW",
+        "severity": 1,
+        "description": "New example files for Code Intelligence",
+        "affectedFiles": [
+          "examples/code-intelligence/**"
+        ],
+        "blastRadius": [
+          "Example usage"
+        ],
+        "testGaps": [],
+        "mitigation": "Verify examples run successfully"
+      }
+    ]
+  },
+  "dependencyRiskAnalysis": {
+    "newDependencies": [
+      {
+        "name": "tree-sitter",
+        "version": "0.22.4",
+        "risk": "HIGH",
+        "severity": 8,
+        "concerns": [
+          "VERSION MISMATCH: tree-sitter@0.22.4 installed but tree-sitter-* packages expect ^0.21.1",
+          "Native binary compilation required (N-API)",
+          "Platform-specific builds (linux, macOS, Windows)",
+          "Potential C++ compilation failures in CI/CD"
+        ],
+        "mitigation": [
+          "Test on all supported platforms (linux, macOS, Windows)",
+          "Verify pre-built binaries exist for target platforms",
+          "Add fallback for parser initialization failures",
+          "Consider downgrading to tree-sitter@0.21.2 for compatibility"
+        ]
+      },
+      {
+        "name": "tree-sitter-typescript",
+        "version": "0.21.2",
+        "risk": "MEDIUM-HIGH",
+        "severity": 7,
+        "concerns": [
+          "Depends on tree-sitter ^0.21.0 but 0.22.4 installed",
+          "Grammar compatibility issues possible"
+        ],
+        "mitigation": [
+          "Extensive TypeScript parsing tests",
+          "Verify against complex TypeScript constructs"
+        ]
+      },
+      {
+        "name": "tree-sitter-python, tree-sitter-go, tree-sitter-rust, tree-sitter-javascript",
+        "version": "0.23.x, 0.24.x",
+        "risk": "MEDIUM",
+        "severity": 6,
+        "concerns": [
+          "All expect tree-sitter ^0.21.1 but 0.22.4 installed",
+          "Multiple language parsers increase failure surface"
+        ],
+        "mitigation": [
+          "Test parser initialization for all languages",
+          "Graceful degradation if parser fails"
+        ]
+      },
+      {
+        "name": "gpt-tokenizer",
+        "version": "^2.1.2",
+        "risk": "LOW",
+        "severity": 2,
+        "concerns": [
+          "Token estimation for context building"
+        ],
+        "mitigation": [
+          "Verify token counts are accurate"
+        ]
+      },
+      {
+        "name": "@types/cli-progress, cli-progress",
+        "version": "^3.11.6, ^3.12.0",
+        "risk": "LOW",
+        "severity": 1,
+        "concerns": [
+          "UI/UX only, no functional impact"
+        ],
+        "mitigation": []
+      }
+    ],
+    "externalServiceDependencies": [
+      {
+        "service": "Ollama",
+        "endpoint": "http://localhost:11434",
+        "risk": "HIGH",
+        "severity": 9,
+        "concerns": [
+          "Required for embeddings generation",
+          "Single point of failure if not running",
+          "Network latency for embedding calls",
+          "Model (nomic-embed-text) must be pre-installed"
+        ],
+        "mitigation": [
+          "Clear setup documentation in docs/setup/code-intelligence-prerequisites.md",
+          "Graceful degradation: Code Intelligence optional, don't block other agents",
+          "Health check before indexing",
+          "Retry logic with exponential backoff"
+        ]
+      },
+      {
+        "service": "PostgreSQL",
+        "endpoint": "localhost:5432/ruvector_db",
+        "risk": "MEDIUM-HIGH",
+        "severity": 7,
+        "concerns": [
+          "Separate database from memory.db (AgentDB)",
+          "RuVector extension required",
+          "Schema initialization must succeed",
+          "Connection pooling for concurrent queries"
+        ],
+        "mitigation": [
+          "Verify RuVector extension installed (ruvector_cosine_distance)",
+          "Test database isolation from memory.db",
+          "Connection retry logic",
+          "Clear error messages if database unavailable"
+        ]
+      }
+    ],
+    "versionConflicts": [
+      {
+        "package": "tree-sitter",
+        "expected": "^0.21.0 or ^0.21.1",
+        "actual": "0.22.4",
+        "severity": "HIGH",
+        "impact": "Parser initialization may fail for tree-sitter-typescript, tree-sitter-python, etc.",
+        "recommendation": "CRITICAL: Test all parsers or downgrade tree-sitter to 0.21.2"
+      }
+    ]
+  },
+  "integrationRiskAnalysis": {
+    "agentIntegration": {
+      "risk": "MEDIUM",
+      "severity": 6,
+      "concerns": [
+        "CodeIntelligenceAgent added to agent factory (line 445-463 in src/agents/index.ts)",
+        "New agent type QEAgentType.CODE_INTELLIGENCE",
+        "7 new capabilities defined for Code Intelligence agent"
+      ],
+      "affectedAgents": [
+        "BaseAgent (potential Code Intelligence injection for all agents)",
+        "FleetCommanderAgent (orchestration of Code Intelligence tasks)",
+        "TestGeneratorAgent (could use Code Intelligence for context)"
+      ],
+      "testCoverage": {
+        "newTests": 31,
+        "existingTests": 579,
+        "codeCoverageEstimate": "~75% for new code",
+        "integrationTestCount": 69
+      },
+      "mitigation": [
+        "Run agent spawning test: npm run test:agents",
+        "Run MCP integration tests: npm run test:mcp",
+        "Verify CodeIntelligenceAgent spawns correctly",
+        "Test agent coordination with Code Intelligence"
+      ]
+    },
+    "learningSystemIntegration": {
+      "risk": "LOW-MEDIUM",
+      "severity": 4,
+      "concerns": [
+        "CodeIntelligenceAgent uses learning protocol",
+        "Memory namespace aqe/code-intelligence/* added"
+      ],
+      "affectedSystems": [
+        "SwarmMemoryManager (memory.db)",
+        "LearningEngine",
+        "Pattern storage"
+      ],
+      "mitigation": [
+        "Test learning persistence for Code Intelligence tasks",
+        "Verify memory namespace isolation"
+      ]
+    },
+    "cliIntegration": {
+      "risk": "MEDIUM-HIGH",
+      "severity": 7,
+      "concerns": [
+        "New aqe kg and aqe code-intel commands",
+        "New init phase in initialization sequence",
+        "MCP JSON generation added"
+      ],
+      "affectedCommands": [
+        "aqe init (modified)",
+        "aqe kg (new)",
+        "aqe code-intel (new)"
+      ],
+      "mitigation": [
+        "Run CLI tests: npm run test:cli",
+        "E2E test: aqe init in clean environment",
+        "Verify backward compatibility for existing commands"
+      ]
+    }
+  },
+  "testCoverageGaps": {
+    "critical": [
+      {
+        "area": "Code Intelligence E2E Flow",
+        "description": "Full flow: index → search → context building → agent usage",
+        "testFile": "MISSING: tests/e2e/code-intelligence-flow.test.ts",
+        "priority": "P0",
+        "estimatedEffort": "4 hours"
+      },
+      {
+        "area": "tree-sitter Parser Initialization",
+        "description": "Verify all 5 language parsers initialize without errors",
+        "testFile": "tests/code-intelligence/unit/parser/TreeSitterParser.test.ts (needs extension)",
+        "priority": "P0",
+        "estimatedEffort": "2 hours"
+      },
+      {
+        "area": "Configuration Migration",
+        "description": "Test upgrading from v2.5.10 to v2.6.0",
+        "testFile": "MISSING: tests/integration/config-migration-v2.6.0.test.ts",
+        "priority": "P0",
+        "estimatedEffort": "3 hours"
+      }
+    ],
+    "high": [
+      {
+        "area": "Agent Spawning Regression",
+        "description": "Verify all 21 existing agents still spawn correctly",
+        "testFile": "tests/agents/* (needs execution verification)",
+        "priority": "P1",
+        "estimatedEffort": "2 hours"
+      },
+      {
+        "area": "MCP Tool Coexistence",
+        "description": "Verify 91 existing MCP tools work with new Code Intelligence tools",
+        "testFile": "tests/mcp/handlers/* (needs execution verification)",
+        "priority": "P1",
+        "estimatedEffort": "3 hours"
+      },
+      {
+        "area": "Database Isolation",
+        "description": "Verify ruvector_db doesn't conflict with memory.db",
+        "testFile": "MISSING: tests/integration/code-intelligence/database-isolation.test.ts",
+        "priority": "P1",
+        "estimatedEffort": "2 hours"
+      }
+    ],
+    "medium": [
+      {
+        "area": "Ollama Service Unavailable",
+        "description": "Test graceful degradation when Ollama is down",
+        "testFile": "MISSING: tests/integration/code-intelligence/ollama-fallback.test.ts",
+        "priority": "P2",
+        "estimatedEffort": "2 hours"
+      },
+      {
+        "area": "Incremental Indexing",
+        "description": "Test git change detection and incremental updates",
+        "testFile": "tests/code-intelligence/unit/indexing/IncrementalIndexer.test.ts (needs execution)",
+        "priority": "P2",
+        "estimatedEffort": "2 hours"
+      }
+    ]
+  },
+  "configurationRisks": {
+    "existingUserImpact": {
+      "risk": "MEDIUM",
+      "severity": 6,
+      "concerns": [
+        ".claude/settings.json modified (hooks, MCP server config)",
+        "New .claude/mcp.json file created",
+        "Code Intelligence is optional but init phase runs by default"
+      ],
+      "migrationPath": [
+        "1. Existing users run 'aqe init' → new Code Intelligence phase runs",
+        "2. If Ollama not installed → graceful skip (needs verification)",
+        "3. If PostgreSQL not available → graceful skip (needs verification)",
+        "4. .claude/mcp.json created with agentic-qe server definition",
+        "5. .claude/settings.json updated with hooks and MCP server"
+      ],
+      "breakingChanges": [],
+      "mitigation": [
+        "Test aqe init on existing installation (v2.5.10 → v2.6.0)",
+        "Verify Code Intelligence init can be skipped without errors",
+        "Document prerequisites clearly",
+        "Provide rollback instructions"
+      ]
+    },
+    "newUserImpact": {
+      "risk": "LOW",
+      "severity": 3,
+      "concerns": [
+        "More complex setup (Ollama + PostgreSQL required for full features)"
+      ],
+      "mitigation": [
+        "Clear prerequisite documentation",
+        "Quick start guide without Code Intelligence"
+      ]
+    }
+  },
+  "performanceRisks": {
+    "indexingPerformance": {
+      "risk": "MEDIUM",
+      "severity": 5,
+      "concerns": [
+        "Initial indexing of large codebases could be slow",
+        "Tree-sitter parsing is CPU-intensive",
+        "Ollama embedding generation is network-bound"
+      ],
+      "mitigation": [
+        "Batch processing (10 chunks per batch)",
+        "Parallel file parsing",
+        "Progress indicators (cli-progress package)",
+        "Incremental indexing for updates"
+      ]
+    },
+    "memoryUsage": {
+      "risk": "MEDIUM",
+      "severity": 5,
+      "concerns": [
+        "AST parsing can consume significant memory",
+        "Embedding cache in memory",
+        "60+ new TypeScript files increase bundle size"
+      ],
+      "mitigation": [
+        "Test memory usage with large codebases (10k+ files)",
+        "Monitor heap usage during indexing",
+        "Verify --max-old-space-size settings in test scripts"
+      ]
+    }
+  },
+  "securityRisks": {
+    "low": [
+      {
+        "concern": "Ollama endpoint hardcoded to localhost:11434",
+        "impact": "Could be exploited if Ollama runs remotely without auth",
+        "mitigation": "Environment variable override supported"
+      },
+      {
+        "concern": "PostgreSQL credentials in config",
+        "impact": "Credentials exposed if config checked into version control",
+        "mitigation": "Use environment variables (PGHOST, PGUSER, PGPASSWORD)"
+      }
+    ]
+  },
+  "testStrategy": {
+    "phase1_smoke": {
+      "name": "Smoke Tests",
+      "duration": "5 minutes",
+      "tests": [
+        "npm run build → verify builds successfully",
+        "aqe --version → verify version is 2.6.0",
+        "aqe init --force → verify initialization completes",
+        "aqe agent:list → verify all 21 agents listed including code-intelligence"
+      ]
+    },
+    "phase2_unit": {
+      "name": "Unit Tests",
+      "duration": "8 minutes",
+      "tests": [
+        "npm run test:code-intelligence → 31 new tests",
+        "npm run test:agents → verify agent spawning"
+      ]
+    },
+    "phase3_integration": {
+      "name": "Integration Tests",
+      "duration": "12 minutes",
+      "tests": [
+        "npm run test:integration → 69 integration tests",
+        "npm run test:mcp → MCP tool validation"
+      ]
+    },
+    "phase4_e2e": {
+      "name": "E2E Critical Path",
+      "duration": "15 minutes",
+      "tests": [
+        "E2E: aqe init in clean environment",
+        "E2E: Code Intelligence indexing on sample project",
+        "E2E: Spawn CodeIntelligenceAgent via MCP",
+        "E2E: Search and context building",
+        "E2E: Existing agent spawning (regression)"
+      ]
+    },
+    "totalEstimatedTime": "40 minutes",
+    "recommendedMinimum": "23m 45s (Phase 1 + Phase 3 + Phase 4 critical tests)"
+  },
+  "blastRadiusMapping": {
+    "coreFiles": [
+      {
+        "file": "src/agents/index.ts",
+        "changeType": "MODIFIED",
+        "linesChanged": 18,
+        "affectedModules": [
+          "All 21 agent spawning flows",
+          "Agent factory patterns",
+          "Capability registry"
+        ],
+        "downstreamImpact": [
+          "mcp__agentic-qe__agent_spawn",
+          "FleetManager.spawnAgent()",
+          "CLI agent commands"
+        ],
+        "testRecommendation": "Run agent spawning test suite"
+      },
+      {
+        "file": "src/cli/init/index.ts",
+        "changeType": "MODIFIED",
+        "linesChanged": 1,
+        "affectedModules": [
+          "Initialization orchestrator",
+          "All 13 init phases"
+        ],
+        "downstreamImpact": [
+          "aqe init command",
+          "New user onboarding",
+          "Configuration generation"
+        ],
+        "testRecommendation": "E2E test aqe init"
+      },
+      {
+        "file": "src/code-intelligence/**/*",
+        "changeType": "NEW",
+        "linesChanged": 40000,
+        "affectedModules": [
+          "New module (isolated)"
+        ],
+        "downstreamImpact": [
+          "Optional: Only affects users who enable Code Intelligence"
+        ],
+        "testRecommendation": "Run npm run test:code-intelligence"
+      }
+    ],
+    "configurationFiles": [
+      {
+        "file": ".claude/settings.json",
+        "changeType": "MODIFIED",
+        "affectedUsers": "All Claude Code users",
+        "impact": "MCP server registration, hooks configuration",
+        "testRecommendation": "Test with existing Claude Code installation"
+      },
+      {
+        "file": ".claude/mcp.json",
+        "changeType": "NEW",
+        "affectedUsers": "All users",
+        "impact": "MCP server definition",
+        "testRecommendation": "Verify Claude Code recognizes server"
+      }
+    ]
+  },
+  "riskMatrix": {
+    "criticalRisks": [
+      {
+        "id": "R1",
+        "title": "tree-sitter Version Mismatch",
+        "severity": 9,
+        "likelihood": 8,
+        "riskScore": 72,
+        "impact": "Parser initialization failures on all platforms",
+        "mitigation": "Test all parsers OR downgrade tree-sitter to 0.21.2",
+        "owner": "Release Manager",
+        "status": "OPEN"
+      },
+      {
+        "id": "R2",
+        "title": "Ollama Service Unavailable",
+        "severity": 8,
+        "likelihood": 6,
+        "riskScore": 48,
+        "impact": "Code Intelligence features fail, potential agent spawning issues",
+        "mitigation": "Graceful degradation + clear error messages",
+        "owner": "Code Intelligence Team",
+        "status": "NEEDS_VERIFICATION"
+      },
+      {
+        "id": "R3",
+        "title": "Agent Spawning Regression",
+        "severity": 8,
+        "likelihood": 3,
+        "riskScore": 24,
+        "impact": "Existing agents fail to spawn",
+        "mitigation": "Full agent test suite execution",
+        "owner": "QA Team",
+        "status": "NEEDS_TESTING"
+      }
+    ],
+    "highRisks": [
+      {
+        "id": "R4",
+        "title": "CLI Init Phase Failure",
+        "severity": 7,
+        "likelihood": 4,
+        "riskScore": 28,
+        "impact": "aqe init fails for new users",
+        "mitigation": "E2E testing + rollback capability",
+        "owner": "CLI Team",
+        "status": "NEEDS_TESTING"
+      },
+      {
+        "id": "R5",
+        "title": "Configuration Migration Issues",
+        "severity": 6,
+        "likelihood": 5,
+        "riskScore": 30,
+        "impact": "Existing installations break on upgrade",
+        "mitigation": "Migration test + user documentation",
+        "owner": "DevOps",
+        "status": "NEEDS_TESTING"
+      }
+    ],
+    "mediumRisks": [
+      {
+        "id": "R6",
+        "title": "Database Isolation Failure",
+        "severity": 6,
+        "likelihood": 2,
+        "riskScore": 12,
+        "impact": "Data corruption between ruvector_db and memory.db",
+        "mitigation": "Database isolation test",
+        "owner": "Database Team",
+        "status": "NEEDS_TESTING"
+      },
+      {
+        "id": "R7",
+        "title": "Memory Usage Spike",
+        "severity": 5,
+        "likelihood": 4,
+        "riskScore": 20,
+        "impact": "OOM errors during indexing",
+        "mitigation": "Performance testing with large codebases",
+        "owner": "Performance Team",
+        "status": "NEEDS_TESTING"
+      }
+    ]
+  },
+  "recommendedTestSuite": {
+    "minimumRequired": [
+      "npm run test:code-intelligence",
+      "npm run test:agents",
+      "npm run test:mcp",
+      "npm run test:cli",
+      "E2E: aqe init in clean environment",
+      "E2E: Code Intelligence indexing on sample project",
+      "Regression: Spawn all 21 agents"
+    ],
+    "comprehensive": [
+      "npm run test:fast (journeys + contracts)",
+      "npm run test:integration",
+      "npm run test:e2e",
+      "npm run test:code-intelligence",
+      "Platform tests: linux, macOS, Windows",
+      "Migration test: v2.5.10 → v2.6.0"
+    ],
+    "estimatedExecutionTime": {
+      "minimum": "23m 45s",
+      "comprehensive": "2h 15m"
+    }
+  },
+  "mitigationPlan": {
+    "preRelease": [
+      {
+        "action": "Fix tree-sitter version mismatch",
+        "priority": "CRITICAL",
+        "effort": "1 hour",
+        "assignee": "Dependencies Team",
+        "acceptance": "All parsers initialize without errors"
+      },
+      {
+        "action": "Test aqe init E2E in clean environment",
+        "priority": "CRITICAL",
+        "effort": "2 hours",
+        "assignee": "QA Team",
+        "acceptance": "Init completes successfully with and without Code Intelligence"
+      },
+      {
+        "action": "Verify agent spawning regression",
+        "priority": "CRITICAL",
+        "effort": "3 hours",
+        "assignee": "QA Team",
+        "acceptance": "All 21 agents spawn correctly"
+      },
+      {
+        "action": "Test configuration migration",
+        "priority": "HIGH",
+        "effort": "2 hours",
+        "assignee": "DevOps",
+        "acceptance": "Existing installations upgrade smoothly"
+      },
+      {
+        "action": "Document prerequisites clearly",
+        "priority": "HIGH",
+        "effort": "1 hour",
+        "assignee": "Documentation Team",
+        "acceptance": "Ollama and PostgreSQL setup documented"
+      }
+    ],
+    "postRelease": [
+      {
+        "action": "Monitor agent spawning failures",
+        "priority": "HIGH",
+        "effort": "Ongoing",
+        "assignee": "On-call Team"
+      },
+      {
+        "action": "Monitor Code Intelligence indexing performance",
+        "priority": "MEDIUM",
+        "effort": "Week 1",
+        "assignee": "Performance Team"
+      },
+      {
+        "action": "Gather user feedback on setup complexity",
+        "priority": "MEDIUM",
+        "effort": "Week 1-2",
+        "assignee": "Product Team"
+      }
+    ]
+  },
+  "rollbackPlan": {
+    "triggers": [
+      "Agent spawning failure rate > 10%",
+      "Init failure rate > 20%",
+      "Critical security vulnerability discovered",
+      "Data corruption in memory.db or ruvector_db"
+    ],
+    "rollbackSteps": [
+      "1. Tag current release as v2.6.0-rollback",
+      "2. Revert to v2.5.10 codebase",
+      "3. Publish v2.6.1 with revert",
+      "4. Notify users via GitHub release notes",
+      "5. Provide downgrade instructions"
+    ],
+    "estimatedRollbackTime": "30 minutes"
+  },
+  "metadata": {
+    "analyzer": "qe-regression-risk-analyzer",
+    "analysisVersion": "1.0.0",
+    "confidence": 0.82,
+    "dataSource": "git diff v2.5.10...HEAD",
+    "reviewedBy": "Automated Analysis + Human Review Required",
+    "nextReview": "Pre-release testing phase"
+  }
+}

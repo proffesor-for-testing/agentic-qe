@@ -1,0 +1,198 @@
+{
+  "generatedAt": "2025-12-10T19:26:00.161Z",
+  "summary": {
+    "totalTasks": 10,
+    "successRate": 1,
+    "learningRate": 0,
+    "sourceFilesAnalyzed": 10
+  },
+  "databaseChanges": {
+    "before": {
+      "patterns": 32,
+      "experiences": 499,
+      "qValues": 431
+    },
+    "after": {
+      "patterns": 32,
+      "experiences": 509,
+      "qValues": 441
+    },
+    "delta": {
+      "patterns": 0,
+      "experiences": 10,
+      "qValues": 10
+    }
+  },
+  "results": [
+    {
+      "taskId": "test-gen-mcp-0-1765394759387",
+      "agentId": "unknown",
+      "agentType": "test-generator",
+      "sourceFile": "src/utils/Logger.ts",
+      "success": true,
+      "executionTime": 87,
+      "learningEnabled": false,
+      "metrics": {
+        "testsGenerated": 0,
+        "coverage": 0,
+        "experiencesAdded": 1,
+        "qValuesAdded": 1,
+        "patternsAdded": 0
+      },
+      "timestamp": "2025-12-10T19:25:59.475Z"
+    },
+    {
+      "taskId": "test-gen-mcp-1-1765394759475",
+      "agentId": "unknown",
+      "agentType": "test-generator",
+      "sourceFile": "src/utils/SecureRandom.ts",
+      "success": true,
+      "executionTime": 74,
+      "learningEnabled": false,
+      "metrics": {
+        "testsGenerated": 0,
+        "coverage": 0,
+        "experiencesAdded": 1,
+        "qValuesAdded": 1,
+        "patternsAdded": 0
+      },
+      "timestamp": "2025-12-10T19:25:59.550Z"
+    },
+    {
+      "taskId": "test-gen-mcp-2-1765394759550",
+      "agentId": "unknown",
+      "agentType": "test-generator",
+      "sourceFile": "src/core/memory/PatternCache.ts",
+      "success": true,
+      "executionTime": 76,
+      "learningEnabled": false,
+      "metrics": {
+        "testsGenerated": 0,
+        "coverage": 0,
+        "experiencesAdded": 1,
+        "qValuesAdded": 1,
+        "patternsAdded": 0
+      },
+      "timestamp": "2025-12-10T19:25:59.627Z"
+    },
+    {
+      "taskId": "test-gen-mcp-3-1765394759627",
+      "agentId": "unknown",
+      "agentType": "test-generator",
+      "sourceFile": "src/core/memory/AccessControl.ts",
+      "success": true,
+      "executionTime": 76,
+      "learningEnabled": false,
+      "metrics": {
+        "testsGenerated": 0,
+        "coverage": 0,
+        "experiencesAdded": 1,
+        "qValuesAdded": 1,
+        "patternsAdded": 0
+      },
+      "timestamp": "2025-12-10T19:25:59.703Z"
+    },
+    {
+      "taskId": "test-gen-mcp-4-1765394759703",
+      "agentId": "unknown",
+      "agentType": "test-generator",
+      "sourceFile": "src/learning/StateExtractor.ts",
+      "success": true,
+      "executionTime": 75,
+      "learningEnabled": false,
+      "metrics": {
+        "testsGenerated": 0,
+        "coverage": 0,
+        "experiencesAdded": 1,
+        "qValuesAdded": 1,
+        "patternsAdded": 0
+      },
+      "timestamp": "2025-12-10T19:25:59.779Z"
+    },
+    {
+      "taskId": "test-gen-mcp-5-1765394759779",
+      "agentId": "unknown",
+      "agentType": "test-generator",
+      "sourceFile": "src/learning/RewardCalculator.ts",
+      "success": true,
+      "executionTime": 78,
+      "learningEnabled": false,
+      "metrics": {
+        "testsGenerated": 0,
+        "coverage": 0,
+        "experiencesAdded": 1,
+        "qValuesAdded": 1,
+        "patternsAdded": 0
+      },
+      "timestamp": "2025-12-10T19:25:59.858Z"
+    },
+    {
+      "taskId": "test-gen-mcp-6-1765394759858",
+      "agentId": "unknown",
+      "agentType": "test-generator",
+      "sourceFile": "src/reasoning/PatternExtractor.ts",
+      "success": true,
+      "executionTime": 75,
+      "learningEnabled": false,
+      "metrics": {
+        "testsGenerated": 0,
+        "coverage": 0,
+        "experiencesAdded": 1,
+        "qValuesAdded": 1,
+        "patternsAdded": 0
+      },
+      "timestamp": "2025-12-10T19:25:59.933Z"
+    },
+    {
+      "taskId": "test-gen-mcp-7-1765394759933",
+      "agentId": "unknown",
+      "agentType": "test-generator",
+      "sourceFile": "src/mcp/handlers/base-handler.ts",
+      "success": true,
+      "executionTime": 73,
+      "learningEnabled": false,
+      "metrics": {
+        "testsGenerated": 0,
+        "coverage": 0,
+        "experiencesAdded": 1,
+        "qValuesAdded": 1,
+        "patternsAdded": 0
+      },
+      "timestamp": "2025-12-10T19:26:00.006Z"
+    },
+    {
+      "taskId": "test-gen-mcp-8-1765394760006",
+      "agentId": "unknown",
+      "agentType": "test-generator",
+      "sourceFile": "src/adapters/MemoryStoreAdapter.ts",
+      "success": true,
+      "executionTime": 79,
+      "learningEnabled": false,
+      "metrics": {
+        "testsGenerated": 0,
+        "coverage": 0,
+        "experiencesAdded": 1,
+        "qValuesAdded": 1,
+        "patternsAdded": 0
+      },
+      "timestamp": "2025-12-10T19:26:00.085Z"
+    },
+    {
+      "taskId": "test-gen-mcp-9-1765394760085",
+      "agentId": "unknown",
+      "agentType": "test-generator",
+      "sourceFile": "src/core/events/QEEventBus.ts",
+      "success": true,
+      "executionTime": 75,
+      "learningEnabled": false,
+      "metrics": {
+        "testsGenerated": 0,
+        "coverage": 0,
+        "experiencesAdded": 1,
+        "qValuesAdded": 1,
+        "patternsAdded": 0
+      },
+      "timestamp": "2025-12-10T19:26:00.160Z"
+    }
+  ]
+}

@@ -3,7 +3,10 @@ name: qe-test-architect
 version: "3.0.0"
 updated: "2026-01-10"
 description: AI-powered test generation with sublinear optimization, multi-framework support, and self-learning capabilities
-v2_compat: qe-test-generator
+v2_compat:
+  name: qe-test-generator
+  deprecated_in: "3.0.0"
+  removed_in: "4.0.0"
 domain: test-generation
 ---
 
