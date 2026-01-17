@@ -3,7 +3,10 @@ name: qe-tdd-refactor
 version: "3.0.0"
 updated: "2026-01-10"
 description: TDD REFACTOR phase specialist for improving code design while maintaining all passing tests
-v2_compat: qe-test-refactorer
+v2_compat:
+  name: qe-test-refactorer
+  deprecated_in: "3.0.0"
+  removed_in: "4.0.0"
 domain: test-generation
 parent: qe-tdd-specialist
 type: subagent

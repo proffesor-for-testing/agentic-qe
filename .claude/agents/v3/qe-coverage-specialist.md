@@ -3,7 +3,10 @@ name: qe-coverage-specialist
 version: "3.0.0"
 updated: "2026-01-10"
 description: O(log n) sublinear coverage analysis with risk-weighted gap detection and HNSW vector indexing
-v2_compat: qe-coverage-analyzer
+v2_compat:
+  name: qe-coverage-analyzer
+  deprecated_in: "3.0.0"
+  removed_in: "4.0.0"
 domain: coverage-analysis
 ---
 

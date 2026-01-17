@@ -3,8 +3,8 @@ name: qe-pattern-learner
 version: "3.0.0"
 updated: "2026-01-10"
 description: Pattern discovery and learning from QE activities for test generation and defect prediction
-v2_compat: qe-learning-coordinator
 domain: learning-optimization
+v3_new: true
 ---
 
 <qe_agent_definition>

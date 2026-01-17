@@ -46,7 +46,7 @@ Status: Stable, in production
 ```
 Package: @agentic-qe/v3@3.0.0-alpha.1
 Location: /workspaces/agentic-qe/v3/
-CLI Commands: aqe-v3 (planned)
+CLI Commands: aqe (planned)
 Tests: 3178 passing
 Status: Alpha, feature-complete for core domains
 ```
@@ -82,7 +82,7 @@ Status: Alpha, feature-complete for core domains
 ### Phase 3: Deprecation Notices (Week 4-8)
 - [ ] Add deprecation warnings to v2 CLI
 - [ ] Document sunset timeline for v2
-- [x] Provide automated migration tool ✅ (`aqe-v3 migrate` implemented)
+- [x] Provide automated migration tool ✅ (`aqe migrate` implemented)
 
 ### Phase 4: v3 Stable Release (Week 8+)
 - [ ] Publish v3 as `agentic-qe@3.0.0`
@@ -182,18 +182,18 @@ aqe-mcp               # Start MCP server
 
 ```bash
 # v3 commands (separate binary)
-aqe-v3 init           # Initialize v3 project
-aqe-v3 test           # Run tests with time crystal
-aqe-v3 coverage       # O(log n) coverage analysis
-aqe-v3 mcp            # Start v3 MCP server
-aqe-v3 swarm          # Swarm coordination
-aqe-v3 migrate        # Migrate from v2
+aqe init           # Initialize v3 project
+aqe test           # Run tests with time crystal
+aqe coverage       # O(log n) coverage analysis
+aqe mcp            # Start v3 MCP server
+aqe swarm          # Swarm coordination
+aqe migrate        # Migrate from v2
 ```
 
-### What `aqe-v3 init` Will Do
+### What `aqe init` Will Do
 
 ```bash
-$ aqe-v3 init
+$ aqe init
 
 🚀 Agentic QE v3 Initialization
 
@@ -204,9 +204,9 @@ $ aqe-v3 init
    └── Scanning for existing tests: 47 found
 
 2. Configuration
-   ├── Creating .aqe-v3/config.json
-   ├── Creating .aqe-v3/domains.json
-   └── Creating .aqe-v3/agents.json
+   ├── Creating .aqe/config.json
+   ├── Creating .aqe/domains.json
+   └── Creating .aqe/agents.json
 
 3. Memory Backend
    ├── Initializing AgentDB
@@ -233,15 +233,15 @@ $ aqe-v3 init
 ✅ Initialization complete!
 
 Next steps:
-  aqe-v3 test           # Run your first test
-  aqe-v3 coverage       # Analyze coverage gaps
-  aqe-v3 swarm init     # Start multi-agent swarm
+  aqe test           # Run your first test
+  aqe coverage       # Analyze coverage gaps
+  aqe swarm init     # Start multi-agent swarm
 ```
 
 ### Migration Command
 
 ```bash
-$ aqe-v3 migrate
+$ aqe migrate
 
 🔄 Migrating from v2 to v3...
 
@@ -264,7 +264,7 @@ $ aqe-v3 migrate
 ✅ Migration complete!
 
 Your v2 data is now available in v3.
-Run 'aqe-v3 status' to verify.
+Run 'aqe status' to verify.
 ```
 
 ---
@@ -282,7 +282,7 @@ Run 'aqe-v3 status' to verify.
 
 ### v3 (Recommended for New Projects)
 npm install @agentic-qe/v3
-npx aqe-v3 init
+npx aqe init
 
 ### v2 (Stable, Existing Projects)
 npm install agentic-qe
@@ -336,7 +336,7 @@ MIT
 - [x] **P1.1** Update v3/package.json for scoped publishing ✅ DONE
   - ✅ Changed name to `@agentic-qe/v3`
   - ✅ Added publishConfig for public access
-  - ✅ Verified bin paths work (`aqe-v3`)
+  - ✅ Verified bin paths work (`aqe`)
 
 - [x] **P1.2** Create npm publish workflow for v3 ✅ DONE
   - ✅ GitHub Actions at `.github/workflows/publish-v3-alpha.yml`
@@ -350,14 +350,14 @@ MIT
 
 ### Phase 2: CLI Implementation (Priority: HIGH)
 
-- [x] **P2.1** Implement `aqe-v3 init` command ✅ DONE
+- [x] **P2.1** Implement `aqe init` command ✅ DONE
   - ✅ Project analyzer via InitOrchestrator
   - ✅ Config generator with domain setup
   - ✅ Domain selector (12 domains configurable)
   - ✅ Memory initialization with AgentDB
   - ✅ --wizard and --auto modes
 
-- [x] **P2.2** Implement `aqe-v3 migrate` command ✅ DONE
+- [x] **P2.2** Implement `aqe migrate` command ✅ DONE
   - ✅ v2 detection (.agentic-qe/ directory)
   - ✅ Memory migration (SQLite → AgentDB)
   - ✅ Pattern transfer to ReasoningBank
@@ -425,8 +425,8 @@ Week 1 (COMPLETED):
 ├── [x] Complete ADR implementations ✅
 ├── [x] P1.1: Update v3/package.json ✅
 ├── [x] P1.2: Create publish workflow ✅
-├── [x] P2.1: aqe-v3 init command ✅
-├── [x] P2.2: aqe-v3 migrate command ✅
+├── [x] P2.1: aqe init command ✅
+├── [x] P2.2: aqe migrate command ✅
 ├── [x] P3.1: Update main README ✅
 ├── [x] P3.2: Migration guide ✅
 ├── [x] P4.1: Migration skill ✅
@@ -473,9 +473,19 @@ Week 5-8:
 
 ### Risk 4: CLI Command Confusion
 **Mitigation:**
-- Different binary names (aqe vs aqe-v3)
-- Version checks in CLI
+- Same binary name (`aqe`) for both v2 and v3 - see [Binary Conflict Handling](./AQE-V2-V3-MIGRATION-PLAN.md#global-installation-binary-conflict-handling)
+- Version checks in CLI (`aqe --version`)
 - Clear help messages
+- Users must uninstall v2 globally before installing v3 globally, or use `--force`
+
+### Risk 5: Global Binary Conflict (EEXIST Error)
+**Problem:** Both v2 and v3 register the same `aqe` binary. Global installs fail with EEXIST.
+**Mitigation:**
+- Document uninstall-first workflow: `npm uninstall -g agentic-qe && npm install -g @agentic-qe/v3@alpha`
+- Support `--force` flag: `npm install -g @agentic-qe/v3@alpha --force`
+- Recommend `npx` usage for v3 during transition period
+- Future: Add preinstall check script to detect and warn about v2
+- See detailed documentation: [AQE-V2-V3-MIGRATION-PLAN.md](./AQE-V2-V3-MIGRATION-PLAN.md#global-installation-binary-conflict-handling)
 
 ---
 
@@ -490,7 +500,7 @@ Week 5-8:
     "registry": "https://registry.npmjs.org/"
   },
   "bin": {
-    "aqe-v3": "./dist/cli/index.js"
+    "aqe": "./dist/cli/index.js"
   },
   "repository": {
     "type": "git",

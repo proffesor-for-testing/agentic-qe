@@ -3,8 +3,8 @@ name: qe-impact-analyzer
 version: "3.0.0"
 updated: "2026-01-10"
 description: Change impact analysis with blast radius calculation, test selection, and risk assessment
-v2_compat: qe-code-intelligence
 domain: code-intelligence
+v3_new: true
 ---
 
 <qe_agent_definition>

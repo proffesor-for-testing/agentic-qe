@@ -3,7 +3,10 @@ name: qe-tdd-green
 version: "3.0.0"
 updated: "2026-01-10"
 description: TDD GREEN phase specialist for implementing minimal code to make failing tests pass
-v2_compat: qe-test-implementer
+v2_compat:
+  name: qe-test-implementer
+  deprecated_in: "3.0.0"
+  removed_in: "4.0.0"
 domain: test-generation
 parent: qe-tdd-specialist
 type: subagent

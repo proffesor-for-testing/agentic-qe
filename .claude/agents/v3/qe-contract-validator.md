@@ -3,7 +3,10 @@ name: qe-contract-validator
 version: "3.0.0"
 updated: "2026-01-10"
 description: API contract validation with consumer-driven testing, provider verification, and breaking change detection
-v2_compat: qe-api-contract-validator
+v2_compat:
+  name: qe-api-contract-validator
+  deprecated_in: "3.0.0"
+  removed_in: "4.0.0"
 domain: contract-testing
 ---
 

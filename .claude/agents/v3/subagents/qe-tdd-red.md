@@ -3,7 +3,10 @@ name: qe-tdd-red
 version: "3.0.0"
 updated: "2026-01-10"
 description: TDD RED phase specialist for writing failing tests that define expected behavior before implementation
-v2_compat: qe-test-writer
+v2_compat:
+  name: qe-test-writer
+  deprecated_in: "3.0.0"
+  removed_in: "4.0.0"
 domain: test-generation
 parent: qe-tdd-specialist
 type: subagent

@@ -1,185 +1,70 @@
 /**
  * Agent Mapper - Maps V2 agent names to V3 equivalents
+ *
+ * This module delegates to migration/agent-compat.ts as the single source of truth
+ * for agent name mappings. It provides a class-based API for compatibility with
+ * existing code that uses the AgentMapper class.
+ *
+ * @see migration/agent-compat.ts for the canonical mapping
+ * @see ADR-048 for the V2-to-V3 migration strategy
  */
 
 import { AgentMapping, AgentResolution } from './types';
+import {
+  v2AgentMappingWithDomain,
+  v2AgentMapping,
+  resolveAgentName,
+  isDeprecatedAgent,
+  getAgentDomain,
+  getAllDomains,
+  getV2Names,
+  generateMigrationReport as generateReport,
+  type MigrationReport,
+} from '../migration/agent-compat';
 
 /**
- * Complete V2 to V3 agent mapping
+ * Convert internal mapping format to AgentMapping format for compatibility
  */
-const AGENT_MAPPINGS: AgentMapping[] = [
-  // Test Generation Domain
-  {
-    v2Name: 'qe-test-generator',
-    v3Name: 'v3-qe-test-architect',
-    domain: 'test-generation',
+function toAgentMappings(): AgentMapping[] {
+  return Object.entries(v2AgentMappingWithDomain).map(([v2Name, entry]) => ({
+    v2Name,
+    v3Name: entry.v3Name,
+    domain: entry.domain,
     deprecated: true,
-    notes: 'Renamed to reflect strategic planning role',
-  },
-  {
-    v2Name: 'qe-test-data-architect',
-    v3Name: 'v3-qe-test-data-architect',
-    domain: 'test-generation',
-    deprecated: true,
-  },
-
-  // Test Execution Domain
-  {
-    v2Name: 'qe-test-executor',
-    v3Name: 'v3-qe-parallel-executor',
-    domain: 'test-execution',
-    deprecated: true,
-    notes: 'Renamed to emphasize parallel execution',
-  },
-  {
-    v2Name: 'qe-flaky-test-hunter',
-    v3Name: 'v3-qe-flaky-hunter',
-    domain: 'test-execution',
-    deprecated: true,
-  },
-
-  // Coverage Analysis Domain
-  {
-    v2Name: 'qe-coverage-analyzer',
-    v3Name: 'v3-qe-coverage-specialist',
-    domain: 'coverage-analysis',
-    deprecated: true,
-  },
-
-  // Quality Assessment Domain
-  {
-    v2Name: 'qe-quality-gate',
-    v3Name: 'v3-qe-quality-gate',
-    domain: 'quality-assessment',
-    deprecated: true,
-  },
-  {
-    v2Name: 'qe-quality-analyzer',
-    v3Name: 'v3-qe-quality-analyzer',
-    domain: 'quality-assessment',
-    deprecated: true,
-  },
-  {
-    v2Name: 'qe-deployment-readiness',
-    v3Name: 'v3-qe-deployment-advisor',
-    domain: 'quality-assessment',
-    deprecated: true,
-    notes: 'Renamed to deployment-advisor',
-  },
-  {
-    v2Name: 'qe-code-complexity',
-    v3Name: 'v3-qe-code-complexity',
-    domain: 'quality-assessment',
-    deprecated: true,
-  },
-
-  // Defect Intelligence Domain
-  {
-    v2Name: 'qe-regression-risk-analyzer',
-    v3Name: 'v3-qe-regression-analyzer',
-    domain: 'defect-intelligence',
-    deprecated: true,
-  },
-
-  // Requirements Validation Domain
-  {
-    v2Name: 'qe-requirements-validator',
-    v3Name: 'v3-qe-requirements-validator',
-    domain: 'requirements-validation',
-    deprecated: true,
-  },
-
-  // Code Intelligence Domain
-  {
-    v2Name: 'qe-code-intelligence',
-    v3Name: 'v3-qe-code-intelligence',
-    domain: 'code-intelligence',
-    deprecated: true,
-  },
-
-  // Security Compliance Domain
-  {
-    v2Name: 'qe-security-scanner',
-    v3Name: 'v3-qe-security-scanner',
-    domain: 'security-compliance',
-    deprecated: true,
-  },
-
-  // Contract Testing Domain
-  {
-    v2Name: 'qe-api-contract-validator',
-    v3Name: 'v3-qe-contract-validator',
-    domain: 'contract-testing',
-    deprecated: true,
-  },
-
-  // Visual Accessibility Domain
-  {
-    v2Name: 'qe-visual-tester',
-    v3Name: 'v3-qe-visual-tester',
-    domain: 'visual-accessibility',
-    deprecated: true,
-  },
-  {
-    v2Name: 'qe-a11y-ally',
-    v3Name: 'v3-qe-a11y-specialist',
-    domain: 'visual-accessibility',
-    deprecated: true,
-    notes: 'Renamed from ally to specialist',
-  },
-
-  // Chaos Resilience Domain
-  {
-    v2Name: 'qe-chaos-engineer',
-    v3Name: 'v3-qe-chaos-engineer',
-    domain: 'chaos-resilience',
-    deprecated: true,
-  },
-  {
-    v2Name: 'qe-performance-tester',
-    v3Name: 'v3-qe-performance-profiler',
-    domain: 'chaos-resilience',
-    deprecated: true,
-    notes: 'Renamed to performance-profiler',
-  },
-
-  // Learning Optimization Domain
-  {
-    v2Name: 'qe-production-intelligence',
-    v3Name: 'v3-qe-production-intel',
-    domain: 'learning-optimization',
-    deprecated: true,
-  },
-
-  // Cross-Domain
-  {
-    v2Name: 'qx-partner',
-    v3Name: 'v3-qe-qx-partner',
-    domain: 'cross-domain',
-    deprecated: true,
-  },
-  {
-    v2Name: 'qe-fleet-commander',
-    v3Name: 'v3-qe-fleet-commander',
-    domain: 'cross-domain',
-    deprecated: true,
-  },
-];
+    notes: entry.notes,
+  }));
+}
 
 /**
  * Agent Mapper class for V2 to V3 agent name resolution
+ *
+ * This class provides backward compatibility with code that expects the
+ * AgentMapper class API. It delegates to migration/agent-compat.ts for
+ * the actual mappings.
  */
 export class AgentMapper {
   private mappings: Map<string, AgentMapping>;
-  private v3ToV2: Map<string, string>;
+  private v3ToV2: Map<string, string[]>;
 
   constructor() {
     this.mappings = new Map();
     this.v3ToV2 = new Map();
 
-    for (const mapping of AGENT_MAPPINGS) {
-      this.mappings.set(mapping.v2Name.toLowerCase(), mapping);
-      this.v3ToV2.set(mapping.v3Name.toLowerCase(), mapping.v2Name);
+    // Build lookup maps from the canonical source
+    for (const [v2Name, entry] of Object.entries(v2AgentMappingWithDomain)) {
+      this.mappings.set(v2Name.toLowerCase(), {
+        v2Name,
+        v3Name: entry.v3Name,
+        domain: entry.domain,
+        deprecated: true,
+        notes: entry.notes,
+      });
+
+      // Build reverse mapping (v3 -> v2[])
+      const v3Key = entry.v3Name.toLowerCase();
+      const existing = this.v3ToV2.get(v3Key) || [];
+      existing.push(v2Name);
+      this.v3ToV2.set(v3Key, existing);
     }
   }
 
@@ -189,13 +74,13 @@ export class AgentMapper {
   resolve(agentName: string): AgentResolution {
     const normalized = agentName.toLowerCase().trim();
 
-    // Already v3 format
-    if (normalized.startsWith('v3-qe-')) {
+    // Check if it's already a known V3 agent
+    if (this.v3ToV2.has(normalized)) {
       return {
         resolved: true,
         v3Agent: agentName,
         wasV2: false,
-        domain: this.getDomainForV3Agent(normalized),
+        domain: getAgentDomain(agentName),
       };
     }
 
@@ -221,44 +106,53 @@ export class AgentMapper {
   }
 
   /**
-   * Get the v2 name for a v3 agent (for documentation/migration)
+   * Get the v2 name(s) for a v3 agent (for documentation/migration)
    */
   getV2Name(v3Agent: string): string | null {
-    return this.v3ToV2.get(v3Agent.toLowerCase()) || null;
+    const v2Names = getV2Names(v3Agent);
+    return v2Names.length > 0 ? v2Names[0] : null;
+  }
+
+  /**
+   * Get all v2 names for a v3 agent (some v3 agents have multiple v2 predecessors)
+   */
+  getV2Names(v3Agent: string): string[] {
+    return getV2Names(v3Agent);
   }
 
   /**
    * Check if an agent name is a v2 format
    */
   isV2Agent(agentName: string): boolean {
-    const normalized = agentName.toLowerCase().trim();
-    return (
-      !normalized.startsWith('v3-') && this.mappings.has(normalized)
-    );
+    return isDeprecatedAgent(agentName);
   }
 
   /**
    * Get all agent mappings
    */
   getAllMappings(): AgentMapping[] {
-    return AGENT_MAPPINGS;
+    return toAgentMappings();
   }
 
   /**
    * Get mappings by domain
    */
   getMappingsByDomain(domain: string): AgentMapping[] {
-    return AGENT_MAPPINGS.filter((m) => m.domain === domain);
+    return toAgentMappings().filter((m) => m.domain === domain);
+  }
+
+  /**
+   * Get all domains
+   */
+  getAllDomains(): string[] {
+    return getAllDomains();
   }
 
   /**
    * Get domain for a v3 agent
    */
-  private getDomainForV3Agent(v3Agent: string): string | null {
-    const mapping = AGENT_MAPPINGS.find(
-      (m) => m.v3Name.toLowerCase() === v3Agent.toLowerCase()
-    );
-    return mapping?.domain || null;
+  getDomainForAgent(agentName: string): string | null {
+    return getAgentDomain(agentName);
   }
 
   /**
@@ -269,23 +163,31 @@ export class AgentMapper {
     alreadyV3: string[];
     unknown: string[];
   } {
-    const needsMigration: string[] = [];
-    const alreadyV3: string[] = [];
-    const unknown: string[] = [];
+    const report = generateReport(usedAgents);
+    return {
+      needsMigration: report.needsMigration.map(
+        (m) => `${m.v2Name} → ${m.v3Name}`
+      ),
+      alreadyV3: report.alreadyV3,
+      unknown: report.unknown,
+    };
+  }
 
-    for (const agent of usedAgents) {
-      const resolution = this.resolve(agent);
-      if (resolution.resolved) {
-        if (resolution.wasV2) {
-          needsMigration.push(`${agent} → ${resolution.v3Agent}`);
-        } else {
-          alreadyV3.push(agent);
-        }
-      } else {
-        unknown.push(agent);
-      }
-    }
-
-    return { needsMigration, alreadyV3, unknown };
+  /**
+   * Generate detailed migration report with domain info
+   */
+  generateDetailedMigrationReport(usedAgents: string[]): MigrationReport {
+    return generateReport(usedAgents);
   }
 }
+
+// Re-export functions for direct use
+export {
+  resolveAgentName,
+  isDeprecatedAgent,
+  getAgentDomain,
+  getAllDomains,
+  getV2Names,
+  v2AgentMapping,
+  v2AgentMappingWithDomain,
+};

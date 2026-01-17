@@ -690,6 +690,59 @@ export class UnifiedMemoryManager {
   }
 
   /**
+   * Check if a column exists in a table
+   */
+  private columnExists(tableName: string, columnName: string): boolean {
+    if (!this.db) return false;
+    try {
+      const info = this.db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+      return info.some(col => col.name === columnName);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Handle v2 schema incompatibilities by dropping and recreating tables
+   * that have incompatible schemas (missing columns that v3 requires)
+   */
+  private handleV2SchemaIncompatibilities(): void {
+    if (!this.db) return;
+
+    // Tables that may exist from v2 with incompatible schemas
+    // Only list tables where v2 has DIFFERENT schema than v3
+    // The 'requiredColumn' must be a column that EXISTS in v3 but NOT in v2
+    const v2IncompatibleTables = [
+      // GOAP tables - v2 has simpler schemas
+      { table: 'goap_plans', requiredColumn: 'status' },        // v2 missing status, initial_state, goal_state
+      { table: 'goap_execution_steps', requiredColumn: 'agent_id' }, // v2 missing agent_id
+      { table: 'goap_actions', requiredColumn: 'agent_type' },  // v2 missing agent_type
+      // Note: goap_goals and goap_plan_signatures are compatible
+
+      // Dream/Concept tables - v2 used 'type' column, v3 uses 'concept_type' or 'edge_type'
+      { table: 'concept_nodes', requiredColumn: 'concept_type' }, // v2 has 'type'
+      { table: 'concept_edges', requiredColumn: 'edge_type' },    // v2 has 'type'
+      { table: 'dream_insights', requiredColumn: 'cycle_id' },    // v2 missing foreign key
+
+      // RL tables - v2 has simpler schema
+      { table: 'rl_q_values', requiredColumn: 'algorithm' },      // v2 missing algorithm field
+    ];
+
+    for (const { table, requiredColumn } of v2IncompatibleTables) {
+      // Check if table exists
+      const tableExists = this.db.prepare(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name=?`
+      ).get(table);
+
+      if (tableExists && !this.columnExists(table, requiredColumn)) {
+        console.log(`[UnifiedMemory] Upgrading v2 table: ${table} (missing ${requiredColumn})`);
+        // Drop the old table - will be recreated with v3 schema
+        this.db.exec(`DROP TABLE IF EXISTS ${table}`);
+      }
+    }
+  }
+
+  /**
    * Run schema migrations
    */
   private async runMigrations(): Promise<void> {
@@ -697,6 +750,9 @@ export class UnifiedMemoryManager {
 
     // Create schema version table
     this.db.exec(SCHEMA_VERSION_TABLE);
+
+    // Handle v2 schema incompatibilities BEFORE migration
+    this.handleV2SchemaIncompatibilities();
 
     // Get current version
     const versionRow = this.db.prepare(

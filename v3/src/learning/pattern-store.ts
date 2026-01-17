@@ -309,9 +309,10 @@ export class PatternStore implements IPatternStore {
   private typeIndex: Map<QEPatternType, Set<string>> = new Map();
   private tierIndex: Map<'short-term' | 'long-term', Set<string>> = new Map();
 
-  // HNSW index for vector search (lazy loaded)
+  // HNSW index for vector search (lazy loaded - ADR-048)
   private hnswIndex: any = null;
   private hnswAvailable = false;
+  private hnswInitPromise: Promise<void> | null = null;
 
   // Statistics
   private stats = {
@@ -328,6 +329,9 @@ export class PatternStore implements IPatternStore {
 
   /**
    * Initialize the pattern store
+   *
+   * Note: HNSW is lazy-loaded (ADR-048) - only initialized when
+   * vector search is actually needed, not on every CLI invocation.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -336,8 +340,8 @@ export class PatternStore implements IPatternStore {
     this.tierIndex.set('short-term', new Set());
     this.tierIndex.set('long-term', new Set());
 
-    // Initialize HNSW if available
-    await this.initializeHNSW();
+    // HNSW is now lazy-loaded via ensureHNSW() when needed
+    // This saves ~5-10 seconds on CLI startup for non-search commands
 
     // Load existing patterns from memory
     await this.loadPatterns();
@@ -354,9 +358,48 @@ export class PatternStore implements IPatternStore {
   }
 
   /**
-   * Initialize HNSW index with timeout protection
+   * Ensure HNSW index is initialized (lazy loading - ADR-048)
+   *
+   * This method lazily initializes HNSW only when vector search is
+   * actually needed. This avoids the 5-10 second startup cost for
+   * CLI commands that don't use pattern search (migrate, status, etc.)
+   *
+   * @returns The HNSW index instance, or null if not available
    */
-  private async initializeHNSW(): Promise<void> {
+  private async ensureHNSW(): Promise<any | null> {
+    // Already initialized
+    if (this.hnswIndex !== null) {
+      return this.hnswIndex;
+    }
+
+    // Already marked as unavailable
+    if (this.hnswAvailable === false && this.hnswInitPromise === null) {
+      // Check if we've already tried and failed
+      if (this.hnswIndex === null && this.hnswAvailable === false) {
+        // First time - try to initialize
+      } else {
+        return null;
+      }
+    }
+
+    // If already initializing, wait for it
+    if (this.hnswInitPromise) {
+      await this.hnswInitPromise;
+      return this.hnswIndex;
+    }
+
+    // Start initialization
+    this.hnswInitPromise = this.initializeHNSWInternal();
+    await this.hnswInitPromise;
+    this.hnswInitPromise = null;
+
+    return this.hnswIndex;
+  }
+
+  /**
+   * Internal HNSW initialization with timeout protection
+   */
+  private async initializeHNSWInternal(): Promise<void> {
     try {
       // Try to import and use the existing HNSWIndex
       const { HNSWIndex } = await import(
@@ -384,7 +427,7 @@ export class PatternStore implements IPatternStore {
       this.hnswAvailable = this.hnswIndex.isNativeAvailable();
 
       console.log(
-        `[PatternStore] HNSW initialized (native: ${this.hnswAvailable})`
+        `[PatternStore] HNSW lazy-initialized (native: ${this.hnswAvailable})`
       );
     } catch (error) {
       console.warn(
@@ -502,17 +545,20 @@ export class PatternStore implements IPatternStore {
     // Index locally
     this.indexPattern(pattern);
 
-    // Add to HNSW if embedding is available
-    if (this.hnswIndex && pattern.embedding) {
-      try {
-        await this.hnswIndex.insert(pattern.id, pattern.embedding, {
-          patternType: pattern.patternType,
-          qeDomain: pattern.qeDomain,
-          confidence: pattern.confidence,
-          qualityScore: pattern.qualityScore,
-        });
-      } catch (error) {
-        console.warn(`[PatternStore] Failed to index embedding for ${pattern.id}:`, error);
+    // Add to HNSW if embedding is available (lazy-load HNSW only when needed)
+    if (pattern.embedding) {
+      const hnsw = await this.ensureHNSW();
+      if (hnsw) {
+        try {
+          await hnsw.insert(pattern.id, pattern.embedding, {
+            patternType: pattern.patternType,
+            qeDomain: pattern.qeDomain,
+            confidence: pattern.confidence,
+            qualityScore: pattern.qualityScore,
+          });
+        } catch (error) {
+          console.warn(`[PatternStore] Failed to index embedding for ${pattern.id}:`, error);
+        }
       }
     }
 
@@ -624,27 +670,26 @@ export class PatternStore implements IPatternStore {
     const results: PatternSearchResult[] = [];
 
     try {
-      // Vector search if query is embedding and HNSW available
-      if (
-        Array.isArray(query) &&
-        this.hnswIndex &&
-        options.useVectorSearch !== false
-      ) {
-        const hnswResults = await this.hnswIndex.search(query, limit * 2);
+      // Vector search if query is embedding and HNSW available (lazy-load)
+      if (Array.isArray(query) && options.useVectorSearch !== false) {
+        const hnsw = await this.ensureHNSW();
+        if (hnsw) {
+          const hnswResults = await hnsw.search(query, limit * 2);
 
-        for (const result of hnswResults) {
-          const pattern = await this.get(result.key);
-          if (pattern && this.matchesFilters(pattern, options)) {
-            const reuseInfo = this.calculateReuseInfo(pattern, result.score);
-            results.push({
-              pattern,
-              score: result.score,
-              matchType: 'vector',
-              similarity: result.score,
-              canReuse: reuseInfo.canReuse,
-              estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
-              reuseConfidence: reuseInfo.reuseConfidence,
-            });
+          for (const result of hnswResults) {
+            const pattern = await this.get(result.key);
+            if (pattern && this.matchesFilters(pattern, options)) {
+              const reuseInfo = this.calculateReuseInfo(pattern, result.score);
+              results.push({
+                pattern,
+                score: result.score,
+                matchType: 'vector',
+                similarity: result.score,
+                canReuse: reuseInfo.canReuse,
+                estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
+                reuseConfidence: reuseInfo.reuseConfidence,
+              });
+            }
           }
         }
       }
@@ -948,8 +993,8 @@ export class PatternStore implements IPatternStore {
     const key = `${this.config.namespace}:pattern:${id}`;
     await this.memory.delete(key);
 
-    // Remove from HNSW if available
-    if (this.hnswIndex) {
+    // Remove from HNSW if already initialized (no lazy-load for delete)
+    if (this.hnswIndex !== null) {
       try {
         await this.hnswIndex.delete(id);
       } catch {
@@ -987,9 +1032,10 @@ export class PatternStore implements IPatternStore {
       count++;
     }
 
-    const hnswStats = this.hnswIndex
+    // Get HNSW stats only if already initialized (no lazy-load for stats)
+    const hnswStats = this.hnswIndex !== null
       ? await this.hnswIndex.getStats()
-      : { nativeHNSW: false, vectorCount: 0, indexSizeBytes: 0 };
+      : { nativeHNSW: false, vectorCount: 0, indexSizeBytes: 0, lazyLoaded: true };
 
     return {
       totalPatterns: this.patternCache.size,
