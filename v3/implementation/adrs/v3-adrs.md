@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 6 In Progress (RuVector MinCut Intelligence + V3 Skills Improvement)
+**Status:** Phase 6 Complete (RuVector MinCut Intelligence - ADR-047 Implemented)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-01-16 (4936 tests passing, ADR-001-045 Implemented, ADR-046 In Progress)
+**Last Verified:** 2026-01-17 (5414+ tests passing, ADR-001-047 Implemented)
 
 ---
 
@@ -57,8 +57,8 @@
 | [ADR-043](./ADR-043-vendor-independent-llm.md) | Vendor-Independent LLM Support | **Implemented** | 2026-01-15 | ✅ HybridRouter + 7 providers + model-mapping + MSW integration tests |
 | [ADR-044](./ADR-044-domain-rl-integration-status.md) | Domain RL Integration Status | **Implemented** | 2026-01-14 | ✅ 6/6 domains with RL integration |
 | [ADR-045](./ADR-045-version-agnostic-naming.md) | Version-Agnostic Naming | **Implemented** | 2026-01-14 | ✅ qe-* naming convention, backward compat aliases |
-| [ADR-046](./ADR-046-v2-feature-integration.md) | V2 Feature Integration (Q-Values, GOAP, Dreams) | **In Progress** | 2026-01-16 | 🔄 Q-Values persistence + GOAP planner + Dream cycles |
-| [ADR-047](./ADR-047-mincut-self-organizing-qe.md) | MinCut Self-Organizing QE Integration | **Proposed** | 2026-01-16 | 📋 Strange Loop + Morphogenetic + Causal Discovery for Queen Coordinator |
+| [ADR-046](./ADR-046-v2-feature-integration.md) | V2 Feature Integration (Q-Values, GOAP, Dreams) | **Implemented** | 2026-01-16 | ✅ Q-Values persistence + GOAP planner (52 actions) + Dream cycles (ConceptGraph + InsightGenerator) |
+| [ADR-047](./ADR-047-mincut-self-organizing-qe.md) | MinCut Self-Organizing QE Integration | **Implemented** | 2026-01-17 | ✅ 478 tests, 14 modules: MinCut health + Strange Loop (P1) + Causal Discovery (P2) + Morphogenetic (P3) + Time Crystal (P4) + Neural GOAP (P5) + Dream Integration (P6) + 3 MCP tools |
 
 ---
 
