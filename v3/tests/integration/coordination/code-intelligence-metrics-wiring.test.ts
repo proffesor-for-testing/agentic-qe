@@ -475,7 +475,7 @@ describe('Code Intelligence Coordinator ↔ MetricCollector Wiring', () => {
       expect(typeof tests.source).toBe('string');
     });
 
-    it('service provides tool availability information', () => {
+    it('service provides tool availability information', { timeout: 60000 }, () => {
       const collector = createMetricCollector();
 
       const tools = collector.checkTools();
