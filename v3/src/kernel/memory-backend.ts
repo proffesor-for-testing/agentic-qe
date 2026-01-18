@@ -148,4 +148,37 @@ export class InMemoryBackend implements MemoryBackend {
       this.store.clear();
     }
   }
+
+  /**
+   * Count entries in a namespace
+   * Iterates through all stored keys and counts those matching the namespace prefix.
+   * @param namespace - The namespace to count entries for
+   * @returns The number of entries in the namespace
+   */
+  async count(namespace: string): Promise<number> {
+    let count = 0;
+    const prefix = `${namespace}:`;
+    for (const key of this.store.keys()) {
+      if (key.startsWith(prefix)) {
+        // Verify the entry hasn't expired before counting
+        const entry = this.store.get(key);
+        if (entry && (!entry.expiresAt || Date.now() <= entry.expiresAt)) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Check if code intelligence index exists
+   * Returns true if code-intelligence:kg namespace has entries.
+   * This is used to determine if a project has been indexed and can
+   * leverage semantic search for improved accuracy.
+   * @returns True if the code intelligence knowledge graph has been indexed
+   */
+  async hasCodeIntelligenceIndex(): Promise<boolean> {
+    const count = await this.count('code-intelligence:kg');
+    return count > 0;
+  }
 }

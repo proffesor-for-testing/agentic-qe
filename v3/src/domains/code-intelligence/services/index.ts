@@ -61,3 +61,24 @@ export {
   type SystemType,
   type C4RelationshipType,
 } from './c4-model';
+
+// Metric Collector Service (RM-001, RM-002, RM-003)
+export {
+  MetricCollectorService,
+  createMetricCollector,
+  countLOC,
+  countTests,
+  detectTestRunner,
+  checkLOCTools,
+  checkTestRunners,
+  type IMetricCollectorService,
+  type MetricCollector,
+  type MetricCollectorConfig,
+  type ProjectMetrics,
+  type LOCMetrics,
+  type TestMetrics,
+  type PatternMetrics,
+  type PatternCounts,
+  type ToolAvailability,
+  DEFAULT_METRIC_CONFIG,
+} from './metric-collector';

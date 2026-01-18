@@ -64,6 +64,16 @@ import {
   createQEFlashAttention,
 } from '../../integrations/ruvector/wrappers';
 
+// V3 Integration: ClaimVerifier for report verification (Phase 4)
+import {
+  ClaimVerifierService,
+  createClaimVerifierService,
+  type QEReport,
+  type Claim,
+  type ClaimType,
+  type ReportVerification,
+} from '../../agents/claim-verifier/index.js';
+
 /**
  * Interface for the quality assessment coordinator
  */
@@ -99,6 +109,11 @@ export interface CoordinatorConfig {
   enableRLThresholdTuning: boolean;
   enableSONAPatternLearning: boolean;
   enableFlashAttention: boolean;
+  // V3 Integration: ClaimVerifier (Phase 4)
+  /** Enable claim verification before publishing reports */
+  enableClaimVerification: boolean;
+  /** Root directory for claim verifier file operations */
+  claimVerifierRootDir?: string;
 }
 
 /**
@@ -131,6 +146,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   enableRLThresholdTuning: true,
   enableSONAPatternLearning: true,
   enableFlashAttention: true,
+  // V3: ClaimVerifier enabled by default
+  enableClaimVerification: true,
 };
 
 /**
@@ -154,6 +171,9 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
   private actorCritic?: ActorCriticAlgorithm;
   private qesona?: QESONA;
   private flashAttention?: QEFlashAttention;
+
+  // V3 Integration: ClaimVerifier for report verification
+  private claimVerifier?: ClaimVerifierService;
 
   // Quality domain name for SONA
   private readonly domain: DomainName = 'quality-assessment';
@@ -197,6 +217,11 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       // Initialize QEFlashAttention for similarity computations
       if (this.config.enableFlashAttention) {
         await this.initializeFlashAttention();
+      }
+
+      // V3: Initialize ClaimVerifier for report verification
+      if (this.config.enableClaimVerification) {
+        await this.initializeClaimVerifier();
       }
 
       this.initialized = true;
@@ -296,7 +321,10 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
         await this.publishQualityGateEvaluated(result.value);
       }
 
-      return result;
+      // V3: Verify claims before returning (Phase 4)
+      const verifiedResult = await this.verifyGateResultClaims(result.value);
+
+      return ok(verifiedResult);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
       return err(error instanceof Error ? error : new Error(String(error)));
@@ -360,7 +388,10 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
         );
       }
 
-      return result;
+      // V3: Verify claims before returning (Phase 4)
+      const verifiedResult = await this.verifyQualityReportClaims(result.value);
+
+      return ok(verifiedResult);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
       return err(error instanceof Error ? error : new Error(String(error)));
@@ -1122,5 +1153,206 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
     }
 
     return new Float32Array(features.slice(0, 384));
+  }
+
+  // ============================================================================
+  // V3 Integration: ClaimVerifier Methods (Phase 4)
+  // ============================================================================
+
+  /**
+   * Initialize ClaimVerifier for report verification
+   */
+  private async initializeClaimVerifier(): Promise<void> {
+    try {
+      const rootDir = this.config.claimVerifierRootDir || process.cwd();
+      this.claimVerifier = createClaimVerifierService({
+        rootDir,
+        verifier: {
+          enableStatistics: true,
+          enableMultiModel: false, // Use consensus engine separately for multi-model
+          defaultConfidenceThreshold: 0.7,
+        },
+      }) as ClaimVerifierService;
+    } catch (error) {
+      throw new Error(`Failed to initialize ClaimVerifier: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Verify a quality report's claims before returning
+   *
+   * Converts QualityReport to QEReport format and verifies all claims.
+   * Adds verification metadata to the report.
+   *
+   * @param report - The quality report to verify
+   * @returns The report with verification status, or original if verification disabled/fails
+   */
+  private async verifyQualityReportClaims(
+    report: QualityReport
+  ): Promise<QualityReport & { claimVerification?: { verified: boolean; confidence: number; unverifiedClaims: number } }> {
+    if (!this.config.enableClaimVerification || !this.claimVerifier) {
+      return report;
+    }
+
+    try {
+      // Convert QualityReport to QEReport format
+      const qeReport = this.convertToQEReport(report, 'quality-analysis');
+
+      if (qeReport.claims.length === 0) {
+        return report;
+      }
+
+      // Verify the report
+      const verification = await this.claimVerifier.verifyReport(qeReport);
+
+      if (!verification.success) {
+        console.warn('[QualityAssessment] Claim verification failed:', verification.error);
+        return report;
+      }
+
+      // Annotate report with verification status
+      return {
+        ...report,
+        claimVerification: {
+          verified: verification.value.passed,
+          confidence: verification.value.overallConfidence,
+          unverifiedClaims: verification.value.flaggedClaims.length,
+        },
+      };
+    } catch (error) {
+      console.error('[QualityAssessment] Failed to verify report claims:', error);
+      return report;
+    }
+  }
+
+  /**
+   * Verify a gate result's claims before returning
+   */
+  private async verifyGateResultClaims(
+    result: GateResult
+  ): Promise<GateResult & { claimVerification?: { verified: boolean; confidence: number; unverifiedClaims: number } }> {
+    if (!this.config.enableClaimVerification || !this.claimVerifier) {
+      return result;
+    }
+
+    try {
+      // Convert GateResult to QEReport format
+      const qeReport = this.convertGateResultToQEReport(result);
+
+      if (qeReport.claims.length === 0) {
+        return result;
+      }
+
+      // Verify the report
+      const verification = await this.claimVerifier.verifyReport(qeReport);
+
+      if (!verification.success) {
+        console.warn('[QualityAssessment] Gate claim verification failed:', verification.error);
+        return result;
+      }
+
+      // Annotate result with verification status
+      return {
+        ...result,
+        claimVerification: {
+          verified: verification.value.passed,
+          confidence: verification.value.overallConfidence,
+          unverifiedClaims: verification.value.flaggedClaims.length,
+        },
+      };
+    } catch (error) {
+      console.error('[QualityAssessment] Failed to verify gate claims:', error);
+      return result;
+    }
+  }
+
+  /**
+   * Convert QualityReport to QEReport format for claim verification
+   */
+  private convertToQEReport(report: QualityReport, type: string): QEReport {
+    const claims: Claim[] = [];
+
+    // Extract claims from metrics
+    for (const metric of report.metrics) {
+      claims.push({
+        id: `metric-${metric.name}-${Date.now()}`,
+        type: 'metric-count' as ClaimType,
+        statement: `Metric ${metric.name} = ${metric.value}`,
+        evidence: [],
+        sourceAgent: 'quality-analyzer',
+        sourceAgentType: 'analyzer',
+        severity: metric.value < 50 ? 'high' : metric.value < 70 ? 'medium' : 'low',
+        timestamp: new Date(),
+        metadata: {
+          name: metric.name,
+          value: metric.value,
+        },
+      });
+    }
+
+    // Extract claims from score
+    if (report.score.coverage < 80) {
+      claims.push({
+        id: `coverage-${Date.now()}`,
+        type: 'coverage-claim' as ClaimType,
+        statement: `Code coverage is ${report.score.coverage}%`,
+        evidence: [],
+        sourceAgent: 'quality-analyzer',
+        sourceAgentType: 'analyzer',
+        severity: report.score.coverage < 50 ? 'critical' : 'high',
+        timestamp: new Date(),
+        metadata: { coverage: report.score.coverage },
+      });
+    }
+
+    return {
+      id: `quality-report-${Date.now()}`,
+      type,
+      claims,
+      generatedAt: new Date(),
+      sourceAgent: 'quality-assessment-coordinator',
+    };
+  }
+
+  /**
+   * Convert GateResult to QEReport format for claim verification
+   */
+  private convertGateResultToQEReport(result: GateResult): QEReport {
+    const claims: Claim[] = [];
+
+    // Extract claims from checks
+    for (const check of result.checks) {
+      claims.push({
+        id: `gate-check-${check.name}-${Date.now()}`,
+        type: 'metric-count' as ClaimType,
+        statement: `Gate check '${check.name}': ${check.value} (threshold: ${check.threshold})`,
+        evidence: [],
+        sourceAgent: 'quality-gate',
+        sourceAgentType: 'validator',
+        severity: check.passed ? 'low' : (check.severity as 'critical' | 'high' | 'medium' | 'low') || 'medium',
+        timestamp: new Date(),
+        metadata: {
+          checkName: check.name,
+          value: check.value,
+          threshold: check.threshold,
+          passed: check.passed,
+        },
+      });
+    }
+
+    return {
+      id: `gate-result-${Date.now()}`,
+      type: 'gate-evaluation',
+      claims,
+      generatedAt: new Date(),
+      sourceAgent: 'quality-assessment-coordinator',
+    };
+  }
+
+  /**
+   * Get ClaimVerifier statistics
+   */
+  getClaimVerifierStats(): ReturnType<ClaimVerifierService['getStats']> | null {
+    return this.claimVerifier?.getStats() ?? null;
   }
 }

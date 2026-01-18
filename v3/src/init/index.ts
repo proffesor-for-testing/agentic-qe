@@ -78,3 +78,16 @@ export {
   createAgentsInstaller,
   installAgents,
 } from './agents-installer.js';
+
+// Fleet Integration (CI-005, CI-006, CI-007)
+export type {
+  FleetIntegrationOptions,
+  CodeIntelligenceStatus,
+  FleetIntegrationResult,
+} from './fleet-integration.js';
+export {
+  FleetInitEnhancer,
+  createFleetInitEnhancer,
+  checkCodeIntelligenceStatus,
+  integrateCodeIntelligence,
+} from './fleet-integration.js';

@@ -177,6 +177,20 @@ export interface MemoryBackend extends Initializable, Disposable {
 
   /** Store vector embedding */
   storeVector(key: string, embedding: number[], metadata?: unknown): Promise<void>;
+
+  /**
+   * Count entries in a namespace
+   * @param namespace - The namespace to count entries for
+   * @returns The number of entries in the namespace
+   */
+  count(namespace: string): Promise<number>;
+
+  /**
+   * Check if code intelligence index exists
+   * Returns true if code-intelligence:kg namespace has entries
+   * @returns True if the code intelligence knowledge graph has been indexed
+   */
+  hasCodeIntelligenceIndex(): Promise<boolean>;
 }
 
 export interface StoreOptions {

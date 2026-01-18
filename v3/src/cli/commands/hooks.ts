@@ -206,6 +206,25 @@ function createInMemoryBackend(): MemoryBackend {
     storeVector: async (_key: string, _embedding: number[], _metadata?: unknown): Promise<void> => {
       // No-op for in-memory fallback
     },
+    count: async (namespace: string): Promise<number> => {
+      let count = 0;
+      const prefix = `${namespace}:`;
+      for (const key of store.keys()) {
+        if (key.startsWith(prefix)) {
+          count++;
+        }
+      }
+      return count;
+    },
+    hasCodeIntelligenceIndex: async (): Promise<boolean> => {
+      const prefix = 'code-intelligence:kg:';
+      for (const key of store.keys()) {
+        if (key.startsWith(prefix)) {
+          return true;
+        }
+      }
+      return false;
+    },
   };
 }
 
@@ -411,6 +430,9 @@ Examples:
 
           console.log(chalk.bold('\n📖 Reasoning:'), chalk.dim(routing.reasoning));
         }
+
+        // Exit cleanly after successful routing (prevents hanging on db cleanup)
+        process.exit(0);
       } catch (error) {
         printError(`route failed: ${error instanceof Error ? error.message : 'unknown'}`);
         process.exit(1);

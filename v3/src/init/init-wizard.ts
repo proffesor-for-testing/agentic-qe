@@ -176,6 +176,22 @@ export class InitOrchestrator {
         return await this.initializePersistenceDatabase();
       });
 
+      // Step 3.5: Code Intelligence Pre-Scan (CI-003/CI-004 improvement)
+      const codeIntelligenceResult = await this.runStep('Code Intelligence Pre-Scan', async () => {
+        const hasIndex = await this.checkCodeIntelligenceIndex();
+
+        if (!hasIndex) {
+          // New project or no existing index - run full scan
+          console.log('  Building knowledge graph for code intelligence...');
+          return await this.runCodeIntelligenceScan(analysis.projectRoot);
+        }
+
+        // Existing index - use it
+        const entryCount = await this.getKGEntryCount();
+        console.log(`  Using existing code intelligence index (${entryCount} entries)`);
+        return { status: 'existing', entries: entryCount };
+      });
+
       // Step 4: Initialize learning system
       const patternsLoaded = await this.runStep('Learning System Setup', async () => {
         if (config.learning.enabled && !this.options.skipPatterns) {
@@ -246,6 +262,7 @@ export class InitOrchestrator {
         summary: {
           projectAnalyzed: true,
           configGenerated: true,
+          codeIntelligenceIndexed: codeIntelligenceResult?.entries ?? 0,
           patternsLoaded,
           skillsInstalled,
           agentsInstalled,
@@ -274,6 +291,7 @@ export class InitOrchestrator {
         summary: {
           projectAnalyzed: false,
           configGenerated: false,
+          codeIntelligenceIndexed: 0,
           patternsLoaded: 0,
           skillsInstalled: 0,
           agentsInstalled: 0,
@@ -371,6 +389,104 @@ export class InitOrchestrator {
     }
 
     return config;
+  }
+
+  /**
+   * Check if code intelligence index exists
+   * Uses memory backend to check code-intelligence:kg namespace
+   */
+  private async checkCodeIntelligenceIndex(): Promise<boolean> {
+    // Load existing memory database if it exists
+    const dbPath = join(this.projectRoot, '.agentic-qe', 'memory.db');
+    if (!existsSync(dbPath)) {
+      return false;
+    }
+
+    // Check for entries in code-intelligence:kg namespace
+    try {
+      const Database = (await import('better-sqlite3')).default;
+      const db = new Database(dbPath);
+      const result = db.prepare(`
+        SELECT COUNT(*) as count FROM kv_store
+        WHERE namespace = 'code-intelligence:kg'
+      `).get() as { count: number };
+      db.close();
+      return result.count > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Run code intelligence scan
+   * Indexes all source files into the knowledge graph
+   */
+  private async runCodeIntelligenceScan(projectPath: string): Promise<{ status: string; entries: number }> {
+    try {
+      // Import knowledge graph service
+      const { KnowledgeGraphService } = await import('../domains/code-intelligence/services/knowledge-graph.js');
+      const { InMemoryBackend } = await import('../kernel/memory-backend.js');
+
+      // Create temporary memory backend for indexing
+      const memory = new InMemoryBackend();
+      await memory.initialize();
+
+      const kgService = new KnowledgeGraphService(memory, {
+        namespace: 'code-intelligence:kg',
+        enableVectorEmbeddings: true,
+      });
+
+      // Find all source files
+      const glob = await import('fast-glob');
+      const files = await glob.default([
+        '**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'
+      ], {
+        cwd: projectPath,
+        ignore: ['node_modules/**', 'dist/**', 'coverage/**', '.agentic-qe/**'],
+      });
+
+      // Index files
+      const result = await kgService.index({
+        paths: files.map(f => join(projectPath, f)),
+        incremental: false,
+        includeTests: true,
+      });
+
+      // Clean up
+      kgService.destroy();
+
+      if (result.success) {
+        return {
+          status: 'indexed',
+          entries: result.value.nodesCreated + result.value.edgesCreated
+        };
+      }
+
+      return { status: 'error', entries: 0 };
+    } catch (error) {
+      // Log error but don't fail initialization
+      console.warn('Code intelligence scan warning:', error instanceof Error ? error.message : String(error));
+      return { status: 'skipped', entries: 0 };
+    }
+  }
+
+  /**
+   * Get count of KG entries from existing database
+   */
+  private async getKGEntryCount(): Promise<number> {
+    const dbPath = join(this.projectRoot, '.agentic-qe', 'memory.db');
+    try {
+      const Database = (await import('better-sqlite3')).default;
+      const db = new Database(dbPath);
+      const result = db.prepare(`
+        SELECT COUNT(*) as count FROM kv_store
+        WHERE namespace LIKE 'code-intelligence:kg%'
+      `).get() as { count: number };
+      db.close();
+      return result.count;
+    } catch {
+      return 0;
+    }
   }
 
   /**
@@ -1408,6 +1524,7 @@ export function formatInitResult(result: InitResult): string {
   // Summary
   lines.push(`│  Project: ${result.config.project.name.padEnd(47)} │`);
   lines.push(`│  Type: ${result.config.project.type.padEnd(50)} │`);
+  lines.push(`│  Code Intel Indexed: ${String(result.summary.codeIntelligenceIndexed).padEnd(36)} │`);
   lines.push(`│  Patterns Loaded: ${String(result.summary.patternsLoaded).padEnd(39)} │`);
   lines.push(`│  Skills Installed: ${String(result.summary.skillsInstalled).padEnd(38)} │`);
   lines.push(`│  Agents Installed: ${String(result.summary.agentsInstalled).padEnd(38)} │`);

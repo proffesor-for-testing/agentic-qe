@@ -82,6 +82,14 @@ import {
 // V3 Integration: RL Suite interfaces
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces';
 
+// V3 Integration: MetricCollector for real code metrics (Phase 5)
+import {
+  MetricCollectorService,
+  createMetricCollector,
+  type IMetricCollectorService,
+  type ProjectMetrics,
+} from './services/metric-collector/index.js';
+
 /**
  * Interface for the code intelligence coordinator
  */
@@ -104,6 +112,13 @@ export interface ICodeIntelligenceCoordinator extends CodeIntelligenceAPI {
    * Get the Product Factors Bridge for cross-domain access
    */
   getProductFactorsBridge(): IProductFactorsBridge;
+
+  /**
+   * V3: Collect real project metrics using actual tooling (Phase 5)
+   * Uses cloc/tokei for LOC, vitest/jest/cargo/pytest for tests
+   * @param projectPath - Path to the project root
+   */
+  collectProjectMetrics(projectPath: string): Promise<Result<ProjectMetrics, Error>>;
 }
 
 /**
@@ -131,6 +146,8 @@ export interface CoordinatorConfig {
   // V3: Enable GNN and SONA integrations
   enableGNN: boolean;
   enableSONA: boolean;
+  // V3: Enable MetricCollector for real code metrics (Phase 5)
+  enableMetricCollector: boolean;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -140,6 +157,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   enableIncrementalIndex: true,
   enableGNN: true,
   enableSONA: true,
+  // V3: MetricCollector enabled by default for real code metrics
+  enableMetricCollector: true,
 };
 
 /**
@@ -159,6 +178,9 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
   private gnnIndex?: QEGNNEmbeddingIndex;
   private sonaEngine?: QESONA;
   private rlInitialized = false;
+
+  // V3: MetricCollector for real code metrics (Phase 5)
+  private metricCollector?: IMetricCollectorService;
 
   // V3: Product Factors Bridge for cross-domain C4 access
   private productFactorsBridge: ProductFactorsBridgeService;
@@ -196,6 +218,15 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     // V3: Initialize GNN and SONA integrations
     if (this.config.enableGNN || this.config.enableSONA) {
       await this.initializeRLIntegrations();
+    }
+
+    // V3: Initialize MetricCollector for real code metrics (Phase 5)
+    if (this.config.enableMetricCollector) {
+      this.metricCollector = createMetricCollector({
+        enableCache: true,
+        cacheTTL: 300000, // 5 minutes
+      });
+      console.log('[CodeIntelligence] MetricCollector initialized for real code metrics');
     }
 
     // V3: Initialize Product Factors Bridge
@@ -302,11 +333,22 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
       const result = await this.knowledgeGraph.index(request);
 
       if (result.success) {
-        this.updateWorkflowProgress(workflowId, 50);
+        this.updateWorkflowProgress(workflowId, 40);
 
         // V3: Index code embeddings in GNN
         if (this.config.enableGNN && this.gnnIndex && request.paths.length > 0) {
           await this.indexCodeEmbeddings(request.paths);
+        }
+
+        this.updateWorkflowProgress(workflowId, 60);
+
+        // V3: Collect real project metrics using actual tooling (Phase 5)
+        if (this.config.enableMetricCollector && this.metricCollector && request.paths.length > 0) {
+          // Determine project root from first path
+          const projectPath = this.getProjectRootFromPaths(request.paths);
+          if (projectPath) {
+            await this.collectProjectMetrics(projectPath);
+          }
         }
 
         this.updateWorkflowProgress(workflowId, 80);
@@ -1227,5 +1269,140 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
       result.externalSystems,
       { namespace: 'code-intelligence', ttl: 3600000 }
     );
+  }
+
+  // ============================================================================
+  // V3 Integration: MetricCollector for Real Code Metrics (Phase 5)
+  // ============================================================================
+
+  /**
+   * Collect real project metrics using actual tooling
+   *
+   * Uses MetricCollector service which runs:
+   * - cloc/tokei for accurate LOC counting
+   * - vitest/jest/cargo/pytest/go for test counting
+   * - Pattern analysis for code quality indicators
+   *
+   * This replaces estimates with ACTUAL counts from real tooling.
+   *
+   * @param projectPath - Path to the project root
+   * @returns ProjectMetrics with LOC, test counts, and patterns
+   */
+  async collectProjectMetrics(
+    projectPath: string
+  ): Promise<Result<ProjectMetrics, Error>> {
+    if (!this.config.enableMetricCollector || !this.metricCollector) {
+      return err(new Error('MetricCollector is not enabled'));
+    }
+
+    try {
+      console.log(`[CodeIntelligence] Collecting real metrics for ${projectPath}`);
+
+      // Collect all metrics using actual tooling
+      const metrics = await this.metricCollector.collectAll(projectPath);
+
+      console.log(
+        `[CodeIntelligence] Real metrics collected: ` +
+          `${metrics.loc.total} LOC, ${metrics.tests.total} tests, ` +
+          `tools: ${metrics.toolsUsed.join(', ') || 'fallback'}`
+      );
+
+      // Store metrics in memory for cross-domain access
+      await this.storeProjectMetricsInMemory(projectPath, metrics);
+
+      // Publish event
+      if (this.config.publishEvents) {
+        const event = createEvent(
+          'code-intelligence.MetricsCollected',
+          'code-intelligence',
+          {
+            projectPath,
+            loc: metrics.loc.total,
+            tests: metrics.tests.total,
+            toolsUsed: metrics.toolsUsed,
+          }
+        );
+        await this.eventBus.publish(event);
+      }
+
+      return { success: true, value: metrics };
+    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      console.error('[CodeIntelligence] Failed to collect metrics:', errorObj.message);
+      return err(errorObj);
+    }
+  }
+
+  /**
+   * Store project metrics in memory for cross-domain access
+   */
+  private async storeProjectMetricsInMemory(
+    projectPath: string,
+    metrics: ProjectMetrics
+  ): Promise<void> {
+    const key = `project-metrics:latest:${this.hashCode(projectPath)}`;
+
+    await this.memory.set(key, metrics, {
+      namespace: 'code-intelligence',
+      persist: true,
+      ttl: 300000, // 5 minutes (metrics can change frequently)
+    });
+
+    // Store LOC and test counts separately for quick access
+    await this.memory.set(
+      `loc-metrics:${this.hashCode(projectPath)}`,
+      metrics.loc,
+      { namespace: 'code-intelligence', ttl: 300000 }
+    );
+
+    await this.memory.set(
+      `test-metrics:${this.hashCode(projectPath)}`,
+      metrics.tests,
+      { namespace: 'code-intelligence', ttl: 300000 }
+    );
+  }
+
+  /**
+   * Get the MetricCollector service for direct access
+   */
+  getMetricCollector(): IMetricCollectorService | undefined {
+    return this.metricCollector;
+  }
+
+  /**
+   * Determine project root from indexed paths
+   */
+  private getProjectRootFromPaths(paths: string[]): string | null {
+    if (paths.length === 0) return null;
+
+    // Get the first path and find the project root
+    const firstPath = paths[0];
+
+    // Walk up the path to find package.json, Cargo.toml, go.mod, etc.
+    const parts = firstPath.split('/');
+    let currentPath = '';
+
+    for (const part of parts) {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+      // Check for common project markers
+      const markers = ['package.json', 'Cargo.toml', 'go.mod', 'pyproject.toml', '.git'];
+      for (const marker of markers) {
+        try {
+          const markerPath = `${currentPath}/${marker}`;
+          // Use synchronous check (since we're in async context anyway)
+          const fs = require('fs');
+          if (fs.existsSync(markerPath)) {
+            return currentPath;
+          }
+        } catch {
+          // Continue checking
+        }
+      }
+    }
+
+    // If no marker found, return the parent directory of the first path
+    const lastSlash = firstPath.lastIndexOf('/');
+    return lastSlash > 0 ? firstPath.substring(0, lastSlash) : firstPath;
   }
 }

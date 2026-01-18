@@ -296,6 +296,56 @@ export class HybridMemoryBackend implements MemoryBackend {
   }
 
   // ============================================================================
+  // Count Operations (CI-001, CI-002)
+  // ============================================================================
+
+  /**
+   * Count entries in a namespace
+   * Counts all KV store entries that match the given namespace prefix.
+   * @param namespace - The namespace to count entries for
+   * @returns The number of entries in the namespace
+   */
+  async count(namespace: string): Promise<number> {
+    this.ensureInitialized();
+
+    const db = this.unifiedMemory!.getDatabase();
+
+    // Use SQL LIKE to match namespace prefix
+    // This handles hierarchical namespaces like 'code-intelligence:kg'
+    const row = db.prepare(`
+      SELECT COUNT(*) as count FROM kv_store
+      WHERE namespace LIKE ?
+        AND (expires_at IS NULL OR expires_at > ?)
+    `).get(`${namespace}%`, Date.now()) as { count: number };
+
+    return row.count;
+  }
+
+  /**
+   * Check if code intelligence index exists
+   * Returns true if code-intelligence:kg namespace has entries.
+   * This is used to determine if a project has been indexed and can
+   * leverage semantic search for improved accuracy.
+   * @returns True if the code intelligence knowledge graph has been indexed
+   */
+  async hasCodeIntelligenceIndex(): Promise<boolean> {
+    this.ensureInitialized();
+
+    const db = this.unifiedMemory!.getDatabase();
+
+    // Check if any entries exist in the code-intelligence:kg namespace
+    // Using LIMIT 1 for efficiency - we only need to know if ANY exist
+    const row = db.prepare(`
+      SELECT 1 FROM kv_store
+      WHERE namespace = 'code-intelligence:kg'
+        AND (expires_at IS NULL OR expires_at > ?)
+      LIMIT 1
+    `).get(Date.now());
+
+    return row !== undefined;
+  }
+
+  // ============================================================================
   // Private Helpers
   // ============================================================================
 

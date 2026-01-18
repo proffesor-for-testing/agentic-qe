@@ -46,6 +46,14 @@ import {
 import { MinCutHealth } from './mincut/interfaces';
 import { getSharedMinCutGraph } from './mincut/shared-singleton';
 
+// V3 Integration: TinyDancer intelligent model routing (TD-004, TD-005, TD-006)
+import {
+  QueenRouterAdapter,
+  type QueenRouteDecision,
+  type QueenRouterConfig,
+} from '../routing/queen-integration.js';
+import type { ClassifiableTask } from '../routing/task-classifier.js';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -145,6 +153,10 @@ export interface QueenConfig {
   enableMetrics: boolean;
   metricsInterval: number;
   priorityWeights: Record<Priority, number>;
+  /** V3 Integration: TinyDancer routing configuration */
+  routing?: QueenRouterConfig;
+  /** Enable intelligent model routing (default: true) */
+  enableRouting?: boolean;
 }
 
 /**
@@ -283,6 +295,8 @@ const DEFAULT_CONFIG: QueenConfig = {
     p2: 25,
     p3: 10,
   },
+  // V3 Integration: Enable intelligent model routing by default
+  enableRouting: true,
 };
 
 // ============================================================================
@@ -327,6 +341,9 @@ export class QueenCoordinator implements IQueenCoordinator {
   // ADR-047: MinCut topology health monitoring
   private minCutBridge: QueenMinCutBridge | null = null;
 
+  // V3 Integration: TinyDancer intelligent model routing (TD-004, TD-005, TD-006)
+  private tinyDancerRouter: QueenRouterAdapter | null = null;
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly agentCoordinator: AgentCoordinator,
@@ -350,6 +367,12 @@ export class QueenCoordinator implements IQueenCoordinator {
     (['p0', 'p1', 'p2', 'p3'] as Priority[]).forEach(p => {
       this.taskQueue.set(p, []);
     });
+
+    // V3 Integration: Initialize TinyDancer intelligent model routing (TD-004, TD-005, TD-006)
+    // Routes tasks to optimal agent tiers (haiku/sonnet/opus) based on complexity
+    if (this.config.enableRouting !== false) {
+      this.tinyDancerRouter = new QueenRouterAdapter(this.config.routing);
+    }
 
     // Initialize domain queues
     ALL_DOMAINS.forEach(domain => {
@@ -871,6 +894,14 @@ export class QueenCoordinator implements IQueenCoordinator {
     return this.minCutBridge;
   }
 
+  /**
+   * Get TinyDancer router for direct routing access
+   * TD-004/TD-005/TD-006: Allows QE agents to query routing decisions directly
+   */
+  getTinyDancerRouter(): QueenRouterAdapter | null {
+    return this.tinyDancerRouter;
+  }
+
   // ============================================================================
   // Protocol & Workflow
   // ============================================================================
@@ -1089,11 +1120,37 @@ export class QueenCoordinator implements IQueenCoordinator {
   }
 
   private async assignTaskToDomain(task: QueenTask, domain: DomainName): Promise<Result<string, Error>> {
-    // Spawn an agent for this task if needed
+    // V3 Integration: Use TinyDancer for intelligent model routing (TD-004, TD-005, TD-006)
+    // Routes tasks to optimal agent tiers (haiku/sonnet/opus) based on complexity
+    let routeDecision: QueenRouteDecision | undefined;
+    if (this.tinyDancerRouter) {
+      // Convert Priority to QETask priority format
+      const priorityMap: Record<Priority, 'low' | 'normal' | 'high' | 'critical'> = {
+        p0: 'critical',
+        p1: 'high',
+        p2: 'normal',
+        p3: 'low',
+      };
+      const classifiableTask: ClassifiableTask = {
+        description: `${task.type}: ${JSON.stringify(task.payload).slice(0, 200)}`,
+        type: task.type,
+        domain: domain as unknown as import('../learning/qe-patterns.js').QEDomain | undefined,
+        priority: priorityMap[task.priority],
+      };
+      routeDecision = await this.tinyDancerRouter.route(classifiableTask);
+
+      // Log routing decision for observability
+      if (this.config.enableMetrics) {
+        console.log(`[Queen] TinyDancer routing: ${task.type} → tier=${routeDecision.tier}, model=${routeDecision.model}, cost=$${routeDecision.estimatedCost.toFixed(4)}`);
+      }
+    }
+
+    // Spawn an agent for this task if needed, using TinyDancer-recommended tier
+    const agentType = routeDecision?.tier || 'task-worker';
     const spawnResult = await this.requestAgentSpawn(
       domain,
-      'task-worker',
-      ['task-execution', task.type]
+      agentType,
+      ['task-execution', task.type, ...(routeDecision ? [`model:${routeDecision.model}`] : [])]
     );
 
     const agentIds: string[] = [];

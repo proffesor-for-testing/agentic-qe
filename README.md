@@ -12,9 +12,9 @@
 
 **V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 48 specialized QE agents, ReasoningBank learning, HNSW vector search, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
+> **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 50 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
-🏗️ **DDD Architecture** | 🧠 **ReasoningBank Learning** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **15 QE Skills**
+🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **15 QE Skills**
 
 </div>
 
@@ -59,7 +59,8 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 
 **What V3 provides:**
 - ✅ **12 DDD Bounded Contexts**: Organized by business domain (test-generation, coverage-analysis, security-compliance, etc.)
-- ✅ **48 QE Agents**: Including Queen Coordinator for hierarchical orchestration (41 main + 7 TDD subagents)
+- ✅ **50 QE Agents**: Including Queen Coordinator for hierarchical orchestration (43 main + 7 TDD subagents)
+- ✅ **TinyDancer Model Routing**: 3-tier intelligent routing (Haiku/Sonnet/Opus) for cost optimization
 - ✅ **ReasoningBank Learning**: HNSW-indexed pattern storage with experience replay
 - ✅ **O(log n) Coverage Analysis**: Sublinear algorithms for efficient gap detection
 - ✅ **Claude Flow Integration**: Deep integration with MCP tools and swarm orchestration
@@ -76,10 +77,10 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 | **Writing comprehensive tests is tedious and time-consuming** | AI agents generate tests automatically with pattern reuse across projects |
 | **Test suites become slow and expensive at scale** | Sublinear O(log n) algorithms for coverage analysis and intelligent test selection |
 | **Flaky tests waste developer time debugging false failures** | ML-powered detection with root cause analysis and fix recommendations |
-| **AI testing tools are expensive** | Multi-model routing cuts costs by up to 70-81% by matching task complexity to model |
+| **AI testing tools are expensive** | TinyDancer 3-tier model routing reduces costs by matching task complexity to appropriate model |
 | **No memory between test runs—every analysis starts from scratch** | ReasoningBank remembers patterns, strategies, and what works for your codebase |
 | **Agents waste tokens reading irrelevant code** | Code Intelligence provides token reduction with semantic search and knowledge graphs |
-| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 48 agents across 12 domains automatically |
+| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 50 agents across 12 domains with consensus and MinCut topology |
 | **Tools don't understand your testing frameworks** | Works with Jest, Cypress, Playwright, Vitest, Mocha, Jasmine, AVA |
 
 ---
@@ -126,11 +127,12 @@ The **qe-queen-coordinator** manages the entire fleet with intelligent task dist
 ```
 
 **Capabilities:**
-- Orchestrate 48 QE agents concurrently across 12 domains
-- Intelligent task routing based on learned patterns
-- Byzantine fault-tolerant consensus for critical decisions
-- Memory-backed cross-agent communication
-- Adaptive load balancing
+- Orchestrate 50 QE agents concurrently across 12 domains
+- TinyDancer 3-tier model routing (Haiku/Sonnet/Opus) with confidence-based decisions
+- Byzantine fault-tolerant consensus for critical quality decisions
+- MinCut graph-based topology optimization for self-healing coordination
+- Memory-backed cross-agent communication with HNSW vector search
+- Work stealing with adaptive load balancing (3-5x throughput improvement)
 
 ```bash
 claude "Use qe-queen-coordinator to orchestrate release validation for v2.1.0 with 90% coverage target"
@@ -145,7 +147,7 @@ V3 agents learn and improve through the **ReasoningBank** pattern storage:
 | Component | Description |
 |-----------|-------------|
 | **Experience Storage** | Store successful patterns with confidence scores |
-| **HNSW Indexing** | Fast similarity search for pattern matching |
+| **HNSW Indexing** | Fast O(log n) similarity search for pattern matching |
 | **Experience Replay** | Learn from past successes and failures |
 | **Cross-Project Transfer** | Share patterns between projects |
 
@@ -155,6 +157,75 @@ aqe memory search --query "test patterns" --namespace learning
 
 # View learning metrics
 aqe hooks metrics --v3-dashboard
+```
+
+---
+
+### 🌙 Dream Cycles & Neural Learning
+
+V3 introduces **Dream cycles** for neural consolidation and continuous improvement:
+
+| Feature | Description |
+|---------|-------------|
+| **Dream Cycles** | Background neural consolidation (30s max) with spreading activation |
+| **9 RL Algorithms** | Q-Learning, SARSA, DQN, PPO, A2C, DDPG, Actor-Critic, Policy Gradient, Decision Transformer |
+| **SONA Integration** | Self-Optimizing Neural Architecture with <0.05ms adaptation |
+| **Novelty Scoring** | Prioritize learning from novel patterns |
+| **Concept Graphs** | Build semantic connections between quality patterns |
+
+```bash
+# Trigger dream cycle for pattern consolidation
+aqe hooks intelligence --mode dream --consolidate
+
+# View learning trajectory
+aqe hooks intelligence trajectory-start --task "optimize coverage"
+```
+
+---
+
+### 🎯 TinyDancer Intelligent Model Routing
+
+**TinyDancer** (ADR-026) provides 3-tier intelligent model routing for cost optimization:
+
+| Complexity Score | Model | Use Cases |
+|-----------------|-------|-----------|
+| **0-20** (Simple) | Haiku | Syntax fixes, type additions, simple refactors |
+| **20-70** (Moderate) | Sonnet | Bug fixes, test generation, code review |
+| **70+** (Critical) | Opus | Architecture, security, complex reasoning |
+
+**Routing Features:**
+- **Confidence-based decisions**: Routes based on task complexity analysis
+- **Automatic escalation**: Escalates to higher-tier model if confidence is low
+- **Learning from outcomes**: Improves routing based on success/failure patterns
+- **Token budget optimization**: Minimizes cost while maintaining quality
+
+```bash
+# Check model routing for a task
+aqe hooks model-route --task "fix type errors in user-service.ts"
+
+# View routing statistics
+aqe hooks model-stats
+```
+
+---
+
+### 🔐 Consensus & MinCut Coordination
+
+V3 includes advanced coordination mechanisms for reliable multi-agent decisions:
+
+| Feature | Description |
+|---------|-------------|
+| **Byzantine Consensus** | Fault-tolerant voting for critical quality decisions |
+| **MinCut Topology** | Graph-based self-healing agent coordination |
+| **Multi-Model Voting** | Aggregate decisions from multiple model tiers |
+| **Claim Verification** | Cryptographic verification of agent work claims |
+
+```bash
+# View consensus status
+aqe coordination consensus --status
+
+# Check topology health
+aqe coordination topology --optimize
 ```
 
 ---
@@ -194,17 +265,17 @@ npx @claude-flow/cli@latest agent spawn -t qe-test-architect --name test-gen
 
 ---
 
-### 📊 48 Specialized QE Agents
+### 📊 50 Specialized QE Agents
 
 | Category | Count | Highlights |
 |----------|-------|------------|
-| **Main QE Agents** | 41 | Test generation, coverage, security, performance, accessibility |
+| **Main QE Agents** | 43 | Test generation, coverage, security, performance, accessibility |
 | **TDD Subagents** | 7 | RED/GREEN/REFACTOR with code review |
 
 **V2 Backward Compatibility**: All V2 agents map to V3 equivalents automatically.
 
 <details>
-<summary><b>📋 View All Main QE Agents (41)</b></summary>
+<summary><b>📋 View All Main QE Agents (43)</b></summary>
 
 | Agent | Domain | Purpose |
 |-------|--------|---------|
@@ -249,6 +320,8 @@ npx @claude-flow/cli@latest agent spawn -t qe-test-architect --name test-gen
 | qe-qx-partner | quality-assessment | QA + UX collaboration |
 | qe-fleet-commander | coordination | Large-scale orchestration |
 | qe-integration-architect | code-intelligence | V3 integration design |
+| qe-product-factors-assessor | quality-assessment | SFDIPOT product factors analysis |
+| qe-test-idea-rewriter | test-generation | Transform passive tests to active actions |
 
 </details>
 
@@ -457,7 +530,7 @@ agentic-qe/
 │   │   ├── mcp/             # MCP server
 │   │   └── cli/             # V3 CLI
 │   ├── tests/               # 5,600+ tests
-│   └── assets/agents/       # 48 QE agent definitions (41 main + 7 subagents)
+│   └── assets/agents/       # 50 QE agent definitions (43 main + 7 subagents)
 ├── v2/                      # V2 Implementation (Legacy)
 │   ├── src/                 # V2 source code
 │   ├── tests/               # V2 tests

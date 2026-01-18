@@ -254,6 +254,7 @@ export interface InitResult {
   summary: {
     projectAnalyzed: boolean;
     configGenerated: boolean;
+    codeIntelligenceIndexed: number;
     patternsLoaded: number;
     skillsInstalled: number;
     agentsInstalled: number;

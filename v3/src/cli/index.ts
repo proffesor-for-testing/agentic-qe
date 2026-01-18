@@ -21,6 +21,7 @@ import { DefaultProtocolExecutor } from '../coordination/protocol-executor';
 import { WorkflowOrchestrator, type WorkflowDefinition, type WorkflowExecutionStatus } from '../coordination/workflow-orchestrator';
 import { DomainName, ALL_DOMAINS, Priority } from '../shared/types';
 import { InitOrchestrator, type InitOrchestratorOptions } from '../init/init-wizard';
+import { integrateCodeIntelligence, type FleetIntegrationResult } from '../init/fleet-integration';
 import {
   generateCompletion,
   detectShell,
@@ -138,7 +139,7 @@ async function autoInitialize(): Promise<void> {
     maxConcurrentAgents: 15,
     memoryBackend: 'sqlite',
     hnswEnabled: true,
-    lazyLoading: false,
+    lazyLoading: true,  // ADR-046: Enable lazy loading to reduce memory footprint (was causing OOM)
     enabledDomains: [...ALL_DOMAINS],
   });
 
@@ -3237,6 +3238,7 @@ fleetCmd
   .option('--memory <backend>', 'Memory backend (sqlite|agentdb|hybrid)', 'hybrid')
   .option('--lazy', 'Enable lazy loading', true)
   .option('--skip-patterns', 'Skip loading pre-trained patterns')
+  .option('--skip-code-scan', 'Skip code intelligence index check')
   .action(async (options) => {
     try {
       let topology = options.topology;
@@ -3245,6 +3247,25 @@ fleetCmd
       let memoryBackend = options.memory;
       let lazyLoading = options.lazy;
       let loadPatterns = !options.skipPatterns;
+
+      // CI-005: Check code intelligence index before fleet initialization
+      console.log(chalk.blue('\n 🧠 Code Intelligence Check\n'));
+      const ciResult: FleetIntegrationResult = await integrateCodeIntelligence(
+        process.cwd(),
+        {
+          skipCodeScan: options.skipCodeScan,
+          nonInteractive: !options.wizard, // Only prompt in wizard mode
+        }
+      );
+
+      // If user requested scan, exit and let them run it
+      if (!ciResult.shouldProceed) {
+        console.log(chalk.blue('\n  Please run the code intelligence scan first:'));
+        console.log(chalk.cyan('    aqe code-intelligence index\n'));
+        console.log(chalk.gray('  Then re-run fleet init when ready.\n'));
+        await cleanupAndExit(0);
+        return;
+      }
 
       // Run wizard if requested (ADR-041)
       if (options.wizard) {

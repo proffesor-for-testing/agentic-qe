@@ -39,11 +39,43 @@ npx aqe test generate src/
 
 - **50 Specialized QE Agents** - Domain-focused quality engineering agents (43 main + 7 subagents)
 - **12 DDD Bounded Contexts** - Modular, extensible architecture
+- **TinyDancer Model Routing** - 3-tier intelligent routing for cost optimization
 - **O(log n) Coverage Analysis** - Sublinear performance with HNSW indexing
-- **150x Faster Pattern Search** - HNSW-indexed vector storage
-- **ReasoningBank + SONA Learning** - Neural pattern learning and transfer
-- **Queen-led Coordination** - 3-5x throughput with work stealing
+- **Fast Pattern Search** - O(log n) HNSW-indexed vector storage
+- **ReasoningBank + SONA + Dream Cycles** - Neural pattern learning with 9 RL algorithms
+- **Queen-led Coordination** - 3-5x throughput with work stealing and consensus
+- **MinCut Topology** - Graph-based self-healing agent coordination
 - **Zero-Breaking-Changes Migration** - Full v2 backward compatibility
+
+## New in v3: Key Features
+
+### TinyDancer Intelligent Model Routing (ADR-026)
+
+3-tier intelligent model routing for cost optimization:
+
+| Complexity | Model | Use Cases |
+|------------|-------|-----------|
+| **0-20** (Simple) | Haiku | Syntax fixes, type additions |
+| **20-70** (Moderate) | Sonnet | Bug fixes, test generation |
+| **70+** (Critical) | Opus | Architecture, security |
+
+### Dream Cycles & Neural Learning
+
+Background neural consolidation for continuous improvement:
+
+- **9 RL Algorithms**: Q-Learning, SARSA, DQN, PPO, A2C, DDPG, Actor-Critic, Policy Gradient, Decision Transformer
+- **Dream Cycles**: 30s max consolidation with spreading activation
+- **SONA Integration**: Self-Optimizing Neural Architecture (<0.05ms adaptation)
+- **Novelty Scoring**: Prioritize learning from novel patterns
+
+### Consensus & MinCut Coordination
+
+Advanced coordination for reliable multi-agent decisions:
+
+- **Byzantine Consensus**: Fault-tolerant voting for critical quality decisions
+- **MinCut Topology**: Graph-based self-healing agent coordination
+- **Multi-Model Voting**: Aggregate decisions from multiple model tiers
+- **Claim Verification**: Cryptographic verification of agent work claims
 
 ## Architecture Overview
 
@@ -336,6 +368,18 @@ claude mcp add aqe -- npx agentic-qe mcp
 | `memory_retrieve` | Retrieve from memory |
 | `memory_query` | Query memory with patterns |
 | `memory_share` | Share knowledge between agents |
+| `memory_usage` | Get memory usage statistics |
+
+**New in v3:**
+
+| Tool | Description |
+|------|-------------|
+| `agent_status` | Get detailed agent status |
+| `dream_cycle` | Trigger neural consolidation |
+| `model_route` | Get optimal model routing |
+| `model_stats` | View routing statistics |
+| `consensus_status` | View consensus decisions |
+| `topology_optimize` | Optimize agent topology |
 
 ## Programmatic API
 
@@ -395,10 +439,13 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Metric | v2 | v3 | Improvement |
 |--------|----|----|-------------|
 | Coverage Analysis | O(n) | O(log n) | Sublinear |
-| Pattern Search | Linear scan | HNSW index | 150x faster |
+| Pattern Search | Linear scan | HNSW index | O(log n) vs O(n) |
+| MCP Response (P95) | ~100ms | 0.6ms | 166x faster |
 | Memory Usage | Unbounded | Quantized | 50-75% reduction |
 | Agent Coordination | Sequential | Work stealing | 3-5x throughput |
+| Model Cost | Single tier | TinyDancer 3-tier | Optimized |
 | Startup Time | ~2s | ~500ms | 4x faster |
+| Neural Adaptation | N/A | SONA | <0.05ms |
 
 ## Key Differences from v2
 
@@ -408,11 +455,12 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Test Framework | Jest | Vitest |
 | Module System | CommonJS | ESM |
 | Memory | SQLite only | HNSW + SQLite hybrid |
-| Learning | Basic patterns | ReasoningBank + SONA |
-| Agents | 32 | 48 QE agents |
+| Learning | Basic patterns | ReasoningBank + SONA + Dream Cycles |
+| Agents | 32 | 50 QE agents (43 main + 7 subagents) |
 | Coverage | O(n) | O(log n) |
-| Pattern Search | Linear | 150x faster (HNSW) |
-| Coordination | Sequential | Queen + Work Stealing |
+| Pattern Search | Linear | O(log n) HNSW indexing |
+| Coordination | Sequential | Queen + Work Stealing + Consensus |
+| Model Routing | None | TinyDancer 3-tier routing |
 | CLI | `aqe` | `aqe` |
 | Package | `agentic-qe@2` | `agentic-qe` |
 
@@ -481,9 +529,9 @@ See the [Migration Guide](./docs/MIGRATION-GUIDE.md) for detailed instructions a
 }
 ```
 
-## 48 QE Agents
+## 50 QE Agents
 
-Agentic QE includes 48 specialized quality engineering agents (41 main + 7 subagents) organized by domain:
+Agentic QE includes 50 specialized quality engineering agents (43 main + 7 subagents) organized by domain:
 
 ### Test Generation Domain
 `qe-test-architect`, `qe-tdd-specialist`, `qe-tdd-red`, `qe-tdd-green`, `qe-tdd-refactor`, `qe-property-tester`, `qe-mutation-tester`, `qe-bdd-generator`
@@ -520,6 +568,9 @@ Agentic QE includes 48 specialized quality engineering agents (41 main + 7 subag
 
 ### Coordination
 `qe-queen-coordinator`, `qe-fleet-commander`, `qe-integration-tester`, `qe-data-generator`, `qe-code-reviewer`
+
+### Additional Agents (New in v3)
+`qe-product-factors-assessor` (SFDIPOT analysis), `qe-test-idea-rewriter` (passive→active test transforms)
 
 ## Requirements
 
