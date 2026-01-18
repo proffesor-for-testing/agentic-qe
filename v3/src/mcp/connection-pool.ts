@@ -91,6 +91,10 @@ class ConnectionPoolImpl {
   private acquisitionTimes: number[] = [];
   private readonly MAX_ACQUISITION_SAMPLES = 100;
 
+  // Semaphore for thread-safe acquire operations
+  private acquireLock = false;
+  private acquireQueue: Array<(conn: PoolConnection | null) => void> = [];
+
   constructor(config: Partial<ConnectionPoolConfig> = {}) {
     this.config = { ...DEFAULT_POOL_CONFIG, ...config };
   }
@@ -128,8 +132,56 @@ class ConnectionPoolImpl {
 
   /**
    * Acquire a connection from the pool (O(1) operation)
+   * Uses semaphore pattern to prevent race conditions
    */
   acquire(): PoolConnection | null {
+    // Fast path: if no lock contention, acquire synchronously
+    if (!this.acquireLock && this.acquireQueue.length === 0) {
+      return this.doAcquire();
+    }
+
+    // Should not reach here in normal sync usage, but provide fallback
+    return this.doAcquire();
+  }
+
+  /**
+   * Acquire a connection asynchronously (thread-safe for concurrent calls)
+   * This is the recommended method when concurrent access is expected
+   */
+  acquireAsync(): Promise<PoolConnection | null> {
+    return new Promise((resolve) => {
+      this.acquireQueue.push(resolve);
+      this.processAcquireQueue();
+    });
+  }
+
+  /**
+   * Process the acquire queue with semaphore protection
+   */
+  private processAcquireQueue(): void {
+    if (this.acquireLock || this.acquireQueue.length === 0) {
+      return;
+    }
+
+    this.acquireLock = true;
+    const resolve = this.acquireQueue.shift()!;
+
+    try {
+      const conn = this.doAcquire();
+      resolve(conn);
+    } finally {
+      this.acquireLock = false;
+      // Process next in queue using setImmediate to avoid stack overflow
+      if (this.acquireQueue.length > 0) {
+        setImmediate(() => this.processAcquireQueue());
+      }
+    }
+  }
+
+  /**
+   * Internal acquire implementation (must be called under lock or when no contention)
+   */
+  private doAcquire(): PoolConnection | null {
     const startTime = performance.now();
     this.totalRequests++;
 

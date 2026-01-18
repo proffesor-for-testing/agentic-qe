@@ -184,8 +184,13 @@ interface JestJsonOutput {
 
 export class FlakyDetectorService implements IFlakyTestDetector {
   private readonly testHistory = new Map<string, TestExecutionRecord[]>();
-  private readonly analysisCache = new Map<string, FlakyAnalysis>();
+  private readonly analysisCache = new Map<string, FlakyAnalysis & { analyzedAt?: number }>();
   private readonly config: FlakyDetectorConfig;
+
+  /** Maximum number of tests to track in history */
+  private readonly MAX_TESTS_TRACKED = 10000;
+  /** Cache TTL for analysis results (1 hour) */
+  private readonly ANALYSIS_CACHE_TTL_MS = 3600000;
 
   constructor(
     private readonly memory: MemoryBackend,
@@ -253,9 +258,10 @@ export class FlakyDetectorService implements IFlakyTestDetector {
       // Analyze patterns
       const analysis = this.performPatternAnalysis(testId, history);
 
-      // Cache result
-      this.analysisCache.set(testId, analysis);
-      await this.memory.set(`flaky-analysis:${testId}`, analysis, {
+      // Cache result with timestamp
+      const cachedAnalysis = { ...analysis, analyzedAt: Date.now() };
+      this.analysisCache.set(testId, cachedAnalysis);
+      await this.memory.set(`flaky-analysis:${testId}`, cachedAnalysis, {
         namespace: 'test-execution',
         ttl: 3600000, // 1 hour
       });
@@ -346,6 +352,49 @@ export class FlakyDetectorService implements IFlakyTestDetector {
     const flakinessFactor = Math.min(failureRate, 1 - failureRate) * 2;
 
     return Math.min(1, changeRate * 0.6 + flakinessFactor * 0.4);
+  }
+
+  // ============================================================================
+  // Cleanup Methods
+  // ============================================================================
+
+  /**
+   * Clean up stale data from caches and enforce size limits.
+   * @returns Number of entries cleaned up
+   */
+  cleanup(): number {
+    const now = Date.now();
+    let cleaned = 0;
+
+    // Clean stale analysis cache entries
+    for (const [testId, analysis] of this.analysisCache) {
+      if (now - (analysis.analyzedAt ?? 0) > this.ANALYSIS_CACHE_TTL_MS) {
+        this.analysisCache.delete(testId);
+        cleaned++;
+      }
+    }
+
+    // Enforce max tests tracked (remove oldest entries)
+    if (this.testHistory.size > this.MAX_TESTS_TRACKED) {
+      const excess = this.testHistory.size - this.MAX_TESTS_TRACKED;
+      const keys = Array.from(this.testHistory.keys()).slice(0, excess);
+      for (const key of keys) {
+        this.testHistory.delete(key);
+        this.analysisCache.delete(key);
+        cleaned++;
+      }
+    }
+
+    return cleaned;
+  }
+
+  /**
+   * Dispose of all resources held by this service.
+   * Call this when the service is no longer needed.
+   */
+  destroy(): void {
+    this.testHistory.clear();
+    this.analysisCache.clear();
   }
 
   // ============================================================================

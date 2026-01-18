@@ -19,6 +19,7 @@ import type {
   TestExecutionState,
   TestExecutionAction,
 } from '../interfaces';
+import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 
 // ============================================================================
 // Decision Transformer Configuration
@@ -203,7 +204,7 @@ export class DecisionTransformerAlgorithm extends BaseRLAlgorithm {
     // Feature-based similarity
     if (trajectory.states.length > 0) {
       const lastState = trajectory.states[trajectory.states.length - 1];
-      return this.cosineSimilarity(state.features, lastState.features);
+      return cosineSimilarity(state.features, lastState.features);
     }
 
     return 0;
@@ -213,15 +214,6 @@ export class DecisionTransformerAlgorithm extends BaseRLAlgorithm {
     if (s1.id === s2.id) return true;
     if (Math.abs(s1.features[0] - s2.features[0]) < 0.1) return true;
     return false;
-  }
-
-  private cosineSimilarity(a: number[], b: number[]): number {
-    const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
-    const magnitudeA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-    const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-
-    if (magnitudeA === 0 || magnitudeB === 0) return 0;
-    return dotProduct / (magnitudeA * magnitudeB);
   }
 
   // ========================================================================

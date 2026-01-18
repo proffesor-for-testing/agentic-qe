@@ -101,7 +101,6 @@ export {
   createRoutingRule,
   mergeWithDefaultRules,
   inferComplexity,
-  getAgentCategory,
   // Milestone 8: Enhanced agent-aware routing
   getExtendedAgentCategory,
   getModelPreferenceForAgent,

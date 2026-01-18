@@ -18,13 +18,13 @@ import type { QEDomain } from '../../../src/learning/qe-patterns.js';
 
 describe('QE Agent Registry', () => {
   describe('Registry Contents', () => {
-    it('should have 92 agents total', () => {
-      expect(QE_AGENT_REGISTRY.length).toBe(92);
+    it('should have 94 agents total', () => {
+      expect(QE_AGENT_REGISTRY.length).toBe(94);
     });
 
     it('should have correct agent counts by category', () => {
       const counts = getAgentCounts();
-      expect(counts.total).toBe(92);
+      expect(counts.total).toBe(94);
       expect(counts.v3QE).toBeGreaterThanOrEqual(40);
       expect(counts.v3QESubagents).toBe(7);
       expect(counts.n8n).toBeGreaterThan(10);

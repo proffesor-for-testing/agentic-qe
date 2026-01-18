@@ -696,22 +696,6 @@ export function createTestFailureCausalGraph(
 }
 
 /**
- * Alias for backward compatibility
- * @deprecated Use createTestFailureCausalGraph instead
- */
-export function createCausalGraph(
-  config?: Partial<CausalDiscoveryConfig>
-): TestFailureCausalGraph {
-  return new TestFailureCausalGraph(config);
-}
-
-/**
- * Alias for backward compatibility with existing imports
- * @deprecated Use TestFailureCausalGraph instead
- */
-export { TestFailureCausalGraph as CausalGraph };
-
-/**
  * Create a test failure object
  */
 export function createTestFailure(

@@ -20,6 +20,7 @@
 
 import { MemoryBackend } from '../../../kernel/interfaces';
 import type { IEmbedding, EmbeddingNamespace } from '../../../integrations/embeddings/base/types';
+import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 
 // ============================================================================
 // @ruvector/gnn Integration
@@ -429,7 +430,7 @@ export class HNSWIndex implements IHNSWIndex {
 
       if (storedVector) {
         // Compute actual cosine similarity for backward compatibility
-        score = this.cosineSimilarity(query, storedVector);
+        score = cosineSimilarity(query, storedVector);
       } else {
         // Fall back to differentiable search weight conversion
         // distance = 1 - weight, so score = weight = 1 - distance
@@ -443,21 +444,6 @@ export class HNSWIndex implements IHNSWIndex {
         metadata: this.metadataStore.get(key),
       };
     });
-  }
-
-  private cosineSimilarity(a: number[], b: number[]): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-    return denominator === 0 ? 0 : dotProduct / denominator;
   }
 
   /**

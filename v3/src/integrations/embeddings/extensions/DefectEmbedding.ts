@@ -17,6 +17,7 @@ import {
   type ISearchOptions,
 } from '../base/EmbeddingGenerator.js';
 import type { IEmbeddingModelConfig } from '../base/types.js';
+import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 
 /**
  * Type guard to check if an embedding is a defect embedding
@@ -208,7 +209,7 @@ export class DefectEmbeddingGenerator extends EmbeddingGenerator {
     // Calculate similarities
     const similarities: ISimilarDefectResult[] = allDefects
       .map((defect) => {
-        const score = this.cosineSimilarity(
+        const score = cosineSimilarity(
           queryEmbedding.vector as number[],
           defect.vector as number[]
         );
@@ -266,7 +267,7 @@ export class DefectEmbeddingGenerator extends EmbeddingGenerator {
       const similarDefects = historicalDefects
         .map((defect) => ({
           defect: defect.metadata,
-          similarity: this.cosineSimilarity(
+          similarity: cosineSimilarity(
             embedding.vector as number[],
             defect.vector as number[]
           ),

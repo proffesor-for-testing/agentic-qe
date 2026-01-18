@@ -43,6 +43,8 @@ export interface IPatternLearnerService {
   getFlashAttentionStatus(): FlashAttentionStatus;
   /** Batch compute similarities using Flash Attention if available */
   batchComputeSimilarities(query: number[], corpus: number[][]): Promise<number[]>;
+  /** Dispose of all resources and clear caches */
+  destroy(): void;
 }
 
 /**
@@ -121,6 +123,9 @@ export class PatternLearnerService implements IPatternLearnerService {
   private readonly embedder: IEmbeddingProvider;
   private flashAttention: QEFlashAttention | null = null;
   private flashAttentionAvailable: boolean = false;
+
+  /** Maximum number of patterns to cache (LRU eviction) */
+  private readonly MAX_CACHED_PATTERNS = 5000;
 
   constructor(
     private readonly memory: MemoryBackend,
@@ -307,7 +312,7 @@ export class PatternLearnerService implements IPatternLearnerService {
     const stored = await this.memory.get<DefectPattern>(patternKey);
 
     if (stored) {
-      this.patternCache.set(patternId, stored);
+      this.cachePattern(stored);
       return stored;
     }
 
@@ -469,7 +474,7 @@ export class PatternLearnerService implements IPatternLearnerService {
       });
     }
 
-    this.patternCache.set(pattern.id, pattern);
+    this.cachePattern(pattern);
   }
 
   private async learnResolutions(
@@ -883,5 +888,31 @@ export class PatternLearnerService implements IPatternLearnerService {
     ].filter(Boolean);
 
     return parts.join('\n');
+  }
+
+  /**
+   * Add pattern to cache with LRU-style limit enforcement.
+   * Removes oldest entry when cache is full.
+   */
+  private cachePattern(pattern: DefectPattern): void {
+    // Enforce limit before adding
+    if (this.patternCache.size >= this.MAX_CACHED_PATTERNS) {
+      // Remove oldest (first) entry - Map maintains insertion order
+      const firstKey = this.patternCache.keys().next().value;
+      if (firstKey) {
+        this.patternCache.delete(firstKey);
+      }
+    }
+    this.patternCache.set(pattern.id, pattern);
+  }
+
+  /**
+   * Dispose of all resources and clear caches.
+   * Call this method when the service is no longer needed.
+   */
+  destroy(): void {
+    this.patternCache.clear();
+    this.flashAttention = null;
+    this.flashAttentionAvailable = false;
   }
 }

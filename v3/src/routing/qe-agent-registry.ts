@@ -7,7 +7,7 @@
  * This registry is used by the QETaskRouter to select the optimal agent for each task.
  *
  * Agent Categories:
- * - V3 QE Agents (47): Core quality engineering agents with v3-qe-* prefix
+ * - V3 QE Agents (49): Core quality engineering agents with v3-qe-* prefix (including SFDIPOT assessor and test idea rewriter)
  * - V3 QE Subagents (7): Specialized QE subagents with v3-qe-* prefix
  * - n8n Agents (15): n8n workflow testing agents
  * - General Agents (7): Versatile general-purpose agents
@@ -340,6 +340,24 @@ const v3QEAgents: QEAgentProfile[] = [
     capabilities: ['bdd', 'test-generation'],
     complexity: { min: 'medium', max: 'complex' },
     tags: ['v3', 'bdd', 'gherkin', 'cucumber'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-product-factors-assessor',
+    name: 'V3 QE Product Factors Assessor',
+    description: 'V3 QE SFDIPOT product factors analysis using James Bach\'s HTSM framework for comprehensive test strategy generation with prioritized test ideas (P0-P3) and automation fitness recommendations',
+    domains: ['requirements-validation'],
+    capabilities: ['bdd', 'test-generation', 'risk-scoring'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'sfdipot', 'htsm', 'product-factors', 'james-bach'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-test-idea-rewriter',
+    name: 'V3 QE Test Idea Rewriter',
+    description: 'V3 QE Transform passive "Verify X" test descriptions into active, observable test actions using action verbs for clearer, more testable descriptions',
+    domains: ['test-generation'],
+    capabilities: ['test-generation', 'test-quality'],
+    complexity: { min: 'simple', max: 'medium' },
+    tags: ['v3', 'test-ideas', 'rewriting', 'action-verbs', 'quality'],
   }),
   createAgentProfile({
     id: 'v3-qe-defect-predictor',

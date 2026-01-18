@@ -15,7 +15,6 @@ import {
   getInstallInstructions,
   DOMAINS,
   QE_AGENTS,
-  V3_QE_AGENTS, // Deprecated alias for backward compat
   OTHER_AGENTS,
   ALL_AGENTS,
   TASK_TYPES,
@@ -53,8 +52,6 @@ describe('Shell Completions', () => {
       expect(QE_AGENTS).toContain('qe-defect-predictor');
       expect(QE_AGENTS).toContain('qe-tdd-red');
       expect(QE_AGENTS).toContain('qe-security-scanner');
-      // V3_QE_AGENTS is deprecated but still available as alias
-      expect(V3_QE_AGENTS).toEqual(QE_AGENTS);
     });
 
     it('should have other agents including specialized ones', () => {

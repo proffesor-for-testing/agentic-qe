@@ -66,23 +66,51 @@ export const DEFAULT_UNIFIED_CONFIG: UnifiedPersistenceConfig = {
  */
 export class UnifiedPersistenceManager {
   private static instance: UnifiedPersistenceManager | null = null;
+  private static instancePromise: Promise<UnifiedPersistenceManager> | null = null;
 
   private unifiedMemory: UnifiedMemoryManager | null = null;
   private readonly config: UnifiedPersistenceConfig;
   private initialized = false;
+  private initPromise: Promise<void> | null = null;
 
   private constructor(config?: Partial<UnifiedPersistenceConfig>) {
     this.config = { ...DEFAULT_UNIFIED_CONFIG, ...config };
   }
 
   /**
-   * Get or create the singleton instance
+   * Get or create the singleton instance (synchronous).
+   * Thread-safe: JS is single-threaded for synchronous code.
    */
   static getInstance(config?: Partial<UnifiedPersistenceConfig>): UnifiedPersistenceManager {
-    if (!UnifiedPersistenceManager.instance) {
-      UnifiedPersistenceManager.instance = new UnifiedPersistenceManager(config);
+    // Synchronous return if already created
+    if (UnifiedPersistenceManager.instance) {
+      return UnifiedPersistenceManager.instance;
     }
+    // Synchronous creation - JS single-threaded execution prevents race here
+    UnifiedPersistenceManager.instance = new UnifiedPersistenceManager(config);
     return UnifiedPersistenceManager.instance;
+  }
+
+  /**
+   * Get or create the singleton instance with async initialization.
+   * Thread-safe: Uses Promise lock to prevent concurrent initialization races.
+   */
+  static async getInstanceAsync(config?: Partial<UnifiedPersistenceConfig>): Promise<UnifiedPersistenceManager> {
+    // Fast path: already fully initialized
+    if (UnifiedPersistenceManager.instance?.initialized) {
+      return UnifiedPersistenceManager.instance;
+    }
+
+    // Use Promise lock to prevent concurrent initialization
+    if (!UnifiedPersistenceManager.instancePromise) {
+      UnifiedPersistenceManager.instancePromise = (async () => {
+        const instance = UnifiedPersistenceManager.getInstance(config);
+        await instance.initialize();
+        return instance;
+      })();
+    }
+
+    return UnifiedPersistenceManager.instancePromise;
   }
 
   /**
@@ -93,14 +121,32 @@ export class UnifiedPersistenceManager {
       UnifiedPersistenceManager.instance.close();
       UnifiedPersistenceManager.instance = null;
     }
+    UnifiedPersistenceManager.instancePromise = null;
     // Also reset the underlying unified memory
     resetUnifiedMemory();
   }
 
   /**
-   * Initialize the database and create all schemas
+   * Initialize the database and create all schemas.
+   * Thread-safe: Uses Promise lock to prevent concurrent initialization races.
    */
   async initialize(): Promise<void> {
+    // Fast path: already initialized
+    if (this.initialized) return;
+
+    // Use Promise lock to prevent concurrent initialization
+    if (!this.initPromise) {
+      this.initPromise = this._doInitialize();
+    }
+
+    return this.initPromise;
+  }
+
+  /**
+   * Internal initialization implementation
+   */
+  private async _doInitialize(): Promise<void> {
+    // Double-check after acquiring promise lock
     if (this.initialized) return;
 
     try {
@@ -120,6 +166,8 @@ export class UnifiedPersistenceManager {
       this.initialized = true;
       console.log(`[UnifiedPersistence] Initialized via UnifiedMemoryManager: ${this.config.dbPath}`);
     } catch (error) {
+      // Allow retry on failure by clearing the promise
+      this.initPromise = null;
       throw new Error(
         `Failed to initialize UnifiedPersistenceManager: ${error instanceof Error ? error.message : String(error)}`
       );
@@ -244,3 +292,40 @@ export async function initializeUnifiedPersistence(
 export function resetUnifiedPersistence(): void {
   UnifiedPersistenceManager.resetInstance();
 }
+
+// ============================================================================
+// Process Exit Handlers - Ensure cleanup on process exit
+// ============================================================================
+
+let exitHandlersRegistered = false;
+
+function registerExitHandlers(): void {
+  if (exitHandlersRegistered) return;
+  exitHandlersRegistered = true;
+
+  const cleanup = (): void => {
+    try {
+      const instance = UnifiedPersistenceManager['instance'];
+      if (instance) {
+        instance.close();
+      }
+    } catch {
+      // Ignore errors during cleanup
+    }
+  };
+
+  process.on('beforeExit', cleanup);
+
+  process.on('SIGINT', () => {
+    cleanup();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', () => {
+    cleanup();
+    process.exit(0);
+  });
+}
+
+// Register exit handlers when module is loaded
+registerExitHandlers();

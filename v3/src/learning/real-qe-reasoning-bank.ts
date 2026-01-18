@@ -50,6 +50,7 @@ import {
 } from './qe-guidance.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
+import { CircularBuffer } from '../shared/utils/circular-buffer.js';
 
 // ============================================================================
 // Configuration
@@ -189,14 +190,17 @@ export class RealQEReasoningBank {
   private patternIdMap: Map<number, string> = new Map();
   private initialized = false;
 
-  // Statistics tracking
+  // Statistics tracking - using CircularBuffer for O(1) operations (ADR memory leak fix)
   private stats = {
     routingRequests: 0,
     totalRoutingLatency: 0,
-    routingLatencies: [] as number[],
     learningOutcomes: 0,
     successfulOutcomes: 0,
   };
+
+  // Separate CircularBuffer for routing latencies - prevents O(n) shift() calls
+  // and bounds memory to exactly 1000 entries
+  private routingLatencies = new CircularBuffer<number>(1000);
 
   // QE Agent capability mapping
   private readonly agentCapabilities: Record<string, {
@@ -600,12 +604,8 @@ export class RealQEReasoningBank {
 
       const latencyMs = performance.now() - startTime;
       this.stats.totalRoutingLatency += latencyMs;
-      this.stats.routingLatencies.push(latencyMs);
-
-      // Keep only last 1000 latencies for P95 calculation
-      if (this.stats.routingLatencies.length > 1000) {
-        this.stats.routingLatencies.shift();
-      }
+      // CircularBuffer handles bounded size automatically - O(1) operation
+      this.routingLatencies.push(latencyMs);
 
       return ok({
         recommendedAgent: recommended.agent,
@@ -702,10 +702,8 @@ export class RealQEReasoningBank {
 
     const sqliteStats = this.sqliteStore.getStats();
 
-    // Calculate P95 latency
-    const sortedLatencies = [...this.stats.routingLatencies].sort((a, b) => a - b);
-    const p95Index = Math.floor(sortedLatencies.length * 0.95);
-    const p95Latency = sortedLatencies[p95Index] || 0;
+    // Calculate P95 latency using CircularBuffer's percentile method
+    const p95Latency = this.routingLatencies.percentile(95) || 0;
 
     const byDomain: Record<QEDomain, number> = {} as Record<QEDomain, number>;
     for (const domain of QE_DOMAIN_LIST) {
@@ -818,16 +816,99 @@ export class RealQEReasoningBank {
     }
   }
 
+  // ============================================================================
+  // Memory Management (ADR Memory Leak Fixes)
+  // ============================================================================
+
   /**
-   * Dispose and cleanup
+   * Clean up stale patternIdMap entries that reference deleted patterns.
+   * Call this periodically to prevent memory leaks from deleted patterns.
+   *
+   * Note: HNSW doesn't support true deletion, but we can at least clean
+   * the patternIdMap to prevent it from growing unbounded.
+   *
+   * @returns Number of stale entries removed
+   */
+  cleanupPatternIdMap(): number {
+    if (!this.initialized) return 0;
+
+    let cleaned = 0;
+
+    // Get all valid pattern IDs from SQLite storage
+    const allPatterns = this.sqliteStore.getPatterns({ limit: 100000 });
+    const validPatternIds = new Set(allPatterns.map(p => p.id));
+
+    // Remove entries that reference non-existent patterns
+    for (const [hnswIdx, patternId] of Array.from(this.patternIdMap.entries())) {
+      if (!validPatternIds.has(patternId)) {
+        this.patternIdMap.delete(hnswIdx);
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      console.log(`[RealQEReasoningBank] Cleaned ${cleaned} stale patternIdMap entries`);
+    }
+
+    return cleaned;
+  }
+
+  /**
+   * Remove a pattern from the HNSW index mapping.
+   * Note: HNSW doesn't support true deletion, so we just remove from mapping.
+   * The orphaned HNSW entry will be ignored in search results.
+   *
+   * @param patternId - Pattern ID to remove from mapping
+   * @returns true if found and removed, false otherwise
+   */
+  removePatternFromHNSW(patternId: string): boolean {
+    for (const [hnswIdx, id] of Array.from(this.patternIdMap.entries())) {
+      if (id === patternId) {
+        this.patternIdMap.delete(hnswIdx);
+        console.log(`[RealQEReasoningBank] Removed pattern ${patternId} from HNSW mapping`);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Get memory usage statistics for monitoring
+   */
+  getMemoryStats(): {
+    patternIdMapSize: number;
+    routingLatenciesSize: number;
+    hnswIndexCount: number;
+  } {
+    return {
+      patternIdMapSize: this.patternIdMap.size,
+      routingLatenciesSize: this.routingLatencies.length,
+      hnswIndexCount: this.hnswIndex?.getCurrentCount() ?? 0,
+    };
+  }
+
+  /**
+   * Dispose and cleanup all resources
    */
   async dispose(): Promise<void> {
     this.sqliteStore.close();
     clearEmbeddingCache();
     this.hnswIndex = null;
     this.patternIdMap.clear();
+    this.routingLatencies.clear();
+    this.stats.routingRequests = 0;
+    this.stats.totalRoutingLatency = 0;
+    this.stats.learningOutcomes = 0;
+    this.stats.successfulOutcomes = 0;
     this.initialized = false;
     console.log('[RealQEReasoningBank] Disposed');
+  }
+
+  /**
+   * Alias for dispose() for consistency with other components
+   */
+  async destroy(): Promise<void> {
+    return this.dispose();
   }
 }
 

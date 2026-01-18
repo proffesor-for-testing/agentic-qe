@@ -1,6 +1,7 @@
 /**
  * Agentic QE v3 - Time Crystal CI/CD Coordination
  * ADR-047: MinCut Self-Organizing QE Integration - Phase 4
+ * ADR-032: Kuramoto CPG oscillators for self-sustaining scheduling (INTEGRATED)
  *
  * Implements temporal patterns for CI/CD optimization using time crystal concepts.
  * The system identifies periodic patterns in build/test execution, predicts optimal
@@ -11,11 +12,13 @@
  * - TimeCrystalPhase: Periodic patterns in CI/CD execution
  * - CrystalLattice: Network of temporal dependencies between tests
  * - TimeCrystalController: Orchestrates temporal coordination
+ * - KuramotoCPG: Self-sustaining oscillator-based scheduler (from kuramoto-cpg.ts)
  *
  * Integration Points:
  * - StrangeLoopController: Feedback for self-healing decisions
  * - MinCutHealthMonitor: Health metrics for stability assessment
- * - CausalGraph: Failure prediction and prevention
+ * - TestFailureCausalGraph: Failure prediction and prevention
+ * - KuramotoCPG: Self-sustaining phase transitions without external timers
  *
  * Reference: RuVector Time Crystal Pattern (time_crystal.rs)
  */
@@ -25,7 +28,29 @@ import { DomainEvent, DomainName } from '../../shared/types';
 import { EventBus } from '../../kernel/interfaces';
 import type { StrangeLoopController } from './strange-loop';
 import type { MinCutHealthMonitor } from './mincut-health-monitor';
-import type { CausalGraph, TestFailure } from './causal-discovery';
+import type { TestFailureCausalGraph } from './causal-discovery';
+
+// Re-export all Kuramoto CPG types and classes for convenience
+export {
+  OscillatorState,
+  CPGConfig,
+  DEFAULT_CPG_CONFIG,
+  PRODUCTION_CPG_CONFIG,
+  TestPhaseType,
+  PhaseQualityThresholds,
+  PhaseAgentConfig,
+  CPGTestPhase,
+  CPGPhaseTransition,
+  CPGPhaseResult,
+  DEFAULT_CPG_TEST_PHASES,
+  OscillatorNeuron,
+  computeOrderParameter,
+  createEvenlySpacedOscillators,
+  buildRingCouplingMatrix,
+  KuramotoCPG,
+  createKuramotoCPG,
+  createProductionKuramotoCPG,
+} from './kuramoto-cpg';
 
 /** Domain name for time crystal events */
 const TIME_CRYSTAL_SOURCE: DomainName = 'coordination';
@@ -326,7 +351,12 @@ export type TimeCrystalEventType =
   | 'crystal.attractor.changed'
   | 'crystal.anomaly.detected'
   | 'crystal.optimization.applied'
-  | 'crystal.stabilization.applied';
+  | 'crystal.stabilization.applied'
+  | 'crystal.cpg.tick'
+  | 'crystal.cpg.transition'
+  | 'crystal.cpg.started'
+  | 'crystal.cpg.stopped'
+  | 'crystal.cpg.repair';
 
 // ============================================================================
 // Time Crystal Controller Implementation
@@ -343,7 +373,7 @@ export class TimeCrystalController {
   private readonly eventBus?: EventBus;
   private readonly strangeLoop?: StrangeLoopController;
   private readonly healthMonitor?: MinCutHealthMonitor;
-  private readonly causalGraph?: CausalGraph;
+  private readonly causalGraph?: TestFailureCausalGraph;
 
   // State
   private running = false;
@@ -369,7 +399,7 @@ export class TimeCrystalController {
     eventBus?: EventBus,
     strangeLoop?: StrangeLoopController,
     healthMonitor?: MinCutHealthMonitor,
-    causalGraph?: CausalGraph
+    causalGraph?: TestFailureCausalGraph
   ) {
     this.config = { ...DEFAULT_TIME_CRYSTAL_CONFIG, ...config };
     this.eventBus = eventBus;
@@ -447,8 +477,7 @@ export class TimeCrystalController {
     }
 
     // PREDICT: Forecast next phase based on history
-    const prediction = this.predictPhase();
-    observation.predictedNextPhase;
+    this.predictPhase();
 
     // OPTIMIZE: Adjust scheduling if auto-optimize is enabled
     if (this.config.autoOptimize) {
@@ -1169,7 +1198,7 @@ export class TimeCrystalController {
   /**
    * Rebuild the lattice from causal graph
    */
-  rebuildLatticeFromCausalGraph(): void {
+  rebuildLatticeFromTestFailureCausalGraph(): void {
     if (!this.causalGraph) return;
 
     const failures = this.causalGraph.getAllFailures();
@@ -1309,7 +1338,7 @@ export function createTimeCrystalController(
   eventBus?: EventBus,
   strangeLoop?: StrangeLoopController,
   healthMonitor?: MinCutHealthMonitor,
-  causalGraph?: CausalGraph
+  causalGraph?: TestFailureCausalGraph
 ): TimeCrystalController {
   return new TimeCrystalController(config, eventBus, strangeLoop, healthMonitor, causalGraph);
 }

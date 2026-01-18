@@ -6,6 +6,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
+import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 import { TimeRange } from '../../../shared/value-objects/index.js';
 import {
   LearnedPattern,
@@ -198,27 +199,6 @@ export class LearningCoordinatorService
       this.flashAttention.dispose();
       this.flashAttention = null;
     }
-  }
-
-  /**
-   * Standard cosine similarity for internal pattern matching.
-   */
-  private cosineSimilarity(a: number[], b: number[]): number {
-    const len = Math.min(a.length, b.length);
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < len; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-    if (denominator === 0) return 0;
-
-    return (dotProduct / denominator + 1) / 2; // Normalize to [0, 1]
   }
 
   // ============================================================================

@@ -38,8 +38,6 @@ import {
   IPatternMatchingService,
   PatternMatcherConfig,
 } from './services/pattern-matcher';
-// TestGenerationEvents imported for future event publishing enhancements
-// import { TestGenerationEvents } from '../../shared/events/domain-events';
 
 /**
  * Plugin configuration options

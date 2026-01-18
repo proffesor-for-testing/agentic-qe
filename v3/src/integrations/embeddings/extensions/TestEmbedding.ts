@@ -19,6 +19,7 @@ import {
   type ISearchOptions,
 } from '../base/EmbeddingGenerator.js';
 import type { IEmbeddingModelConfig } from '../base/types.js';
+import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 
 /**
  * Type guard to check if an embedding is a test case embedding
@@ -177,7 +178,7 @@ export class TestEmbeddingGenerator extends EmbeddingGenerator {
     // Calculate similarities
     const similarities: ISimilarTestResult[] = filteredTests
       .map((test) => {
-        const score = this.cosineSimilarity(
+        const score = cosineSimilarity(
           queryEmbedding.vector as number[],
           test.vector as number[]
         );
@@ -211,7 +212,7 @@ export class TestEmbeddingGenerator extends EmbeddingGenerator {
 
     for (let i = 0; i < allTests.length; i++) {
       for (let j = i + 1; j < allTests.length; j++) {
-        const score = this.cosineSimilarity(
+        const score = cosineSimilarity(
           allTests[i].vector as number[],
           allTests[j].vector as number[]
         );

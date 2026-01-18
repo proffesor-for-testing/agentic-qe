@@ -29,7 +29,7 @@ describe('QE Task Router', () => {
       const stats = router.getStats();
       expect(stats.initialized).toBe(true);
       // Agent count updated to match current QE_AGENT_REGISTRY size
-      expect(stats.agentCount).toBe(92);
+      expect(stats.agentCount).toBe(94);
     });
 
     it('should be idempotent', async () => {

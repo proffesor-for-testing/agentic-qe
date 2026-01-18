@@ -90,9 +90,6 @@ export const QE_AGENTS = [
   'qe-security-reviewer',
 ] as const;
 
-/** @deprecated Use QE_AGENTS instead */
-export const V3_QE_AGENTS = QE_AGENTS;
-
 /**
  * General and specialized agent types
  */
@@ -1213,9 +1210,6 @@ $script:AQE_DOMAINS = @(
 $script:AQE_QE_AGENTS = @(
     ${QE_AGENTS.map(a => `'${a}'`).join(',\n    ')}
 )
-
-# Deprecated: Use $script:AQE_QE_AGENTS instead
-$script:AQE_V3_QE_AGENTS = $script:AQE_QE_AGENTS
 
 $script:AQE_OTHER_AGENTS = @(
     ${OTHER_AGENTS.map(a => `'${a}'`).join(',\n    ')}

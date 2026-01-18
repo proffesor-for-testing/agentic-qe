@@ -295,7 +295,13 @@ export class StdioTransport {
   private write(data: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const message = data + '\n';
+      const writeTimeout = setTimeout(() => {
+        this.metrics.errors++;
+        reject(new Error('Transport write timeout after 30 seconds'));
+      }, 30000);
+
       this.outputStream.write(message, 'utf-8', (error) => {
+        clearTimeout(writeTimeout);
         if (error) {
           this.metrics.errors++;
           reject(error);

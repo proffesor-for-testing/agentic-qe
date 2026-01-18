@@ -24,7 +24,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { DomainName } from '../../shared/types';
 import { SwarmGraph } from './swarm-graph';
 import { MinCutCalculator, createMinCutCalculator } from './mincut-calculator';
-import { CausalGraph } from './causal-discovery';
+import { TestFailureCausalGraph } from './causal-discovery';
 import { StrangeLoopController } from './strange-loop';
 import { WeakVertex, SwarmVertex } from './interfaces';
 
@@ -510,7 +510,7 @@ export class MorphogeneticController {
   private readonly fieldManager: MorphogeneticFieldManager;
   private readonly calculator: MinCutCalculator;
   private readonly graph: SwarmGraph;
-  private readonly causalGraph?: CausalGraph;
+  private readonly causalGraph?: TestFailureCausalGraph;
   private readonly strangeLoop?: StrangeLoopController;
 
   private seeds: Map<string, TestSeed> = new Map();
@@ -523,7 +523,7 @@ export class MorphogeneticController {
   constructor(
     graph: SwarmGraph,
     config: Partial<MorphogeneticConfig> = {},
-    causalGraph?: CausalGraph,
+    causalGraph?: TestFailureCausalGraph,
     strangeLoop?: StrangeLoopController
   ) {
     this.config = { ...DEFAULT_MORPHOGENETIC_CONFIG, ...config };
@@ -1287,7 +1287,7 @@ export class MorphogeneticController {
 export function createMorphogeneticController(
   graph: SwarmGraph,
   config?: Partial<MorphogeneticConfig>,
-  causalGraph?: CausalGraph,
+  causalGraph?: TestFailureCausalGraph,
   strangeLoop?: StrangeLoopController
 ): MorphogeneticController {
   return new MorphogeneticController(graph, config, causalGraph, strangeLoop);

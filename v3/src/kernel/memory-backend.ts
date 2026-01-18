@@ -4,6 +4,7 @@
  */
 
 import { MemoryBackend, StoreOptions, VectorSearchResult } from './interfaces';
+import { cosineSimilarity } from '../shared/utils/vector-math.js';
 
 interface StoredEntry {
   value: unknown;
@@ -95,7 +96,7 @@ export class InMemoryBackend implements MemoryBackend {
     const results: VectorSearchResult[] = [];
 
     for (const [key, entry] of this.vectors.entries()) {
-      const score = this.cosineSimilarity(embedding, entry.embedding);
+      const score = cosineSimilarity(embedding, entry.embedding);
       results.push({ key, score, metadata: entry.metadata });
     }
 
@@ -115,25 +116,6 @@ export class InMemoryBackend implements MemoryBackend {
 
   private buildKey(key: string, namespace?: string): string {
     return namespace ? `${namespace}:${key}` : key;
-  }
-
-  private cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length) {
-      throw new Error('Vectors must have same dimension');
-    }
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-    return denominator === 0 ? 0 : dotProduct / denominator;
   }
 
   private cleanup(): void {

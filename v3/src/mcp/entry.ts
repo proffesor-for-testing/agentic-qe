@@ -43,16 +43,21 @@ async function main(): Promise<void> {
   // Suppress stderr output in MCP mode (stdio expects clean JSON-RPC)
   // This must come AFTER the startup message for Claude Code health checks
   const originalStderrWrite = process.stderr.write.bind(process.stderr);
+  // Allow more message types through for better debugging
+  const allowedPatterns = ['FATAL', '[MCP]', 'ERROR', 'WARN', '[AQE]', 'Deprecation'];
   process.stderr.write = ((chunk: string | Uint8Array): boolean => {
-    // Only write to stderr if it looks like important error info
-    if (typeof chunk === 'string' && (chunk.includes('FATAL') || chunk.includes('[MCP]'))) {
-      return originalStderrWrite(chunk);
+    // Only write to stderr if it matches allowed patterns
+    if (typeof chunk === 'string') {
+      if (allowedPatterns.some(pattern => chunk.includes(pattern))) {
+        return originalStderrWrite(chunk);
+      }
     }
     return true;
   }) as typeof process.stderr.write;
 
   try {
     // ADR-042: Initialize token tracking and optimization
+    originalStderrWrite('[MCP] Initializing token tracking...\n');
     await bootstrapTokenTracking({
       enableOptimization: true,
       enablePersistence: true,
@@ -60,10 +65,12 @@ async function main(): Promise<void> {
     });
 
     // Start the MCP server
+    originalStderrWrite('[MCP] Starting server...\n');
     server = await quickStart({
       name: 'agentic-qe-v3',
       version,
     });
+    originalStderrWrite('[MCP] Ready\n');
 
     // Keep the process alive - the server listens on stdin
     // The process will exit when stdin closes or SIGINT/SIGTERM is received

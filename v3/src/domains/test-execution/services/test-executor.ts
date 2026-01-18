@@ -81,6 +81,11 @@ export class TestExecutorService implements ITestExecutionService {
   private readonly runStats = new Map<string, ExecutionStats>();
   private readonly config: TestExecutorConfig;
 
+  /** Maximum number of results to retain in memory */
+  private readonly MAX_RESULTS = 1000;
+  /** Retention period for old results (24 hours) */
+  private readonly RESULT_RETENTION_MS = 86400000;
+
   constructor(
     private readonly memory: MemoryBackend,
     config: Partial<TestExecutorConfig> = {}
@@ -253,6 +258,52 @@ export class TestExecutorService implements ITestExecutionService {
     }
 
     return err(new Error(`Test stats not found: ${runId}`));
+  }
+
+  // ============================================================================
+  // Cleanup Methods
+  // ============================================================================
+
+  /**
+   * Clean up old test results based on retention policy and size limits.
+   * @returns Number of entries cleaned up
+   */
+  cleanupOldResults(): number {
+    const now = Date.now();
+    let cleaned = 0;
+
+    // Remove results older than retention period
+    for (const [runId, result] of this.runResults) {
+      const resultTime = result.duration ? now - result.duration : now;
+      if (now - resultTime > this.RESULT_RETENTION_MS) {
+        this.runResults.delete(runId);
+        this.runStats.delete(runId);
+        cleaned++;
+      }
+    }
+
+    // Enforce maximum size limit by removing oldest entries
+    if (this.runResults.size > this.MAX_RESULTS) {
+      const excess = this.runResults.size - this.MAX_RESULTS;
+      const entries = Array.from(this.runResults.entries());
+
+      for (let i = 0; i < excess && i < entries.length; i++) {
+        this.runResults.delete(entries[i][0]);
+        this.runStats.delete(entries[i][0]);
+        cleaned++;
+      }
+    }
+
+    return cleaned;
+  }
+
+  /**
+   * Dispose of all resources held by this service.
+   * Call this when the service is no longer needed.
+   */
+  destroy(): void {
+    this.runResults.clear();
+    this.runStats.clear();
   }
 
   // ============================================================================

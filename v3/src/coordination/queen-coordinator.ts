@@ -22,6 +22,7 @@ import {
   AgentStatus,
   Severity,
 } from '../shared/types';
+import { CircularBuffer } from '../shared/utils/circular-buffer.js';
 import {
   EventBus,
   AgentCoordinator,
@@ -298,6 +299,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   private initialized = false;
   private workStealingTimer: NodeJS.Timeout | null = null;
   private metricsTimer: NodeJS.Timeout | null = null;
+  private cleanupTimer: NodeJS.Timeout | null = null;
   private startTime: Date = new Date();
 
   // Store subscription IDs for proper cleanup (PAP-003 memory leak fix)
@@ -313,7 +315,9 @@ export class QueenCoordinator implements IQueenCoordinator {
   private tasksCompleted = 0;
   private tasksFailed = 0;
   private tasksStolen = 0;
-  private taskDurations: number[] = [];
+  // MEM-001 FIX: Use CircularBuffer instead of array to avoid O(n) shift() operations
+  // CircularBuffer provides O(1) push with automatic oldest-entry overwrite
+  private taskDurations = new CircularBuffer<number>(1000);
   private protocolsExecuted = 0;
   private workflowsExecuted = 0;
 
@@ -379,6 +383,13 @@ export class QueenCoordinator implements IQueenCoordinator {
       this.startMetricsCollection();
     }
 
+    // MEM-002 FIX: Start automatic cleanup of completed/failed tasks to prevent memory leak
+    // Tasks map accumulates indefinitely without cleanup - run every 5 minutes, retain for 1 hour
+    this.cleanupTimer = setInterval(() => {
+      this.cleanupCompletedTasks(3600000); // 1 hour retention
+    }, 300000); // Run every 5 minutes
+    this.cleanupTimer.unref(); // Don't block process exit
+
     // Load persisted state
     await this.loadState();
 
@@ -411,6 +422,11 @@ export class QueenCoordinator implements IQueenCoordinator {
     if (this.metricsTimer) {
       clearInterval(this.metricsTimer);
       this.metricsTimer = null;
+    }
+    // MEM-002 FIX: Clear the cleanup timer to prevent memory leaks
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
     }
 
     // ADR-047: Dispose MinCut bridge
@@ -822,9 +838,9 @@ export class QueenCoordinator implements IQueenCoordinator {
     const activeAgents = agents.filter(a => a.status === 'running').length;
     const agentUtilization = agents.length > 0 ? activeAgents / agents.length : 0;
 
-    const avgDuration = this.taskDurations.length > 0
-      ? this.taskDurations.reduce((a, b) => a + b, 0) / this.taskDurations.length
-      : 0;
+    // MEM-001 FIX: Use CircularBuffer's average() method for O(n) calculation
+    // instead of array reduce which requires O(n) space for intermediate results
+    const avgDuration = this.taskDurations.average();
 
     const baseMetrics: QueenMetrics = {
       tasksReceived: this.tasksReceived,
@@ -966,12 +982,9 @@ export class QueenCoordinator implements IQueenCoordinator {
       });
 
       this.tasksCompleted++;
+      // MEM-001 FIX: CircularBuffer automatically handles fixed-size limit
+      // No need for manual shift() - O(1) push vs O(n) shift()
       this.taskDurations.push(duration);
-
-      // Keep only last 1000 durations for averaging
-      if (this.taskDurations.length > 1000) {
-        this.taskDurations.shift();
-      }
 
       // SEC-003 Simplified: Log task completion
       this.auditLogger.logComplete(taskId, execution.assignedAgents[0]);
@@ -1300,6 +1313,44 @@ export class QueenCoordinator implements IQueenCoordinator {
       source: 'queen-coordinator' as DomainName,
       payload,
     });
+  }
+
+  /**
+   * MEM-002 FIX: Clean up completed/failed/cancelled tasks older than retention period
+   * Prevents memory leak from tasks Map accumulating indefinitely.
+   * Should be called periodically via cleanupTimer or manually for immediate cleanup.
+   *
+   * @param retentionMs - How long to retain completed tasks (default: 1 hour)
+   * @returns Number of tasks cleaned up
+   */
+  cleanupCompletedTasks(retentionMs: number = 3600000): number {
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [taskId, execution] of this.tasks) {
+      // Only clean up terminal states
+      if (
+        execution.status === 'completed' ||
+        execution.status === 'failed' ||
+        execution.status === 'cancelled'
+      ) {
+        // Use completedAt if available, otherwise startedAt, otherwise skip
+        const completedTime = execution.completedAt?.getTime() ||
+          execution.startedAt?.getTime() ||
+          0;
+
+        if (completedTime > 0 && now - completedTime > retentionMs) {
+          this.tasks.delete(taskId);
+          cleaned++;
+        }
+      }
+    }
+
+    if (cleaned > 0) {
+      console.log(`[QueenCoordinator] Cleaned up ${cleaned} old tasks (retention: ${retentionMs}ms)`);
+    }
+
+    return cleaned;
   }
 }
 

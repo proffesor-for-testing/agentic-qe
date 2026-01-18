@@ -16,6 +16,7 @@ import {
   type IEmbeddingOptions,
 } from '../base/EmbeddingGenerator.js';
 import type { IEmbeddingModelConfig } from '../base/types.js';
+import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 
 /**
  * Type guard to check if an embedding is a coverage embedding
@@ -205,7 +206,7 @@ export class CoverageEmbeddingGenerator extends EmbeddingGenerator {
     const similarities = allCoverages
       .map((emb) => ({
         coverage: emb.metadata,
-        similarity: this.cosineSimilarity(
+        similarity: cosineSimilarity(
           queryEmbedding.vector as number[],
           emb.vector as number[]
         ),

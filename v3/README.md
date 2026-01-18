@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-> Domain-Driven Quality Engineering with 12 Bounded Contexts, 48 Specialized QE Agents (41 main + 7 subagents), ReasoningBank Learning, and HNSW Vector Search
+> Domain-Driven Quality Engineering with 12 Bounded Contexts, 50 Specialized QE Agents (43 main + 7 subagents), ReasoningBank Learning, and HNSW Vector Search
 
 ## Quick Start
 
@@ -37,7 +37,7 @@ npx aqe test generate src/
 
 ## Why Agentic QE?
 
-- **48 Specialized QE Agents** - Domain-focused quality engineering agents (41 main + 7 subagents)
+- **50 Specialized QE Agents** - Domain-focused quality engineering agents (43 main + 7 subagents)
 - **12 DDD Bounded Contexts** - Modular, extensible architecture
 - **O(log n) Coverage Analysis** - Sublinear performance with HNSW indexing
 - **150x Faster Pattern Search** - HNSW-indexed vector storage

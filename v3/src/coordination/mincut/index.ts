@@ -153,15 +153,10 @@ export type { StrangeLoopConfig } from './strange-loop';
 // ============================================================================
 
 export {
-  // Primary exports (prefer these for new code)
   TestFailureCausalGraph,
   createTestFailureCausalGraph,
   createTestFailure,
   DEFAULT_CAUSAL_DISCOVERY_CONFIG,
-
-  // Backward compatibility aliases (deprecated)
-  CausalGraph,
-  createCausalGraph,
 } from './causal-discovery';
 
 export type {

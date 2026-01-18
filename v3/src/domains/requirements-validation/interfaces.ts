@@ -301,3 +301,308 @@ export interface ValidationBlocker {
   readonly reason: string;
   readonly severity: 'critical' | 'high' | 'medium';
 }
+
+// ============================================================================
+// SFDIPOT Product Factors Assessment (James Bach's HTSM)
+// ============================================================================
+
+/**
+ * SFDIPOT Category - The 7 Product Factors
+ */
+export type SFDIPOTCategory =
+  | 'structure'
+  | 'function'
+  | 'data'
+  | 'interfaces'
+  | 'platform'
+  | 'operations'
+  | 'time';
+
+/**
+ * Test idea priority levels
+ */
+export type TestPriority = 'p0' | 'p1' | 'p2' | 'p3';
+
+/**
+ * Automation fitness recommendation
+ */
+export type AutomationFitness =
+  | 'unit'
+  | 'integration'
+  | 'e2e'
+  | 'human-exploration'
+  | 'performance'
+  | 'security';
+
+/**
+ * Generated test idea from SFDIPOT analysis
+ */
+export interface TestIdea {
+  readonly id: string;
+  readonly description: string;
+  readonly category: SFDIPOTCategory;
+  readonly subcategory: string;
+  readonly priority: TestPriority;
+  readonly automationFitness: AutomationFitness;
+  readonly reference?: string;
+  readonly humanReason?: string; // Required when automationFitness is 'human-exploration'
+}
+
+/**
+ * Clarifying question surfaced during SFDIPOT analysis
+ */
+export interface ClarifyingQuestion {
+  readonly id: string;
+  readonly question: string;
+  readonly category: SFDIPOTCategory;
+  readonly severity: 'critical' | 'high' | 'medium' | 'low';
+  readonly context: string;
+  readonly suggestedAnswer?: string;
+}
+
+/**
+ * SFDIPOT category analysis result
+ */
+export interface CategoryAnalysis {
+  readonly category: SFDIPOTCategory;
+  readonly coveragePercentage: number;
+  readonly subcategoriesAnalyzed: string[];
+  readonly testIdeasGenerated: number;
+  readonly entitiesDetected: string[];
+  readonly riskFactors: string[];
+}
+
+/**
+ * Domain detection result
+ */
+export interface DomainDetection {
+  readonly domain: string;
+  readonly confidence: number;
+  readonly requiredPatterns: string[];
+  readonly riskWeights: Record<SFDIPOTCategory, number>;
+}
+
+/**
+ * Priority distribution metrics
+ */
+export interface PriorityDistribution {
+  readonly p0: number;
+  readonly p1: number;
+  readonly p2: number;
+  readonly p3: number;
+}
+
+/**
+ * Automation fitness distribution metrics
+ */
+export interface AutomationDistribution {
+  readonly unit: number;
+  readonly integration: number;
+  readonly e2e: number;
+  readonly humanExploration: number;
+  readonly performance: number;
+  readonly security: number;
+}
+
+/**
+ * Complete SFDIPOT assessment result
+ */
+export interface SFDIPOTAssessment {
+  readonly id: string;
+  readonly epicId: string;
+  readonly epicTitle: string;
+  readonly timestamp: Date;
+  readonly qualityScore: number;
+  readonly testIdeas: TestIdea[];
+  readonly clarifyingQuestions: ClarifyingQuestion[];
+  readonly categoryAnalysis: CategoryAnalysis[];
+  readonly domainDetection: DomainDetection;
+  readonly priorityDistribution: PriorityDistribution;
+  readonly automationDistribution: AutomationDistribution;
+  readonly outputFormats: ('html' | 'json' | 'markdown' | 'gherkin')[];
+}
+
+/**
+ * SFDIPOT assessment configuration
+ */
+export interface SFDIPOTConfig {
+  readonly maxTestIdeasPerSubcategory: number;
+  readonly minQualityScore: number;
+  readonly enableBrutalHonesty: boolean;
+  readonly outputFormats: ('html' | 'json' | 'markdown' | 'gherkin')[];
+  readonly domainHints?: string[];
+  readonly priorityOverrides?: Partial<Record<SFDIPOTCategory, TestPriority>>;
+}
+
+/**
+ * Assessment input document types
+ */
+export interface AssessmentInput {
+  readonly epics?: Epic[];
+  readonly userStories?: UserStory[];
+  readonly functionalSpecs?: FunctionalSpec[];
+  readonly architectureDocs?: ArchitectureDoc[];
+  readonly codebaseUrl?: string;
+  readonly websiteUrl?: string;
+}
+
+export interface Epic {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  readonly userStories: UserStory[];
+  readonly acceptanceCriteria: string[];
+}
+
+export interface UserStory {
+  readonly id: string;
+  readonly title: string;
+  readonly asA: string;
+  readonly iWant: string;
+  readonly soThat: string;
+  readonly acceptanceCriteria: string[];
+}
+
+export interface FunctionalSpec {
+  readonly id: string;
+  readonly title: string;
+  readonly sections: SpecSection[];
+}
+
+export interface SpecSection {
+  readonly heading: string;
+  readonly content: string;
+  readonly subsections?: SpecSection[];
+}
+
+export interface ArchitectureDoc {
+  readonly id: string;
+  readonly title: string;
+  readonly components: ComponentSpec[];
+  readonly integrations: IntegrationSpec[];
+}
+
+export interface ComponentSpec {
+  readonly name: string;
+  readonly type: string;
+  readonly description: string;
+  readonly dependencies: string[];
+}
+
+export interface IntegrationSpec {
+  readonly source: string;
+  readonly target: string;
+  readonly protocol: string;
+  readonly description: string;
+}
+
+/**
+ * SFDIPOT Assessment Service Interface
+ */
+export interface ISFDIPOTAssessmentService {
+  /**
+   * Perform full SFDIPOT assessment on input documents
+   */
+  assess(input: AssessmentInput, config?: Partial<SFDIPOTConfig>): Promise<Result<SFDIPOTAssessment>>;
+
+  /**
+   * Analyze a single category
+   */
+  analyzeCategory(
+    input: AssessmentInput,
+    category: SFDIPOTCategory
+  ): Promise<Result<CategoryAnalysis>>;
+
+  /**
+   * Generate test ideas for specific category
+   */
+  generateTestIdeas(
+    analysis: CategoryAnalysis,
+    config?: Partial<SFDIPOTConfig>
+  ): Promise<Result<TestIdea[]>>;
+
+  /**
+   * Surface clarifying questions from coverage gaps
+   */
+  generateClarifyingQuestions(
+    assessment: SFDIPOTAssessment
+  ): Promise<Result<ClarifyingQuestion[]>>;
+
+  /**
+   * Export assessment to specified format
+   */
+  export(
+    assessment: SFDIPOTAssessment,
+    format: 'html' | 'json' | 'markdown' | 'gherkin'
+  ): Promise<Result<string>>;
+}
+
+/**
+ * Domain event for SFDIPOT assessment completion
+ */
+export interface SFDIPOTAssessmentCompletedEvent extends DomainEvent {
+  readonly type: 'SFDIPOTAssessmentCompletedEvent';
+  readonly assessmentId: string;
+  readonly epicId: string;
+  readonly testIdeasCount: number;
+  readonly qualityScore: number;
+  readonly categoryCoverage: Record<SFDIPOTCategory, number>;
+}
+
+// ============================================================================
+// Test Idea Rewriting Service
+// ============================================================================
+
+/**
+ * Test idea transformation result
+ */
+export interface TestIdeaTransformation {
+  readonly originalId: string;
+  readonly original: string;
+  readonly transformed: string;
+  readonly verbUsed: string;
+  readonly verbCategory: 'interaction' | 'trigger' | 'measurement' | 'state' | 'observation';
+}
+
+/**
+ * Rewriting result
+ */
+export interface RewritingResult {
+  readonly inputFile: string;
+  readonly outputFile: string;
+  readonly testIdeasProcessed: number;
+  readonly verifyPatternsFound: number;
+  readonly transformationsApplied: number;
+  readonly remainingVerifyPatterns: number;
+  readonly qualityScore: number;
+  readonly transformations: TestIdeaTransformation[];
+}
+
+/**
+ * Test Idea Rewriting Service Interface
+ */
+export interface ITestIdeaRewritingService {
+  /**
+   * Transform all "Verify" patterns in a file
+   */
+  rewrite(inputPath: string, outputPath?: string): Promise<Result<RewritingResult>>;
+
+  /**
+   * Transform a single test idea
+   */
+  rewriteTestIdea(testIdea: string): Promise<Result<TestIdeaTransformation>>;
+
+  /**
+   * Validate no "Verify" patterns remain
+   */
+  validate(content: string): Promise<Result<{ isClean: boolean; remainingPatterns: string[] }>>;
+
+  /**
+   * Batch transform multiple files
+   */
+  batchRewrite(
+    inputDir: string,
+    outputDir: string,
+    pattern?: string
+  ): Promise<Result<RewritingResult[]>>;
+}

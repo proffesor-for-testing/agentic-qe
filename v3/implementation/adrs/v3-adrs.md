@@ -4,7 +4,7 @@
 **Date Range:** 2026-01-07 onwards
 **Status:** Phase 6 Complete (RuVector MinCut Intelligence - ADR-047 Implemented)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-01-17 (5414+ tests passing, ADR-001-047 Implemented)
+**Last Verified:** 2026-01-17 (5414+ tests passing, ADR-001-049 Implemented)
 
 ---
 
@@ -60,6 +60,7 @@
 | [ADR-046](./ADR-046-v2-feature-integration.md) | V2 Feature Integration (Q-Values, GOAP, Dreams) | **Implemented** | 2026-01-16 | ✅ Q-Values persistence + GOAP planner (52 actions) + Dream cycles (ConceptGraph + InsightGenerator) |
 | [ADR-047](./ADR-047-mincut-self-organizing-qe.md) | MinCut Self-Organizing QE Integration | **Implemented** | 2026-01-17 | ✅ 478 tests, 14 modules: MinCut health + Strange Loop (P1) + Causal Discovery (P2) + Morphogenetic (P3) + Time Crystal (P4) + Neural GOAP (P5) + Dream Integration (P6) + 3 MCP tools |
 | [ADR-048](./ADR-048-v2-v3-agent-migration.md) | V2-to-V3 Agent Migration Upgrade Strategy | **Implemented** | 2026-01-17 | ✅ 5-tier migration: v2_compat fields (6 agents) + agent-compat.ts + 59 tests + v3_new markers (7 agents) |
+| [ADR-049](./ADR-049-V3-MAIN-PUBLISH.md) | V3 Main Package Publication | **Accepted** | 2026-01-17 | ✅ Root package publishes v3 CLI + MCP bundles, version 3.0.0 release strategy |
 
 ---
 

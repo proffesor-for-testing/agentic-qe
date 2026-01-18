@@ -84,6 +84,10 @@ const V3_QE_AGENTS = [
   // Requirements Validation Domain
   'v3-qe-requirements-validator',
   'v3-qe-qx-partner',
+  'v3-qe-product-factors-assessor',
+
+  // Test Generation Domain (additional)
+  'v3-qe-test-idea-rewriter',
 
   // Code Intelligence Domain
   'v3-qe-code-intelligence',
@@ -430,6 +434,8 @@ export class AgentsInstaller {
       'impact-analyzer': 'defect-intelligence',
       'requirements-validator': 'requirements-validation',
       'qx-partner': 'requirements-validation',
+      'product-factors-assessor': 'requirements-validation',
+      'test-idea-rewriter': 'test-generation',
       'code-intelligence': 'code-intelligence',
       'kg-builder': 'code-intelligence',
       'dependency-mapper': 'code-intelligence',

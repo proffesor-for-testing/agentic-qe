@@ -20,6 +20,7 @@
 import Database, { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
+import { cosineSimilarity } from '../shared/utils/vector-math.js';
 
 // ============================================================================
 // Configuration
@@ -559,7 +560,7 @@ class InMemoryHNSWIndex {
     const results: Array<{ id: string; score: number }> = [];
 
     for (const [id, node] of this.nodes.entries()) {
-      const similarity = this.cosineSimilarity(query, node.embedding);
+      const similarity = cosineSimilarity(query, node.embedding);
       results.push({ id, score: similarity });
     }
 
@@ -581,23 +582,6 @@ class InMemoryHNSWIndex {
   clear(): void {
     this.nodes.clear();
   }
-
-  private cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length) return 0;
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-    return denominator === 0 ? 0 : dotProduct / denominator;
-  }
 }
 
 // ============================================================================
@@ -618,10 +602,12 @@ class InMemoryHNSWIndex {
  */
 export class UnifiedMemoryManager {
   private static instance: UnifiedMemoryManager | null = null;
+  private static instancePromise: Promise<UnifiedMemoryManager> | null = null;
 
   private db: DatabaseType | null = null;
   private readonly config: UnifiedMemoryConfig;
   private initialized = false;
+  private initPromise: Promise<void> | null = null;
   private preparedStatements: Map<string, Statement> = new Map();
   private vectorIndex: InMemoryHNSWIndex = new InMemoryHNSWIndex();
 
@@ -630,13 +616,39 @@ export class UnifiedMemoryManager {
   }
 
   /**
-   * Get or create the singleton instance
+   * Get or create the singleton instance (synchronous).
+   * Thread-safe: JS is single-threaded for synchronous code.
    */
   static getInstance(config?: Partial<UnifiedMemoryConfig>): UnifiedMemoryManager {
-    if (!UnifiedMemoryManager.instance) {
-      UnifiedMemoryManager.instance = new UnifiedMemoryManager(config);
+    // Synchronous return if already created
+    if (UnifiedMemoryManager.instance) {
+      return UnifiedMemoryManager.instance;
     }
+    // Synchronous creation - JS single-threaded execution prevents race here
+    UnifiedMemoryManager.instance = new UnifiedMemoryManager(config);
     return UnifiedMemoryManager.instance;
+  }
+
+  /**
+   * Get or create the singleton instance with async initialization.
+   * Thread-safe: Uses Promise lock to prevent concurrent initialization races.
+   */
+  static async getInstanceAsync(config?: Partial<UnifiedMemoryConfig>): Promise<UnifiedMemoryManager> {
+    // Fast path: already fully initialized
+    if (UnifiedMemoryManager.instance?.initialized) {
+      return UnifiedMemoryManager.instance;
+    }
+
+    // Use Promise lock to prevent concurrent initialization
+    if (!UnifiedMemoryManager.instancePromise) {
+      UnifiedMemoryManager.instancePromise = (async () => {
+        const instance = UnifiedMemoryManager.getInstance(config);
+        await instance.initialize();
+        return instance;
+      })();
+    }
+
+    return UnifiedMemoryManager.instancePromise;
   }
 
   /**
@@ -647,12 +659,30 @@ export class UnifiedMemoryManager {
       UnifiedMemoryManager.instance.close();
       UnifiedMemoryManager.instance = null;
     }
+    UnifiedMemoryManager.instancePromise = null;
   }
 
   /**
-   * Initialize the database, run migrations, and load vector index
+   * Initialize the database, run migrations, and load vector index.
+   * Thread-safe: Uses Promise lock to prevent concurrent initialization races.
    */
   async initialize(): Promise<void> {
+    // Fast path: already initialized
+    if (this.initialized) return;
+
+    // Use Promise lock to prevent concurrent initialization
+    if (!this.initPromise) {
+      this.initPromise = this._doInitialize();
+    }
+
+    return this.initPromise;
+  }
+
+  /**
+   * Internal initialization implementation
+   */
+  private async _doInitialize(): Promise<void> {
+    // Double-check after acquiring promise lock
     if (this.initialized) return;
 
     try {
@@ -683,6 +713,8 @@ export class UnifiedMemoryManager {
       this.initialized = true;
       console.log(`[UnifiedMemory] Initialized: ${this.config.dbPath}`);
     } catch (error) {
+      // Allow retry on failure by clearing the promise
+      this.initPromise = null;
       throw new Error(
         `Failed to initialize UnifiedMemoryManager: ${error instanceof Error ? error.message : String(error)}`
       );
@@ -1248,3 +1280,40 @@ export async function initializeUnifiedMemory(
 export function resetUnifiedMemory(): void {
   UnifiedMemoryManager.resetInstance();
 }
+
+// ============================================================================
+// Process Exit Handlers - Ensure cleanup on process exit
+// ============================================================================
+
+let exitHandlersRegistered = false;
+
+function registerExitHandlers(): void {
+  if (exitHandlersRegistered) return;
+  exitHandlersRegistered = true;
+
+  const cleanup = (): void => {
+    try {
+      const instance = UnifiedMemoryManager['instance'];
+      if (instance) {
+        instance.close();
+      }
+    } catch {
+      // Ignore errors during cleanup
+    }
+  };
+
+  process.on('beforeExit', cleanup);
+
+  process.on('SIGINT', () => {
+    cleanup();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', () => {
+    cleanup();
+    process.exit(0);
+  });
+}
+
+// Register exit handlers when module is loaded
+registerExitHandlers();

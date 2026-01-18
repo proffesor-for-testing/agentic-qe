@@ -477,30 +477,6 @@ export function inferComplexity(estimatedTokens: number): TaskComplexity {
   return 'high';
 }
 
-/**
- * Get agent type category (legacy compatibility)
- * @deprecated Use getAgentRoutingCategory from agent-router-config for comprehensive categorization
- */
-export function getAgentCategory(
-  agentType: string
-): 'security' | 'testing' | 'analysis' | 'general' {
-  // Use the new comprehensive categorization and map to legacy categories
-  const category = getAgentRoutingCategory(agentType);
-
-  switch (category) {
-    case 'security':
-      return 'security';
-    case 'test-generation':
-      return 'testing';
-    case 'code-analysis':
-    case 'performance':
-    case 'learning':
-      return 'analysis';
-    default:
-      return 'general';
-  }
-}
-
 // ============================================================================
 // Enhanced Agent-Aware Routing (ADR-043 Milestone 8)
 // ============================================================================

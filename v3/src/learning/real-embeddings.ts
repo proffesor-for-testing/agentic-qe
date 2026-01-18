@@ -6,6 +6,9 @@
  * Model: all-MiniLM-L6-v2 (384-dimensional sentence embeddings)
  */
 
+// Re-export cosineSimilarity from shared utility for backward compatibility
+export { cosineSimilarity } from '../shared/utils/vector-math.js';
+
 // Lazy-loaded transformer pipeline
 let pipeline: any = null;
 let embeddingModel: any = null;
@@ -208,28 +211,6 @@ export async function computeBatchEmbeddings(
   }
 
   return results.filter((r): r is number[] => r !== null);
-}
-
-/**
- * Compute cosine similarity between two embeddings
- */
-export function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) {
-    throw new Error(`Embedding dimension mismatch: ${a.length} vs ${b.length}`);
-  }
-
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-
-  const magnitude = Math.sqrt(normA) * Math.sqrt(normB);
-  return magnitude === 0 ? 0 : dotProduct / magnitude;
 }
 
 /**

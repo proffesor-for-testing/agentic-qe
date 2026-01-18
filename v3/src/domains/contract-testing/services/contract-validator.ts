@@ -71,13 +71,23 @@ interface GraphQLField {
   selections?: GraphQLField[];
 }
 
+/** Extended validation report with cache timestamp */
+interface CachedValidationReport extends ValidationReport {
+  cachedAt?: number;
+}
+
 /**
  * Contract Validation Service Implementation
  * Validates API contracts against schemas and specifications
  */
 export class ContractValidatorService implements IContractValidationService {
   private readonly config: ContractValidatorConfig;
-  private readonly validationCache: Map<string, ValidationReport> = new Map();
+  private readonly validationCache: Map<string, CachedValidationReport> = new Map();
+
+  /** Maximum number of validations to cache */
+  private readonly MAX_CACHED_VALIDATIONS = 1000;
+  /** Cache TTL in milliseconds (1 hour) */
+  private readonly CACHE_TTL_MS = 3600000;
 
   constructor(
     private readonly memory: MemoryBackend,
@@ -134,7 +144,7 @@ export class ContractValidatorService implements IContractValidationService {
 
       // Cache the result
       if (this.config.cacheValidations) {
-        this.validationCache.set(cacheKey, report);
+        this.cacheValidation(cacheKey, report);
       }
 
       // Store validation history
@@ -1696,5 +1706,44 @@ export class ContractValidatorService implements IContractValidationService {
       namespace: 'contract-testing',
       ttl: 86400 * 30, // 30 days
     });
+  }
+
+  /**
+   * Cache validation with size limits and TTL tracking.
+   * Enforces LRU eviction when cache is full.
+   */
+  private cacheValidation(key: string, report: ValidationReport): void {
+    // Enforce size limit before adding
+    if (this.validationCache.size >= this.MAX_CACHED_VALIDATIONS) {
+      const firstKey = this.validationCache.keys().next().value;
+      if (firstKey) {
+        this.validationCache.delete(firstKey);
+      }
+    }
+    this.validationCache.set(key, { ...report, cachedAt: Date.now() });
+  }
+
+  /**
+   * Clear expired cache entries based on TTL.
+   * @returns Number of entries cleaned up
+   */
+  cleanupCache(): number {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [key, report] of this.validationCache) {
+      if (now - (report.cachedAt || 0) > this.CACHE_TTL_MS) {
+        this.validationCache.delete(key);
+        cleaned++;
+      }
+    }
+    return cleaned;
+  }
+
+  /**
+   * Dispose of all resources and clear caches.
+   * Call this method when the service is no longer needed.
+   */
+  destroy(): void {
+    this.validationCache.clear();
   }
 }

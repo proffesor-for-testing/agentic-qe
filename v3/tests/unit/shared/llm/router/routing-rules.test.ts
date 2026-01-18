@@ -23,7 +23,6 @@ import {
   createRoutingRule,
   mergeWithDefaultRules,
   inferComplexity,
-  getAgentCategory,
   // Milestone 8 exports
   getExtendedAgentCategory,
   getModelPreferenceForAgent,
@@ -563,26 +562,26 @@ describe('Helper Functions', () => {
     });
   });
 
-  describe('getAgentCategory', () => {
+  describe('getAgentRoutingCategory', () => {
     it('should categorize security agents', () => {
-      expect(getAgentCategory('security-auditor')).toBe('security');
-      expect(getAgentCategory('security-architect')).toBe('security');
-      expect(getAgentCategory('v3-qe-security-scanner')).toBe('security');
+      expect(getAgentRoutingCategory('security-auditor')).toBe('security');
+      expect(getAgentRoutingCategory('security-architect')).toBe('security');
+      expect(getAgentRoutingCategory('v3-qe-security-scanner')).toBe('security');
     });
 
     it('should categorize testing agents', () => {
-      expect(getAgentCategory('tester')).toBe('testing');
-      expect(getAgentCategory('v3-qe-test-generator')).toBe('testing');
+      expect(getAgentRoutingCategory('tester')).toBe('test-generation');
+      expect(getAgentRoutingCategory('v3-qe-test-generator')).toBe('test-generation');
     });
 
     it('should categorize analysis agents', () => {
-      expect(getAgentCategory('code-analyzer')).toBe('analysis');
-      expect(getAgentCategory('reviewer')).toBe('analysis');
+      expect(getAgentRoutingCategory('code-analyzer')).toBe('code-analysis');
+      expect(getAgentRoutingCategory('reviewer')).toBe('code-analysis');
     });
 
     it('should return general for unknown agents', () => {
-      expect(getAgentCategory('unknown-agent')).toBe('general');
-      expect(getAgentCategory('custom-agent')).toBe('general');
+      expect(getAgentRoutingCategory('unknown-agent')).toBe('general');
+      expect(getAgentRoutingCategory('custom-agent')).toBe('general');
     });
   });
 });
@@ -1064,33 +1063,33 @@ describe('Agent-Aware Routing (Milestone 8)', () => {
   });
 
   // ==========================================================================
-  // Legacy Compatibility Tests
+  // Extended Categories Tests (replaced deprecated getAgentCategory)
   // ==========================================================================
 
-  describe('Legacy Compatibility', () => {
-    it('should maintain getAgentCategory compatibility', () => {
-      // Security maps to security
-      expect(getAgentCategory('security-auditor')).toBe('security');
+  describe('Extended Categories', () => {
+    it('should use getAgentRoutingCategory for extended categories', () => {
+      // Security remains security
+      expect(getAgentRoutingCategory('security-auditor')).toBe('security');
 
-      // Test-generation maps to testing
-      expect(getAgentCategory('v3-qe-test-generator')).toBe('testing');
+      // Test-generation uses new category name
+      expect(getAgentRoutingCategory('v3-qe-test-generator')).toBe('test-generation');
 
-      // Code-analysis maps to analysis
-      expect(getAgentCategory('code-analyzer')).toBe('analysis');
+      // Code-analysis category
+      expect(getAgentRoutingCategory('code-analyzer')).toBe('code-analysis');
 
       // General remains general
-      expect(getAgentCategory('unknown-agent')).toBe('general');
+      expect(getAgentRoutingCategory('unknown-agent')).toBe('general');
     });
 
-    it('should map new categories to legacy categories', () => {
-      // Performance maps to analysis
-      expect(getAgentCategory('performance-tester')).toBe('analysis');
+    it('should map to extended categories', () => {
+      // Performance has its own category
+      expect(getAgentRoutingCategory('performance-tester')).toBe('performance');
 
-      // Learning maps to analysis
-      expect(getAgentCategory('v3-qe-learning-optimizer')).toBe('analysis');
+      // Learning has its own category
+      expect(getAgentRoutingCategory('v3-qe-learning-optimizer')).toBe('learning');
 
-      // Coordination maps to general
-      expect(getAgentCategory('coordinator')).toBe('general');
+      // Coordination has its own category
+      expect(getAgentRoutingCategory('coordinator')).toBe('coordination');
     });
   });
 

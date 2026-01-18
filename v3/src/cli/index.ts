@@ -26,7 +26,7 @@ import {
   detectShell,
   getInstallInstructions,
   DOMAINS as COMPLETION_DOMAINS,
-  V3_QE_AGENTS,
+  QE_AGENTS,
   OTHER_AGENTS,
 } from './completions/index.js';
 import {
@@ -186,15 +186,29 @@ async function ensureInitialized(): Promise<boolean> {
     return true;
   }
 
-  // Auto-initialize with defaults
+  // Auto-initialize with defaults and timeout
   console.log(chalk.gray('Auto-initializing v3 system...'));
+  const timeout = 30000; // 30 seconds
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('Initialization timeout after 30 seconds')), timeout);
+  });
+
   try {
-    await autoInitialize();
+    await Promise.race([
+      autoInitialize(),
+      timeoutPromise
+    ]);
     console.log(chalk.green('✓ System ready\n'));
     return true;
   } catch (err) {
-    console.error(chalk.red('Failed to auto-initialize:'), err);
-    console.log(chalk.yellow('Try running `aqe init` manually.'));
+    const error = err as Error;
+    if (error.message.includes('timeout')) {
+      console.error(chalk.red('Initialization timed out after 30 seconds.'));
+      console.log(chalk.yellow('Try running `aqe init` manually.'));
+    } else {
+      console.error(chalk.red('Failed to auto-initialize:'), err);
+      console.log(chalk.yellow('Try running `aqe init` manually.'));
+    }
     return false;
   }
 }
@@ -204,6 +218,9 @@ async function ensureInitialized(): Promise<boolean> {
  */
 async function cleanupAndExit(code: number = 0): Promise<never> {
   try {
+    // ADR-042: Save token metrics before shutdown
+    await shutdownTokenTracking();
+
     if (context.workflowOrchestrator) {
       await context.workflowOrchestrator.dispose();
     }
@@ -307,10 +324,10 @@ program
           console.log(chalk.gray('  3. Check status: aqe status\n'));
         } else {
           console.log(chalk.red('❌ Initialization failed. Check errors above.\n'));
-          process.exit(1);
+          await cleanupAndExit(1);
         }
 
-        process.exit(0);
+        await cleanupAndExit(0);
       }
 
       // Standard init without wizard
@@ -386,10 +403,10 @@ program
       }
       console.log('');
 
-      process.exit(0);
+      await cleanupAndExit(0);
     } catch (error) {
       console.error(chalk.red('\n❌ Failed to initialize:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -634,7 +651,7 @@ taskCmd
 
     } catch (error) {
       console.error(chalk.red('\n Failed to submit task:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -676,7 +693,7 @@ taskCmd
 
     } catch (error) {
       console.error(chalk.red('\n❌ Failed to list tasks:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -697,7 +714,7 @@ taskCmd
 
     } catch (error) {
       console.error(chalk.red('\n❌ Failed to cancel task:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -745,7 +762,7 @@ taskCmd
 
     } catch (error) {
       console.error(chalk.red('\n❌ Failed to get task status:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -804,7 +821,7 @@ agentCmd
 
     } catch (error) {
       console.error(chalk.red('\n❌ Failed to list agents:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -854,7 +871,7 @@ agentCmd
 
     } catch (error) {
       console.error(chalk.red('\n Failed to spawn agent:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -890,7 +907,7 @@ domainCmd
 
     } catch (error) {
       console.error(chalk.red('\n❌ Failed to list domains:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -927,7 +944,7 @@ domainCmd
 
     } catch (error) {
       console.error(chalk.red('\n❌ Failed to get domain health:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -964,7 +981,7 @@ protocolCmd
 
     } catch (error) {
       console.error(chalk.red('\n❌ Failed to execute protocol:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -1327,7 +1344,7 @@ workflowCmd
       // Check file exists
       if (!fs.existsSync(filePath)) {
         console.log(chalk.red(`File not found: ${filePath}`));
-        process.exit(1);
+        await cleanupAndExit(1);
       }
 
       // Parse the pipeline file
@@ -1338,7 +1355,7 @@ workflowCmd
         for (const error of parseResult.errors) {
           console.log(chalk.red(`   * ${error}`));
         }
-        process.exit(1);
+        await cleanupAndExit(1);
       }
 
       // Validate the pipeline structure
@@ -1417,11 +1434,11 @@ workflowCmd
       }
 
       console.log('');
-      process.exit(validationResult.valid ? 0 : 1);
+      await cleanupAndExit(validationResult.valid ? 0 : 1);
 
     } catch (error) {
       console.error(chalk.red('\nValidation failed:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -1728,7 +1745,7 @@ program
 
         if (wizardResult.cancelled) {
           console.log(chalk.yellow('\n  Coverage analysis cancelled.\n'));
-          process.exit(0);
+          await cleanupAndExit(0);
         }
 
         // Use wizard results
@@ -1740,7 +1757,7 @@ program
         console.log(chalk.green('\n  Starting coverage analysis...\n'));
       } catch (err) {
         console.error(chalk.red('\n  Wizard error:'), err);
-        process.exit(1);
+        await cleanupAndExit(1);
       }
     }
 
@@ -1972,7 +1989,7 @@ program
 
     } catch (error) {
       console.error(chalk.red('\n❌ Failed:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -2428,7 +2445,7 @@ migrateCmd
     if (!hasV2Dir && !hasClaudeAgents) {
       console.log(chalk.yellow('   ⚠ No v2 installation found'));
       console.log(chalk.gray('   This might be a fresh project. Use `aqe init` instead.'));
-      process.exit(0);
+      await cleanupAndExit(0);
     }
 
     const v2Files = {
@@ -2467,7 +2484,7 @@ migrateCmd
     if (fs.existsSync(v3Dir) && !options.force) {
       console.log(chalk.yellow('   ⚠ v3 directory already exists at .aqe/'));
       console.log(chalk.gray('   Use --force to overwrite existing v3 installation.'));
-      process.exit(1);
+      await cleanupAndExit(1);
     }
     console.log(chalk.green('   ✓ Ready for migration\n'));
 
@@ -2498,7 +2515,7 @@ migrateCmd
 
       console.log(chalk.yellow('\n⚠ This is a dry run. No changes were made.'));
       console.log(chalk.gray('Run without --dry-run to execute migration.\n'));
-      process.exit(0);
+      await cleanupAndExit(0);
     }
 
     // Step 3: Create backup
@@ -2527,7 +2544,7 @@ migrateCmd
         console.log(chalk.green(`   ✓ Backup created at .aqe-backup/\n`));
       } catch (err) {
         console.log(chalk.red(`   ✗ Backup failed: ${err}`));
-        process.exit(1);
+        await cleanupAndExit(1);
       }
     } else {
       console.log(chalk.yellow('3. Backup skipped (--no-backup)\n'));
@@ -2545,7 +2562,7 @@ migrateCmd
         console.log(chalk.green('   ✓ Directory structure created\n'));
       } catch (err) {
         console.log(chalk.red(`   ✗ Failed: ${err}\n`));
-        process.exit(1);
+        await cleanupAndExit(1);
       }
     }
 
@@ -2780,7 +2797,7 @@ migrateCmd
     console.log(chalk.gray('  1. Run `aqe migrate verify` to validate'));
     console.log(chalk.gray('  2. Run `aqe migrate status` to check'));
     console.log(chalk.gray('  3. Use `aqe migrate rollback` if needed\n'));
-    process.exit(0);
+    await cleanupAndExit(0);
   });
 
 // migrate status - Check migration status
@@ -2857,7 +2874,7 @@ migrateCmd
       }
     }
     console.log();
-    process.exit(0);
+    await cleanupAndExit(0);
   });
 
 // migrate verify - Verify migration
@@ -2992,7 +3009,7 @@ migrateCmd
         console.log(chalk.dim('   Run with --fix to attempt fixes.\n'));
       }
     }
-    process.exit(0);
+    await cleanupAndExit(0);
   });
 
 // migrate rollback - Rollback migration
@@ -3035,7 +3052,7 @@ migrateCmd
 
     if (!fs.existsSync(backupPath)) {
       console.log(chalk.red(`\n❌ Backup not found: ${targetBackup}\n`));
-      process.exit(1);
+      await cleanupAndExit(1);
     }
 
     if (!options.force) {
@@ -3070,7 +3087,7 @@ migrateCmd
     }
 
     console.log(chalk.green('\n✅ Rollback complete!\n'));
-    process.exit(0);
+    await cleanupAndExit(0);
   });
 
 // migrate mapping - Show agent name mappings
@@ -3078,7 +3095,7 @@ migrateCmd
   .command('mapping')
   .description('Show v2 to v3 agent name mappings (ADR-048)')
   .option('--json', 'Output as JSON')
-  .action((options) => {
+  .action(async (options) => {
     if (options.json) {
       console.log(JSON.stringify(v2AgentMapping, null, 2));
       return;
@@ -3093,7 +3110,7 @@ migrateCmd
 
     console.log(chalk.dim(`\n  Total: ${entries.length} mappings\n`));
     console.log(chalk.gray('  See ADR-048 for full migration strategy.\n'));
-    process.exit(0);
+    await cleanupAndExit(0);
   });
 
 // ============================================================================
@@ -3147,7 +3164,8 @@ completionsCmd
     if (shellInfo.name === 'unknown') {
       console.log(chalk.red('Could not detect shell. Please specify with --shell option.\n'));
       console.log(getInstallInstructions('unknown'));
-      process.exit(1);
+      await cleanupAndExit(1);
+      return; // TypeScript flow control hint - cleanupAndExit exits but TS doesn't know
     }
 
     console.log(chalk.blue(`\nInstalling completions for ${shellInfo.name}...\n`));
@@ -3188,8 +3206,8 @@ completionsCmd
     }
 
     if (options.type === 'v3-qe-agents' || options.type === 'all') {
-      console.log(chalk.blue('\nV3 QE Agents (' + V3_QE_AGENTS.length + '):'));
-      V3_QE_AGENTS.forEach(a => console.log(chalk.gray(`  ${a}`)));
+      console.log(chalk.blue('\nQE Agents (' + QE_AGENTS.length + '):'));
+      QE_AGENTS.forEach(a => console.log(chalk.gray(`  ${a}`)));
     }
 
     if (options.type === 'agents' || options.type === 'all') {
@@ -3241,7 +3259,7 @@ fleetCmd
 
         if (wizardResult.cancelled) {
           console.log(chalk.yellow('\n  Fleet initialization cancelled.\n'));
-          process.exit(0);
+          await cleanupAndExit(0);
         }
 
         // Use wizard results
@@ -3324,10 +3342,10 @@ fleetCmd
       console.log(chalk.gray('  2. Run operation: aqe fleet run test --target ./src'));
       console.log(chalk.gray('  3. Check status: aqe fleet status\n'));
 
-      process.exit(0);
+      await cleanupAndExit(0);
     } catch (error) {
       console.error(chalk.red('\n Fleet initialization failed:'), error);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 
@@ -3591,11 +3609,11 @@ fleetCmd
           await showStatus();
         }, 2000);
 
-        // Handle Ctrl+C
-        process.on('SIGINT', () => {
+        // Handle Ctrl+C - use once to avoid conflict with global handler
+        process.once('SIGINT', async () => {
           clearInterval(interval);
           console.log(chalk.yellow('\nStopped watching.'));
-          process.exit(0);
+          await cleanupAndExit(0);
         });
       } else {
         await showStatus();
@@ -3623,27 +3641,18 @@ program.addCommand(hooksCmd);
 // - QEReasoningBank for pattern learning
 // - setupQEHooks() for proper initialization
 // ============================================================================
-// Shutdown Handler
+// Shutdown Handlers
 // ============================================================================
 
 process.on('SIGINT', async () => {
-  console.log(chalk.yellow('\n\n Shutting down...'));
+  console.log(chalk.yellow('\n\nShutting down...'));
+  console.log(chalk.green('Shutdown complete\n'));
+  await cleanupAndExit(0);
+});
 
-  // ADR-042: Save token metrics before shutdown
-  await shutdownTokenTracking();
-
-  if (context.queen) {
-    await context.queen.dispose();
-  }
-  if (context.router) {
-    await context.router.dispose();
-  }
-  if (context.kernel) {
-    await context.kernel.dispose();
-  }
-
-  console.log(chalk.green(' Shutdown complete\n'));
-  process.exit(0);
+process.on('SIGTERM', async () => {
+  console.log(chalk.yellow('\nReceived SIGTERM, shutting down gracefully...'));
+  await cleanupAndExit(0);
 });
 
 // ============================================================================
@@ -3661,7 +3670,7 @@ async function main(): Promise<void> {
   program.parse();
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error(chalk.red('Fatal error:'), error);
-  process.exit(1);
+  await cleanupAndExit(1);
 });

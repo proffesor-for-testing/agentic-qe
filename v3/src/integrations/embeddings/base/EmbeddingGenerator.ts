@@ -42,6 +42,7 @@ export type {
 import { EmbeddingCache } from '../cache/EmbeddingCache.js';
 import { pipeline } from '@xenova/transformers';
 import type { Tensor } from '@xenova/transformers';
+import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 
 /**
  * Feature extraction pipeline interface
@@ -270,7 +271,7 @@ export class EmbeddingGenerator {
     const similarities: ISimilarityResult[] = allEmbeddings
       .map((emb) => ({
         target: emb.text,
-        score: this.cosineSimilarity(
+        score: cosineSimilarity(
           queryEmbedding.vector as number[],
           emb.vector as number[]
         ),
@@ -286,27 +287,6 @@ export class EmbeddingGenerator {
     });
 
     return similarities;
-  }
-
-  /**
-   * Calculate cosine similarity between two vectors
-   */
-  protected cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length) {
-      throw new Error('Vector dimensions must match');
-    }
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 
   /**

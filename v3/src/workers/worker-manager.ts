@@ -45,6 +45,20 @@ class InMemoryWorkerEventBus implements WorkerEventBus {
       }
     };
   }
+
+  /**
+   * Clear all event handlers
+   */
+  dispose(): void {
+    this.handlers = [];
+  }
+
+  /**
+   * Get handler count (for debugging)
+   */
+  get handlerCount(): number {
+    return this.handlers.length;
+  }
 }
 
 /**
@@ -64,6 +78,20 @@ class InMemoryWorkerMemory implements WorkerMemory {
   async search(pattern: string): Promise<string[]> {
     const regex = new RegExp(pattern.replace(/\*/g, '.*'));
     return Array.from(this.store.keys()).filter((key) => regex.test(key));
+  }
+
+  /**
+   * Clear all stored data
+   */
+  clear(): void {
+    this.store.clear();
+  }
+
+  /**
+   * Get entry count (for debugging)
+   */
+  get size(): number {
+    return this.store.size;
   }
 }
 

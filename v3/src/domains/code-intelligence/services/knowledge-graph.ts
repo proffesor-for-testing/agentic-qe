@@ -44,6 +44,9 @@ export interface IKnowledgeGraphService {
 
   /** Clear the knowledge graph */
   clear(): Promise<void>;
+
+  /** Dispose of all resources and clear caches */
+  destroy(): void;
 }
 
 /**
@@ -402,6 +405,19 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
   }
 
   private async storeNode(node: KGNode): Promise<void> {
+    // Enforce maxNodes limit before adding (LRU eviction)
+    if (this.nodeCache.size >= this.config.maxNodes) {
+      // Remove oldest (first) entry - Map maintains insertion order
+      const firstKey = this.nodeCache.keys().next().value;
+      if (firstKey) {
+        this.nodeCache.delete(firstKey);
+        // Also clean up related edges
+        this.edgeIndex.delete(firstKey);
+        // Remove from persistent storage
+        await this.memory.delete(`${this.config.namespace}:node:${firstKey}`);
+      }
+    }
+
     await this.memory.set(`${this.config.namespace}:node:${node.id}`, node, {
       namespace: this.config.namespace,
     });
@@ -1052,6 +1068,15 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     ];
 
     return testPatterns.some((pattern) => pattern.test(path));
+  }
+
+  /**
+   * Dispose of all resources and clear caches.
+   * Call this method when the service is no longer needed.
+   */
+  destroy(): void {
+    this.nodeCache.clear();
+    this.edgeIndex.clear();
   }
 }
 

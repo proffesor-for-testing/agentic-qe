@@ -13,19 +13,19 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  CausalGraph,
-  createCausalGraph,
+  TestFailureCausalGraph,
+  createTestFailureCausalGraph,
   createTestFailure,
   DEFAULT_CAUSAL_DISCOVERY_CONFIG,
   TestFailure,
   CausalDiscoveryConfig,
 } from '../../../../src/coordination/mincut/causal-discovery';
 
-describe('CausalGraph', () => {
-  let graph: CausalGraph;
+describe('TestFailureCausalGraph', () => {
+  let graph: TestFailureCausalGraph;
 
   beforeEach(() => {
-    graph = createCausalGraph();
+    graph = createTestFailureCausalGraph();
   });
 
   afterEach(() => {
@@ -81,13 +81,13 @@ describe('CausalGraph', () => {
 
   describe('Construction', () => {
     it('should create graph with default config', () => {
-      const defaultGraph = createCausalGraph();
+      const defaultGraph = createTestFailureCausalGraph();
       expect(defaultGraph).toBeDefined();
       expect(defaultGraph.failureCount).toBe(0);
     });
 
     it('should create graph with custom config', () => {
-      const customGraph = createCausalGraph({
+      const customGraph = createTestFailureCausalGraph({
         minCausalityScore: 0.7,
         temporalWindowMs: 30000,
         maxFailuresTracked: 500,
@@ -108,7 +108,7 @@ describe('CausalGraph', () => {
       const partialConfig: Partial<CausalDiscoveryConfig> = {
         minCausalityScore: 0.8,
       };
-      const customGraph = createCausalGraph(partialConfig);
+      const customGraph = createTestFailureCausalGraph(partialConfig);
       expect(customGraph).toBeDefined();
       // Should have custom value
       // Other values should still be defaults (tested implicitly via behavior)
@@ -195,7 +195,7 @@ describe('CausalGraph', () => {
     });
 
     it('should enforce max failures limit', () => {
-      const smallGraph = createCausalGraph({ maxFailuresTracked: 3 });
+      const smallGraph = createTestFailureCausalGraph({ maxFailuresTracked: 3 });
 
       for (let i = 0; i < 5; i++) {
         const failure = createFailure(`test-${i}`, `Test ${i}`, 'Error', 'run-1', new Date(Date.now() + i * 1000));
@@ -206,7 +206,7 @@ describe('CausalGraph', () => {
     });
 
     it('should evict oldest failure when limit reached', () => {
-      const smallGraph = createCausalGraph({ maxFailuresTracked: 3 });
+      const smallGraph = createTestFailureCausalGraph({ maxFailuresTracked: 3 });
       const failures: TestFailure[] = [];
 
       for (let i = 0; i < 5; i++) {
@@ -310,7 +310,7 @@ describe('CausalGraph', () => {
     });
 
     it('should respect custom temporal window', () => {
-      const customGraph = createCausalGraph({ temporalWindowMs: 500 });
+      const customGraph = createTestFailureCausalGraph({ temporalWindowMs: 500 });
       const base = new Date();
       const cause = createFailure('test-cause', 'Cause Test', 'Error', 'run-1', new Date(base.getTime()));
       const effect = createFailure('test-effect', 'Effect Test', 'Error', 'run-1', new Date(base.getTime() + 1000));
@@ -591,7 +591,7 @@ describe('CausalGraph', () => {
     });
 
     it('should filter by minimum causality score', () => {
-      const strictGraph = createCausalGraph({ minCausalityScore: 0.9 });
+      const strictGraph = createTestFailureCausalGraph({ minCausalityScore: 0.9 });
       const base = new Date();
       const cause = createFailure('test-cause', 'Cause', 'Error', 'run-1', new Date(base.getTime()), ['/src/a.ts']);
       const effect = createFailure('test-effect', 'Effect', 'Error', 'run-1', new Date(base.getTime() + 50000), ['/src/b.ts']);
@@ -883,16 +883,16 @@ describe('CausalGraph', () => {
 
   describe('Factory Function', () => {
     it('should create graph via factory', () => {
-      const factoryGraph = createCausalGraph();
-      expect(factoryGraph).toBeInstanceOf(CausalGraph);
+      const factoryGraph = createTestFailureCausalGraph();
+      expect(factoryGraph).toBeInstanceOf(TestFailureCausalGraph);
     });
 
     it('should create graph with config via factory', () => {
-      const factoryGraph = createCausalGraph({
+      const factoryGraph = createTestFailureCausalGraph({
         minCausalityScore: 0.6,
         temporalWindowMs: 45000,
       });
-      expect(factoryGraph).toBeInstanceOf(CausalGraph);
+      expect(factoryGraph).toBeInstanceOf(TestFailureCausalGraph);
     });
   });
 });

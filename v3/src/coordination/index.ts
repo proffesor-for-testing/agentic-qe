@@ -274,14 +274,10 @@ export {
   StrangeLoopController,
   createStrangeLoopController,
 
-  // Causal Discovery (P2) - primary exports
+  // Causal Discovery (P2)
   TestFailureCausalGraph,
   createTestFailureCausalGraph,
   createTestFailure,
-
-  // Causal Discovery (P2) - backward compatibility aliases
-  CausalGraph,
-  createCausalGraph,
 
   // Morphogenetic Growth (P3)
   MorphogeneticController,

@@ -10,6 +10,7 @@ import {
   err,
   DomainEvent,
 } from '../../shared/types/index.js';
+import { cosineSimilarity } from '../../shared/utils/vector-math.js';
 import {
   EventBus,
   MemoryBackend,
@@ -1115,18 +1116,9 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
     const similarities: Array<{ index: number; similarity: number; imagePath: string }> = [];
 
     for (let i = 0; i < embeddings.length; i++) {
-      let dotProduct = 0;
-      let normA = 0;
-      let normB = 0;
-
-      const len = Math.min(target.length, embeddings[i].length);
-      for (let j = 0; j < len; j++) {
-        dotProduct += target[j] * embeddings[i][j];
-        normA += target[j] * target[j];
-        normB += embeddings[i][j] * embeddings[i][j];
-      }
-
-      const similarity = (dotProduct / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-10) + 1) / 2;
+      // Use shared cosineSimilarity and normalize to [0, 1]
+      const rawSimilarity = cosineSimilarity(target, embeddings[i]);
+      const similarity = (rawSimilarity + 1) / 2;
       similarities.push({ index: i, similarity, imagePath: `image-${i}.png` });
     }
 
