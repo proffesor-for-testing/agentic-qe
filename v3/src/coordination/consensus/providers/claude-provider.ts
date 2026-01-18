@@ -282,13 +282,13 @@ export class ClaudeModelProvider extends BaseModelProvider {
       });
 
       if (!response.ok) {
-        const errorData: ClaudeErrorResponse = await response.json();
+        const errorData = (await response.json()) as ClaudeErrorResponse;
         throw new Error(
           `Claude API error (${response.status}): ${errorData.error.message}`
         );
       }
 
-      return await response.json();
+      return (await response.json()) as ClaudeCompletionResponse;
     } finally {
       clearTimeout(timeoutId);
     }

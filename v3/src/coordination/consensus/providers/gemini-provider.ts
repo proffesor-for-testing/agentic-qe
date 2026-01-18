@@ -340,13 +340,13 @@ export class GeminiModelProvider extends BaseModelProvider {
       });
 
       if (!response.ok) {
-        const errorData: GeminiErrorResponse = await response.json();
+        const errorData = (await response.json()) as GeminiErrorResponse;
         throw new Error(
           `Gemini API error (${response.status}): ${errorData.error.message}`
         );
       }
 
-      return await response.json();
+      return (await response.json()) as GeminiGenerateContentResponse;
     } finally {
       clearTimeout(timeoutId);
     }

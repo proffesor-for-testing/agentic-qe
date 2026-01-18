@@ -306,13 +306,13 @@ export class OpenAIModelProvider extends BaseModelProvider {
       });
 
       if (!response.ok) {
-        const errorData: OpenAIErrorResponse = await response.json();
+        const errorData = (await response.json()) as OpenAIErrorResponse;
         throw new Error(
           `OpenAI API error (${response.status}): ${errorData.error.message}`
         );
       }
 
-      return await response.json();
+      return (await response.json()) as OpenAICompletionResponse;
     } finally {
       clearTimeout(timeoutId);
     }
