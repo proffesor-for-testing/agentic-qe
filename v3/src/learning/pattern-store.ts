@@ -536,9 +536,12 @@ export class PatternStore implements IPatternStore {
     }
 
     // Store in memory backend
+    // NOTE: We include namespace in the KEY (e.g., 'qe-patterns:pattern:123')
+    // but do NOT pass namespace in options because HybridMemoryBackend's get()
+    // and search() methods use the default namespace. Having the namespace
+    // in the key provides isolation while keeping operations consistent.
     const key = `${this.config.namespace}:pattern:${pattern.id}`;
     await this.memory.set(key, pattern, {
-      namespace: this.config.namespace,
       persist: true,
     });
 
@@ -802,7 +805,11 @@ export class PatternStore implements IPatternStore {
     const meetsMinSuccessRate = pattern.successRate >= reuseOptimization.minSuccessRateForReuse;
 
     // Check age criteria
-    const ageInDays = (Date.now() - pattern.lastUsedAt.getTime()) / (1000 * 60 * 60 * 24);
+    // Note: lastUsedAt may be a string from SQLite JSON deserialization
+    const lastUsedTime = pattern.lastUsedAt instanceof Date
+      ? pattern.lastUsedAt.getTime()
+      : new Date(pattern.lastUsedAt).getTime();
+    const ageInDays = (Date.now() - lastUsedTime) / (1000 * 60 * 60 * 24);
     const meetsAgeCriteria = ageInDays <= reuseOptimization.maxAgeForReuse;
 
     // Pattern must be explicitly marked reusable and meet all criteria
@@ -924,10 +931,9 @@ export class PatternStore implements IPatternStore {
     if (shouldPromotePattern(updated) && updated.tier === 'short-term') {
       await this.promote(id);
     } else {
-      // Update in store
+      // Update in store (no namespace in options - key has prefix for isolation)
       const key = `${this.config.namespace}:pattern:${id}`;
       await this.memory.set(key, updated, {
-        namespace: this.config.namespace,
         persist: true,
       });
 
@@ -961,10 +967,9 @@ export class PatternStore implements IPatternStore {
     this.tierIndex.get('short-term')?.delete(id);
     this.tierIndex.get('long-term')?.add(id);
 
-    // Update in store
+    // Update in store (no namespace in options - key has prefix for isolation)
     const key = `${this.config.namespace}:pattern:${id}`;
     await this.memory.set(key, promoted, {
-      namespace: this.config.namespace,
       persist: true,
     });
 

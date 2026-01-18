@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import {
   QValueStore,
@@ -16,9 +17,9 @@ import {
 } from '../../../../../src/integrations/rl-suite/persistence/q-value-store';
 import { resetUnifiedPersistence, initializeUnifiedPersistence } from '../../../../../src/kernel/unified-persistence';
 
-// Test database path - unique per test file to avoid parallel test conflicts
-const UNIFIED_DB_DIR = `.agentic-qe-test-qvs-${process.pid}`;
-const UNIFIED_DB_PATH = `${UNIFIED_DB_DIR}/memory.db`;
+// Use system temp directory for test isolation (auto-cleaned by OS)
+const UNIFIED_DB_DIR = path.join(os.tmpdir(), `agentic-qe-test-qvs-${process.pid}`);
+const UNIFIED_DB_PATH = path.join(UNIFIED_DB_DIR, 'memory.db');
 
 describe('QValueStore', () => {
   let store: QValueStore;

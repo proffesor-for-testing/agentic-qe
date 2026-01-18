@@ -10,6 +10,9 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    benchmark: {
+      include: ['tests/**/*.bench.ts'],
+    },
     exclude: ['node_modules', 'dist'],
     coverage: {
       provider: 'v8',

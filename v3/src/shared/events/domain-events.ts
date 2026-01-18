@@ -185,10 +185,35 @@ export interface ImpactAnalysisPayload {
   riskLevel: Severity;
 }
 
+/**
+ * Payload for C4DiagramsGenerated event
+ */
+export interface C4DiagramsGeneratedPayload {
+  /** Request ID for correlation */
+  requestId: string;
+  /** Project path that was analyzed */
+  projectPath: string;
+  /** Number of components detected */
+  componentsDetected: number;
+  /** Number of external systems detected */
+  externalSystemsDetected: number;
+  /** Number of relationships detected */
+  relationshipsDetected: number;
+  /** Analysis duration in milliseconds */
+  analysisTimeMs: number;
+  /** Whether context diagram was generated */
+  hasContextDiagram: boolean;
+  /** Whether container diagram was generated */
+  hasContainerDiagram: boolean;
+  /** Whether component diagram was generated */
+  hasComponentDiagram: boolean;
+}
+
 export const CodeIntelligenceEvents = {
   KnowledgeGraphUpdated: 'code-intelligence.KnowledgeGraphUpdated',
   ImpactAnalysisCompleted: 'code-intelligence.ImpactAnalysisCompleted',
   SemanticSearchCompleted: 'code-intelligence.SemanticSearchCompleted',
+  C4DiagramsGenerated: 'code-intelligence.C4DiagramsGenerated',
 } as const;
 
 // ============================================================================

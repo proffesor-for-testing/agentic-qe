@@ -543,6 +543,10 @@ Check for:
 
   /**
    * Search for patterns
+   *
+   * Empty string queries return all patterns sorted by quality score.
+   * Non-empty string queries use HNSW vector similarity search.
+   * Array queries (pre-computed embeddings) use HNSW directly.
    */
   async searchPatterns(
     query: string | number[],
@@ -553,14 +557,23 @@ Check for:
     }
 
     // Generate embedding for text query
-    let searchQuery = query;
+    let searchQuery: string | number[] = query;
+    let useVectorSearch = true;
+
     if (typeof query === 'string') {
-      searchQuery = await this.embed(query);
+      if (query.trim() === '') {
+        // Empty query = return all patterns sorted by quality score
+        // Skip vector search (zero vector produces meaningless results)
+        useVectorSearch = false;
+        searchQuery = '';
+      } else {
+        searchQuery = await this.embed(query);
+      }
     }
 
     return this.patternStore.search(searchQuery, {
       ...options,
-      useVectorSearch: true,
+      useVectorSearch,
     });
   }
 

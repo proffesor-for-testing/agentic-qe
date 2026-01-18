@@ -52,6 +52,51 @@ npm run backup:restore  # Restore from backup
 - ❌ NEVER forget package-lock.json when updating versions
 - ✅ ALWAYS use `mcp__agentic-qe-v3__memory_store` with `persist: true` for learnings
 
+### Integration Prevention Pattern (CRITICAL)
+**Components MUST be integrated, not just implemented.**
+
+**Why components get implemented but not integrated:**
+1. Each component is built in isolation with its own tests
+2. Factory functions return standalone instances
+3. No integration layer enforces component wiring
+4. Tests pass for individual components even when system is broken
+
+**MANDATORY rules to prevent this:**
+- ❌ NEVER create factory functions that create dependencies internally
+- ❌ NEVER make integrations optional with fallbacks (if capability exists, REQUIRE it)
+- ❌ NEVER pass component tests without integration tests
+- ✅ ALWAYS accept dependencies via constructor/config (dependency injection)
+- ✅ ALWAYS create an integration layer that wires components together
+- ✅ ALWAYS write integration tests that use the full pipeline
+- ✅ ALWAYS document required integrations in component docstrings
+- ✅ ALWAYS throw errors if required integrations are missing (no silent fallbacks)
+
+**Integration Checklist (BEFORE marking task complete):**
+1. "Is this component wired to its consumers?"
+2. "Does the factory function accept all dependencies?"
+3. "Is there an integration test covering the full pipeline?"
+4. "Would removing the integration layer break the feature?"
+
+**Example - BAD (isolated component):**
+```typescript
+// Creates its own dependency - can't be integrated
+function createSelector() {
+  const analyzer = new ImpactAnalyzer(); // WRONG: Creates internally
+  return new TestSelector(analyzer);
+}
+```
+
+**Example - GOOD (injectable dependency):**
+```typescript
+// Accepts dependency - can be integrated
+interface Config {
+  impactAnalyzer: ImpactAnalyzer; // REQUIRED, not optional
+}
+function createSelector(config: Config) {
+  return new TestSelector(config.impactAnalyzer);
+}
+```
+
 ---
 
 ## 🚨 AUTOMATIC SWARM ORCHESTRATION (Claude Flow V3)

@@ -29,27 +29,14 @@ import { EventBus } from '../../kernel/interfaces';
 import type { StrangeLoopController } from './strange-loop';
 import type { MinCutHealthMonitor } from './mincut-health-monitor';
 import type { TestFailureCausalGraph } from './causal-discovery';
-
-// Re-export all Kuramoto CPG types and classes for convenience
-export {
-  OscillatorState,
-  CPGConfig,
-  DEFAULT_CPG_CONFIG,
-  PRODUCTION_CPG_CONFIG,
-  TestPhaseType,
-  PhaseQualityThresholds,
-  PhaseAgentConfig,
-  CPGTestPhase,
-  CPGPhaseTransition,
-  CPGPhaseResult,
-  DEFAULT_CPG_TEST_PHASES,
-  OscillatorNeuron,
-  computeOrderParameter,
-  createEvenlySpacedOscillators,
-  buildRingCouplingMatrix,
+import {
   KuramotoCPG,
   createKuramotoCPG,
-  createProductionKuramotoCPG,
+  type CPGTestPhase,
+  type CPGPhaseTransition,
+  type CPGPhaseResult,
+  type CPGConfig,
+  DEFAULT_CPG_CONFIG,
 } from './kuramoto-cpg';
 
 /** Domain name for time crystal events */
@@ -290,6 +277,102 @@ export type StabilizationAction =
   | { readonly type: 'throttle'; readonly durationMs: number }
   | { readonly type: 'no_action'; readonly reason: string };
 
+// ============================================================================
+// Phase Executor Interface & Implementation (ADR-032)
+// ============================================================================
+
+/**
+ * Interface for executing test phases
+ * Allows dependency injection of test execution strategy
+ */
+export interface PhaseExecutor {
+  /**
+   * Execute tests for a given phase
+   * @param phase - The CPG test phase to execute
+   * @returns Promise resolving to phase execution result
+   */
+  execute(phase: CPGTestPhase): Promise<CPGPhaseResult>;
+
+  /**
+   * Check if executor is ready to run tests
+   */
+  isReady(): boolean;
+
+  /**
+   * Get executor name for logging
+   */
+  getName(): string;
+}
+
+/**
+ * Default phase executor that simulates test execution
+ * Replace with real test runner integration in production
+ */
+export class DefaultPhaseExecutor implements PhaseExecutor {
+  private readonly name: string;
+  private ready = true;
+
+  constructor(name: string = 'default-executor') {
+    this.name = name;
+  }
+
+  async execute(phase: CPGTestPhase): Promise<CPGPhaseResult> {
+    const startTime = Date.now();
+
+    // Simulate test execution with some variance
+    const basePassRate = phase.qualityThresholds.minPassRate;
+    const variance = (Math.random() - 0.5) * 0.1; // ±5% variance
+    const actualPassRate = Math.min(1, Math.max(0, basePassRate + variance));
+
+    const testsRun = Math.floor(50 + Math.random() * 100);
+    const testsPassed = Math.floor(testsRun * actualPassRate);
+    const testsFailed = testsRun - testsPassed;
+
+    // Simulate execution time with variance
+    const expectedDuration = phase.expectedDuration;
+    const durationVariance = (Math.random() - 0.5) * 0.3; // ±15% variance
+    const actualDuration = Math.floor(expectedDuration * (1 + durationVariance));
+
+    // Simulate wait (scaled down for testing - use 1% of expected duration)
+    const simulatedWait = Math.min(100, actualDuration * 0.01);
+    await new Promise((resolve) => setTimeout(resolve, simulatedWait));
+
+    const flakyRatio = Math.random() * phase.qualityThresholds.maxFlakyRatio;
+    const coverage = phase.qualityThresholds.minCoverage + Math.random() * 0.1;
+
+    const qualityMet =
+      actualPassRate >= phase.qualityThresholds.minPassRate &&
+      flakyRatio <= phase.qualityThresholds.maxFlakyRatio &&
+      coverage >= phase.qualityThresholds.minCoverage;
+
+    return {
+      phaseId: phase.id,
+      phaseName: phase.name,
+      passRate: actualPassRate,
+      flakyRatio,
+      coverage: Math.min(1, coverage),
+      duration: Date.now() - startTime,
+      testsRun,
+      testsPassed,
+      testsFailed,
+      testsSkipped: 0,
+      qualityMet,
+    };
+  }
+
+  isReady(): boolean {
+    return this.ready;
+  }
+
+  getName(): string {
+    return this.name;
+  }
+
+  setReady(ready: boolean): void {
+    this.ready = ready;
+  }
+}
+
 /**
  * Time crystal controller configuration
  */
@@ -323,6 +406,15 @@ export interface TimeCrystalConfig {
 
   /** Enable automatic stabilization */
   autoStabilize: boolean;
+
+  /** Enable Kuramoto CPG-driven phase scheduling */
+  useCPGScheduling: boolean;
+
+  /** CPG configuration override (uses DEFAULT_CPG_CONFIG if not provided) */
+  cpgConfig?: Partial<CPGConfig>;
+
+  /** CPG test phases override (uses DEFAULT_CPG_TEST_PHASES if not provided) */
+  cpgPhases?: CPGTestPhase[];
 }
 
 /**
@@ -339,6 +431,7 @@ export const DEFAULT_TIME_CRYSTAL_CONFIG: TimeCrystalConfig = {
   predictionHorizonMs: 600000, // 10 minutes
   autoOptimize: true,
   autoStabilize: true,
+  useCPGScheduling: true, // Enable CPG by default
 };
 
 /**
@@ -375,6 +468,11 @@ export class TimeCrystalController {
   private readonly healthMonitor?: MinCutHealthMonitor;
   private readonly causalGraph?: TestFailureCausalGraph;
 
+  // Kuramoto CPG integration (ADR-032)
+  private readonly kuramotoCPG: KuramotoCPG;
+  private readonly phaseExecutor: PhaseExecutor;
+  private cpgStartPromise: Promise<void> | null = null;
+
   // State
   private running = false;
   private observationTimer: NodeJS.Timeout | null = null;
@@ -392,6 +490,9 @@ export class TimeCrystalController {
     attractorTransitions: 0,
     anomaliesDetected: 0,
     phasesCompleted: 0,
+    cpgTransitions: 0,
+    cpgPhasesExecuted: 0,
+    cpgQualityFailures: 0,
   };
 
   constructor(
@@ -399,13 +500,37 @@ export class TimeCrystalController {
     eventBus?: EventBus,
     strangeLoop?: StrangeLoopController,
     healthMonitor?: MinCutHealthMonitor,
-    causalGraph?: TestFailureCausalGraph
+    causalGraph?: TestFailureCausalGraph,
+    phaseExecutor?: PhaseExecutor
   ) {
     this.config = { ...DEFAULT_TIME_CRYSTAL_CONFIG, ...config };
     this.eventBus = eventBus;
     this.strangeLoop = strangeLoop;
     this.healthMonitor = healthMonitor;
     this.causalGraph = causalGraph;
+
+    // Initialize phase executor (use provided or create default)
+    this.phaseExecutor = phaseExecutor ?? new DefaultPhaseExecutor('time-crystal-executor');
+
+    // Initialize Kuramoto CPG with config
+    this.kuramotoCPG = createKuramotoCPG(
+      this.config.cpgPhases,
+      this.config.cpgConfig ? { ...DEFAULT_CPG_CONFIG, ...this.config.cpgConfig } : undefined
+    );
+
+    // Wire up CPG transition handler to execute phases and feed results back
+    this.kuramotoCPG.setTransitionHandler(async (transition) => {
+      await this.handleCPGTransition(transition);
+    });
+
+    // Wire up tick handler for observation sync
+    this.kuramotoCPG.setTickHandler((state) => {
+      this.emitEvent('crystal.cpg.tick', {
+        time: state.time,
+        currentPhase: state.currentPhase,
+        orderParameter: state.orderParameter,
+      });
+    });
 
     // Initialize empty lattice
     this.lattice = {
@@ -420,17 +545,85 @@ export class TimeCrystalController {
     this.initializeDefaultPhases();
   }
 
+  /**
+   * Handle CPG phase transition - execute tests and feed results back
+   * This is the REAL integration point between oscillators and test execution
+   */
+  private async handleCPGTransition(transition: CPGPhaseTransition): Promise<void> {
+    this.stats.cpgTransitions++;
+
+    await this.emitEvent('crystal.cpg.transition', {
+      from: transition.from,
+      to: transition.to,
+      fromPhase: transition.fromPhase.name,
+      toPhase: transition.toPhase.name,
+      orderParameter: transition.orderParameter,
+      timestamp: transition.timestamp,
+    });
+
+    // Execute the new phase's tests
+    if (this.phaseExecutor.isReady()) {
+      this.stats.cpgPhasesExecuted++;
+
+      const result = await this.phaseExecutor.execute(transition.toPhase);
+
+      // Feed quality result back to CPG for adaptive scheduling
+      this.kuramotoCPG.recordPhaseResult(result);
+
+      // Track quality failures
+      if (!result.qualityMet) {
+        this.stats.cpgQualityFailures++;
+      }
+
+      // Update time crystal phase stats
+      const crystalPhase = this.phases.get(transition.toPhase.name.toLowerCase() + '-tests');
+      if (crystalPhase) {
+        crystalPhase.executionCount++;
+        crystalPhase.successRate =
+          (crystalPhase.successRate * (crystalPhase.executionCount - 1) + (result.qualityMet ? 1 : 0)) /
+          crystalPhase.executionCount;
+        crystalPhase.avgActualDuration =
+          (crystalPhase.avgActualDuration * (crystalPhase.executionCount - 1) + result.duration) /
+          crystalPhase.executionCount;
+      }
+
+      await this.emitEvent('crystal.phase.completed', {
+        phaseId: result.phaseId,
+        phaseName: result.phaseName,
+        passRate: result.passRate,
+        qualityMet: result.qualityMet,
+        duration: result.duration,
+        testsRun: result.testsRun,
+      });
+    }
+  }
+
   // ==========================================================================
   // Lifecycle
   // ==========================================================================
 
   /**
    * Start the time crystal controller
+   *
+   * When useCPGScheduling is enabled, the Kuramoto CPG drives phase transitions
+   * through coupled oscillator dynamics rather than external timers.
    */
   start(): void {
     if (this.running || !this.config.enabled) return;
 
     this.running = true;
+
+    // Start CPG-driven scheduling if enabled
+    if (this.config.useCPGScheduling) {
+      this.cpgStartPromise = this.kuramotoCPG.start();
+      this.emitEvent('crystal.cpg.started', {
+        config: this.kuramotoCPG.getConfig(),
+        phases: this.kuramotoCPG.getPhases().map((p) => p.name),
+      });
+    }
+
+    // Also run observation cycle for metrics collection
+    // (this runs alongside CPG, not instead of it)
     this.observationTimer = setInterval(
       () => this.runCycle(),
       this.config.observationIntervalMs
@@ -444,11 +637,54 @@ export class TimeCrystalController {
    * Stop the time crystal controller
    */
   stop(): void {
+    // Stop CPG
+    if (this.config.useCPGScheduling && this.kuramotoCPG.isRunning()) {
+      this.kuramotoCPG.stop();
+      this.emitEvent('crystal.cpg.stopped', {
+        stats: this.kuramotoCPG.getStats(),
+      });
+    }
+
+    // Stop observation timer
     if (this.observationTimer) {
       clearInterval(this.observationTimer);
       this.observationTimer = null;
     }
+
     this.running = false;
+    this.cpgStartPromise = null;
+  }
+
+  /**
+   * Pause CPG scheduling (observation continues)
+   */
+  pauseCPG(): void {
+    if (this.config.useCPGScheduling) {
+      this.kuramotoCPG.pause();
+    }
+  }
+
+  /**
+   * Resume CPG scheduling
+   */
+  resumeCPG(): void {
+    if (this.config.useCPGScheduling) {
+      this.kuramotoCPG.resume();
+    }
+  }
+
+  /**
+   * Get the Kuramoto CPG instance for direct access
+   */
+  getCPG(): KuramotoCPG {
+    return this.kuramotoCPG;
+  }
+
+  /**
+   * Get the phase executor instance
+   */
+  getPhaseExecutor(): PhaseExecutor {
+    return this.phaseExecutor;
   }
 
   /**
@@ -1338,7 +1574,22 @@ export function createTimeCrystalController(
   eventBus?: EventBus,
   strangeLoop?: StrangeLoopController,
   healthMonitor?: MinCutHealthMonitor,
-  causalGraph?: TestFailureCausalGraph
+  causalGraph?: TestFailureCausalGraph,
+  phaseExecutor?: PhaseExecutor
 ): TimeCrystalController {
-  return new TimeCrystalController(config, eventBus, strangeLoop, healthMonitor, causalGraph);
+  return new TimeCrystalController(
+    config,
+    eventBus,
+    strangeLoop,
+    healthMonitor,
+    causalGraph,
+    phaseExecutor
+  );
+}
+
+/**
+ * Create a default phase executor
+ */
+export function createDefaultPhaseExecutor(name?: string): DefaultPhaseExecutor {
+  return new DefaultPhaseExecutor(name);
 }

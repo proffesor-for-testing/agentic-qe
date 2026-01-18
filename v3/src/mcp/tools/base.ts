@@ -83,6 +83,18 @@ export async function getSharedMemoryBackend(): Promise<MemoryBackend> {
 }
 
 /**
+ * Reset the shared memory backend singleton.
+ * Used in tests to ensure clean state between test runs.
+ */
+export function resetSharedMemoryBackend(): void {
+  if (sharedMemoryBackend) {
+    // Don't await dispose in reset - let tests handle cleanup
+    sharedMemoryBackend = null;
+  }
+  memoryInitPromise = null;
+}
+
+/**
  * Get memory backend from context or create shared one
  */
 export async function getMemoryBackend(context?: MCPToolContext): Promise<MemoryBackend> {

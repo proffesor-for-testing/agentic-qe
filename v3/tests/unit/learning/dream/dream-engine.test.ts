@@ -10,6 +10,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import {
   DreamEngine,
   createDreamEngine,
@@ -25,9 +27,9 @@ import {
 } from '../../../../src/learning/dream/index.js';
 import { resetUnifiedPersistence, initializeUnifiedPersistence } from '../../../../src/kernel/unified-persistence.js';
 
-// Unique test database path to avoid parallel test conflicts
-const UNIFIED_DB_DIR = `.agentic-qe-test-dream-${process.pid}`;
-const UNIFIED_DB_PATH = `${UNIFIED_DB_DIR}/memory.db`;
+// Use system temp directory for test isolation (auto-cleaned by OS)
+const UNIFIED_DB_DIR = path.join(os.tmpdir(), `agentic-qe-test-dream-${process.pid}`);
+const UNIFIED_DB_PATH = path.join(UNIFIED_DB_DIR, 'memory.db');
 
 // Helper to clean up test databases
 function cleanupUnifiedDb(): void {

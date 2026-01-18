@@ -20,7 +20,7 @@ import { SecurityScanTool } from './security-compliance/scan';
 import { ContractValidateTool } from './contract-testing/validate';
 import { VisualCompareTool, A11yAuditTool } from './visual-accessibility';
 import { ChaosInjectTool } from './chaos-resilience/inject';
-import { LearningOptimizeTool } from './learning-optimization/optimize';
+import { LearningOptimizeTool, DreamCycleTool } from './learning-optimization';
 import { TokenUsageTool } from './analysis/token-usage';
 import { GOAPPlanTool, GOAPExecuteTool, GOAPStatusTool } from './planning';
 import { MINCUT_TOOLS, MINCUT_TOOL_NAMES } from './mincut';
@@ -67,6 +67,7 @@ export const QE_TOOL_NAMES = {
 
   // Learning Optimization
   LEARNING_OPTIMIZE: 'qe/learning/optimize',
+  LEARNING_DREAM: 'qe/learning/dream',
 
   // Analysis Tools (ADR-042)
   TOKEN_USAGE: 'qe/analysis/token_usage',
@@ -125,6 +126,7 @@ export const QE_TOOLS: MCPToolBase[] = [
 
   // Learning Optimization Domain
   new LearningOptimizeTool(),
+  new DreamCycleTool(),
 
   // Analysis Tools (ADR-042)
   new TokenUsageTool(),

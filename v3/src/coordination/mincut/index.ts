@@ -205,6 +205,11 @@ export {
   TimeCrystalController,
   createTimeCrystalController,
 
+  // Phase Executor (ADR-032 integration)
+  type PhaseExecutor,
+  DefaultPhaseExecutor,
+  createDefaultPhaseExecutor,
+
   // Types
   type TemporalAttractor,
   type PhaseState,
@@ -223,6 +228,38 @@ export {
   type TimeCrystalConfig,
   DEFAULT_TIME_CRYSTAL_CONFIG,
 } from './time-crystal';
+
+// ============================================================================
+// Kuramoto CPG Self-Sustaining Scheduler (ADR-032)
+// ============================================================================
+
+export {
+  // Oscillator
+  OscillatorNeuron,
+  computeOrderParameter,
+  createEvenlySpacedOscillators,
+  buildRingCouplingMatrix,
+
+  // CPG Controller
+  KuramotoCPG,
+  createKuramotoCPG,
+  createProductionKuramotoCPG,
+
+  // Types
+  type OscillatorState,
+  type CPGConfig,
+  type TestPhaseType,
+  type PhaseQualityThresholds,
+  type PhaseAgentConfig,
+  type CPGTestPhase,
+  type CPGPhaseTransition,
+  type CPGPhaseResult,
+
+  // Configuration
+  DEFAULT_CPG_CONFIG,
+  PRODUCTION_CPG_CONFIG,
+  DEFAULT_CPG_TEST_PHASES,
+} from './kuramoto-cpg';
 
 // ============================================================================
 // Dream x Strange Loop Meta-Learning Integration (P6)

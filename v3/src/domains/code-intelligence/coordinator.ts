@@ -19,8 +19,17 @@ import {
   CodeIntelligenceEvents,
   KnowledgeGraphUpdatedPayload,
   ImpactAnalysisPayload,
+  C4DiagramsGeneratedPayload,
   createEvent,
 } from '../../shared/events/domain-events';
+import {
+  C4DiagramResult,
+  C4DiagramRequest,
+} from '../../shared/c4-model';
+import {
+  ProductFactorsBridgeService,
+  IProductFactorsBridge,
+} from './services/product-factors-bridge';
 import {
   CodeIntelligenceAPI,
   IndexRequest,
@@ -80,6 +89,21 @@ export interface ICodeIntelligenceCoordinator extends CodeIntelligenceAPI {
   initialize(): Promise<void>;
   dispose(): Promise<void>;
   getActiveWorkflows(): WorkflowStatus[];
+
+  /**
+   * Generate C4 architecture diagrams for a project
+   * @param projectPath - Path to the project root
+   * @param options - Optional C4 diagram generation options
+   */
+  generateC4Diagrams(
+    projectPath: string,
+    options?: Partial<C4DiagramRequest>
+  ): Promise<Result<C4DiagramResult, Error>>;
+
+  /**
+   * Get the Product Factors Bridge for cross-domain access
+   */
+  getProductFactorsBridge(): IProductFactorsBridge;
 }
 
 /**
@@ -136,6 +160,9 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
   private sonaEngine?: QESONA;
   private rlInitialized = false;
 
+  // V3: Product Factors Bridge for cross-domain C4 access
+  private productFactorsBridge: ProductFactorsBridgeService;
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -147,6 +174,11 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     this.semanticAnalyzer = new SemanticAnalyzerService(memory);
     this.impactAnalyzer = new ImpactAnalyzerService(memory, this.knowledgeGraph);
     this.fileReader = new FileReader();
+
+    // Initialize Product Factors Bridge
+    this.productFactorsBridge = new ProductFactorsBridgeService(eventBus, memory, {
+      publishEvents: this.config.publishEvents,
+    });
   }
 
   /**
@@ -165,6 +197,9 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     if (this.config.enableGNN || this.config.enableSONA) {
       await this.initializeRLIntegrations();
     }
+
+    // V3: Initialize Product Factors Bridge
+    await this.productFactorsBridge.initialize();
 
     this.initialized = true;
   }
@@ -219,6 +254,9 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     if (this.gnnIndex) {
       QEGNNIndexFactory.closeInstance('code-intelligence');
     }
+
+    // Dispose Product Factors Bridge
+    await this.productFactorsBridge.dispose();
 
     this.initialized = false;
   }
@@ -1079,6 +1117,115 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
       'code-intelligence:coordinator:workflows',
       workflows,
       { namespace: 'code-intelligence', persist: true }
+    );
+  }
+
+  // ============================================================================
+  // C4 Diagram Generation (Cross-Domain Integration)
+  // ============================================================================
+
+  /**
+   * Generate C4 architecture diagrams for a project
+   *
+   * This method provides C4 diagram generation capabilities that can be used by:
+   * - The code-intelligence domain internally
+   * - The requirements-validation domain (product-factors-assessor)
+   * - Any other domain that needs C4 diagrams
+   *
+   * @param projectPath - Path to the project root directory
+   * @param options - Optional configuration for diagram generation
+   * @returns C4DiagramResult with diagrams and analysis metadata
+   */
+  async generateC4Diagrams(
+    projectPath: string,
+    options?: Partial<C4DiagramRequest>
+  ): Promise<Result<C4DiagramResult, Error>> {
+    const workflowId = uuidv4();
+
+    try {
+      this.startWorkflow(workflowId, 'query'); // Using 'query' type for C4 generation
+
+      // Build the full request
+      const request: C4DiagramRequest = {
+        projectPath,
+        detectExternalSystems: options?.detectExternalSystems ?? true,
+        analyzeComponents: options?.analyzeComponents ?? true,
+        analyzeCoupling: options?.analyzeCoupling ?? true,
+        includeContext: options?.includeContext ?? true,
+        includeContainer: options?.includeContainer ?? true,
+        includeComponent: options?.includeComponent ?? true,
+        includeDependency: options?.includeDependency ?? false,
+        excludePatterns: options?.excludePatterns,
+      };
+
+      this.updateWorkflowProgress(workflowId, 20);
+
+      // Delegate to the Product Factors Bridge
+      const result = await this.productFactorsBridge.requestC4Diagrams(request);
+
+      if (result.success) {
+        this.updateWorkflowProgress(workflowId, 80);
+
+        // Store in memory for cross-domain access
+        await this.storeC4DiagramsInMemory(projectPath, result.value);
+
+        this.updateWorkflowProgress(workflowId, 100);
+        this.completeWorkflow(workflowId);
+
+        // The bridge already publishes the event, but we can add correlation here
+        console.log(
+          `[CodeIntelligenceCoordinator] C4 diagrams generated for ${projectPath}: ` +
+            `${result.value.components.length} components, ` +
+            `${result.value.externalSystems.length} external systems`
+        );
+      } else {
+        this.failWorkflow(workflowId, result.error.message);
+      }
+
+      return result;
+    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      this.failWorkflow(workflowId, errorObj.message);
+      return err(errorObj);
+    }
+  }
+
+  /**
+   * Get the Product Factors Bridge for cross-domain access
+   *
+   * This allows other domains (like requirements-validation) to directly
+   * access C4 diagram capabilities without going through the coordinator.
+   */
+  getProductFactorsBridge(): IProductFactorsBridge {
+    return this.productFactorsBridge;
+  }
+
+  /**
+   * Store C4 diagrams in memory for cross-domain access
+   */
+  private async storeC4DiagramsInMemory(
+    projectPath: string,
+    result: C4DiagramResult
+  ): Promise<void> {
+    const key = `c4-diagrams:latest:${this.hashCode(projectPath)}`;
+
+    await this.memory.set(key, result, {
+      namespace: 'code-intelligence',
+      persist: true,
+      ttl: 3600000, // 1 hour
+    });
+
+    // Also store components and external systems separately for quick access
+    await this.memory.set(
+      `c4-components:${this.hashCode(projectPath)}`,
+      result.components,
+      { namespace: 'code-intelligence', ttl: 3600000 }
+    );
+
+    await this.memory.set(
+      `c4-external-systems:${this.hashCode(projectPath)}`,
+      result.externalSystems,
+      { namespace: 'code-intelligence', ttl: 3600000 }
     );
   }
 }

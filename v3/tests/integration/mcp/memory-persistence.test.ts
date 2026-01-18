@@ -12,6 +12,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import * as path from 'path';
+import * as os from 'os';
 import * as fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { HybridMemoryBackend } from '../../../src/kernel/hybrid-backend';
@@ -20,8 +21,8 @@ import { getSharedMemoryBackend } from '../../../src/mcp/tools/base';
 import { QE_TOOLS, resetAllToolCaches } from '../../../src/mcp/tools/registry';
 import { handleFleetInit, handleFleetStatus, disposeFleet, isFleetInitialized } from '../../../src/mcp/handlers/core-handlers';
 
-// Use a unique test directory to avoid conflicts
-const TEST_DATA_DIR = path.join(process.cwd(), '.agentic-qe-test-' + process.pid);
+// Use system temp directory for test isolation (auto-cleaned by OS)
+const TEST_DATA_DIR = path.join(os.tmpdir(), 'agentic-qe-test-' + process.pid);
 
 describe('Memory Persistence Tests', () => {
   beforeAll(async () => {
@@ -253,7 +254,8 @@ describe('Memory Persistence Tests', () => {
 });
 
 describe('Process Restart Simulation', () => {
-  const RESTART_TEST_DIR = path.join(process.cwd(), '.agentic-qe-restart-test');
+  // Use system temp directory for test isolation (auto-cleaned by OS)
+  const RESTART_TEST_DIR = path.join(os.tmpdir(), `agentic-qe-restart-test-${process.pid}`);
   const TEST_NAMESPACE = 'restart-test';
 
   beforeAll(async () => {
