@@ -4,6 +4,13 @@
  */
 
 import { Result } from '../../shared/types';
+import type {
+  E2ETestCase,
+  E2ETestSuite,
+  E2ETestResult,
+  E2ETestSuiteResult,
+} from './types';
+import type { ExecutionStrategy } from './services/e2e-runner';
 
 // ============================================================================
 // Domain API
@@ -24,6 +31,12 @@ export interface TestExecutionAPI {
 
   /** Get execution statistics */
   getStats(runId: string): Promise<Result<ExecutionStats, Error>>;
+
+  /** Execute E2E test case */
+  executeE2ETestCase?(testCase: E2ETestCase): Promise<Result<E2ETestResult, Error>>;
+
+  /** Execute E2E test suite */
+  executeE2ETestSuite?(suite: E2ETestSuite, strategy?: ExecutionStrategy): Promise<Result<E2ETestSuiteResult, Error>>;
 }
 
 // ============================================================================

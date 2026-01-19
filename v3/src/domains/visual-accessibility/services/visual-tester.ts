@@ -17,6 +17,10 @@ import {
   DiffStatus,
   CaptureOptions,
 } from '../interfaces.js';
+import type {
+  VibiumClient,
+  VisualComparisonResult,
+} from '../../../integrations/vibium/types.js';
 
 /**
  * Configuration for the visual tester
@@ -51,12 +55,56 @@ const DEFAULT_CONFIG: VisualTesterConfig = {
  */
 export class VisualTesterService implements IVisualTestingService {
   private readonly config: VisualTesterConfig;
+  private vibiumClient: VibiumClient | null = null;
+  private browserAvailable: boolean | null = null;
 
   constructor(
     private readonly memory: MemoryBackend,
     config: Partial<VisualTesterConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * Set the Vibium client for browser-based operations
+   * Enables real screenshot capture and pixel-perfect comparison
+   *
+   * @param client - The VibiumClient instance to use
+   */
+  setVibiumClient(client: VibiumClient | null): void {
+    this.vibiumClient = client;
+    this.browserAvailable = null; // Reset availability cache
+  }
+
+  /**
+   * Get the current Vibium client
+   * @returns The VibiumClient instance or null if not set
+   */
+  getVibiumClient(): VibiumClient | null {
+    return this.vibiumClient;
+  }
+
+  /**
+   * Check if browser-based comparison is available
+   * @returns Promise resolving to true if Vibium is available and working
+   */
+  async isBrowserAvailable(): Promise<boolean> {
+    if (this.browserAvailable !== null) {
+      return this.browserAvailable;
+    }
+
+    if (!this.vibiumClient) {
+      this.browserAvailable = false;
+      return false;
+    }
+
+    try {
+      this.browserAvailable = await this.vibiumClient.isAvailable();
+      return this.browserAvailable;
+    } catch {
+      this.browserAvailable = false;
+      return false;
+    }
   }
 
   /**
@@ -177,6 +225,166 @@ export class VisualTesterService implements IVisualTestingService {
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }
+  }
+
+  /**
+   * Compare screenshots using Vibium browser-based pixel comparison
+   *
+   * This method uses the VibiumClient's compareScreenshots capability
+   * for accurate pixel-level comparison. Falls back to deterministic
+   * comparison if browser is unavailable.
+   *
+   * @param screenshot - The current screenshot to compare
+   * @param baselineId - ID of the baseline screenshot to compare against
+   * @param threshold - Optional diff threshold (0-100), defaults to config value
+   * @returns Result containing VisualDiff or Error
+   *
+   * @example
+   * ```typescript
+   * const service = new VisualTesterService(memory);
+   * service.setVibiumClient(vibiumClient);
+   *
+   * const result = await service.compareWithBrowser(currentScreenshot, 'baseline-123', 0.5);
+   * if (result.success) {
+   *   console.log(`Diff: ${result.value.diffPercentage}%`);
+   *   console.log(`Status: ${result.value.status}`);
+   * }
+   * ```
+   */
+  async compareWithBrowser(
+    screenshot: Screenshot,
+    baselineId: string,
+    threshold?: number
+  ): Promise<Result<VisualDiff, Error>> {
+    try {
+      // Retrieve baseline
+      const baseline = await this.getScreenshotById(baselineId);
+      if (!baseline) {
+        return err(new Error(`Baseline not found: ${baselineId}`));
+      }
+
+      const effectiveThreshold = threshold ?? this.config.diffThreshold;
+
+      // Try browser-based comparison if available
+      if (this.vibiumClient && await this.isBrowserAvailable()) {
+        const browserResult = await this.executeBrowserComparison(
+          baseline,
+          screenshot,
+          effectiveThreshold
+        );
+
+        if (browserResult.success) {
+          // Store diff result
+          await this.storeDiffResult(browserResult.value);
+          return browserResult;
+        }
+
+        // Log fallback but don't fail - use deterministic instead
+        console.warn(
+          '[VisualTester] Browser comparison failed, falling back to deterministic:',
+          browserResult.error.message
+        );
+      }
+
+      // Fallback to deterministic comparison
+      const diffResult = this.calculateDiff(baseline, screenshot);
+      await this.storeDiffResult(diffResult);
+
+      return ok(diffResult);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Execute browser-based screenshot comparison via Vibium
+   * @internal
+   */
+  private async executeBrowserComparison(
+    baseline: Screenshot,
+    comparison: Screenshot,
+    threshold: number
+  ): Promise<Result<VisualDiff, Error>> {
+    if (!this.vibiumClient) {
+      return err(new Error('Vibium client not available'));
+    }
+
+    try {
+      // Call Vibium's screenshot comparison
+      const result = await this.vibiumClient.compareScreenshots(
+        baseline.path.value,
+        comparison.path.value,
+        threshold / 100 // Convert percentage to decimal for Vibium
+      );
+
+      if (!result.success) {
+        return err(result.error);
+      }
+
+      // Convert Vibium result to VisualDiff
+      const vibiumResult = result.value;
+      const diff = this.convertVibiumResult(baseline, comparison, vibiumResult, threshold);
+
+      return ok(diff);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Convert Vibium comparison result to VisualDiff format
+   * @internal
+   */
+  private convertVibiumResult(
+    baseline: Screenshot,
+    comparison: Screenshot,
+    result: VisualComparisonResult,
+    threshold: number
+  ): VisualDiff {
+    const diffPercentage = result.differencePercent;
+
+    // Determine status based on threshold
+    let status: DiffStatus;
+    if (diffPercentage === 0) {
+      status = 'identical';
+    } else if (diffPercentage <= threshold) {
+      status = 'acceptable';
+    } else if (diffPercentage <= 5) {
+      status = 'changed';
+    } else {
+      status = 'failed';
+    }
+
+    // Calculate pixel count
+    const totalPixels = baseline.viewport.width * baseline.viewport.height;
+    const diffPixels = Math.floor((totalPixels * diffPercentage) / 100);
+
+    // Convert Vibium diff regions to our format
+    const regions: DiffRegion[] = result.diffRegions.map((region, _index) => ({
+      x: region.x,
+      y: region.y,
+      width: region.width,
+      height: region.height,
+      changeType: 'modified' as const,
+      significance: diffPercentage > 2 ? 'high' : diffPercentage > 0.5 ? 'medium' : 'low',
+    }));
+
+    // Set diff image path if provided by Vibium
+    const diffImagePath = result.diffImagePath
+      ? FilePath.create(result.diffImagePath)
+      : diffPercentage > threshold
+        ? FilePath.create(`${this.config.diffDirectory}/${comparison.id}_diff.png`)
+        : undefined;
+
+    return {
+      baselineId: baseline.id,
+      comparisonId: comparison.id,
+      diffPercentage,
+      diffPixels,
+      diffImagePath,
+      regions,
+      status,
+    };
   }
 
   /**

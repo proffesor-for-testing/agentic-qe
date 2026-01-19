@@ -109,6 +109,31 @@ v2 configuration is automatically migrated when detected:
 
 ## Quick Start Migration
 
+### Automatic v2 Detection
+
+**New in v3:** When you run `aqe init`, the system automatically detects existing v2 installations and guides you through migration:
+
+```bash
+# If v2 is detected, you'll see:
+════════════════════════════════════════════════════════════
+⚠️  EXISTING V2 INSTALLATION DETECTED
+════════════════════════════════════════════════════════════
+
+Found v2 installation at:
+  • Memory DB: .agentic-qe/memory.db
+  • Config: .agentic-qe/config/
+  • Agents: .claude/agents/
+
+📋 RECOMMENDED: Run migration before init:
+
+   npx aqe migrate status      # Check what needs migration
+   npx aqe migrate run --dry-run  # Preview changes
+   npx aqe migrate run         # Execute migration
+
+Or continue with:
+   aqe init --auto-migrate     # Auto-migrate during init
+```
+
 ### Step 1: Install v3
 
 ```bash
@@ -119,14 +144,39 @@ npm install agentic-qe
 npm install @agentic-qe/v3
 ```
 
-### Step 2: Backup v2 Data (Recommended)
+### Step 2: Choose Migration Approach
+
+**Option A: Recommended - Explicit Migration**
 
 ```bash
-# Create backup of v2 data
+# Check current v2 installation status
+aqe migrate status
+
+# Preview migration (dry run)
+aqe migrate run --dry-run
+
+# Run migration with automatic backup
+aqe migrate run --backup
+
+# Then initialize v3
+aqe init --auto
+```
+
+**Option B: One-Command Migration**
+
+```bash
+# Auto-migrate v2 during v3 init (creates backup automatically)
+aqe init --auto-migrate
+```
+
+### Step 3: Backup v2 Data (If Manual Migration)
+
+```bash
+# Create backup of v2 data (auto-migrate does this automatically)
 cp -r .agentic-qe .agentic-qe.backup
 ```
 
-### Step 3: Run Migration
+### Step 4: Run Migration (If Using Option A)
 
 ```bash
 # Preview migration (dry run)
@@ -318,8 +368,11 @@ claude mcp add aqe -- aqe-mcp
 ### New v3 Commands
 
 ```bash
-# Initialize with wizard
-aqe init --wizard
+# Initialize commands
+aqe init                     # Interactive wizard
+aqe init --auto              # Auto-configure from project analysis
+aqe init --auto-migrate      # Auto-migrate v2 data during init
+aqe init --wizard            # Full interactive wizard
 
 # Domain-specific operations
 aqe test generate src/services/user.ts
@@ -642,4 +695,4 @@ aqe agent list --all
 
 ---
 
-*Migration Guide Version: 1.0.0 | Last Updated: 2026-01-17*
+*Migration Guide Version: 1.1.0 | Last Updated: 2026-01-19*

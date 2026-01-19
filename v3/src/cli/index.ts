@@ -267,6 +267,7 @@ program
   .option('--minimal', 'Minimal configuration (skip optional features)')
   .option('--skip-patterns', 'Skip loading pre-trained patterns')
   .option('--with-n8n', 'Install n8n workflow testing agents and skills')
+  .option('--auto-migrate', 'Automatically migrate from v2 if detected')
   .action(async (options) => {
     try {
       // Check if wizard mode requested
@@ -279,6 +280,7 @@ program
           minimal: options.minimal,
           skipPatterns: options.skipPatterns,
           withN8n: options.withN8n,
+          autoMigrate: options.autoMigrate,
         };
 
         const orchestrator = new InitOrchestrator(orchestratorOptions);

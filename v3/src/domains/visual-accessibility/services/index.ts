@@ -26,3 +26,32 @@ export {
   type BreakpointAnalysis,
   type ContentBreak,
 } from './responsive-tester.js';
+
+export {
+  ViewportCaptureService,
+  createViewportCaptureService,
+  VIEWPORT_PRESETS,
+  DEFAULT_BREAKPOINTS,
+  type IViewportCaptureService,
+  type ViewportPreset,
+  type ViewportCaptureResult,
+  type MultiViewportCaptureResult,
+  type ResponsiveAnalysis,
+  type DetectedBreakpoint,
+  type LayoutShift,
+  type ScreenshotComparisonResult,
+  type ViewportCaptureConfig,
+  type CaptureAllOptions,
+  type BreakpointCaptureOptions,
+  type SingleCaptureOptions,
+} from './viewport-capture.js';
+
+export {
+  VisualRegressionService,
+  createVisualRegressionService,
+  type VisualRegressionConfig,
+  type BaselineMetadata,
+  type VisualRegressionResult,
+  type VisualRegressionTestOptions,
+  type IVisualRegressionService,
+} from './visual-regression.js';

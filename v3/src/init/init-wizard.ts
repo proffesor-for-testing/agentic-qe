@@ -135,6 +135,22 @@ export interface InitOrchestratorOptions {
     baseUrl?: string;
     apiKey?: string;
   };
+  /** Automatically migrate from v2 if detected */
+  autoMigrate?: boolean;
+}
+
+/**
+ * V2 Installation Detection Result
+ */
+export interface V2DetectionResult {
+  detected: boolean;
+  memoryDbPath?: string;
+  configPath?: string;
+  agentsPath?: string;
+  hasMemoryDb: boolean;
+  hasConfig: boolean;
+  hasAgents: boolean;
+  version?: string;
 }
 
 export class InitOrchestrator {
@@ -152,12 +168,236 @@ export class InitOrchestrator {
   }
 
   /**
+   * Read AQE version directly from memory.db without full initialization
+   * Returns undefined if no version is stored (v2 installations)
+   */
+  private readVersionFromDb(dbPath: string): string | undefined {
+    try {
+      // Dynamic import to avoid issues if better-sqlite3 not available
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const Database = require('better-sqlite3');
+      const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+
+      try {
+        // Check if kv_store table exists
+        const tableExists = db.prepare(`
+          SELECT name FROM sqlite_master
+          WHERE type='table' AND name='kv_store'
+        `).get();
+
+        if (!tableExists) {
+          db.close();
+          return undefined;
+        }
+
+        // Try to read aqe_version from _system namespace
+        const row = db.prepare(`
+          SELECT value FROM kv_store
+          WHERE key = 'aqe_version' AND namespace = '_system'
+        `).get() as { value: string } | undefined;
+
+        db.close();
+
+        if (row) {
+          return JSON.parse(row.value) as string;
+        }
+        return undefined;
+      } catch {
+        db.close();
+        return undefined;
+      }
+    } catch {
+      // Database doesn't exist or can't be opened
+      return undefined;
+    }
+  }
+
+  /**
+   * Write AQE version to memory.db in _system namespace
+   * This marks the installation as v3
+   */
+  private async writeVersionToDb(version: string): Promise<boolean> {
+    const memoryDbPath = join(this.projectRoot, '.agentic-qe', 'memory.db');
+
+    try {
+      // Ensure directory exists
+      const dir = dirname(memoryDbPath);
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const Database = require('better-sqlite3');
+      const db = new Database(memoryDbPath);
+
+      try {
+        // Ensure kv_store table exists (minimal schema for version storage)
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS kv_store (
+            key TEXT NOT NULL,
+            namespace TEXT NOT NULL,
+            value TEXT NOT NULL,
+            expires_at INTEGER,
+            created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+            PRIMARY KEY (namespace, key)
+          );
+        `);
+
+        // Write version to _system namespace
+        const now = Date.now();
+        db.prepare(`
+          INSERT OR REPLACE INTO kv_store (key, namespace, value, created_at)
+          VALUES (?, '_system', ?, ?)
+        `).run('aqe_version', JSON.stringify(version), now);
+
+        // Also store init timestamp
+        db.prepare(`
+          INSERT OR REPLACE INTO kv_store (key, namespace, value, created_at)
+          VALUES (?, '_system', ?, ?)
+        `).run('init_timestamp', JSON.stringify(new Date().toISOString()), now);
+
+        db.close();
+        console.log(`  ✓ Version ${version} written to memory.db`);
+        return true;
+      } catch (err) {
+        db.close();
+        console.warn(`  ⚠ Could not write version: ${err instanceof Error ? err.message : String(err)}`);
+        return false;
+      }
+    } catch (err) {
+      console.warn(`  ⚠ Could not open memory.db: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
+  }
+
+  /**
+   * Detect existing v2 AQE installation
+   *
+   * Detection logic:
+   * 1. If memory.db exists, try to read aqe_version from kv_store._system
+   * 2. If version exists and starts with '3.', it's v3 - not detected
+   * 3. If no version or version < 3.0.0, and v2 markers exist, it's v2
+   */
+  async detectV2Installation(): Promise<V2DetectionResult> {
+    const memoryDbPath = join(this.projectRoot, '.agentic-qe', 'memory.db');
+    const configPath = join(this.projectRoot, '.agentic-qe', 'config');
+    const agentsPath = join(this.projectRoot, '.claude', 'agents');
+    const v2ConfigFile = join(this.projectRoot, '.agentic-qe', 'config', 'learning.json');
+
+    const hasMemoryDb = existsSync(memoryDbPath);
+    const hasConfig = existsSync(configPath);
+    const hasAgents = existsSync(agentsPath);
+
+    // Check for v2-specific markers (v3 uses config.yaml, v2 uses config/*.json)
+    const hasV2ConfigFiles = existsSync(v2ConfigFile);
+    const hasV3ConfigYaml = existsSync(join(this.projectRoot, '.agentic-qe', 'config.yaml'));
+
+    // Try to read version from memory.db
+    let version: string | undefined;
+    let isV3Installation = false;
+
+    if (hasMemoryDb) {
+      version = this.readVersionFromDb(memoryDbPath);
+
+      if (version) {
+        // Check if it's a v3 installation (version starts with '3.')
+        isV3Installation = version.startsWith('3.');
+      } else {
+        // No version stored - this is a v2 installation
+        version = '2.x.x';
+      }
+    }
+
+    // Detected as v2 if:
+    // 1. Has memory.db but no v3 version marker, OR
+    // 2. Has v2 config files but no v3 config.yaml
+    // AND it's not already a v3 installation
+    const detected = !isV3Installation && hasMemoryDb && (
+      !version?.startsWith('3.') || // No v3 version in DB
+      (hasV2ConfigFiles && !hasV3ConfigYaml) // v2 config files present
+    );
+
+    return {
+      detected,
+      memoryDbPath: hasMemoryDb ? memoryDbPath : undefined,
+      configPath: hasConfig ? configPath : undefined,
+      agentsPath: hasAgents ? agentsPath : undefined,
+      hasMemoryDb,
+      hasConfig,
+      hasAgents,
+      version,
+    };
+  }
+
+  /**
    * Run the full initialization process
    */
   async initialize(): Promise<InitResult> {
     const startTime = Date.now();
 
     try {
+      // Step 0: Check for existing v2 installation
+      const v2Detection = await this.detectV2Installation();
+
+      if (v2Detection.detected) {
+        console.log('\n' + '═'.repeat(60));
+        console.log('⚠️  EXISTING V2 INSTALLATION DETECTED');
+        console.log('═'.repeat(60) + '\n');
+        console.log('Found v2 installation at:');
+        if (v2Detection.hasMemoryDb) {
+          console.log(`  • Memory DB: .agentic-qe/memory.db`);
+        }
+        if (v2Detection.hasConfig) {
+          console.log(`  • Config: .agentic-qe/config/`);
+        }
+        if (v2Detection.hasAgents) {
+          console.log(`  • Agents: .claude/agents/`);
+        }
+        console.log('');
+
+        if (this.options.autoMigrate) {
+          // Auto-migrate mode - proceed with migration integrated
+          console.log('🔄 Auto-migrate mode enabled. Running migration...\n');
+          await this.runV2Migration(v2Detection);
+        } else {
+          // Warn and suggest migration
+          console.log('📋 RECOMMENDED: Run migration before init:\n');
+          console.log('   npx aqe migrate status      # Check what needs migration');
+          console.log('   npx aqe migrate run --dry-run  # Preview changes');
+          console.log('   npx aqe migrate run         # Execute migration\n');
+          console.log('Or continue with:');
+          console.log('   aqe init --auto-migrate     # Auto-migrate during init\n');
+          console.log('═'.repeat(60) + '\n');
+
+          // Return early with migration-required status
+          return {
+            success: false,
+            config: createDefaultConfig('unknown', this.projectRoot),
+            steps: [{
+              step: 'V2 Detection',
+              status: 'error',
+              message: 'Existing v2 installation detected. Run migration first.',
+              durationMs: Date.now() - startTime,
+            }],
+            summary: {
+              projectAnalyzed: false,
+              configGenerated: false,
+              codeIntelligenceIndexed: 0,
+              patternsLoaded: 0,
+              skillsInstalled: 0,
+              agentsInstalled: 0,
+              hooksConfigured: false,
+              mcpConfigured: false,
+              claudeMdGenerated: false,
+              workersStarted: 0,
+            },
+            totalDurationMs: Date.now() - startTime,
+            timestamp: new Date(),
+            v2Detected: true,  // New field to indicate v2 was detected
+          };
+        }
+      }
+
       // Step 1: Analyze project
       const analysis = await this.runStep('Project Analysis', async () => {
         return await this.analyzer.analyze();
@@ -255,6 +495,11 @@ export class InitOrchestrator {
         return await this.saveConfig(config);
       });
 
+      // Step 13: Write version marker to memory.db
+      await this.runStep('Version Marker', async () => {
+        return await this.writeVersionToDb(config.version);
+      });
+
       return {
         success: true,
         config,
@@ -311,6 +556,139 @@ export class InitOrchestrator {
    */
   getWizardSteps(): WizardStep[] {
     return WIZARD_STEPS;
+  }
+
+  /**
+   * Run v2 to v3 migration during init (when --auto-migrate is used)
+   */
+  private async runV2Migration(v2Detection: V2DetectionResult): Promise<void> {
+    try {
+      // Import migration module dynamically to avoid circular deps
+      const { V2ToV3Migrator } = await import('../learning/v2-to-v3-migration.js');
+
+      // Also run config migration
+      await this.migrateV2Config(v2Detection);
+
+      console.log('✓ V2 to V3 migration completed\n');
+    } catch (error) {
+      console.warn(`⚠ Migration warning: ${error instanceof Error ? error.message : String(error)}`);
+      console.log('  Continuing with init (v2 data preserved)...\n');
+    }
+  }
+
+  /**
+   * Migrate v2 config files to v3 format
+   */
+  private async migrateV2Config(v2Detection: V2DetectionResult): Promise<void> {
+    if (!v2Detection.hasConfig) return;
+
+    const v2ConfigDir = join(this.projectRoot, '.agentic-qe', 'config');
+    const v3ConfigPath = join(this.projectRoot, '.agentic-qe', 'config.yaml');
+
+    // Skip if v3 config already exists
+    if (existsSync(v3ConfigPath)) {
+      console.log('  ✓ V3 config already exists, preserving...');
+      return;
+    }
+
+    try {
+      // Read v2 config files
+      const learningConfig = this.readJsonSafe(join(v2ConfigDir, 'learning.json'));
+      const improvementConfig = this.readJsonSafe(join(v2ConfigDir, 'improvement.json'));
+      const codeIntelConfig = this.readJsonSafe(join(v2ConfigDir, 'code-intelligence.json'));
+
+      // Convert to v3 format
+      const v3Config = {
+        version: '3.0.0',
+        migratedFrom: v2Detection.version || '2.x.x',
+        migratedAt: new Date().toISOString(),
+        project: {
+          name: 'migrated-project',
+          root: this.projectRoot,
+          type: 'unknown',
+        },
+        learning: {
+          enabled: learningConfig?.enabled ?? true,
+          embeddingModel: 'transformer',
+          hnswConfig: {
+            M: 8,
+            efConstruction: 100,
+            efSearch: 50,
+          },
+          qualityThreshold: learningConfig?.qualityThreshold ?? 0.5,
+          promotionThreshold: 2,
+          pretrainedPatterns: true,
+          // Preserve v2 learning settings
+          v2Settings: learningConfig,
+        },
+        routing: {
+          mode: 'ml',
+          confidenceThreshold: 0.7,
+          feedbackEnabled: true,
+        },
+        workers: {
+          enabled: ['pattern-consolidator'],
+          intervals: {
+            'pattern-consolidator': 1800000,
+            'coverage-gap-scanner': 3600000,
+            'flaky-test-detector': 7200000,
+          },
+          maxConcurrent: 2,
+          daemonAutoStart: true,
+        },
+        hooks: {
+          claudeCode: true,
+          preCommit: false,
+          ciIntegration: codeIntelConfig?.ciIntegration ?? false,
+        },
+        skills: {
+          install: true,
+          installV2: true,
+          installV3: true,
+          overwrite: false,
+        },
+        domains: {
+          enabled: ['test-generation', 'coverage-analysis', 'learning-optimization'],
+          disabled: [],
+        },
+        agents: {
+          maxConcurrent: 5,
+          defaultTimeout: 60000,
+        },
+        // Preserve original v2 configs for reference
+        _v2Backup: {
+          learning: learningConfig,
+          improvement: improvementConfig,
+          codeIntelligence: codeIntelConfig,
+        },
+      };
+
+      // Write v3 config
+      const yaml = await import('yaml');
+      const yamlContent = `# Agentic QE v3 Configuration
+# Migrated from v2 on ${new Date().toISOString()}
+# Original v2 settings preserved in _v2Backup section
+
+${yaml.stringify(v3Config)}`;
+
+      writeFileSync(v3ConfigPath, yamlContent, 'utf-8');
+      console.log('  ✓ V2 config migrated to v3 format');
+    } catch (error) {
+      console.warn(`  ⚠ Config migration warning: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Safely read JSON file, returning null on error
+   */
+  private readJsonSafe(filePath: string): Record<string, unknown> | null {
+    try {
+      if (!existsSync(filePath)) return null;
+      const content = readFileSync(filePath, 'utf-8');
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
   }
 
   /**

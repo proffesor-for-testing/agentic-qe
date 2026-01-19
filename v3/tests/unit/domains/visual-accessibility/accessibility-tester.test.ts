@@ -429,4 +429,99 @@ describe('AccessibilityTesterService', () => {
       }
     });
   });
+
+  describe('browser mode configuration', () => {
+    it('should accept VibiumClient as optional third parameter', () => {
+      const mockVibiumClient = null;
+      const serviceWithVibium = new AccessibilityTesterService(
+        mockMemory,
+        {},
+        mockVibiumClient
+      );
+      expect(serviceWithVibium).toBeDefined();
+    });
+
+    it('should use heuristic mode when Vibium client not provided', async () => {
+      const serviceWithoutVibium = new AccessibilityTesterService(mockMemory);
+      const result = await serviceWithoutVibium.audit('https://example.com');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.url).toBe('https://example.com');
+        // Should still produce valid report using heuristic mode
+        expect(Array.isArray(result.value.violations)).toBe(true);
+      }
+    });
+
+    it('should respect useBrowserMode config option', async () => {
+      const serviceWithBrowserDisabled = new AccessibilityTesterService(
+        mockMemory,
+        { useBrowserMode: false }
+      );
+      const result = await serviceWithBrowserDisabled.audit('https://example.com');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Should work with heuristic mode
+        expect(result.value.url).toBe('https://example.com');
+      }
+    });
+
+    it('should include browser config options', () => {
+      const customConfig: Partial<AccessibilityTesterConfig> = {
+        useBrowserMode: true,
+        browserConfig: {
+          headless: false,
+          timeout: 60000,
+        },
+      };
+      const customService = new AccessibilityTesterService(mockMemory, customConfig);
+      expect(customService).toBeDefined();
+    });
+  });
+
+  describe('graceful fallback', () => {
+    it('should fall back to heuristic mode when browser mode fails', async () => {
+      // Service without Vibium client should use heuristic mode
+      const serviceWithoutVibium = new AccessibilityTesterService(mockMemory, {
+        useBrowserMode: true, // Enabled but no client provided
+      });
+
+      const result = await serviceWithoutVibium.audit('https://example.com');
+
+      // Should succeed with heuristic fallback
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.violations).toBeDefined();
+        expect(result.value.passes).toBeDefined();
+      }
+    });
+
+    it('should fall back for checkContrast when browser mode unavailable', async () => {
+      const serviceWithoutVibium = new AccessibilityTesterService(mockMemory, {
+        useBrowserMode: true,
+      });
+
+      const result = await serviceWithoutVibium.checkContrast('https://example.com');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(Array.isArray(result.value)).toBe(true);
+      }
+    });
+
+    it('should fall back for checkKeyboardNavigation when browser mode unavailable', async () => {
+      const serviceWithoutVibium = new AccessibilityTesterService(mockMemory, {
+        useBrowserMode: true,
+      });
+
+      const result = await serviceWithoutVibium.checkKeyboardNavigation('https://example.com');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.tabOrder).toBeDefined();
+        expect(result.value.issues).toBeDefined();
+      }
+    });
+  });
 });

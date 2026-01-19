@@ -28,6 +28,19 @@ import { TestExecutorService, TestExecutorConfig } from './services/test-executo
 import { FlakyDetectorService, FlakyDetectorConfig } from './services/flaky-detector';
 import { RetryHandlerService, RetryHandlerConfig } from './services/retry-handler';
 import { TestPrioritizerService, TestPrioritizerConfig, type TestMetadata, type TestPrioritizationContext } from './services/test-prioritizer';
+import {
+  E2ETestRunnerService,
+  createE2ETestRunnerService,
+  type E2ERunnerConfig,
+  type ExecutionStrategy,
+} from './services/e2e-runner';
+import type {
+  E2ETestCase,
+  E2ETestSuite,
+  E2ETestResult,
+  E2ETestSuiteResult,
+} from './types';
+import type { VibiumClient } from '../../integrations/vibium';
 
 // ============================================================================
 // Coordinator Configuration
@@ -63,6 +76,14 @@ export interface TestExecutionCoordinatorConfig {
    * @default true
    */
   enablePrioritization?: boolean;
+  /**
+   * Optional E2E runner config overrides
+   */
+  e2eRunnerConfig?: Partial<E2ERunnerConfig>;
+  /**
+   * Vibium client for E2E testing (dependency injection)
+   */
+  vibiumClient?: VibiumClient;
 }
 
 const DEFAULT_COORDINATOR_CONFIG: TestExecutionCoordinatorConfig = {
@@ -97,6 +118,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
   private readonly flakyDetector: FlakyDetectorService;
   private readonly retryHandler: RetryHandlerService;
   private readonly prioritizer: TestPrioritizerService;
+  private readonly e2eRunner?: E2ETestRunnerService;
   private readonly activeRuns = new Set<string>();
   private readonly config: TestExecutionCoordinatorConfig;
   private initialized = false;
@@ -126,6 +148,14 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
       ...fullConfig.retryHandlerConfig,
     });
     this.prioritizer = new TestPrioritizerService(memory, fullConfig.prioritizerConfig);
+
+    // Create E2E runner if Vibium client is provided
+    if (fullConfig.vibiumClient) {
+      this.e2eRunner = createE2ETestRunnerService(
+        fullConfig.vibiumClient,
+        fullConfig.e2eRunnerConfig
+      );
+    }
   }
 
   /**
@@ -615,6 +645,112 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
   private extractTestName(filePath: string): string {
     const parts = filePath.split('/');
     return parts[parts.length - 1] || filePath;
+  }
+
+  // ============================================================================
+  // E2E Test Execution Methods
+  // ============================================================================
+
+  /**
+   * Execute E2E test case
+   */
+  async executeE2ETestCase(testCase: E2ETestCase): Promise<Result<E2ETestResult, Error>> {
+    if (!this.e2eRunner) {
+      return err(new Error('E2E runner not available - Vibium client not configured'));
+    }
+
+    try {
+      // Publish start event
+      await this.publishEvent<{ testCaseId: string; testCaseName: string }>(
+        'test-execution.E2ETestStarted',
+        {
+          testCaseId: testCase.id,
+          testCaseName: testCase.name,
+        }
+      );
+
+      // Execute test case
+      const result = await this.e2eRunner.runTestCase(testCase);
+
+      // Publish completion event
+      await this.publishEvent<{
+        testCaseId: string;
+        testCaseName: string;
+        success: boolean;
+        duration: number;
+      }>(
+        'test-execution.E2ETestCompleted',
+        {
+          testCaseId: result.testCaseId,
+          testCaseName: result.testCaseName,
+          success: result.success,
+          duration: result.totalDurationMs,
+        }
+      );
+
+      return ok(result);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Execute E2E test suite
+   */
+  async executeE2ETestSuite(
+    suite: E2ETestSuite,
+    strategy: ExecutionStrategy = 'sequential'
+  ): Promise<Result<E2ETestSuiteResult, Error>> {
+    if (!this.e2eRunner) {
+      return err(new Error('E2E runner not available - Vibium client not configured'));
+    }
+
+    try {
+      // Publish start event
+      await this.publishEvent<{
+        suiteId: string;
+        suiteName: string;
+        testCount: number;
+        strategy: ExecutionStrategy;
+      }>(
+        'test-execution.E2ETestSuiteStarted',
+        {
+          suiteId: suite.id,
+          suiteName: suite.name,
+          testCount: suite.testCases.length,
+          strategy,
+        }
+      );
+
+      // Execute test suite
+      const result = await this.e2eRunner.runTestSuite(suite, strategy);
+
+      // Publish completion event
+      await this.publishEvent<{
+        suiteId: string;
+        suiteName: string;
+        success: boolean;
+        passed: number;
+        failed: number;
+        total: number;
+        duration: number;
+      }>(
+        'test-execution.E2ETestSuiteCompleted',
+        {
+          suiteId: result.suiteId,
+          suiteName: result.suiteName,
+          success: result.success,
+          passed: result.summary.passed,
+          failed: result.summary.failed,
+          total: result.summary.total,
+          duration: result.summary.totalDurationMs,
+        }
+      );
+
+      return ok(result);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
   }
 }
 

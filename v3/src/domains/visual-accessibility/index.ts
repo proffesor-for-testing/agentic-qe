@@ -55,6 +55,35 @@ export {
   type ContentBreak,
 } from './services/responsive-tester.js';
 
+export {
+  ViewportCaptureService,
+  createViewportCaptureService,
+  VIEWPORT_PRESETS,
+  DEFAULT_BREAKPOINTS,
+  type IViewportCaptureService,
+  type ViewportPreset,
+  type ViewportCaptureResult,
+  type MultiViewportCaptureResult,
+  type ResponsiveAnalysis as ViewportResponsiveAnalysis,
+  type DetectedBreakpoint,
+  type LayoutShift,
+  type ScreenshotComparisonResult,
+  type ViewportCaptureConfig,
+  type CaptureAllOptions,
+  type BreakpointCaptureOptions,
+  type SingleCaptureOptions,
+} from './services/viewport-capture.js';
+
+export {
+  VisualRegressionService,
+  createVisualRegressionService,
+  type VisualRegressionConfig,
+  type BaselineMetadata,
+  type VisualRegressionResult,
+  type VisualRegressionTestOptions,
+  type IVisualRegressionService,
+} from './services/visual-regression.js';
+
 // ============================================================================
 // Interfaces (Types Only)
 // ============================================================================
@@ -114,3 +143,43 @@ export type {
   BaselineUpdatedEvent,
   ContrastFailureEvent,
 } from './interfaces.js';
+
+// ============================================================================
+// axe-core Integration
+// ============================================================================
+
+export {
+  // Core Functions
+  injectAxeCore,
+  runAxeAudit,
+  parseAxeResults,
+  runCompleteAxeAudit,
+
+  // Error Classes
+  AxeCoreInjectionError,
+  AxeCoreAuditError,
+
+  // WCAG Mappings
+  WCAG_TAG_MAP,
+  WCAG_CRITERIA_MAP,
+  FIX_SUGGESTIONS,
+
+  // Configuration
+  AXE_CORE_CDN_URL,
+  DEFAULT_AXE_CONFIG,
+
+  // Types
+  type AxeOptions,
+  type AxeResults,
+  type AxeViolation,
+  type AxePass,
+  type AxeIncomplete,
+  type AxeInapplicable,
+  type AxeNode,
+  type AxeCheck,
+  type AxeRelatedNode,
+  type AxeTestEnvironment,
+  type AxeTestRunner,
+  type AxeToolOptions,
+  type AxeCoreConfig,
+} from './services/axe-core-integration.js';

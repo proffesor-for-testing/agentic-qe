@@ -47,6 +47,8 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
       detectFlaky: this.coordinator.detectFlaky.bind(this.coordinator),
       retry: this.coordinator.retry.bind(this.coordinator),
       getStats: this.coordinator.getStats.bind(this.coordinator),
+      executeE2ETestCase: this.coordinator.executeE2ETestCase?.bind(this.coordinator),
+      executeE2ETestSuite: this.coordinator.executeE2ETestSuite?.bind(this.coordinator),
     };
 
     return api as T;

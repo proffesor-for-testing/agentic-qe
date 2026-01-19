@@ -271,6 +271,11 @@ export interface InitResult {
 
   totalDurationMs: number;
   timestamp: Date;
+
+  /** Indicates v2 installation was detected and migration is needed */
+  v2Detected?: boolean;
+  /** V2 migration was performed during init */
+  v2Migrated?: boolean;
 }
 
 // ============================================================================
