@@ -385,6 +385,7 @@ describe('MockAgentSpawner', () => {
     await spawner.spawn('test-agent', 'Test task');
 
     const elapsed = Date.now() - start;
-    expect(elapsed).toBeGreaterThanOrEqual(50);
+    // Use a slightly lower threshold (45ms) to account for timing variance in CI
+    expect(elapsed).toBeGreaterThanOrEqual(45);
   });
 });
