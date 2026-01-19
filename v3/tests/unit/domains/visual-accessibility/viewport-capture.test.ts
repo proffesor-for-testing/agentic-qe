@@ -37,7 +37,8 @@ describe('ViewportCaptureService', () => {
 
   beforeEach(() => {
     memory = createMockMemory();
-    service = new ViewportCaptureService(memory);
+    // Disable preferAgentBrowser to prevent real browser client creation in tests
+    service = new ViewportCaptureService(memory, undefined, { preferAgentBrowser: false });
   });
 
   describe('VIEWPORT_PRESETS', () => {
