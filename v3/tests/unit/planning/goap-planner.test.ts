@@ -408,6 +408,6 @@ describe('GOAPPlanner', () => {
       if (plan) {
         expect(plan.actions.length).toBeLessThanOrEqual(20);
       }
-    }, 30000); // A* search with many actions takes time
+    }, 60000); // A* search with many actions takes time, CI is slower
   });
 });

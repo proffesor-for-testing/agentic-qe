@@ -102,11 +102,13 @@ describe('axe-core-integration', () => {
     });
 
     it('should respect timeout option', async () => {
-      evaluateFunction.mockResolvedValueOnce({ success: true, value: false });
+      evaluateFunction
+        .mockResolvedValueOnce({ success: true, value: false }) // axe not loaded
+        .mockResolvedValueOnce({ success: true, value: true }); // CDN load with timeout
 
       await injectAxeCore(mockVibiumClient, { timeout: 5000 });
 
-      // Verify timeout was used in the script
+      // Verify timeout was used in the script (second call is CDN load)
       const lastCall = evaluateFunction.mock.calls[evaluateFunction.mock.calls.length - 1];
       expect(lastCall[0]).toContain('5000');
     });
@@ -641,12 +643,12 @@ describe('viewport-capture', () => {
 
   describe('createViewportCaptureService', () => {
     it('should create service with defaults', () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       expect(service).toBeInstanceOf(ViewportCaptureService);
     });
 
     it('should create service with Vibium client', () => {
-      const service = createViewportCaptureService(mockMemory, mockVibiumClient);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       expect(service).toBeInstanceOf(ViewportCaptureService);
     });
 
@@ -663,7 +665,7 @@ describe('viewport-capture', () => {
 
   describe('captureAtViewport', () => {
     it('should capture screenshot at viewport (simulated)', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       const viewport: Viewport = {
         width: 1280,
         height: 720,
@@ -688,7 +690,7 @@ describe('viewport-capture', () => {
         id: 'active-session',
       });
 
-      const service = createViewportCaptureService(mockMemory, mockVibiumClient);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       const viewport: Viewport = {
         width: 1920,
         height: 1080,
@@ -716,7 +718,7 @@ describe('viewport-capture', () => {
         err(new Error('Navigation failed'))
       );
 
-      const service = createViewportCaptureService(mockMemory, mockVibiumClient);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       const viewport: Viewport = {
         width: 1280,
         height: 720,
@@ -735,7 +737,7 @@ describe('viewport-capture', () => {
     });
 
     it('should store screenshot in memory', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       const viewport: Viewport = {
         width: 1280,
         height: 720,
@@ -752,7 +754,10 @@ describe('viewport-capture', () => {
 
   describe('captureAllViewports', () => {
     it('should capture screenshots at multiple viewports', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      // Disable preferAgentBrowser to avoid real browser creation
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, {
+        preferAgentBrowser: false,
+      });
       const viewports: Viewport[] = [
         { width: 375, height: 667, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
         { width: 1280, height: 720, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
@@ -770,7 +775,9 @@ describe('viewport-capture', () => {
     });
 
     it('should track timing metrics', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, {
+        preferAgentBrowser: false,
+      });
       const viewports: Viewport[] = [
         { width: 1280, height: 720, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
       ];
@@ -793,7 +800,7 @@ describe('viewport-capture', () => {
         .mockResolvedValueOnce(ok({ success: true, durationMs: 1000 }))
         .mockResolvedValueOnce(err(new Error('Navigation failed')));
 
-      const service = createViewportCaptureService(mockMemory, mockVibiumClient);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       const viewports: Viewport[] = [
         { width: 1280, height: 720, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
         { width: 1920, height: 1080, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
@@ -811,7 +818,7 @@ describe('viewport-capture', () => {
 
   describe('captureWithPresets', () => {
     it('should capture using standard presets', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
 
       const result = await service.captureWithPresets('https://example.com', [
         'mobile-m',
@@ -829,7 +836,7 @@ describe('viewport-capture', () => {
     });
 
     it('should warn on unknown presets', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
 
       const result = await service.captureWithPresets('https://example.com', [
         'mobile-m',
@@ -844,7 +851,7 @@ describe('viewport-capture', () => {
     });
 
     it('should return error when no valid presets', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
 
       const result = await service.captureWithPresets('https://example.com', [
         'invalid-1',
@@ -860,7 +867,7 @@ describe('viewport-capture', () => {
 
   describe('captureResponsiveBreakpoints', () => {
     it('should capture at responsive breakpoints', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
 
       const result = await service.captureResponsiveBreakpoints(
         'https://example.com',
@@ -879,7 +886,7 @@ describe('viewport-capture', () => {
     });
 
     it('should include standard breakpoints by default', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
 
       const result = await service.captureResponsiveBreakpoints(
         'https://example.com',
@@ -898,7 +905,7 @@ describe('viewport-capture', () => {
     });
 
     it('should respect custom breakpoints', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
 
       const result = await service.captureResponsiveBreakpoints(
         'https://example.com',
@@ -917,7 +924,7 @@ describe('viewport-capture', () => {
     });
 
     it('should detect layout shifts', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
 
       const result = await service.captureResponsiveBreakpoints(
         'https://example.com',
@@ -939,7 +946,7 @@ describe('viewport-capture', () => {
     });
 
     it('should calculate responsive score', async () => {
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
 
       const result = await service.captureResponsiveBreakpoints(
         'https://example.com',
@@ -979,7 +986,7 @@ describe('viewport-capture', () => {
         .mockResolvedValueOnce(screenshot1)
         .mockResolvedValueOnce(screenshot2);
 
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       const result = await service.compareScreenshots('screenshot-1', 'screenshot-2');
 
       expect(result.success).toBe(true);
@@ -995,7 +1002,7 @@ describe('viewport-capture', () => {
     it('should return error for missing screenshot', async () => {
       (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       const result = await service.compareScreenshots('screenshot-1', 'screenshot-2');
 
       expect(result.success).toBe(false);
@@ -1018,7 +1025,7 @@ describe('viewport-capture', () => {
         .mockResolvedValueOnce(screenshot1)
         .mockResolvedValueOnce(screenshot1);
 
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       const result = await service.compareScreenshots('screenshot-1', 'screenshot-1', 0.05);
 
       expect(result.success).toBe(true);
@@ -1041,7 +1048,7 @@ describe('viewport-capture', () => {
 
       (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(screenshot);
 
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       const result = await service.getScreenshot('test-id');
 
       expect(result).toEqual(screenshot);
@@ -1050,7 +1057,7 @@ describe('viewport-capture', () => {
     it('should return null for non-existent screenshot', async () => {
       (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-      const service = createViewportCaptureService(mockMemory);
+      const service = createViewportCaptureService(mockMemory, mockVibiumClient, { preferAgentBrowser: false });
       const result = await service.getScreenshot('non-existent');
 
       expect(result).toBeNull();
@@ -1140,12 +1147,12 @@ describe('visual-regression', () => {
 
   describe('createVisualRegressionService', () => {
     it('should create service with minimal dependencies', () => {
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       expect(service).toBeInstanceOf(VisualRegressionService);
     });
 
     it('should create service with Vibium client', () => {
-      const service = createVisualRegressionService(mockMemory, mockVibiumClient);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       expect(service).toBeInstanceOf(VisualRegressionService);
     });
 
@@ -1164,7 +1171,7 @@ describe('visual-regression', () => {
     it('should create new baseline when none exists', async () => {
       (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.runTest('https://example.com');
 
       expect(result.success).toBe(true);
@@ -1200,7 +1207,7 @@ describe('visual-regression', () => {
         .mockResolvedValueOnce(baselineMetadata)
         .mockResolvedValueOnce(baselineScreenshot);
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.runTest('https://example.com');
 
       expect(result.success).toBe(true);
@@ -1237,6 +1244,7 @@ describe('visual-regression', () => {
 
       const service = createVisualRegressionService(mockMemory, null, undefined, {
         diffThreshold: 1.0, // Allow 1% difference
+        useBrowserCapture: false,
       });
 
       const result = await service.runTest('https://example.com');
@@ -1274,6 +1282,7 @@ describe('visual-regression', () => {
 
       const service = createVisualRegressionService(mockMemory, null, undefined, {
         diffThreshold: 0.01, // Very strict threshold
+        useBrowserCapture: false,
       });
 
       const result = await service.runTest('https://example.com'); // Different URL
@@ -1310,7 +1319,7 @@ describe('visual-regression', () => {
         .mockResolvedValueOnce(baselineScreenshot)
         .mockResolvedValueOnce(baselineMetadata); // For updateBaseline
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.runTest('https://example.com', {
         forceUpdateBaseline: true,
       });
@@ -1331,7 +1340,7 @@ describe('visual-regression', () => {
         hasTouch: true,
       };
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.runTest('https://example.com', {
         viewport: customViewport,
       });
@@ -1347,7 +1356,7 @@ describe('visual-regression', () => {
     it('should run tests for multiple URLs', async () => {
       (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.runTests([
         'https://example.com',
         'https://example.com/about',
@@ -1369,7 +1378,7 @@ describe('visual-regression', () => {
         { width: 1280, height: 720, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
       ];
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.runTests(['https://example.com'], viewports);
 
       expect(result.success).toBe(true);
@@ -1404,7 +1413,7 @@ describe('visual-regression', () => {
         .mockResolvedValueOnce(baselineMetadata) // Baseline for second URL
         .mockResolvedValueOnce(baselineScreenshot);
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.runTests([
         'https://example.com',
         'https://example.com',
@@ -1419,7 +1428,7 @@ describe('visual-regression', () => {
     it('should calculate duration', async () => {
       (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.runTests(['https://example.com']);
 
       expect(result.success).toBe(true);
@@ -1441,7 +1450,7 @@ describe('visual-regression', () => {
           metadata: { browser: 'chromium', os: 'linux', fullPage: false, loadTime: 1000 },
         };
 
-        const service = createVisualRegressionService(mockMemory);
+        const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
         const result = await service.setBaseline(screenshot, 'Initial baseline');
 
         expect(result.success).toBe(true);
@@ -1463,7 +1472,7 @@ describe('visual-regression', () => {
           metadata: { browser: 'chromium', os: 'linux', fullPage: false, loadTime: 1000 },
         };
 
-        const service = createVisualRegressionService(mockMemory);
+        const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
         const result = await service.setBaseline(screenshot, 'Approved baseline', 'qa-team');
 
         expect(result.success).toBe(true);
@@ -1487,7 +1496,7 @@ describe('visual-regression', () => {
 
         (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(baselineMetadata);
 
-        const service = createVisualRegressionService(mockMemory);
+        const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
         const viewport: Viewport = {
           width: 1280,
           height: 720,
@@ -1504,7 +1513,7 @@ describe('visual-regression', () => {
       it('should return null for non-existent baseline', async () => {
         (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-        const service = createVisualRegressionService(mockMemory);
+        const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
         const viewport: Viewport = {
           width: 1280,
           height: 720,
@@ -1542,7 +1551,7 @@ describe('visual-regression', () => {
 
         (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(existingBaseline);
 
-        const service = createVisualRegressionService(mockMemory);
+        const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
         const result = await service.updateBaseline('baseline-1', newScreenshot, 'Updated design');
 
         expect(result.success).toBe(true);
@@ -1565,7 +1574,7 @@ describe('visual-regression', () => {
           metadata: { browser: 'chromium', os: 'linux', fullPage: false, loadTime: 1000 },
         };
 
-        const service = createVisualRegressionService(mockMemory);
+        const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
         const result = await service.updateBaseline('non-existent', screenshot, 'Update');
 
         expect(result.success).toBe(false);
@@ -1589,7 +1598,7 @@ describe('visual-regression', () => {
 
         (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(baselineMetadata);
 
-        const service = createVisualRegressionService(mockMemory);
+        const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
         const result = await service.deleteBaseline('baseline-1');
 
         expect(result.success).toBe(true);
@@ -1599,7 +1608,7 @@ describe('visual-regression', () => {
       it('should return error for non-existent baseline', async () => {
         (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-        const service = createVisualRegressionService(mockMemory);
+        const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
         const result = await service.deleteBaseline('non-existent');
 
         expect(result.success).toBe(false);
@@ -1621,7 +1630,7 @@ describe('visual-regression', () => {
         metadata: { browser: 'chromium', os: 'linux', fullPage: false, loadTime: 1000 },
       };
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.compareScreenshots(screenshot, screenshot);
 
       expect(result.success).toBe(true);
@@ -1651,7 +1660,7 @@ describe('visual-regression', () => {
         metadata: { browser: 'chromium', os: 'linux', fullPage: false, loadTime: 1000 },
       };
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.compareScreenshots(screenshot1, screenshot2);
 
       expect(result.success).toBe(true);
@@ -1736,7 +1745,7 @@ describe('visual-regression', () => {
         metadata: { browser: 'chromium', os: 'linux', fullPage: false, loadTime: 1000 },
       };
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.compareScreenshots(screenshot1, screenshot2);
 
       expect(result.success).toBe(true);
@@ -1758,7 +1767,7 @@ describe('visual-regression', () => {
     it('should check browser availability', async () => {
       (mockVibiumClient.isAvailable as ReturnType<typeof vi.fn>).mockResolvedValue(true);
 
-      const service = createVisualRegressionService(mockMemory, mockVibiumClient);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const available = await service.isBrowserAvailable();
 
       expect(available).toBe(true);
@@ -1772,7 +1781,7 @@ describe('visual-regression', () => {
     });
 
     it('should cache availability result', async () => {
-      const service = createVisualRegressionService(mockMemory, mockVibiumClient);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
 
       await service.isBrowserAvailable();
       await service.isBrowserAvailable();
@@ -1795,7 +1804,7 @@ describe('visual-regression', () => {
 
       (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(diff);
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.getDiff('screenshot-1_screenshot-2');
 
       expect(result).toEqual(diff);
@@ -1804,7 +1813,7 @@ describe('visual-regression', () => {
     it('should return null for non-existent diff', async () => {
       (mockMemory.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-      const service = createVisualRegressionService(mockMemory);
+      const service = createVisualRegressionService(mockMemory, mockVibiumClient, undefined, { useBrowserCapture: false });
       const result = await service.getDiff('non-existent');
 
       expect(result).toBeNull();
