@@ -1,6 +1,6 @@
 {
   "name": "@agentic-qe/v3",
-  "version": "3.0.0-alpha.32",
+  "version": "3.0.0-alpha.33",
   "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 47 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
@@ -93,7 +93,6 @@
   },
   "dependencies": {
     "@faker-js/faker": "^10.2.0",
-    "fast-glob": "^3.3.3",
     "@ruvector/attention": "0.1.3",
     "@ruvector/gnn": "0.1.19",
     "@ruvector/sona": "0.1.5",
@@ -104,12 +103,14 @@
     "chalk": "^5.6.2",
     "cli-progress": "^3.12.0",
     "commander": "^12.1.0",
+    "fast-glob": "^3.3.3",
     "hnswlib-node": "^3.0.0",
     "ora": "^9.0.0",
     "secure-json-parse": "^4.1.0",
     "typescript": "^5.9.3",
     "uuid": "^9.0.0",
-    "vibium": "^0.1.2"
+    "vibium": "^0.1.2",
+    "yaml": "^2.8.2"
   },
   "optionalDependencies": {
     "@ruvector/attention-darwin-arm64": "0.1.3",

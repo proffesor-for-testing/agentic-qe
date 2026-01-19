@@ -663,7 +663,7 @@ export class InitOrchestrator {
         },
       };
 
-      // Write v3 config
+      // Write v3 config as YAML
       const yaml = await import('yaml');
       const yamlContent = `# Agentic QE v3 Configuration
 # Migrated from v2 on ${new Date().toISOString()}
