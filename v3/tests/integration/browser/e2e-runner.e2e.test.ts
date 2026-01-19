@@ -8,9 +8,11 @@
  * - Snapshot refs (@e1, @e2) work for element selection
  *
  * These tests require agent-browser CLI to be installed.
+ * NOTE: Tests are automatically SKIPPED in CI where agent-browser is unavailable.
  */
 
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
+import { execSync } from 'child_process';
 import {
   E2ETestRunnerService,
   createE2ETestRunnerServiceWithBrowserClient,
@@ -31,6 +33,22 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const BROWSER_TIMEOUT = 90000;
+
+// Check if agent-browser is available
+let agentBrowserAvailable = false;
+try {
+  const result = execSync('npx agent-browser --version 2>&1 || echo "not-found"', {
+    encoding: 'utf-8',
+    stdio: 'pipe',
+    timeout: 10000
+  });
+  agentBrowserAvailable = !result.includes('not-found') && !result.includes('ERR!');
+} catch {
+  agentBrowserAvailable = false;
+}
+
+// Skip tests if agent-browser not available
+const describeIfAvailable = agentBrowserAvailable ? describe : describe.skip;
 const SCREENSHOT_DIR = '/tmp/e2e-test-screenshots';
 
 // Test URLs
@@ -40,7 +58,7 @@ const TEST_URLS = {
   html: 'https://httpbin.org/html',
 };
 
-describe('E2ETestRunnerService - Real Browser Execution', () => {
+describeIfAvailable('E2ETestRunnerService - Real Browser Execution', () => {
   let runner: E2ETestRunnerService;
   let browserClient: AgentBrowserClient;
 
@@ -481,7 +499,7 @@ describe('E2ETestRunnerService - Real Browser Execution', () => {
   });
 });
 
-describe('E2ETestRunnerService - Test Suite Execution', () => {
+describeIfAvailable('E2ETestRunnerService - Test Suite Execution', () => {
   let runner: E2ETestRunnerService;
   let browserClient: AgentBrowserClient;
 

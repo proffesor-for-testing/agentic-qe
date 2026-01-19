@@ -7,6 +7,7 @@
  * - Real accessibility violations are detected on test pages
  *
  * These tests require agent-browser CLI to be installed.
+ * NOTE: Tests are automatically SKIPPED in CI where agent-browser is unavailable.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
@@ -14,8 +15,25 @@ import { AccessibilityTesterService } from '../../../src/domains/visual-accessib
 import { AgentBrowserClient } from '../../../src/integrations/browser/agent-browser/client';
 import { createAgentBrowserClient } from '../../../src/integrations/browser/client-factory';
 import type { MemoryBackend, StoreOptions, VectorSearchResult } from '../../../src/kernel/interfaces';
+import { execSync } from 'child_process';
 
 const BROWSER_TIMEOUT = 60000;
+
+// Check if agent-browser is available
+let agentBrowserAvailable = false;
+try {
+  const result = execSync('npx agent-browser --version 2>&1 || echo "not-found"', {
+    encoding: 'utf-8',
+    stdio: 'pipe',
+    timeout: 10000
+  });
+  agentBrowserAvailable = !result.includes('not-found') && !result.includes('ERR!');
+} catch {
+  agentBrowserAvailable = false;
+}
+
+// Skip tests if agent-browser not available
+const describeIfAvailable = agentBrowserAvailable ? describe : describe.skip;
 
 // In-memory backend for testing
 class TestMemoryBackend implements MemoryBackend {
@@ -83,7 +101,7 @@ const TEST_PAGES = {
 </html>`,
 };
 
-describe('AccessibilityTesterService - Real Browser Integration', () => {
+describeIfAvailable('AccessibilityTesterService - Real Browser Integration', () => {
   let service: AccessibilityTesterService;
   let browserClient: AgentBrowserClient;
   let memoryBackend: TestMemoryBackend;
@@ -197,7 +215,7 @@ describe('AccessibilityTesterService - Real Browser Integration', () => {
   }, BROWSER_TIMEOUT * 2);
 });
 
-describe('AccessibilityTesterService - axe-core Integration', () => {
+describeIfAvailable('AccessibilityTesterService - axe-core Integration', () => {
   let service: AccessibilityTesterService;
   let browserClient: AgentBrowserClient;
   let memoryBackend: TestMemoryBackend;
@@ -285,7 +303,7 @@ describe('AccessibilityTesterService - axe-core Integration', () => {
   }, BROWSER_TIMEOUT);
 });
 
-describe('AccessibilityTesterService - Color Contrast Analysis', () => {
+describeIfAvailable('AccessibilityTesterService - Color Contrast Analysis', () => {
   let service: AccessibilityTesterService;
   let browserClient: AgentBrowserClient;
   let memoryBackend: TestMemoryBackend;
@@ -342,7 +360,7 @@ describe('AccessibilityTesterService - Color Contrast Analysis', () => {
   }, BROWSER_TIMEOUT);
 });
 
-describe('AccessibilityTesterService - Keyboard Navigation', () => {
+describeIfAvailable('AccessibilityTesterService - Keyboard Navigation', () => {
   let service: AccessibilityTesterService;
   let browserClient: AgentBrowserClient;
   let memoryBackend: TestMemoryBackend;
