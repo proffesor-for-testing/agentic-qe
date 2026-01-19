@@ -32,8 +32,10 @@ try {
   agentBrowserAvailable = false;
 }
 
-// Skip tests if agent-browser not available
-const describeIfAvailable = agentBrowserAvailable ? describe : describe.skip;
+// Skip tests if agent-browser not available OR if running in CI
+// CI environments typically don't have browser automation setup
+const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+const describeIfAvailable = (!isCI && agentBrowserAvailable) ? describe : describe.skip;
 
 // In-memory backend for testing
 class TestMemoryBackend implements MemoryBackend {

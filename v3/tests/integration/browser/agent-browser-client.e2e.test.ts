@@ -47,8 +47,10 @@ try {
   agentBrowserAvailable = false;
 }
 
-// Skip all tests if agent-browser is not available
-const describeIfAvailable = agentBrowserAvailable ? describe : describe.skip;
+// Skip all tests if agent-browser is not available OR if running in CI
+// CI environments typically don't have browser automation setup
+const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+const describeIfAvailable = (!isCI && agentBrowserAvailable) ? describe : describe.skip;
 
 describe('Agent-Browser CLI Availability', () => {
   it('should check if agent-browser CLI is available', async () => {
