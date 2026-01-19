@@ -67,7 +67,11 @@ describe('AccessibilityTesterService', () => {
 
   beforeEach(() => {
     mockMemory = new MockMemoryBackend();
-    service = new AccessibilityTesterService(mockMemory);
+    // Disable browser mode and agent-browser preference to prevent real browser client creation
+    service = new AccessibilityTesterService(mockMemory, {
+      useBrowserMode: false,
+      preferAgentBrowser: false,
+    });
   });
 
   describe('audit', () => {
@@ -371,6 +375,7 @@ describe('AccessibilityTesterService', () => {
     it('should use custom default WCAG level', async () => {
       const customConfig: Partial<AccessibilityTesterConfig> = {
         defaultWCAGLevel: 'AAA',
+        preferAgentBrowser: false, // Prevent real browser client creation in tests
       };
       const customService = new AccessibilityTesterService(mockMemory, customConfig);
 
@@ -407,7 +412,9 @@ describe('AccessibilityTesterService', () => {
       const errorMemory = new MockMemoryBackend();
       vi.spyOn(errorMemory, 'set').mockRejectedValue(new Error('Storage failed'));
 
-      const errorService = new AccessibilityTesterService(errorMemory);
+      const errorService = new AccessibilityTesterService(errorMemory, {
+        preferAgentBrowser: false, // Prevent real browser client creation in tests
+      });
       const result = await errorService.audit('https://example.com');
 
       expect(result.success).toBe(false);
@@ -442,7 +449,10 @@ describe('AccessibilityTesterService', () => {
     });
 
     it('should use heuristic mode when Vibium client not provided', async () => {
-      const serviceWithoutVibium = new AccessibilityTesterService(mockMemory);
+      // Disable preferAgentBrowser to prevent real browser client creation
+      const serviceWithoutVibium = new AccessibilityTesterService(mockMemory, {
+        preferAgentBrowser: false,
+      });
       const result = await serviceWithoutVibium.audit('https://example.com');
 
       expect(result.success).toBe(true);
@@ -483,8 +493,10 @@ describe('AccessibilityTesterService', () => {
   describe('graceful fallback', () => {
     it('should fall back to heuristic mode when browser mode fails', async () => {
       // Service without Vibium client should use heuristic mode
+      // Disable preferAgentBrowser to prevent real browser client creation
       const serviceWithoutVibium = new AccessibilityTesterService(mockMemory, {
         useBrowserMode: true, // Enabled but no client provided
+        preferAgentBrowser: false, // Prevent real browser client creation in tests
       });
 
       const result = await serviceWithoutVibium.audit('https://example.com');
@@ -500,6 +512,7 @@ describe('AccessibilityTesterService', () => {
     it('should fall back for checkContrast when browser mode unavailable', async () => {
       const serviceWithoutVibium = new AccessibilityTesterService(mockMemory, {
         useBrowserMode: true,
+        preferAgentBrowser: false, // Prevent real browser client creation in tests
       });
 
       const result = await serviceWithoutVibium.checkContrast('https://example.com');
@@ -513,6 +526,7 @@ describe('AccessibilityTesterService', () => {
     it('should fall back for checkKeyboardNavigation when browser mode unavailable', async () => {
       const serviceWithoutVibium = new AccessibilityTesterService(mockMemory, {
         useBrowserMode: true,
+        preferAgentBrowser: false, // Prevent real browser client creation in tests
       });
 
       const result = await serviceWithoutVibium.checkKeyboardNavigation('https://example.com');
