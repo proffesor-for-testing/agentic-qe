@@ -1,15 +1,21 @@
 /**
  * Agentic QE v3 - Accessibility Testing Service
- * Implements WCAG 2.2 compliance auditing with browser mode support via Vibium
+ * Implements WCAG 2.2 compliance auditing with browser mode support
  *
- * This service supports two modes of operation:
+ * This service supports multiple modes of operation:
  * 1. Heuristic Mode (default): URL-pattern-based analysis without browser automation
- * 2. Browser Mode: Real DOM inspection via Vibium browser automation
+ * 2. Browser Mode (agent-browser): Real DOM inspection via unified browser client
+ * 3. Browser Mode (Vibium): Real DOM inspection via Vibium MCP integration
  *
  * Browser mode provides more accurate results by:
  * - Running actual axe-core accessibility checks in the browser
  * - Inspecting real DOM structure and computed styles
  * - Evaluating color contrast with actual rendered colors
+ *
+ * Browser Client Integration:
+ * - Prefers agent-browser when available (supports snapshots and axe-core injection)
+ * - Falls back to Vibium if agent-browser unavailable
+ * - Uses heuristic mode when no browser tool is available
  *
  * @module domains/visual-accessibility/services/accessibility-tester
  */
@@ -42,6 +48,36 @@ import {
   isBrowserModeEnabled,
   isAxeCoreEnabled,
 } from '../../../integrations/vibium/index.js';
+import {
+  createBrowserClient,
+  getBrowserClientForUseCase,
+  type IBrowserClient,
+  type IAgentBrowserClient,
+  type BrowserError,
+} from '../../../integrations/browser/index.js';
+
+/**
+ * Axe-core result structure from browser evaluation
+ */
+interface AxeCoreResult {
+  violations: Array<{
+    id: string;
+    impact?: string;
+    description: string;
+    help: string;
+    helpUrl?: string;
+    tags?: string[];
+    nodes: Array<{
+      selector: string;
+      html: string;
+      target: string[];
+      failureSummary?: string;
+    }>;
+  }>;
+  passes: string[];
+  incomplete: string[];
+  inapplicable: string[];
+}
 
 /**
  * Configuration for the accessibility tester
@@ -60,7 +96,7 @@ export interface AccessibilityTesterConfig {
   simulationMode: boolean;
   /**
    * Enable browser mode for accessibility testing.
-   * When true and Vibium is available, uses real browser for DOM inspection.
+   * When true and a browser client is available, uses real browser for DOM inspection.
    * When false, uses heuristic-based URL pattern analysis.
    * @default true (respects feature flag)
    */
@@ -74,6 +110,18 @@ export interface AccessibilityTesterConfig {
     /** Navigation timeout in milliseconds */
     timeout: number;
   };
+  /**
+   * Optional browser client for browser-based testing.
+   * If provided, this client will be used instead of creating a new one.
+   * Supports both IBrowserClient and IAgentBrowserClient interfaces.
+   */
+  browserClient?: IBrowserClient;
+  /**
+   * Prefer agent-browser over Vibium when both are available.
+   * agent-browser provides snapshot-based element refs and axe-core injection.
+   * @default true
+   */
+  preferAgentBrowser: boolean;
 }
 
 const DEFAULT_CONFIG: AccessibilityTesterConfig = {
@@ -88,6 +136,8 @@ const DEFAULT_CONFIG: AccessibilityTesterConfig = {
     headless: true,
     timeout: 30000,
   },
+  browserClient: undefined,
+  preferAgentBrowser: true,
 };
 
 /**
@@ -147,13 +197,15 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
   private readonly config: AccessibilityTesterConfig;
   private readonly rules: AccessibilityRule[];
   private readonly vibiumClient: VibiumClient | null;
+  private readonly browserClient: IBrowserClient | null;
+  private managedBrowserClient: IBrowserClient | null = null;
 
   /**
    * Create an AccessibilityTesterService
    *
    * @param memory - Memory backend for storing audit results
    * @param config - Service configuration options
-   * @param vibiumClient - Optional Vibium client for browser-based testing
+   * @param vibiumClient - Optional Vibium client for browser-based testing (legacy)
    */
   constructor(
     private readonly memory: MemoryBackend,
@@ -163,31 +215,48 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.rules = this.initializeRules();
     this.vibiumClient = vibiumClient ?? null;
+    this.browserClient = config.browserClient ?? null;
   }
 
   /**
    * Check if browser mode is available and enabled
    *
    * Browser mode requires:
-   * 1. useBrowserMode feature flag enabled
-   * 2. VibiumClient instance provided
-   * 3. axe-core feature flag enabled (for accessibility checks)
+   * 1. useBrowserMode config setting enabled
+   * 2. Browser client (IBrowserClient) or VibiumClient instance provided
+   * 3. Feature flags enabled (if using Vibium)
+   *
+   * Priority order:
+   * 1. Provided browserClient (from config)
+   * 2. agent-browser (if preferAgentBrowser is true)
+   * 3. Vibium (if available and feature flags enabled)
    *
    * @returns true if browser mode should be used
    */
   private shouldUseBrowserMode(): boolean {
-    // Check feature flags
+    // Check config setting
+    if (!this.config.useBrowserMode) {
+      return false;
+    }
+
+    // Check if browser client is provided
+    if (this.browserClient) {
+      return true;
+    }
+
+    // Check if we should prefer agent-browser (factory will be used)
+    if (this.config.preferAgentBrowser) {
+      // Will attempt to create agent-browser client on demand
+      return true;
+    }
+
+    // Legacy Vibium path - check feature flags
     if (!isBrowserModeEnabled()) {
       return false;
     }
 
     // Check if axe-core is enabled for accessibility testing
     if (!isAxeCoreEnabled()) {
-      return false;
-    }
-
-    // Check config setting
-    if (!this.config.useBrowserMode) {
       return false;
     }
 
@@ -200,10 +269,54 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
   }
 
   /**
+   * Get or create a browser client for accessibility testing
+   * Prefers agent-browser, falls back to Vibium
+   *
+   * @returns Browser client or null if unavailable
+   */
+  private async getBrowserClient(): Promise<IBrowserClient | null> {
+    // Use provided browser client first
+    if (this.browserClient) {
+      return this.browserClient;
+    }
+
+    // Use already-created managed client
+    if (this.managedBrowserClient) {
+      return this.managedBrowserClient;
+    }
+
+    // Try to create a browser client via factory
+    if (this.config.preferAgentBrowser) {
+      try {
+        const client = await getBrowserClientForUseCase('accessibility');
+        const available = await client.isAvailable();
+        if (available) {
+          this.managedBrowserClient = client;
+          return client;
+        }
+      } catch {
+        // Fall through to Vibium
+      }
+    }
+
+    // Fall back to Vibium (return null, Vibium methods will be used)
+    return null;
+  }
+
+  /**
+   * Check if client is an IAgentBrowserClient (has getSnapshot method)
+   */
+  private isAgentBrowserClient(client: IBrowserClient): client is IAgentBrowserClient {
+    return client.tool === 'agent-browser' && 'getSnapshot' in client;
+  }
+
+  /**
    * Run full accessibility audit
    *
-   * Uses browser mode via Vibium if available and enabled, otherwise
-   * falls back to heuristic-based URL pattern analysis.
+   * Priority order for browser-based testing:
+   * 1. agent-browser (if preferAgentBrowser is true and available)
+   * 2. Vibium (if available and enabled via feature flags)
+   * 3. Heuristic mode (URL pattern analysis)
    *
    * @param url - URL to audit
    * @param options - Audit configuration options
@@ -218,16 +331,33 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
 
       // Try browser-based audit if available
       if (this.shouldUseBrowserMode()) {
-        const browserResult = await this.auditWithBrowser(url, wcagLevel, options);
-        if (browserResult.success) {
-          // Store report
-          await this.storeReport(browserResult.value);
-          return browserResult;
+        // First, try agent-browser if available
+        const browserClient = await this.getBrowserClient();
+        if (browserClient) {
+          const browserResult = await this.auditWithBrowserClient(
+            browserClient,
+            url,
+            wcagLevel,
+            options
+          );
+          if (browserResult.success) {
+            await this.storeReport(browserResult.value);
+            return browserResult;
+          }
+          const errorMsg = this.getErrorMessage(browserResult);
+          console.warn(`Browser client audit failed: ${errorMsg}`);
         }
-        // Browser mode failed, fall back to heuristic mode
-        // Log the error for debugging but continue with fallback
-        const errorMsg = this.getErrorMessage(browserResult);
-        console.warn(`Browser mode audit failed, falling back to heuristic mode: ${errorMsg}`);
+
+        // Fall back to Vibium if available
+        if (this.vibiumClient && isBrowserModeEnabled() && isAxeCoreEnabled()) {
+          const vibiumResult = await this.auditWithBrowser(url, wcagLevel, options);
+          if (vibiumResult.success) {
+            await this.storeReport(vibiumResult.value);
+            return vibiumResult;
+          }
+          const errorMsg = this.getErrorMessage(vibiumResult);
+          console.warn(`Vibium audit failed, falling back to heuristic mode: ${errorMsg}`);
+        }
       }
 
       // Use heuristic-based audit
@@ -238,7 +368,267 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
   }
 
   /**
-   * Run accessibility audit using browser via Vibium
+   * Run accessibility audit using unified browser client (agent-browser or other)
+   *
+   * This method uses the IBrowserClient interface for browser automation.
+   * For agent-browser, it uses getSnapshot() for element discovery and
+   * evaluate() to inject and run axe-core for accessibility testing.
+   *
+   * @param client - Browser client instance
+   * @param url - URL to audit
+   * @param wcagLevel - WCAG conformance level
+   * @param options - Audit options
+   * @returns AccessibilityReport from browser-based axe-core audit
+   */
+  private async auditWithBrowserClient(
+    client: IBrowserClient,
+    url: string,
+    wcagLevel: 'A' | 'AA' | 'AAA',
+    options?: AuditOptions
+  ): Promise<Result<AccessibilityReport, Error>> {
+    try {
+      // Launch browser
+      const launchResult = await client.launch({
+        headless: this.config.browserConfig.headless,
+      });
+
+      if (!launchResult.success) {
+        return err(new Error(`Failed to launch browser: ${launchResult.error?.message ?? 'Unknown error'}`));
+      }
+
+      try {
+        // Navigate to URL
+        const navResult = await client.navigate(url);
+
+        if (!navResult.success) {
+          return err(new Error(`Failed to navigate to ${url}: ${navResult.error?.message ?? 'Unknown error'}`));
+        }
+
+        // For agent-browser, get snapshot for element context
+        if (this.isAgentBrowserClient(client)) {
+          const snapshotResult = await client.getSnapshot({ interactive: true });
+          if (snapshotResult.success) {
+            // Snapshot provides element refs that can be used for targeted testing
+            // Log element count for debugging
+            const elementCount = snapshotResult.value.interactiveElements.length;
+            console.debug(`[AccessibilityTester] Found ${elementCount} interactive elements`);
+          }
+        }
+
+        // Inject and run axe-core
+        const axeResult = await this.runAxeCore(client, wcagLevel, options);
+        if (!axeResult.success) {
+          return err(axeResult.error);
+        }
+
+        // Map axe-core result to AccessibilityReport
+        const report = this.mapAxeResultToReport(url, axeResult.value, wcagLevel);
+
+        return ok(report);
+      } finally {
+        // Always clean up browser
+        await client.quit();
+      }
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Inject and run axe-core in the browser context
+   *
+   * @param client - Browser client
+   * @param wcagLevel - WCAG conformance level
+   * @param options - Audit options
+   * @returns Axe-core results
+   */
+  private async runAxeCore(
+    client: IBrowserClient,
+    wcagLevel: 'A' | 'AA' | 'AAA',
+    options?: AuditOptions
+  ): Promise<Result<AxeCoreResult, Error>> {
+    // Build axe-core configuration based on WCAG level
+    const tags = this.getAxeTagsForWcagLevel(wcagLevel);
+    const excludeSelectors = options?.excludeSelectors ?? [];
+
+    // Inject axe-core and run accessibility checks
+    const axeScript = `
+      (async function() {
+        // Check if axe is already loaded
+        if (typeof axe === 'undefined') {
+          // Inject axe-core from CDN
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.8.4/axe.min.js';
+          script.crossOrigin = 'anonymous';
+          document.head.appendChild(script);
+
+          // Wait for script to load
+          await new Promise((resolve, reject) => {
+            script.onload = resolve;
+            script.onerror = () => reject(new Error('Failed to load axe-core'));
+            setTimeout(() => reject(new Error('Timeout loading axe-core')), 10000);
+          });
+        }
+
+        // Configure and run axe
+        const config = {
+          runOnly: {
+            type: 'tag',
+            values: ${JSON.stringify(tags)}
+          },
+          exclude: ${JSON.stringify(excludeSelectors.map(s => [s]))}
+        };
+
+        const results = await axe.run(document, config);
+
+        return JSON.stringify({
+          violations: results.violations.map(v => ({
+            id: v.id,
+            impact: v.impact,
+            description: v.description,
+            help: v.help,
+            helpUrl: v.helpUrl,
+            tags: v.tags,
+            nodes: v.nodes.map(n => ({
+              selector: n.target.join(' > '),
+              html: n.html,
+              target: n.target,
+              failureSummary: n.failureSummary
+            }))
+          })),
+          passes: results.passes.map(p => p.id),
+          incomplete: results.incomplete.map(i => i.id),
+          inapplicable: results.inapplicable.map(i => i.id)
+        });
+      })();
+    `;
+
+    const evalResult = await client.evaluate<string>(axeScript);
+
+    if (!evalResult.success) {
+      return err(new Error(`Failed to run axe-core: ${evalResult.error?.message ?? 'Unknown error'}`));
+    }
+
+    try {
+      const parsed = JSON.parse(evalResult.value) as AxeCoreResult;
+      return ok(parsed);
+    } catch (parseError) {
+      return err(new Error(`Failed to parse axe-core results: ${parseError}`));
+    }
+  }
+
+  /**
+   * Get axe-core tags for a WCAG conformance level
+   */
+  private getAxeTagsForWcagLevel(level: 'A' | 'AA' | 'AAA'): string[] {
+    const baseTags = ['wcag2a', 'wcag21a', 'wcag22a', 'best-practice'];
+
+    if (level === 'A') {
+      return baseTags;
+    }
+
+    const aaTags = [...baseTags, 'wcag2aa', 'wcag21aa', 'wcag22aa'];
+    if (level === 'AA') {
+      return aaTags;
+    }
+
+    // AAA includes everything
+    return [...aaTags, 'wcag2aaa', 'wcag21aaa', 'wcag22aaa'];
+  }
+
+  /**
+   * Map axe-core result to AccessibilityReport
+   */
+  private mapAxeResultToReport(
+    url: string,
+    axeResult: AxeCoreResult,
+    wcagLevel: 'A' | 'AA' | 'AAA'
+  ): AccessibilityReport {
+    // Map violations
+    const violations: AccessibilityViolation[] = axeResult.violations.map(v => ({
+      id: v.id,
+      impact: this.mapImpactSeverity(v.impact ?? 'moderate'),
+      wcagCriteria: this.extractWcagCriteria(v.tags ?? [], wcagLevel),
+      description: v.description,
+      help: v.help,
+      helpUrl: v.helpUrl ?? `https://dequeuniversity.com/rules/axe/4.8/${v.id}`,
+      nodes: v.nodes.map(n => ({
+        selector: n.selector,
+        html: n.html,
+        target: n.target,
+        failureSummary: n.failureSummary ?? '',
+      })),
+    }));
+
+    // Map passed rules
+    const passes: PassedRule[] = axeResult.passes.map(ruleId => ({
+      id: ruleId,
+      description: `Rule ${ruleId} passed`,
+      nodes: 0,
+    }));
+
+    // Map incomplete checks
+    const incomplete: IncompleteCheck[] = axeResult.incomplete.map(ruleId => ({
+      id: ruleId,
+      description: `Rule ${ruleId} requires manual review`,
+      reason: 'Could not automatically determine compliance',
+      nodes: [],
+    }));
+
+    // Calculate score
+    const totalRules = violations.length + passes.length + incomplete.length;
+    const failedWeight = violations.reduce((sum, v) => {
+      const weights = { critical: 4, serious: 3, moderate: 2, minor: 1 };
+      return sum + weights[v.impact];
+    }, 0);
+    const maxWeight = totalRules * 4;
+    const score = totalRules > 0
+      ? Math.round(((maxWeight - failedWeight) / maxWeight) * 100)
+      : 100;
+
+    return {
+      url,
+      timestamp: new Date(),
+      violations,
+      passes,
+      incomplete,
+      score: Math.max(0, Math.min(100, score)),
+      wcagLevel,
+    };
+  }
+
+  /**
+   * Extract WCAG criteria from axe-core tags
+   */
+  private extractWcagCriteria(tags: string[], defaultLevel: 'A' | 'AA' | 'AAA'): WCAGCriterion[] {
+    const criteria: WCAGCriterion[] = [];
+
+    for (const tag of tags) {
+      // Match patterns like wcag111, wcag2111
+      const match = tag.match(/^wcag(\d)(\d)(\d)(\d)?$/);
+      if (match) {
+        const id = match[4]
+          ? `${match[1]}.${match[2]}.${match[3]}${match[4]}`
+          : `${match[1]}.${match[2]}.${match[3]}`;
+
+        const existing = WCAG_CRITERIA[id];
+        if (existing) {
+          criteria.push(existing);
+        } else {
+          criteria.push({
+            id,
+            level: defaultLevel,
+            title: `WCAG ${id}`,
+          });
+        }
+      }
+    }
+
+    return criteria;
+  }
+
+  /**
+   * Run accessibility audit using browser via Vibium (legacy method)
    *
    * @param url - URL to audit
    * @param wcagLevel - WCAG conformance level
@@ -1638,4 +2028,14 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
     return Math.abs(hash).toString(36);
   }
 
+  /**
+   * Dispose service resources
+   * Cleans up any managed browser clients
+   */
+  async dispose(): Promise<void> {
+    if (this.managedBrowserClient) {
+      await this.managedBrowserClient.dispose();
+      this.managedBrowserClient = null;
+    }
+  }
 }

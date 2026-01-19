@@ -141,8 +141,11 @@ export {
 export {
   E2ETestRunnerService,
   createE2ETestRunnerService,
+  createE2ETestRunnerServiceWithBrowserClient,
+  createAutoE2ETestRunnerService,
   type IE2ETestRunnerService,
   type E2ERunnerConfig,
+  type BrowserClientType,
   type ExecutionStrategy,
   E2ERunnerError,
   StepTimeoutError,

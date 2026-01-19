@@ -1,16 +1,21 @@
 /**
  * Agentic QE v3 - Visual Regression Service
  *
- * Orchestrates visual regression testing using Vibium browser automation.
+ * Orchestrates visual regression testing using browser automation.
  * Manages baselines, executes comparisons, and aggregates results.
  *
  * Features:
  * - Baseline management (store, retrieve, update)
- * - Browser-based screenshot capture via VibiumClient
+ * - Browser-based screenshot capture (agent-browser or Vibium)
  * - Comparison execution with configurable thresholds
  * - Diff image generation and storage
  * - Result aggregation and reporting
- * - Graceful fallback when Vibium is unavailable
+ * - Graceful fallback when browser automation is unavailable
+ *
+ * Browser Integration:
+ * - Prefers agent-browser when available (provides screenshot capture)
+ * - Falls back to Vibium for backward compatibility
+ * - Falls back to metadata-only capture when no browser is available
  *
  * @module domains/visual-accessibility/services/visual-regression
  */
@@ -37,6 +42,11 @@ import type {
   ScreenshotResult,
   VisualComparisonResult,
 } from '../../../integrations/vibium/types.js';
+import {
+  getBrowserClientForUseCase,
+  type IBrowserClient,
+  type IAgentBrowserClient,
+} from '../../../integrations/browser/index.js';
 
 // ============================================================================
 // Configuration
@@ -60,12 +70,22 @@ export interface VisualRegressionConfig {
   antialiasDetection: boolean;
   /** Timeout for screenshot capture in milliseconds */
   captureTimeout: number;
-  /** Enable Vibium browser-based capture when available */
+  /** Enable browser-based capture when available */
   useBrowserCapture: boolean;
   /** Retry attempts for failed captures */
   retryAttempts: number;
   /** Delay between retry attempts in milliseconds */
   retryDelay: number;
+  /**
+   * Optional browser client for browser-based capture.
+   * If provided, this client will be used instead of creating a new one.
+   */
+  browserClient?: IBrowserClient;
+  /**
+   * Prefer agent-browser over Vibium for screenshot capture.
+   * @default true
+   */
+  preferAgentBrowser: boolean;
 }
 
 const DEFAULT_CONFIG: VisualRegressionConfig = {
@@ -85,6 +105,8 @@ const DEFAULT_CONFIG: VisualRegressionConfig = {
   useBrowserCapture: true,
   retryAttempts: 3,
   retryDelay: 1000,
+  browserClient: undefined,
+  preferAgentBrowser: true,
 };
 
 // ============================================================================
@@ -279,6 +301,8 @@ export interface IVisualRegressionService {
 export class VisualRegressionService implements IVisualRegressionService {
   private readonly config: VisualRegressionConfig;
   private browserAvailable: boolean | null = null;
+  private readonly browserClient: IBrowserClient | null;
+  private managedBrowserClient: IBrowserClient | null = null;
 
   constructor(
     private readonly memory: MemoryBackend,
@@ -288,6 +312,48 @@ export class VisualRegressionService implements IVisualRegressionService {
     config: Partial<VisualRegressionConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.browserClient = config.browserClient ?? null;
+  }
+
+  /**
+   * Get or create a browser client for screenshot capture
+   * Prefers agent-browser, falls back to Vibium
+   *
+   * @returns Browser client or null if unavailable
+   */
+  private async getBrowserClient(): Promise<IBrowserClient | null> {
+    // Use provided browser client first
+    if (this.browserClient) {
+      return this.browserClient;
+    }
+
+    // Use already-created managed client
+    if (this.managedBrowserClient) {
+      return this.managedBrowserClient;
+    }
+
+    // Try to create a browser client via factory
+    if (this.config.preferAgentBrowser) {
+      try {
+        const client = await getBrowserClientForUseCase('visual-regression');
+        const available = await client.isAvailable();
+        if (available) {
+          this.managedBrowserClient = client;
+          return client;
+        }
+      } catch {
+        // Fall through to return null
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Check if client is an IAgentBrowserClient
+   */
+  private isAgentBrowserClient(client: IBrowserClient): client is IAgentBrowserClient {
+    return client.tool === 'agent-browser';
   }
 
   // ==========================================================================
@@ -761,7 +827,12 @@ export class VisualRegressionService implements IVisualRegressionService {
   }
 
   /**
-   * Capture screenshot using Vibium browser
+   * Capture screenshot using browser automation
+   *
+   * Priority order:
+   * 1. agent-browser (if preferAgentBrowser is true and available)
+   * 2. Vibium (if available)
+   * 3. Metadata-only capture (fallback)
    */
   private async captureScreenshot(
     url: string,
@@ -778,13 +849,30 @@ export class VisualRegressionService implements IVisualRegressionService {
     const timestamp = new Date();
 
     try {
-      // Try browser-based capture
-      if (this.config.useBrowserCapture && this.vibiumClient && await this.isBrowserAvailable()) {
-        const browserCapture = await this.captureWithBrowser(url, screenshotId, options);
-        if (browserCapture.success) {
-          return browserCapture;
+      if (this.config.useBrowserCapture) {
+        // First, try agent-browser if available
+        const browserClient = await this.getBrowserClient();
+        if (browserClient) {
+          const clientCapture = await this.captureWithBrowserClient(
+            browserClient,
+            url,
+            screenshotId,
+            options
+          );
+          if (clientCapture.success) {
+            return clientCapture;
+          }
+          console.warn(`[VisualRegression] Browser client capture failed, trying Vibium`);
         }
-        // Fall through to metadata-only capture
+
+        // Fall back to Vibium
+        if (this.vibiumClient && await this.isBrowserAvailable()) {
+          const browserCapture = await this.captureWithBrowser(url, screenshotId, options);
+          if (browserCapture.success) {
+            return browserCapture;
+          }
+          // Fall through to metadata-only capture
+        }
       }
 
       // Fallback: Create screenshot metadata without actual image
@@ -818,7 +906,102 @@ export class VisualRegressionService implements IVisualRegressionService {
   }
 
   /**
-   * Capture screenshot using Vibium browser with retry logic
+   * Capture screenshot using unified browser client (agent-browser or other)
+   */
+  private async captureWithBrowserClient(
+    client: IBrowserClient,
+    url: string,
+    screenshotId: string,
+    options: {
+      viewport?: Viewport;
+      fullPage?: boolean;
+      waitForSelector?: string;
+      waitForTimeout?: number;
+      hideSelectors?: string[];
+    }
+  ): Promise<Result<Screenshot, Error>> {
+    const viewport = options.viewport || this.config.defaultViewport;
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= this.config.retryAttempts; attempt++) {
+      try {
+        // Launch browser if needed
+        const launchResult = await client.launch({
+          headless: true,
+        });
+
+        if (!launchResult.success) {
+          throw new Error(`Failed to launch browser: ${launchResult.error?.message ?? 'Unknown error'}`);
+        }
+
+        try {
+          // Set viewport if client supports it
+          if (this.isAgentBrowserClient(client)) {
+            await client.setViewport(viewport.width, viewport.height);
+          }
+
+          // Navigate to URL
+          const navResult = await client.navigate(url);
+          if (!navResult.success) {
+            throw new Error(`Failed to navigate to ${url}: ${navResult.error?.message ?? 'Unknown error'}`);
+          }
+
+          // Wait for selector if specified
+          if (options.waitForSelector && this.isAgentBrowserClient(client)) {
+            await client.waitForElement(options.waitForSelector, options.waitForTimeout ?? 5000);
+          } else if (options.waitForTimeout) {
+            await new Promise(resolve => setTimeout(resolve, options.waitForTimeout));
+          }
+
+          // Take screenshot
+          const path = `${this.config.currentDirectory}/${screenshotId}.png`;
+          const screenshotResult = await client.screenshot({
+            path,
+            fullPage: options.fullPage ?? false,
+          });
+
+          if (!screenshotResult.success) {
+            throw new Error(`Screenshot capture failed: ${screenshotResult.error?.message ?? 'Unknown error'}`);
+          }
+
+          const timestamp = new Date();
+
+          const metadata: ScreenshotMetadata = {
+            browser: 'chromium',
+            os: process.platform,
+            selector: options.waitForSelector,
+            fullPage: options.fullPage ?? false,
+            loadTime: Date.now() - timestamp.getTime() + 500, // Estimate
+          };
+
+          const screenshot: Screenshot = {
+            id: screenshotId,
+            url,
+            viewport,
+            timestamp,
+            path: FilePath.create(path),
+            metadata,
+          };
+
+          return ok(screenshot);
+        } finally {
+          // Clean up browser session
+          await client.quit();
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (attempt < this.config.retryAttempts) {
+          await new Promise(resolve => setTimeout(resolve, this.config.retryDelay));
+        }
+      }
+    }
+
+    return err(lastError ?? new Error('Screenshot capture failed'));
+  }
+
+  /**
+   * Capture screenshot using Vibium browser with retry logic (legacy)
    */
   private async captureWithBrowser(
     url: string,
@@ -1250,6 +1433,17 @@ export class VisualRegressionService implements IVisualRegressionService {
         loadTime: 0,
       },
     };
+  }
+
+  /**
+   * Dispose service resources
+   * Cleans up any managed browser clients
+   */
+  async dispose(): Promise<void> {
+    if (this.managedBrowserClient) {
+      await this.managedBrowserClient.dispose();
+      this.managedBrowserClient = null;
+    }
   }
 }
 

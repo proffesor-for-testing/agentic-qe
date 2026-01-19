@@ -4,6 +4,11 @@
  * Provides comprehensive screenshot capture capabilities across multiple viewports
  * for responsive design testing and visual regression analysis.
  *
+ * Browser Integration:
+ * - Supports both agent-browser and Vibium for browser automation
+ * - Prefers agent-browser for device emulation capabilities
+ * - Falls back to Vibium or simulated capture when unavailable
+ *
  * @module domains/visual-accessibility/services/viewport-capture
  */
 
@@ -16,6 +21,12 @@ import type {
   VibiumClient,
   ScreenshotOptions as VibiumScreenshotOptions,
 } from '../../../integrations/vibium/types.js';
+import {
+  createAgentBrowserClient,
+  getBrowserClientForUseCase,
+  type IBrowserClient,
+  type IAgentBrowserClient,
+} from '../../../integrations/browser/index.js';
 
 // ============================================================================
 // Type Definitions
@@ -165,6 +176,17 @@ export interface ViewportCaptureConfig {
   imageFormat: 'png' | 'jpeg';
   /** JPEG quality (if applicable) */
   jpegQuality: number;
+  /**
+   * Optional browser client for browser-based capture.
+   * If provided, this client will be used instead of creating a new one.
+   */
+  browserClient?: IBrowserClient;
+  /**
+   * Prefer agent-browser over Vibium for viewport capture.
+   * agent-browser provides setDevice() and setViewport() for device emulation.
+   * @default true
+   */
+  preferAgentBrowser: boolean;
 }
 
 // ============================================================================
@@ -266,6 +288,8 @@ const DEFAULT_CONFIG: ViewportCaptureConfig = {
   fullPageDefault: false,
   imageFormat: 'png',
   jpegQuality: 80,
+  browserClient: undefined,
+  preferAgentBrowser: true,
 };
 
 // ============================================================================
@@ -409,6 +433,8 @@ export interface SingleCaptureOptions {
  */
 export class ViewportCaptureService implements IViewportCaptureService {
   private readonly config: ViewportCaptureConfig;
+  private readonly browserClient: IBrowserClient | null;
+  private managedBrowserClient: IBrowserClient | null = null;
 
   constructor(
     private readonly memory: MemoryBackend,
@@ -416,6 +442,48 @@ export class ViewportCaptureService implements IViewportCaptureService {
     config: Partial<ViewportCaptureConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.browserClient = config.browserClient ?? null;
+  }
+
+  /**
+   * Get or create a browser client for viewport capture
+   * Prefers agent-browser for device emulation capabilities
+   *
+   * @returns Browser client or null if unavailable
+   */
+  private async getBrowserClient(): Promise<IAgentBrowserClient | null> {
+    // Use provided browser client first (if it's an agent-browser)
+    if (this.browserClient && this.isAgentBrowserClient(this.browserClient)) {
+      return this.browserClient;
+    }
+
+    // Use already-created managed client
+    if (this.managedBrowserClient && this.isAgentBrowserClient(this.managedBrowserClient)) {
+      return this.managedBrowserClient;
+    }
+
+    // Try to create an agent-browser client via factory
+    if (this.config.preferAgentBrowser) {
+      try {
+        const client = await getBrowserClientForUseCase('responsive-testing');
+        const available = await client.isAvailable();
+        if (available && this.isAgentBrowserClient(client)) {
+          this.managedBrowserClient = client;
+          return client;
+        }
+      } catch {
+        // Fall through to return null
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Check if client is an IAgentBrowserClient (has setDevice and setViewport methods)
+   */
+  private isAgentBrowserClient(client: IBrowserClient): client is IAgentBrowserClient {
+    return client.tool === 'agent-browser' && 'setDevice' in client && 'setViewport' in client;
   }
 
   /**
@@ -587,6 +655,11 @@ export class ViewportCaptureService implements IViewportCaptureService {
 
   /**
    * Capture screenshot at a single viewport
+   *
+   * Priority order for capture:
+   * 1. agent-browser (if preferAgentBrowser is true and available)
+   * 2. Vibium (if available and has active session)
+   * 3. Simulated capture (fallback)
    */
   async captureAtViewport(
     url: string,
@@ -596,6 +669,23 @@ export class ViewportCaptureService implements IViewportCaptureService {
     const startTime = Date.now();
 
     try {
+      // First, try agent-browser if available (provides device emulation)
+      const browserClient = await this.getBrowserClient();
+      if (browserClient) {
+        const result = await this.captureWithBrowserClient(
+          browserClient,
+          url,
+          viewport,
+          options,
+          startTime
+        );
+        if (result.success && result.value.success) {
+          return result;
+        }
+        // Log failure and try next option
+        console.warn(`[ViewportCapture] Browser client capture failed, trying Vibium`);
+      }
+
       // If Vibium client is available and has active session, use real browser capture
       if (this.vibiumClient) {
         const sessionResult = await this.vibiumClient.getSession();
@@ -707,6 +797,121 @@ export class ViewportCaptureService implements IViewportCaptureService {
   // ============================================================================
   // Private Helper Methods
   // ============================================================================
+
+  /**
+   * Capture using unified browser client (agent-browser)
+   *
+   * Uses setDevice() and setViewport() methods for device emulation,
+   * then captures screenshot at the specified viewport.
+   */
+  private async captureWithBrowserClient(
+    client: IAgentBrowserClient,
+    url: string,
+    viewport: Viewport,
+    options: SingleCaptureOptions | undefined,
+    startTime: number
+  ): Promise<Result<ViewportCaptureResult, Error>> {
+    try {
+      // Launch browser if needed
+      const launchResult = await client.launch({ headless: true });
+      if (!launchResult.success) {
+        throw new Error(`Failed to launch browser: ${launchResult.error?.message ?? 'Unknown error'}`);
+      }
+
+      try {
+        // Set viewport for device emulation
+        const viewportResult = await client.setViewport(viewport.width, viewport.height);
+
+        if (!viewportResult.success) {
+          console.warn(`[ViewportCapture] setViewport failed: ${viewportResult.error?.message}`);
+        }
+
+        // Optionally set device preset for mobile viewports
+        if (viewport.isMobile) {
+          const deviceName = this.getDeviceNameForViewport(viewport);
+          if (deviceName) {
+            await client.setDevice(deviceName);
+          }
+        }
+
+        // Navigate to URL
+        const navResult = await client.navigate(url);
+        if (!navResult.success) {
+          throw new Error(`Failed to navigate to ${url}: ${navResult.error?.message ?? 'Unknown error'}`);
+        }
+
+        // Wait for page to be ready if selector specified
+        if (options?.waitForSelector) {
+          await client.waitForElement(options.waitForSelector, options.timeout ?? this.config.captureTimeout);
+        }
+
+        // Take screenshot
+        const ssResult = await client.screenshot({
+          fullPage: options?.fullPage ?? this.config.fullPageDefault,
+        });
+
+        if (!ssResult.success) {
+          throw new Error(`Screenshot capture failed: ${ssResult.error?.message ?? 'Unknown error'}`);
+        }
+
+        const captureTimeMs = Date.now() - startTime;
+
+        // Create screenshot object
+        const screenshot = this.createScreenshot(
+          url,
+          viewport,
+          ssResult.value.path ?? undefined,
+          options?.fullPage ?? this.config.fullPageDefault,
+          captureTimeMs
+        );
+
+        // Store screenshot
+        await this.storeScreenshot(screenshot);
+
+        return ok({
+          viewport,
+          screenshot,
+          timestamp: new Date(),
+          captureTimeMs,
+          success: true,
+        });
+      } finally {
+        // Clean up browser session
+        await client.quit();
+      }
+    } catch (error) {
+      const captureTimeMs = Date.now() - startTime;
+      return ok({
+        viewport,
+        screenshot: this.createPlaceholderScreenshot(url, viewport),
+        timestamp: new Date(),
+        captureTimeMs,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Map viewport dimensions to a known device name
+   */
+  private getDeviceNameForViewport(viewport: Viewport): string | null {
+    // Map common viewport sizes to device names
+    const deviceMap: Record<string, string> = {
+      '320x568': 'iPhone SE',
+      '375x667': 'iPhone 8',
+      '375x812': 'iPhone X',
+      '390x844': 'iPhone 12',
+      '414x896': 'iPhone 11',
+      '425x896': 'iPhone 11 Pro Max',
+      '768x1024': 'iPad',
+      '820x1180': 'iPad Air',
+      '1024x1366': 'iPad Pro',
+    };
+
+    const key = `${viewport.width}x${viewport.height}`;
+    return deviceMap[key] ?? null;
+  }
 
   /**
    * Capture using Vibium browser automation
@@ -1151,6 +1356,17 @@ export class ViewportCaptureService implements IViewportCaptureService {
       hash = hash & hash;
     }
     return Math.abs(hash).toString(36);
+  }
+
+  /**
+   * Dispose service resources
+   * Cleans up any managed browser clients
+   */
+  async dispose(): Promise<void> {
+    if (this.managedBrowserClient) {
+      await this.managedBrowserClient.dispose();
+      this.managedBrowserClient = null;
+    }
   }
 }
 

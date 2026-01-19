@@ -11,6 +11,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { QEKernel } from '../kernel/interfaces';
 import { QEKernelImpl } from '../kernel/kernel';
+import { UnifiedMemoryManager } from '../kernel/unified-memory';
 import {
   QueenCoordinator,
   createQueenCoordinator,
@@ -234,6 +235,10 @@ async function cleanupAndExit(code: number = 0): Promise<never> {
     if (context.kernel) {
       await context.kernel.dispose();
     }
+
+    // Close the UnifiedMemoryManager singleton to release database connection
+    // This is critical for CLI commands to exit properly
+    UnifiedMemoryManager.resetInstance();
   } catch {
     // Ignore cleanup errors
   }
@@ -1562,8 +1567,8 @@ program
       if (action === 'generate') {
         console.log(chalk.blue(`\n🧪 Generating tests for ${target || 'current directory'}...\n`));
 
-        // Get test generation domain API directly
-        const testGenAPI = context.kernel!.getDomainAPI<{
+        // Get test generation domain API directly (with lazy loading support)
+        const testGenAPI = await context.kernel!.getDomainAPIAsync!<{
           generateTests(request: { sourceFiles: string[]; testType: string; framework: string; coverageTarget?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
         }>('test-generation');
 
@@ -1640,8 +1645,8 @@ program
       } else if (action === 'execute') {
         console.log(chalk.blue(`\n🧪 Executing tests in ${target || 'current directory'}...\n`));
 
-        // Get test execution domain API
-        const testExecAPI = context.kernel!.getDomainAPI<{
+        // Get test execution domain API (with lazy loading support)
+        const testExecAPI = await context.kernel!.getDomainAPIAsync!<{
           runTests(request: { testFiles: string[]; parallel?: boolean; retryCount?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
         }>('test-execution');
 
@@ -1769,8 +1774,8 @@ program
     try {
       console.log(chalk.blue(`\n  Analyzing coverage for ${analyzeTarget}...\n`));
 
-      // Get coverage analysis domain API directly
-      const coverageAPI = context.kernel!.getDomainAPI<{
+      // Get coverage analysis domain API directly (with lazy loading support)
+      const coverageAPI = await context.kernel!.getDomainAPIAsync!<{
         analyze(request: { coverageData: { files: Array<{ path: string; lines: { covered: number; total: number }; branches: { covered: number; total: number }; functions: { covered: number; total: number }; statements: { covered: number; total: number }; uncoveredLines: number[]; uncoveredBranches: number[] }>; summary: { line: number; branch: number; function: number; statement: number; files: number } }; threshold?: number; includeFileDetails?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
         detectGaps(request: { coverageData: { files: Array<{ path: string; lines: { covered: number; total: number }; branches: { covered: number; total: number }; functions: { covered: number; total: number }; statements: { covered: number; total: number }; uncoveredLines: number[]; uncoveredBranches: number[] }>; summary: { line: number; branch: number; function: number; statement: number; files: number } }; minCoverage?: number; prioritize?: string }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
         calculateRisk(request: { file: string; uncoveredLines: number[] }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
@@ -2010,8 +2015,8 @@ program
     try {
       console.log(chalk.blue(`\n🔒 Running security scan on ${options.target}...\n`));
 
-      // Get security domain API directly
-      const securityAPI = context.kernel!.getDomainAPI<{
+      // Get security domain API directly (with lazy loading support)
+      const securityAPI = await context.kernel!.getDomainAPIAsync!<{
         runSASTScan(files: string[]): Promise<{ success: boolean; value?: unknown; error?: Error }>;
         runDASTScan(urls: string[]): Promise<{ success: boolean; value?: unknown; error?: Error }>;
         checkCompliance(frameworks: string[]): Promise<{ success: boolean; value?: unknown; error?: Error }>;
@@ -2133,8 +2138,8 @@ program
     if (!await ensureInitialized()) return;
 
     try {
-      // Get code intelligence domain API directly
-      const codeAPI = context.kernel!.getDomainAPI<{
+      // Get code intelligence domain API directly (with lazy loading support)
+      const codeAPI = await context.kernel!.getDomainAPIAsync!<{
         index(request: { paths: string[]; incremental?: boolean; includeTests?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
         search(request: { query: string; type: string; limit?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
         analyzeImpact(request: { changedFiles: string[]; depth?: number; includeTests?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;

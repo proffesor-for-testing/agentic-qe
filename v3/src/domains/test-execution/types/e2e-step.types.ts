@@ -144,6 +144,11 @@ export interface WaitStepOptions {
 
 /**
  * Assertion types
+ *
+ * Includes short aliases for convenience:
+ * - 'visible' -> 'element-visible'
+ * - 'hidden' -> 'element-hidden'
+ * - 'text' -> 'element-text'
  */
 export type AssertionType =
   | 'element-exists'
@@ -169,7 +174,11 @@ export type AssertionType =
   | 'session-storage'
   | 'console-no-errors'
   | 'network-request-made'
-  | 'custom';
+  | 'custom'
+  // Short aliases for convenience
+  | 'visible'
+  | 'hidden'
+  | 'text';
 
 /**
  * Options for assert steps
@@ -835,20 +844,49 @@ export function createA11yCheckStep(
 
 /**
  * Create an E2E test case with sensible defaults
+ *
+ * Supports two call signatures:
+ * 1. createE2ETestCase(id, name, baseUrl, steps, options?) - positional arguments
+ * 2. createE2ETestCase({ id, name, steps, ...options }) - object with optional baseUrl
  */
 export function createE2ETestCase(
-  id: string,
-  name: string,
-  baseUrl: string,
-  steps: E2EStep[],
+  idOrOptions: string | { id: string; name: string; steps: E2EStep[]; baseUrl?: string } & Partial<Omit<E2ETestCase, 'id' | 'name' | 'steps'>>,
+  name?: string,
+  baseUrl?: string,
+  steps?: E2EStep[],
   options?: Partial<Omit<E2ETestCase, 'id' | 'name' | 'baseUrl' | 'steps'>>
 ): E2ETestCase {
+  // Handle object-based call
+  if (typeof idOrOptions === 'object') {
+    const opts = idOrOptions;
+    return {
+      id: opts.id,
+      name: opts.name,
+      description: opts.description ?? opts.name,
+      steps: opts.steps,
+      baseUrl: opts.baseUrl ?? '',
+      viewport: opts.viewport ?? { width: 1280, height: 720 },
+      timeout: opts.timeout ?? 30000,
+      retries: opts.retries ?? 0,
+      browserContext: opts.browserContext,
+      hooks: opts.hooks,
+      tags: opts.tags,
+      priority: opts.priority ?? 'medium',
+      skip: opts.skip ?? false,
+      only: opts.only ?? false,
+      metadata: opts.metadata,
+      requiredEnvVars: opts.requiredEnvVars,
+      testData: opts.testData,
+    };
+  }
+
+  // Handle positional call (legacy)
   return {
-    id,
-    name,
-    description: options?.description ?? name,
-    steps,
-    baseUrl,
+    id: idOrOptions,
+    name: name!,
+    description: options?.description ?? name!,
+    steps: steps!,
+    baseUrl: baseUrl!,
     viewport: options?.viewport ?? { width: 1280, height: 720 },
     timeout: options?.timeout ?? 30000,
     retries: options?.retries ?? 0,
