@@ -307,12 +307,33 @@ export class V2ToV3Migrator {
   }> {
     if (!this.v2Db) throw new Error('V2 database not connected');
 
+    // Helper to safely read from a table that might not exist
+    const safeReadTable = <T>(tableName: string): T[] => {
+      try {
+        // Check if table exists first
+        const tableExists = this.v2Db!.prepare(`
+          SELECT name FROM sqlite_master
+          WHERE type='table' AND name=?
+        `).get(tableName);
+
+        if (!tableExists) {
+          console.log(`  [V2Migration] Table '${tableName}' not found, skipping...`);
+          return [];
+        }
+
+        return this.v2Db!.prepare(`SELECT * FROM ${tableName}`).all() as T[];
+      } catch (error) {
+        console.warn(`  [V2Migration] Could not read table '${tableName}': ${error instanceof Error ? error.message : String(error)}`);
+        return [];
+      }
+    };
+
     return {
-      patterns: this.v2Db.prepare('SELECT * FROM patterns').all() as V2Pattern[],
-      capturedExperiences: this.v2Db.prepare('SELECT * FROM captured_experiences').all() as V2CapturedExperience[],
-      learningExperiences: this.v2Db.prepare('SELECT * FROM learning_experiences').all() as V2LearningExperience[],
-      conceptNodes: this.v2Db.prepare('SELECT * FROM concept_nodes').all() as V2ConceptNode[],
-      conceptEdges: this.v2Db.prepare('SELECT * FROM concept_edges').all() as V2ConceptEdge[],
+      patterns: safeReadTable<V2Pattern>('patterns'),
+      capturedExperiences: safeReadTable<V2CapturedExperience>('captured_experiences'),
+      learningExperiences: safeReadTable<V2LearningExperience>('learning_experiences'),
+      conceptNodes: safeReadTable<V2ConceptNode>('concept_nodes'),
+      conceptEdges: safeReadTable<V2ConceptEdge>('concept_edges'),
     };
   }
 
@@ -570,13 +591,14 @@ export class V2ToV3Migrator {
 
     const errors: string[] = [];
 
-    // Check pattern counts
+    // Check pattern counts (0 is valid if v2 had no patterns)
     const patternCount = this.v3Db.prepare('SELECT COUNT(*) as count FROM qe_patterns').get() as { count: number };
     if (patternCount.count === 0) {
-      errors.push('No patterns migrated to qe_patterns table');
+      // Not an error - v2 might have had no patterns to migrate
+      console.log('  [V2Migration] Note: No patterns were migrated (v2 database may have been empty)');
     }
 
-    // Check for duplicate IDs
+    // Check for duplicate IDs (actual error)
     const duplicates = this.v3Db.prepare(`
       SELECT id, COUNT(*) as count FROM qe_patterns GROUP BY id HAVING count > 1
     `).all() as { id: string; count: number }[];

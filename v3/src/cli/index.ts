@@ -275,6 +275,11 @@ program
   .option('--auto-migrate', 'Automatically migrate from v2 if detected')
   .action(async (options) => {
     try {
+      // --auto-migrate implies --auto (must use orchestrator for migration)
+      if (options.autoMigrate && !options.auto && !options.wizard) {
+        options.auto = true;
+      }
+
       // Check if wizard mode requested
       if (options.wizard || options.auto) {
         console.log(chalk.blue('\n🚀 Agentic QE v3 Initialization\n'));

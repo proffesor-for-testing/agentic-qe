@@ -566,11 +566,41 @@ export class InitOrchestrator {
       // Import migration module dynamically to avoid circular deps
       const { V2ToV3Migrator } = await import('../learning/v2-to-v3-migration.js');
 
-      // Also run config migration
+      // Step 1: Run the actual data migration (patterns, experiences, concept graph)
+      if (v2Detection.memoryDbPath) {
+        console.log('  Migrating V2 data to V3 format...');
+        const v3PatternsDbPath = join(this.projectRoot, '.agentic-qe', 'qe-patterns.db');
+
+        const migrator = new V2ToV3Migrator({
+          v2DbPath: v2Detection.memoryDbPath,
+          v3PatternsDbPath,
+          onProgress: (progress) => {
+            console.log(`    ${progress.stage}: ${progress.message}`);
+          },
+        });
+
+        const result = await migrator.migrate();
+
+        if (result.success) {
+          console.log(`  ✓ Migrated ${result.tablesMigrated.length} tables:`);
+          for (const [table, count] of Object.entries(result.counts)) {
+            console.log(`    - ${table}: ${count} entries`);
+          }
+        } else {
+          console.warn(`  ⚠ Migration completed with errors: ${result.errors.join(', ')}`);
+        }
+      }
+
+      // Step 2: Migrate config files (v2 JSON → v3 YAML)
       await this.migrateV2Config(v2Detection);
 
-      // Remove v2 QE agents (they will be replaced by v3 agents)
+      // Step 3: Remove v2 QE agents (they will be replaced by v3 agents)
       await this.removeV2QEAgents();
+
+      // Step 4: Write version marker IMMEDIATELY to prevent re-detection
+      // This is critical - if we don't do this, subsequent init calls will re-ask for migration
+      console.log('  Writing v3 version marker...');
+      await this.writeVersionToDb('3.0.0-migrated');
 
       console.log('✓ V2 to V3 migration completed\n');
     } catch (error) {
