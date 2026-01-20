@@ -37,6 +37,9 @@ export { CodeIntelligenceAgent, CodeIntelligenceAgentConfig, createCodeIntellige
 // Product Factors Assessor (SFDIPOT)
 export { QEProductFactorsAssessor, QEProductFactorsAssessorConfig } from './qe-product-factors-assessor';
 
+// Quality Criteria Recommender (HTSM)
+export { QEQualityCriteriaRecommender, QEQualityCriteriaRecommenderConfig } from './qe-quality-criteria-recommender';
+
 // Agent factory for creating agents by type
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { EventBus } from '../core/EventBus';
@@ -67,6 +70,7 @@ import { QXPartnerConfig } from '../types/qx';
 import { AccessibilityAllyAgent, AccessibilityAllyConfig } from './AccessibilityAllyAgent';
 import { CodeIntelligenceAgent, CodeIntelligenceAgentConfig } from './CodeIntelligenceAgent';
 import { QEProductFactorsAssessor, QEProductFactorsAssessorConfig } from './qe-product-factors-assessor';
+import { QEQualityCriteriaRecommender, QEQualityCriteriaRecommenderConfig } from './qe-quality-criteria-recommender';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import type {
   DeploymentReadinessConfig,
@@ -503,6 +507,16 @@ export class QEAgentFactory {
         return new QEProductFactorsAssessor(pfConfig);
       }
 
+      case QEAgentType.QUALITY_CRITERIA_RECOMMENDER: {
+        const qcConfig: QEQualityCriteriaRecommenderConfig = {
+          ...baseConfig,
+          useLLM: agentConfig?.useLLM ?? true,
+          outputDir: agentConfig?.outputDir,
+          enableCodeIntelligence: agentConfig?.enableCodeIntelligence ?? false,
+        };
+        return new QEQualityCriteriaRecommender(qcConfig);
+      }
+
       default:
         throw new Error(`Unknown agent type: ${type}`);
     }
@@ -539,7 +553,9 @@ export class QEAgentFactory {
       // Code Intelligence Agent (Wave 6)
       QEAgentType.CODE_INTELLIGENCE,
       // Product Factors Assessor (SFDIPOT)
-      QEAgentType.PRODUCT_FACTORS_ASSESSOR
+      QEAgentType.PRODUCT_FACTORS_ASSESSOR,
+      // Quality Criteria Recommender (HTSM)
+      QEAgentType.QUALITY_CRITERIA_RECOMMENDER
     ];
   }
 
@@ -1064,6 +1080,43 @@ export class QEAgentFactory {
           name: 'multi-format-output',
           version: '1.0.0',
           description: 'Generate reports in HTML, JSON, Markdown, Gherkin formats'
+        }
+      ],
+      [QEAgentType.QUALITY_CRITERIA_RECOMMENDER]: [
+        {
+          name: 'htsm-quality-criteria',
+          version: '1.0.0',
+          description: 'Analyze and recommend Quality Criteria using James Bach HTSM v6.3 (10 categories)'
+        },
+        {
+          name: 'evidence-collection',
+          version: '1.0.0',
+          description: 'Collect evidence from documentation and technical sources for quality criteria mapping'
+        },
+        {
+          name: 'documentation-analysis',
+          version: '1.0.0',
+          description: 'Parse and analyze Epics, User Stories, Acceptance Criteria, Architecture documents'
+        },
+        {
+          name: 'technical-source-analysis',
+          version: '1.0.0',
+          description: 'Analyze DB schemas, API specs, production logs, and defect data'
+        },
+        {
+          name: 'confidence-scoring',
+          version: '1.0.0',
+          description: 'Calculate confidence levels for recommendations based on evidence strength'
+        },
+        {
+          name: 'risk-assessment',
+          version: '1.0.0',
+          description: 'Identify high-risk quality criteria categories requiring attention'
+        },
+        {
+          name: 'multi-format-output',
+          version: '1.0.0',
+          description: 'Generate reports in HTML, JSON, and Markdown formats'
         }
       ]
     };

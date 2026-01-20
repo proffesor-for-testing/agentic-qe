@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quality Criteria Recommendations - Epic 5: Live Shopping & Social Commerce Enhancement</title>
+  <style>
+    /* ============================================
+       QUALITY CRITERIA REFERENCE TEMPLATE
+       Template Version: 1.0.0 (Semantic Analysis)
+
+       USAGE: Copy this template structure exactly.
+       Only replace {PLACEHOLDER} values with actual data.
+       DO NOT modify CSS or HTML structure.
+       ============================================ */
+
+    :root {
+      --critical: #dc3545;
+      --critical-bg: #fff5f5;
+      --high: #fd7e14;
+      --high-bg: #fff8f0;
+      --medium: #ffc107;
+      --medium-bg: #fffdf5;
+      --low: #28a745;
+      --low-bg: #f5fff5;
+      --primary: #1a1a2e;
+      --secondary: #16213e;
+      --accent: #0f3460;
+      --text: #333;
+      --text-light: #666;
+      --border: #e4e8ec;
+      --bg: #f8f9fa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.7;
+      color: var(--text);
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: white;
+      padding: 2.5rem;
+      border-radius: 16px;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 40px rgba(26, 26, 46, 0.2);
+    }
+    .header h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    .header-subtitle { opacity: 0.9; font-size: 1.1rem; margin-bottom: 1rem; }
+    .header-meta { display: flex; gap: 2rem; flex-wrap: wrap; opacity: 0.85; font-size: 0.9rem; }
+
+    /* Executive Summary */
+    .executive-summary {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      border-left: 5px solid var(--accent);
+    }
+    .executive-summary h2 { color: var(--primary); margin-bottom: 1rem; }
+    .key-message {
+      font-size: 1.15rem;
+      font-weight: 500;
+      color: var(--primary);
+      padding: 1rem;
+      background: var(--bg);
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+    }
+    .priorities-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .priority-box {
+      padding: 1rem;
+      border-radius: 8px;
+    }
+    .priority-box.critical { background: var(--critical-bg); border-left: 4px solid var(--critical); }
+    .priority-box.high { background: var(--high-bg); border-left: 4px solid var(--high); }
+    .priority-box h4 { margin-bottom: 0.5rem; }
+    .priority-box ul { margin-left: 1.2rem; }
+    .priority-box li { margin-bottom: 0.25rem; }
+
+    /* Quick Reference Table */
+    .quick-reference {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .quick-reference h2 { color: var(--primary); margin-bottom: 1rem; }
+    .quick-reference table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .quick-reference th, .quick-reference td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .quick-reference th { background: var(--bg); font-weight: 600; }
+    .quick-reference tr:hover { background: #f8f9fa; }
+
+    /* Priority Sections */
+    .priority-section {
+      margin-bottom: 2rem;
+    }
+    .section-header {
+      padding: 1rem 1.5rem;
+      border-radius: 12px 12px 0 0;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .section-header.critical { background: var(--critical); }
+    .section-header.high { background: var(--high); }
+    .section-header.medium { background: var(--medium); color: var(--text); }
+    .section-header.low { background: var(--low); }
+    .section-header h2 { font-size: 1.25rem; margin: 0; }
+    .section-description {
+      padding: 1rem 1.5rem;
+      background: white;
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      color: var(--text-light);
+      font-style: italic;
+    }
+
+    /* Recommendation Cards */
+    .rec-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    .rec-card:not(:last-child) {
+      border-radius: 0;
+    }
+    .rec-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .rec-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+    .rec-category {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    /* Evidence Type Badges - Classifies evidence quality */
+    .evidence-type {
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .evidence-type.direct {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+    .evidence-type.inferred {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+    .evidence-type.claimed {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
+    .htsm-question {
+      font-style: italic;
+      color: var(--text-light);
+      padding: 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+      margin-top: 0.5rem;
+    }
+
+    /* Why It Matters */
+    .why-section {
+      padding: 1.5rem;
+      background: #fafbfc;
+      border-bottom: 1px solid var(--border);
+    }
+    .why-section h4 {
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .why-section p { line-height: 1.8; }
+
+    /* Evidence Section (Semantic Analysis) */
+    .evidence-section {
+      padding: 1.5rem;
+      background: #f0f7ff;
+      border-bottom: 1px solid var(--border);
+    }
+    .evidence-section h4 {
+      color: #1e40af;
+      margin-bottom: 0.75rem;
+    }
+    .evidence-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .evidence-table th {
+      background: #e0e7ff;
+      text-align: left;
+      padding: 0.5rem;
+    }
+    .evidence-table td {
+      padding: 0.5rem;
+      border-bottom: 1px solid #c7d2fe;
+    }
+    .evidence-reasoning {
+      font-style: italic;
+      color: var(--text-light);
+    }
+
+    /* Risk Warnings */
+    .risk-warnings {
+      padding: 1rem 1.5rem;
+      background: var(--critical-bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .risk-warning {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      color: var(--critical);
+    }
+    .risk-warning:not(:last-child) { border-bottom: 1px dashed rgba(220,53,69,0.3); }
+
+    /* Recommended Actions */
+    .actions-section {
+      padding: 1.5rem;
+    }
+    .collapsible-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+    .collapsible-header h4 { color: var(--primary); margin: 0; }
+    .collapse-icon { font-size: 0.8rem; color: var(--text-light); }
+    .collapsible-content.collapsed { display: none; }
+
+    .action-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1rem;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+    }
+    .action-type {
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
+      height: fit-content;
+    }
+    .action-type.engineering { background: #e3f2fd; color: #1565c0; }
+    .action-type.user_story { background: #f3e5f5; color: #7b1fa2; }
+    .action-type.testing { background: #e8f5e9; color: #2e7d32; }
+    .action-type.governance { background: #fff3e0; color: #e65100; }
+    .action-type.security { background: #ffebee; color: #c62828; }
+    .action-type.pi_planning { background: #e0f7fa; color: #00838f; }
+    .action-type.performance { background: #fce4ec; color: #ad1457; }
+    .action-content h5 { margin-bottom: 0.25rem; color: var(--primary); }
+    .action-content p { font-size: 0.9rem; color: var(--text-light); margin: 0; }
+
+    /* Cross-Cutting Concerns */
+    .cross-cutting {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .cross-cutting h2 { color: var(--primary); margin-bottom: 1rem; }
+    .concern-card {
+      padding: 1.5rem;
+      background: var(--bg);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      border-left: 4px solid var(--accent);
+    }
+    .concern-card h4 { margin-bottom: 0.5rem; color: var(--primary); }
+    .concern-categories {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .concern-category {
+      background: var(--secondary);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+    }
+
+    /* PI Planning */
+    .pi-planning {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .pi-planning h2 { color: var(--primary); margin-bottom: 1rem; }
+    .pi-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .pi-table th, .pi-table td {
+      padding: 1rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .pi-table th {
+      background: var(--primary);
+      color: white;
+    }
+    .pi-table tr:nth-child(even) { background: var(--bg); }
+    .sprint-badge {
+      background: var(--accent);
+      color: white;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .criteria-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+    .criteria-tag {
+      background: var(--bg);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border);
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-light);
+      font-size: 0.875rem;
+    }
+    .footer a { color: var(--accent); text-decoration: none; }
+
+    /* Info Sections (About/Help) */
+    .info-section {
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    .info-header {
+      padding: 15px 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .info-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      opacity: 0.95;
+    }
+    .info-content {
+      padding: 0 20px 20px 20px;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+      max-height: 1000px;
+    }
+    .info-section.collapsed .info-content {
+      max-height: 0 !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .info-section.collapsed .collapse-icon {
+      transform: rotate(-90deg);
+    }
+    .info-content blockquote {
+      margin: 0 0 15px 0;
+      padding: 12px 15px;
+      border-left: 3px solid rgba(255,255,255,0.4);
+      font-style: italic;
+      opacity: 0.9;
+    }
+    .info-content p {
+      margin: 0 0 12px 0;
+      opacity: 0.9;
+      line-height: 1.7;
+    }
+    .info-content a {
+      color: #93c5fd;
+      text-decoration: underline;
+    }
+    .checklist-item {
+      margin-bottom: 8px;
+      line-height: 1.8;
+    }
+    .checklist-item strong {
+      color: white;
+    }
+
+    /* Badge styles */
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge.critical { background: var(--critical); color: white; }
+    .badge.high { background: var(--high); color: white; }
+    .badge.medium { background: var(--medium); color: var(--text); }
+    .badge.low { background: var(--low); color: white; }
+
+    @media (max-width: 768px) {
+      body { padding: 1rem; }
+      .header h1 { font-size: 1.5rem; }
+      .header-meta { flex-direction: column; gap: 0.5rem; }
+      .priorities-grid { grid-template-columns: 1fr; }
+      .pi-table { font-size: 0.85rem; }
+      .pi-table th, .pi-table td { padding: 0.5rem; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- HEADER SECTION -->
+    <header class="header">
+      <h1>Quality Criteria Recommendations</h1>
+      <div class="header-subtitle">Epic 5: Live Shopping & Social Commerce Enhancement</div>
+      <div class="header-meta">
+        <span>About You Fashion Platform</span>
+        <span>2026-01-20</span>
+        <span>10 Quality Criteria Identified</span>
+        <span>10 of 10 HTSM Categories Analyzed</span>
+        <span style="font-size: 0.8rem;">Omitted: None - All categories analyzed</span>
+      </div>
+
+      <!-- How can this report help you? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>How can this report help you?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <blockquote>
+            "Quality is value to some person." <span style="opacity: 0.7;">- Jerry Weinberg</span>
+          </blockquote>
+          <p>This report is generated by the <strong>Quality Criteria Recommender</strong>, one of the core agents based on the <strong>QCSD (Quality Conscious Software Delivery)</strong> framework. The QCSD framework recommends conducting Quality Criteria sessions early in the development lifecycle - ideally during PI Planning or Sprint Planning - to align the entire team on what "quality" means for each feature before a single line of code is written.</p>
+          <p>This analysis uses <strong>AI semantic understanding</strong> to identify relevant Quality Criteria from James Bach's <a href="https://www.satisfice.com/download/heuristic-test-strategy-model">Heuristic Test Strategy Model (HTSM) v6.3</a>. Unlike simple keyword matching, it understands the <em>meaning and implications</em> of your requirements to surface quality dimensions that may not be explicitly stated but are critical for user satisfaction.</p>
+          <p>A guided discussion based on this analysis helps teams uncover hidden quality risks, define testable acceptance criteria, create clearer development plans, identify gaps and dependencies early, improve estimation accuracy, and most importantly - <strong>avoid costly rework</strong> caused by discovering quality issues halfway through development. Research shows that defects found in production cost 30x more to fix than those found during requirements (Source: IBM Systems Sciences Institute, 2008). If we want to save time and cost while still delivering quality software, <strong>it is always cheaper to do things right the first time</strong>.</p>
+          <p>Quality Criteria help answer fundamental questions: <em>What aspects of quality are most important for this feature? Where should we focus our testing effort? What risks exist if we neglect certain quality dimensions? How do we build quality in rather than test it in later?</em></p>
+        </div>
+      </div>
+
+      <!-- When to generate this report? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>When to generate this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <p><strong>During PI Planning &amp; Sprint Planning (QCSD Recommended):</strong> The QCSD framework recommends generating this report as soon as Epic/Feature requirements are available - ideally before Sprint Planning begins. This enables teams to conduct a <em>Quality Criteria Session</em> where programmers, testers, Product Owners, Designers, and Architects align on quality expectations before development starts.</p>
+          <p><strong>Shift-Left Quality Engineering:</strong> The cost of fixing defects increases exponentially as they move through the SDLC (1x in requirements, 5x in design, 10x in coding, 30x in production). Use this report to shift quality discussions left - informing architecture decisions, refining acceptance criteria, identifying non-functional requirements gaps, and allocating appropriate testing effort before the first commit.</p>
+          <p><strong>Before Three Amigos / Refinement Sessions:</strong> Share this report with the team before refinement sessions to facilitate meaningful conversations about quality trade-offs. When everyone understands which quality dimensions matter most, the team can make informed decisions about scope, risk acceptance, and technical approach.</p>
+          <p><strong>As a Living Document:</strong> Regenerate this report when requirements change significantly. Quality criteria priorities may shift as the feature scope evolves - what was medium priority may become critical based on new information.</p>
+        </div>
+      </div>
+
+      <!-- How to use this report? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>How to use this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <p style="margin-bottom: 12px;">In this report you will find:</p>
+          <div style="margin-left: 5px; line-height: 1.8;">
+            <div class="checklist-item">&#x2610; <strong>Executive Summary</strong> - Key message and critical priorities at a glance.</div>
+            <div class="checklist-item">&#x2610; <strong>Quick Reference Table</strong> - All quality criteria with priorities and HTSM questions.</div>
+            <div class="checklist-item">&#x2610; <strong>Priority-Based Recommendations</strong> - Detailed analysis with evidence-based reasoning.</div>
+            <div class="checklist-item">&#x2610; <strong>Actionable Tasks</strong> - Engineering tasks, User Stories, and Testing activities.</div>
+            <div class="checklist-item">&#x2610; <strong>Cross-Cutting Concerns</strong> - Quality aspects spanning multiple criteria.</div>
+            <div class="checklist-item">&#x2610; <strong>PI Planning Guidance</strong> - Sprint-by-sprint quality focus.</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+
+    <!-- EXECUTIVE SUMMARY -->
+    <section class="executive-summary">
+      <h2>Executive Summary</h2>
+      <div class="key-message">Live Shopping & Social Commerce introduces real-time video streaming with integrated e-commerce, requiring exceptional focus on Security (payment processing, UGC moderation), Reliability (stream stability, notification delivery), and Performance (video latency, concurrent viewers). The combination of live events, third-party social integrations (Instagram, TikTok), and in-video purchasing creates a complex quality landscape where failures are highly visible to engaged Gen-Z audiences.</div>
+
+      <div class="priorities-grid">
+        <!-- Critical Priorities -->
+        <div class="priority-box critical">
+          <h4>&#x1F6A8; Critical Priorities</h4>
+          <ul>
+            <li><strong>Security:</strong> In-video payment processing, UGC content moderation, XSS prevention</li>
+            <li><strong>Reliability:</strong> Payment gateway resilience, database transaction integrity</li>
+            <li><strong>Usability:</strong> WCAG 1.2.4 caption compliance (E1 dependency)</li>
+          </ul>
+        </div>
+
+        <!-- Quick Wins -->
+        <div class="priority-box high">
+          <h4>&#x26A1; Quick Wins</h4>
+          <ul>
+            <li>Implement WebSocket reconnection with state preservation</li>
+            <li>Add CDN failover with 3-second recovery target</li>
+            <li>Configure rate limiting with proper Retry-After headers</li>
+            <li>Enable live indicator visibility testing at 1366x768</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- QUICK REFERENCE TABLE -->
+    <section class="quick-reference">
+      <h2>Quick Reference</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Quality Criteria</th>
+            <th>Priority</th>
+            <th>Key Question</th>
+            <th>Primary Focus</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Security</strong></td>
+            <td><span class="badge critical">P0</span></td>
+            <td style="font-style: italic;">How well protected is the product against unauthorized use?</td>
+            <td>Payment security, UGC moderation, XSS/CSRF/SQLi prevention</td>
+          </tr>
+          <tr>
+            <td><strong>Reliability</strong></td>
+            <td><span class="badge critical">P0</span></td>
+            <td style="font-style: italic;">Will it work well and resist failure in all reasonable situations?</td>
+            <td>Payment gateway resilience, stream stability, data integrity</td>
+          </tr>
+          <tr>
+            <td><strong>Usability</strong></td>
+            <td><span class="badge critical">P0</span></td>
+            <td style="font-style: italic;">How easy is it for real users to use the product?</td>
+            <td>WCAG 1.2.4 captions, 2-tap navigation (AC21), keyboard accessibility</td>
+          </tr>
+          <tr>
+            <td><strong>Performance</strong></td>
+            <td><span class="badge high">P1</span></td>
+            <td style="font-style: italic;">How speedy and responsive is the product?</td>
+            <td>Video latency under 5s, 10K concurrent viewers, API under 200ms</td>
+          </tr>
+          <tr>
+            <td><strong>Capability</strong></td>
+            <td><span class="badge high">P1</span></td>
+            <td style="font-style: italic;">Can it perform the required functions?</td>
+            <td>Live streaming, shoppable replays, UGC integration, notifications</td>
+          </tr>
+          <tr>
+            <td><strong>Compatibility</strong></td>
+            <td><span class="badge high">P1</span></td>
+            <td style="font-style: italic;">How well does it work with external components?</td>
+            <td>Instagram/TikTok APIs, Firebase/APNs, HLS across browsers</td>
+          </tr>
+          <tr>
+            <td><strong>Scalability</strong></td>
+            <td><span class="badge high">P1</span></td>
+            <td style="font-style: italic;">How well does deployment scale?</td>
+            <td>Celebrity event peaks, 50K notification delivery, CDN capacity</td>
+          </tr>
+          <tr>
+            <td><strong>Charisma</strong></td>
+            <td><span class="badge medium">P2</span></td>
+            <td style="font-style: italic;">How appealing is the product?</td>
+            <td>Gen-Z UX expectations, authentic UGC feel, brand presentation</td>
+          </tr>
+          <tr>
+            <td><strong>Installability</strong></td>
+            <td><span class="badge medium">P2</span></td>
+            <td style="font-style: italic;">How easily can the product be installed?</td>
+            <td>Calendar integration, push notification permissions, deep links</td>
+          </tr>
+          <tr>
+            <td><strong>Development</strong></td>
+            <td><span class="badge low">P3</span></td>
+            <td style="font-style: italic;">How well can we create, test, and modify the product?</td>
+            <td>Feature flags, error code documentation, test data generation</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Priority Legend -->
+      <div style="margin-top: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border);">
+        <h4 style="margin: 0 0 1rem 0; color: var(--primary);">Priority Levels</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+          <div style="padding: 0.75rem; background: var(--critical-bg); border-left: 4px solid var(--critical); border-radius: 4px;">
+            <strong style="color: var(--critical);">P0 - CRITICAL</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Failure causes immediate business/user harm.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--high-bg); border-left: 4px solid var(--high); border-radius: 4px;">
+            <strong style="color: var(--high);">P1 - HIGH</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Critical to core user value proposition.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--medium-bg); border-left: 4px solid var(--medium); border-radius: 4px;">
+            <strong style="color: #b45309;">P2 - MEDIUM</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Affects satisfaction but not blocking.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--low-bg); border-left: 4px solid var(--low); border-radius: 4px;">
+            <strong style="color: var(--low);">P3 - LOW</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Nice-to-have quality improvements.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- CRITICAL PRIORITY SECTION -->
+    <section class="priority-section">
+      <div class="section-header critical">
+        <h2>Critical Priority Quality Criteria</h2>
+        <span>3 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria MUST be addressed immediately - failure poses unacceptable risk to users and business.</div>
+
+      <!-- SECURITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Security</span>
+          </div>
+          <div class="htsm-question">"How well protected is the product against unauthorized use or access?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live Shopping introduces significant security surface area: in-video payment processing handles financial transactions during emotionally-charged live events; UGC integration from Instagram/TikTok requires content moderation to prevent brand damage; and user notification preferences contain PII requiring GDPR protection. The combination of real-time transactions and social media integration creates attack vectors for XSS through UGC captions, CSRF on "Remind Me" buttons, and SQL injection in event search.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Payment security breaches during live celebrity events would cause immediate reputational damage. E-commerce fraud costs merchants approximately 3.75% of revenue (Source: LexisNexis True Cost of Fraud Study, 2023). UGC moderation failures could expose the platform to legal liability and brand partnerships at risk with LeGer/GMK celebrity collections.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>TC-FUNC-V9W0X1Y2</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>XSS payload injection in UGC captions</td>
+                <td class="evidence-reasoning">Direct test case: sanitization must prevent script execution from user-submitted content</td>
+              </tr>
+              <tr>
+                <td><code>TC-FUNC-Z3A4B5C6</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>NSFW content in UGC gallery</td>
+                <td class="evidence-reasoning">Content moderation failure during high-traffic celebrity event would damage brand image</td>
+              </tr>
+              <tr>
+                <td><code>TC-FUNC-R7S8T9U0</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>IDOR vulnerability in notification preferences</td>
+                <td class="evidence-reasoning">API parameter tampering could expose other users' notification settings and PII</td>
+              </tr>
+              <tr>
+                <td><code>TC-FUNC-V1W2X3Y4</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>SQL injection in event search</td>
+                <td class="evidence-reasoning">Search functionality processes user input that could be exploited for database access</td>
+              </tr>
+              <tr>
+                <td><code>TC-FUNC-Z5A6B7C8</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>CSRF on "Remind Me" button</td>
+                <td class="evidence-reasoning">Cross-site request could subscribe users to notifications without consent</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Payment processing during live events creates high-value targets; single breach during celebrity event affects thousands of transactions</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>UGC from external platforms (Instagram/TikTok) bypasses standard content pipelines; requires dedicated moderation workflow</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>GDPR requires explicit consent for notification preferences; regulatory fines up to 4% of global turnover for violations</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type security">Security</span>
+              <div class="action-content">
+                <h5>Implement OWASP Top 10 controls for live commerce</h5>
+                <p>Apply input sanitization for UGC captions, parameterized queries for search, CSRF tokens on all state-changing buttons</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type security">Security</span>
+              <div class="action-content">
+                <h5>Deploy AI-powered content moderation</h5>
+                <p>Automatic NSFW detection for UGC before public display with manual review queue for edge cases</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Security penetration testing before launch</h5>
+                <p>Engage third-party security auditors to test payment flows, UGC upload, and notification APIs</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RELIABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Reliability</span>
+          </div>
+          <div class="htsm-question">"Will it work well and resist failure in all reasonable situations?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping events are time-sensitive with no opportunity for replay of the actual live experience. Stream interruptions, payment failures, or notification delivery problems during a celebrity event directly impact revenue and customer trust. The requirement for WebSocket reconnection with state preservation (cart, watched position) indicates awareness of reliability challenges, but the 3-second CDN failover target requires robust architecture.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Live commerce events generate concentrated revenue during short windows. [Requires internal data: About You-specific revenue-per-minute during live events]. Industry benchmark: cart abandonment increases approximately 7% for each additional second of load time (Source: Portent, 2022). Payment gateway timeouts during high-traffic events could result in lost sales proportional to event viewership.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>TC-STRU-Y5Z6A7B8</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Payment gateway timeout during in-video purchase</td>
+                <td class="evidence-reasoning">Cart state must be preserved for retry; orphan orders must be prevented through transaction rollback</td>
+              </tr>
+              <tr>
+                <td><code>TC-DATA-S5T6U7V8</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Database connection failure during purchase</td>
+                <td class="evidence-reasoning">Transaction integrity requires proper rollback; no orphan orders can be created</td>
+              </tr>
+              <tr>
+                <td><code>TC-STRU-I9J0K1L2</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>WebSocket disconnection with state preservation</td>
+                <td class="evidence-reasoning">Automatic reconnection must preserve cart and watch position; user should not lose progress</td>
+              </tr>
+              <tr>
+                <td><code>TC-STRU-E5F6G7H8</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>CDN failover within 3 seconds</td>
+                <td class="evidence-reasoning">Stream must resume from backup CDN without user intervention; critical for live experience continuity</td>
+              </tr>
+              <tr>
+                <td><code>TC-PLAT-O1P2Q3R4</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Network interruption mid-stream</td>
+                <td class="evidence-reasoning">Reconnection and stream resumption required within 5 seconds; longer gaps cause user abandonment</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Payment gateway dependency: timeout during purchase must not create orphan orders or double-charges</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>CDN failover: 3-second target requires pre-warmed backup; cold failover likely exceeds target</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Notification delivery SLA: 50,000 simultaneous reminders requires queue capacity planning</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement circuit breaker for payment gateway</h5>
+                <p>Prevent cascade failures when payment service is degraded; preserve cart for manual retry</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Pre-warm backup CDN before celebrity events</h5>
+                <p>Ensure failover target of 3 seconds is achievable by having backup CDN in active standby</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Chaos engineering for live event dependencies</h5>
+                <p>Simulate payment gateway, CDN, WebSocket, and notification service failures under load</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- USABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Usability</span>
+          </div>
+          <div class="htsm-question">"How easy is it for real users to use the product?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping targets Gen-Z audiences accustomed to TikTok-native shopping patterns. The acceptance criteria explicitly require WCAG 1.2.4 caption compliance (dependency on E1 Epic), 2-tap navigation from homepage (AC21), and checkout step reduction by 50% (AC22). Accessibility compliance is both a legal requirement and a competitive differentiator for reaching broader audiences including users with hearing impairments watching live streams.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Approximately 15% of the global population experiences some form of disability (Source: WHO, 2023). WCAG non-compliance exposes About You to legal risk under EU Web Accessibility Directive. The 2-tap navigation requirement (AC21) directly impacts discoverability; each additional tap reduces engagement [Requires internal data: About You click-through rates by navigation depth].</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>TC-STRU-K7L8M9N0</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>WCAG 1.2.4 caption compliance</td>
+                <td class="evidence-reasoning">Legal requirement; AI-generated captions must match human transcript baseline accuracy</td>
+              </tr>
+              <tr>
+                <td><code>TC-INTF-I9J0K1L2</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Captions toggle availability</td>
+                <td class="evidence-reasoning">Dependency on E1 Epic; captions must be toggleable and meet accessibility standards</td>
+              </tr>
+              <tr>
+                <td><code>TC-INTF-A1B2C3D4</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>2-tap navigation requirement (AC21)</td>
+                <td class="evidence-reasoning">User must reach live shopping section within 2 taps from homepage; impacts discovery</td>
+              </tr>
+              <tr>
+                <td><code>TC-INTF-E5F6G7H8</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Keyboard accessibility for video controls</td>
+                <td class="evidence-reasoning">All video controls (play, pause, seek, fullscreen) must be keyboard accessible</td>
+              </tr>
+              <tr>
+                <td><code>TC-FUNC-F3G4H5I6</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>50% checkout step reduction (AC22)</td>
+                <td class="evidence-reasoning">In-video purchase must significantly reduce friction compared to standard checkout</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>WCAG 1.2.4 dependency on E1 Epic: caption infrastructure must be in place before live shopping launch</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>AI-generated captions may have accuracy issues with German language, brand names, and product terminology</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Touch target size for product hotspots during video playback requires testing on various screen sizes</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type user_story">User Story</span>
+              <div class="action-content">
+                <h5>Coordinate E1 dependency for caption infrastructure</h5>
+                <p>Ensure E1 Epic delivers WCAG 1.2.4 compliant caption system before E5 launch</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Accessibility audit with screen reader users</h5>
+                <p>Test live shopping flow with NVDA/VoiceOver; validate keyboard-only navigation</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Measure checkout step count for AC22</h5>
+                <p>Document baseline checkout steps vs in-video purchase; verify 50% reduction</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HIGH PRIORITY SECTION -->
+    <section class="priority-section">
+      <div class="section-header high">
+        <h2>High Priority Quality Criteria</h2>
+        <span>4 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria SHOULD be addressed to ensure product success and user satisfaction.</div>
+
+      <!-- PERFORMANCE -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Performance</span>
+          </div>
+          <div class="htsm-question">"How speedy and responsive is the product?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping success depends on perceived "liveness" - video latency must be under 5 seconds for the experience to feel live. The requirement for one-click join with video playback start under 3 seconds (TC-FUNC-H9I0J1K2) sets aggressive performance targets. Product hotspot appearance within 500ms of product mention requires tight synchronization between video timeline and overlay rendering.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Video start delay directly impacts viewer retention. [No benchmark available for live commerce specific metrics; requires A/B testing]. API response time requirement of under 200ms for event listings aligns with industry expectations for responsive e-commerce. 10,000 concurrent viewers on celebrity events requires validated capacity planning.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>TC-TIME-A1B2C3D4</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Video latency under 5 seconds</td>
+                <td class="evidence-reasoning">Latency above 5s breaks "live" illusion; users expect near real-time interaction</td>
+              </tr>
+              <tr>
+                <td><code>TC-FUNC-H9I0J1K2</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Video playback start under 3 seconds</td>
+                <td class="evidence-reasoning">One-click join experience requires fast time-to-first-frame</td>
+              </tr>
+              <tr>
+                <td><code>TC-INTF-U1V2W3X4</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>API response under 200ms</td>
+                <td class="evidence-reasoning">Live events endpoint must return quickly with proper pagination</td>
+              </tr>
+              <tr>
+                <td><code>TC-OPER-Q7R8S9T0</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>10,000 concurrent viewers</td>
+                <td class="evidence-reasoning">Celebrity event peaks require validated capacity; degradation must be graceful</td>
+              </tr>
+              <tr>
+                <td><code>TC-TIME-I9J0K1L2</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Product overlay within 500ms</td>
+                <td class="evidence-reasoning">Hotspot must appear synchronized with product mention in stream</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>10,000 concurrent viewer target: requires load testing with realistic viewer distribution</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Adaptive bitrate switching may cause quality perception issues on unstable connections</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type performance">Performance</span>
+              <div class="action-content">
+                <h5>Load test with 10K+ concurrent viewers</h5>
+                <p>Simulate celebrity event traffic patterns; validate auto-scaling behavior</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type performance">Performance</span>
+              <div class="action-content">
+                <h5>Measure video latency end-to-end</h5>
+                <p>Track broadcaster-to-viewer latency; ensure under 5 second target</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CAPABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Capability</span>
+          </div>
+          <div class="htsm-question">"Can it perform the required functions?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Epic 5 introduces substantial new functionality: live event streaming with real-time indicator, shoppable video replays with product hotspots and chapter navigation, UGC gallery integration from Instagram/TikTok with "Shop the look" AI, and multi-channel notification system (email, push, SMS, calendar). Each feature must work correctly to deliver the live shopping value proposition.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Live indicator visibility (AC21 - above fold at 1366x768) directly impacts event discovery. Shoppable hotspot accuracy affects conversion rate. [Requires internal data: projected conversion rate for in-video vs standard checkout]. UGC "Shop the look" depends on AI product identification accuracy - target threshold not specified in requirements.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>TC-FUNC-F1A2B3C4</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Live indicator appears within 2 seconds</td>
+                <td class="evidence-reasoning">Real-time status update without page refresh required for discovery</td>
+              </tr>
+              <tr>
+                <td><code>TC-FUNC-T1U2V3W4</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Product hotspot add-to-cart without pausing</td>
+                <td class="evidence-reasoning">Seamless purchase flow must not interrupt video viewing experience</td>
+              </tr>
+              <tr>
+                <td><code>TC-FUNC-R5S6T7U8</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Shop the look product identification</td>
+                <td class="evidence-reasoning">AI must correctly map customer photos to catalog items for UGC monetization</td>
+              </tr>
+              <tr>
+                <td><code>TC-FUNC-L5M6N7O8</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Multi-channel notification delivery (AC23)</td>
+                <td class="evidence-reasoning">Email, push, and SMS channels all required per acceptance criteria</td>
+              </tr>
+              <tr>
+                <td><code>Clarifying Question</code></td>
+                <td><span class="evidence-type claimed">Claimed</span></td>
+                <td>AI product detection accuracy threshold</td>
+                <td class="evidence-reasoning">Accuracy threshold not specified in requirements - requires verification with product team</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>End-to-end live shopping journey testing</h5>
+                <p>Validate complete flow: discovery, viewing, hotspot interaction, purchase, notification</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type user_story">User Story</span>
+              <div class="action-content">
+                <h5>Define AI product detection accuracy threshold</h5>
+                <p>Clarify acceptance criteria for "Shop the look" feature accuracy</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPATIBILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Compatibility</span>
+          </div>
+          <div class="htsm-question">"How well does it work with external components?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping depends heavily on third-party integrations: Instagram and TikTok APIs for UGC aggregation, Firebase and APNs for push notifications, Twilio for SMS delivery, Google/Apple/Outlook for calendar integration. HLS video streaming must work across Chrome, Firefox, Safari, and Edge. Each integration point is a potential failure mode requiring graceful degradation.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Instagram API rate limits (429 responses) could disable UGC gallery during peak traffic. TikTok embed format changes could break integration without warning. Browser-specific HLS issues affect viewer reach. [Requires internal data: About You browser usage distribution].</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>TC-INTF-K7L8M9N0</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Instagram API downtime handling</td>
+                <td class="evidence-reasoning">Fallback UI must display placeholder with appropriate messaging</td>
+              </tr>
+              <tr>
+                <td><code>TC-INTF-O1P2Q3R4</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>TikTok API rate limit handling</td>
+                <td class="evidence-reasoning">Graceful degradation without crashing video feed</td>
+              </tr>
+              <tr>
+                <td><code>TC-PLAT-A1B2C3D4</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>HLS playback across browsers</td>
+                <td class="evidence-reasoning">Chrome, Firefox, Safari, Edge support required for stream delivery</td>
+              </tr>
+              <tr>
+                <td><code>TC-INTF-S5T6U7V8</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Firebase push notification delivery</td>
+                <td class="evidence-reasoning">Notification must arrive within 5 seconds of send</td>
+              </tr>
+              <tr>
+                <td><code>TC-FUNC-P9Q0R1S2</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Google Calendar integration</td>
+                <td class="evidence-reasoning">Event details, time, and deep link must be correct</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Integration contract testing for social APIs</h5>
+                <p>Mock Instagram/TikTok responses; test rate limit and format change scenarios</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Cross-browser HLS compatibility matrix</h5>
+                <p>Test on Chrome 110+, Firefox 115+, Safari 16+, Edge 110+ across OS combinations</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCALABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Scalability</span>
+          </div>
+          <div class="htsm-question">"How well does deployment scale under increased demand?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Celebrity events (LeGer, GMK collections) create traffic spikes that require elastic scaling. The requirement for 10,000 concurrent viewers and 50,000 simultaneous event reminders indicates expected peak loads. Video streaming infrastructure must scale independently from notification delivery to handle different load patterns.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Scaling failures during high-profile celebrity events cause visible public incidents. [Requires internal data: historical traffic patterns for About You promotional events]. Notification delivery delays during peak times reduce event attendance and conversion.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>TC-OPER-Q7R8S9T0</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>10,000 concurrent viewers</td>
+                <td class="evidence-reasoning">Celebrity event load requires validated auto-scaling</td>
+              </tr>
+              <tr>
+                <td><code>TC-OPER-U1V2W3X4</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>50,000 simultaneous reminders</td>
+                <td class="evidence-reasoning">Notification queue must handle burst delivery within SLA</td>
+              </tr>
+              <tr>
+                <td><code>TC-STRU-M3N4O5P6</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>1000 concurrent replay requests</td>
+                <td class="evidence-reasoning">Post-event replay demand requires CDN capacity</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type performance">Performance</span>
+              <div class="action-content">
+                <h5>Auto-scaling validation under load</h5>
+                <p>Verify streaming and notification services scale independently; measure scale-up time</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type pi_planning">PI Planning</span>
+              <div class="action-content">
+                <h5>Capacity planning for celebrity event calendar</h5>
+                <p>Align infrastructure scaling with planned event schedule; pre-provision for known peaks</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MEDIUM PRIORITY SECTION -->
+    <section class="priority-section">
+      <div class="section-header medium">
+        <h2>Medium Priority Quality Criteria</h2>
+        <span>2 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria enhance product quality and should be planned for upcoming sprints.</div>
+
+      <!-- CHARISMA -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Charisma</span>
+          </div>
+          <div class="htsm-question">"How appealing is the product to its users?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping targets Gen-Z audiences with expectations shaped by TikTok and Instagram shopping experiences. The UGC gallery must feel "authentic vs overly curated" (TC-FUNC-D7E8F9G0). Platform-native feel on Android vs iOS (TC-PLAT-U1V2W3X4) affects brand perception. German language translations must feel natural rather than machine-translated (TC-OPER-A3B4C5D6).</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Gen-Z brand loyalty is influenced by authentic social proof. [Requires internal data: About You customer demographics and engagement metrics]. Celebrity collection presentation (LeGer/GMK badges) must meet brand partnership expectations.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>TC-FUNC-D7E8F9G0</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>UGC gallery authentic feel</td>
+                <td class="evidence-reasoning">Human judgment required - "authentic" is subjective perception</td>
+              </tr>
+              <tr>
+                <td><code>TC-OPER-O1P2Q3R4</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Gen-Z UX expectations</td>
+                <td class="evidence-reasoning">TikTok-native shopping patterns as benchmark for comparison</td>
+              </tr>
+              <tr>
+                <td><code>TC-OPER-A3B4C5D6</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Natural German translations</td>
+                <td class="evidence-reasoning">Native speaker judgment required for language quality</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>User research with Gen-Z focus group</h5>
+                <p>Validate UGC gallery perception and shopping flow against TikTok expectations</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Native German speaker review</h5>
+                <p>Audit all live shopping UI copy for natural language quality</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INSTALLABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Installability</span>
+          </div>
+          <div class="htsm-question">"How easily can the product be installed and configured?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>While Live Shopping is a web/app feature (not installed software), "Installability" in this context covers configuration and setup: push notification permission handling on iOS 17 (TC-PLAT-M3N4O5P6), calendar integration setup (Google, Apple, Outlook), and deep link handling when app is not installed. First-run experience affects notification opt-in rates.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> iOS 17 provisional notification status affects reach. [No benchmark available for About You notification opt-in rates]. Calendar integration failures reduce event attendance. Deep link breakage from notification to live event causes conversion loss.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>TC-PLAT-M3N4O5P6</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>iOS 17 provisional notification handling</td>
+                <td class="evidence-reasoning">App must handle provisional status correctly; affects notification reach</td>
+              </tr>
+              <tr>
+                <td><code>Clarifying Question</code></td>
+                <td><span class="evidence-type claimed">Claimed</span></td>
+                <td>Deep link handling without app</td>
+                <td class="evidence-reasoning">Requires verification: how are deep links handled when app not installed?</td>
+              </tr>
+              <tr>
+                <td><code>TC-STRU-C9D0E1F2</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Calendar API failure fallback</td>
+                <td class="evidence-reasoning">ICS file download must be offered as fallback when API fails</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>iOS 17 notification permission testing</h5>
+                <p>Validate handling of provisional, authorized, and denied permission states</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type user_story">User Story</span>
+              <div class="action-content">
+                <h5>Clarify deep link behavior without app</h5>
+                <p>Define expected behavior when notification deep link clicked without app installed</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOW PRIORITY SECTION -->
+    <section class="priority-section">
+      <div class="section-header low">
+        <h2>Low Priority Quality Criteria</h2>
+        <span>1 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria are nice-to-have improvements for the backlog.</div>
+
+      <!-- DEVELOPMENT -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Development</span>
+          </div>
+          <div class="htsm-question">"How well can we create, test, and modify the product?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Development quality criteria focus on testability and maintainability. Feature flags for live shopping visibility (TC-STRU-M5N6O7P8) enable gradual rollout. Error code documentation (clarifying question) supports mobile app error handling. The complexity of live streaming, social integrations, and notification systems requires robust test data generation capabilities.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Feature flag infrastructure enables risk-controlled launches. [Requires internal data: About You feature flag usage patterns]. Testability improvements reduce regression testing time for future iterations.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>TC-STRU-M5N6O7P8</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Feature flag for live shopping module</td>
+                <td class="evidence-reasoning">Disabling feature must not cause JavaScript errors; clean degradation</td>
+              </tr>
+              <tr>
+                <td><code>Clarifying Question</code></td>
+                <td><span class="evidence-type claimed">Claimed</span></td>
+                <td>Standardized error response schema</td>
+                <td class="evidence-reasoning">Requires verification: are error codes documented for mobile app handling?</td>
+              </tr>
+              <tr>
+                <td><code>Clarifying Question</code></td>
+                <td><span class="evidence-type claimed">Claimed</span></td>
+                <td>Correlation IDs in error responses</td>
+                <td class="evidence-reasoning">Requires verification: do 4xx/5xx responses include debugging IDs?</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Document error response schema</h5>
+                <p>Standardize error codes across live shopping APIs for mobile app handling</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Add correlation IDs to all error responses</h5>
+                <p>Enable end-to-end debugging from mobile app to backend services</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- CROSS-CUTTING CONCERNS -->
+    <section class="cross-cutting">
+      <h2>Cross-Cutting Concerns</h2>
+      <p style="margin-bottom: 1.5rem; color: var(--text-light);">These quality aspects span multiple criteria and require coordinated attention across the implementation.</p>
+
+      <div class="concern-card">
+        <h4>Real-Time State Synchronization</h4>
+        <p>Live indicator status, event state transitions (scheduled/live/ended/replay), cart state during purchases, and notification subscription status all require real-time synchronization between client and server. WebSocket disconnections must preserve state; eventual consistency is not acceptable for payment transactions.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Reliability</span>
+          <span class="concern-category">Performance</span>
+          <span class="concern-category">Capability</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>Third-Party Integration Resilience</h4>
+        <p>Instagram, TikTok, Firebase, APNs, Twilio, and calendar APIs are all external dependencies. Each requires fallback handling, rate limit management, and graceful degradation. OAuth token refresh for social logins adds session management complexity.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Reliability</span>
+          <span class="concern-category">Compatibility</span>
+          <span class="concern-category">Scalability</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>Accessibility Compliance (E1 Dependency)</h4>
+        <p>WCAG 1.2.4 caption compliance depends on E1 Epic infrastructure. All video controls require keyboard accessibility. Product hotspots need adequate touch target sizes. Live shopping feature launch is blocked by accessibility infrastructure readiness.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Usability</span>
+          <span class="concern-category">Capability</span>
+          <span class="concern-category">Development</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>Celebrity Event Peak Load</h4>
+        <p>LeGer and GMK collection events create predictable traffic spikes requiring coordinated scaling of video streaming, notification delivery, payment processing, and UGC aggregation. Infrastructure must be pre-warmed; reactive scaling is too slow.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Scalability</span>
+          <span class="concern-category">Performance</span>
+          <span class="concern-category">Reliability</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>Content Moderation Pipeline</h4>
+        <p>UGC from social platforms, live chat messages, and user-submitted content all require moderation. AI moderation for NSFW detection must not block legitimate content. Moderation latency affects real-time experience. Appeals process needed for false positives.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Security</span>
+          <span class="concern-category">Capability</span>
+          <span class="concern-category">Performance</span>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- PI PLANNING GUIDANCE -->
+    <section class="pi-planning">
+      <h2>PI Planning Guidance</h2>
+      <p style="margin-bottom: 1.5rem; color: var(--text-light);">Suggested sprint-by-sprint approach to systematically address quality criteria.</p>
+
+      <table class="pi-table">
+        <thead>
+          <tr>
+            <th>Sprint</th>
+            <th>Quality Focus</th>
+            <th>Key Activities</th>
+            <th>Criteria Coverage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="sprint-badge">Sprint 1</span></td>
+            <td>Security Foundation & E1 Coordination</td>
+            <td>OWASP controls for UGC input, content moderation pipeline, coordinate E1 caption infrastructure dependency</td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Security</span>
+                <span class="criteria-tag">Usability</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 2</span></td>
+            <td>Core Streaming Reliability</td>
+            <td>WebSocket reconnection with state preservation, CDN failover implementation, payment gateway circuit breaker</td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Reliability</span>
+                <span class="criteria-tag">Performance</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 3</span></td>
+            <td>Third-Party Integration Hardening</td>
+            <td>Instagram/TikTok fallback handling, notification delivery SLA validation, calendar integration testing</td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Compatibility</span>
+                <span class="criteria-tag">Capability</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 4</span></td>
+            <td>Scalability & Load Testing</td>
+            <td>10K concurrent viewer load test, 50K notification burst test, auto-scaling validation</td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Scalability</span>
+                <span class="criteria-tag">Performance</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 5</span></td>
+            <td>Accessibility & UX Polish</td>
+            <td>WCAG audit, keyboard navigation testing, Gen-Z user research, German localization review</td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Usability</span>
+                <span class="criteria-tag">Charisma</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 6</span></td>
+            <td>Pre-Launch Hardening</td>
+            <td>Security penetration test, chaos engineering for live event, feature flag validation, documentation</td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Security</span>
+                <span class="criteria-tag">Reliability</span>
+                <span class="criteria-tag">Development</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <p>Generated by <a href="https://github.com/agentic-qe/agentic-qe">Agentic QE</a> - <strong>qe-quality-criteria-recommender</strong> (Core QCSD Agent)</p>
+      <p>Analysis Method: AI Semantic Understanding | Framework: James Bach's HTSM v6.3 Quality Criteria</p>
+      <p>Part of the <strong>QCSD Framework</strong> - Quality Conscious Software Delivery for shift-left quality engineering</p>
+      <p style="margin-top: 0.5rem; font-style: italic; opacity: 0.8;">Recommendations require domain expert validation. Use this report to facilitate team discussions, not replace them.</p>
+    </footer>
+
+  </div>
+
+  <!-- SEMANTIC ANALYSIS VERIFICATION -->
+  <div class="verification-metadata" style="display: none;">
+    <meta name="analysis-method" content="ai-semantic-understanding">
+    <meta name="implicit-inferences" content="15">
+    <meta name="cross-quality-correlations" content="5">
+    <meta name="keyword-only-matches" content="0">
+  </div>
+</body>
+</html>

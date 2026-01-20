@@ -58,6 +58,18 @@ export interface AgentSpawnConfig {
     storage?: number;
   };
   fleetId?: string;
+  /**
+   * LLM configuration for agents that support semantic analysis
+   * If not provided, will auto-detect from environment (ANTHROPIC_API_KEY)
+   */
+  llmConfig?: {
+    /** Enable LLM capabilities (default: true if API key available) */
+    enabled?: boolean;
+    /** Preferred provider: 'claude' | 'openrouter' | 'ruvllm' | 'auto' */
+    preferredProvider?: string;
+    /** API key override (uses env var if not provided) */
+    apiKey?: string;
+  };
 }
 
 /**
@@ -195,6 +207,9 @@ export class AgentRegistry {
     this.logger.info(`Spawning agent: ${agentId} (type: ${mcpType} -> ${agentType})`);
 
     try {
+      // Auto-detect LLM configuration from environment if not explicitly provided
+      const llmConfig = this.buildLLMConfig(config.llmConfig);
+
       // Create full BaseAgentConfig with infrastructure
       const fullConfig: BaseAgentConfig = {
         type: agentType,
@@ -213,7 +228,9 @@ export class AgentRegistry {
           explorationRate: 0.3,
           minExplorationRate: 0.01,
           explorationDecay: 0.995
-        }
+        },
+        // LLM configuration for semantic analysis capabilities
+        llm: llmConfig
       };
 
       // Create agent via factory instance method with additional config
@@ -745,6 +762,9 @@ export class AgentRegistry {
       // Product Factors Assessor (SFDIPOT)
       'product-factors-assessor': QEAgentType.PRODUCT_FACTORS_ASSESSOR,
 
+      // Quality Criteria Recommender (HTSM v6.3)
+      'quality-criteria-recommender': QEAgentType.QUALITY_CRITERIA_RECOMMENDER,
+
       // Workflow step type mappings (for task orchestration)
       'code-analyzer': QEAgentType.QUALITY_ANALYZER,
       'metrics-collector': QEAgentType.QUALITY_ANALYZER,
@@ -782,7 +802,8 @@ export class AgentRegistry {
       'qx-partner',
       'accessibility-ally',
       'a11y-ally',
-      'product-factors-assessor'
+      'product-factors-assessor',
+      'quality-criteria-recommender'
     ];
   }
 
@@ -794,6 +815,92 @@ export class AgentRegistry {
    */
   isSupportedMCPType(mcpType: string): boolean {
     return this.mapMCPTypeToQEAgentType(mcpType) !== undefined;
+  }
+
+  /**
+   * Build LLM configuration with auto-detection from environment
+   *
+   * Checks for API keys in environment and configures LLM appropriately.
+   * This enables agents to use semantic analysis capabilities when available.
+   *
+   * @param userConfig - Optional user-provided LLM configuration
+   * @returns Configured AgentLLMConfig or undefined
+   */
+  private buildLLMConfig(userConfig?: AgentSpawnConfig['llmConfig']): import('../../agents/BaseAgent').AgentLLMConfig | undefined {
+    // Check if user explicitly disabled LLM
+    if (userConfig?.enabled === false) {
+      this.logger.debug('LLM explicitly disabled by user configuration');
+      return undefined;
+    }
+
+    // Check for API keys in environment
+    const anthropicKey = userConfig?.apiKey || process.env.ANTHROPIC_API_KEY;
+    const openrouterKey = process.env.OPENROUTER_API_KEY;
+
+    // Determine provider based on available keys and user preference
+    let preferredProvider: 'claude' | 'openrouter' | 'ruvllm' | 'auto' = 'auto';
+    if (userConfig?.preferredProvider) {
+      preferredProvider = userConfig.preferredProvider as 'claude' | 'openrouter' | 'ruvllm' | 'auto';
+    } else if (anthropicKey) {
+      preferredProvider = 'claude';
+    } else if (openrouterKey) {
+      preferredProvider = 'openrouter';
+    }
+
+    // If no API keys available, check for local ruvllm
+    if (!anthropicKey && !openrouterKey) {
+      // Still return config with ruvllm preference - it will fallback gracefully
+      this.logger.debug('No API keys found, LLM will use ruvllm or be disabled');
+      return {
+        enabled: true,
+        preferredProvider: 'ruvllm',
+        enableSessions: true
+      };
+    }
+
+    // Build configuration based on preferred provider
+    if (preferredProvider === 'claude' && anthropicKey) {
+      this.logger.info('LLM configured with Anthropic Claude provider');
+      return {
+        enabled: true,
+        preferredProvider: 'claude',
+        factoryConfig: {
+          claude: { apiKey: anthropicKey },
+          defaultProvider: 'claude'
+        },
+        enableSessions: true
+      };
+    }
+
+    if (preferredProvider === 'openrouter' && openrouterKey) {
+      this.logger.info('LLM configured with OpenRouter provider');
+      return {
+        enabled: true,
+        preferredProvider: 'openrouter',
+        factoryConfig: {
+          openrouter: { apiKey: openrouterKey },
+          defaultProvider: 'openrouter'
+        },
+        enableSessions: true
+      };
+    }
+
+    // Auto mode - prefer Claude if key available
+    if (anthropicKey) {
+      this.logger.info('LLM auto-configured with Anthropic Claude provider');
+      return {
+        enabled: true,
+        preferredProvider: 'claude',
+        factoryConfig: {
+          claude: { apiKey: anthropicKey },
+          defaultProvider: 'claude'
+        },
+        enableSessions: true
+      };
+    }
+
+    this.logger.debug('No suitable LLM provider configuration found');
+    return undefined;
   }
 }
 

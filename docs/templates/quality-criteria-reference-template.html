@@ -165,14 +165,34 @@
       font-weight: 600;
       color: var(--primary);
     }
-    .confidence-badge {
-      background: var(--bg);
-      padding: 0.25rem 0.75rem;
-      border-radius: 12px;
-      font-size: 0.8rem;
-      color: var(--text-light);
-      cursor: help;
+    /* REMOVED: confidence-badge - confidence percentages were arbitrary without methodology */
+    /* Use evidence-type badges instead to classify evidence quality */
+
+    /* Evidence Type Badges - Classifies evidence quality */
+    .evidence-type {
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
     }
+    .evidence-type.direct {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+    .evidence-type.inferred {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+    .evidence-type.claimed {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
     .htsm-question {
       font-style: italic;
       color: var(--text-light);
@@ -287,31 +307,6 @@
     .action-type.performance { background: #fce4ec; color: #ad1457; }
     .action-content h5 { margin-bottom: 0.25rem; color: var(--primary); }
     .action-content p { font-size: 0.9rem; color: var(--text-light); margin: 0; }
-
-    /* OKR Suggestions */
-    .okr-section {
-      padding: 1rem 1.5rem;
-      background: #f0f7ff;
-      border-top: 1px solid var(--border);
-    }
-    .okr-section h4 {
-      color: var(--accent);
-      margin-bottom: 0.75rem;
-    }
-    .okr-item {
-      margin-bottom: 1rem;
-    }
-    .okr-objective {
-      font-weight: 600;
-      color: var(--primary);
-      margin-bottom: 0.5rem;
-    }
-    .okr-kr {
-      padding-left: 1.5rem;
-      color: var(--text-light);
-      font-size: 0.9rem;
-    }
-    .okr-kr li { margin-bottom: 0.25rem; }
 
     /* Cross-Cutting Concerns */
     .cross-cutting {
@@ -491,7 +486,8 @@
         <span>{EPIC_ID}</span>
         <span>{DATE}</span>
         <span>{CRITERIA_COUNT} Quality Criteria Identified</span>
-        <span>{COVERAGE}% Coverage</span>
+        <span>{ANALYZED_COUNT} of 10 HTSM Categories Analyzed</span>
+        <span style="font-size: 0.8rem;">Omitted: {OMITTED_CATEGORIES}</span>
       </div>
 
       <!-- How can this report help you? -->
@@ -538,7 +534,6 @@
             <div class="checklist-item">&#x2610; <strong>Quick Reference Table</strong> - All quality criteria with priorities and HTSM questions.</div>
             <div class="checklist-item">&#x2610; <strong>Priority-Based Recommendations</strong> - Detailed analysis with evidence-based reasoning.</div>
             <div class="checklist-item">&#x2610; <strong>Actionable Tasks</strong> - Engineering tasks, User Stories, and Testing activities.</div>
-            <div class="checklist-item">&#x2610; <strong>Suggested OKRs</strong> - Objectives and Key Results to measure success.</div>
             <div class="checklist-item">&#x2610; <strong>Cross-Cutting Concerns</strong> - Quality aspects spanning multiple criteria.</div>
             <div class="checklist-item">&#x2610; <strong>PI Planning Guidance</strong> - Sprint-by-sprint quality focus.</div>
           </div>
@@ -662,15 +657,17 @@
           <table class="evidence-table">
             <thead>
               <tr>
-                <th>Requirement Reference</th>
+                <th>Source Reference</th>
+                <th>Type</th>
                 <th>Quality Implication</th>
                 <th>Reasoning</th>
               </tr>
             </thead>
             <tbody>
-              <!-- EVIDENCE ROW TEMPLATE -->
+              <!-- EVIDENCE ROW TEMPLATE - Type must be Direct/Inferred/Claimed -->
               <tr>
-                <td>{REQ_REF}</td>
+                <td><code>{SOURCE_REF}</code></td>
+                <td><span class="evidence-type {TYPE_CLASS}">{EVIDENCE_TYPE}</span></td>
                 <td>{QUALITY_IMPLICATION}</td>
                 <td class="evidence-reasoning">{REASONING}</td>
               </tr>
@@ -705,19 +702,6 @@
             </div>
             <!-- END ACTION ITEM TEMPLATE -->
           </div>
-        </div>
-
-        <div class="okr-section">
-          <h4>&#x1F3AF; Suggested OKRs</h4>
-          <!-- OKR TEMPLATE -->
-          <div class="okr-item">
-            <div class="okr-objective">Objective: {OBJECTIVE}</div>
-            <ul class="okr-kr">
-              <li>{KEY_RESULT_1}</li>
-              <li>{KEY_RESULT_2}</li>
-            </ul>
-          </div>
-          <!-- END OKR TEMPLATE -->
         </div>
       </div>
       <!-- END RECOMMENDATION CARD TEMPLATE -->

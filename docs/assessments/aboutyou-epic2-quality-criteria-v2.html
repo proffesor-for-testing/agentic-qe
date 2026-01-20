@@ -1,0 +1,1737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quality Criteria Recommendations - AY-E002: Live Shopping Experience Unification</title>
+  <style>
+    /* ============================================
+       QUALITY CRITERIA REFERENCE TEMPLATE
+       Template Version: 1.0.0 (Semantic Analysis)
+
+       USAGE: Copy this template structure exactly.
+       Only replace {PLACEHOLDER} values with actual data.
+       DO NOT modify CSS or HTML structure.
+       ============================================ */
+
+    :root {
+      --critical: #dc3545;
+      --critical-bg: #fff5f5;
+      --high: #fd7e14;
+      --high-bg: #fff8f0;
+      --medium: #ffc107;
+      --medium-bg: #fffdf5;
+      --low: #28a745;
+      --low-bg: #f5fff5;
+      --primary: #1a1a2e;
+      --secondary: #16213e;
+      --accent: #0f3460;
+      --text: #333;
+      --text-light: #666;
+      --border: #e4e8ec;
+      --bg: #f8f9fa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.7;
+      color: var(--text);
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: white;
+      padding: 2.5rem;
+      border-radius: 16px;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 40px rgba(26, 26, 46, 0.2);
+    }
+    .header h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    .header-subtitle { opacity: 0.9; font-size: 1.1rem; margin-bottom: 1rem; }
+    .header-meta { display: flex; gap: 2rem; flex-wrap: wrap; opacity: 0.85; font-size: 0.9rem; }
+
+    /* Executive Summary */
+    .executive-summary {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      border-left: 5px solid var(--accent);
+    }
+    .executive-summary h2 { color: var(--primary); margin-bottom: 1rem; }
+    .key-message {
+      font-size: 1.15rem;
+      font-weight: 500;
+      color: var(--primary);
+      padding: 1rem;
+      background: var(--bg);
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+    }
+    .priorities-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .priority-box {
+      padding: 1rem;
+      border-radius: 8px;
+    }
+    .priority-box.critical { background: var(--critical-bg); border-left: 4px solid var(--critical); }
+    .priority-box.high { background: var(--high-bg); border-left: 4px solid var(--high); }
+    .priority-box h4 { margin-bottom: 0.5rem; }
+    .priority-box ul { margin-left: 1.2rem; }
+    .priority-box li { margin-bottom: 0.25rem; }
+
+    /* Quick Reference Table */
+    .quick-reference {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .quick-reference h2 { color: var(--primary); margin-bottom: 1rem; }
+    .quick-reference table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .quick-reference th, .quick-reference td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .quick-reference th { background: var(--bg); font-weight: 600; }
+    .quick-reference tr:hover { background: #f8f9fa; }
+
+    /* Priority Sections */
+    .priority-section {
+      margin-bottom: 2rem;
+    }
+    .section-header {
+      padding: 1rem 1.5rem;
+      border-radius: 12px 12px 0 0;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .section-header.critical { background: var(--critical); }
+    .section-header.high { background: var(--high); }
+    .section-header.medium { background: var(--medium); color: var(--text); }
+    .section-header.low { background: var(--low); }
+    .section-header h2 { font-size: 1.25rem; margin: 0; }
+    .section-description {
+      padding: 1rem 1.5rem;
+      background: white;
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      color: var(--text-light);
+      font-style: italic;
+    }
+
+    /* Recommendation Cards */
+    .rec-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    .rec-card:not(:last-child) {
+      border-radius: 0;
+    }
+    .rec-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .rec-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+    .rec-category {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    /* Evidence Type Badges - Classifies evidence quality */
+    .evidence-type {
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .evidence-type.direct {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+    .evidence-type.inferred {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+    .evidence-type.claimed {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
+    .htsm-question {
+      font-style: italic;
+      color: var(--text-light);
+      padding: 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+      margin-top: 0.5rem;
+    }
+
+    /* Why It Matters */
+    .why-section {
+      padding: 1.5rem;
+      background: #fafbfc;
+      border-bottom: 1px solid var(--border);
+    }
+    .why-section h4 {
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .why-section p { line-height: 1.8; }
+
+    /* Evidence Section (Semantic Analysis) */
+    .evidence-section {
+      padding: 1.5rem;
+      background: #f0f7ff;
+      border-bottom: 1px solid var(--border);
+    }
+    .evidence-section h4 {
+      color: #1e40af;
+      margin-bottom: 0.75rem;
+    }
+    .evidence-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .evidence-table th {
+      background: #e0e7ff;
+      text-align: left;
+      padding: 0.5rem;
+    }
+    .evidence-table td {
+      padding: 0.5rem;
+      border-bottom: 1px solid #c7d2fe;
+    }
+    .evidence-reasoning {
+      font-style: italic;
+      color: var(--text-light);
+    }
+
+    /* Risk Warnings */
+    .risk-warnings {
+      padding: 1rem 1.5rem;
+      background: var(--critical-bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .risk-warning {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      color: var(--critical);
+    }
+    .risk-warning:not(:last-child) { border-bottom: 1px dashed rgba(220,53,69,0.3); }
+
+    /* Recommended Actions */
+    .actions-section {
+      padding: 1.5rem;
+    }
+    .collapsible-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+    .collapsible-header h4 { color: var(--primary); margin: 0; }
+    .collapse-icon { font-size: 0.8rem; color: var(--text-light); }
+    .collapsible-content.collapsed { display: none; }
+
+    .action-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1rem;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+    }
+    .action-type {
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
+      height: fit-content;
+    }
+    .action-type.engineering { background: #e3f2fd; color: #1565c0; }
+    .action-type.user_story { background: #f3e5f5; color: #7b1fa2; }
+    .action-type.testing { background: #e8f5e9; color: #2e7d32; }
+    .action-type.governance { background: #fff3e0; color: #e65100; }
+    .action-type.security { background: #ffebee; color: #c62828; }
+    .action-type.pi_planning { background: #e0f7fa; color: #00838f; }
+    .action-type.performance { background: #fce4ec; color: #ad1457; }
+    .action-content h5 { margin-bottom: 0.25rem; color: var(--primary); }
+    .action-content p { font-size: 0.9rem; color: var(--text-light); margin: 0; }
+
+    /* Cross-Cutting Concerns */
+    .cross-cutting {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .cross-cutting h2 { color: var(--primary); margin-bottom: 1rem; }
+    .concern-card {
+      padding: 1.5rem;
+      background: var(--bg);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      border-left: 4px solid var(--accent);
+    }
+    .concern-card h4 { margin-bottom: 0.5rem; color: var(--primary); }
+    .concern-categories {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .concern-category {
+      background: var(--secondary);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+    }
+
+    /* PI Planning */
+    .pi-planning {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .pi-planning h2 { color: var(--primary); margin-bottom: 1rem; }
+    .pi-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .pi-table th, .pi-table td {
+      padding: 1rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .pi-table th {
+      background: var(--primary);
+      color: white;
+    }
+    .pi-table tr:nth-child(even) { background: var(--bg); }
+    .sprint-badge {
+      background: var(--accent);
+      color: white;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .criteria-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+    .criteria-tag {
+      background: var(--bg);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border);
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-light);
+      font-size: 0.875rem;
+    }
+    .footer a { color: var(--accent); text-decoration: none; }
+
+    /* Info Sections (About/Help) */
+    .info-section {
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    .info-header {
+      padding: 15px 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .info-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      opacity: 0.95;
+    }
+    .info-content {
+      padding: 0 20px 20px 20px;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+      max-height: 1000px;
+    }
+    .info-section.collapsed .info-content {
+      max-height: 0 !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .info-section.collapsed .collapse-icon {
+      transform: rotate(-90deg);
+    }
+    .info-content blockquote {
+      margin: 0 0 15px 0;
+      padding: 12px 15px;
+      border-left: 3px solid rgba(255,255,255,0.4);
+      font-style: italic;
+      opacity: 0.9;
+    }
+    .info-content p {
+      margin: 0 0 12px 0;
+      opacity: 0.9;
+      line-height: 1.7;
+    }
+    .info-content a {
+      color: #93c5fd;
+      text-decoration: underline;
+    }
+    .checklist-item {
+      margin-bottom: 8px;
+      line-height: 1.8;
+    }
+    .checklist-item strong {
+      color: white;
+    }
+
+    /* Badge styles */
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge.critical { background: var(--critical); color: white; }
+    .badge.high { background: var(--high); color: white; }
+    .badge.medium { background: var(--medium); color: var(--text); }
+    .badge.low { background: var(--low); color: white; }
+
+    @media (max-width: 768px) {
+      body { padding: 1rem; }
+      .header h1 { font-size: 1.5rem; }
+      .header-meta { flex-direction: column; gap: 0.5rem; }
+      .priorities-grid { grid-template-columns: 1fr; }
+      .pi-table { font-size: 0.85rem; }
+      .pi-table th, .pi-table td { padding: 0.5rem; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- HEADER SECTION -->
+    <header class="header">
+      <h1>Quality Criteria Recommendations</h1>
+      <div class="header-subtitle">AY-E002: Live Shopping Experience Unification</div>
+      <div class="header-meta">
+        <span>About You</span>
+        <span>2026-01-20</span>
+        <span>18 Quality Criteria Identified</span>
+        <span>10 of 10 HTSM Categories Analyzed</span>
+        <span style="font-size: 0.8rem;">Omitted: None (all categories applicable to consumer-facing live commerce)</span>
+      </div>
+
+      <!-- How can this report help you? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>How can this report help you?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <blockquote>
+            "Quality is value to some person." <span style="opacity: 0.7;">-- Jerry Weinberg</span>
+          </blockquote>
+          <p>This report is generated by the <strong>Quality Criteria Recommender</strong>, one of the core agents based on the <strong>QCSD (Quality Conscious Software Delivery)</strong> framework. The QCSD framework recommends conducting Quality Criteria sessions early in the development lifecycle -- ideally during PI Planning or Sprint Planning -- to align the entire team on what "quality" means for each feature before a single line of code is written.</p>
+          <p>This analysis uses <strong>AI semantic understanding</strong> to identify relevant Quality Criteria from James Bach's <a href="https://www.satisfice.com/download/heuristic-test-strategy-model">Heuristic Test Strategy Model (HTSM) v6.3</a>. Unlike simple keyword matching, it understands the <em>meaning and implications</em> of your requirements to surface quality dimensions that may not be explicitly stated but are critical for user satisfaction.</p>
+          <p>A guided discussion based on this analysis helps teams uncover hidden quality risks, define testable acceptance criteria, create clearer development plans, identify gaps and dependencies early, improve estimation accuracy, and most importantly -- <strong>avoid costly rework</strong> caused by discovering quality issues halfway through development. Research shows that defects found in production cost 30x more to fix than those found during requirements. If we want to save time and cost while still delivering quality software, <strong>it is always cheaper to do things right the first time</strong>.</p>
+          <p>Quality Criteria help answer fundamental questions: <em>What aspects of quality are most important for this feature? Where should we focus our testing effort? What risks exist if we neglect certain quality dimensions? How do we build quality in rather than test it in later?</em></p>
+        </div>
+      </div>
+
+      <!-- When to generate this report? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>When to generate this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <p><strong>During PI Planning &amp; Sprint Planning (QCSD Recommended):</strong> The QCSD framework recommends generating this report as soon as Epic/Feature requirements are available -- ideally before Sprint Planning begins. This enables teams to conduct a <em>Quality Criteria Session</em> where programmers, testers, Product Owners, Designers, and Architects align on quality expectations before development starts.</p>
+          <p><strong>Shift-Left Quality Engineering:</strong> The cost of fixing defects increases exponentially as they move through the SDLC (1x in requirements, 5x in design, 10x in coding, 30x in production). Use this report to shift quality discussions left -- informing architecture decisions, refining acceptance criteria, identifying non-functional requirements gaps, and allocating appropriate testing effort before the first commit.</p>
+          <p><strong>Before Three Amigos / Refinement Sessions:</strong> Share this report with the team before refinement sessions to facilitate meaningful conversations about quality trade-offs. When everyone understands which quality dimensions matter most, the team can make informed decisions about scope, risk acceptance, and technical approach.</p>
+          <p><strong>As a Living Document:</strong> Regenerate this report when requirements change significantly. Quality criteria priorities may shift as the feature scope evolves -- what was medium priority may become critical based on new information.</p>
+        </div>
+      </div>
+
+      <!-- How to use this report? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>How to use this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <p style="margin-bottom: 12px;">In this report you will find:</p>
+          <div style="margin-left: 5px; line-height: 1.8;">
+            <div class="checklist-item">&#x2610; <strong>Executive Summary</strong> - Key message and critical priorities at a glance.</div>
+            <div class="checklist-item">&#x2610; <strong>Quick Reference Table</strong> - All quality criteria with priorities and HTSM questions.</div>
+            <div class="checklist-item">&#x2610; <strong>Priority-Based Recommendations</strong> - Detailed analysis with evidence-based reasoning.</div>
+            <div class="checklist-item">&#x2610; <strong>Actionable Tasks</strong> - Engineering tasks, User Stories, and Testing activities.</div>
+            <div class="checklist-item">&#x2610; <strong>Cross-Cutting Concerns</strong> - Quality aspects spanning multiple criteria.</div>
+            <div class="checklist-item">&#x2610; <strong>PI Planning Guidance</strong> - Sprint-by-sprint quality focus.</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+
+    <!-- EXECUTIVE SUMMARY -->
+    <section class="executive-summary">
+      <h2>Executive Summary</h2>
+      <div class="key-message">Live shopping is a high-stakes, real-time commerce experience where <strong>every second of latency costs sales</strong>. With 87 test ideas identified across 7 SFDIPOT factors, this epic requires exceptional focus on <strong>Reliability</strong> (WebSocket resilience, inventory sync), <strong>Performance</strong> (sub-2s product overlay latency), and <strong>Security</strong> (preventing bot purchases during flash moments). The FOMO-driven shopping psychology demands that technical quality translates directly to emotional trust.</div>
+
+      <div class="priorities-grid">
+        <!-- Critical Priorities -->
+        <div class="priority-box critical">
+          <h4>&#x1F6A8; Critical Priorities</h4>
+          <ul>
+            <li><strong>Reliability</strong>: WebSocket reconnection within 5s without losing cart state</li>
+            <li><strong>Security</strong>: XSS protection in captions, bot prevention for limited items</li>
+            <li><strong>Performance</strong>: Product overlay latency under 2 seconds end-to-end</li>
+          </ul>
+        </div>
+
+        <!-- Quick Wins -->
+        <div class="priority-box high">
+          <h4>&#x26A1; Quick Wins</h4>
+          <ul>
+            <li><strong>Usability</strong>: Keyboard navigation for all live stream controls</li>
+            <li><strong>Charisma</strong>: PiP transition polish for delight factor</li>
+            <li><strong>Compatibility</strong>: Safari ITP compliance check (no 3rd-party cookie dependencies)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- QUICK REFERENCE TABLE -->
+    <section class="quick-reference">
+      <h2>Quick Reference</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Quality Criteria</th>
+            <th>Priority</th>
+            <th>Key Question</th>
+            <th>Primary Focus</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Reliability</strong></td>
+            <td><span class="badge critical">Critical</span></td>
+            <td style="font-style: italic;">"Will it work well and resist failure?"</td>
+            <td>WebSocket resilience, inventory sync, data integrity during concurrent purchases</td>
+          </tr>
+          <tr>
+            <td><strong>Security</strong></td>
+            <td><span class="badge critical">Critical</span></td>
+            <td style="font-style: italic;">"How well protected against unauthorized use?"</td>
+            <td>XSS in captions, bot prevention, rate limiting on add-to-bag</td>
+          </tr>
+          <tr>
+            <td><strong>Performance</strong></td>
+            <td><span class="badge critical">Critical</span></td>
+            <td style="font-style: italic;">"How speedy and responsive is it?"</td>
+            <td>Product overlay latency, CDN distribution, stream buffering</td>
+          </tr>
+          <tr>
+            <td><strong>Capability</strong></td>
+            <td><span class="badge high">High</span></td>
+            <td style="font-style: italic;">"Can it perform the required functions?"</td>
+            <td>PiP across navigation, replay chapters, timestamp mapping</td>
+          </tr>
+          <tr>
+            <td><strong>Usability</strong></td>
+            <td><span class="badge high">High</span></td>
+            <td style="font-style: italic;">"How easy is it for real users?"</td>
+            <td>Keyboard navigation, screen reader announcements, WCAG 1.2.4 captions</td>
+          </tr>
+          <tr>
+            <td><strong>Scalability</strong></td>
+            <td><span class="badge high">High</span></td>
+            <td style="font-style: italic;">"How well does deployment scale?"</td>
+            <td>10,000 concurrent viewers, 200 simultaneous add-to-bag actions</td>
+          </tr>
+          <tr>
+            <td><strong>Compatibility</strong></td>
+            <td><span class="badge high">High</span></td>
+            <td style="font-style: italic;">"Works with external components?"</td>
+            <td>Browser PiP support, mobile rotation, Safari ITP</td>
+          </tr>
+          <tr>
+            <td><strong>Charisma</strong></td>
+            <td><span class="badge medium">Medium</span></td>
+            <td style="font-style: italic;">"How appealing is the product?"</td>
+            <td>LIVE indicator urgency, PiP transition smoothness, product overlay excitement</td>
+          </tr>
+          <tr>
+            <td><strong>Installability</strong></td>
+            <td><span class="badge medium">Medium</span></td>
+            <td style="font-style: italic;">"How easily installed/configured?"</td>
+            <td>Caption preferences persistence, mini-player position memory</td>
+          </tr>
+          <tr>
+            <td><strong>Development</strong></td>
+            <td><span class="badge medium">Medium</span></td>
+            <td style="font-style: italic;">"How well can we create/test/modify?"</td>
+            <td>API documentation accuracy, WebSocket schema validation, replay testability</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Priority Legend -->
+      <div style="margin-top: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border);">
+        <h4 style="margin: 0 0 1rem 0; color: var(--primary);">Priority Levels</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+          <div style="padding: 0.75rem; background: var(--critical-bg); border-left: 4px solid var(--critical); border-radius: 4px;">
+            <strong style="color: var(--critical);">P0 - CRITICAL</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Failure causes immediate business/user harm.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--high-bg); border-left: 4px solid var(--high); border-radius: 4px;">
+            <strong style="color: var(--high);">P1 - HIGH</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Critical to core user value proposition.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--medium-bg); border-left: 4px solid var(--medium); border-radius: 4px;">
+            <strong style="color: #b45309;">P2 - MEDIUM</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Affects satisfaction but not blocking.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--low-bg); border-left: 4px solid var(--low); border-radius: 4px;">
+            <strong style="color: var(--low);">P3 - LOW</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Nice-to-have quality improvements.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- CRITICAL PRIORITY SECTION -->
+    <section class="priority-section">
+      <div class="section-header critical">
+        <h2>Critical Priority Quality Criteria</h2>
+        <span>3 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria MUST be addressed immediately - failure poses unacceptable risk to revenue and user trust.</div>
+
+      <!-- RELIABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Reliability</span>
+          </div>
+          <div class="htsm-question">"Will it work well and resist failure in real-time commerce conditions?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping creates a unique "point of no return" scenario: unlike traditional e-commerce where users can refresh and retry, a live event cannot be paused or rewound. If the WebSocket connection drops during a flash sale moment, users lose both the stream context and their purchase opportunity. The SFDIPOT assessment identifies 9 P0 test scenarios, with the majority focused on connection resilience and data integrity under failure conditions.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Fashion Ball events represent About You's highest-conversion shopping moments. A 30-second stream interruption during product reveal could result in abandoned carts worth thousands of euros. With 10,000 concurrent viewers expected for major events, even 5% connection failures would affect 500 potential customers simultaneously.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SFDIPOT: TC-STRU-8A1F3B2C (P0)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>WebSocket reconnection must complete within 5 seconds</td>
+                <td class="evidence-reasoning">5-second threshold balances user patience against connection stability; longer delays risk users leaving stream entirely</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-FUNC-B2C3D4E5 (P0)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>50 concurrent add-to-bag actions must not cause overselling</td>
+                <td class="evidence-reasoning">Race condition during inventory depletion is the highest-risk scenario for both revenue (refunds) and trust (disappointed customers)</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-DATA-A1B2C3D4 (P0)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Partially processed replays must not appear in archives</td>
+                <td class="evidence-reasoning">Incomplete chapter data creates broken user experience; better to delay than show corrupted content</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-DATA-B2C3D4E5 (P0)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Product-timestamp mappings must survive database failover</td>
+                <td class="evidence-reasoning">Orphaned timestamps pointing to deleted products would cause UI crashes or empty overlays</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: Structure/Service clarifying questions</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Caption service failover to Google Speech API within 2 seconds</td>
+                <td class="evidence-reasoning">WCAG 1.2.4 compliance requires continuous captions; service failure blocks deaf users from participation</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Cart state loss during WebSocket reconnection would force users to re-add items, likely causing abandonment during time-sensitive live events</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Inventory overselling requires manual order cancellation, customer service contacts, and potential social media backlash during high-visibility events</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>AWS Transcribe outage without fallback would render live content inaccessible to deaf/hard-of-hearing users (legal compliance risk)</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement WebSocket reconnection with cart state persistence</h5>
+                <p>Store cart state in localStorage/sessionStorage before WebSocket operations; restore on reconnect. Acceptance: reconnection completes within 5 seconds AND cart contains identical items.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement distributed lock for inventory reservation</h5>
+                <p>Use Redis SETNX or similar for atomic inventory decrements during add-to-bag. Acceptance: 200 concurrent purchases of last item results in exactly 1 successful transaction.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Create chaos engineering suite for live shopping</h5>
+                <p>Inject WebSocket failures, database failovers, and caption service outages during simulated events. Acceptance: system degrades gracefully without data loss in all scenarios.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type pi_planning">PI Planning</span>
+              <div class="action-content">
+                <h5>Schedule Fashion Ball dress rehearsal</h5>
+                <p>Run full load test 1 week before major events with 10,000 simulated concurrent viewers. Acceptance: all P0 reliability scenarios pass under production-like conditions.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECURITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Security</span>
+          </div>
+          <div class="htsm-question">"How well protected against unauthorized use and malicious exploitation?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping introduces unique attack vectors: real-time caption injection, automated bot purchases during flash sales, and WebSocket protocol exploitation. The combination of FOMO-driven psychology and limited-quantity items creates strong financial incentives for bad actors. The SFDIPOT assessment explicitly calls out XSS protection in captions as a P0 concern.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> A single successful XSS injection in live captions could expose thousands of concurrent viewers to malicious scripts. Bot purchases of limited-edition Fashion Ball items could cause social media outrage and damage brand reputation with legitimate customers who missed out.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SFDIPOT: TC-FUNC-C3D4E5F6 (P0)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>XSS protection required in LiveCaptions component</td>
+                <td class="evidence-reasoning">Captions display user-generated content (host speech) processed through ASR; malformed audio transcription could bypass sanitization</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-INTF-K1L2M3N4 (P2)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>SQL injection attempts via productId parameter</td>
+                <td class="evidence-reasoning">Live appearances API accepts productId from URL; insufficient validation could expose product database</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: Function/Security clarifying questions</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Bot prevention for limited-quantity live-exclusive items</td>
+                <td class="evidence-reasoning">FOMO-driven limited drops are prime bot targets; legitimate customers losing out damages brand perception</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: Function/Security clarifying questions</code></td>
+                <td><span class="evidence-type claimed">Claimed</span></td>
+                <td>Rate limiting on add-to-bag actions from live overlay</td>
+                <td class="evidence-reasoning">Requires verification of current implementation - no rate limit specified in documented requirements</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: Function/Security clarifying questions</code></td>
+                <td><span class="evidence-type claimed">Claimed</span></td>
+                <td>Time-limited tokens for live stream URLs</td>
+                <td class="evidence-reasoning">Requires verification - unauthorized embedding could bypass analytics and dilute exclusive experience</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>XSS in live captions could steal session tokens from thousands of concurrent viewers, enabling mass account takeover</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Bot purchases of limited items generate customer complaints, chargebacks, and negative press during high-visibility events</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type security">Security</span>
+              <div class="action-content">
+                <h5>Implement Content Security Policy for caption rendering</h5>
+                <p>Use strict CSP with nonce-based script allowlisting for caption display area. Acceptance: injected script tags in caption text are rendered as escaped text, not executed.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type security">Security</span>
+              <div class="action-content">
+                <h5>Deploy bot detection for live event add-to-bag</h5>
+                <p>Implement device fingerprinting, behavioral analysis, and CAPTCHA challenges for suspicious patterns. Acceptance: 95% of bot attempts blocked while 99% of legitimate users unaffected.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Security penetration test for live shopping flows</h5>
+                <p>Engage security team to attempt XSS, CSRF, and injection attacks against live shopping components. Acceptance: no critical or high severity findings.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PERFORMANCE -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Performance</span>
+          </div>
+          <div class="htsm-question">"How speedy and responsive under real-time commerce conditions?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping amplifies every millisecond of latency into lost sales. When a host holds up a product and says "click now," viewers expect the overlay to appear instantly. The SFDIPOT assessment identifies end-to-end latency from product display to overlay appearance as a P1 concern with a 2-second threshold. Caption latency must stay within 3 seconds to maintain lip-sync coherence.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Studies show that each 100ms of added latency reduces conversion by 1%. For live shopping where decisions are impulse-driven, even 500ms of "where's the buy button?" hesitation can break the FOMO momentum. With average order values potentially in the hundreds of euros during Fashion Ball events, latency has direct revenue impact.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SFDIPOT: TC-TIME-B2C3D4E5 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Product overlay latency must be under 2 seconds end-to-end</td>
+                <td class="evidence-reasoning">2 seconds is the upper threshold before users perceive "broken" experience; optimal target should be sub-1 second</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-FUNC-D4E5F6G7 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Caption latency within 3 seconds across varying speech rates</td>
+                <td class="evidence-reasoning">Lip-sync tolerance is ~3 seconds before viewers perceive captions as "out of sync" and distracting</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-INTF-F6G7H8I9 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>CDN stream latency under 3 seconds across EU regions</td>
+                <td class="evidence-reasoning">Cross-region latency variance creates unfair advantage for users closer to origin; consistency matters for limited items</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-OPER-A1B2C3D4 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>10,000 concurrent viewers performance baseline</td>
+                <td class="evidence-reasoning">Fashion Ball events are the peak load scenario; system must not degrade under expected maximum load</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-PLAT-D4E5F6G7 (P2)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>3G network (750kbps) auto-downgrade without buffering</td>
+                <td class="evidence-reasoning">Mobile commuters on variable networks should maintain continuous playback over quality</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Latency variance across regions creates perception of "rigged" sales where some users consistently lose limited item races</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Buffering during product reveal breaks the "see it, want it, buy it" impulse cycle that drives live shopping conversion</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type performance">Performance</span>
+              <div class="action-content">
+                <h5>Implement product overlay pre-loading</h5>
+                <p>Fetch upcoming product data based on event timeline hints before host displays them. Acceptance: overlay appears within 500ms of WebSocket product event.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type performance">Performance</span>
+              <div class="action-content">
+                <h5>Deploy edge computing for caption processing</h5>
+                <p>Run ASR at edge locations nearest to broadcast origin to minimize caption latency. Acceptance: caption latency under 2 seconds for 95th percentile.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Create multi-region performance test suite</h5>
+                <p>Run concurrent load tests from DE, FR, UK, ES, IT locations measuring latency variance. Acceptance: maximum latency difference between regions under 500ms.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- HIGH PRIORITY SECTION -->
+    <section class="priority-section">
+      <div class="section-header high">
+        <h2>High Priority Quality Criteria</h2>
+        <span>4 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria SHOULD be addressed to ensure product success and user satisfaction.</div>
+
+      <!-- CAPABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Capability</span>
+          </div>
+          <div class="htsm-question">"Can it perform all required functions correctly?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>The Live Shopping Experience Unification epic introduces complex new functionality: Picture-in-Picture that persists across navigation, video-timestamped product mapping, shoppable replays with chapter navigation, and "As Seen Live" PDP integration. Each feature has specific correctness requirements detailed in the 22 Function test ideas from the SFDIPOT assessment.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Core functionality gaps would make the feature unusable. If PiP breaks when navigating to checkout, users must choose between completing their purchase and continuing to watch - an unacceptable trade-off that damages the value proposition.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SFDIPOT: TC-FUNC-F6G7H8I9 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>PiP must maintain stream through 10+ page navigations</td>
+                <td class="evidence-reasoning">Core value proposition is "shop while watching" - any PiP interruption breaks the experience</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-FUNC-G7H8I9J0 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Add-to-bag from replay at any timestamp adds correct product</td>
+                <td class="evidence-reasoning">Wrong product added would cause checkout confusion and cart abandonment</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-FUNC-H8I9J0K1 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Replay scrubbing to product thumbnail seeks within 2 seconds</td>
+                <td class="evidence-reasoning">Chapter navigation is key UX differentiator; inaccurate seeking frustrates users looking for specific products</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-FUNC-I9J0K1L2 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>PDP "As Seen Live" shows all appearances with correct timestamps</td>
+                <td class="evidence-reasoning">Missing appearances lose sales opportunities; wrong timestamps break trust in feature reliability</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-STRU-9E4G7H3C (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Timestamp-to-Product mapping correct at boundaries</td>
+                <td class="evidence-reasoning">Edge cases (0ms, last frame, mid-transition) most likely to have off-by-one errors</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Create comprehensive PiP navigation test suite</h5>
+                <p>Automated E2E tests covering PDP, PLP, Cart, Checkout, Account, and Search pages with PiP active. Acceptance: video continues uninterrupted through all navigation paths.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Build timestamp accuracy verification suite</h5>
+                <p>API tests validating product mapping at boundary timestamps (0, first product, last product, video end). Acceptance: all boundary conditions return correct product IDs.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- USABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Usability</span>
+          </div>
+          <div class="htsm-question">"How easy is it for real users, including those with disabilities?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping must be accessible to all users, including those with disabilities. The epic explicitly requires WCAG 1.2.4 compliant captions for deaf/hard-of-hearing users. Beyond compliance, usability determines whether users can successfully complete the FOMO-driven purchase journey within the time pressure of a live event. The SFDIPOT assessment includes 6 accessibility-focused test ideas.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Approximately 15% of the global population has some form of disability. In the EU, accessibility is increasingly a legal requirement. Beyond compliance, accessible design often improves usability for all users (e.g., captions in noisy environments, keyboard navigation for power users).</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SFDIPOT: TC-INTF-C3D4E5F6 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Full keyboard navigation for live stream interface</td>
+                <td class="evidence-reasoning">Users with motor disabilities rely on keyboard; also benefits power users who prefer keyboard shortcuts</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-INTF-D4E5F6G7 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Screen reader announces live status, overlays, cart updates, errors</td>
+                <td class="evidence-reasoning">Blind users need audio feedback for all visual changes during time-sensitive events</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-STRU-3H7J0K6F (P2)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>aria-live updates not faster than 500ms</td>
+                <td class="evidence-reasoning">Too-frequent announcements overwhelm screen reader users; captions need throttled announcement cadence</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-FUNC-M3N4O5P6 (P2)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Caption contrast ratio meets WCAG 1.4.3 (4.5:1)</td>
+                <td class="evidence-reasoning">Low-vision users need sufficient contrast regardless of background opacity setting</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-OPER-C3D4E5F6 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Deaf user can complete purchase using only visual cues</td>
+                <td class="evidence-reasoning">End-to-end accessibility validation ensures no audio-dependent steps block purchase completion</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Conduct screen reader testing with NVDA and VoiceOver</h5>
+                <p>Test complete purchase journey using screen reader only. Acceptance: all interactive elements announced, all state changes conveyed, purchase completable without visual feedback.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type user_story">User Story</span>
+              <div class="action-content">
+                <h5>As a deaf user, I can complete a live shopping purchase using captions</h5>
+                <p>Acceptance Criteria: Product names accurately transcribed, "Add to Bag" confirmations visually indicated, cart total displayed prominently.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCALABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Scalability</span>
+          </div>
+          <div class="htsm-question">"How well does deployment scale under Fashion Ball peak load?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping events create predictable but extreme load spikes. Fashion Ball events are About You's flagship live shopping moments, potentially drawing 10,000+ concurrent viewers. The Time factor in SFDIPOT identifies 200 simultaneous add-to-bag actions on a single product as the concurrency stress test. The system must handle this without degradation.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Event-driven commerce cannot scale reactively - the event is a fixed point in time. If the system cannot handle peak load, revenue is permanently lost. Unlike website traffic that can be served slightly delayed, live shopping viewers will leave if the experience degrades.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SFDIPOT: TC-INTF-A1B2C3D4 (P0)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>1000 concurrent WebSocket connections maintain consistency</td>
+                <td class="evidence-reasoning">WebSocket state synchronization is the foundation; if viewers see different states, trust collapses</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-TIME-A1B2C3D4 (P0)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>200 concurrent add-to-bag on same product handles correctly</td>
+                <td class="evidence-reasoning">Flash sale moment stress test; inventory must decrement exactly right number</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-OPER-A1B2C3D4 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>10,000 concurrent viewers baseline performance</td>
+                <td class="evidence-reasoning">Fashion Ball expected peak; system must not degrade stream quality or overlay responsiveness</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-OPER-G7H8I9J0 (P2)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Live shopping stable during site-wide sale events</td>
+                <td class="evidence-reasoning">Compound load scenario: live event + general sale traffic must not cause resource contention</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type performance">Performance</span>
+              <div class="action-content">
+                <h5>Conduct 10,000-viewer load test</h5>
+                <p>Simulate Fashion Ball peak load with realistic viewer behavior patterns. Acceptance: stream latency under 3s, add-to-bag response under 500ms, zero inventory oversells.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement auto-scaling for WebSocket servers</h5>
+                <p>Configure horizontal scaling triggers based on connection count. Acceptance: scale from 1,000 to 10,000 connections within 2 minutes without connection drops.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPATIBILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Compatibility</span>
+          </div>
+          <div class="htsm-question">"Works with browsers, devices, and external components?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Picture-in-Picture API support varies significantly across browsers. Safari's Intelligent Tracking Prevention may block features dependent on third-party cookies. Mobile experience differs fundamentally from desktop (full-screen vs. slide-out panel). The SFDIPOT Platform factor identifies 8 test ideas covering browser, mobile, network, and OS compatibility.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> About You serves customers across diverse device/browser combinations. If Safari users cannot use PiP, or mobile users have a degraded experience, significant revenue is at risk from those segments.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SFDIPOT: TC-PLAT-A1B2C3D4 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>PiP on Chrome, Safari, Firefox, Edge with fallback</td>
+                <td class="evidence-reasoning">Native PiP API inconsistent; graceful fallback to mini-player ensures consistent experience</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-PLAT-B2C3D4E5 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>iOS Safari screen rotation handles video resize</td>
+                <td class="evidence-reasoning">Mobile users frequently rotate; video and captions must reposition correctly</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-PLAT-C3D4E5F6 (P1)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Mobile LIVE indicator navigates to full-screen (not slide-out)</td>
+                <td class="evidence-reasoning">Mobile UX fundamentally different from desktop; slide-out panel inappropriate for small screens</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-PLAT-F6G7H8I9 (P2)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Safari ITP compliance (no 3rd-party cookie dependencies)</td>
+                <td class="evidence-reasoning">Safari users are significant on mobile; ITP-blocked features would silently fail</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Create cross-browser compatibility matrix</h5>
+                <p>Document PiP support status for Chrome 120+, Safari 17+, Firefox 120+, Edge 120+ with fallback behavior. Acceptance: all browsers provide functional experience.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Safari ITP compliance verification</h5>
+                <p>Test all live shopping features with 3rd-party cookies blocked. Acceptance: all features functional; no silent failures.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- MEDIUM PRIORITY SECTION -->
+    <section class="priority-section">
+      <div class="section-header medium">
+        <h2>Medium Priority Quality Criteria</h2>
+        <span>3 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria enhance product quality and should be planned for upcoming sprints.</div>
+
+      <!-- CHARISMA -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Charisma</span>
+          </div>
+          <div class="htsm-question">"How appealing and delightful is the live shopping experience?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping is fundamentally an <strong>emotional experience</strong> - the FOMO, the excitement of exclusive drops, the connection with hosts. Technical correctness is necessary but not sufficient; the experience must feel premium and exciting. The pulsing LIVE indicator should create urgency. PiP transitions should feel smooth, not jarring. Product overlays should excite, not intrude. These subjective qualities determine whether users become repeat live shopping participants.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Fashion Ball events are brand-building moments as much as commerce opportunities. A technically functional but emotionally flat experience fails to differentiate About You from competitors. Delight drives social sharing, word-of-mouth, and repeat engagement.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SFDIPOT: TC-STRU-8M2O5P1K (P3)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>LIVE indicator animation respects prefers-reduced-motion</td>
+                <td class="evidence-reasoning">Pulsing animation creates urgency; but must be accessible to users with motion sensitivity</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-STRU-5D3F6E2B (P1)</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>PiP maintains video frame sync within 100ms during navigation</td>
+                <td class="evidence-reasoning">Frame sync directly impacts perceived smoothness; visible jank during transition feels "broken"</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-INTF-J0K1L2M3 (P2)</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Product overlay positioning avoids intrusion</td>
+                <td class="evidence-reasoning">Overlays at screen edges, overlapping products, rapid transitions need visual polish</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-FUNC-O5P6Q7R8 (P2)</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Replay chapters labeled by category not just timestamps</td>
+                <td class="evidence-reasoning">"Dresses" is more engaging than "15:30" - semantic labels feel curated and premium</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-DATA-N4O5P6Q7 (P3)</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Chapter thumbnails show representative frames</td>
+                <td class="evidence-reasoning">Black frames or transitions as thumbnails feel unpolished; good thumbnails invite exploration</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Conduct UX polish review with design team</h5>
+                <p>Systematic review of animations, transitions, and visual feedback with designers. Acceptance: all animations feel "premium" in designer assessment.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type user_story">User Story</span>
+              <div class="action-content">
+                <h5>As a fashion enthusiast, I feel excited when joining a live event</h5>
+                <p>Acceptance Criteria: LIVE indicator creates urgency (user feedback survey), PiP transition feels seamless (no visible jank), product overlays enhance rather than distract.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Replay scrubbing satisfaction testing</h5>
+                <p>Test scrubbing to product thumbnails for perceived responsiveness and accuracy. Acceptance: users report satisfaction score above 4/5 for "seeking to products feels natural."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INSTALLABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Installability</span>
+          </div>
+          <div class="htsm-question">"How easily configured and do settings persist?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>While live shopping is web-based (no traditional installation), configuration persistence matters. Caption preferences (font size, background opacity, language) should persist across sessions. Mini-player position preferences should be remembered. These "installation-like" configuration experiences determine whether users need to re-configure settings every visit.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Users who customize caption settings likely have accessibility needs; forcing re-configuration every session is particularly burdensome for these users and may drive them to competitors.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SFDIPOT: TC-INTF-M3N4O5P6 (P3)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Mini-player position preference persists</td>
+                <td class="evidence-reasoning">Users have preferred viewing positions; remembering this creates personalized experience</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: TC-FUNC-L2M3N4O5 (P2)</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Caption font size preference persists</td>
+                <td class="evidence-reasoning">Accessibility settings especially important to persist - users with low vision shouldn't reconfigure each visit</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: Structure/Hardware clarifying questions</code></td>
+                <td><span class="evidence-type claimed">Claimed</span></td>
+                <td>System configuration requirements clear</td>
+                <td class="evidence-reasoning">Requires verification - minimum RAM/CPU for smooth PiP not specified in requirements</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement preference persistence in localStorage</h5>
+                <p>Store caption settings, player position, and language preferences. Acceptance: settings restored on return visit within same browser.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type user_story">User Story</span>
+              <div class="action-content">
+                <h5>As a returning viewer, my caption settings are remembered</h5>
+                <p>Acceptance Criteria: Font size, background opacity, and language preferences persist across sessions.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DEVELOPMENT -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Development</span>
+          </div>
+          <div class="htsm-question">"How well can we create, test, and modify the live shopping system?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Live shopping introduces complex real-time systems that are inherently difficult to test. WebSocket protocols, streaming synchronization, and concurrent purchase handling require specialized testing approaches. The SFDIPOT assessment includes a documentation test (API schema accuracy) that indicates development quality concerns.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Systems that are difficult to test accumulate quality debt. If the team cannot reliably verify WebSocket reconnection or inventory sync behavior, they cannot confidently deploy updates before major events.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SFDIPOT: TC-STRU-7L1N4O0J (P3)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>WebSocket API documentation matches actual schema</td>
+                <td class="evidence-reasoning">Documentation drift is common; inaccurate docs cause integration failures and wasted debugging time</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: Multiple Integration test ideas</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>14 integration-level tests require service virtualization</td>
+                <td class="evidence-reasoning">Testing AWS Transcribe failover, CDN propagation, etc. requires mock services for reliable CI/CD</td>
+              </tr>
+              <tr>
+                <td><code>SFDIPOT: 7 concurrency tests identified</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Concurrency tests require specialized tooling</td>
+                <td class="evidence-reasoning">Standard E2E tools cannot orchestrate 200 simultaneous actions; load testing tools needed</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement contract tests for WebSocket API</h5>
+                <p>Auto-generate API documentation from code or validate docs against implementation. Acceptance: CI fails if WebSocket schema changes without doc update.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Build service virtualization for external dependencies</h5>
+                <p>Create mocks for AWS Transcribe, Google Speech, and CDN behavior. Acceptance: integration tests run in CI without external dependencies.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- CROSS-CUTTING CONCERNS -->
+    <section class="cross-cutting">
+      <h2>Cross-Cutting Concerns</h2>
+      <p style="margin-bottom: 1.5rem; color: var(--text-light);">These quality aspects span multiple criteria and require coordinated attention across the implementation.</p>
+
+      <div class="concern-card">
+        <h4>Real-Time Data Consistency</h4>
+        <p>WebSocket state, inventory levels, and caption text must remain synchronized across thousands of concurrent connections. A consistency failure in any component cascades to user experience failures. This concern spans Reliability (data integrity), Scalability (concurrent connections), and Performance (sync latency).</p>
+        <div class="concern-categories">
+          <span class="concern-category">Reliability</span>
+          <span class="concern-category">Scalability</span>
+          <span class="concern-category">Performance</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>Accessibility Across All Interaction Modes</h4>
+        <p>Live shopping must be accessible to users with visual, auditory, motor, and cognitive disabilities. Captions serve deaf users, keyboard navigation serves motor-impaired users, and clear visual feedback serves users with cognitive disabilities. This is not a single-feature concern but a system-wide design principle.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Usability</span>
+          <span class="concern-category">Capability</span>
+          <span class="concern-category">Charisma</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>Graceful Degradation Under Failure</h4>
+        <p>When components fail (WebSocket disconnect, caption service outage, CDN issues), the system should degrade gracefully rather than catastrophically. Users should receive clear feedback about degraded states and be able to continue shopping where possible. This requires coordinated error handling across all components.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Reliability</span>
+          <span class="concern-category">Usability</span>
+          <span class="concern-category">Security</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>FOMO Psychology vs. Trust</h4>
+        <p>Live shopping deliberately creates urgency and scarcity perception. However, if technical failures undermine trust (wrong products added, inventory glitches, lost carts), the psychological contract breaks. The balance between excitement and reliability determines long-term user engagement.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Charisma</span>
+          <span class="concern-category">Reliability</span>
+          <span class="concern-category">Capability</span>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- PI PLANNING GUIDANCE -->
+    <section class="pi-planning">
+      <h2>PI Planning Guidance</h2>
+      <p style="margin-bottom: 1.5rem; color: var(--text-light);">Suggested sprint-by-sprint approach to systematically address quality criteria. Assumes 3 sprints to Fashion Ball event.</p>
+
+      <table class="pi-table">
+        <thead>
+          <tr>
+            <th>Sprint</th>
+            <th>Quality Focus</th>
+            <th>Key Activities</th>
+            <th>Criteria Coverage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="sprint-badge">Sprint 1</span></td>
+            <td>Foundation &amp; Critical Risks</td>
+            <td>
+              <ul style="margin: 0; padding-left: 1.2rem;">
+                <li>Implement WebSocket reconnection with cart state persistence</li>
+                <li>Deploy inventory locking mechanism for concurrent purchases</li>
+                <li>Security review: XSS protection in captions</li>
+                <li>Set up chaos engineering test framework</li>
+              </ul>
+            </td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Reliability</span>
+                <span class="criteria-tag">Security</span>
+                <span class="criteria-tag">Development</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 2</span></td>
+            <td>Core Functionality &amp; Performance</td>
+            <td>
+              <ul style="margin: 0; padding-left: 1.2rem;">
+                <li>Complete PiP navigation test suite</li>
+                <li>Implement product overlay pre-loading for sub-1s latency</li>
+                <li>Cross-browser compatibility testing and fallback implementation</li>
+                <li>Accessibility testing: keyboard nav and screen reader</li>
+                <li>10,000 concurrent viewer load test</li>
+              </ul>
+            </td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Capability</span>
+                <span class="criteria-tag">Performance</span>
+                <span class="criteria-tag">Compatibility</span>
+                <span class="criteria-tag">Usability</span>
+                <span class="criteria-tag">Scalability</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 3</span></td>
+            <td>Polish &amp; Event Readiness</td>
+            <td>
+              <ul style="margin: 0; padding-left: 1.2rem;">
+                <li>UX polish review with design team</li>
+                <li>Preference persistence implementation</li>
+                <li>Fashion Ball dress rehearsal (full load test)</li>
+                <li>Documentation verification</li>
+                <li>Final accessibility audit</li>
+              </ul>
+            </td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Charisma</span>
+                <span class="criteria-tag">Installability</span>
+                <span class="criteria-tag">Development</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <p>Generated by <a href="https://github.com/agentic-qe/agentic-qe">Agentic QE</a> -- <strong>qe-quality-criteria-recommender</strong> (Core QCSD Agent)</p>
+      <p>Analysis Method: AI Semantic Understanding | Framework: James Bach's HTSM v6.3 Quality Criteria</p>
+      <p>Part of the <strong>QCSD Framework</strong> -- Quality Conscious Software Delivery for shift-left quality engineering</p>
+      <p style="margin-top: 0.5rem; font-style: italic; opacity: 0.8;">Recommendations require domain expert validation. Use this report to facilitate team discussions, not replace them.</p>
+    </footer>
+
+  </div>
+
+  <!-- SEMANTIC ANALYSIS VERIFICATION -->
+  <div class="verification-metadata" style="display: none;">
+    <meta name="analysis-method" content="ai-semantic-understanding">
+    <meta name="source-sfdipot-test-ideas" content="87">
+    <meta name="htsm-categories-analyzed" content="10">
+    <meta name="implicit-inferences" content="15">
+    <meta name="cross-quality-correlations" content="4">
+    <meta name="keyword-only-matches" content="0">
+  </div>
+</body>
+</html>

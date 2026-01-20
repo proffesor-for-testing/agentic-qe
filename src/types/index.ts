@@ -140,7 +140,10 @@ export enum QEAgentType {
   CODE_INTELLIGENCE = 'code-intelligence',
 
   // Product Factors Assessor Agent (SFDIPOT)
-  PRODUCT_FACTORS_ASSESSOR = 'qe-product-factors-assessor'
+  PRODUCT_FACTORS_ASSESSOR = 'qe-product-factors-assessor',
+
+  // Quality Criteria Recommender Agent (HTSM)
+  QUALITY_CRITERIA_RECOMMENDER = 'qe-quality-criteria-recommender'
 }
 
 // Alias for backward compatibility

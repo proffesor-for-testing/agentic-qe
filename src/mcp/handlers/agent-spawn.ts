@@ -539,6 +539,20 @@ export class AgentSpawnHandler extends BaseHandler {
       defaultResources: { memory: 512, cpu: 1, storage: 256 },
       specializations: ['htsm-framework', 'domain-detection', 'code-intelligence', 'learning-integration'],
     });
+
+    this.agentTypeConfigs.set('quality-criteria-recommender', {
+      defaultCapabilities: [
+        'htsm-quality-criteria',
+        'evidence-collection',
+        'documentation-analysis',
+        'technical-source-analysis',
+        'confidence-scoring',
+        'risk-assessment',
+        'multi-format-output',
+      ],
+      defaultResources: { memory: 512, cpu: 1, storage: 256 },
+      specializations: ['htsm-framework', 'quality-criteria', 'evidence-mapping', 'learning-integration'],
+    });
   }
 
   private validateAgentSpec(spec: AgentSpec): void {
