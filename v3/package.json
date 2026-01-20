@@ -1,6 +1,6 @@
 {
   "name": "@agentic-qe/v3",
-  "version": "3.0.0-alpha.46",
+  "version": "3.0.0-alpha.47",
   "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 47 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
@@ -119,8 +119,8 @@
     "@ruvector/gnn-darwin-arm64": "0.1.19"
   },
   "overrides": {
-    "@ruvector/gnn-linux-x64-musl": "$@ruvector/gnn-linux-x64-gnu",
-    "@ruvector/gnn-linux-arm64-musl": "$@ruvector/gnn-linux-arm64-gnu"
+    "@ruvector/gnn-linux-x64-musl": "npm:@ruvector/gnn-linux-x64-gnu@0.1.19",
+    "@ruvector/gnn-linux-arm64-musl": "npm:@ruvector/gnn-linux-arm64-gnu@0.1.19"
   },
   "engines": {
     "node": ">=18.0.0"
