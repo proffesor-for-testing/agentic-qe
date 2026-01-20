@@ -53,12 +53,7 @@ import {
 
 // Ruvector integrations
 import { ActorCriticAlgorithm } from '../../integrations/rl-suite/algorithms/actor-critic';
-import {
-  QESONA,
-  createQESONA,
-  type QESONAPattern,
-  type QEPatternType,
-} from '../../integrations/ruvector/wrappers';
+import { PersistentSONAEngine, createPersistentSONAEngine } from '../../integrations/ruvector/sona-persistence.js';
 import {
   QEFlashAttention,
   createQEFlashAttention,
@@ -169,7 +164,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
   // Ruvector integration instances
   private actorCritic?: ActorCriticAlgorithm;
-  private qesona?: QESONA;
+  private qesona?: PersistentSONAEngine;
   private flashAttention?: QEFlashAttention;
 
   // V3 Integration: ClaimVerifier for report verification
@@ -240,8 +235,11 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
     // Dispose Flash Attention
     this.flashAttention?.dispose();
 
-    // Clear SONA patterns
-    this.qesona?.clear();
+    // Dispose PersistentSONAEngine (flushes pending saves)
+    if (this.qesona) {
+      await this.qesona.close();
+      this.qesona = undefined;
+    }
 
     this.workflows.clear();
     this.initialized = false;
@@ -804,11 +802,14 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
   }
 
   /**
-   * Initialize QESONA for quality pattern learning
+   * Initialize PersistentSONAEngine for quality pattern learning (patterns survive restarts)
    */
   private async initializeQESONA(): Promise<void> {
     try {
-      this.qesona = createQESONA({
+      this.qesona = await createPersistentSONAEngine({
+        domain: 'quality-assessment',
+        loadOnInit: true,
+        autoSaveInterval: 60000, // Save every minute
         hiddenDim: 256,
         embeddingDim: 384,
         microLoraRank: 1,
@@ -816,8 +817,12 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
         minConfidence: 0.5,
         maxPatterns: 5000,
       });
+      console.log('[quality-assessment] PersistentSONAEngine initialized successfully');
     } catch (error) {
-      throw new Error(`Failed to initialize QESONA: ${error instanceof Error ? error.message : String(error)}`);
+      // Log and continue - SONA is enhancement, not critical
+      console.error('[quality-assessment] Failed to initialize PersistentSONAEngine:', error);
+      console.warn('[quality-assessment] Continuing without SONA pattern persistence');
+      this.qesona = undefined;
     }
   }
 

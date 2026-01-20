@@ -22,13 +22,13 @@ function createConfig(overrides: Partial<RuVectorConfig> = {}): RuVectorConfig {
 
 describe('AST Complexity Analyzer', () => {
   describe('Factory Function', () => {
-    it('should create RuVectorASTComplexityAnalyzer when enabled', () => {
-      const analyzer = createASTComplexityAnalyzer(createConfig({ enabled: true }));
+    it('should create RuVectorASTComplexityAnalyzer when enabled', async () => {
+      const analyzer = await createASTComplexityAnalyzer(createConfig({ enabled: true }));
       expect(analyzer).toBeInstanceOf(RuVectorASTComplexityAnalyzer);
     });
 
-    it('should create FallbackASTComplexityAnalyzer when disabled', () => {
-      const analyzer = createASTComplexityAnalyzer(createConfig({ enabled: false }));
+    it('should create FallbackASTComplexityAnalyzer when disabled', async () => {
+      const analyzer = await createASTComplexityAnalyzer(createConfig({ enabled: false }));
       expect(analyzer).toBeInstanceOf(FallbackASTComplexityAnalyzer);
     });
   });
@@ -220,14 +220,14 @@ describe('AST Complexity Analyzer', () => {
 
   describe('Integration', () => {
     it('should fallback when RuVector disabled', async () => {
-      const analyzer = createASTComplexityAnalyzer(createConfig({ enabled: false }));
+      const analyzer = await createASTComplexityAnalyzer(createConfig({ enabled: false }));
       const result = await analyzer.analyzeFile('src/test.ts');
 
       expect(result.usedFallback).toBe(true);
     });
 
     it('should provide consistent results for same file', async () => {
-      const analyzer = createASTComplexityAnalyzer(createConfig({ enabled: true }));
+      const analyzer = await createASTComplexityAnalyzer(createConfig({ enabled: true }));
 
       const result1 = await analyzer.analyzeFile('src/test.ts');
       const result2 = await analyzer.analyzeFile('src/test.ts');

@@ -38,10 +38,12 @@ import { TestabilityScorerService } from './services/testability-scorer.js';
 import { PPOAlgorithm } from '../../integrations/rl-suite/algorithms/ppo.js';
 import type { RLState, RLAction, RLExperience, RLPrediction } from '../../integrations/rl-suite/interfaces.js';
 
-// V3 Integration: @ruvector wrappers
+// V3 Integration: @ruvector wrappers (persistent patterns)
 import {
-  QESONA,
-  createQESONA,
+  PersistentSONAEngine,
+  createPersistentSONAEngine,
+} from '../../integrations/ruvector/sona-persistence.js';
+import {
   type QESONAPattern,
   type QEPatternType,
 } from '../../integrations/ruvector/wrappers.js';
@@ -158,7 +160,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
 
   // V3: RL and SONA integrations
   private ppoAlgorithm?: PPOAlgorithm;
-  private sonaEngine?: QESONA;
+  private sonaEngine?: PersistentSONAEngine;
   private rlInitialized = false;
 
   constructor(
@@ -212,14 +214,22 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
         // PPO is initialized via constructor, no separate initialize() call needed
       }
 
-      // Initialize SONA for requirement pattern learning
+      // Initialize SONA for requirement pattern learning (persistent patterns)
       if (this.config.enableSONA) {
-        this.sonaEngine = createQESONA({
-          hiddenDim: 256,
-          embeddingDim: 384,
-          patternClusters: 50,
-          maxPatterns: 5000,
-        });
+        try {
+          this.sonaEngine = await createPersistentSONAEngine({
+            domain: 'requirements-validation',
+            loadOnInit: true,
+            autoSaveInterval: 60000,
+            maxPatterns: 5000,
+            minConfidence: 0.6,
+          });
+          console.log('[RequirementsValidation] PersistentSONAEngine initialized for pattern learning');
+        } catch (error) {
+          console.error('[RequirementsValidation] Failed to initialize PersistentSONAEngine:', error);
+          // Continue without SONA - it's optional
+          this.sonaEngine = undefined;
+        }
       }
 
       this.rlInitialized = true;
@@ -235,6 +245,17 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
   async dispose(): Promise<void> {
     await this.saveWorkflowState();
     this.workflows.clear();
+
+    // V3: Clean up SONA engine (persistent patterns)
+    if (this.sonaEngine) {
+      try {
+        await this.sonaEngine.close();
+        this.sonaEngine = undefined;
+      } catch (error) {
+        console.error('[RequirementsValidation] Error closing SONA engine:', error);
+      }
+    }
+
     this.initialized = false;
   }
 

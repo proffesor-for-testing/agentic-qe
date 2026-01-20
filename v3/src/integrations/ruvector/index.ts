@@ -87,15 +87,27 @@ export {
 } from './interfaces';
 
 // ============================================================================
-// Factory Functions
+// Factory Functions (Async - ML-first with observability)
 // ============================================================================
 
-export { createQLearningRouter } from './q-learning-router';
-export { createASTComplexityAnalyzer } from './ast-complexity';
-export { createDiffRiskClassifier } from './diff-risk-classifier';
-export { createCoverageRouter } from './coverage-router';
-export { createGraphBoundariesAnalyzer } from './graph-boundaries';
+export { createQLearningRouter, createQLearningRouterSync } from './q-learning-router';
+export { createASTComplexityAnalyzer, createASTComplexityAnalyzerSync } from './ast-complexity';
+export { createDiffRiskClassifier, createDiffRiskClassifierSync } from './diff-risk-classifier';
+export { createCoverageRouter, createCoverageRouterSync } from './coverage-router';
+export { createGraphBoundariesAnalyzer, createGraphBoundariesAnalyzerSync } from './graph-boundaries';
 export { createFallbackComponents } from './fallback';
+
+// Persistent Q-Learning Router (ADR-046: Q-value persistence)
+export {
+  createPersistentQLearningRouter,
+  createPersistentQLearningRouterSync,
+} from './persistent-q-router';
+
+// Persistent SONA Engine (ADR-046: SONA pattern persistence)
+export {
+  createPersistentSONAEngine,
+  createPersistentSONAEngineSync,
+} from './sona-persistence';
 
 // ============================================================================
 // Implementation Classes (for advanced usage)
@@ -106,6 +118,23 @@ export { RuVectorASTComplexityAnalyzer, type ComplexityThresholds } from './ast-
 export { RuVectorDiffRiskClassifier, type RiskPatterns } from './diff-risk-classifier';
 export { RuVectorCoverageRouter, type CoverageThresholds } from './coverage-router';
 export { RuVectorGraphBoundariesAnalyzer, type GraphConfig } from './graph-boundaries';
+
+// Persistent Q-Learning Router (ADR-046: Q-value persistence)
+export {
+  PersistentQLearningRouter,
+  DEFAULT_EWC_CONFIG,
+  DEFAULT_PERSISTENT_CONFIG,
+  type EWCConfig,
+  type PersistentQLearningRouterConfig,
+} from './persistent-q-router';
+
+// Persistent SONA Engine (ADR-046: SONA pattern persistence)
+export {
+  PersistentSONAEngine,
+  DEFAULT_PERSISTENT_SONA_CONFIG,
+  SONA_PATTERNS_SCHEMA,
+  type PersistentSONAConfig,
+} from './sona-persistence';
 
 // Fallback implementations
 export {
@@ -131,7 +160,7 @@ import type {
   GraphBoundariesAnalyzer,
 } from './interfaces';
 import { DEFAULT_RUVECTOR_CONFIG, RuVectorUnavailableError } from './interfaces';
-import { createQLearningRouter } from './q-learning-router';
+import { createPersistentQLearningRouter, PersistentQLearningRouter, DEFAULT_EWC_CONFIG } from './persistent-q-router';
 import { createASTComplexityAnalyzer } from './ast-complexity';
 import { createDiffRiskClassifier } from './diff-risk-classifier';
 import { createCoverageRouter } from './coverage-router';
@@ -139,7 +168,8 @@ import { createGraphBoundariesAnalyzer } from './graph-boundaries';
 
 /**
  * Default RuVector client implementation
- * Provides unified access to all RuVector features with graceful fallback
+ * Provides unified access to all RuVector features with ML-first approach.
+ * Uses observability layer to track ML vs fallback usage and alert on issues.
  */
 class DefaultRuVectorClient implements RuVectorClient {
   private readonly config: Required<RuVectorConfig>;
@@ -162,17 +192,54 @@ class DefaultRuVectorClient implements RuVectorClient {
     // Check RuVector availability
     this._available = await this.checkAvailability();
 
-    // Initialize components (they handle fallback internally)
-    this._qLearningRouter = createQLearningRouter(this.config);
-    this._astComplexityAnalyzer = createASTComplexityAnalyzer(this.config);
-    this._diffRiskClassifier = createDiffRiskClassifier(this.config);
-    this._coverageRouter = createCoverageRouter(this.config);
-    this._graphBoundaries = createGraphBoundariesAnalyzer(this.config);
+    // Generate a unique agent ID for this client instance
+    // Use process ID and timestamp for uniqueness across sessions
+    const clientAgentId = `ruvector-client-${process.pid}-${Date.now()}`;
+
+    // Initialize components with ML-first approach
+    // Each factory function tries ML first and records observability metrics
+    // NOTE: Q-Learning router now uses PersistentQLearningRouter (ADR-046)
+    // to persist Q-values across sessions for continuous learning
+    const [
+      qLearningRouter,
+      astComplexityAnalyzer,
+      diffRiskClassifier,
+      coverageRouter,
+      graphBoundaries,
+    ] = await Promise.all([
+      createPersistentQLearningRouter({
+        ruvectorConfig: this.config,
+        agentId: clientAgentId,
+        algorithm: 'q-learning',
+        domain: 'ruvector-client',
+        loadOnInit: true,
+        autoSaveInterval: 0, // Immediate persistence
+        ewcConfig: {
+          ...DEFAULT_EWC_CONFIG,
+          enabled: true, // Enable EWC++ for catastrophic forgetting prevention
+        },
+      }),
+      createASTComplexityAnalyzer(this.config),
+      createDiffRiskClassifier(this.config),
+      createCoverageRouter(this.config),
+      createGraphBoundariesAnalyzer(this.config),
+    ]);
+
+    this._qLearningRouter = qLearningRouter;
+    this._astComplexityAnalyzer = astComplexityAnalyzer;
+    this._diffRiskClassifier = diffRiskClassifier;
+    this._coverageRouter = coverageRouter;
+    this._graphBoundaries = graphBoundaries;
 
     this._initialized = true;
   }
 
   async dispose(): Promise<void> {
+    // Close persistent Q-Learning router to flush pending saves
+    if (this._qLearningRouter && this._qLearningRouter instanceof PersistentQLearningRouter) {
+      await (this._qLearningRouter as PersistentQLearningRouter).close();
+    }
+
     this._qLearningRouter = null;
     this._astComplexityAnalyzer = null;
     this._diffRiskClassifier = null;
@@ -208,7 +275,7 @@ class DefaultRuVectorClient implements RuVectorClient {
           status: 'connected',
           version: '1.0.0', // Would come from actual RuVector
           features: [
-            'q-learning-router',
+            'persistent-q-learning-router', // ADR-046: Q-values persist across sessions
             'ast-complexity',
             'diff-risk-classifier',
             'coverage-router',
@@ -397,3 +464,100 @@ export {
   DEFAULT_FEATURE_FLAGS,
   type RuVectorFeatureFlags,
 } from './feature-flags';
+
+// ============================================================================
+// Hypergraph Schema (Neural Backbone)
+// ============================================================================
+
+export {
+  HypergraphSchemaManager,
+  nodeToRow,
+  rowToNode,
+  edgeToRow,
+  rowToEdge,
+  generateEdgeId,
+  NODE_TYPES,
+  EDGE_TYPES,
+  type HypergraphNode,
+  type HypergraphEdge,
+  type HypergraphNodeRow,
+  type HypergraphEdgeRow,
+  type NodeType,
+  type EdgeType,
+} from './hypergraph-schema';
+
+// ============================================================================
+// Hypergraph Query Engine (Neural Backbone - GOAP Action 6)
+// ============================================================================
+
+export {
+  HypergraphEngine,
+  createHypergraphEngine,
+  createHypergraphEngineSync,
+  DEFAULT_HYPERGRAPH_ENGINE_CONFIG,
+  type HypergraphEngineConfig,
+  type NodeCriteria,
+  type EdgeCriteria,
+  type TraversalResult,
+  type ModuleDependencyResult,
+  type BuildResult,
+  type SyncResult,
+  type HypergraphStats,
+  type CodeIndexResult,
+} from './hypergraph-engine';
+
+// ============================================================================
+// ML Observability
+// ============================================================================
+
+export {
+  RuVectorObservability,
+  getRuVectorObservability,
+  recordMLUsage,
+  recordFallback,
+  getObservabilityReport,
+  type RuVectorComponent,
+  type FallbackReason,
+  type ComponentMetrics,
+  type MLObservabilityMetrics,
+  type MLUsageAlert,
+  type MLObservabilityConfig,
+  type ObservabilityReport,
+} from './observability';
+
+// ============================================================================
+// RuVector Server Client (GOAP Action 8)
+// ============================================================================
+
+export {
+  RuVectorServerClient,
+  createRuVectorServerClient,
+  createRuVectorServerClientSync,
+  getSharedServerClient,
+  resetSharedServerClient,
+  DEFAULT_SERVER_CONFIG,
+  type RuVectorServerConfig,
+  type ServerHealthResult,
+  type VectorSearchResult,
+  type ServerStats,
+} from './server-client';
+
+// ============================================================================
+// Shared Memory Integration (Fleet Integration)
+// ============================================================================
+
+export {
+  initializeSharedMemory,
+  getSharedServerClient as getFleetSharedClient,
+  setSharedServerClient,
+  isSharedMemoryAvailable,
+  getSharedMemoryStatus,
+  getLastInitResult,
+  shutdownSharedMemory,
+  resetSharedMemoryState,
+  integrateWithFleet,
+  DEFAULT_SHARED_MEMORY_CONFIG,
+  type SharedMemoryConfig,
+  type SharedMemoryResult,
+  type SharedMemoryStatus,
+} from './shared-memory';

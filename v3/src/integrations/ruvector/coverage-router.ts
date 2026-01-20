@@ -580,15 +580,80 @@ export class RuVectorCoverageRouter implements CoverageRouter {
 // Factory Function
 // ============================================================================
 
+import {
+  getRuVectorObservability,
+  type FallbackReason,
+} from './observability.js';
+
 /**
- * Create coverage router with optional RuVector integration
+ * Create coverage router with ML-first approach
+ *
+ * IMPORTANT: This function tries ML FIRST and only falls back on actual errors.
+ * Fallback usage is recorded via observability layer and triggers alerts.
+ *
+ * @param config - RuVector configuration
+ * @param thresholds - Optional coverage thresholds
+ * @returns Promise resolving to CoverageRouter (ML or fallback)
  */
-export function createCoverageRouter(
+export async function createCoverageRouter(
+  config: RuVectorConfig,
+  thresholds?: Partial<CoverageThresholds>
+): Promise<CoverageRouter> {
+  const observability = getRuVectorObservability();
+  const startTime = Date.now();
+
+  // If explicitly disabled by config, use fallback but record it
+  if (!config.enabled) {
+    observability.recordFallback('coverage-router', 'disabled');
+    observability.checkAndAlert();
+    return new FallbackCoverageRouter();
+  }
+
+  try {
+    // Try ML implementation FIRST
+    const router = new RuVectorCoverageRouter(config, thresholds);
+    // Record successful ML usage
+    observability.recordMLUsage('coverage-router', true, Date.now() - startTime);
+    return router;
+  } catch (error) {
+    // Record fallback with reason
+    const reason: FallbackReason = error instanceof Error && error.message.includes('timeout')
+      ? 'timeout'
+      : 'error';
+    observability.recordFallback('coverage-router', reason);
+    // Alert about fallback usage
+    observability.checkAndAlert();
+    console.warn(
+      `[RuVector] Coverage router initialization failed, using fallback: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
+    );
+    return new FallbackCoverageRouter();
+  }
+}
+
+/**
+ * Create coverage router synchronously (legacy API)
+ *
+ * @deprecated Use createCoverageRouter() async version for proper observability
+ */
+export function createCoverageRouterSync(
   config: RuVectorConfig,
   thresholds?: Partial<CoverageThresholds>
 ): CoverageRouter {
-  if (config.enabled) {
-    return new RuVectorCoverageRouter(config, thresholds);
+  const observability = getRuVectorObservability();
+
+  if (!config.enabled) {
+    observability.recordFallback('coverage-router', 'disabled');
+    return new FallbackCoverageRouter();
   }
-  return new FallbackCoverageRouter();
+
+  try {
+    const router = new RuVectorCoverageRouter(config, thresholds);
+    observability.recordMLUsage('coverage-router', true);
+    return router;
+  } catch (error) {
+    observability.recordFallback('coverage-router', 'error');
+    return new FallbackCoverageRouter();
+  }
 }

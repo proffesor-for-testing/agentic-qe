@@ -35,7 +35,7 @@ import { LoadTesterService } from './services/load-tester';
 import { PerformanceProfilerService } from './services/performance-profiler';
 import { RiskScore } from '../../shared/value-objects';
 import { PolicyGradientAlgorithm } from '../../integrations/rl-suite/algorithms/policy-gradient.js';
-import { QESONA, createQESONA } from '../../integrations/ruvector/wrappers.js';
+import { PersistentSONAEngine, createPersistentSONAEngine } from '../../integrations/ruvector/sona-persistence.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 
 /**
@@ -96,8 +96,8 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
   // RL Integration: PolicyGradient for chaos engineering strategy
   private policyGradient?: PolicyGradientAlgorithm;
 
-  // SONA Integration: QESONA for resilience pattern learning
-  private qesona?: QESONA;
+  // SONA Integration: PersistentSONAEngine for resilience pattern learning (patterns survive restarts)
+  private qesona?: PersistentSONAEngine;
 
   private initialized = false;
 
@@ -135,17 +135,22 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
       }
     }
 
-    // Initialize QESONA if enabled
+    // Initialize PersistentSONAEngine if enabled (patterns survive restarts)
     if (this.config.enableQESONA) {
       try {
-        this.qesona = createQESONA({
+        this.qesona = await createPersistentSONAEngine({
+          domain: 'chaos-resilience',
+          loadOnInit: true,
+          autoSaveInterval: 60000, // Save every minute
           maxPatterns: 5000,
           minConfidence: 0.6,
         });
-        console.log('[chaos-resilience] QESONA initialized successfully');
+        console.log('[chaos-resilience] PersistentSONAEngine initialized successfully');
       } catch (error) {
-        console.error('[chaos-resilience] Failed to initialize QESONA:', error);
-        throw new Error(`QESONA initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+        // Log and continue - SONA is enhancement, not critical
+        console.error('[chaos-resilience] Failed to initialize PersistentSONAEngine:', error);
+        console.warn('[chaos-resilience] Continuing without SONA pattern persistence');
+        this.qesona = undefined;
       }
     }
 
@@ -164,9 +169,9 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
   async dispose(): Promise<void> {
     await this.saveWorkflowState();
 
-    // Dispose QESONA
+    // Dispose PersistentSONAEngine (flushes pending saves)
     if (this.qesona) {
-      this.qesona.clear();
+      await this.qesona.close();
       this.qesona = undefined;
     }
 

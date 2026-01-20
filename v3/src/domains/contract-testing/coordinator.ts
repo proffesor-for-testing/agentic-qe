@@ -34,7 +34,7 @@ import type {
 import { ContractValidatorService } from './services/contract-validator.js';
 import { ApiCompatibilityService } from './services/api-compatibility.js';
 import { SARSAAlgorithm } from '../../integrations/rl-suite/algorithms/sarsa.js';
-import { QESONA, createQESONA } from '../../integrations/ruvector/wrappers.js';
+import { PersistentSONAEngine, createPersistentSONAEngine } from '../../integrations/ruvector/sona-persistence.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 
 /**
@@ -100,8 +100,8 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
   // RL Integration: SARSA for contract validation ordering
   private sarsaAlgorithm?: SARSAAlgorithm;
 
-  // SONA Integration: QESONA for contract pattern learning
-  private qesona?: QESONA;
+  // SONA Integration: PersistentSONAEngine for contract pattern learning (patterns survive restarts)
+  private qesona?: PersistentSONAEngine;
 
   private initialized = false;
 
@@ -141,17 +141,22 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       }
     }
 
-    // Initialize QESONA if enabled
+    // Initialize PersistentSONAEngine if enabled (patterns survive restarts)
     if (this.config.enableQESONA) {
       try {
-        this.qesona = createQESONA({
+        this.qesona = await createPersistentSONAEngine({
+          domain: 'contract-testing',
+          loadOnInit: true,
+          autoSaveInterval: 60000, // Save every minute
           maxPatterns: 5000,
           minConfidence: 0.6,
         });
-        console.log('[contract-testing] QESONA initialized successfully');
+        console.log('[contract-testing] PersistentSONAEngine initialized successfully');
       } catch (error) {
-        console.error('[contract-testing] Failed to initialize QESONA:', error);
-        throw new Error(`QESONA initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+        // Log and continue - SONA is enhancement, not critical
+        console.error('[contract-testing] Failed to initialize PersistentSONAEngine:', error);
+        console.warn('[contract-testing] Continuing without SONA pattern persistence');
+        this.qesona = undefined;
       }
     }
 
@@ -171,9 +176,9 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     // Save workflow state
     await this.saveContracts();
 
-    // Dispose QESONA
+    // Dispose PersistentSONAEngine (flushes pending saves)
     if (this.qesona) {
-      this.qesona.clear();
+      await this.qesona.close();
       this.qesona = undefined;
     }
 

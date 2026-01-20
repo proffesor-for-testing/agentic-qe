@@ -152,7 +152,7 @@ function main() {
       }
     }
 
-    // Interactive mode - provide clear instructions
+    // Interactive mode - provide clear instructions and EXIT to prevent EEXIST error
     console.log(`${YELLOW}To upgrade from v2 to v3, choose one option:${RESET}`);
     console.log('');
     console.log(`  ${BOLD}Option 1: Auto-migrate (recommended)${RESET}`);
@@ -165,6 +165,9 @@ function main() {
     console.log(`  ${BOLD}Option 3: Force overwrite${RESET}`);
     console.log(`  ${CYAN}npm install -g @agentic-qe/v3@alpha --force${RESET}`);
     console.log('');
+
+    // Exit with error to prevent npm from hitting EEXIST when creating aqe symlink
+    process.exit(1);
 
   } else if (aqeBinary) {
     // Binary exists but v2 package not found - stale symlink or different package
@@ -190,6 +193,9 @@ function main() {
     console.log(`  ${BOLD}Option 2: Force overwrite${RESET}`);
     console.log(`  ${CYAN}npm install -g @agentic-qe/v3@alpha --force${RESET}`);
     console.log('');
+
+    // Exit with error to prevent npm from hitting EEXIST
+    process.exit(1);
   }
 }
 

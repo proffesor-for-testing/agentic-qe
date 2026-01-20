@@ -456,15 +456,80 @@ export class RuVectorASTComplexityAnalyzer implements ASTComplexityAnalyzer {
 // Factory Function
 // ============================================================================
 
+import {
+  getRuVectorObservability,
+  type FallbackReason,
+} from './observability.js';
+
 /**
- * Create AST complexity analyzer with optional RuVector integration
+ * Create AST complexity analyzer with ML-first approach
+ *
+ * IMPORTANT: This function tries ML FIRST and only falls back on actual errors.
+ * Fallback usage is recorded via observability layer and triggers alerts.
+ *
+ * @param config - RuVector configuration
+ * @param thresholds - Optional complexity thresholds
+ * @returns Promise resolving to ASTComplexityAnalyzer (ML or fallback)
  */
-export function createASTComplexityAnalyzer(
+export async function createASTComplexityAnalyzer(
+  config: RuVectorConfig,
+  thresholds?: Partial<ComplexityThresholds>
+): Promise<ASTComplexityAnalyzer> {
+  const observability = getRuVectorObservability();
+  const startTime = Date.now();
+
+  // If explicitly disabled by config, use fallback but record it
+  if (!config.enabled) {
+    observability.recordFallback('ast-complexity', 'disabled');
+    observability.checkAndAlert();
+    return new FallbackASTComplexityAnalyzer();
+  }
+
+  try {
+    // Try ML implementation FIRST
+    const analyzer = new RuVectorASTComplexityAnalyzer(config, thresholds);
+    // Record successful ML usage
+    observability.recordMLUsage('ast-complexity', true, Date.now() - startTime);
+    return analyzer;
+  } catch (error) {
+    // Record fallback with reason
+    const reason: FallbackReason = error instanceof Error && error.message.includes('timeout')
+      ? 'timeout'
+      : 'error';
+    observability.recordFallback('ast-complexity', reason);
+    // Alert about fallback usage
+    observability.checkAndAlert();
+    console.warn(
+      `[RuVector] AST complexity analyzer initialization failed, using fallback: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
+    );
+    return new FallbackASTComplexityAnalyzer();
+  }
+}
+
+/**
+ * Create AST complexity analyzer synchronously (legacy API)
+ *
+ * @deprecated Use createASTComplexityAnalyzer() async version for proper observability
+ */
+export function createASTComplexityAnalyzerSync(
   config: RuVectorConfig,
   thresholds?: Partial<ComplexityThresholds>
 ): ASTComplexityAnalyzer {
-  if (config.enabled) {
-    return new RuVectorASTComplexityAnalyzer(config, thresholds);
+  const observability = getRuVectorObservability();
+
+  if (!config.enabled) {
+    observability.recordFallback('ast-complexity', 'disabled');
+    return new FallbackASTComplexityAnalyzer();
   }
-  return new FallbackASTComplexityAnalyzer();
+
+  try {
+    const analyzer = new RuVectorASTComplexityAnalyzer(config, thresholds);
+    observability.recordMLUsage('ast-complexity', true);
+    return analyzer;
+  } catch (error) {
+    observability.recordFallback('ast-complexity', 'error');
+    return new FallbackASTComplexityAnalyzer();
+  }
 }

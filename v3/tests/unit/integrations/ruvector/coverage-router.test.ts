@@ -43,13 +43,13 @@ function createConfig(overrides: Partial<RuVectorConfig> = {}): RuVectorConfig {
 
 describe('Coverage Router', () => {
   describe('Factory Function', () => {
-    it('should create RuVectorCoverageRouter when enabled', () => {
-      const router = createCoverageRouter(createConfig({ enabled: true }));
+    it('should create RuVectorCoverageRouter when enabled', async () => {
+      const router = await createCoverageRouter(createConfig({ enabled: true }));
       expect(router).toBeInstanceOf(RuVectorCoverageRouter);
     });
 
-    it('should create FallbackCoverageRouter when disabled', () => {
-      const router = createCoverageRouter(createConfig({ enabled: false }));
+    it('should create FallbackCoverageRouter when disabled', async () => {
+      const router = await createCoverageRouter(createConfig({ enabled: false }));
       expect(router).toBeInstanceOf(FallbackCoverageRouter);
     });
   });
@@ -345,7 +345,7 @@ describe('Coverage Router', () => {
 
   describe('Integration', () => {
     it('should fallback when RuVector disabled', async () => {
-      const router = createCoverageRouter(createConfig({ enabled: false }));
+      const router = await createCoverageRouter(createConfig({ enabled: false }));
       const result = await router.analyzeCoverage([createFileCoverage()], 80);
 
       expect(result.usedFallback).toBe(true);

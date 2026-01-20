@@ -50,94 +50,94 @@ export interface AgentsInstallerOptions {
 
 /**
  * V3 QE domain agents (mapped to 12 DDD bounded contexts)
- * NOTE: We only install v3-qe-* agents - core agents like adr-architect,
- * memory-specialist, etc. are claude-flow agents, NOT AQE agents.
+ * NOTE: Per ADR-045, we use version-agnostic naming (qe-*) not v3-qe-*.
+ * Core agents like adr-architect, memory-specialist, etc. are claude-flow agents, NOT AQE agents.
  */
 const V3_QE_AGENTS = [
   // Test Generation Domain
-  'v3-qe-test-architect',
-  'v3-qe-bdd-generator',
-  'v3-qe-property-tester',
-  'v3-qe-mutation-tester',
+  'qe-test-architect',
+  'qe-bdd-generator',
+  'qe-property-tester',
+  'qe-mutation-tester',
+  'qe-test-idea-rewriter',
 
   // Test Execution Domain
-  'v3-qe-parallel-executor',
-  'v3-qe-flaky-hunter',
-  'v3-qe-retry-handler',
+  'qe-parallel-executor',
+  'qe-flaky-hunter',
+  'qe-retry-handler',
 
   // Coverage Analysis Domain
-  'v3-qe-coverage-specialist',
-  'v3-qe-gap-detector',
+  'qe-coverage-specialist',
+  'qe-gap-detector',
 
   // Quality Assessment Domain
-  'v3-qe-quality-gate',
-  'v3-qe-code-complexity',
-  'v3-qe-deployment-advisor',
-  'v3-qe-risk-assessor',
+  'qe-quality-gate',
+  'qe-code-complexity',
+  'qe-deployment-advisor',
+  'qe-risk-assessor',
 
   // Defect Intelligence Domain
-  'v3-qe-defect-predictor',
-  'v3-qe-regression-analyzer',
-  'v3-qe-root-cause-analyzer',
-  'v3-qe-impact-analyzer',
+  'qe-defect-predictor',
+  'qe-regression-analyzer',
+  'qe-root-cause-analyzer',
+  'qe-impact-analyzer',
 
   // Requirements Validation Domain
-  'v3-qe-requirements-validator',
-  'v3-qe-qx-partner',
-  'v3-qe-product-factors-assessor',
-
-  // Test Generation Domain (additional)
-  'v3-qe-test-idea-rewriter',
+  'qe-requirements-validator',
+  'qe-qx-partner',
+  'qe-product-factors-assessor',
 
   // Code Intelligence Domain
-  'v3-qe-code-intelligence',
-  'v3-qe-kg-builder',
-  'v3-qe-dependency-mapper',
+  'qe-code-intelligence',
+  'qe-kg-builder',
+  'qe-dependency-mapper',
 
   // Security Compliance Domain
-  'v3-qe-security-scanner',
-  'v3-qe-security-auditor',
+  'qe-security-scanner',
+  'qe-security-auditor',
 
   // Contract Testing Domain
-  'v3-qe-contract-validator',
-  'v3-qe-graphql-tester',
+  'qe-contract-validator',
+  'qe-graphql-tester',
 
   // Visual Accessibility Domain
-  'v3-qe-visual-tester',
-  'v3-qe-accessibility-auditor',
-  'v3-qe-responsive-tester',
+  'qe-visual-tester',
+  'qe-accessibility-auditor',
+  'qe-responsive-tester',
 
   // Chaos Resilience Domain
-  'v3-qe-chaos-engineer',
-  'v3-qe-load-tester',
-  'v3-qe-performance-tester',
+  'qe-chaos-engineer',
+  'qe-load-tester',
+  'qe-performance-tester',
 
   // Learning Optimization Domain
-  'v3-qe-learning-coordinator',
-  'v3-qe-pattern-learner',
-  'v3-qe-metrics-optimizer',
-  'v3-qe-transfer-specialist',
+  'qe-learning-coordinator',
+  'qe-pattern-learner',
+  'qe-metrics-optimizer',
+  'qe-transfer-specialist',
 
   // Fleet Coordination
-  'v3-qe-fleet-commander',
-  'v3-qe-queen-coordinator',
+  'qe-fleet-commander',
+  'qe-queen-coordinator',
 
   // TDD Specialist
-  'v3-qe-tdd-specialist',
-  'v3-qe-integration-tester',
+  'qe-tdd-specialist',
+  'qe-integration-tester',
+  'qe-integration-architect',
 ];
 
 /**
  * V3 QE subagents (specialized sub-tasks)
+ * Per ADR-045: version-agnostic naming (qe-*) not v3-qe-*
  */
 const V3_SUBAGENTS = [
-  'v3-qe-code-reviewer',
-  'v3-qe-integration-reviewer',
-  'v3-qe-performance-reviewer',
-  'v3-qe-security-reviewer',
-  'v3-qe-tdd-red',
-  'v3-qe-tdd-green',
-  'v3-qe-tdd-refactor',
+  'qe-code-reviewer',
+  'qe-integration-reviewer',
+  'qe-performance-reviewer',
+  'qe-security-reviewer',
+  'qe-tdd-red',
+  'qe-tdd-green',
+  'qe-tdd-refactor',
 ];
 
 // ============================================================================
@@ -183,6 +183,26 @@ export class AgentsInstaller {
       // Local install: in node_modules
       join(this.projectRoot, 'node_modules/@agentic-qe/v3/assets/agents/v3'),
     ];
+
+    // For global npm installs, also check global node_modules paths
+    try {
+      const { execSync } = require('child_process');
+      // Get npm global prefix
+      const npmPrefix = execSync('npm config get prefix', { encoding: 'utf-8' }).trim();
+
+      // Add global paths for different package names
+      possiblePaths.push(
+        // Global install as @agentic-qe/v3
+        join(npmPrefix, 'lib/node_modules/@agentic-qe/v3/assets/agents/v3'),
+        // Global install as agentic-qe (root package)
+        join(npmPrefix, 'lib/node_modules/agentic-qe/v3/assets/agents/v3'),
+        // Linux global without lib
+        join(npmPrefix, 'node_modules/@agentic-qe/v3/assets/agents/v3'),
+        join(npmPrefix, 'node_modules/agentic-qe/v3/assets/agents/v3'),
+      );
+    } catch {
+      // Ignore errors getting npm prefix
+    }
 
     for (const agentsPath of possiblePaths) {
       if (existsSync(agentsPath)) {

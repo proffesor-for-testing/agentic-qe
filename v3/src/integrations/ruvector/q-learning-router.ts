@@ -536,15 +536,80 @@ export class RuVectorQLearningRouter implements QLearningRouter {
 // Factory Function
 // ============================================================================
 
+import {
+  getRuVectorObservability,
+  type FallbackReason,
+} from './observability.js';
+
 /**
- * Create Q-Learning router with optional RuVector integration
+ * Create Q-Learning router with ML-first approach
+ *
+ * IMPORTANT: This function tries ML FIRST and only falls back on actual errors.
+ * Fallback usage is recorded via observability layer and triggers alerts.
+ *
+ * @param config - RuVector configuration
+ * @param params - Optional Q-Learning parameters
+ * @returns Promise resolving to QLearningRouter (ML or fallback)
  */
-export function createQLearningRouter(
+export async function createQLearningRouter(
+  config: RuVectorConfig,
+  params?: Partial<QLearningParams>
+): Promise<QLearningRouter> {
+  const observability = getRuVectorObservability();
+  const startTime = Date.now();
+
+  // If explicitly disabled by config, use fallback but record it
+  if (!config.enabled) {
+    observability.recordFallback('q-learning-router', 'disabled');
+    observability.checkAndAlert();
+    return new FallbackQLearningRouter();
+  }
+
+  try {
+    // Try ML implementation FIRST
+    const router = new RuVectorQLearningRouter(config, params);
+    // Record successful ML usage
+    observability.recordMLUsage('q-learning-router', true, Date.now() - startTime);
+    return router;
+  } catch (error) {
+    // Record fallback with reason
+    const reason: FallbackReason = error instanceof Error && error.message.includes('timeout')
+      ? 'timeout'
+      : 'error';
+    observability.recordFallback('q-learning-router', reason);
+    // Alert about fallback usage
+    observability.checkAndAlert();
+    console.warn(
+      `[RuVector] Q-Learning router initialization failed, using fallback: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
+    );
+    return new FallbackQLearningRouter();
+  }
+}
+
+/**
+ * Create Q-Learning router synchronously (legacy API)
+ *
+ * @deprecated Use createQLearningRouter() async version for proper observability
+ */
+export function createQLearningRouterSync(
   config: RuVectorConfig,
   params?: Partial<QLearningParams>
 ): QLearningRouter {
-  if (config.enabled) {
-    return new RuVectorQLearningRouter(config, params);
+  const observability = getRuVectorObservability();
+
+  if (!config.enabled) {
+    observability.recordFallback('q-learning-router', 'disabled');
+    return new FallbackQLearningRouter();
   }
-  return new FallbackQLearningRouter();
+
+  try {
+    const router = new RuVectorQLearningRouter(config, params);
+    observability.recordMLUsage('q-learning-router', true);
+    return router;
+  } catch (error) {
+    observability.recordFallback('q-learning-router', 'error');
+    return new FallbackQLearningRouter();
+  }
 }

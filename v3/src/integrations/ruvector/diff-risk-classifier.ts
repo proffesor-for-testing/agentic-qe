@@ -745,15 +745,80 @@ export class RuVectorDiffRiskClassifier implements DiffRiskClassifier {
 // Factory Function
 // ============================================================================
 
+import {
+  getRuVectorObservability,
+  type FallbackReason,
+} from './observability.js';
+
 /**
- * Create diff risk classifier with optional RuVector integration
+ * Create diff risk classifier with ML-first approach
+ *
+ * IMPORTANT: This function tries ML FIRST and only falls back on actual errors.
+ * Fallback usage is recorded via observability layer and triggers alerts.
+ *
+ * @param config - RuVector configuration
+ * @param patterns - Optional risk patterns
+ * @returns Promise resolving to DiffRiskClassifier (ML or fallback)
  */
-export function createDiffRiskClassifier(
+export async function createDiffRiskClassifier(
+  config: RuVectorConfig,
+  patterns?: Partial<RiskPatterns>
+): Promise<DiffRiskClassifier> {
+  const observability = getRuVectorObservability();
+  const startTime = Date.now();
+
+  // If explicitly disabled by config, use fallback but record it
+  if (!config.enabled) {
+    observability.recordFallback('diff-risk-classifier', 'disabled');
+    observability.checkAndAlert();
+    return new FallbackDiffRiskClassifier();
+  }
+
+  try {
+    // Try ML implementation FIRST
+    const classifier = new RuVectorDiffRiskClassifier(config, patterns);
+    // Record successful ML usage
+    observability.recordMLUsage('diff-risk-classifier', true, Date.now() - startTime);
+    return classifier;
+  } catch (error) {
+    // Record fallback with reason
+    const reason: FallbackReason = error instanceof Error && error.message.includes('timeout')
+      ? 'timeout'
+      : 'error';
+    observability.recordFallback('diff-risk-classifier', reason);
+    // Alert about fallback usage
+    observability.checkAndAlert();
+    console.warn(
+      `[RuVector] Diff risk classifier initialization failed, using fallback: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
+    );
+    return new FallbackDiffRiskClassifier();
+  }
+}
+
+/**
+ * Create diff risk classifier synchronously (legacy API)
+ *
+ * @deprecated Use createDiffRiskClassifier() async version for proper observability
+ */
+export function createDiffRiskClassifierSync(
   config: RuVectorConfig,
   patterns?: Partial<RiskPatterns>
 ): DiffRiskClassifier {
-  if (config.enabled) {
-    return new RuVectorDiffRiskClassifier(config, patterns);
+  const observability = getRuVectorObservability();
+
+  if (!config.enabled) {
+    observability.recordFallback('diff-risk-classifier', 'disabled');
+    return new FallbackDiffRiskClassifier();
   }
-  return new FallbackDiffRiskClassifier();
+
+  try {
+    const classifier = new RuVectorDiffRiskClassifier(config, patterns);
+    observability.recordMLUsage('diff-risk-classifier', true);
+    return classifier;
+  } catch (error) {
+    observability.recordFallback('diff-risk-classifier', 'error');
+    return new FallbackDiffRiskClassifier();
+  }
 }

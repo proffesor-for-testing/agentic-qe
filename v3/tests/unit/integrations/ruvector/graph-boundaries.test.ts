@@ -22,13 +22,13 @@ function createConfig(overrides: Partial<RuVectorConfig> = {}): RuVectorConfig {
 
 describe('Graph Boundaries Analyzer', () => {
   describe('Factory Function', () => {
-    it('should create RuVectorGraphBoundariesAnalyzer when enabled', () => {
-      const analyzer = createGraphBoundariesAnalyzer(createConfig({ enabled: true }));
+    it('should create RuVectorGraphBoundariesAnalyzer when enabled', async () => {
+      const analyzer = await createGraphBoundariesAnalyzer(createConfig({ enabled: true }));
       expect(analyzer).toBeInstanceOf(RuVectorGraphBoundariesAnalyzer);
     });
 
-    it('should create FallbackGraphBoundariesAnalyzer when disabled', () => {
-      const analyzer = createGraphBoundariesAnalyzer(createConfig({ enabled: false }));
+    it('should create FallbackGraphBoundariesAnalyzer when disabled', async () => {
+      const analyzer = await createGraphBoundariesAnalyzer(createConfig({ enabled: false }));
       expect(analyzer).toBeInstanceOf(FallbackGraphBoundariesAnalyzer);
     });
   });
@@ -319,7 +319,7 @@ describe('Graph Boundaries Analyzer', () => {
 
   describe('Integration', () => {
     it('should fallback when RuVector disabled', async () => {
-      const analyzer = createGraphBoundariesAnalyzer(
+      const analyzer = await createGraphBoundariesAnalyzer(
         createConfig({ enabled: false })
       );
 
@@ -342,7 +342,7 @@ describe('Graph Boundaries Analyzer', () => {
     });
 
     it('should handle empty entry points', async () => {
-      const analyzer = createGraphBoundariesAnalyzer(
+      const analyzer = await createGraphBoundariesAnalyzer(
         createConfig({ enabled: true })
       );
 

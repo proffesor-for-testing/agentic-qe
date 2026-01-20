@@ -5,7 +5,7 @@
  * Interactive wizard for AQE initialization with visual feedback.
  */
 
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, unlinkSync, copyFileSync } from 'fs';
 import { join, dirname } from 'path';
 import type {
   ProjectAnalysis,
@@ -569,10 +569,76 @@ export class InitOrchestrator {
       // Also run config migration
       await this.migrateV2Config(v2Detection);
 
+      // Remove v2 QE agents (they will be replaced by v3 agents)
+      await this.removeV2QEAgents();
+
       console.log('✓ V2 to V3 migration completed\n');
     } catch (error) {
       console.warn(`⚠ Migration warning: ${error instanceof Error ? error.message : String(error)}`);
       console.log('  Continuing with init (v2 data preserved)...\n');
+    }
+  }
+
+  /**
+   * Remove v2 QE agents from .claude/agents/ root folder
+   * V2 QE agents are replaced by v3 agents in .claude/agents/v3/
+   * Only removes qe-* files, preserves other agents
+   */
+  private async removeV2QEAgents(): Promise<void> {
+    const agentsDir = join(this.projectRoot, '.claude', 'agents');
+
+    if (!existsSync(agentsDir)) {
+      return;
+    }
+
+    try {
+      const entries = readdirSync(agentsDir);
+      const v2QEAgents: string[] = [];
+
+      for (const entry of entries) {
+        // Only remove qe-* agent files (not directories, not other agents)
+        if (entry.startsWith('qe-') && entry.endsWith('.md')) {
+          const fullPath = join(agentsDir, entry);
+          const stat = statSync(fullPath);
+
+          if (stat.isFile()) {
+            v2QEAgents.push(entry);
+          }
+        }
+      }
+
+      if (v2QEAgents.length === 0) {
+        return;
+      }
+
+      console.log(`  Removing ${v2QEAgents.length} v2 QE agents from .claude/agents/...`);
+
+      // Create backup directory
+      const backupDir = join(this.projectRoot, '.agentic-qe', 'backup', 'v2-agents');
+      if (!existsSync(backupDir)) {
+        mkdirSync(backupDir, { recursive: true });
+      }
+
+      // Move v2 agents to backup (don't delete, just move)
+      const { renameSync } = await import('fs');
+      for (const agent of v2QEAgents) {
+        const sourcePath = join(agentsDir, agent);
+        const backupPath = join(backupDir, agent);
+
+        try {
+          // Copy to backup first
+          copyFileSync(sourcePath, backupPath);
+          // Then remove original
+          unlinkSync(sourcePath);
+        } catch (err) {
+          console.warn(`    ⚠ Could not remove ${agent}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
+      console.log(`  ✓ Moved ${v2QEAgents.length} v2 agents to .agentic-qe/backup/v2-agents/`);
+      console.log('    V3 agents will be installed to .claude/agents/v3/');
+    } catch (error) {
+      console.warn(`  ⚠ Could not remove v2 agents: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

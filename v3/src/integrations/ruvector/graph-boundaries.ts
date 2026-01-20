@@ -795,15 +795,80 @@ export class RuVectorGraphBoundariesAnalyzer implements GraphBoundariesAnalyzer 
 // Factory Function
 // ============================================================================
 
+import {
+  getRuVectorObservability,
+  type FallbackReason,
+} from './observability.js';
+
 /**
- * Create graph boundaries analyzer with optional RuVector integration
+ * Create graph boundaries analyzer with ML-first approach
+ *
+ * IMPORTANT: This function tries ML FIRST and only falls back on actual errors.
+ * Fallback usage is recorded via observability layer and triggers alerts.
+ *
+ * @param config - RuVector configuration
+ * @param graphConfig - Optional graph configuration
+ * @returns Promise resolving to GraphBoundariesAnalyzer (ML or fallback)
  */
-export function createGraphBoundariesAnalyzer(
+export async function createGraphBoundariesAnalyzer(
+  config: RuVectorConfig,
+  graphConfig?: Partial<GraphConfig>
+): Promise<GraphBoundariesAnalyzer> {
+  const observability = getRuVectorObservability();
+  const startTime = Date.now();
+
+  // If explicitly disabled by config, use fallback but record it
+  if (!config.enabled) {
+    observability.recordFallback('graph-boundaries', 'disabled');
+    observability.checkAndAlert();
+    return new FallbackGraphBoundariesAnalyzer();
+  }
+
+  try {
+    // Try ML implementation FIRST
+    const analyzer = new RuVectorGraphBoundariesAnalyzer(config, graphConfig);
+    // Record successful ML usage
+    observability.recordMLUsage('graph-boundaries', true, Date.now() - startTime);
+    return analyzer;
+  } catch (error) {
+    // Record fallback with reason
+    const reason: FallbackReason = error instanceof Error && error.message.includes('timeout')
+      ? 'timeout'
+      : 'error';
+    observability.recordFallback('graph-boundaries', reason);
+    // Alert about fallback usage
+    observability.checkAndAlert();
+    console.warn(
+      `[RuVector] Graph boundaries analyzer initialization failed, using fallback: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
+    );
+    return new FallbackGraphBoundariesAnalyzer();
+  }
+}
+
+/**
+ * Create graph boundaries analyzer synchronously (legacy API)
+ *
+ * @deprecated Use createGraphBoundariesAnalyzer() async version for proper observability
+ */
+export function createGraphBoundariesAnalyzerSync(
   config: RuVectorConfig,
   graphConfig?: Partial<GraphConfig>
 ): GraphBoundariesAnalyzer {
-  if (config.enabled) {
-    return new RuVectorGraphBoundariesAnalyzer(config, graphConfig);
+  const observability = getRuVectorObservability();
+
+  if (!config.enabled) {
+    observability.recordFallback('graph-boundaries', 'disabled');
+    return new FallbackGraphBoundariesAnalyzer();
   }
-  return new FallbackGraphBoundariesAnalyzer();
+
+  try {
+    const analyzer = new RuVectorGraphBoundariesAnalyzer(config, graphConfig);
+    observability.recordMLUsage('graph-boundaries', true);
+    return analyzer;
+  } catch (error) {
+    observability.recordFallback('graph-boundaries', 'error');
+    return new FallbackGraphBoundariesAnalyzer();
+  }
 }

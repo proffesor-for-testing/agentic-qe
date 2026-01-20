@@ -39,13 +39,13 @@ function createConfig(overrides: Partial<RuVectorConfig> = {}): RuVectorConfig {
 
 describe('Q-Learning Router', () => {
   describe('Factory Function', () => {
-    it('should create RuVectorQLearningRouter when enabled', () => {
-      const router = createQLearningRouter(createConfig({ enabled: true }));
+    it('should create RuVectorQLearningRouter when enabled', async () => {
+      const router = await createQLearningRouter(createConfig({ enabled: true }));
       expect(router).toBeInstanceOf(RuVectorQLearningRouter);
     });
 
-    it('should create FallbackQLearningRouter when disabled', () => {
-      const router = createQLearningRouter(createConfig({ enabled: false }));
+    it('should create FallbackQLearningRouter when disabled', async () => {
+      const router = await createQLearningRouter(createConfig({ enabled: false }));
       expect(router).toBeInstanceOf(FallbackQLearningRouter);
     });
   });
@@ -280,7 +280,7 @@ describe('Q-Learning Router', () => {
 
   describe('Integration', () => {
     it('should fallback when RuVector disabled', async () => {
-      const router = createQLearningRouter(createConfig({ enabled: false }));
+      const router = await createQLearningRouter(createConfig({ enabled: false }));
       const task = createTestTask();
 
       const result = await router.routeTask(task);
@@ -289,7 +289,7 @@ describe('Q-Learning Router', () => {
     });
 
     it('should handle learning cycle', async () => {
-      const router = createQLearningRouter(createConfig({ enabled: true }));
+      const router = await createQLearningRouter(createConfig({ enabled: true }));
 
       // Simulate multiple routing + feedback cycles
       for (let i = 0; i < 5; i++) {

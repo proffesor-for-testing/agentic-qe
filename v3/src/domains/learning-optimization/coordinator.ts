@@ -48,8 +48,10 @@ import {
   ProductionIntelService,
 } from './services/index.js';
 import {
-  QESONA,
-  createDomainQESONA,
+  PersistentSONAEngine,
+  createPersistentSONAEngine,
+} from '../../integrations/ruvector/sona-persistence.js';
+import {
   type QESONAPattern,
   type QEPatternType,
   type QESONAStats,
@@ -108,8 +110,9 @@ export class LearningOptimizationCoordinator
   /**
    * QESONA (Self-Optimizing Neural Architecture) for pattern learning
    * Provides <0.05ms pattern adaptation via @ruvector/sona
+   * Now uses PersistentSONAEngine to survive restarts
    */
-  private sona!: QESONA;
+  private sona!: PersistentSONAEngine;
 
   constructor(
     private readonly eventBus: EventBus,
@@ -131,9 +134,20 @@ export class LearningOptimizationCoordinator
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Initialize QESONA for neural pattern learning
-    this.sona = createDomainQESONA('learning-optimization');
-    console.log('[LearningOptimizationCoordinator] QESONA initialized for pattern learning');
+    // Initialize QESONA for neural pattern learning (persistent patterns)
+    try {
+      this.sona = await createPersistentSONAEngine({
+        domain: 'learning-optimization',
+        loadOnInit: true,
+        autoSaveInterval: 60000,
+        maxPatterns: 10000,
+        minConfidence: 0.5,
+      });
+      console.log('[LearningOptimizationCoordinator] PersistentSONAEngine initialized for pattern learning');
+    } catch (error) {
+      console.error('[LearningOptimizationCoordinator] Failed to initialize PersistentSONAEngine:', error);
+      throw error; // Learning optimization requires SONA
+    }
 
     // Subscribe to relevant events
     this.subscribeToEvents();
@@ -154,9 +168,13 @@ export class LearningOptimizationCoordinator
     // Clear active workflows
     this.workflows.clear();
 
-    // Clear SONA
+    // V3: Clean up SONA engine (persistent patterns)
     if (this.initialized && this.sona) {
-      this.sona.clear();
+      try {
+        await this.sona.close();
+      } catch (error) {
+        console.error('[LearningOptimizationCoordinator] Error closing SONA engine:', error);
+      }
     }
 
     this.initialized = false;

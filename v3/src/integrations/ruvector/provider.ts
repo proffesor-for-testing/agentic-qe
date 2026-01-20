@@ -22,6 +22,11 @@ import {
   type QEGNNLayerConfig,
 } from './wrappers.js';
 import {
+  PersistentSONAEngine,
+  createPersistentSONAEngine,
+  DEFAULT_PERSISTENT_SONA_CONFIG,
+} from './sona-persistence.js';
+import {
   getRuVectorFeatureFlags,
   isSONAEnabled,
   isFlashAttentionEnabled,
@@ -159,7 +164,7 @@ export class RuVectorServiceProvider {
   private static instance: RuVectorServiceProvider | null = null;
 
   private config: RuVectorServiceConfig;
-  private globalSONA: QESONA | null = null;
+  private globalSONA: PersistentSONAEngine | null = null;
   private globalFlashAttention: Map<QEWorkloadType, QEFlashAttention> = new Map();
   private globalGNNIndex: QEGNNEmbeddingIndex | null = null;
   private domainServices: Map<DomainName, DomainServices> = new Map();
@@ -311,20 +316,22 @@ export class RuVectorServiceProvider {
   }
 
   /**
-   * Get global SONA instance (not domain-specific)
+   * Get global SONA instance (not domain-specific) with persistence
+   *
+   * Uses PersistentSONAEngine (ADR-046) for pattern persistence across sessions.
    *
    * @param config - Optional SONA configuration override
-   * @returns QESONA instance or null if disabled
+   * @returns PersistentSONAEngine instance or null if disabled
    *
    * @example
    * ```typescript
-   * const globalSONA = provider.getGlobalSONA();
+   * const globalSONA = await provider.getGlobalSONA();
    * if (globalSONA) {
    *   const stats = globalSONA.getStats();
    * }
    * ```
    */
-  getGlobalSONA(config?: Partial<QESONAConfig>): QESONA | null {
+  async getGlobalSONA(config?: Partial<QESONAConfig>): Promise<PersistentSONAEngine | null> {
     if (!this.config.sonaEnabled || !isSONAEnabled()) {
       return null;
     }
@@ -334,8 +341,15 @@ export class RuVectorServiceProvider {
         ...this.config.defaultSONAConfig,
         ...config,
       };
-      this.globalSONA = createQESONA(mergedConfig);
-      this.logMetric('global_sona_created', { config: mergedConfig });
+      // Use PersistentSONAEngine for pattern persistence across sessions (ADR-046)
+      // Use 'coordination' domain since the provider coordinates global services
+      this.globalSONA = await createPersistentSONAEngine({
+        ...mergedConfig, // Spread QESONAConfig options
+        domain: 'coordination',
+        loadOnInit: true,
+        autoSaveInterval: DEFAULT_PERSISTENT_SONA_CONFIG.autoSaveInterval,
+      });
+      this.logMetric('global_sona_created', { config: mergedConfig, persistent: true });
     }
 
     return this.globalSONA;
@@ -525,7 +539,7 @@ export class RuVectorServiceProvider {
    * });
    * ```
    */
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.logMetric('disposing', {});
 
     // Dispose Flash Attention instances
@@ -534,9 +548,9 @@ export class RuVectorServiceProvider {
     });
     this.globalFlashAttention.clear();
 
-    // Clear SONA instances
+    // Close PersistentSONAEngine to flush pending saves (ADR-046)
     if (this.globalSONA) {
-      this.globalSONA.clear();
+      await this.globalSONA.close();
       this.globalSONA = null;
     }
 

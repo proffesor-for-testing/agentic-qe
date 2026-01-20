@@ -54,10 +54,11 @@ import {
 // ============================================================================
 
 import {
-  QESONA,
-  createQESONA,
-  createDomainQESONA,
-  type QESONAPattern,
+  PersistentSONAEngine,
+  createPersistentSONAEngine,
+} from '../../integrations/ruvector/sona-persistence.js';
+
+import {
   type QEPatternType,
   type QESONAAdaptationResult,
   type QESONAStats,
@@ -153,7 +154,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   private initialized = false;
 
   // @ruvector integrations (ADR-040)
-  private qesona: QESONA | null = null;
+  private qesona: PersistentSONAEngine | null = null;
   private flashAttention: QEFlashAttention | null = null;
   private decisionTransformer: DecisionTransformerAlgorithm | null = null;
   private testEmbeddings: Map<string, Float32Array> = new Map();
@@ -175,17 +176,22 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Initialize QESONA for pattern learning
+    // Initialize PersistentSONAEngine for pattern learning (patterns survive restarts)
     if (this.config.enableQESONA) {
       try {
-        this.qesona = createDomainQESONA('test-generation', {
+        this.qesona = await createPersistentSONAEngine({
+          domain: 'test-generation',
+          loadOnInit: true,
+          autoSaveInterval: 60000, // Save every minute
           patternClusters: 50,
           minConfidence: 0.5,
         });
-        console.log('[TestGenerationCoordinator] QESONA initialized for test-generation domain');
+        console.log('[TestGenerationCoordinator] PersistentSONAEngine initialized for test-generation domain');
       } catch (error) {
-        console.error('[TestGenerationCoordinator] Failed to initialize QESONA:', error);
-        throw new Error(`QESONA initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+        // Log and continue - SONA is enhancement, not critical
+        console.error('[TestGenerationCoordinator] Failed to initialize PersistentSONAEngine:', error);
+        console.warn('[TestGenerationCoordinator] Continuing without SONA pattern persistence');
+        this.qesona = null;
       }
     }
 
@@ -243,6 +249,12 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
     if (this.decisionTransformer) {
       await this.decisionTransformer.reset();
       this.decisionTransformer = null;
+    }
+
+    // Dispose PersistentSONAEngine (flushes pending saves)
+    if (this.qesona) {
+      await this.qesona.close();
+      this.qesona = null;
     }
 
     // Clear active workflows

@@ -65,7 +65,9 @@ Background neural consolidation for continuous improvement:
 
 - **9 RL Algorithms**: Q-Learning, SARSA, DQN, PPO, A2C, DDPG, Actor-Critic, Policy Gradient, Decision Transformer
 - **Dream Cycles**: 30s max consolidation with spreading activation
-- **SONA Integration**: Self-Optimizing Neural Architecture (<0.05ms adaptation)
+- **SONA Integration**: Self-Optimizing Neural Architecture with pattern persistence
+- **Persistent Q-Learning**: Q-values survive restarts for continuous learning
+- **EWC++ Protection**: Elastic Weight Consolidation prevents catastrophic forgetting
 - **Novelty Scoring**: Prioritize learning from novel patterns
 
 ### Consensus & MinCut Coordination
@@ -438,14 +440,16 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 
 | Metric | v2 | v3 | Improvement |
 |--------|----|----|-------------|
-| Coverage Analysis | O(n) | O(log n) | Sublinear |
-| Pattern Search | Linear scan | HNSW index | O(log n) vs O(n) |
-| MCP Response (P95) | ~100ms | 0.6ms | 166x faster |
-| Memory Usage | Unbounded | Quantized | 50-75% reduction |
-| Agent Coordination | Sequential | Work stealing | 3-5x throughput |
-| Model Cost | Single tier | TinyDancer 3-tier | Optimized |
-| Startup Time | ~2s | ~500ms | 4x faster |
-| Neural Adaptation | N/A | SONA | <0.05ms |
+| Coverage Analysis | O(n) | O(log n) | Sublinear ✅ |
+| Pattern Search | Linear scan | HNSW index | O(log n) ✅ |
+| Search Latency | ~100ms | <1ms | Verified ✅ |
+| Token Reduction | N/A | >75% | Verified ✅ |
+| Memory Backend | SQLite only | Hybrid (SQLite + HNSW) | Persistent ✅ |
+| Model Routing | Single tier | TinyDancer 3-tier | Cost optimized |
+| Neural Backbone | N/A | SONA + Q-Learning | Persistent learning ✅ |
+| Agent Coordination | Sequential | Work stealing | Improved |
+
+*✅ = Verified via benchmarks. See `/docs/benchmarks/` for details.*
 
 ## Key Differences from v2
 

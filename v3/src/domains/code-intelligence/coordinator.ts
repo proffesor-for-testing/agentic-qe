@@ -72,12 +72,12 @@ import type {
   EmbeddingNamespace,
 } from '../../integrations/embeddings/base/types';
 
-// V3 Integration: SONA for code pattern learning
+// V3 Integration: SONA for code pattern learning (persistent patterns)
 import {
-  QESONA,
-  createQESONA,
-  type QEPatternType,
-} from '../../integrations/ruvector/wrappers';
+  PersistentSONAEngine,
+  createPersistentSONAEngine,
+} from '../../integrations/ruvector/sona-persistence.js';
+import { type QEPatternType } from '../../integrations/ruvector/wrappers';
 
 // V3 Integration: RL Suite interfaces
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces';
@@ -89,6 +89,16 @@ import {
   type IMetricCollectorService,
   type ProjectMetrics,
 } from './services/metric-collector/index.js';
+
+// V3 Integration: Hypergraph Engine for code intelligence (GOAP Action 7)
+import {
+  HypergraphEngine,
+  createHypergraphEngine,
+  type HypergraphEngineConfig,
+  type BuildResult as HypergraphBuildResult,
+  type CodeIndexResult,
+} from '../../integrations/ruvector/hypergraph-engine.js';
+import { type HypergraphNode } from '../../integrations/ruvector/hypergraph-schema.js';
 
 /**
  * Interface for the code intelligence coordinator
@@ -119,6 +129,38 @@ export interface ICodeIntelligenceCoordinator extends CodeIntelligenceAPI {
    * @param projectPath - Path to the project root
    */
   collectProjectMetrics(projectPath: string): Promise<Result<ProjectMetrics, Error>>;
+
+  /**
+   * V3: Find untested functions using hypergraph analysis (GOAP Action 7)
+   * Returns functions that have no test coverage based on the code knowledge graph.
+   */
+  findUntestedFunctions(): Promise<Result<HypergraphNode[], Error>>;
+
+  /**
+   * V3: Find impacted tests using hypergraph traversal (GOAP Action 7)
+   * Returns tests that should be run based on changed files.
+   * @param changedFiles - Array of file paths that have changed
+   */
+  findImpactedTestsFromHypergraph(changedFiles: string[]): Promise<Result<HypergraphNode[], Error>>;
+
+  /**
+   * V3: Find coverage gaps using hypergraph analysis (GOAP Action 7)
+   * Returns functions with low test coverage.
+   * @param maxCoverage - Maximum coverage percentage to consider as a gap (default: 50)
+   */
+  findCoverageGapsFromHypergraph(maxCoverage?: number): Promise<Result<HypergraphNode[], Error>>;
+
+  /**
+   * V3: Build hypergraph from latest index result (GOAP Action 7)
+   * Populates the hypergraph with code entities and relationships.
+   * @param indexResult - Code index result to build from
+   */
+  buildHypergraphFromIndex(indexResult: CodeIndexResult): Promise<Result<HypergraphBuildResult, Error>>;
+
+  /**
+   * V3: Check if hypergraph is enabled and initialized
+   */
+  isHypergraphEnabled(): boolean;
 }
 
 /**
@@ -148,6 +190,10 @@ export interface CoordinatorConfig {
   enableSONA: boolean;
   // V3: Enable MetricCollector for real code metrics (Phase 5)
   enableMetricCollector: boolean;
+  // V3: Enable Hypergraph for intelligent code analysis (GOAP Action 7)
+  enableHypergraph: boolean;
+  // V3: Optional database path for hypergraph persistence
+  hypergraphDbPath?: string;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -159,6 +205,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   enableSONA: true,
   // V3: MetricCollector enabled by default for real code metrics
   enableMetricCollector: true,
+  // V3: Hypergraph enabled by default for intelligent code analysis (GOAP Action 7)
+  enableHypergraph: true,
 };
 
 /**
@@ -176,11 +224,15 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
   // V3: GNN and SONA integrations
   private gnnIndex?: QEGNNEmbeddingIndex;
-  private sonaEngine?: QESONA;
+  private sonaEngine?: PersistentSONAEngine;
   private rlInitialized = false;
 
   // V3: MetricCollector for real code metrics (Phase 5)
   private metricCollector?: IMetricCollectorService;
+
+  // V3: Hypergraph Engine for intelligent code analysis (GOAP Action 7)
+  private hypergraph?: HypergraphEngine;
+  private hypergraphDb?: import('better-sqlite3').Database;
 
   // V3: Product Factors Bridge for cross-domain C4 access
   private productFactorsBridge: ProductFactorsBridgeService;
@@ -229,10 +281,54 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
       console.log('[CodeIntelligence] MetricCollector initialized for real code metrics');
     }
 
+    // V3: Initialize Hypergraph Engine for intelligent code analysis (GOAP Action 7)
+    if (this.config.enableHypergraph) {
+      await this.initializeHypergraph();
+    }
+
     // V3: Initialize Product Factors Bridge
     await this.productFactorsBridge.initialize();
 
     this.initialized = true;
+  }
+
+  /**
+   * Initialize V3 Hypergraph Engine for code intelligence (GOAP Action 7)
+   */
+  private async initializeHypergraph(): Promise<void> {
+    try {
+      // Import better-sqlite3 dynamically to avoid issues in environments where it's not available
+      const Database = (await import('better-sqlite3')).default;
+
+      // Use configured path or default
+      const dbPath = this.config.hypergraphDbPath || '.agentic-qe/hypergraph.db';
+
+      // Ensure directory exists
+      const fs = await import('fs');
+      const path = await import('path');
+      const dir = path.dirname(dbPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      // Create database connection
+      this.hypergraphDb = new Database(dbPath);
+
+      // Create hypergraph engine
+      this.hypergraph = await createHypergraphEngine({
+        db: this.hypergraphDb,
+        maxTraversalDepth: 10,
+        maxQueryResults: 1000,
+        enableVectorSearch: this.config.enableGNN,
+      });
+
+      console.log(`[CodeIntelligence] Hypergraph Engine initialized at ${dbPath}`);
+    } catch (error) {
+      console.error('[CodeIntelligence] Failed to initialize Hypergraph Engine:', error);
+      // Don't throw - hypergraph is optional, coordinator should still work
+      this.hypergraph = undefined;
+      this.hypergraphDb = undefined;
+    }
   }
 
   /**
@@ -254,14 +350,22 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
         this.gnnIndex.initializeIndex('test' as EmbeddingNamespace);
       }
 
-      // Initialize SONA for code pattern learning
+      // Initialize SONA for code pattern learning (persistent patterns)
       if (this.config.enableSONA) {
-        this.sonaEngine = createQESONA({
-          hiddenDim: 256,
-          embeddingDim: 384,
-          patternClusters: 50,
-          maxPatterns: 10000,
-        });
+        try {
+          this.sonaEngine = await createPersistentSONAEngine({
+            domain: 'code-intelligence',
+            loadOnInit: true,
+            autoSaveInterval: 60000,
+            maxPatterns: 10000,
+            minConfidence: 0.6,
+          });
+          console.log('[CodeIntelligence] PersistentSONAEngine initialized for code pattern learning');
+        } catch (error) {
+          console.error('[CodeIntelligence] Failed to initialize PersistentSONAEngine:', error);
+          // Continue without SONA - it's optional
+          this.sonaEngine = undefined;
+        }
       }
 
       this.rlInitialized = true;
@@ -285,6 +389,27 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     if (this.gnnIndex) {
       QEGNNIndexFactory.closeInstance('code-intelligence');
     }
+
+    // V3: Clean up SONA engine (persistent patterns)
+    if (this.sonaEngine) {
+      try {
+        await this.sonaEngine.close();
+        this.sonaEngine = undefined;
+      } catch (error) {
+        console.error('[CodeIntelligence] Error closing SONA engine:', error);
+      }
+    }
+
+    // V3: Clean up Hypergraph Engine (GOAP Action 7)
+    if (this.hypergraphDb) {
+      try {
+        this.hypergraphDb.close();
+      } catch (error) {
+        console.error('[CodeIntelligence] Error closing hypergraph database:', error);
+      }
+      this.hypergraphDb = undefined;
+    }
+    this.hypergraph = undefined;
 
     // Dispose Product Factors Bridge
     await this.productFactorsBridge.dispose();
@@ -472,18 +597,29 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
       const result = await this.impactAnalyzer.analyzeImpact(request);
 
       if (result.success) {
+        this.updateWorkflowProgress(workflowId, 80);
+
+        // V3: Enhance impact analysis with hypergraph (GOAP Action 7)
+        let enhancedAnalysis = result.value;
+        if (this.config.enableHypergraph && this.hypergraph) {
+          enhancedAnalysis = await this.enhanceImpactWithHypergraph(request, result.value);
+        }
+
         this.updateWorkflowProgress(workflowId, 100);
         this.completeWorkflow(workflowId);
 
         // V3: Store impact pattern in SONA
         if (this.config.enableSONA && this.sonaEngine) {
-          await this.storeImpactPattern(request, result.value);
+          await this.storeImpactPattern(request, enhancedAnalysis);
         }
 
         // Publish events
         if (this.config.publishEvents) {
-          await this.publishImpactAnalysisCompleted(request, result.value);
+          await this.publishImpactAnalysisCompleted(request, enhancedAnalysis);
         }
+
+        // Return enhanced analysis
+        return { success: true, value: enhancedAnalysis };
       } else {
         this.failWorkflow(workflowId, result.error.message);
       }
@@ -1404,5 +1540,295 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     // If no marker found, return the parent directory of the first path
     const lastSlash = firstPath.lastIndexOf('/');
     return lastSlash > 0 ? firstPath.substring(0, lastSlash) : firstPath;
+  }
+
+  // ============================================================================
+  // V3: Hypergraph Integration for Intelligent Code Analysis (GOAP Action 7)
+  // ============================================================================
+
+  /**
+   * Check if hypergraph is enabled and initialized
+   */
+  isHypergraphEnabled(): boolean {
+    return this.config.enableHypergraph && this.hypergraph !== undefined;
+  }
+
+  /**
+   * Find untested functions using hypergraph analysis
+   *
+   * Uses the HypergraphEngine to find functions that have no test coverage
+   * based on the 'covers' edge type in the code knowledge graph.
+   *
+   * @returns Array of HypergraphNode representing untested functions
+   */
+  async findUntestedFunctions(): Promise<Result<HypergraphNode[], Error>> {
+    if (!this.hypergraph) {
+      return err(new Error('Hypergraph is not enabled or not initialized'));
+    }
+
+    try {
+      const untestedFunctions = await this.hypergraph.findUntestedFunctions();
+
+      console.log(
+        `[CodeIntelligence] Found ${untestedFunctions.length} untested functions via hypergraph`
+      );
+
+      // Publish event
+      if (this.config.publishEvents) {
+        const event = createEvent(
+          'code-intelligence.UntestedFunctionsFound',
+          'code-intelligence',
+          {
+            count: untestedFunctions.length,
+            functions: untestedFunctions.slice(0, 10).map((f) => ({
+              name: f.name,
+              file: f.filePath,
+              complexity: f.complexity,
+            })),
+          }
+        );
+        await this.eventBus.publish(event);
+      }
+
+      return { success: true, value: untestedFunctions };
+    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      console.error('[CodeIntelligence] Failed to find untested functions:', errorObj.message);
+      return err(errorObj);
+    }
+  }
+
+  /**
+   * Find impacted tests using hypergraph traversal
+   *
+   * Uses the HypergraphEngine to find tests that cover functions in the changed files.
+   * This enables intelligent test selection based on code relationships.
+   *
+   * @param changedFiles - Array of file paths that have changed
+   * @returns Array of HypergraphNode representing impacted tests
+   */
+  async findImpactedTestsFromHypergraph(
+    changedFiles: string[]
+  ): Promise<Result<HypergraphNode[], Error>> {
+    if (!this.hypergraph) {
+      return err(new Error('Hypergraph is not enabled or not initialized'));
+    }
+
+    if (changedFiles.length === 0) {
+      return { success: true, value: [] };
+    }
+
+    try {
+      const impactedTests = await this.hypergraph.findImpactedTests(changedFiles);
+
+      console.log(
+        `[CodeIntelligence] Found ${impactedTests.length} impacted tests for ` +
+          `${changedFiles.length} changed files via hypergraph`
+      );
+
+      // Publish event
+      if (this.config.publishEvents) {
+        const event = createEvent(
+          'code-intelligence.ImpactedTestsFound',
+          'code-intelligence',
+          {
+            changedFiles,
+            testCount: impactedTests.length,
+            tests: impactedTests.slice(0, 10).map((t) => ({
+              name: t.name,
+              file: t.filePath,
+            })),
+          }
+        );
+        await this.eventBus.publish(event);
+      }
+
+      return { success: true, value: impactedTests };
+    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      console.error('[CodeIntelligence] Failed to find impacted tests:', errorObj.message);
+      return err(errorObj);
+    }
+  }
+
+  /**
+   * Find coverage gaps using hypergraph analysis
+   *
+   * Uses the HypergraphEngine to find functions with low test coverage.
+   * This helps identify areas that need more testing.
+   *
+   * @param maxCoverage - Maximum coverage percentage to consider as a gap (default: 50)
+   * @returns Array of HypergraphNode representing functions with coverage gaps
+   */
+  async findCoverageGapsFromHypergraph(
+    maxCoverage: number = 50
+  ): Promise<Result<HypergraphNode[], Error>> {
+    if (!this.hypergraph) {
+      return err(new Error('Hypergraph is not enabled or not initialized'));
+    }
+
+    try {
+      const coverageGaps = await this.hypergraph.findCoverageGaps(maxCoverage);
+
+      console.log(
+        `[CodeIntelligence] Found ${coverageGaps.length} coverage gaps ` +
+          `(functions with <=${maxCoverage}% coverage) via hypergraph`
+      );
+
+      // Publish event
+      if (this.config.publishEvents) {
+        const event = createEvent(
+          'code-intelligence.CoverageGapsFound',
+          'code-intelligence',
+          {
+            maxCoverage,
+            gapCount: coverageGaps.length,
+            gaps: coverageGaps.slice(0, 10).map((g) => ({
+              name: g.name,
+              file: g.filePath,
+              coverage: g.coverage,
+              complexity: g.complexity,
+            })),
+          }
+        );
+        await this.eventBus.publish(event);
+      }
+
+      return { success: true, value: coverageGaps };
+    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      console.error('[CodeIntelligence] Failed to find coverage gaps:', errorObj.message);
+      return err(errorObj);
+    }
+  }
+
+  /**
+   * Build hypergraph from code index result
+   *
+   * Populates the hypergraph with code entities and relationships from
+   * the code indexing result. This creates nodes for files, functions,
+   * classes, and modules, along with edges for imports and dependencies.
+   *
+   * @param indexResult - Code index result containing files and entities
+   * @returns Build result with counts of nodes and edges created
+   */
+  async buildHypergraphFromIndex(
+    indexResult: CodeIndexResult
+  ): Promise<Result<HypergraphBuildResult, Error>> {
+    if (!this.hypergraph) {
+      return err(new Error('Hypergraph is not enabled or not initialized'));
+    }
+
+    try {
+      console.log(
+        `[CodeIntelligence] Building hypergraph from ${indexResult.files.length} indexed files`
+      );
+
+      const buildResult = await this.hypergraph.buildFromIndexResult(indexResult);
+
+      console.log(
+        `[CodeIntelligence] Hypergraph built: ` +
+          `${buildResult.nodesCreated} nodes created, ` +
+          `${buildResult.nodesUpdated} nodes updated, ` +
+          `${buildResult.edgesCreated} edges created ` +
+          `(${buildResult.durationMs}ms)`
+      );
+
+      // Store build result in memory
+      await this.memory.set(
+        `hypergraph:build:latest`,
+        {
+          timestamp: new Date().toISOString(),
+          ...buildResult,
+        },
+        { namespace: 'code-intelligence', persist: true }
+      );
+
+      // Publish event
+      if (this.config.publishEvents) {
+        const event = createEvent(
+          'code-intelligence.HypergraphBuilt',
+          'code-intelligence',
+          {
+            nodesCreated: buildResult.nodesCreated,
+            nodesUpdated: buildResult.nodesUpdated,
+            edgesCreated: buildResult.edgesCreated,
+            durationMs: buildResult.durationMs,
+            errorCount: buildResult.errors.length,
+          }
+        );
+        await this.eventBus.publish(event);
+      }
+
+      return { success: true, value: buildResult };
+    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      console.error('[CodeIntelligence] Failed to build hypergraph:', errorObj.message);
+      return err(errorObj);
+    }
+  }
+
+  /**
+   * Get the Hypergraph Engine for direct access (advanced usage)
+   */
+  getHypergraph(): HypergraphEngine | undefined {
+    return this.hypergraph;
+  }
+
+  /**
+   * Enhanced impact analysis using hypergraph when available
+   *
+   * This extends the base analyzeImpact method by merging hypergraph-based
+   * test discovery with the existing impact analysis.
+   */
+  private async enhanceImpactWithHypergraph(
+    request: ImpactRequest,
+    baseAnalysis: ImpactAnalysis
+  ): Promise<ImpactAnalysis> {
+    if (!this.hypergraph) {
+      return baseAnalysis;
+    }
+
+    try {
+      // Find additional impacted tests using hypergraph
+      const hypergraphTests = await this.hypergraph.findImpactedTests(request.changedFiles);
+
+      // Merge with existing impacted tests (deduplicate)
+      const allTests = new Set([
+        ...baseAnalysis.impactedTests,
+        ...hypergraphTests.map((t) => t.filePath || t.name),
+      ]);
+
+      // Update risk level if hypergraph found more impacted tests
+      let newRiskLevel = baseAnalysis.riskLevel;
+      if (hypergraphTests.length > baseAnalysis.impactedTests.length) {
+        // Hypergraph found additional tests - might indicate higher risk
+        const totalImpact =
+          baseAnalysis.directImpact.length + baseAnalysis.transitiveImpact.length;
+        if (totalImpact > 10 && allTests.size > 20) {
+          newRiskLevel = 'critical';
+        } else if (totalImpact > 5 && allTests.size > 10) {
+          newRiskLevel = 'high';
+        }
+      }
+
+      // Add recommendation about hypergraph-discovered tests
+      const newRecommendations = [...baseAnalysis.recommendations];
+      if (hypergraphTests.length > 0) {
+        newRecommendations.push(
+          `Hypergraph analysis found ${hypergraphTests.length} additional test(s) to run`
+        );
+      }
+
+      return {
+        ...baseAnalysis,
+        impactedTests: Array.from(allTests),
+        riskLevel: newRiskLevel,
+        recommendations: newRecommendations,
+      };
+    } catch (error) {
+      console.error('[CodeIntelligence] Failed to enhance impact with hypergraph:', error);
+      return baseAnalysis;
+    }
   }
 }

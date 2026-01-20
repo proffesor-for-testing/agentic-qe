@@ -46,13 +46,13 @@ function createConfig(overrides: Partial<RuVectorConfig> = {}): RuVectorConfig {
 
 describe('Diff Risk Classifier', () => {
   describe('Factory Function', () => {
-    it('should create RuVectorDiffRiskClassifier when enabled', () => {
-      const classifier = createDiffRiskClassifier(createConfig({ enabled: true }));
+    it('should create RuVectorDiffRiskClassifier when enabled', async () => {
+      const classifier = await createDiffRiskClassifier(createConfig({ enabled: true }));
       expect(classifier).toBeInstanceOf(RuVectorDiffRiskClassifier);
     });
 
-    it('should create FallbackDiffRiskClassifier when disabled', () => {
-      const classifier = createDiffRiskClassifier(createConfig({ enabled: false }));
+    it('should create FallbackDiffRiskClassifier when disabled', async () => {
+      const classifier = await createDiffRiskClassifier(createConfig({ enabled: false }));
       expect(classifier).toBeInstanceOf(FallbackDiffRiskClassifier);
     });
   });
@@ -319,7 +319,7 @@ describe('Diff Risk Classifier', () => {
 
   describe('Integration', () => {
     it('should fallback when RuVector disabled', async () => {
-      const classifier = createDiffRiskClassifier(createConfig({ enabled: false }));
+      const classifier = await createDiffRiskClassifier(createConfig({ enabled: false }));
       const result = await classifier.classifyDiff(createDiffContext());
 
       expect(result.usedFallback).toBe(true);

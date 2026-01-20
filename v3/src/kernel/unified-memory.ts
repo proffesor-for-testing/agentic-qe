@@ -21,6 +21,7 @@ import Database, { type Database as DatabaseType, type Statement } from 'better-
 import * as fs from 'fs';
 import * as path from 'path';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
+import { HYPERGRAPH_SCHEMA } from '../migrations/20260120_add_hypergraph_tables.js';
 
 // ============================================================================
 // Configuration
@@ -54,7 +55,7 @@ export const DEFAULT_UNIFIED_MEMORY_CONFIG: UnifiedMemoryConfig = {
 // Schema Version for Migrations
 // ============================================================================
 
-const SCHEMA_VERSION = 5; // v5: adds MinCut tables (ADR-047)
+const SCHEMA_VERSION = 7; // v7: adds SONA patterns table (Neural Backbone)
 
 const SCHEMA_VERSION_TABLE = `
   CREATE TABLE IF NOT EXISTS schema_version (
@@ -513,6 +514,34 @@ const MINCUT_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_mincut_observations_iter ON mincut_observations(iteration);
 `;
 
+const SONA_PATTERNS_SCHEMA = `
+  -- SONA Patterns table (ADR-046: Pattern Persistence for Neural Backbone)
+  CREATE TABLE IF NOT EXISTS sona_patterns (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    state_embedding BLOB,
+    action_embedding BLOB,
+    action_type TEXT NOT NULL,
+    action_value TEXT,
+    outcome_reward REAL NOT NULL DEFAULT 0.0,
+    outcome_success INTEGER NOT NULL DEFAULT 0,
+    outcome_quality REAL NOT NULL DEFAULT 0.0,
+    confidence REAL DEFAULT 0.5,
+    usage_count INTEGER DEFAULT 0,
+    success_count INTEGER DEFAULT 0,
+    failure_count INTEGER DEFAULT 0,
+    metadata TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    last_used_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_sona_patterns_type ON sona_patterns(type);
+  CREATE INDEX IF NOT EXISTS idx_sona_patterns_domain ON sona_patterns(domain);
+  CREATE INDEX IF NOT EXISTS idx_sona_patterns_confidence ON sona_patterns(confidence DESC);
+  CREATE INDEX IF NOT EXISTS idx_sona_patterns_updated ON sona_patterns(updated_at DESC);
+`;
+
 // ============================================================================
 // In-Memory HNSW Index for Fast Vector Search
 // ============================================================================
@@ -823,6 +852,16 @@ export class UnifiedMemoryManager {
         // v5: MinCut tables (ADR-047)
         if (currentVersion < 5) {
           this.db!.exec(MINCUT_SCHEMA);
+        }
+
+        // v6: Hypergraph tables (Neural Backbone)
+        if (currentVersion < 6) {
+          this.db!.exec(HYPERGRAPH_SCHEMA);
+        }
+
+        // v7: SONA Patterns table (Neural Backbone)
+        if (currentVersion < 7) {
+          this.db!.exec(SONA_PATTERNS_SCHEMA);
         }
 
         // Update schema version
@@ -1162,6 +1201,11 @@ export class UnifiedMemoryManager {
       'mincut_alerts',
       'mincut_healing_actions',
       'mincut_observations',
+      // v6: Hypergraph tables (Neural Backbone)
+      'hypergraph_nodes',
+      'hypergraph_edges',
+      // v7: SONA Patterns table (Neural Backbone)
+      'sona_patterns',
     ];
 
     const tableStats = tables.map(name => {

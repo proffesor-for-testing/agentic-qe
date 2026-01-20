@@ -175,6 +175,26 @@ export class SkillsInstaller {
       join(this.projectRoot, 'node_modules/@agentic-qe/v3/assets/skills'),
     ];
 
+    // For global npm installs, also check global node_modules paths
+    try {
+      const { execSync } = require('child_process');
+      // Get npm global prefix
+      const npmPrefix = execSync('npm config get prefix', { encoding: 'utf-8' }).trim();
+
+      // Add global paths for different package names
+      possiblePaths.push(
+        // Global install as @agentic-qe/v3
+        join(npmPrefix, 'lib/node_modules/@agentic-qe/v3/assets/skills'),
+        // Global install as agentic-qe (root package)
+        join(npmPrefix, 'lib/node_modules/agentic-qe/.claude/skills'),
+        // Linux global without lib
+        join(npmPrefix, 'node_modules/@agentic-qe/v3/assets/skills'),
+        join(npmPrefix, 'node_modules/agentic-qe/.claude/skills'),
+      );
+    } catch {
+      // Ignore errors getting npm prefix
+    }
+
     for (const skillsPath of possiblePaths) {
       if (existsSync(skillsPath)) {
         return skillsPath;
