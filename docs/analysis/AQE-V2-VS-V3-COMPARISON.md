@@ -1,6 +1,6 @@
 # Agentic QE v2 vs v3: Complete Comparison Guide
 
-> **Why Upgrade?** AQE v3 delivers significantly less code, O(log n) HNSW search, 166x faster MCP response times (verified benchmark), and intelligent model routing—while maintaining full backward compatibility.
+> **Why Upgrade?** AQE v3 delivers significantly less code, O(log n) HNSW search, 166x faster MCP response times (verified benchmark), intelligent model routing, **persistent neural learning**, and **real browser automation**—while maintaining full backward compatibility.
 
 ---
 
@@ -8,14 +8,17 @@
 
 | Metric | v2 | v3 | Improvement |
 |--------|----|----|-------------|
-| **Codebase Size** | 5,334 files / 125K LOC | 504 files / 62K LOC | Significantly smaller |
+| **Codebase Size** | 5,334 files / 125K LOC | 546 files / 65K LOC | Significantly smaller |
 | **Architecture** | Monolithic + Feature-sprawl | DDD 12 Bounded Contexts | Clean separation |
 | **Pattern Search** | O(n) linear scan | O(log n) HNSW indexed | Sublinear complexity |
 | **MCP Response** | ~100ms P95 target | 0.6ms P95 actual | 166x faster |
-| **Agents** | ~20 loosely organized | 50 specialized (43+7) | 2.5x more, organized |
+| **Agents** | ~20 loosely organized | 48 specialized (41+7) | 2.4x more, organized |
 | **Learning** | Basic pattern store | ReasoningBank + Dream cycles + 9 RL algorithms | Full AI learning stack |
 | **Model Routing** | None (manual selection) | 3-tier intelligent routing (ADR-026) | Cost optimized |
 | **Coordination** | EventEmitter-based | Queen Coordinator + MinCut | 3-5x throughput |
+| **Neural Backbone** | None | Persistent Q-Learning + SONA (ADR-050) | ✅ **NEW** |
+| **Browser Testing** | None | Vibium + agent-browser real automation | ✅ **NEW** |
+| **Tests** | ~200 | 6,826 | 34x more tests |
 
 ---
 
@@ -27,10 +30,12 @@
 4. [Learning & Self-Improvement](#4-learning--self-improvement)
 5. [Intelligent Model Routing](#5-intelligent-model-routing)
 6. [Memory & Vector Search](#6-memory--vector-search)
-7. [CLI & Developer Experience](#7-cli--developer-experience)
-8. [Performance Benchmarks](#8-performance-benchmarks)
-9. [Migration Path](#9-migration-path)
-10. [Why Upgrade to v3?](#10-why-upgrade-to-v3)
+7. [RuVector Neural Backbone](#7-ruvector-neural-backbone) ✅ **NEW**
+8. [Browser Automation](#8-browser-automation) ✅ **NEW**
+9. [CLI & Developer Experience](#9-cli--developer-experience)
+10. [Performance Benchmarks](#10-performance-benchmarks)
+11. [Migration Path](#11-migration-path)
+12. [Why Upgrade to v3?](#12-why-upgrade-to-v3)
 
 ---
 
@@ -326,7 +331,7 @@ memory_delete, memory_usage, memory_share
 | **Concept Graph** | Association discovery | Weighted directed graph |
 | **Insight Generator** | Novel pattern creation | Novelty + confidence |
 | **9 RL Algorithms** | Domain-specific learning | Q-Learning, PPO, DQN, A2C, DDPG, etc. |
-| **SONA** | Self-optimizing neural architecture | <0.05ms adaptation |
+| **SONA** | Self-optimizing neural architecture | Persistent patterns ✅ |
 | **Transfer Specialist** | Cross-domain knowledge sharing | Semantic similarity |
 
 **Dream Cycle Process:**
@@ -445,7 +450,188 @@ CachedHNSWVectorMemory
 
 ---
 
-## 7. CLI & Developer Experience
+## 7. RuVector Neural Backbone
+
+> **NEW in v3.0.0-alpha.43** - Implemented via ADR-050 GOAP (8/8 actions complete)
+
+### v2: No Persistent Neural Learning
+
+```typescript
+// v2: Learning resets on restart
+- Q-values lost between sessions
+- SONA patterns not persisted
+- No EWC protection against forgetting
+- Manual model selection every time
+```
+
+### v3: Persistent Neural Backbone (ADR-050)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                 RUVECTOR NEURAL BACKBONE                       │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  ┌──────────────────────┐    ┌──────────────────────┐         │
+│  │ PersistentQLearning  │    │ PersistentSONAEngine │         │
+│  │     Router           │    │                      │         │
+│  │ ─────────────────    │    │ ─────────────────    │         │
+│  │ • SQLite Q-values    │    │ • Pattern persistence│         │
+│  │ • EWC++ protection   │    │ • Cross-session state│         │
+│  │ • Fisher Information │    │ • Auto-save intervals│         │
+│  │ • Route optimization │    │ • Domain-specific    │         │
+│  └──────────┬───────────┘    └──────────┬───────────┘         │
+│             │                           │                      │
+│             └─────────┬─────────────────┘                      │
+│                       ▼                                        │
+│  ┌────────────────────────────────────────────────────────┐   │
+│  │           Unified Memory Backend (SQLite)               │   │
+│  │  • rl_q_values, sona_patterns, hypergraph_nodes/edges  │   │
+│  │  • dream_cycles, goap_*, mincut_*, vectors             │   │
+│  └────────────────────────────────────────────────────────┘   │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**Key Components:**
+
+| Component | Purpose | Persistence |
+|-----------|---------|-------------|
+| **PersistentQLearningRouter** | Agent-to-task routing optimization | SQLite `rl_q_values` table |
+| **PersistentSONAEngine** | Self-optimizing neural patterns | SQLite `sona_patterns` table |
+| **EWC++ Protection** | Prevents catastrophic forgetting | Fisher Information Matrix |
+| **HypergraphEngine** | Code intelligence graph queries | SQLite `hypergraph_*` tables |
+| **ML Observability** | Track ML vs fallback usage | Metrics collection |
+| **SharedMemoryManager** | Fleet-wide state sharing | Cross-agent coordination |
+
+**EWC++ (Elastic Weight Consolidation):**
+
+```typescript
+// v3: Learning survives restarts with EWC++ protection
+{
+  ewcEnabled: true,        // Prevent catastrophic forgetting
+  ewcLambda: 0.5,          // Regularization strength
+  consolidationThreshold: 100,  // Consolidate after N updates
+  fisherSamples: 50,       // Samples for Fisher Information Matrix
+}
+
+// Q-values persist across sessions
+await router.updateQValue('security-scanner', 'security-audit', 0.95);
+// → Saved to SQLite with EWC protection
+// → Available after restart
+```
+
+**Integration Points (8/8 Complete):**
+
+1. ✅ `DefaultRuVectorClient` → `PersistentQLearningRouter`
+2. ✅ `TestGenerationCoordinator` → `PersistentSONAEngine`
+3. ✅ `CoverageAnalysisCoordinator` → `PersistentSONAEngine`
+4. ✅ `QualityAssessmentCoordinator` → `PersistentSONAEngine`
+5. ✅ `DefectIntelligenceCoordinator` → `PersistentSONAEngine`
+6. ✅ `LearningOptimizationCoordinator` → `PersistentSONAEngine`
+7. ✅ `CodeIntelligenceCoordinator` → `PersistentSONAEngine` + `HypergraphEngine`
+8. ✅ `RuVectorServiceProvider.getGlobalSONA()` → `PersistentSONAEngine`
+
+---
+
+## 8. Browser Automation
+
+> **NEW in v3.0.0-alpha.32** - Real browser testing with Vibium and agent-browser
+
+### v2: No Browser Automation
+
+```typescript
+// v2: Mock-based testing only
+- No real browser interaction
+- Accessibility testing via static analysis
+- Visual regression not supported
+- E2E tests require external tools
+```
+
+### v3: Dual Browser Integration
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  BROWSER AUTOMATION                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│   ┌─────────────────────┐    ┌─────────────────────┐        │
+│   │      VIBIUM         │    │   AGENT-BROWSER     │        │
+│   │ ─────────────────   │    │ ─────────────────   │        │
+│   │ • WebDriver BiDi    │    │ • CDP-based         │        │
+│   │ • Lightweight       │    │ • Full debugging    │        │
+│   │ • Fast execution    │    │ • Trace recording   │        │
+│   │ • axe-core a11y     │    │ • Network mocking   │        │
+│   └─────────┬───────────┘    └─────────┬───────────┘        │
+│             │                           │                    │
+│             └─────────┬─────────────────┘                    │
+│                       ▼                                      │
+│   ┌──────────────────────────────────────────────────────┐  │
+│   │             Visual Accessibility Domain               │  │
+│   │  • Multi-viewport screenshots                        │  │
+│   │  • Visual regression with baseline comparison        │  │
+│   │  • Real WCAG testing via axe-core in browser        │  │
+│   │  • E2E user flow generation                         │  │
+│   └──────────────────────────────────────────────────────┘  │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Comparison:**
+
+| Feature | Vibium | agent-browser |
+|---------|--------|---------------|
+| **Protocol** | WebDriver BiDi | CDP |
+| **Weight** | Lightweight | Full-featured |
+| **Speed** | Faster | More thorough |
+| **Network Mocking** | Basic | Full control |
+| **Auth Persistence** | Session-based | Cookies + localStorage |
+| **Trace Recording** | No | Yes |
+| **Best For** | Quick validation | Deep debugging |
+
+**Capabilities:**
+
+```typescript
+// Real browser accessibility testing
+const results = await accessibilityTester.runAccessibilityAudit({
+  url: 'https://example.com',
+  standard: 'WCAG2.1-AA',
+  browserMode: 'vibium',  // or 'agent-browser'
+});
+
+// Multi-viewport visual regression
+const screenshots = await viewportCapture.captureAllViewports({
+  url: 'https://example.com',
+  viewports: ['mobile', 'tablet', 'desktop'],
+  compareBaseline: true,
+});
+
+// E2E test generation with real browser
+const e2eTests = await e2eRunner.generateUserFlows({
+  entryUrl: 'https://example.com/login',
+  targetActions: ['login', 'navigate', 'submit-form'],
+  captureNetwork: true,
+});
+
+// Network mocking for isolated testing
+await networkMocker.mockRoute('/api/users', {
+  status: 200,
+  body: { users: [{ id: 1, name: 'Test' }] },
+});
+```
+
+**Integration with Visual-Accessibility Domain:**
+
+| Service | Vibium Support | agent-browser Support |
+|---------|----------------|----------------------|
+| `AccessibilityTester` | ✅ axe-core in browser | ✅ axe-core in browser |
+| `ViewportCapture` | ✅ Screenshots | ✅ Screenshots + trace |
+| `E2ERunner` | ✅ User flows | ✅ User flows + debug |
+| `NetworkMocker` | ⚠️ Limited | ✅ Full CDP control |
+| `AuthStateManager` | ⚠️ Session | ✅ Full persistence |
+
+---
+
+## 9. CLI & Developer Experience
 
 ### v2: 70+ CLI Commands
 
@@ -505,7 +691,7 @@ aqe hooks post-task --task-id <id> --success true
 
 ---
 
-## 8. Performance Benchmarks
+## 10. Performance Benchmarks
 
 ### MCP Response Times
 
@@ -525,7 +711,7 @@ aqe hooks post-task --task-id <id> --success true
 |-----------|----|----|-------------|
 | Pattern search (1K) | 10ms | 0.1ms | O(log n) |
 | Pattern search (100K) | 1000ms | 0.17ms | O(log n) |
-| SONA adaptation | ~1ms | <0.05ms | Faster |
+| SONA adaptation | ~1ms | Persistent | Pattern survival ✅ |
 | Dream cycle | N/A | 30s max | New feature |
 
 ### Resource Usage
@@ -538,7 +724,7 @@ aqe hooks post-task --task-id <id> --success true
 
 ---
 
-## 9. Migration Path
+## 11. Migration Path
 
 ### Zero-Breaking-Changes Guarantee
 
@@ -584,7 +770,7 @@ mcp__agentic-qe__coverage_analyze_sublinear({ target: "src/" })
 
 ---
 
-## 10. Why Upgrade to v3?
+## 12. Why Upgrade to v3?
 
 ### For Individual Developers
 
@@ -594,6 +780,8 @@ mcp__agentic-qe__coverage_analyze_sublinear({ target: "src/" })
 | **166x faster MCP** | Sub-millisecond response times |
 | **Auto-learning** | System improves from your usage patterns |
 | **Better tests** | AI-powered test generation with pattern matching |
+| **Persistent learning** | Q-values and SONA patterns survive restarts ✅ **NEW** |
+| **Real browser testing** | Vibium and agent-browser integrations ✅ **NEW** |
 
 ### For Teams
 
@@ -603,6 +791,8 @@ mcp__agentic-qe__coverage_analyze_sublinear({ target: "src/" })
 | **3-5x throughput** | Queen Coordinator with work stealing |
 | **Quality gates** | Automated deployment readiness assessment |
 | **Knowledge sharing** | Cross-project pattern transfer |
+| **Real accessibility** | axe-core testing in actual browser context ✅ **NEW** |
+| **Visual regression** | Automated screenshot comparison ✅ **NEW** |
 
 ### For Organizations
 
@@ -612,6 +802,8 @@ mcp__agentic-qe__coverage_analyze_sublinear({ target: "src/" })
 | **Compliance ready** | Built-in OWASP, CVE, GDPR, SOC2 validation |
 | **Scalability** | O(log n) algorithms handle 100K+ file codebases |
 | **Auditability** | Token tracking, cost reporting, decision logging |
+| **EWC++ protection** | Prevents catastrophic forgetting in production ✅ **NEW** |
+| **29-table database** | Complete persistence layer for all QE data ✅ **NEW** |
 
 ### Feature Comparison Summary
 
@@ -630,6 +822,13 @@ mcp__agentic-qe__coverage_analyze_sublinear({ target: "src/" })
 | Interactive Init | No | Yes |
 | Cost Tracking | No | Yes |
 | Multi-Model Consensus | No | Yes |
+| Persistent Q-Learning | No | Yes ✅ **NEW** |
+| Persistent SONA | No | Yes ✅ **NEW** |
+| EWC++ Protection | No | Yes ✅ **NEW** |
+| Browser Automation | No | Vibium + agent-browser ✅ **NEW** |
+| Real axe-core A11y | No | Yes ✅ **NEW** |
+| Visual Regression | No | Yes ✅ **NEW** |
+| Hypergraph Engine | No | Yes ✅ **NEW** |
 
 ---
 
@@ -642,9 +841,12 @@ AQE v3 represents a complete architectural reimagining of the quality engineerin
 - **166x faster** MCP response times (verified benchmark)
 - **Cost optimization** with intelligent routing
 - **Full AI learning stack** with Dream cycles and RL
+- **Persistent neural learning** with EWC++ protection ✅ **NEW**
+- **Real browser automation** with Vibium and agent-browser ✅ **NEW**
+- **6,826 tests** ensuring stability and correctness
 - **Zero breaking changes** for migration
 
-**Recommendation:** Upgrade to v3 for any new project, and migrate existing projects to benefit from cost savings and performance improvements.
+**Recommendation:** Upgrade to v3 for any new project, and migrate existing projects to benefit from cost savings, performance improvements, and persistent learning.
 
 ---
 
@@ -652,20 +854,21 @@ AQE v3 represents a complete architectural reimagining of the quality engineerin
 
 ```bash
 # Install
-npm install -g agentic-qe
+npm install @agentic-qe/v3@alpha
 
-# Initialize
+# Initialize (creates all artifacts including SQLite database with 29 tables)
 cd your-project
-aqe init --wizard
+npx aqe init --auto
 
 # Add MCP server to Claude Code
 claude mcp add aqe -- aqe-mcp
 
 # Start using
 # MCP tools are now available in Claude Code
+# Learning persists across sessions via SQLite backend
 ```
 
 ---
 
-*Document generated: 2026-01-18*
-*AQE v3.0.0-alpha.27*
+*Document updated: 2026-01-20*
+*AQE v3.0.0-alpha.43*
