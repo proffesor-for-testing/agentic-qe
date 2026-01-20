@@ -7,6 +7,10 @@
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, unlinkSync, copyFileSync } from 'fs';
 import { join, dirname } from 'path';
+import { createRequire } from 'module';
+
+// Create require for CommonJS modules (better-sqlite3) in ESM context
+const require = createRequire(import.meta.url);
 import type {
   ProjectAnalysis,
   AQEInitConfig,
@@ -173,8 +177,7 @@ export class InitOrchestrator {
    */
   private readVersionFromDb(dbPath: string): string | undefined {
     try {
-      // Dynamic import to avoid issues if better-sqlite3 not available
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      // Use require (via createRequire) for synchronous loading of native module
       const Database = require('better-sqlite3');
       const db = new Database(dbPath, { readonly: true, fileMustExist: true });
 
@@ -226,7 +229,7 @@ export class InitOrchestrator {
         mkdirSync(dir, { recursive: true });
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      // Use require (via createRequire) for synchronous loading of native module
       const Database = require('better-sqlite3');
       const db = new Database(memoryDbPath);
 
