@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quality Criteria Recommendations - qe-fleet-commander Agent</title>
+  <style>
+    /* ============================================
+       QUALITY CRITERIA REFERENCE TEMPLATE
+       Template Version: 1.0.0 (Semantic Analysis)
+
+       USAGE: Copy this template structure exactly.
+       Only replace {PLACEHOLDER} values with actual data.
+       DO NOT modify CSS or HTML structure.
+       ============================================ */
+
+    :root {
+      --critical: #dc3545;
+      --critical-bg: #fff5f5;
+      --high: #fd7e14;
+      --high-bg: #fff8f0;
+      --medium: #ffc107;
+      --medium-bg: #fffdf5;
+      --low: #28a745;
+      --low-bg: #f5fff5;
+      --primary: #1a1a2e;
+      --secondary: #16213e;
+      --accent: #0f3460;
+      --text: #333;
+      --text-light: #666;
+      --border: #e4e8ec;
+      --bg: #f8f9fa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.7;
+      color: var(--text);
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: white;
+      padding: 2.5rem;
+      border-radius: 16px;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 40px rgba(26, 26, 46, 0.2);
+    }
+    .header h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    .header-subtitle { opacity: 0.9; font-size: 1.1rem; margin-bottom: 1rem; }
+    .header-meta { display: flex; gap: 2rem; flex-wrap: wrap; opacity: 0.85; font-size: 0.9rem; }
+
+    /* Executive Summary */
+    .executive-summary {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      border-left: 5px solid var(--accent);
+    }
+    .executive-summary h2 { color: var(--primary); margin-bottom: 1rem; }
+    .key-message {
+      font-size: 1.15rem;
+      font-weight: 500;
+      color: var(--primary);
+      padding: 1rem;
+      background: var(--bg);
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+    }
+    .priorities-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .priority-box {
+      padding: 1rem;
+      border-radius: 8px;
+    }
+    .priority-box.critical { background: var(--critical-bg); border-left: 4px solid var(--critical); }
+    .priority-box.high { background: var(--high-bg); border-left: 4px solid var(--high); }
+    .priority-box h4 { margin-bottom: 0.5rem; }
+    .priority-box ul { margin-left: 1.2rem; }
+    .priority-box li { margin-bottom: 0.25rem; }
+
+    /* Quick Reference Table */
+    .quick-reference {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .quick-reference h2 { color: var(--primary); margin-bottom: 1rem; }
+    .quick-reference table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .quick-reference th, .quick-reference td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .quick-reference th { background: var(--bg); font-weight: 600; }
+    .quick-reference tr:hover { background: #f8f9fa; }
+
+    /* Priority Sections */
+    .priority-section {
+      margin-bottom: 2rem;
+    }
+    .section-header {
+      padding: 1rem 1.5rem;
+      border-radius: 12px 12px 0 0;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .section-header.critical { background: var(--critical); }
+    .section-header.high { background: var(--high); }
+    .section-header.medium { background: var(--medium); color: var(--text); }
+    .section-header.low { background: var(--low); }
+    .section-header h2 { font-size: 1.25rem; margin: 0; }
+    .section-description {
+      padding: 1rem 1.5rem;
+      background: white;
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      color: var(--text-light);
+      font-style: italic;
+    }
+
+    /* Recommendation Cards */
+    .rec-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    .rec-card:not(:last-child) {
+      border-radius: 0;
+    }
+    .rec-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .rec-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+    .rec-category {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .confidence-badge {
+      background: var(--bg);
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      color: var(--text-light);
+      cursor: help;
+    }
+    .htsm-question {
+      font-style: italic;
+      color: var(--text-light);
+      padding: 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+      margin-top: 0.5rem;
+    }
+
+    /* Why It Matters */
+    .why-section {
+      padding: 1.5rem;
+      background: #fafbfc;
+      border-bottom: 1px solid var(--border);
+    }
+    .why-section h4 {
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .why-section p { line-height: 1.8; }
+
+    /* Evidence Section (Semantic Analysis) */
+    .evidence-section {
+      padding: 1.5rem;
+      background: #f0f7ff;
+      border-bottom: 1px solid var(--border);
+    }
+    .evidence-section h4 {
+      color: #1e40af;
+      margin-bottom: 0.75rem;
+    }
+    .evidence-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .evidence-table th {
+      background: #e0e7ff;
+      text-align: left;
+      padding: 0.5rem;
+    }
+    .evidence-table td {
+      padding: 0.5rem;
+      border-bottom: 1px solid #c7d2fe;
+    }
+    .evidence-reasoning {
+      font-style: italic;
+      color: var(--text-light);
+    }
+
+    /* Risk Warnings */
+    .risk-warnings {
+      padding: 1rem 1.5rem;
+      background: var(--critical-bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .risk-warning {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      color: var(--critical);
+    }
+    .risk-warning:not(:last-child) { border-bottom: 1px dashed rgba(220,53,69,0.3); }
+
+    /* Recommended Actions */
+    .actions-section {
+      padding: 1.5rem;
+    }
+    .collapsible-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+    .collapsible-header h4 { color: var(--primary); margin: 0; }
+    .collapse-icon { font-size: 0.8rem; color: var(--text-light); }
+    .collapsible-content.collapsed { display: none; }
+
+    .action-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1rem;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+    }
+    .action-type {
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
+      height: fit-content;
+    }
+    .action-type.engineering { background: #e3f2fd; color: #1565c0; }
+    .action-type.user_story { background: #f3e5f5; color: #7b1fa2; }
+    .action-type.testing { background: #e8f5e9; color: #2e7d32; }
+    .action-type.governance { background: #fff3e0; color: #e65100; }
+    .action-type.security { background: #ffebee; color: #c62828; }
+    .action-type.pi_planning { background: #e0f7fa; color: #00838f; }
+    .action-type.performance { background: #fce4ec; color: #ad1457; }
+    .action-content h5 { margin-bottom: 0.25rem; color: var(--primary); }
+    .action-content p { font-size: 0.9rem; color: var(--text-light); margin: 0; }
+
+    /* OKR Suggestions */
+    .okr-section {
+      padding: 1rem 1.5rem;
+      background: #f0f7ff;
+      border-top: 1px solid var(--border);
+    }
+    .okr-section h4 {
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+    .okr-item {
+      margin-bottom: 1rem;
+    }
+    .okr-objective {
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+    .okr-kr {
+      padding-left: 1.5rem;
+      color: var(--text-light);
+      font-size: 0.9rem;
+    }
+    .okr-kr li { margin-bottom: 0.25rem; }
+
+    /* Cross-Cutting Concerns */
+    .cross-cutting {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .cross-cutting h2 { color: var(--primary); margin-bottom: 1rem; }
+    .concern-card {
+      padding: 1.5rem;
+      background: var(--bg);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      border-left: 4px solid var(--accent);
+    }
+    .concern-card h4 { margin-bottom: 0.5rem; color: var(--primary); }
+    .concern-categories {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .concern-category {
+      background: var(--secondary);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+    }
+
+    /* PI Planning */
+    .pi-planning {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .pi-planning h2 { color: var(--primary); margin-bottom: 1rem; }
+    .pi-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .pi-table th, .pi-table td {
+      padding: 1rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .pi-table th {
+      background: var(--primary);
+      color: white;
+    }
+    .pi-table tr:nth-child(even) { background: var(--bg); }
+    .sprint-badge {
+      background: var(--accent);
+      color: white;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .criteria-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+    .criteria-tag {
+      background: var(--bg);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border);
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-light);
+      font-size: 0.875rem;
+    }
+    .footer a { color: var(--accent); text-decoration: none; }
+
+    /* Info Sections (About/Help) */
+    .info-section {
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    .info-header {
+      padding: 15px 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .info-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      opacity: 0.95;
+    }
+    .info-content {
+      padding: 0 20px 20px 20px;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+      max-height: 1000px;
+    }
+    .info-section.collapsed .info-content {
+      max-height: 0 !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .info-section.collapsed .collapse-icon {
+      transform: rotate(-90deg);
+    }
+    .info-content blockquote {
+      margin: 0 0 15px 0;
+      padding: 12px 15px;
+      border-left: 3px solid rgba(255,255,255,0.4);
+      font-style: italic;
+      opacity: 0.9;
+    }
+    .info-content p {
+      margin: 0 0 12px 0;
+      opacity: 0.9;
+      line-height: 1.7;
+    }
+    .info-content a {
+      color: #93c5fd;
+      text-decoration: underline;
+    }
+    .checklist-item {
+      margin-bottom: 8px;
+      line-height: 1.8;
+    }
+    .checklist-item strong {
+      color: white;
+    }
+
+    /* Badge styles */
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge.critical { background: var(--critical); color: white; }
+    .badge.high { background: var(--high); color: white; }
+    .badge.medium { background: var(--medium); color: var(--text); }
+    .badge.low { background: var(--low); color: white; }
+
+    @media (max-width: 768px) {
+      body { padding: 1rem; }
+      .header h1 { font-size: 1.5rem; }
+      .header-meta { flex-direction: column; gap: 0.5rem; }
+      .priorities-grid { grid-template-columns: 1fr; }
+      .pi-table { font-size: 0.85rem; }
+      .pi-table th, .pi-table td { padding: 0.5rem; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- HEADER SECTION -->
+    <header class="header">
+      <h1>Quality Criteria Recommendations</h1>
+      <div class="header-subtitle">qe-fleet-commander Agent - Hierarchical Fleet Coordinator for 50+ Agent Orchestration</div>
+      <div class="header-meta">
+        <span>Agent: qe-fleet-commander</span>
+        <span>2026-01-20</span>
+        <span>8 Quality Criteria Identified</span>
+        <span>80% Coverage</span>
+      </div>
+
+      <!-- How can this report help you? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>How can this report help you?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <blockquote>
+            "Quality is value to some person." <span style="opacity: 0.7;">- Jerry Weinberg</span>
+          </blockquote>
+          <p>This report is generated by the <strong>Quality Criteria Recommender</strong>, one of the core agents in the <strong>QCSD (Quality Conscious Software Delivery)</strong> framework. The QCSD framework recommends conducting Quality Criteria sessions early in the development lifecycle - ideally during PI Planning or Sprint Planning - to align the entire team on what "quality" means for each feature before a single line of code is written.</p>
+          <p>This analysis uses <strong>AI semantic understanding</strong> to identify relevant Quality Criteria from James Bach's <a href="https://www.satisfice.com/download/heuristic-test-strategy-model">Heuristic Test Strategy Model (HTSM) v6.3</a>. Unlike simple keyword matching, it understands the <em>meaning and implications</em> of your requirements to surface quality dimensions that may not be explicitly stated but are critical for user satisfaction.</p>
+          <p>A guided discussion based on this analysis helps teams uncover hidden quality risks, define testable acceptance criteria, create clearer development plans, identify gaps and dependencies early, improve estimation accuracy, and most importantly - <strong>avoid costly rework</strong> caused by discovering quality issues halfway through development. Research shows that defects found in production cost 30x more to fix than those found during requirements. If we want to save time and cost while still delivering quality software, <strong>it is always cheaper to do things right the first time</strong>.</p>
+          <p>Quality Criteria help answer fundamental questions: <em>What aspects of quality are most important for this feature? Where should we focus our testing effort? What risks exist if we neglect certain quality dimensions? How do we build quality in rather than test it in later?</em></p>
+        </div>
+      </div>
+
+      <!-- When to generate this report? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>When to generate this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <p><strong>During PI Planning &amp; Sprint Planning (QCSD Recommended):</strong> The QCSD framework recommends generating this report as soon as Epic/Feature requirements are available - ideally before Sprint Planning begins. This enables teams to conduct a <em>Quality Criteria Session</em> where programmers, testers, Product Owners, Designers, and Architects align on quality expectations before development starts.</p>
+          <p><strong>Shift-Left Quality Engineering:</strong> The cost of fixing defects increases exponentially as they move through the SDLC (1x in requirements -> 5x in design -> 10x in coding -> 30x in production). Use this report to shift quality discussions left - informing architecture decisions, refining acceptance criteria, identifying non-functional requirements gaps, and allocating appropriate testing effort before the first commit.</p>
+          <p><strong>Before Three Amigos / Refinement Sessions:</strong> Share this report with the team before refinement sessions to facilitate meaningful conversations about quality trade-offs. When everyone understands which quality dimensions matter most, the team can make informed decisions about scope, risk acceptance, and technical approach.</p>
+          <p><strong>As a Living Document:</strong> Regenerate this report when requirements change significantly. Quality criteria priorities may shift as the feature scope evolves - what was medium priority may become critical based on new information.</p>
+        </div>
+      </div>
+
+      <!-- How to use this report? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>How to use this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <p style="margin-bottom: 12px;">In this report you will find:</p>
+          <div style="margin-left: 5px; line-height: 1.8;">
+            <div class="checklist-item">&#x2610; <strong>Executive Summary</strong> - Key message and critical priorities at a glance.</div>
+            <div class="checklist-item">&#x2610; <strong>Quick Reference Table</strong> - All quality criteria with priorities and HTSM questions.</div>
+            <div class="checklist-item">&#x2610; <strong>Priority-Based Recommendations</strong> - Detailed analysis with evidence-based reasoning.</div>
+            <div class="checklist-item">&#x2610; <strong>Actionable Tasks</strong> - Engineering tasks, User Stories, and Testing activities.</div>
+            <div class="checklist-item">&#x2610; <strong>Suggested OKRs</strong> - Objectives and Key Results to measure success.</div>
+            <div class="checklist-item">&#x2610; <strong>Cross-Cutting Concerns</strong> - Quality aspects spanning multiple criteria.</div>
+            <div class="checklist-item">&#x2610; <strong>PI Planning Guidance</strong> - Sprint-by-sprint quality focus.</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+
+    <!-- EXECUTIVE SUMMARY -->
+    <section class="executive-summary">
+      <h2>Executive Summary</h2>
+      <div class="key-message">The qe-fleet-commander agent is a high-criticality infrastructure component responsible for orchestrating 50+ QE agents. Analysis reveals CRITICAL gaps in fault tolerance implementation (documented recovery mechanisms not fully implemented), HIGH priority reliability concerns around agent lifecycle management, and significant scalability testing requirements. The agent's role as the central coordinator creates inherent SPOF risks that must be addressed.</div>
+
+      <div class="priorities-grid">
+        <!-- Critical Priorities -->
+        <div class="priority-box critical">
+          <h4>&#x1F6A8; Critical Priorities</h4>
+          <ul>
+            <li><strong>Reliability</strong> - Fault tolerance config exists but recovery lacks retry logic</li>
+            <li><strong>Scalability</strong> - 50+ agent claim requires load testing validation</li>
+          </ul>
+        </div>
+
+        <!-- Quick Wins -->
+        <div class="priority-box high">
+          <h4>&#x26A1; Quick Wins</h4>
+          <ul>
+            <li>Add retry logic to spawnAgents() method</li>
+            <li>Implement circuit breaker for agent recovery</li>
+            <li>Add integration tests for topology resilience</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- QUICK REFERENCE TABLE -->
+    <section class="quick-reference">
+      <h2>Quick Reference</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Quality Criteria</th>
+            <th>Priority</th>
+            <th>Key Question</th>
+            <th>Primary Focus</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Reliability</strong></td>
+            <td><span class="badge critical">P0</span></td>
+            <td style="font-style: italic;">Will it work well and resist failure?</td>
+            <td>Fault tolerance, error handling, agent recovery</td>
+          </tr>
+          <tr>
+            <td><strong>Scalability</strong></td>
+            <td><span class="badge critical">P0</span></td>
+            <td style="font-style: italic;">How well does deployment scale?</td>
+            <td>50+ agent orchestration, resource limits</td>
+          </tr>
+          <tr>
+            <td><strong>Capability</strong></td>
+            <td><span class="badge high">P1</span></td>
+            <td style="font-style: italic;">Can it perform the required functions?</td>
+            <td>8 declared capabilities implementation</td>
+          </tr>
+          <tr>
+            <td><strong>Performance</strong></td>
+            <td><span class="badge high">P1</span></td>
+            <td style="font-style: italic;">How speedy and responsive?</td>
+            <td>Sublinear scheduling, load balancing</td>
+          </tr>
+          <tr>
+            <td><strong>Development</strong></td>
+            <td><span class="badge medium">P2</span></td>
+            <td style="font-style: italic;">How well can we create/test/modify?</td>
+            <td>Testability, maintainability of 1949 LOC</td>
+          </tr>
+          <tr>
+            <td><strong>Compatibility</strong></td>
+            <td><span class="badge medium">P2</span></td>
+            <td style="font-style: italic;">Works with external components?</td>
+            <td>EventBus, MemoryStore, BaseAgent integration</td>
+          </tr>
+          <tr>
+            <td><strong>Security</strong></td>
+            <td><span class="badge medium">P2</span></td>
+            <td style="font-style: italic;">How well protected against unauthorized use?</td>
+            <td>Resource allocation, agent authorization</td>
+          </tr>
+          <tr>
+            <td><strong>Usability</strong></td>
+            <td><span class="badge low">P3</span></td>
+            <td style="font-style: italic;">How easy is it for real users?</td>
+            <td>Operator experience, status reporting</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Priority Legend -->
+      <div style="margin-top: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border);">
+        <h4 style="margin: 0 0 1rem 0; color: var(--primary);">Priority Levels</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+          <div style="padding: 0.75rem; background: var(--critical-bg); border-left: 4px solid var(--critical); border-radius: 4px;">
+            <strong style="color: var(--critical);">P0 - CRITICAL</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Failure causes immediate business/user harm.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--high-bg); border-left: 4px solid var(--high); border-radius: 4px;">
+            <strong style="color: var(--high);">P1 - HIGH</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Critical to core user value proposition.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--medium-bg); border-left: 4px solid var(--medium); border-radius: 4px;">
+            <strong style="color: #b45309;">P2 - MEDIUM</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Affects satisfaction but not blocking.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--low-bg); border-left: 4px solid var(--low); border-radius: 4px;">
+            <strong style="color: var(--low);">P3 - LOW</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Nice-to-have quality improvements.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- CRITICAL PRIORITY SECTION -->
+    <section class="priority-section">
+      <div class="section-header critical">
+        <h2>Critical Priority Quality Criteria</h2>
+        <span>2 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria MUST be addressed immediately - failure poses unacceptable risk.</div>
+
+      <!-- RELIABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Reliability</span>
+            <span class="confidence-badge" title="Confidence based on evidence strength">95% confidence</span>
+          </div>
+          <div class="htsm-question">"Will it work well and resist failure in all anticipated conditions?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>The Fleet Commander is the central orchestrator for 50+ agents - if it fails, the entire QE fleet becomes uncoordinated. The documentation explicitly declares "Fault Tolerance" as a core responsibility (line 6 of specification), and the implementation includes fault tolerance configuration with heartbeat monitoring, yet critical recovery paths lack retry logic. The <code>spawnAgents()</code> method at line 847-890 has no error handling for transient spawn failures, and the <code>recoverAgent()</code> method at lines 1721-1759 only retries on explicit failure but doesn't handle partial failures.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> A single coordinator failure could cascade to affect all 50+ managed agents, causing complete test infrastructure unavailability. This represents a fleet-wide SPOF (Single Point of Failure).</p>
+        </div>
+
+        <!-- EVIDENCE SECTION -->
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Requirement Reference</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>.claude/agents/qe-fleet-commander.md:6</code></td>
+                <td>Fault Tolerance declared</td>
+                <td class="evidence-reasoning">"Fault Tolerance: Detect failures, trigger recovery, and maintain fleet resilience" - explicit responsibility but implementation gaps exist</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:496-505</code></td>
+                <td>Config shows intent</td>
+                <td class="evidence-reasoning">faultTolerance config with heartbeatInterval: 5000, heartbeatTimeout: 15000, maxRetries: 3 - configuration exists but not fully utilized</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:847-890</code></td>
+                <td>Missing retry logic</td>
+                <td class="evidence-reasoning">spawnAgents() lacks try-catch around requestAgentSpawn() call at line 870 - transient failures cause permanent unavailability</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:1721-1759</code></td>
+                <td>Recovery retry exists</td>
+                <td class="evidence-reasoning">recoverAgent() has retry loop but no exponential backoff or circuit breaker - could cause recovery storms</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:1682-1709</code></td>
+                <td>Heartbeat monitoring</td>
+                <td class="evidence-reasoning">startHeartbeatMonitoring() async loop checks agent health but handleAgentFailure() at line 1711 doesn't track failure patterns</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Fleet Commander failure cascades to all managed agents - no backup coordinator mechanism</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Recovery storms possible - multiple agents failing simultaneously could overwhelm recovery</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>No circuit breaker - failing services will continue to receive spawn requests</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Add retry logic to spawnAgents()</h5>
+                <p>Wrap requestAgentSpawn() calls in try-catch with exponential backoff at <code>src/agents/FleetCommanderAgent.ts:870</code></p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement circuit breaker pattern</h5>
+                <p>Add circuit breaker to prevent recovery storms when multiple agents fail - track failure rates per agent type</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Chaos testing for fault tolerance</h5>
+                <p>Test: Kill random agents during orchestration, verify recovery within maxRetries limit (3 attempts per config)</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Heartbeat timeout scenarios</h5>
+                <p>Test: Simulate network partitions causing heartbeat timeouts beyond 15000ms threshold</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="okr-section">
+          <h4>&#x1F3AF; Suggested OKRs</h4>
+          <div class="okr-item">
+            <div class="okr-objective">Objective: Achieve 99.9% fleet coordinator uptime</div>
+            <ul class="okr-kr">
+              <li>KR1: Reduce mean time to recovery (MTTR) from agent failures to &lt;10 seconds</li>
+              <li>KR2: Implement circuit breaker with &lt;5% false positive rate</li>
+              <li>KR3: Pass chaos engineering tests with 100% recovery rate for single-node failures</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCALABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Scalability</span>
+            <span class="confidence-badge" title="Confidence based on evidence strength">92% confidence</span>
+          </div>
+          <div class="htsm-question">"How well does deployment scale under increased agent load?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>The specification explicitly claims "50+ agent orchestration" (line 3 of specification), and the implementation sets <code>maxAgents: 50</code> as default (line 475). However, the actual scalability has not been validated - the sublinear scheduling algorithms mentioned in documentation (.claude/agents/qe-fleet-commander.md:14-15) have simplified implementations. The <code>optimizeUtilization()</code> method at line 1405-1409 uses basic linear interpolation rather than true sublinear algorithms.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> If scalability claims are not validated, production deployments could fail at scale, causing CI/CD pipeline failures and delayed releases.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Requirement Reference</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>.claude/agents/qe-fleet-commander.md:3</code></td>
+                <td>50+ agent claim</td>
+                <td class="evidence-reasoning">"Hierarchical fleet coordinator for 50+ agent orchestration" - marketing claim requiring validation</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:475</code></td>
+                <td>maxAgents: 50 default</td>
+                <td class="evidence-reasoning">Default configuration matches claim but no load tests verify this works under real conditions</td>
+              </tr>
+              <tr>
+                <td><code>.claude/agents/qe-fleet-commander.md:14-15</code></td>
+                <td>Sublinear scheduling</td>
+                <td class="evidence-reasoning">"Load Balancing: Distribute testing workloads optimally using sublinear scheduling algorithms" - implementation simplified</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:1405-1409</code></td>
+                <td>Simple optimization</td>
+                <td class="evidence-reasoning">optimizeUtilization() uses linear interpolation: "current + (delta * 0.5)" - not sublinear algorithm as documented</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:486-489</code></td>
+                <td>Resource limits</td>
+                <td class="evidence-reasoning">resourceLimits: cpuPerAgent: 0.5, memoryPerAgent: '512MB', maxConcurrent: 20 - 50 agents * 512MB = 25GB memory required</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>50+ agent claim unvalidated - could cause production failures at scale</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Memory requirements (25GB+ for 50 agents) may exceed typical CI runner limits</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Load test with 50 agents</h5>
+                <p>Create integration test spawning 50 concurrent agents, measure memory, CPU, and coordination latency</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type performance">Performance</span>
+              <div class="action-content">
+                <h5>Implement true sublinear scheduling</h5>
+                <p>Replace linear optimization at line 1405-1409 with Johnson-Lindenstrauss or similar O(log n) algorithm</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Add resource usage monitoring</h5>
+                <p>Track actual vs. configured memory usage per agent to validate 512MB/agent assumption</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="okr-section">
+          <h4>&#x1F3AF; Suggested OKRs</h4>
+          <div class="okr-item">
+            <div class="okr-objective">Objective: Validate and optimize 50+ agent scalability</div>
+            <ul class="okr-kr">
+              <li>KR1: Pass load test with 50 concurrent agents maintaining &lt;100ms coordination latency</li>
+              <li>KR2: Reduce memory footprint to &lt;256MB per agent (12.5GB total for 50 agents)</li>
+              <li>KR3: Implement O(log n) scheduling algorithm verified by benchmark</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HIGH PRIORITY SECTION -->
+    <section class="priority-section">
+      <div class="section-header high">
+        <h2>High Priority Quality Criteria</h2>
+        <span>2 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria SHOULD be addressed to ensure product success and user satisfaction.</div>
+
+      <!-- CAPABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Capability</span>
+            <span class="confidence-badge" title="Confidence based on evidence strength">88% confidence</span>
+          </div>
+          <div class="htsm-question">"Can it perform all 8 declared capabilities correctly?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>The agent declares 8 capabilities (lines 426-466), each requiring specific implementation. Semantic analysis reveals implementation gaps between declared capabilities and actual functionality. For example, "sublinear scheduling" is declared but simplified in implementation.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Operators relying on documented capabilities may find features incomplete, reducing trust in the system.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Requirement Reference</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:426-466</code></td>
+                <td>8 capabilities declared</td>
+                <td class="evidence-reasoning">agent-lifecycle-management, resource-allocation, topology-optimization, conflict-resolution, load-balancing, fault-tolerance, auto-scaling, performance-monitoring</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:691-738</code></td>
+                <td>performTask() switch</td>
+                <td class="evidence-reasoning">13 task types implemented covering declared capabilities - appears complete but depth varies</td>
+              </tr>
+              <tr>
+                <td><code>.claude/agents/qe-fleet-commander.md:119-127</code></td>
+                <td>Sublinear claim</td>
+                <td class="evidence-reasoning">"Use Johnson-Lindenstrauss for workload distribution" - but actual implementation uses linear interpolation</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Capability matrix verification</h5>
+                <p>Create test suite verifying each of 8 declared capabilities has working implementation</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type governance">Governance</span>
+              <div class="action-content">
+                <h5>Update documentation</h5>
+                <p>Align specification (.claude/agents/qe-fleet-commander.md) with actual implementation capabilities</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PERFORMANCE -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Performance</span>
+            <span class="confidence-badge" title="Confidence based on evidence strength">85% confidence</span>
+          </div>
+          <div class="htsm-question">"How speedy and responsive is the coordination layer?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Fleet coordination overhead directly impacts test execution speed. The agent manages workload queues, topology updates, and resource allocations - any latency in these operations multiplies across 50+ agents. Performance metrics collection exists (fleetMetrics at line 408-420) but lacks benchmarks.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Slow coordination adds overhead to every test execution, potentially adding minutes to CI/CD pipeline duration.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Requirement Reference</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:408-420</code></td>
+                <td>Metrics tracked</td>
+                <td class="evidence-reasoning">fleetMetrics includes totalTasksCompleted, avgTaskCompletionTime, throughput - good foundation but no benchmarks</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:1065-1093</code></td>
+                <td>Topology updates</td>
+                <td class="evidence-reasoning">updateTopologyConnections() recalculates O(n^2) for mesh topology - could be bottleneck at scale</td>
+              </tr>
+              <tr>
+                <td><code>.claude/agents/qe-fleet-commander.md:122</code></td>
+                <td>Algorithm claim</td>
+                <td class="evidence-reasoning">"algorithm: 'johnson-lindenstrauss'" - O(log n) algorithm referenced but not implemented</td>
+              </div>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type performance">Performance</span>
+              <div class="action-content">
+                <h5>Add performance benchmarks</h5>
+                <p>Benchmark coordination overhead per agent, target &lt;10ms per agent for spawn/terminate operations</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Optimize mesh topology calculation</h5>
+                <p>Current O(n^2) at line 1076-1079 could use sparse graph representation for large fleets</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MEDIUM PRIORITY SECTION -->
+    <section class="priority-section">
+      <div class="section-header medium">
+        <h2>Medium Priority Quality Criteria</h2>
+        <span>3 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria enhance product quality and should be planned for upcoming sprints.</div>
+
+      <!-- DEVELOPMENT -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Development</span>
+            <span class="confidence-badge" title="Confidence based on evidence strength">82% confidence</span>
+          </div>
+          <div class="htsm-question">"How well can we create, test, and modify this agent?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>At 1949 lines of code, FleetCommanderAgent.ts is the largest agent in the codebase. While it extends BaseAgent properly and uses strategy patterns, the file exceeds the 500 LOC target mentioned in BaseAgent comments. High complexity increases maintenance burden and bug risk.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Requirement Reference</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:1-1949</code></td>
+                <td>1949 LOC total</td>
+                <td class="evidence-reasoning">Exceeds 500 LOC target from BaseAgent.ts:3 comment - high maintenance burden</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:29-252</code></td>
+                <td>Interface definitions</td>
+                <td class="evidence-reasoning">~220 lines of interface definitions could be extracted to separate types file</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/BaseAgent.ts:3</code></td>
+                <td>500 LOC target</td>
+                <td class="evidence-reasoning">"Phase 2 B1.2: Decomposed with strategy pattern (~500 LOC target)" - fleet commander needs similar decomposition</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Extract interface definitions</h5>
+                <p>Move 220+ lines of interfaces (lines 29-252) to src/agents/types/fleet-commander.types.ts</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Create FleetTopologyManager service</h5>
+                <p>Extract topology-related methods (lines 1030-1350) to dedicated service class</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPATIBILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Compatibility</span>
+            <span class="confidence-badge" title="Confidence based on evidence strength">78% confidence</span>
+          </div>
+          <div class="htsm-question">"Does it work correctly with all QE agent types?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Fleet Commander must integrate with all QE agent types through EventBus and MemoryStore. The agent pool configuration at lines 476-484 only defines 7 agent types, but the system may have more. Compatibility with BaseAgent strategies and hooks is critical for proper lifecycle management.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Requirement Reference</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:476-484</code></td>
+                <td>7 agent types configured</td>
+                <td class="evidence-reasoning">Hardcoded pool for TEST_GENERATOR, TEST_EXECUTOR, COVERAGE_ANALYZER, QUALITY_GATE, QUALITY_ANALYZER, PERFORMANCE_TESTER, SECURITY_SCANNER</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:639-672</code></td>
+                <td>Event handler registration</td>
+                <td class="evidence-reasoning">Registers 5 event types (agent.spawned, agent.terminated, agent.error, task:submitted, task:completed) - covers lifecycle</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Integration test matrix</h5>
+                <p>Create tests verifying Fleet Commander can spawn and coordinate each of the 21+ QE agent types</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECURITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Security</span>
+            <span class="confidence-badge" title="Confidence based on evidence strength">72% confidence</span>
+          </div>
+          <div class="htsm-question">"How well is the fleet protected against unauthorized operations?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Fleet Commander has broad authority to spawn/terminate agents and allocate resources. While there's no external API exposure (internal only), the agent doesn't validate authorization for coordination requests. A malicious agent could potentially escalate privileges through the EventBus.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Requirement Reference</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:892-909</code></td>
+                <td>No auth check</td>
+                <td class="evidence-reasoning">terminateAgent() accepts any agentId without verifying caller has authority to terminate</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:847-890</code></td>
+                <td>Spawn validation limited</td>
+                <td class="evidence-reasoning">spawnAgents() checks pool limits but not caller authorization</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type security">Security</span>
+              <div class="action-content">
+                <h5>Add authorization checks</h5>
+                <p>Verify caller identity and permissions before spawn/terminate operations</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOW PRIORITY SECTION -->
+    <section class="priority-section">
+      <div class="section-header low">
+        <h2>Low Priority Quality Criteria</h2>
+        <span>1 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria are nice-to-have improvements for the backlog.</div>
+
+      <!-- USABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Usability</span>
+            <span class="confidence-badge" title="Confidence based on evidence strength">65% confidence</span>
+          </div>
+          <div class="htsm-question">"How easy is it for operators to use and understand fleet status?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Operators need clear visibility into fleet health and coordination status. The getFleetStatus() and getDetailedStatus() methods provide comprehensive data, but there's no dashboard or real-time monitoring UI. Status must be accessed programmatically.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Requirement Reference</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:1797-1824</code></td>
+                <td>Status methods exist</td>
+                <td class="evidence-reasoning">getFleetStatus() returns comprehensive FleetStatusResult with pools, utilization, queues</td>
+              </tr>
+              <tr>
+                <td><code>src/agents/FleetCommanderAgent.ts:1868-1879</code></td>
+                <td>Detailed status available</td>
+                <td class="evidence-reasoning">getDetailedStatus() combines all metrics, topology, pools, allocations, conflicts, scaling history</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type user_story">User Story</span>
+              <div class="action-content">
+                <h5>Fleet dashboard visualization</h5>
+                <p>As an operator, I want a real-time dashboard showing fleet topology, agent status, and resource utilization</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- CROSS-CUTTING CONCERNS -->
+    <section class="cross-cutting">
+      <h2>Cross-Cutting Concerns</h2>
+      <p style="margin-bottom: 1.5rem; color: var(--text-light);">These quality aspects span multiple criteria and require coordinated attention across the implementation.</p>
+
+      <div class="concern-card">
+        <h4>Single Point of Failure (SPOF) Risk</h4>
+        <p>The Fleet Commander's central orchestrator role creates inherent SPOF risk. If the coordinator fails, all 50+ managed agents lose coordination. The TopologyMinCutAnalyzer at lines 517-523 provides SPOF detection, but there's no backup coordinator mechanism.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Reliability</span>
+          <span class="concern-category">Scalability</span>
+          <span class="concern-category">Development</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>Documentation-Implementation Gap</h4>
+        <p>The specification (.claude/agents/qe-fleet-commander.md) describes advanced algorithms (Johnson-Lindenstrauss) and capabilities that have simplified implementations. This creates confusion for operators and developers relying on documented behavior.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Capability</span>
+          <span class="concern-category">Performance</span>
+          <span class="concern-category">Usability</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>Resource Management Complexity</h4>
+        <p>Memory tracking uses string parsing (parseMemory at lines 1020-1028), and resource conflict detection spans multiple methods. Consolidated resource management would improve reliability and performance.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Reliability</span>
+          <span class="concern-category">Performance</span>
+          <span class="concern-category">Development</span>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- PI PLANNING GUIDANCE -->
+    <section class="pi-planning">
+      <h2>PI Planning Guidance</h2>
+      <p style="margin-bottom: 1.5rem; color: var(--text-light);">Suggested sprint-by-sprint approach to systematically address quality criteria.</p>
+
+      <table class="pi-table">
+        <thead>
+          <tr>
+            <th>Sprint</th>
+            <th>Quality Focus</th>
+            <th>Key Activities</th>
+            <th>Criteria Coverage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="sprint-badge">Sprint 1</span></td>
+            <td>Reliability Foundation</td>
+            <td>Add retry logic to spawnAgents(), implement circuit breaker, chaos testing setup</td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Reliability</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 2</span></td>
+            <td>Scalability Validation</td>
+            <td>Load test 50 agents, measure coordination latency, optimize memory usage</td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Scalability</span>
+                <span class="criteria-tag">Performance</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 3</span></td>
+            <td>Capability Alignment</td>
+            <td>Test capability matrix, update documentation, implement true sublinear scheduling</td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Capability</span>
+                <span class="criteria-tag">Performance</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 4</span></td>
+            <td>Code Quality & Maintenance</td>
+            <td>Extract interfaces, create FleetTopologyManager, reduce LOC to target</td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Development</span>
+                <span class="criteria-tag">Compatibility</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 5</span></td>
+            <td>Security & Polish</td>
+            <td>Add authorization checks, fleet dashboard, operator documentation</td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Security</span>
+                <span class="criteria-tag">Usability</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <p>Generated by <a href="https://github.com/agentic-qe/agentic-qe">Agentic QE</a> - <strong>qe-quality-criteria-recommender</strong> (Core QCSD Agent)</p>
+      <p>Analysis Method: AI Semantic Understanding | Framework: James Bach's HTSM v6.3 Quality Criteria</p>
+      <p>Part of the <strong>QCSD Framework</strong> - Quality Conscious Software Delivery for shift-left quality engineering</p>
+      <p style="margin-top: 0.5rem; font-style: italic; opacity: 0.8;">Recommendations require domain expert validation. Use this report to facilitate team discussions, not replace them.</p>
+    </footer>
+
+    <!-- SEMANTIC ANALYSIS VERIFICATION -->
+    <div class="verification-metadata" style="display: none;">
+      <meta name="analysis-method" content="ai-semantic-understanding">
+      <meta name="implicit-inferences" content="12">
+      <meta name="cross-quality-correlations" content="8">
+      <meta name="keyword-only-matches" content="0">
+    </div>
+
+  </div>
+</body>
+</html>
