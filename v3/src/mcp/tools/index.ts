@@ -215,6 +215,33 @@ export {
 } from './analysis/token-usage';
 
 // ============================================================================
+// ONNX Embeddings Domain (ADR-051)
+// ============================================================================
+
+export {
+  EmbeddingGenerateTool,
+  EmbeddingCompareTool,
+  EmbeddingSearchTool,
+  EmbeddingStoreTool,
+  EmbeddingStatsTool,
+  embeddingGenerateTool,
+  embeddingCompareTool,
+  embeddingSearchTool,
+  embeddingStoreTool,
+  embeddingStatsTool,
+  resetEmbeddingAdapter,
+  type EmbeddingGenerateParams,
+  type EmbeddingGenerateResult,
+  type EmbeddingCompareParams,
+  type EmbeddingCompareResult,
+  type EmbeddingSearchParams,
+  type EmbeddingSearchResult,
+  type EmbeddingStoreParams,
+  type EmbeddingStoreResult,
+  type EmbeddingStatsResult,
+} from './embeddings';
+
+// ============================================================================
 // Registry and Registration
 // ============================================================================
 

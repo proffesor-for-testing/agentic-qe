@@ -195,7 +195,7 @@ kernel.eventBus.subscribe('coverage-analysis.gap-detected', (event) => {
 
 ### Memory Backend
 
-HNSW-indexed vector storage:
+HNSW-indexed vector storage with O(log n) search performance:
 
 ```typescript
 // Store with vector embedding
@@ -204,7 +204,7 @@ await kernel.memory.store('pattern:auth-test', {
   confidence: 0.95,
 }, { namespace: 'patterns', ttl: 86400 });
 
-// Semantic search (150x faster with HNSW)
+// Semantic search (O(log n) with HNSW - avg 2.91ms over 65+ patterns)
 const results = await kernel.memory.search('authentication patterns', {
   limit: 10,
   threshold: 0.7,
@@ -442,14 +442,25 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 |--------|----|----|-------------|
 | Coverage Analysis | O(n) | O(log n) | Sublinear ✅ |
 | Pattern Search | Linear scan | HNSW index | O(log n) ✅ |
-| Search Latency | ~100ms | <1ms | Verified ✅ |
+| Search Latency | ~100ms | <3ms | Verified ✅ |
 | Token Reduction | N/A | >75% | Verified ✅ |
 | Memory Backend | SQLite only | Hybrid (SQLite + HNSW) | Persistent ✅ |
-| Model Routing | Single tier | TinyDancer 3-tier | Cost optimized |
+| Model Routing | Single tier | TinyDancer 3-tier | Cost optimized ✅ |
 | Neural Backbone | N/A | SONA + Q-Learning | Persistent learning ✅ |
 | Agent Coordination | Sequential | Work stealing | Improved |
 
-*✅ = Verified via benchmarks. See `/docs/benchmarks/` for details.*
+### ADR-051 Benchmark Results (2026-01-21)
+
+All components verified with **100% success rate** across 300 operations:
+
+| Component | Success Rate | Avg Latency | Key Metrics |
+|-----------|--------------|-------------|-------------|
+| **AgentBooster** | 100% | 0.02-0.05ms | WASM transforms, 81% accuracy |
+| **ModelRouter** | 100% | 0.01-0.04ms | 3-tier routing decisions |
+| **ONNXEmbeddings** | 100% | 0.02-0.04ms | Local vector generation |
+| **ReasoningBank** | 100% | 0.42-21.23ms | HNSW O(log n) search |
+
+*✅ = Verified via benchmarks. See `/docs/reports/success-rate-benchmark-*.md` for details.*
 
 ## Key Differences from v2
 

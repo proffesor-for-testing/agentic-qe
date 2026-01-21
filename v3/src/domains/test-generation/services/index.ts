@@ -21,3 +21,15 @@ export {
   type PatternExample,
   type PatternFilter,
 } from './pattern-matcher';
+
+// Agent Booster Integration (ADR-051)
+export {
+  CodeTransformService,
+  createCodeTransformService,
+  quickTransformTestCode,
+  isEligibleForTransform,
+  detectEligibleTransforms,
+  DEFAULT_TRANSFORM_CONFIG,
+  type CodeTransformConfig,
+  type CodeTransformResult,
+} from './code-transform-integration';

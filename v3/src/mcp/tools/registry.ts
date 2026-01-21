@@ -24,6 +24,13 @@ import { LearningOptimizeTool, DreamCycleTool } from './learning-optimization';
 import { TokenUsageTool } from './analysis/token-usage';
 import { GOAPPlanTool, GOAPExecuteTool, GOAPStatusTool } from './planning';
 import { MINCUT_TOOLS, MINCUT_TOOL_NAMES } from './mincut';
+import {
+  EmbeddingGenerateTool,
+  EmbeddingCompareTool,
+  EmbeddingSearchTool,
+  EmbeddingStoreTool,
+  EmbeddingStatsTool,
+} from './embeddings';
 
 // ============================================================================
 // Tool Names (ADR-010 Naming Convention)
@@ -79,6 +86,13 @@ export const QE_TOOL_NAMES = {
 
   // MinCut Topology Tools (ADR-047)
   ...MINCUT_TOOL_NAMES,
+
+  // ONNX Embeddings (ADR-051)
+  EMBEDDING_GENERATE: 'qe/embeddings/generate',
+  EMBEDDING_COMPARE: 'qe/embeddings/compare',
+  EMBEDDING_SEARCH: 'qe/embeddings/search',
+  EMBEDDING_STORE: 'qe/embeddings/store',
+  EMBEDDING_STATS: 'qe/embeddings/stats',
 } as const;
 
 // ============================================================================
@@ -138,6 +152,13 @@ export const QE_TOOLS: MCPToolBase[] = [
 
   // MinCut Topology Tools (ADR-047)
   ...MINCUT_TOOLS,
+
+  // ONNX Embeddings (ADR-051)
+  new EmbeddingGenerateTool(),
+  new EmbeddingCompareTool(),
+  new EmbeddingSearchTool(),
+  new EmbeddingStoreTool(),
+  new EmbeddingStatsTool(),
 ];
 
 // ============================================================================

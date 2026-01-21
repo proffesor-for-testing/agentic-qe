@@ -341,15 +341,26 @@ export class RealQEReasoningBank {
     if (!this.hnswIndex) return;
 
     const embeddings = this.sqliteStore.getAllEmbeddings();
+    const expectedDim = getEmbeddingDimension();
     let loaded = 0;
+    let skipped = 0;
 
     for (const { patternId, embedding } of embeddings) {
+      // Skip invalid or corrupted embeddings
+      if (!embedding || !Array.isArray(embedding) || embedding.length !== expectedDim) {
+        skipped++;
+        continue;
+      }
+
       const index = this.hnswIndex.getCurrentCount();
       this.hnswIndex.addPoint(embedding, index);
       this.patternIdMap.set(index, patternId);
       loaded++;
     }
 
+    if (skipped > 0) {
+      console.warn(`[RealQEReasoningBank] Skipped ${skipped} invalid embeddings (expected dim=${expectedDim})`);
+    }
     console.log(`[RealQEReasoningBank] Loaded ${loaded} patterns into HNSW index`);
   }
 
@@ -884,6 +895,136 @@ export class RealQEReasoningBank {
       patternIdMapSize: this.patternIdMap.size,
       routingLatenciesSize: this.routingLatencies.length,
       hnswIndexCount: this.hnswIndex?.getCurrentCount() ?? 0,
+    };
+  }
+
+  // ============================================================================
+  // Trajectory & Experience Integration (ADR-051)
+  // ============================================================================
+
+  /**
+   * Store a trajectory in SQLite for cross-session learning
+   *
+   * @param trajectory - Trajectory data to store
+   * @returns Trajectory ID
+   */
+  async storeTrajectory(trajectory: {
+    id: string;
+    task: string;
+    agent?: string;
+    domain?: QEDomain;
+    steps: Array<{
+      action: string;
+      outcome: 'success' | 'failure' | 'partial' | 'skipped';
+      quality?: number;
+      durationMs?: number;
+    }>;
+    success: boolean;
+    metrics?: {
+      totalDurationMs?: number;
+      averageQuality?: number;
+    };
+  }): Promise<string> {
+    const db = this.sqliteStore.getDb();
+
+    db.prepare(`
+      INSERT OR REPLACE INTO qe_trajectories (
+        id, task, agent, domain, started_at, ended_at, success, steps_json, metadata_json
+      ) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?, ?)
+    `).run(
+      trajectory.id,
+      trajectory.task,
+      trajectory.agent ?? null,
+      trajectory.domain ?? null,
+      trajectory.success ? 1 : 0,
+      JSON.stringify(trajectory.steps),
+      JSON.stringify(trajectory.metrics ?? {})
+    );
+
+    return trajectory.id;
+  }
+
+  /**
+   * Get trajectories by domain for experience replay
+   *
+   * @param domain - QE domain to filter by
+   * @param limit - Maximum number of trajectories
+   * @returns Array of trajectories
+   */
+  async getTrajectories(
+    domain?: QEDomain,
+    limit: number = 50
+  ): Promise<Array<{
+    id: string;
+    task: string;
+    agent?: string;
+    domain?: QEDomain;
+    success: boolean;
+    steps: unknown[];
+    metrics?: unknown;
+  }>> {
+    const db = this.sqliteStore.getDb();
+
+    let sql = 'SELECT * FROM qe_trajectories';
+    const params: unknown[] = [];
+
+    if (domain) {
+      sql += ' WHERE domain = ?';
+      params.push(domain);
+    }
+
+    sql += ' ORDER BY ended_at DESC LIMIT ?';
+    params.push(limit);
+
+    const rows = db.prepare(sql).all(...params) as any[];
+
+    return rows.map(row => ({
+      id: row.id,
+      task: row.task,
+      agent: row.agent ?? undefined,
+      domain: row.domain as QEDomain | undefined,
+      success: row.success === 1,
+      steps: JSON.parse(row.steps_json || '[]'),
+      metrics: row.metadata_json ? JSON.parse(row.metadata_json) : undefined,
+    }));
+  }
+
+  /**
+   * Link a pattern to a trajectory for traceability
+   *
+   * @param patternId - Pattern ID
+   * @param trajectoryId - Trajectory ID
+   */
+  async linkPatternToTrajectory(patternId: string, trajectoryId: string): Promise<void> {
+    const db = this.sqliteStore.getDb();
+
+    // Store relationship in metadata
+    const pattern = this.sqliteStore.getPattern(patternId);
+    if (pattern) {
+      const context = { ...pattern.context, sourceTrajectoryId: trajectoryId };
+      db.prepare(`
+        UPDATE qe_patterns SET context_json = ?, updated_at = datetime('now') WHERE id = ?
+      `).run(JSON.stringify(context), patternId);
+    }
+  }
+
+  /**
+   * Get the enhanced ReasoningBank adapter for full agentic-flow integration
+   *
+   * This method returns an adapter that provides:
+   * - Trajectory tracking
+   * - Experience replay
+   * - Pattern evolution
+   *
+   * Use this for the most complete learning capabilities.
+   */
+  async getEnhancedAdapter(): Promise<{
+    message: string;
+    importPath: string;
+  }> {
+    return {
+      message: 'Use EnhancedReasoningBankAdapter for full agentic-flow integration',
+      importPath: '../integrations/agentic-flow/reasoning-bank/index.js',
     };
   }
 

@@ -20,6 +20,14 @@ export {
   handleTaskStatus,
   handleTaskCancel,
   handleTaskOrchestrate,
+  // ADR-051: Model routing handlers
+  handleModelRoute,
+  handleRoutingMetrics,
+  type TaskOrchestrateResult,
+  type ModelRouteParams,
+  type ModelRouteResult,
+  type RoutingMetricsParams,
+  type RoutingMetricsResult,
 } from './task-handlers';
 
 // Agent handlers

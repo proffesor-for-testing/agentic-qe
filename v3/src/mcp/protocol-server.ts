@@ -24,6 +24,9 @@ import {
   handleTaskStatus,
   handleTaskCancel,
   handleTaskOrchestrate,
+  // ADR-051: Model routing handlers
+  handleModelRoute,
+  handleRoutingMetrics,
   handleAgentList,
   handleAgentSpawn,
   handleAgentMetrics,
@@ -744,6 +747,41 @@ export class MCPProtocolServer {
         ],
       },
       handler: (params) => handleMemoryShare(params as unknown as Parameters<typeof handleMemoryShare>[0]),
+    });
+
+    // =========================================================================
+    // ADR-051: Model Routing Tools
+    // =========================================================================
+
+    this.registerTool({
+      definition: {
+        name: 'model_route',
+        description: 'Route a task to optimal model tier (0=Booster, 1=Haiku, 2=Sonnet, 3=Sonnet-Extended, 4=Opus). Analyzes complexity and returns routing decision.',
+        category: 'routing',
+        parameters: [
+          { name: 'task', type: 'string', description: 'Task description to analyze', required: true },
+          { name: 'codeContext', type: 'string', description: 'Optional code context for complexity analysis' },
+          { name: 'filePaths', type: 'array', description: 'Optional file paths involved' },
+          { name: 'manualTier', type: 'number', description: 'Manual tier override (0-4)' },
+          { name: 'isCritical', type: 'boolean', description: 'Mark as critical task (allows budget overrides)' },
+          { name: 'agentType', type: 'string', description: 'Agent type making the request' },
+          { name: 'domain', type: 'string', description: 'Domain context' },
+        ],
+      },
+      handler: (params) => handleModelRoute(params as unknown as Parameters<typeof handleModelRoute>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'routing_metrics',
+        description: 'Get model routing metrics and statistics',
+        category: 'routing',
+        parameters: [
+          { name: 'includeLog', type: 'boolean', description: 'Include routing log entries', default: false },
+          { name: 'logLimit', type: 'number', description: 'Max log entries to return', default: 100 },
+        ],
+      },
+      handler: (params) => handleRoutingMetrics(params as unknown as Parameters<typeof handleRoutingMetrics>[0]),
     });
 
     console.error(`[MCP] Registered ${this.tools.size} tools`);

@@ -44,7 +44,8 @@ export type ToolCategory =
   | 'domain'         // Domain-specific tools
   | 'coordination'   // Protocols, workflows
   | 'memory'         // Memory operations
-  | 'learning';      // Learning and optimization
+  | 'learning'       // Learning and optimization
+  | 'routing';       // ADR-051: Model routing
 
 /**
  * Tool handler function type
