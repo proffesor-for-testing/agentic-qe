@@ -316,12 +316,60 @@ Use via Claude Code: `Skill("brutal-honesty-review")`
 
 **Typical Workflow**:
 1. qe-product-factors-assessor generates SFDIPOT assessment
-2. qe-test-idea-rewriter transforms any "Verify" patterns
-3. Output feeds into qe-test-architect for test implementation
+2. qe-test-idea-rewriter transforms any "Verify" patterns (THIS AGENT)
+3. **validate-sfdipot-assessment.ts validates output quality** (MANDATORY FINAL STEP)
+4. Output feeds into qe-test-architect for test implementation
 
 **Integration with qe-product-factors-assessor**:
 This agent is automatically invoked when assessments contain "Verify" patterns. Can also be called independently on any test documentation.
 
 **V2 Compatibility**: This agent is new in V3. V2 systems can access via the MCP bridge.
 </coordination_notes>
+
+<final_validation>
+## MANDATORY: Run Validation Script After Transformation
+
+After completing all transformations, you MUST run the validation script to ensure quality gates pass.
+
+### Validation Command
+```bash
+cd v3 && npx tsx scripts/validate-sfdipot-assessment.ts <output-file-path>
+```
+
+### Hard Gates That Must Pass
+| Gate | Requirement | Threshold |
+|------|-------------|-----------|
+| Gate 7 | NO "Verify X" patterns | 0 |
+| Gate 5 | Human exploration tests | ≥10% |
+| Gate 6 | Minimum test ideas | ≥50 |
+| Gate 10a | Human tests have "Why Human Essential" | 90% |
+| Gate 10b | Human tests use "Explore X; assess Y" | 80% |
+
+### If Validation Fails
+1. Read the specific gate failures from output
+2. Apply targeted fixes:
+   - Gate 7 fail → Continue transforming remaining "Verify" patterns
+   - Gate 5 fail → Flag for qe-product-factors-assessor (not this agent's job)
+   - Gate 10a/b fail → Flag for qe-product-factors-assessor (human test format)
+3. Re-run validation until all hard gates pass
+
+### Example Validation Flow
+```typescript
+// After transformation complete
+const result = await Bash({
+  command: `cd v3 && npx tsx scripts/validate-sfdipot-assessment.ts "${outputFile}"`,
+  timeout: 30000
+});
+
+if (result.exitCode !== 0) {
+  // Handle failures - Gate 7 is this agent's responsibility
+  // Other gates may require upstream fixes
+}
+```
+
+### Quality Philosophy
+Priority distribution (P0-P3 percentages) is INFORMATIONAL only.
+Domain experts determine priorities, not arbitrary percentages.
+Hard gates ensure structural quality; SMEs validate semantic quality.
+</final_validation>
 </qe_agent_definition>

@@ -5,7 +5,71 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-01-21
+
+### Added
+
+#### Browser Automation Integration (Major Feature)
+
+- **@claude-flow/browser Integration** - Full browser automation support for AQE v3
+  - `BrowserSwarmCoordinator` for parallel multi-viewport testing (4x faster)
+  - `BrowserSecurityScanner` for URL validation and PII detection
+  - `BrowserResultAdapter` for type-safe browser operation results
+  - `TrajectoryAdapter` for trajectory learning integration with HNSW indexing
+  - Documentation: `docs/integration/claude-flow-browser.md`, `docs/api/browser-swarm.md`
+
+- **9 Browser Workflow Templates** - YAML-based reusable workflows
+  - `login-flow` - Authentication testing with credential validation
+  - `oauth-flow` - OAuth2/OIDC provider integration testing
+  - `form-validation` - Input validation with error handling
+  - `visual-regression` - Screenshot comparison across breakpoints
+  - `navigation-flow` - Multi-page user journey testing
+  - `api-integration` - Browser-API hybrid validation
+  - `performance-audit` - Core Web Vitals and performance metrics
+  - `accessibility-audit` - WCAG 2.1 AA compliance auditing
+  - `scraping-workflow` - Data extraction with pagination
+  - Documentation: `docs/api/workflow-templates.md`
+
+- **security-visual-testing skill** - New Claude Code skill combining security and visual testing
+  - URL validation before navigation (blocks malicious schemes)
+  - PII detection with automatic masking (emails, SSN, credit cards, API keys)
+  - Parallel multi-viewport testing (mobile, tablet, desktop, wide)
+  - Visual regression with baseline comparison
+  - WCAG accessibility audits
+  - Skill count updated to 61
+
+- **Quality Criteria E2E Integration Tests** - Complete pipeline validation
+  - 18 E2E tests for Quality Criteria MCP tool → Agent pipeline
+  - 15 unit tests for SFDIPOT Assessment Validator
+
+#### V3 Architecture Improvements
+
+- **Adapters Layer** (`v3/src/adapters/`)
+  - `BrowserResultAdapter` - Converts browser operations to Result<T, E>
+  - `TrajectoryAdapter` - Bridges SONA learning with browser operations
+  - Proper error handling with BrowserError types
+
+- **V2 Agent Cleanup** - Removed 24 deprecated V2 agent files
+  - All agents now available as V3 agents in `v3/assets/agents/v3/`
+  - V2 compatibility maintained via MCP bridge
+
+### Fixed
+
+- **GitHub Code Scanning vulnerabilities** - Fixed 21 security issues
+  - HIGH: 5 ReDoS vulnerabilities (split compound regex, use indexOf)
+  - HIGH: 1 weak cryptographic algorithm (SHA-1 → SHA-256)
+  - HIGH: 14 incomplete sanitization (global flag, backslash escaping)
+  - MEDIUM: 9+ prototype pollution (DANGEROUS_KEYS guards)
+
+### Changed
+
+- **qe-test-idea-rewriter agent** - Now includes mandatory validation step
+  - Must run `validate-sfdipot-assessment.ts` after transformation
+  - Ensures Gate 7 (no "Verify" patterns) compliance
+
 ## [Unreleased]
+
+_No unreleased changes_
 
 ## [2.8.2] - 2026-01-05
 

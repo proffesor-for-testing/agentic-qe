@@ -1,6 +1,6 @@
 # Agentic QE v2 to v3 Migration Guide
 
-**Version:** 3.0.0
+**Version:** 3.1.0
 **Last Updated:** 2026-01-17
 
 This guide provides comprehensive instructions for migrating from Agentic QE v2 to v3. The migration follows a **zero-breaking-changes** approach, ensuring backward compatibility while enabling access to all v3 features.
@@ -90,7 +90,7 @@ v2 configuration is automatically migrated when detected:
 // Automatically converted to v3 format
 {
   "v3": {
-    "version": "3.0.0",
+    "version": "3.1.0",
     "memory": { "backend": "hybrid" }
   }
 }
@@ -242,7 +242,7 @@ claude mcp add aqe -- aqe-mcp
 ```json
 {
   "v3": {
-    "version": "3.0.0",
+    "version": "3.1.0",
     "domains": [
       "test-generation",
       "test-execution",
@@ -308,7 +308,7 @@ claude mcp add aqe -- aqe-mcp
 
 2. **Manual Migration** (if preferred)
    - Copy v2 config to v3 location
-   - Update version to `3.0.0`
+   - Update version to `3.1.0`
    - Wrap config in `v3` root key
    - Convert `agents` array to `domains` array
    - Add HNSW settings to memory config
@@ -317,7 +317,7 @@ claude mcp add aqe -- aqe-mcp
 
 | v2 Setting | v3 Setting | Notes |
 |------------|------------|-------|
-| `version: "2.x.x"` | `v3.version: "3.0.0"` | Root key changes |
+| `version: "2.x.x"` | `v3.version: "3.1.0"` | Root key changes |
 | `memory.backend: "sqlite"` | `memory.backend: "hybrid"` | Recommended upgrade |
 | `agents: [...]` | `domains: [...]` | Agents -> Domains |
 | `coverage.threshold` | `coverage.thresholds.*` | Multi-threshold support |

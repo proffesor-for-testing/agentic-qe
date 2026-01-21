@@ -117,6 +117,15 @@ export {
   type BDDScenario,
 } from './requirements-validation/validate';
 
+export {
+  QualityCriteriaTool,
+  qualityCriteriaTool,
+  type QualityCriteriaParams,
+  type QualityCriteriaResult,
+  type EvidencePointInput,
+  type AgentInvocation,
+} from './requirements-validation/quality-criteria';
+
 // ============================================================================
 // Code Intelligence Domain
 // ============================================================================

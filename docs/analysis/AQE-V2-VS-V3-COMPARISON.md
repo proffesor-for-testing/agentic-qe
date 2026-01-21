@@ -1,6 +1,6 @@
 # Agentic QE v2 vs v3: Complete Comparison Guide
 
-> **Why Upgrade?** AQE v3 delivers significantly less code, O(log n) HNSW search, 166x faster MCP response times (verified benchmark), intelligent model routing, **persistent neural learning**, **60 QE Skills**, and **real browser automation**—while maintaining full backward compatibility.
+> **Why Upgrade?** AQE v3 delivers significantly less code, O(log n) HNSW search, 166x faster MCP response times (verified benchmark), intelligent model routing, **persistent neural learning**, **61 QE Skills**, and **real browser automation**—while maintaining full backward compatibility.
 
 ---
 
@@ -207,7 +207,7 @@ Queen Coordinator (Agent #1)
 
 v2 provided 35 quality engineering skills focused on testing methodologies and practices.
 
-### v3: 60 QE Skills (71% increase)
+### v3: 61 QE Skills (71% increase)
 
 v3 expands the skill library to 60 domain-specific quality engineering skills:
 
@@ -938,7 +938,7 @@ mcp__agentic-qe__coverage_analyze_sublinear({ target: "src/" })
 AQE v3 represents a complete architectural reimagining of the quality engineering platform:
 
 - **50 QE Agents** organized in 12 DDD bounded contexts
-- **60 QE Skills** (+71% from v2's 35 skills)
+- **61 QE Skills** (+71% from v2's 35 skills)
 - **O(log n) faster** pattern search with HNSW
 - **166x faster** MCP response times (verified benchmark)
 - **Cost optimization** with TinyDancer 3-tier routing (ADR-026)
