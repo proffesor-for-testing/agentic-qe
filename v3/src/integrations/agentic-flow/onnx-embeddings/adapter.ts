@@ -19,7 +19,7 @@ import type {
   EmbeddingHealth,
   HyperbolicConfig
 } from './types.js';
-import { EmbeddingModel, EmbeddingError, EmbeddingErrorType } from './types.js';
+import { EmbeddingModel, EmbeddingError, EmbeddingErrorType, SimilarityMetric } from './types.js';
 import { EmbeddingGenerator } from './embedding-generator.js';
 import { SimilaritySearch } from './similarity-search.js';
 import { HyperbolicOps } from './hyperbolic-ops.js';
@@ -199,7 +199,7 @@ export class ONNXEmbeddingsAdapter {
   async compareSimilarity(
     text1: string,
     text2: string,
-    metric: SearchConfig['metric'] = 'cosine'
+    metric: SearchConfig['metric'] = SimilarityMetric.COSINE
   ): Promise<number> {
     const [embedding1, embedding2] = await this.generateBatch({
       texts: [text1, text2]
@@ -379,7 +379,7 @@ export class ONNXEmbeddingsAdapter {
   async bridgeToMCPCompare(
     text1: string,
     text2: string,
-    metric: SearchConfig['metric'] = 'cosine'
+    metric: SearchConfig['metric'] = SimilarityMetric.COSINE
   ): Promise<number> {
     return this.compareSimilarity(text1, text2, metric);
   }

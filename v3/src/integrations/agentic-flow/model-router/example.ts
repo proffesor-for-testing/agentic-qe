@@ -21,10 +21,6 @@ async function example1_basicRouting() {
 
   const router = createModelRouter({
     enableAgentBooster: true,
-    budgetConfig: {
-      enabled: true,
-      maxDailyCostUsd: 50.0,
-    },
   });
 
   // Simple task → Tier 1 (Haiku)

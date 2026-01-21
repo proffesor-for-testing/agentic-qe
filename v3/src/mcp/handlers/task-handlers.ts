@@ -703,13 +703,19 @@ export interface ReasoningBankStatsResult {
   };
   patterns: {
     totalPatterns: number;
-    shortTermPatterns: number;
-    longTermPatterns: number;
-    domainDistribution: Record<string, number>;
+    byDomain: Record<string, number>;
+    byTier: Record<string, number>;
+    learningOutcomes: number;
+    patternSuccessRate: number;
   };
-  hnsw: {
-    totalVectors: number;
-    avgSearchTimeMs: number;
+  embeddings: {
+    cacheSize: number;
+    dimension: number;
+    transformerAvailable: boolean;
+  };
+  performance: {
+    avgRoutingLatencyMs: number;
+    p95RoutingLatencyMs: number;
   };
 }
 
@@ -728,13 +734,19 @@ export async function handleReasoningBankStats(): Promise<ToolResult<ReasoningBa
         service: stats.service,
         patterns: {
           totalPatterns: stats.reasoningBank.totalPatterns,
-          shortTermPatterns: stats.reasoningBank.shortTermPatterns,
-          longTermPatterns: stats.reasoningBank.longTermPatterns,
-          domainDistribution: stats.reasoningBank.domainDistribution,
+          byDomain: stats.reasoningBank.byDomain,
+          byTier: stats.reasoningBank.byTier,
+          learningOutcomes: stats.reasoningBank.learningOutcomes,
+          patternSuccessRate: stats.reasoningBank.patternSuccessRate,
         },
-        hnsw: {
-          totalVectors: stats.reasoningBank.hnswIndexSize,
-          avgSearchTimeMs: stats.reasoningBank.avgSearchTimeMs,
+        embeddings: {
+          cacheSize: stats.reasoningBank.embeddingCacheSize,
+          dimension: stats.reasoningBank.embeddingDimension,
+          transformerAvailable: stats.reasoningBank.transformerAvailable,
+        },
+        performance: {
+          avgRoutingLatencyMs: stats.reasoningBank.avgRoutingLatencyMs,
+          p95RoutingLatencyMs: stats.reasoningBank.p95RoutingLatencyMs,
         },
       },
     };
@@ -810,15 +822,22 @@ export async function handleTaskStatusWithLearning(
           const duration = result.duration || 0;
           const success = execution.status === 'completed';
 
+          // Safely extract payload properties (typed as Record<string, unknown>)
+          const payload = execution.task.payload || {};
+          const taskDescription = typeof payload.description === 'string'
+            ? payload.description
+            : execution.task.type;
+          const routing = payload.routing as { tier?: number } | undefined;
+
           service.recordTaskOutcome({
             taskId: params.taskId,
-            task: execution.task.payload?.description || execution.task.type,
+            task: taskDescription,
             taskType: execution.task.type,
             success,
             executionTimeMs: duration,
             agentId: execution.assignedAgents?.[0],
             domain: execution.assignedDomain,
-            modelTier: execution.task.payload?.routing?.tier,
+            modelTier: routing?.tier,
             qualityScore: success ? 0.7 : 0.3, // Default scores
             error: execution.error,
           });

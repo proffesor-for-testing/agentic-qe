@@ -67,7 +67,7 @@ export class SimilaritySearch {
     const startTime = Date.now();
 
     const searchConfig: SearchConfig = {
-      metric: config.metric ?? 'cosine',
+      metric: config.metric ?? SimilarityMetric.COSINE,
       topK: config.topK ?? 5,
       threshold: config.threshold ?? 0.5,
       namespace: config.namespace
@@ -300,7 +300,7 @@ export class SimilaritySearch {
   async findInRadius(
     queryEmbedding: Embedding,
     radius: number,
-    metric: SimilarityMetric = 'cosine'
+    metric: SimilarityMetric = SimilarityMetric.COSINE
   ): Promise<SimilarityResult[]> {
     return this.search(queryEmbedding, {
       metric,

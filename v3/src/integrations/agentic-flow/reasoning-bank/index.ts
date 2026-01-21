@@ -48,6 +48,21 @@ import {
   type PatternEvolutionConfig,
 } from './pattern-evolution.js';
 import type { QEPattern, QEDomain, CreateQEPatternOptions } from '../../../learning/qe-patterns.js';
+
+// ============================================================================
+// Adapter Statistics Type
+// ============================================================================
+
+export interface EnhancedReasoningBankAdapterStats {
+  tasksRouted: number;
+  trajectoriesCompleted: number;
+  experiencesApplied: number;
+  tokensSavedEstimate: number;
+  avgTaskSpeedupPercent: number;
+  successRate: number;
+  totalSuccesses: number;
+  totalTasks: number;
+}
 import type { Result } from '../../../shared/types/index.js';
 import { ok, err } from '../../../shared/types/index.js';
 
@@ -573,7 +588,7 @@ export class EnhancedReasoningBankAdapter {
    * Get comprehensive statistics
    */
   async getStats(): Promise<{
-    adapter: typeof this.stats;
+    adapter: EnhancedReasoningBankAdapterStats;
     reasoningBank: Awaited<ReturnType<RealQEReasoningBank['getQEStats']>>;
     trajectoryTracker?: ReturnType<TrajectoryTracker['getStats']>;
     experienceReplay?: ReturnType<ExperienceReplay['getStats']>;

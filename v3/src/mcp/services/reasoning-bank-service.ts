@@ -207,7 +207,7 @@ export class ReasoningBankService {
         feedback: outcome.error,
       };
 
-      await this.reasoningBank.recordLearningOutcome(learningOutcome);
+      await this.reasoningBank.recordOutcome(learningOutcome);
 
       // If high quality, store as a pattern
       if (
@@ -232,22 +232,30 @@ export class ReasoningBankService {
    */
   private async storeTaskPattern(outcome: TaskOutcome): Promise<void> {
     try {
-      await this.reasoningBank.storePattern({
+      // Build tags from outcome metadata for searchability
+      const tags = [
+        outcome.taskType,
+        outcome.domain || 'general',
+        outcome.agentId ? `agent:${outcome.agentId}` : undefined,
+        outcome.modelTier ? `tier:${outcome.modelTier}` : undefined,
+      ].filter((t): t is string => t !== undefined);
+
+      await this.reasoningBank.storeQEPattern({
+        patternType: 'test-template',
         name: `${outcome.taskType}-${outcome.domain || 'general'}`,
         description: outcome.task,
-        domain: (outcome.domain as QEDomain) || 'test-generation',
-        type: 'strategy',
+        template: {
+          type: 'workflow',
+          content: JSON.stringify({
+            approach: outcome.task,
+            metrics: outcome.metrics,
+            executionTimeMs: outcome.executionTimeMs,
+          }),
+          variables: [],
+        },
         context: {
-          taskType: outcome.taskType,
-          modelTier: outcome.modelTier,
-          executionTimeMs: outcome.executionTimeMs,
+          tags,
         },
-        content: {
-          approach: outcome.task,
-          metrics: outcome.metrics,
-        },
-        successRate: outcome.qualityScore || 0.7,
-        usageCount: 1,
       });
     } catch (error) {
       console.error('[ReasoningBankService] Failed to store pattern:', error);
@@ -271,12 +279,17 @@ export class ReasoningBankService {
     try {
       const result = await this.reasoningBank.routeTask(request);
 
+      if (!result.success) {
+        console.error('[ReasoningBankService] Routing returned error:', result.error);
+        return this.createFallbackRouting(request);
+      }
+
       console.error(
         `[ReasoningBankService] Routing: task="${request.task.slice(0, 50)}..." ` +
-          `→ agent=${result.recommendedAgent} confidence=${result.confidence.toFixed(2)}`
+          `→ agent=${result.value.recommendedAgent} confidence=${result.value.confidence.toFixed(2)}`
       );
 
-      return result;
+      return result.value;
     } catch (error) {
       console.error('[ReasoningBankService] Routing failed:', error);
       return this.createFallbackRouting(request);
@@ -296,7 +309,10 @@ export class ReasoningBankService {
         task,
         domain,
       });
-      return result.guidance;
+      if (!result.success) {
+        return [];
+      }
+      return result.value.guidance;
     } catch (error) {
       console.error('[ReasoningBankService] Guidance failed:', error);
       return [];
@@ -315,11 +331,15 @@ export class ReasoningBankService {
     }
 
     try {
-      const results = await this.reasoningBank.searchPatterns(query, {
+      const results = await this.reasoningBank.searchQEPatterns(query, {
         limit: options?.limit || 10,
         domain: options?.domain,
       });
-      return results.map((r) => r.pattern);
+      if (!results.success) {
+        console.error('[ReasoningBankService] Search returned error:', results.error);
+        return [];
+      }
+      return results.value.map((r) => r.pattern);
     } catch (error) {
       console.error('[ReasoningBankService] Search failed:', error);
       return [];
