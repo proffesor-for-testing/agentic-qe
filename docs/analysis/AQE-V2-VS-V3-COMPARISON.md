@@ -1,6 +1,6 @@
 # Agentic QE v2 vs v3: Complete Comparison Guide
 
-> **Why Upgrade?** AQE v3 delivers significantly less code, O(log n) HNSW search, 166x faster MCP response times (verified benchmark), intelligent model routing, **persistent neural learning**, and **real browser automation**—while maintaining full backward compatibility.
+> **Why Upgrade?** AQE v3 delivers significantly less code, O(log n) HNSW search, 166x faster MCP response times (verified benchmark), intelligent model routing, **persistent neural learning**, **60 QE Skills**, and **real browser automation**—while maintaining full backward compatibility.
 
 ---
 
@@ -12,12 +12,14 @@
 | **Architecture** | Monolithic + Feature-sprawl | DDD 12 Bounded Contexts | Clean separation |
 | **Pattern Search** | O(n) linear scan | O(log n) HNSW indexed | Sublinear complexity |
 | **MCP Response** | ~100ms P95 target | 0.6ms P95 actual | 166x faster |
-| **Agents** | ~20 loosely organized | 48 specialized (41+7) | 2.4x more, organized |
+| **Agents** | ~32 loosely organized | 50 specialized (43+7) | 1.5x more, organized |
+| **Skills** | 35 QE skills | 60 QE skills | 71% more skills |
 | **Learning** | Basic pattern store | ReasoningBank + Dream cycles + 9 RL algorithms | Full AI learning stack |
 | **Model Routing** | None (manual selection) | 3-tier intelligent routing (ADR-026) | Cost optimized |
 | **Coordination** | EventEmitter-based | Queen Coordinator + MinCut | 3-5x throughput |
 | **Neural Backbone** | None | Persistent Q-Learning + SONA (ADR-050) | ✅ **NEW** |
 | **Browser Testing** | None | Vibium + agent-browser real automation | ✅ **NEW** |
+| **Deep Integration** | None | Claude Flow + Agentic Flow (ADR-051) | ✅ **NEW** |
 | **Tests** | ~200 | 6,826 | 34x more tests |
 
 ---
@@ -26,16 +28,18 @@
 
 1. [Architecture Comparison](#1-architecture-comparison)
 2. [Agent System](#2-agent-system)
-3. [MCP Integration](#3-mcp-integration)
-4. [Learning & Self-Improvement](#4-learning--self-improvement)
-5. [Intelligent Model Routing](#5-intelligent-model-routing)
-6. [Memory & Vector Search](#6-memory--vector-search)
-7. [RuVector Neural Backbone](#7-ruvector-neural-backbone) ✅ **NEW**
-8. [Browser Automation](#8-browser-automation) ✅ **NEW**
-9. [CLI & Developer Experience](#9-cli--developer-experience)
-10. [Performance Benchmarks](#10-performance-benchmarks)
-11. [Migration Path](#11-migration-path)
-12. [Why Upgrade to v3?](#12-why-upgrade-to-v3)
+3. [QE Skills](#3-qe-skills) ✅ **NEW**
+4. [MCP Integration](#4-mcp-integration)
+5. [Learning & Self-Improvement](#5-learning--self-improvement)
+6. [Intelligent Model Routing](#6-intelligent-model-routing)
+7. [Memory & Vector Search](#7-memory--vector-search)
+8. [RuVector Neural Backbone](#8-ruvector-neural-backbone)
+9. [Deep Integration (ADR-051)](#9-deep-integration-adr-051) ✅ **NEW**
+10. [Browser Automation](#10-browser-automation)
+11. [CLI & Developer Experience](#11-cli--developer-experience)
+12. [Performance Benchmarks](#12-performance-benchmarks)
+13. [Migration Path](#13-migration-path)
+14. [Why Upgrade to v3?](#14-why-upgrade-to-v3)
 
 ---
 
@@ -152,7 +156,7 @@ v3/src/ (504 files, clean separation)
 - Limited specialization
 - Flat hierarchy
 
-### v3: 50 Specialized QE Agents (43 + 7 subagents)
+### v3: 50 Specialized QE Agents (43 main + 7 TDD subagents)
 
 ```typescript
 // v3: Queen-led hierarchical coordination
@@ -197,7 +201,36 @@ Queen Coordinator (Agent #1)
 
 ---
 
-## 3. MCP Integration
+## 3. QE Skills
+
+### v2: 35 QE Skills
+
+v2 provided 35 quality engineering skills focused on testing methodologies and practices.
+
+### v3: 60 QE Skills (71% increase)
+
+v3 expands the skill library to 60 domain-specific quality engineering skills:
+
+| Category | Count | Examples |
+|----------|-------|----------|
+| **Core Testing & Methodologies** | 12 | agentic-quality-engineering, tdd-london-chicago, context-driven-testing, shift-left-testing |
+| **Specialized Testing** | 12 | accessibility-testing, mobile-testing, chaos-engineering-resilience, security-testing |
+| **V3 Domain Skills** | 14 | qe-test-generation, qe-coverage-analysis, qe-security-compliance, qe-defect-intelligence |
+| **Strategic & Communication** | 8 | six-thinking-hats, brutal-honesty-review, sherlock-review, pair-programming |
+| **Testing Techniques & Management** | 9 | exploratory-testing-advanced, test-design-techniques, api-testing-patterns |
+| **n8n Workflow Testing** | 5 | n8n-workflow-testing-fundamentals, n8n-expression-testing, n8n-security-testing |
+
+**Key Additions in v3:**
+- 14 V3 Domain Skills aligned with 12 DDD bounded contexts
+- `qe-iterative-loop` for continuous improvement workflows
+- `aqe-v2-v3-migration` skill for seamless upgrade guidance
+- Enhanced n8n workflow testing capabilities
+
+> **Note**: Claude Flow platform skills (agentdb, github, flow-nexus) are managed separately and not counted in QE skills.
+
+---
+
+## 4. MCP Integration
 
 ### v2: Basic MCP Tools (~14)
 
@@ -271,7 +304,7 @@ memory_delete, memory_usage, memory_share
 
 ---
 
-## 4. Learning & Self-Improvement
+## 5. Learning & Self-Improvement
 
 ### v2: Basic Learning
 
@@ -343,7 +376,7 @@ memory_delete, memory_usage, memory_share
 
 ---
 
-## 5. Intelligent Model Routing
+## 6. Intelligent Model Routing
 
 ### v2: No Model Routing
 
@@ -404,7 +437,7 @@ isSecurity && complexity === 'critical'
 
 ---
 
-## 6. Memory & Vector Search
+## 7. Memory & Vector Search
 
 ### v2: O(n) Linear Search
 
@@ -450,7 +483,7 @@ CachedHNSWVectorMemory
 
 ---
 
-## 7. RuVector Neural Backbone
+## 8. RuVector Neural Backbone
 
 > **NEW in v3.0.0-alpha.43** - Implemented via ADR-050 GOAP (8/8 actions complete)
 
@@ -533,7 +566,71 @@ await router.updateQValue('security-scanner', 'security-audit', 0.95);
 
 ---
 
-## 8. Browser Automation
+## 9. Deep Integration (ADR-051)
+
+> **NEW in v3.0.0** - Deep integration with Claude Flow and Agentic Flow ecosystems
+
+### v2: Standalone System
+
+```typescript
+// v2: Limited integrations
+- Basic MCP tools
+- No Claude Flow integration
+- No pattern sharing across tools
+- Manual model selection
+```
+
+### v3: Deep Ecosystem Integration (ADR-051)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                 ADR-051 INTEGRATION ARCHITECTURE               │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  ┌──────────────────────┐    ┌──────────────────────┐         │
+│  │   CLAUDE FLOW        │    │   AGENTIC FLOW       │         │
+│  │   Integration        │    │   Integration        │         │
+│  │ ─────────────────    │    │ ─────────────────    │         │
+│  │ • MCP Tool Bridge    │    │ • Pattern Loading    │         │
+│  │ • Memory Namespaces  │    │ • Agent Booster      │         │
+│  │ • Swarm Coordination │    │ • Model Router       │         │
+│  │ • Session Management │    │ • ONNX Embeddings    │         │
+│  └──────────┬───────────┘    └──────────┬───────────┘         │
+│             │                           │                      │
+│             └─────────┬─────────────────┘                      │
+│                       ▼                                        │
+│  ┌────────────────────────────────────────────────────────┐   │
+│  │              Unified QE Platform                        │   │
+│  │  • Intelligent Model Routing (Haiku/Sonnet/Opus)       │   │
+│  │  • ReasoningBank Pattern Learning                      │   │
+│  │  • Cross-agent Memory Coordination                     │   │
+│  │  • HNSW Vector Search                                  │   │
+│  └────────────────────────────────────────────────────────┘   │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**Integration Components:**
+
+| Component | Purpose | Source |
+|-----------|---------|--------|
+| **Pattern Loader** | Load pre-trained QE patterns | Agentic Flow |
+| **Agent Booster** | Pre-LLM transforms for simple tasks | Agentic Flow |
+| **Model Router** | 3-tier intelligent routing | TinyDancer (ADR-026) |
+| **ONNX Embeddings** | Local semantic search | Agentic Flow |
+| **Memory Bridge** | Cross-tool state sharing | Claude Flow |
+| **Swarm Coordinator** | Multi-agent orchestration | Claude Flow |
+
+**Benefits:**
+
+- **Cost Reduction**: Agent Booster handles simple transforms without LLM calls
+- **Pattern Reuse**: Load proven QE patterns from Agentic Flow ecosystem
+- **Unified Memory**: Seamless state sharing between Claude Flow and AQE
+- **Local Embeddings**: ONNX-based semantic search without API calls
+
+---
+
+## 10. Browser Automation
 
 > **NEW in v3.0.0-alpha.32** - Real browser testing with Vibium and agent-browser
 
@@ -631,7 +728,7 @@ await networkMocker.mockRoute('/api/users', {
 
 ---
 
-## 9. CLI & Developer Experience
+## 11. CLI & Developer Experience
 
 ### v2: 70+ CLI Commands
 
@@ -691,7 +788,7 @@ aqe hooks post-task --task-id <id> --success true
 
 ---
 
-## 10. Performance Benchmarks
+## 12. Performance Benchmarks
 
 ### MCP Response Times
 
@@ -724,7 +821,7 @@ aqe hooks post-task --task-id <id> --success true
 
 ---
 
-## 11. Migration Path
+## 13. Migration Path
 
 ### Zero-Breaking-Changes Guarantee
 
@@ -770,7 +867,7 @@ mcp__agentic-qe__coverage_analyze_sublinear({ target: "src/" })
 
 ---
 
-## 12. Why Upgrade to v3?
+## 14. Why Upgrade to v3?
 
 ### For Individual Developers
 
@@ -810,8 +907,11 @@ mcp__agentic-qe__coverage_analyze_sublinear({ target: "src/" })
 | Feature | v2 | v3 |
 |---------|----|----|
 | Domain-Driven Design | No | Yes (12 domains) |
+| QE Agents | 32 | 50 (43 main + 7 TDD) |
+| QE Skills | 35 | 60 (+71%) |
 | Queen Coordinator | No | Yes |
 | Intelligent Model Routing | No | Yes (ADR-026) |
+| Deep Integration | No | Claude Flow + Agentic Flow (ADR-051) |
 | Dream Cycle Learning | No | Yes |
 | 9 RL Algorithms | No | Yes |
 | O(log n) HNSW Search | Partial | Full |
@@ -822,13 +922,14 @@ mcp__agentic-qe__coverage_analyze_sublinear({ target: "src/" })
 | Interactive Init | No | Yes |
 | Cost Tracking | No | Yes |
 | Multi-Model Consensus | No | Yes |
-| Persistent Q-Learning | No | Yes ✅ **NEW** |
-| Persistent SONA | No | Yes ✅ **NEW** |
-| EWC++ Protection | No | Yes ✅ **NEW** |
-| Browser Automation | No | Vibium + agent-browser ✅ **NEW** |
-| Real axe-core A11y | No | Yes ✅ **NEW** |
-| Visual Regression | No | Yes ✅ **NEW** |
-| Hypergraph Engine | No | Yes ✅ **NEW** |
+| Persistent Q-Learning | No | Yes |
+| Persistent SONA | No | Yes |
+| EWC++ Protection | No | Yes |
+| Browser Automation | No | Vibium + agent-browser |
+| Real axe-core A11y | No | Yes |
+| Visual Regression | No | Yes |
+| Hypergraph Engine | No | Yes |
+| V2 Migration Complete | N/A | Yes (all agents including legacy) |
 
 ---
 
@@ -836,39 +937,45 @@ mcp__agentic-qe__coverage_analyze_sublinear({ target: "src/" })
 
 AQE v3 represents a complete architectural reimagining of the quality engineering platform:
 
-- **Significant code reduction** through DDD principles
+- **50 QE Agents** organized in 12 DDD bounded contexts
+- **60 QE Skills** (+71% from v2's 35 skills)
 - **O(log n) faster** pattern search with HNSW
 - **166x faster** MCP response times (verified benchmark)
-- **Cost optimization** with intelligent routing
-- **Full AI learning stack** with Dream cycles and RL
-- **Persistent neural learning** with EWC++ protection ✅ **NEW**
-- **Real browser automation** with Vibium and agent-browser ✅ **NEW**
+- **Cost optimization** with TinyDancer 3-tier routing (ADR-026)
+- **Deep integration** with Claude Flow and Agentic Flow (ADR-051)
+- **Full AI learning stack** with Dream cycles and 9 RL algorithms
+- **Persistent neural learning** with EWC++ protection
+- **Real browser automation** with Vibium and agent-browser
+- **Complete v2 migration** including legacy agents (qx-partner, base-template-generator)
 - **6,826 tests** ensuring stability and correctness
 - **Zero breaking changes** for migration
 
-**Recommendation:** Upgrade to v3 for any new project, and migrate existing projects to benefit from cost savings, performance improvements, and persistent learning.
+**Recommendation:** Upgrade to v3 for any new project, and migrate existing projects to benefit from cost savings, performance improvements, and the comprehensive QE skill library.
 
 ---
 
 ## Quick Start
 
 ```bash
-# Install
-npm install @agentic-qe/v3@alpha
+# Install globally
+npm install -g agentic-qe
 
-# Initialize (creates all artifacts including SQLite database with 29 tables)
+# Initialize your project
 cd your-project
-npx aqe init --auto
+aqe init --wizard
+
+# Or auto-configure with migration from v2
+aqe init --auto-migrate
 
 # Add MCP server to Claude Code
 claude mcp add aqe -- aqe-mcp
 
 # Start using
 # MCP tools are now available in Claude Code
-# Learning persists across sessions via SQLite backend
+# 50 agents, 60 skills, and learning persists across sessions
 ```
 
 ---
 
-*Document updated: 2026-01-20*
-*AQE v3.0.0-alpha.43*
+*Document updated: 2026-01-21*
+*AQE v3.0.0 (Release Candidate)*
