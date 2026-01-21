@@ -55,3 +55,24 @@ export {
   type VisualRegressionTestOptions,
   type IVisualRegressionService,
 } from './visual-regression.js';
+
+export {
+  BrowserSwarmCoordinator,
+  createBrowserSwarmCoordinator,
+  STANDARD_VIEWPORTS,
+  type BrowserSession,
+  type SwarmStatus,
+  type SessionTaskResult,
+  type SwarmScreenshotResult,
+  type SwarmAccessibilityResult,
+  type BrowserSwarmConfig,
+} from './browser-swarm-coordinator.js';
+
+export {
+  BrowserSecurityScanner,
+  createBrowserSecurityScanner,
+  type SecurityScanResult,
+  type PIIScanResult,
+  type PhishingResult,
+  type BrowserSecurityScannerConfig,
+} from './browser-security-scanner.js';

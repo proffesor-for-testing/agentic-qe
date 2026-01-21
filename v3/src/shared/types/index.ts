@@ -126,6 +126,26 @@ export interface DomainConfig {
 }
 
 // ============================================================================
+// Viewport Types
+// ============================================================================
+
+/**
+ * Browser viewport configuration
+ */
+export interface Viewport {
+  /** Viewport width in pixels */
+  readonly width: number;
+  /** Viewport height in pixels */
+  readonly height: number;
+  /** Device scale factor for retina displays */
+  readonly deviceScaleFactor: number;
+  /** Whether this is a mobile viewport */
+  readonly isMobile: boolean;
+  /** Whether the viewport supports touch */
+  readonly hasTouch: boolean;
+}
+
+// ============================================================================
 // Utility Types
 // ============================================================================
 
