@@ -58,8 +58,8 @@ jobs:
           fi
           echo "Build verification passed (v3 structure)"
 
-      - name: Run fast tests
-        run: npm run test:fast
+      - name: Run tests
+        run: npm run test
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
 
