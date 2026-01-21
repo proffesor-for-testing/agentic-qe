@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 48 specialized QE agents, deep Claude Flow integration",
   "main": "./v3/dist/index.js",
   "types": "./v3/dist/index.d.ts",
@@ -11,7 +11,7 @@
     "aqe-mcp": "./v3/dist/mcp/bundle.js"
   },
   "scripts": {
-    "postinstall": "cd v3 && npm install",
+    "postinstall": "test -f v3/package.json && cd v3 && npm install || true",
     "build": "cd v3 && npm run build",
     "test": "cd v3 && npm test -- --run",
     "test:v3": "cd v3 && npm test -- --run",
