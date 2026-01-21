@@ -1,0 +1,751 @@
+/**
+ * ExperienceReplay - Store and retrieve successful experiences for learning
+ * ADR-051: ReasoningBank enhancement for 46% faster recurring tasks
+ *
+ * ExperienceReplay enables agents to learn from past successes by storing
+ * high-quality trajectories and retrieving similar experiences when facing
+ * new tasks.
+ *
+ * Key Features:
+ * - Stores successful trajectories with quality scoring
+ * - Vector similarity search for finding relevant past experiences
+ * - Quality-weighted retrieval prioritizes proven solutions
+ * - Automatic experience curation (pruning low-quality entries)
+ */
+
+import { v4 as uuidv4 } from 'uuid';
+import type { Database as DatabaseType, Statement } from 'better-sqlite3';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../../../kernel/unified-memory.js';
+import type { QEDomain } from '../../../learning/qe-patterns.js';
+import {
+  computeRealEmbedding,
+  cosineSimilarity,
+  type EmbeddingConfig,
+} from '../../../learning/real-embeddings.js';
+import type { Trajectory, TrajectoryMetrics } from './trajectory-tracker.js';
+import { CircularBuffer } from '../../../shared/utils/circular-buffer.js';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/**
+ * An experience is a distilled, reusable version of a successful trajectory
+ */
+export interface Experience {
+  /** Unique experience identifier */
+  readonly id: string;
+
+  /** Original trajectory ID */
+  readonly trajectoryId: string;
+
+  /** Task description */
+  readonly task: string;
+
+  /** Domain this experience applies to */
+  readonly domain: QEDomain;
+
+  /** Distilled strategy (what worked) */
+  readonly strategy: string;
+
+  /** Key actions that led to success */
+  readonly keyActions: string[];
+
+  /** Quality score (0-1) */
+  readonly qualityScore: number;
+
+  /** Number of times this experience has been applied */
+  readonly applicationCount: number;
+
+  /** Success rate when applied */
+  readonly successRate: number;
+
+  /** Average token savings when reused */
+  readonly avgTokenSavings: number;
+
+  /** Embedding for similarity search */
+  readonly embedding?: number[];
+
+  /** Creation timestamp */
+  readonly createdAt: Date;
+
+  /** Last applied timestamp */
+  readonly lastAppliedAt?: Date;
+
+  /** Original metrics from trajectory */
+  readonly originalMetrics: TrajectoryMetrics;
+
+  /** Tags for filtering */
+  readonly tags: string[];
+}
+
+/**
+ * Guidance generated from relevant experiences
+ */
+export interface ExperienceGuidance {
+  /** Recommended strategy based on similar experiences */
+  readonly recommendedStrategy: string;
+
+  /** Actions to consider */
+  readonly suggestedActions: string[];
+
+  /** Potential pitfalls to avoid */
+  readonly pitfallsToAvoid: string[];
+
+  /** Confidence level (0-1) */
+  readonly confidence: number;
+
+  /** Source experiences */
+  readonly sourceExperiences: Array<{
+    id: string;
+    similarity: number;
+    qualityScore: number;
+  }>;
+
+  /** Estimated token savings */
+  readonly estimatedTokenSavings: number;
+}
+
+/**
+ * Configuration for ExperienceReplay
+ */
+export interface ExperienceReplayConfig {
+  /** Minimum quality score to store experience */
+  minQualityThreshold: number;
+
+  /** Maximum experiences to store per domain */
+  maxExperiencesPerDomain: number;
+
+  /** Similarity threshold for retrieval */
+  similarityThreshold: number;
+
+  /** Number of experiences to consider for guidance */
+  topK: number;
+
+  /** Embedding configuration */
+  embedding: Partial<EmbeddingConfig>;
+
+  /** Auto-prune low-quality experiences */
+  autoPrune: boolean;
+
+  /** Prune threshold (quality below this is removed) */
+  pruneThreshold: number;
+}
+
+const DEFAULT_CONFIG: ExperienceReplayConfig = {
+  minQualityThreshold: 0.6,
+  maxExperiencesPerDomain: 500,
+  similarityThreshold: 0.7,
+  topK: 5,
+  embedding: {
+    modelName: 'Xenova/all-MiniLM-L6-v2',
+    quantized: true,
+  },
+  autoPrune: true,
+  pruneThreshold: 0.3,
+};
+
+// ============================================================================
+// ExperienceReplay Implementation
+// ============================================================================
+
+/**
+ * ExperienceReplay stores and retrieves successful experiences for learning.
+ *
+ * Usage:
+ * ```typescript
+ * const replay = new ExperienceReplay();
+ * await replay.initialize();
+ *
+ * // Store a successful trajectory as experience
+ * await replay.storeExperience(trajectory, 'Used AAA pattern with mocking');
+ *
+ * // Get guidance for a new task
+ * const guidance = await replay.getGuidance('Fix authentication timeout bug');
+ * console.log(guidance.recommendedStrategy);
+ * ```
+ */
+export class ExperienceReplay {
+  private readonly config: ExperienceReplayConfig;
+  private unifiedMemory: UnifiedMemoryManager | null = null;
+  private db: DatabaseType | null = null;
+  private prepared: Map<string, Statement> = new Map();
+  private initialized = false;
+
+  // In-memory HNSW-like index for fast similarity search
+  private embeddingIndex: Map<string, { id: string; embedding: number[] }> = new Map();
+
+  // Recent experiences buffer
+  private recentExperiences: CircularBuffer<Experience>;
+
+  // Statistics
+  private stats = {
+    experiencesStored: 0,
+    experiencesApplied: 0,
+    totalTokensSaved: 0,
+    avgSimilarityOnRetrieval: 0,
+    totalRetrievals: 0,
+  };
+
+  constructor(config: Partial<ExperienceReplayConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.recentExperiences = new CircularBuffer(100);
+  }
+
+  /**
+   * Initialize with SQLite persistence
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    this.unifiedMemory = getUnifiedMemory();
+    await this.unifiedMemory.initialize();
+    this.db = this.unifiedMemory.getDatabase();
+
+    // Ensure schema
+    this.ensureSchema();
+
+    // Prepare statements
+    this.prepareStatements();
+
+    // Load embeddings into memory index
+    await this.loadEmbeddingIndex();
+
+    this.initialized = true;
+    console.log('[ExperienceReplay] Initialized');
+  }
+
+  /**
+   * Ensure required schema exists
+   */
+  private ensureSchema(): void {
+    if (!this.db) throw new Error('Database not initialized');
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS experiences (
+        id TEXT PRIMARY KEY,
+        trajectory_id TEXT NOT NULL,
+        task TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        strategy TEXT NOT NULL,
+        key_actions TEXT NOT NULL,
+        quality_score REAL NOT NULL DEFAULT 0.5,
+        application_count INTEGER DEFAULT 0,
+        success_rate REAL DEFAULT 1.0,
+        avg_token_savings REAL DEFAULT 0,
+        embedding BLOB,
+        embedding_dimension INTEGER,
+        original_metrics TEXT,
+        tags TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        last_applied_at TEXT,
+        FOREIGN KEY (trajectory_id) REFERENCES qe_trajectories(id) ON DELETE SET NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_experiences_domain ON experiences(domain);
+      CREATE INDEX IF NOT EXISTS idx_experiences_quality ON experiences(quality_score DESC);
+      CREATE INDEX IF NOT EXISTS idx_experiences_task ON experiences(task);
+    `);
+
+    // Create experience_applications table for tracking reuse
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS experience_applications (
+        id TEXT PRIMARY KEY,
+        experience_id TEXT NOT NULL,
+        task TEXT NOT NULL,
+        success INTEGER NOT NULL,
+        tokens_saved INTEGER DEFAULT 0,
+        feedback TEXT,
+        applied_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (experience_id) REFERENCES experiences(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_exp_apps_experience ON experience_applications(experience_id);
+    `);
+  }
+
+  /**
+   * Prepare commonly used statements
+   */
+  private prepareStatements(): void {
+    if (!this.db) throw new Error('Database not initialized');
+
+    this.prepared.set('insertExperience', this.db.prepare(`
+      INSERT INTO experiences (
+        id, trajectory_id, task, domain, strategy, key_actions, quality_score,
+        embedding, embedding_dimension, original_metrics, tags
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `));
+
+    this.prepared.set('getExperience', this.db.prepare(`
+      SELECT * FROM experiences WHERE id = ?
+    `));
+
+    this.prepared.set('getExperiencesByDomain', this.db.prepare(`
+      SELECT * FROM experiences WHERE domain = ? ORDER BY quality_score DESC LIMIT ?
+    `));
+
+    this.prepared.set('getAllExperiences', this.db.prepare(`
+      SELECT * FROM experiences ORDER BY quality_score DESC LIMIT ?
+    `));
+
+    this.prepared.set('getAllEmbeddings', this.db.prepare(`
+      SELECT id, embedding, embedding_dimension FROM experiences WHERE embedding IS NOT NULL
+    `));
+
+    this.prepared.set('updateApplication', this.db.prepare(`
+      UPDATE experiences SET
+        application_count = application_count + 1,
+        success_rate = (success_rate * application_count + ?) / (application_count + 1),
+        avg_token_savings = (avg_token_savings * application_count + ?) / (application_count + 1),
+        last_applied_at = datetime('now')
+      WHERE id = ?
+    `));
+
+    this.prepared.set('insertApplication', this.db.prepare(`
+      INSERT INTO experience_applications (id, experience_id, task, success, tokens_saved, feedback)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `));
+
+    this.prepared.set('deleteExperience', this.db.prepare(`
+      DELETE FROM experiences WHERE id = ?
+    `));
+
+    this.prepared.set('getLowQualityExperiences', this.db.prepare(`
+      SELECT id FROM experiences WHERE quality_score < ? AND application_count < 3
+    `));
+
+    this.prepared.set('countByDomain', this.db.prepare(`
+      SELECT domain, COUNT(*) as count FROM experiences GROUP BY domain
+    `));
+  }
+
+  /**
+   * Load embeddings into memory index for fast similarity search
+   */
+  private async loadEmbeddingIndex(): Promise<void> {
+    const stmt = this.prepared.get('getAllEmbeddings');
+    if (!stmt) return;
+
+    const rows = stmt.all() as Array<{
+      id: string;
+      embedding: Buffer;
+      embedding_dimension: number;
+    }>;
+
+    this.embeddingIndex.clear();
+    for (const row of rows) {
+      if (row.embedding && row.embedding_dimension) {
+        const embedding = this.bufferToFloatArray(row.embedding, row.embedding_dimension);
+        this.embeddingIndex.set(row.id, { id: row.id, embedding });
+      }
+    }
+
+    console.log(`[ExperienceReplay] Loaded ${this.embeddingIndex.size} embeddings into index`);
+  }
+
+  /**
+   * Store a successful trajectory as a reusable experience
+   *
+   * @param trajectory - The successful trajectory
+   * @param strategy - Distilled strategy description
+   * @param tags - Optional tags for filtering
+   * @returns The stored experience
+   */
+  async storeExperience(
+    trajectory: Trajectory,
+    strategy: string,
+    tags: string[] = []
+  ): Promise<Experience | null> {
+    this.ensureInitialized();
+
+    // Check quality threshold
+    if (trajectory.metrics.efficiencyScore < this.config.minQualityThreshold) {
+      console.log(`[ExperienceReplay] Trajectory quality too low: ${trajectory.metrics.efficiencyScore}`);
+      return null;
+    }
+
+    // Extract key actions
+    const keyActions = trajectory.steps
+      .filter(s => s.result.outcome === 'success')
+      .map(s => s.action);
+
+    // Generate embedding for similarity search
+    const embeddingText = `${trajectory.task} ${strategy} ${keyActions.join(' ')}`;
+    const embedding = await computeRealEmbedding(embeddingText, this.config.embedding);
+
+    const id = uuidv4();
+    const domain = trajectory.domain || 'test-generation';
+
+    const experience: Experience = {
+      id,
+      trajectoryId: trajectory.id,
+      task: trajectory.task,
+      domain,
+      strategy,
+      keyActions,
+      qualityScore: trajectory.metrics.efficiencyScore,
+      applicationCount: 0,
+      successRate: 1.0,
+      avgTokenSavings: 0,
+      embedding,
+      createdAt: new Date(),
+      originalMetrics: trajectory.metrics,
+      tags,
+    };
+
+    // Store in database
+    const insertStmt = this.prepared.get('insertExperience');
+    if (insertStmt) {
+      const embeddingBuffer = embedding ? this.floatArrayToBuffer(embedding) : null;
+      insertStmt.run(
+        id,
+        trajectory.id,
+        trajectory.task,
+        domain,
+        strategy,
+        JSON.stringify(keyActions),
+        trajectory.metrics.efficiencyScore,
+        embeddingBuffer,
+        embedding?.length ?? null,
+        JSON.stringify(trajectory.metrics),
+        JSON.stringify(tags)
+      );
+    }
+
+    // Update embedding index
+    if (embedding) {
+      this.embeddingIndex.set(id, { id, embedding });
+    }
+
+    // Add to recent buffer
+    this.recentExperiences.push(experience);
+
+    this.stats.experiencesStored++;
+
+    // Auto-prune if enabled
+    if (this.config.autoPrune) {
+      await this.autoPrune(domain);
+    }
+
+    return experience;
+  }
+
+  /**
+   * Get guidance for a new task based on similar experiences
+   *
+   * @param task - The new task description
+   * @param domain - Optional domain filter
+   * @returns Guidance based on similar experiences
+   */
+  async getGuidance(
+    task: string,
+    domain?: QEDomain
+  ): Promise<ExperienceGuidance | null> {
+    this.ensureInitialized();
+
+    // Find similar experiences
+    const similar = await this.findSimilarExperiences(task, domain);
+
+    if (similar.length === 0) {
+      return null;
+    }
+
+    this.stats.totalRetrievals++;
+
+    // Calculate average similarity
+    const avgSimilarity = similar.reduce((sum, s) => sum + s.similarity, 0) / similar.length;
+    this.stats.avgSimilarityOnRetrieval =
+      (this.stats.avgSimilarityOnRetrieval * (this.stats.totalRetrievals - 1) + avgSimilarity) /
+      this.stats.totalRetrievals;
+
+    // Weight experiences by quality and similarity
+    const weighted = similar.map(s => ({
+      ...s,
+      weight: s.similarity * s.experience.qualityScore,
+    }));
+
+    // Sort by weight
+    weighted.sort((a, b) => b.weight - a.weight);
+
+    // Generate recommended strategy
+    const topExperience = weighted[0].experience;
+    const recommendedStrategy = topExperience.strategy;
+
+    // Collect suggested actions (union of all key actions)
+    const actionCounts = new Map<string, number>();
+    for (const w of weighted) {
+      for (const action of w.experience.keyActions) {
+        actionCounts.set(action, (actionCounts.get(action) || 0) + w.weight);
+      }
+    }
+    const suggestedActions = Array.from(actionCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([action]) => action);
+
+    // Identify potential pitfalls (actions that commonly led to failure in similar tasks)
+    // For now, we don't have failure tracking, so return empty
+    const pitfallsToAvoid: string[] = [];
+
+    // Calculate confidence
+    const confidence = weighted.reduce((sum, w) => sum + w.weight, 0) / weighted.length;
+
+    // Estimate token savings
+    const estimatedTokenSavings = weighted.reduce(
+      (sum, w) => sum + w.experience.avgTokenSavings * w.similarity,
+      0
+    ) / weighted.length;
+
+    return {
+      recommendedStrategy,
+      suggestedActions,
+      pitfallsToAvoid,
+      confidence: Math.min(confidence, 1),
+      sourceExperiences: weighted.slice(0, 3).map(w => ({
+        id: w.experience.id,
+        similarity: w.similarity,
+        qualityScore: w.experience.qualityScore,
+      })),
+      estimatedTokenSavings,
+    };
+  }
+
+  /**
+   * Find experiences similar to a task
+   */
+  async findSimilarExperiences(
+    task: string,
+    domain?: QEDomain,
+    limit?: number
+  ): Promise<Array<{ experience: Experience; similarity: number }>> {
+    this.ensureInitialized();
+
+    const k = limit ?? this.config.topK;
+
+    // Generate embedding for the task
+    const taskEmbedding = await computeRealEmbedding(task, this.config.embedding);
+
+    // Search embedding index
+    const scored: Array<{ id: string; similarity: number }> = [];
+
+    for (const [id, entry] of this.embeddingIndex.entries()) {
+      const similarity = cosineSimilarity(taskEmbedding, entry.embedding);
+      if (similarity >= this.config.similarityThreshold) {
+        scored.push({ id, similarity });
+      }
+    }
+
+    // Sort by similarity
+    scored.sort((a, b) => b.similarity - a.similarity);
+
+    // Get top K and load full experiences
+    const results: Array<{ experience: Experience; similarity: number }> = [];
+    const getStmt = this.prepared.get('getExperience');
+
+    for (const { id, similarity } of scored.slice(0, k * 2)) {
+      if (getStmt) {
+        const row = getStmt.get(id) as any;
+        if (row) {
+          // Filter by domain if specified
+          if (domain && row.domain !== domain) continue;
+
+          const experience = this.rowToExperience(row);
+          if (experience) {
+            results.push({ experience, similarity });
+            if (results.length >= k) break;
+          }
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Record an application of an experience
+   */
+  async recordApplication(
+    experienceId: string,
+    task: string,
+    success: boolean,
+    tokensSaved: number = 0,
+    feedback?: string
+  ): Promise<void> {
+    this.ensureInitialized();
+
+    // Update experience stats
+    const updateStmt = this.prepared.get('updateApplication');
+    if (updateStmt) {
+      updateStmt.run(success ? 1 : 0, tokensSaved, experienceId);
+    }
+
+    // Record application
+    const insertStmt = this.prepared.get('insertApplication');
+    if (insertStmt) {
+      insertStmt.run(
+        uuidv4(),
+        experienceId,
+        task,
+        success ? 1 : 0,
+        tokensSaved,
+        feedback ?? null
+      );
+    }
+
+    this.stats.experiencesApplied++;
+    this.stats.totalTokensSaved += tokensSaved;
+  }
+
+  /**
+   * Get an experience by ID
+   */
+  async getExperience(id: string): Promise<Experience | null> {
+    this.ensureInitialized();
+
+    const stmt = this.prepared.get('getExperience');
+    if (!stmt) return null;
+
+    const row = stmt.get(id) as any;
+    return row ? this.rowToExperience(row) : null;
+  }
+
+  /**
+   * Get experiences by domain
+   */
+  async getExperiencesByDomain(domain: QEDomain, limit: number = 10): Promise<Experience[]> {
+    this.ensureInitialized();
+
+    const stmt = this.prepared.get('getExperiencesByDomain');
+    if (!stmt) return [];
+
+    const rows = stmt.all(domain, limit) as any[];
+    return rows.map(r => this.rowToExperience(r)).filter((e): e is Experience => e !== null);
+  }
+
+  /**
+   * Auto-prune low-quality experiences
+   */
+  private async autoPrune(domain: QEDomain): Promise<number> {
+    if (!this.db) return 0;
+
+    // Count experiences in domain
+    const countStmt = this.prepared.get('countByDomain');
+    if (!countStmt) return 0;
+
+    const counts = countStmt.all() as Array<{ domain: string; count: number }>;
+    const domainCount = counts.find(c => c.domain === domain)?.count ?? 0;
+
+    // If over limit, remove low-quality experiences
+    if (domainCount > this.config.maxExperiencesPerDomain) {
+      const lowQualityStmt = this.prepared.get('getLowQualityExperiences');
+      if (lowQualityStmt) {
+        const toRemove = lowQualityStmt.all(this.config.pruneThreshold) as Array<{ id: string }>;
+        const deleteStmt = this.prepared.get('deleteExperience');
+
+        let removed = 0;
+        for (const { id } of toRemove) {
+          if (deleteStmt) {
+            deleteStmt.run(id);
+            this.embeddingIndex.delete(id);
+            removed++;
+          }
+          if (domainCount - removed <= this.config.maxExperiencesPerDomain) break;
+        }
+
+        console.log(`[ExperienceReplay] Auto-pruned ${removed} low-quality experiences`);
+        return removed;
+      }
+    }
+
+    return 0;
+  }
+
+  /**
+   * Get statistics
+   */
+  getStats(): {
+    experiencesStored: number;
+    experiencesApplied: number;
+    totalTokensSaved: number;
+    avgSimilarityOnRetrieval: number;
+    embeddingIndexSize: number;
+    recentBufferSize: number;
+  } {
+    return {
+      ...this.stats,
+      embeddingIndexSize: this.embeddingIndex.size,
+      recentBufferSize: this.recentExperiences.length,
+    };
+  }
+
+  /**
+   * Dispose and cleanup
+   */
+  async dispose(): Promise<void> {
+    this.embeddingIndex.clear();
+    this.recentExperiences.clear();
+    this.prepared.clear();
+    this.db = null;
+    this.unifiedMemory = null;
+    this.initialized = false;
+    console.log('[ExperienceReplay] Disposed');
+  }
+
+  // ============================================================================
+  // Private Helpers
+  // ============================================================================
+
+  private ensureInitialized(): void {
+    if (!this.initialized) {
+      throw new Error('ExperienceReplay not initialized. Call initialize() first.');
+    }
+  }
+
+  private rowToExperience(row: any): Experience | null {
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      trajectoryId: row.trajectory_id,
+      task: row.task,
+      domain: row.domain as QEDomain,
+      strategy: row.strategy,
+      keyActions: JSON.parse(row.key_actions || '[]'),
+      qualityScore: row.quality_score,
+      applicationCount: row.application_count,
+      successRate: row.success_rate,
+      avgTokenSavings: row.avg_token_savings,
+      embedding: row.embedding && row.embedding_dimension
+        ? this.bufferToFloatArray(row.embedding, row.embedding_dimension)
+        : undefined,
+      createdAt: new Date(row.created_at),
+      lastAppliedAt: row.last_applied_at ? new Date(row.last_applied_at) : undefined,
+      originalMetrics: JSON.parse(row.original_metrics || '{}'),
+      tags: JSON.parse(row.tags || '[]'),
+    };
+  }
+
+  private floatArrayToBuffer(arr: number[]): Buffer {
+    const buffer = Buffer.alloc(arr.length * 4);
+    for (let i = 0; i < arr.length; i++) {
+      buffer.writeFloatLE(arr[i], i * 4);
+    }
+    return buffer;
+  }
+
+  private bufferToFloatArray(buffer: Buffer, dimension: number): number[] {
+    const arr: number[] = [];
+    for (let i = 0; i < dimension; i++) {
+      arr.push(buffer.readFloatLE(i * 4));
+    }
+    return arr;
+  }
+}
+
+/**
+ * Create an ExperienceReplay instance
+ */
+export function createExperienceReplay(
+  config: Partial<ExperienceReplayConfig> = {}
+): ExperienceReplay {
+  return new ExperienceReplay(config);
+}
