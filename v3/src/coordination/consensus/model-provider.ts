@@ -439,22 +439,32 @@ export function parseVerificationResponse(response: string): ParsedVerificationR
       result.suggestedSeverity = severityMatch[1].toLowerCase() as Severity;
     }
 
-    // Extract reasoning
-    const reasoningMatch = response.match(/REASONING:\s*\n([\s\S]*?)(?=\nSUGGESTIONS:|$)/i);
-    if (reasoningMatch) {
-      result.reasoning = reasoningMatch[1].trim();
-    } else {
+    // Extract reasoning using indexOf to avoid ReDoS vulnerability
+    const reasoningIndex = response.toUpperCase().indexOf('REASONING:');
+    const suggestionsIndex = response.toUpperCase().indexOf('SUGGESTIONS:');
+
+    if (reasoningIndex !== -1) {
+      const reasoningStart = response.indexOf('\n', reasoningIndex);
+      const reasoningEnd = suggestionsIndex !== -1 ? suggestionsIndex : response.length;
+      if (reasoningStart !== -1 && reasoningStart < reasoningEnd) {
+        result.reasoning = response.slice(reasoningStart + 1, reasoningEnd).trim();
+      }
+    }
+
+    if (!result.reasoning) {
       // Fallback: use the entire response as reasoning
       result.reasoning = response;
     }
 
     // Extract suggestions
-    const suggestionsMatch = response.match(/SUGGESTIONS:\s*\n([\s\S]*?)$/i);
-    if (suggestionsMatch) {
-      result.suggestions = suggestionsMatch[1]
-        .split('\n')
-        .map(line => line.replace(/^[-*]\s*/, '').trim())
-        .filter(line => line.length > 0);
+    if (suggestionsIndex !== -1) {
+      const suggestionsStart = response.indexOf('\n', suggestionsIndex);
+      if (suggestionsStart !== -1) {
+        result.suggestions = response.slice(suggestionsStart + 1)
+          .split('\n')
+          .map(line => line.replace(/^[-*]\s*/, '').trim())
+          .filter(line => line.length > 0);
+      }
     }
 
     // Mark as successful if we at least got an assessment

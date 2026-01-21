@@ -39,6 +39,18 @@ const DEFAULT_CONFIG: MetricsOptimizerConfig = {
 };
 
 /**
+ * SEC-003: Dangerous keys that could lead to prototype pollution
+ */
+const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
+
+/**
+ * Check if a key is safe from prototype pollution
+ */
+function isSafeKey(key: string): boolean {
+  return !DANGEROUS_KEYS.includes(key);
+}
+
+/**
  * Metrics tracking for optimization
  */
 export interface MetricsSnapshot {
@@ -450,6 +462,8 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
 
     // Simple gradient-free optimization
     for (const [key, value] of Object.entries(currentParams)) {
+      // SEC-003: Guard against prototype pollution
+      if (!isSafeKey(key)) continue;
       if (typeof value === 'number') {
         // Try small adjustments
         const adjustments = [-0.1, -0.05, 0, 0.05, 0.1];
@@ -540,6 +554,8 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     for (const exp of experiences) {
       if (exp.result.success) {
         for (const [key, value] of Object.entries(exp.result.outcome)) {
+          // SEC-003: Guard against prototype pollution
+          if (!isSafeKey(key)) continue;
           if (typeof value === 'number') {
             metricSums[key] = (metricSums[key] || 0) + value;
             metricCounts[key] = (metricCounts[key] || 0) + 1;
@@ -549,6 +565,8 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     }
 
     for (const [key, sum] of Object.entries(metricSums)) {
+      // SEC-003: Guard against prototype pollution
+      if (!isSafeKey(key)) continue;
       outcome[key] = sum / metricCounts[key];
     }
 
@@ -829,6 +847,11 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
       }
 
       const key = keys[index];
+      // SEC-003: Guard against prototype pollution
+      if (!isSafeKey(key)) {
+        generate(index + 1, current);
+        return;
+      }
       for (const value of ranges[key]) {
         current[key] = value;
         generate(index + 1, current);
@@ -851,6 +874,8 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     const aggregated = existing?.metrics || {};
 
     for (const [metricName, value] of Object.entries(metrics)) {
+      // SEC-003: Guard against prototype pollution
+      if (!isSafeKey(metricName)) continue;
       if (!aggregated[metricName]) {
         aggregated[metricName] = { sum: 0, count: 0 };
       }

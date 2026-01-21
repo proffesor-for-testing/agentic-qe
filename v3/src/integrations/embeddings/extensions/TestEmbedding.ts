@@ -327,10 +327,11 @@ export class TestEmbeddingGenerator extends EmbeddingGenerator {
 
     // Common assertion patterns
     const patterns = [
-      /expect\((.*?)\)\.(.*?)\((.*?)\)/g,
-      /assert\((.*?)\)/g,
-      /to(Equal|Be|Contain|Match)\((.*?)\)/g,
-      /\.should\.(.*?)\((.*?)\)/g,
+      // Use [^)]* instead of .*? to avoid ReDoS with nested patterns
+      /expect\(([^)]*)\)\.([^(]*)\(([^)]*)\)/g,
+      /assert\(([^)]*)\)/g,
+      /to(?:Equal|Be|Contain|Match)\(([^)]*)\)/g,
+      /\.should\.([^(]*)\(([^)]*)\)/g,
     ];
 
     for (const pattern of patterns) {

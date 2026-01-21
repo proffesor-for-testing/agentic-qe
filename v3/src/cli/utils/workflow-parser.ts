@@ -157,6 +157,19 @@ const YAML_MAX_DEPTH = 20;
 const YAML_MAX_LINE_LENGTH = 10000;
 
 /**
+ * Dangerous property names that could lead to prototype pollution
+ * SEC-002: Guard against prototype pollution in parsed YAML
+ */
+const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
+
+/**
+ * Check if a key is safe from prototype pollution
+ */
+function isSafeKey(key: string): boolean {
+  return !DANGEROUS_KEYS.includes(key);
+}
+
+/**
  * Simple YAML parser for pipeline files
  * Handles basic YAML structures without external dependencies
  * Specifically designed for the pipeline format per ADR-041
@@ -190,7 +203,10 @@ export function parseYAMLContent(content: string): Record<string, unknown> {
     const match = line.match(/^([\w_-]+):\s*(.+)$/);
     if (match) {
       const [, key, value] = match;
-      result[key] = parseYAMLValue(value);
+      // SEC-002: Guard against prototype pollution
+      if (isSafeKey(key)) {
+        result[key] = parseYAMLValue(value);
+      }
     }
   }
 
@@ -361,6 +377,12 @@ function parseNestedStructure(
     const kvMatch = trimmed.match(/^([\w_-]+):\s*(.*)$/);
     if (kvMatch) {
       const [, key, value] = kvMatch;
+
+      // SEC-002: Guard against prototype pollution
+      if (!isSafeKey(key)) {
+        i++;
+        continue;
+      }
 
       if (value === '') {
         // This key will own subsequent array items
@@ -548,6 +570,8 @@ export function convertToWorkflowDefinition(
     const inputMapping: Record<string, string> = {};
     if (stage.params) {
       for (const [key, value] of Object.entries(stage.params)) {
+        // SEC-002: Guard against prototype pollution
+        if (!isSafeKey(key)) continue;
         // For direct values, we'll store them in input context
         inputMapping[key] = `input.${key}`;
       }

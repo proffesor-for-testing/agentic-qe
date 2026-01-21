@@ -47,7 +47,7 @@ class MockMemoryBackend implements MemoryBackend {
   }
 
   async search(pattern: string, _limit?: number): Promise<string[]> {
-    const regex = new RegExp(pattern.replace('*', '.*'));
+    const regex = new RegExp(pattern.replace(/\*/g, '.*'));
     return Array.from(this.store.keys()).filter((key) => regex.test(key));
   }
 
