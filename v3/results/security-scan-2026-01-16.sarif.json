@@ -1,0 +1,399 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "AQE Security Scanner",
+          "version": "3.0.0-alpha.23",
+          "informationUri": "https://github.com/proffesor-for-testing/agentic-qe",
+          "rules": [
+            {
+              "id": "AQE-REDOS-001",
+              "name": "ReDoS Vulnerability",
+              "shortDescription": {
+                "text": "Regular Expression Denial of Service"
+              },
+              "fullDescription": {
+                "text": "User-controlled input used in RegExp construction without ReDoS safety validation can cause catastrophic backtracking."
+              },
+              "helpUri": "https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS",
+              "properties": {
+                "tags": ["security", "injection", "redos"],
+                "precision": "high",
+                "problem.severity": "warning"
+              }
+            },
+            {
+              "id": "AQE-CMDI-001",
+              "name": "Command Injection",
+              "shortDescription": {
+                "text": "OS Command Injection Vulnerability"
+              },
+              "fullDescription": {
+                "text": "User-controlled input passed to child_process functions without proper validation can lead to arbitrary command execution."
+              },
+              "helpUri": "https://owasp.org/www-community/attacks/Command_Injection",
+              "properties": {
+                "tags": ["security", "injection", "command"],
+                "precision": "high",
+                "problem.severity": "error"
+              }
+            },
+            {
+              "id": "AQE-PATH-001",
+              "name": "Path Traversal",
+              "shortDescription": {
+                "text": "Path Traversal Vulnerability"
+              },
+              "fullDescription": {
+                "text": "Improper neutralization of special elements in file paths can allow attackers to access files outside intended directories."
+              },
+              "helpUri": "https://owasp.org/www-community/attacks/Path_Traversal",
+              "properties": {
+                "tags": ["security", "path-traversal", "access-control"],
+                "precision": "medium",
+                "problem.severity": "warning"
+              }
+            },
+            {
+              "id": "AQE-SQLI-001",
+              "name": "SQL Injection",
+              "shortDescription": {
+                "text": "SQL Injection Vulnerability"
+              },
+              "fullDescription": {
+                "text": "Dynamic SQL query construction with user input can lead to SQL injection attacks."
+              },
+              "helpUri": "https://owasp.org/www-community/attacks/SQL_Injection",
+              "properties": {
+                "tags": ["security", "injection", "sql"],
+                "precision": "medium",
+                "problem.severity": "warning"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "AQE-REDOS-001",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Potential ReDoS via User-Controlled RegExp: User-controlled endpoint pattern is converted to RegExp without ReDoS safety validation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "v3/src/mcp/security/rate-limiter.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 357,
+                  "startColumn": 8,
+                  "snippet": {
+                    "text": "const pattern = typeof limit.pattern === 'string' ? new RegExp(limit.pattern) : limit.pattern;"
+                  }
+                }
+              }
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Use createSafeRegex() from cve-prevention.ts to validate regex patterns before compilation"
+              },
+              "artifactChanges": [
+                {
+                  "artifactLocation": {
+                    "uri": "v3/src/mcp/security/rate-limiter.ts"
+                  },
+                  "replacements": [
+                    {
+                      "deletedRegion": {
+                        "startLine": 357
+                      },
+                      "insertedContent": {
+                        "text": "const pattern = typeof limit.pattern === 'string' ? createSafeRegex(limit.pattern) : limit.pattern; if (!pattern) throw new Error('Invalid pattern');"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "cwe": "CWE-1333",
+            "owasp": "A03:2021-Injection"
+          }
+        },
+        {
+          "ruleId": "AQE-CMDI-001",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "Command Execution with shell option in child_process: spawn() with shell option can enable command injection if arguments contain user input"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "v3/src/domains/test-execution/services/flaky-detector.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 424,
+                  "startColumn": 7,
+                  "snippet": {
+                    "text": "const child = spawn(this.config.testRunner, args, { ... })"
+                  }
+                }
+              }
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Validate test runner commands and arguments against allowlist before execution"
+              }
+            }
+          ],
+          "properties": {
+            "cwe": "CWE-78",
+            "owasp": "A03:2021-Injection"
+          }
+        },
+        {
+          "ruleId": "AQE-PATH-001",
+          "ruleIndex": 2,
+          "level": "warning",
+          "message": {
+            "text": "Missing Path Traversal Validation: Temporary file path created using user-provided task ID without full path validation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "v3/src/coordination/task-executor.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 127,
+                  "startColumn": 7,
+                  "snippet": {
+                    "text": "const tempPath = `/tmp/aqe-temp-${uuidv4()}.ts`;"
+                  }
+                }
+              }
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Use validatePath() from cve-prevention.ts for all file operations with external input"
+              }
+            }
+          ],
+          "properties": {
+            "cwe": "CWE-22",
+            "owasp": "A01:2021-Broken Access Control"
+          }
+        },
+        {
+          "ruleId": "AQE-REDOS-001",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "User Input in Dynamic RegExp Construction: RegExp created from schema.pattern without ReDoS safety check"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "v3/src/domains/contract-testing/services/contract-validator.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1503,
+                  "startColumn": 9,
+                  "snippet": {
+                    "text": "const regex = new RegExp(pattern);"
+                  }
+                }
+              }
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Validate pattern with isRegexSafe() before creating RegExp"
+              }
+            }
+          ],
+          "properties": {
+            "cwe": "CWE-1333",
+            "owasp": "A03:2021-Injection"
+          }
+        },
+        {
+          "ruleId": "AQE-REDOS-001",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "Unvalidated User Input in RegExp: User-provided term used directly in RegExp without escaping"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "v3/src/domains/requirements-validation/services/requirements-validator.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 174,
+                  "startColumn": 9,
+                  "snippet": {
+                    "text": "const regex = new RegExp(`\\\\b${term}\\\\b`, 'gi');"
+                  }
+                }
+              }
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Escape user input with escapeRegex() before including in pattern"
+              }
+            }
+          ],
+          "properties": {
+            "cwe": "CWE-1333",
+            "owasp": "A03:2021-Injection"
+          }
+        },
+        {
+          "ruleId": "AQE-CMDI-001",
+          "ruleIndex": 1,
+          "level": "warning",
+          "message": {
+            "text": "Child Process with User-Controlled Arguments: spawn() with user-controlled command and arguments"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "v3/src/domains/test-execution/services/retry-handler.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 575,
+                  "startColumn": 7,
+                  "snippet": {
+                    "text": "const proc = spawn(command, args, { ... });"
+                  }
+                }
+              }
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Validate command against allowlist and sanitize arguments using validateCommand()"
+              }
+            }
+          ],
+          "properties": {
+            "cwe": "CWE-78",
+            "owasp": "A03:2021-Injection"
+          }
+        },
+        {
+          "ruleId": "AQE-SQLI-001",
+          "ruleIndex": 3,
+          "level": "note",
+          "message": {
+            "text": "SQLite exec() usage - verify no user input in SQL strings"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "v3/src/kernel/unified-memory.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 699,
+                  "startColumn": 5,
+                  "snippet": {
+                    "text": "this.db.exec(SCHEMA_VERSION_TABLE);"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "cwe": "CWE-89",
+            "owasp": "A03:2021-Injection"
+          }
+        },
+        {
+          "ruleId": "AQE-REDOS-001",
+          "ruleIndex": 0,
+          "level": "note",
+          "message": {
+            "text": "Memory Backend Pattern Matching: Glob pattern converted to RegExp without ReDoS validation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "v3/src/kernel/memory-backend.ts",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 81,
+                  "startColumn": 5,
+                  "snippet": {
+                    "text": "const regex = new RegExp(pattern.replace(/\\\\*/g, '.*'));"
+                  }
+                }
+              }
+            }
+          ],
+          "properties": {
+            "cwe": "CWE-1333",
+            "owasp": "A03:2021-Injection"
+          }
+        }
+      ],
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "endTimeUtc": "2026-01-16T16:32:18.000Z"
+        }
+      ],
+      "properties": {
+        "summary": {
+          "filesScanned": 150,
+          "critical": 0,
+          "high": 2,
+          "medium": 5,
+          "low": 8,
+          "informational": 12,
+          "secretsDetected": 0
+        },
+        "positiveFindings": [
+          "No hardcoded secrets detected - all API keys properly use process.env",
+          "Comprehensive CVE prevention module exists at mcp/security/cve-prevention.ts",
+          "Token bucket rate limiter implemented at mcp/security/rate-limiter.ts",
+          "Schema validation with Zod-like patterns in mcp/security/schema-validator.ts",
+          "Built-in SAST scanner detects common vulnerabilities",
+          "Cryptographic timing-safe comparison utilities available"
+        ]
+      }
+    }
+  ]
+}

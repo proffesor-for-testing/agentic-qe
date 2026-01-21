@@ -1,0 +1,178 @@
+{
+  "file": "src/utils/Logger.ts",
+  "lines": 200,
+  "cyclomatic": 44,
+  "cognitive": 45,
+  "level": "high",
+  "halstead": {
+    "vocabulary": 192,
+    "length": 1252,
+    "volume": 9496,
+    "difficulty": 29.48,
+    "effort": 279979
+  },
+  "functions": [
+    {
+      "name": "constructor",
+      "startLine": 24,
+      "endLine": 94,
+      "lines": 71,
+      "complexity": 5,
+      "cognitive": 6
+    },
+    {
+      "name": "if",
+      "startLine": 46,
+      "endLine": 69,
+      "lines": 24,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "catch",
+      "startLine": 65,
+      "endLine": 68,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "catch",
+      "startLine": 81,
+      "endLine": 93,
+      "lines": 13,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "getInstance",
+      "startLine": 99,
+      "endLine": 104,
+      "lines": 6,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 99,
+      "endLine": 102,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "error",
+      "startLine": 108,
+      "endLine": 115,
+      "lines": 8,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 109,
+      "endLine": 113,
+      "lines": 5,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "warn",
+      "startLine": 119,
+      "endLine": 126,
+      "lines": 8,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 120,
+      "endLine": 124,
+      "lines": 5,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "info",
+      "startLine": 130,
+      "endLine": 137,
+      "lines": 8,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 131,
+      "endLine": 135,
+      "lines": 5,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "debug",
+      "startLine": 141,
+      "endLine": 148,
+      "lines": 8,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 142,
+      "endLine": 146,
+      "lines": 5,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "log",
+      "startLine": 152,
+      "endLine": 155,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "child",
+      "startLine": 159,
+      "endLine": 164,
+      "lines": 6,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "setLevel",
+      "startLine": 168,
+      "endLine": 171,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "getLevel",
+      "startLine": 175,
+      "endLine": 178,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "ensureLogsDirectory",
+      "startLine": 183,
+      "endLine": 199,
+      "lines": 17,
+      "complexity": 4,
+      "cognitive": 4
+    },
+    {
+      "name": "if",
+      "startLine": 184,
+      "endLine": 187,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    }
+  ],
+  "hotspots": [],
+  "analyzedAt": "2025-12-10T18:59:38.542Z"
+}

@@ -1,0 +1,37 @@
+{
+  "file": "src/utils/Logger.ts",
+  "lines": 200,
+  "functions": 28,
+  "classes": 1,
+  "complexity": {
+    "cyclomatic": 13,
+    "cognitive": 14,
+    "level": "medium"
+  },
+  "metrics": {
+    "maintainability": 59,
+    "testability": 82,
+    "reliability": 80
+  },
+  "issues": [
+    {
+      "type": "code-smell",
+      "severity": "low",
+      "message": "Too many console statements: 12",
+      "line": null
+    },
+    {
+      "type": "type-safety",
+      "severity": "medium",
+      "message": "Found 11 'any' type annotations",
+      "line": null
+    },
+    {
+      "type": "complexity",
+      "severity": "high",
+      "message": "Deep nesting detected: 6 levels",
+      "line": null
+    }
+  ],
+  "analyzedAt": "2025-12-10T18:59:31.807Z"
+}

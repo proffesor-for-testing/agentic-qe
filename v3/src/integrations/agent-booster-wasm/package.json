@@ -1,0 +1,16 @@
+{
+  "name": "agent-booster-wasm",
+  "collaborators": [
+    "Agent Booster Team"
+  ],
+  "description": "WebAssembly bindings for agent-booster",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "agent_booster_wasm_bg.wasm",
+    "agent_booster_wasm.js",
+    "agent_booster_wasm.d.ts"
+  ],
+  "main": "agent_booster_wasm.js",
+  "types": "agent_booster_wasm.d.ts"
+}

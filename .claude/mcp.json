@@ -1,5 +1,18 @@
 {
   "mcpServers": {
+    "agentic-qe-v3": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "/workspaces/agentic-qe/v3/src/mcp/entry.ts"
+      ],
+      "cwd": "/workspaces/agentic-qe/v3",
+      "env": {
+        "NODE_ENV": "production",
+        "NODE_NO_WARNINGS": "1",
+        "AQE_V3_RELOAD": "2026-01-10-v2"
+      }
+    },
     "agentic-qe": {
       "command": "npx",
       "args": [
@@ -32,6 +45,17 @@
       ],
       "env": {
         "NODE_NO_WARNINGS": "1"
+      }
+    },
+    "vibium": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "vibium"
+      ],
+      "env": {
+        "NODE_NO_WARNINGS": "1",
+        "VIBIUM_HEADLESS": "false"
       }
     }
   }

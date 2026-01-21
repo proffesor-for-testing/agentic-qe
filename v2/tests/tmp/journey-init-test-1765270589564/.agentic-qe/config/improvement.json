@@ -1,0 +1,30 @@
+{
+  "enabled": true,
+  "intervalMs": 3600000,
+  "autoApply": false,
+  "enableABTesting": true,
+  "strategies": {
+    "parallelExecution": {
+      "enabled": true,
+      "weight": 0.8
+    },
+    "adaptiveRetry": {
+      "enabled": true,
+      "maxRetries": 3
+    },
+    "resourceOptimization": {
+      "enabled": true,
+      "adaptive": true
+    }
+  },
+  "thresholds": {
+    "minImprovement": 0.05,
+    "maxFailureRate": 0.1,
+    "minConfidence": 0.8
+  },
+  "abTesting": {
+    "sampleSize": 100,
+    "significanceLevel": 0.05,
+    "minSampleDuration": 3600000
+  }
+}

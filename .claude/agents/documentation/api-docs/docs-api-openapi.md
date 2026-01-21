@@ -1,12 +1,12 @@
 ---
 name: "api-docs"
+description: "Expert agent for creating and maintaining OpenAPI/Swagger documentation"
 color: "indigo"
 type: "documentation"
 version: "1.0.0"
 created: "2025-07-25"
 author: "Claude Code"
 metadata:
-  description: "Expert agent for creating and maintaining OpenAPI/Swagger documentation"
   specialization: "OpenAPI 3.0 specification, API documentation, interactive docs"
   complexity: "moderate"
   autonomous: true

@@ -105,8 +105,6 @@ tests/temp/
 
 
 # Ignore memory directories but allow source code
-/memory/
-/coordination/
 memory/claude-flow-data.json
 memory/sessions/*
 !memory/sessions/README.md
@@ -148,11 +146,9 @@ claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
-memory/
 !src/memory/
 !src/core/memory/
 !tests/memory/
-coordination/
 !src/edge/p2p/coordination/
 memory/claude-flow-data.json
 memory/sessions/*
@@ -179,3 +175,13 @@ tmp/*
 **/intelligence.json
 **/.ruvector/
 .env.supabase
+
+#v3 database files
+v3/agentdb.*
+
+# AQE data directories (local, not for git)
+.agentic-qe/results/*
+.agentic-qe/.cve-cache
+.agentic-qe/*-scans/
+v3/.agentic-qe/
+*.db-shm

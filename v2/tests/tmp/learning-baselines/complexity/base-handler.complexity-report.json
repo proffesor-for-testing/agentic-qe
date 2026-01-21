@@ -1,0 +1,90 @@
+{
+  "file": "src/mcp/handlers/base-handler.ts",
+  "lines": 146,
+  "cyclomatic": 21,
+  "cognitive": 31,
+  "level": "medium",
+  "halstead": {
+    "vocabulary": 216,
+    "length": 953,
+    "volume": 7390,
+    "difficulty": 22.4,
+    "effort": 165530
+  },
+  "functions": [
+    {
+      "name": "handle",
+      "startLine": 29,
+      "endLine": 54,
+      "lines": 26,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "containing",
+      "startLine": 57,
+      "endLine": 76,
+      "lines": 20,
+      "complexity": 5,
+      "cognitive": 5
+    },
+    {
+      "name": "catch",
+      "startLine": 66,
+      "endLine": 75,
+      "lines": 10,
+      "complexity": 5,
+      "cognitive": 5
+    },
+    {
+      "name": "generateRequestId",
+      "startLine": 81,
+      "endLine": 83,
+      "lines": 3,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "createSuccessResponse",
+      "startLine": 88,
+      "endLine": 98,
+      "lines": 11,
+      "complexity": 1,
+      "cognitive": 2
+    },
+    {
+      "name": "createErrorResponse",
+      "startLine": 103,
+      "endLine": 113,
+      "lines": 11,
+      "complexity": 1,
+      "cognitive": 2
+    },
+    {
+      "name": "validateRequired",
+      "startLine": 118,
+      "endLine": 126,
+      "lines": 9,
+      "complexity": 4,
+      "cognitive": 9
+    },
+    {
+      "name": "if",
+      "startLine": 122,
+      "endLine": 125,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 4
+    },
+    {
+      "name": "log",
+      "startLine": 131,
+      "endLine": 134,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 2
+    }
+  ],
+  "hotspots": [],
+  "analyzedAt": "2025-12-10T18:59:39.348Z"
+}

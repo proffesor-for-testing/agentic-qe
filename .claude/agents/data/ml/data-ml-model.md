@@ -1,12 +1,12 @@
 ---
 name: "ml-developer"
+description: "Specialized agent for machine learning model development, training, and deployment"
 color: "purple"
 type: "data"
 version: "1.0.0"
 created: "2025-07-25"
 author: "Claude Code"
 metadata:
-  description: "Specialized agent for machine learning model development, training, and deployment"
   specialization: "ML model creation, data preprocessing, model evaluation, deployment"
   complexity: "complex"
   autonomous: false  # Requires approval for model deployment
