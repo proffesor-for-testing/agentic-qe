@@ -929,6 +929,14 @@ export class PatternLoader {
 
       // Navigate from src/integrations/agentic-flow to project root
       const projectRoot = join(currentDir, '..', '..', '..');
+
+      // Check for assets/patterns first (bundled with package, tracked in git)
+      const assetsPath = join(projectRoot, 'assets', 'patterns');
+      if (existsSync(assetsPath)) {
+        return assetsPath;
+      }
+
+      // Fall back to .agentic-qe/patterns (user/runtime directory)
       return join(projectRoot, '.agentic-qe', 'patterns');
     } catch {
       // Fallback for CJS or other environments

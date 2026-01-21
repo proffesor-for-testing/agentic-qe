@@ -1,0 +1,166 @@
+{
+  "namespace": "adr-051/reasoning-patterns",
+  "description": "ReasoningBank Integration Patterns from ADR-051",
+  "created": "2026-01-20",
+  "patterns": [
+    {
+      "key": "reasoning-trajectory-tracking",
+      "pattern": "ReasoningBank Trajectory Tracking",
+      "description": "Track decision-making trajectories for learning and replay",
+      "trajectory_structure": {
+        "trajectory_id": "Unique identifier for sequence",
+        "task_description": "Original task prompt",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "Initial assessment",
+            "result": "Identified key issues",
+            "quality": 0.8
+          },
+          {
+            "step_number": 2,
+            "action": "Proposed solution",
+            "result": "Specific implementation",
+            "quality": 0.9
+          }
+        ],
+        "final_outcome": "Success/Failure with metrics",
+        "completion_time": "Wall-clock execution time"
+      },
+      "tracking_mechanism": {
+        "event_capture": "Record decision at each step",
+        "context_preservation": "Store relevant state",
+        "outcome_recording": "Final result and quality score",
+        "metadata_annotation": "Tags, categories, keywords"
+      },
+      "learning_extraction": {
+        "success_patterns": "Extract what worked well",
+        "failure_analysis": "Understand what failed and why",
+        "performance_correlation": "Link actions to outcomes",
+        "decision_confidence": "Track decision quality signals"
+      },
+      "trajectory_replay": {
+        "similar_task_detection": "Find analogous trajectories",
+        "experience_adaptation": "Adjust for current context",
+        "outcome_prediction": "Forecast success probability",
+        "strategy_transfer": "Apply learned strategies"
+      },
+      "successRate": 0.91,
+      "lastUpdated": "2026-01-20"
+    },
+    {
+      "key": "reasoning-pattern-quality-gates",
+      "pattern": "ReasoningBank Pattern Quality Gates",
+      "description": "Ensure high-quality patterns enter ReasoningBank with quality gates",
+      "quality_criteria": {
+        "success_rate": ">0.85 for pattern approval",
+        "outcome_consistency": "Low variance in results",
+        "generalizability": "Works across multiple contexts",
+        "edge_case_coverage": "Handles variations well",
+        "documentation": "Clear explanation of pattern"
+      },
+      "quality_scoring": {
+        "dimension_1_accuracy": "How often pattern produces correct results",
+        "dimension_2_robustness": "Handles edge cases and variations",
+        "dimension_3_efficiency": "Computational cost vs accuracy tradeoff",
+        "dimension_4_clarity": "How understandable and transferable",
+        "composite_score": "Weighted average of dimensions"
+      },
+      "gate_thresholds": {
+        "bronze_tier": ">0.70 composite score - Limited recommendation",
+        "silver_tier": ">0.80 composite score - Standard recommendation",
+        "gold_tier": ">0.90 composite score - Highly recommended",
+        "platinum_tier": ">0.95 composite score - Approved for critical tasks"
+      },
+      "pattern_validation": [
+        "Run against test suite",
+        "Cross-validation on held-out data",
+        "Edge case stress testing",
+        "Peer review by agents",
+        "Historical performance comparison"
+      ],
+      "rejection_reasons": [
+        "Insufficient success rate",
+        "High variance in outcomes",
+        "Narrow applicability",
+        "Poor documentation",
+        "Security or safety concerns"
+      ],
+      "successRate": 0.94,
+      "lastUpdated": "2026-01-20"
+    },
+    {
+      "key": "reasoning-experience-replay",
+      "pattern": "Experience Replay for Continuous Learning",
+      "description": "Replay past trajectories to reinforce successful patterns and prevent catastrophic forgetting",
+      "replay_mechanism": {
+        "sample_trajectory": "Randomly sample from trajectory buffer",
+        "extract_experience": "Get action-outcome pairs",
+        "analyze_decision": "Understand why that action succeeded",
+        "reinforce_pattern": "Strengthen association in memory",
+        "prevent_forgetting": "Consolidate knowledge with EWC++"
+      },
+      "buffer_management": {
+        "trajectory_buffer_size": "100-1000 trajectories",
+        "prioritized_sampling": "Over-sample high-value trajectories",
+        "diversity_sampling": "Ensure coverage of different task types",
+        "staleness_threshold": "Drop trajectories older than N days",
+        "checkpointing": "Periodically save important trajectories"
+      },
+      "learning_integration": {
+        "offline_replay": "Run during idle time",
+        "online_replay": "Interleave with new experiences",
+        "consolidation": "EWC++ protects old knowledge",
+        "transfer_learning": "Apply patterns to new tasks"
+      },
+      "metrics_tracking": {
+        "replay_frequency": "How often each trajectory replayed",
+        "learning_gain": "Improvement from replay",
+        "forgetting_rate": "How fast knowledge decays",
+        "transfer_success": "Patterns working on new tasks"
+      },
+      "scaling_strategy": "Distributed replay across agent swarm",
+      "successRate": 0.89,
+      "lastUpdated": "2026-01-20"
+    },
+    {
+      "key": "reasoning-cross-agent-sharing",
+      "pattern": "Cross-Agent Knowledge Sharing",
+      "description": "Share learned patterns and trajectories between agents for collective intelligence",
+      "sharing_channels": {
+        "pattern_broadcast": "Share high-quality patterns to all agents",
+        "trajectory_publishing": "Publish successful trajectories",
+        "failure_alerts": "Warn about patterns that failed",
+        "performance_updates": "Share metric improvements"
+      },
+      "knowledge_transfer": {
+        "sender_agent": "Identifies pattern worth sharing",
+        "quality_assessment": "Verify pattern meets quality gates",
+        "packaging": "Package with metadata and context",
+        "distribution": "Broadcast to relevant agent types",
+        "integration": "Receiving agents incorporate pattern"
+      },
+      "recipient_adaptation": {
+        "context_adjustment": "Adapt pattern to local context",
+        "validation": "Test pattern in new environment",
+        "confidence_tracking": "Monitor transfer success rate",
+        "feedback_loop": "Report back on effectiveness"
+      },
+      "knowledge_domains": [
+        "Test generation strategies",
+        "Code analysis patterns",
+        "Error diagnosis techniques",
+        "Optimization approaches",
+        "Security checking methods"
+      ],
+      "conflict_resolution": {
+        "version_mismatch": "Prefer newer patterns with higher success rate",
+        "contradictory_patterns": "Run both and compare empirically",
+        "domain_specificity": "Context-weight patterns by relevance"
+      },
+      "scaling_approach": "Gossip protocol for decentralized propagation",
+      "successRate": 0.87,
+      "lastUpdated": "2026-01-20"
+    }
+  ]
+}

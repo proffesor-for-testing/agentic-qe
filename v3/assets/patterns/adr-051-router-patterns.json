@@ -1,0 +1,113 @@
+{
+  "namespace": "adr-051/router-patterns",
+  "description": "Model Router Integration Patterns from ADR-051",
+  "created": "2026-01-20",
+  "patterns": [
+    {
+      "key": "router-5tier-complexity",
+      "pattern": "5-Tier Model Complexity Scoring System",
+      "description": "Hierarchical model routing based on task complexity and constraints",
+      "tier_hierarchy": {
+        "tier_1_booster": {
+          "cost": "$0",
+          "latency": "<1ms",
+          "use_case": "Simple transforms (var-const, add-types, remove-console)",
+          "eligibility": "Pure functions, no dependencies"
+        },
+        "tier_2_haiku": {
+          "cost": "$0.80/M input tokens",
+          "latency": "~500ms",
+          "use_case": "Bug fixes, simple tasks, low complexity",
+          "complexity_score": "1-3"
+        },
+        "tier_3_sonnet": {
+          "cost": "$3/M input tokens",
+          "latency": "~2-3s",
+          "use_case": "Medium complexity, architectural decisions",
+          "complexity_score": "4-6"
+        },
+        "tier_4_opus": {
+          "cost": "$15/M input tokens",
+          "latency": "~5-8s",
+          "use_case": "Complex reasoning, security-critical",
+          "complexity_score": "7-9"
+        },
+        "tier_5_human": {
+          "cost": "Manual review",
+          "latency": "Variable",
+          "use_case": "Final decisions, critical paths",
+          "complexity_score": "10"
+        }
+      },
+      "scoring_factors": [
+        "Number of files affected",
+        "Code complexity (AST depth)",
+        "Domain sensitivity",
+        "Business impact",
+        "Security implications",
+        "Architectural change magnitude"
+      ],
+      "auto_downgrade": "Reduce tier if budget exceeded or timeout risk",
+      "successRate": 0.91,
+      "lastUpdated": "2026-01-20"
+    },
+    {
+      "key": "router-budget-enforcement",
+      "pattern": "Budget Enforcement with Auto-Downgrade",
+      "description": "Enforce token and cost budgets with intelligent model tier downgrade",
+      "budget_constraints": {
+        "max_tokens_per_task": "100000",
+        "max_cost_per_task": "$0.50",
+        "max_latency_ms": "30000"
+      },
+      "auto_downgrade_logic": {
+        "step_1": "Estimate tokens needed for task with target model",
+        "step_2": "Compare against available budget",
+        "step_3": "If exceeded: downgrade to cheaper model",
+        "step_4": "Recalculate and repeat until fits budget",
+        "step_5": "Escalate to human if no model viable"
+      },
+      "budget_tracking": {
+        "per_task": "Track cumulative tokens/cost",
+        "per_session": "Aggregate across all tasks",
+        "per_day": "Daily quota enforcement",
+        "alerts": "Warn at 80% threshold"
+      },
+      "recovery_strategies": [
+        "Task decomposition into smaller chunks",
+        "Caching partial results to reduce retokenization",
+        "Context pruning for efficiency",
+        "Result streaming to avoid buffering"
+      ],
+      "successRate": 0.88,
+      "lastUpdated": "2026-01-20"
+    },
+    {
+      "key": "router-booster-integration",
+      "pattern": "Model Router to Agent Booster Integration",
+      "description": "Seamless integration between router and booster for optimal task routing",
+      "integration_flow": {
+        "step_1_receive_task": "Router receives task description",
+        "step_2_classify": "Classify as simple transform or complex task",
+        "step_3_check_booster": "Check Agent Booster eligibility criteria",
+        "step_4_route": "If eligible: route to booster; else: route to model tier",
+        "step_5_execute": "Execute via appropriate pathway",
+        "step_6_report": "Report cost, latency, quality metrics"
+      },
+      "eligibility_handshake": {
+        "booster_can_handle": "Query booster eligibility function",
+        "transform_type": "Categorize specific transform",
+        "fallback_model": "Designate fallback if booster fails"
+      },
+      "metrics_collection": {
+        "booster_execution": "Track WASM vs TS fallback ratio",
+        "model_tier_usage": "Distribution across Haiku/Sonnet/Opus",
+        "cost_savings": "Actual vs baseline cost",
+        "quality_correlation": "Task complexity vs outcome quality"
+      },
+      "feedback_loop": "Use execution patterns to refine routing heuristics",
+      "successRate": 0.89,
+      "lastUpdated": "2026-01-20"
+    }
+  ]
+}

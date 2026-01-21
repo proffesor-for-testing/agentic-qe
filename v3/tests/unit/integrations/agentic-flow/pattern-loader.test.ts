@@ -26,7 +26,8 @@ import {
 
 // Get the v3 project root for test fixtures
 const V3_ROOT = join(__dirname, '..', '..', '..', '..');
-const PATTERNS_PATH = join(V3_ROOT, '.agentic-qe', 'patterns');
+// Use assets/patterns (tracked in git) instead of .agentic-qe/patterns (gitignored)
+const PATTERNS_PATH = join(V3_ROOT, 'assets', 'patterns');
 
 describe('PatternLoader', () => {
   // Reset singleton between tests

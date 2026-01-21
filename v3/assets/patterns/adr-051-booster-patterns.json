@@ -1,0 +1,78 @@
+{
+  "namespace": "adr-051/booster-patterns",
+  "description": "Agent Booster Integration Patterns from ADR-051",
+  "created": "2026-01-20",
+  "patterns": [
+    {
+      "key": "booster-transform-eligibility",
+      "pattern": "Agent Booster Transform Eligibility Detection",
+      "description": "Detect simple transforms that can run in Agent Booster WASM runtime without model inference",
+      "eligibility_criteria": {
+        "simple_transforms": ["var-to-const", "add-types", "remove-console", "rename-variable", "add-comments"],
+        "wasm_compatible": "Must be pure functions with no I/O dependencies",
+        "fallback_strategy": "Gracefully fallback to TypeScript implementation if WASM unavailable"
+      },
+      "performance_metrics": {
+        "wasm_speedup": "80-90x faster than model inference",
+        "latency": "<1ms for simple transforms",
+        "cost": "$0 (local execution)"
+      },
+      "integration_points": [
+        "mcp__claude-flow__hooks_model-route pre-task",
+        "Task complexity assessment",
+        "Budget constraint checking"
+      ],
+      "successRate": 0.95,
+      "lastUpdated": "2026-01-20"
+    },
+    {
+      "key": "booster-batch-optimization",
+      "pattern": "Agent Booster Batch Transform Optimization",
+      "description": "Optimize batch processing of simple transforms through WASM runtime",
+      "batch_strategy": {
+        "grouping": "Collect similar transforms (e.g., all var-to-const conversions)",
+        "parallel_execution": "Process multiple files simultaneously in WASM",
+        "result_aggregation": "Combine results and report overall metrics"
+      },
+      "optimization_techniques": [
+        "Worker pool management",
+        "Memory pooling for reduced GC pressure",
+        "Result streaming for large batches",
+        "Checkpoint-resume capability"
+      ],
+      "performance_gains": {
+        "single_transform": "<1ms",
+        "batch_of_100": "50-100ms total",
+        "throughput": "1000+ transforms/second"
+      },
+      "error_handling": "Partial batch completion with retry support",
+      "successRate": 0.92,
+      "lastUpdated": "2026-01-20"
+    },
+    {
+      "key": "booster-wasm-fallback",
+      "pattern": "WASM to TypeScript Fallback Strategy",
+      "description": "Graceful degradation when WASM runtime unavailable",
+      "fallback_triggers": [
+        "WASM module loading failure",
+        "Browser/platform incompatibility",
+        "Memory constraints",
+        "Security policy restrictions"
+      ],
+      "implementation": {
+        "detection": "Try-catch WASM initialization, fallback on error",
+        "pure_typescript_implementation": "Feature-equivalent JavaScript implementation",
+        "api_compatibility": "Same function signatures, same behavior",
+        "performance_graceful_degradation": "20-30x slower but still viable"
+      },
+      "testing_strategy": [
+        "Test both WASM and TypeScript paths",
+        "Verify identical outputs",
+        "Benchmark performance variance",
+        "Stress test error conditions"
+      ],
+      "successRate": 0.98,
+      "lastUpdated": "2026-01-20"
+    }
+  ]
+}
