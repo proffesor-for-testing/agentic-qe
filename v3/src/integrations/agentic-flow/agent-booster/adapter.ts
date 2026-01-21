@@ -69,6 +69,8 @@ import { executeTransform } from './transforms';
 
 import type { MetricsTracker } from '../metrics/metrics-tracker';
 
+import { getPatternLoader } from '../pattern-loader';
+
 // Import WASM module functions
 import {
   transform as wasmTransform,
@@ -196,12 +198,13 @@ export class AgentBoosterAdapter implements IAgentBoosterAdapter {
   private readonly config: AgentBoosterConfig;
   private readonly logger: AgentBoosterLogger;
   private readonly cache: TransformCache;
-  private readonly enabledTransforms: Set<TransformType>;
+  private enabledTransforms: Set<TransformType>;  // Mutable: updated from PatternLoader
   private metricsTracker?: MetricsTracker;
 
   private initialized = false;
   private wasmAvailable = false;
   private wasmModule: unknown = null;
+  private patternsLoaded = false;  // ADR-051: Tracks if transforms loaded from patterns
 
   // Metrics
   private totalTransforms = 0;
@@ -259,6 +262,7 @@ export class AgentBoosterAdapter implements IAgentBoosterAdapter {
    * Initialize the adapter
    *
    * Attempts to load WASM module if available.
+   * Loads eligible transforms from PatternLoader (ADR-051 configuration-as-data).
    * Adapter is usable even if WASM fails to load (falls back to TypeScript).
    */
   async initialize(): Promise<void> {
@@ -268,6 +272,12 @@ export class AgentBoosterAdapter implements IAgentBoosterAdapter {
       enabled: this.config.enabled,
       transforms: Array.from(this.enabledTransforms),
     });
+
+    // Load eligible transforms from PatternLoader (ADR-051 wiring)
+    // This allows runtime configuration without recompiling
+    if (this.config.transforms.length === 0) {
+      await this.loadEligibleTransformsFromPatterns();
+    }
 
     // Attempt to load WASM module
     if (this.config.enabled) {
@@ -279,7 +289,46 @@ export class AgentBoosterAdapter implements IAgentBoosterAdapter {
     this.logger.info('Agent Booster adapter initialized', {
       wasmAvailable: this.wasmAvailable,
       enabledTransforms: Array.from(this.enabledTransforms),
+      patternsLoaded: this.patternsLoaded,
     });
+  }
+
+  /**
+   * Load eligible transforms from PatternLoader (ADR-051)
+   * Falls back to ALL_TRANSFORM_TYPES if patterns are unavailable
+   */
+  private async loadEligibleTransformsFromPatterns(): Promise<void> {
+    try {
+      const loader = getPatternLoader();
+      const eligibleTransforms = await loader.getEligibleBoosterTransforms();
+
+      if (eligibleTransforms.length > 0) {
+        // Validate that pattern transforms are valid TransformTypes
+        const validTransforms = eligibleTransforms.filter((t) =>
+          ALL_TRANSFORM_TYPES.includes(t as TransformType)
+        ) as TransformType[];
+
+        if (validTransforms.length > 0) {
+          this.enabledTransforms = new Set(validTransforms);
+          this.patternsLoaded = true;
+          this.logger.info('Loaded eligible transforms from PatternLoader', {
+            fromPatterns: validTransforms,
+            invalidIgnored: eligibleTransforms.length - validTransforms.length,
+          });
+          return;
+        }
+      }
+
+      this.logger.debug('PatternLoader returned empty transforms, using defaults');
+    } catch (error) {
+      this.logger.warn('Failed to load transforms from PatternLoader, using defaults', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    // Fallback to hardcoded defaults
+    this.enabledTransforms = new Set(ALL_TRANSFORM_TYPES);
+    this.patternsLoaded = false;
   }
 
   /**
@@ -757,10 +806,14 @@ export class AgentBoosterAdapter implements IAgentBoosterAdapter {
     if (!this.wasmAvailable) {
       issues.push('WASM module not loaded (using TypeScript fallback)');
     }
+    if (!this.patternsLoaded) {
+      issues.push('Patterns not loaded from PatternLoader (using defaults)');
+    }
 
     return {
       ready: this.initialized && this.config.enabled,
       wasmAvailable: this.wasmAvailable,
+      patternsLoaded: this.patternsLoaded,  // ADR-051: Configuration from patterns
       availableTransforms: Array.from(this.enabledTransforms),
       lastChecked: new Date(),
       issues,

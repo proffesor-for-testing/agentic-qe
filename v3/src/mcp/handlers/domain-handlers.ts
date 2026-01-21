@@ -27,6 +27,7 @@ import {
 } from '../types';
 import { createTaskExecutor, DomainTaskExecutor } from '../../coordination/task-executor';
 import { MetricsCollector } from '../metrics';
+import { getTaskRouter, type TaskRoutingResult } from '../services/task-router';
 
 // ============================================================================
 // V2-Compatible Response Helpers
@@ -95,6 +96,39 @@ interface V2RetryStats {
   maxRetriesReached: number;
   [key: string]: unknown;
 }
+
+// ============================================================================
+// ADR-051: Task Routing Integration
+// ============================================================================
+
+/**
+ * Route a domain task through the Model Router
+ * Returns routing decision with model tier recommendation
+ */
+async function routeDomainTask(
+  taskDescription: string,
+  domain: string,
+  codeContext?: string
+): Promise<TaskRoutingResult | null> {
+  try {
+    const router = await getTaskRouter();
+    const result = await router.routeTask({
+      task: taskDescription,
+      domain,
+      codeContext,
+      agentType: `qe-${domain}`,
+    });
+    return result;
+  } catch (error) {
+    // Log but don't fail - routing is advisory
+    console.error(`[DomainHandlers] Routing failed for ${domain}: ${error}`);
+    return null;
+  }
+}
+
+// ============================================================================
+// V2-Compatible Response Helpers
+// ============================================================================
 
 function analyzeComplexity(sourceCode: string): V2Complexity {
   const lines = sourceCode.split('\n').length;
@@ -281,6 +315,13 @@ export async function handleTestGenerate(
   const { queen } = getFleetState();
 
   try {
+    // ADR-051: Route task to optimal model tier
+    const routingResult = await routeDomainTask(
+      `Generate ${params.testType || 'unit'} tests for ${params.language || 'typescript'} code`,
+      'test-generation',
+      params.sourceCode
+    );
+
     // Submit task for tracking
     const submitResult = await queen!.submitTask({
       type: 'generate-tests',
@@ -295,6 +336,9 @@ export async function handleTestGenerate(
         coverageGoal: params.coverageGoal || 80,
         aiEnhancement: params.aiEnhancement !== false,
         detectAntiPatterns: params.detectAntiPatterns || false,
+        // ADR-051: Include routing decision
+        routingTier: routingResult?.decision.tier,
+        useAgentBooster: routingResult?.useAgentBooster,
       },
       timeout: 120000,
     });
@@ -419,6 +463,12 @@ export async function handleTestExecute(
   const { queen } = getFleetState();
 
   try {
+    // ADR-051: Route task to optimal model tier
+    const routingResult = await routeDomainTask(
+      `Execute ${params.testFiles?.length || 0} test files with ${params.parallel !== false ? 'parallel' : 'sequential'} execution`,
+      'test-execution'
+    );
+
     const submitResult = await queen!.submitTask({
       type: 'execute-tests',
       priority: 'p1',
@@ -432,6 +482,9 @@ export async function handleTestExecute(
         timeout: params.timeout || 60000,
         collectCoverage: params.collectCoverage || false,
         reportFormat: params.reportFormat || 'json',
+        // ADR-051: Include routing decision
+        routingTier: routingResult?.decision.tier,
+        useAgentBooster: routingResult?.useAgentBooster,
       },
       timeout: params.timeout || 300000,
     });
@@ -548,6 +601,12 @@ export async function handleCoverageAnalyze(
   const { queen } = getFleetState();
 
   try {
+    // ADR-051: Route task to optimal model tier
+    const routingResult = await routeDomainTask(
+      `Analyze coverage for ${params.target || 'project'} with gap detection`,
+      'coverage-analysis'
+    );
+
     const submitResult = await queen!.submitTask({
       type: 'analyze-coverage',
       priority: 'p1',
@@ -558,6 +617,9 @@ export async function handleCoverageAnalyze(
         detectGaps: params.detectGaps !== false,
         mlPowered: params.mlPowered || false,
         prioritization: params.prioritization || 'complexity',
+        // ADR-051: Include routing decision
+        routingTier: routingResult?.decision.tier,
+        useAgentBooster: routingResult?.useAgentBooster,
       },
       timeout: 180000,
     });
@@ -699,6 +761,12 @@ export async function handleQualityAssess(
   const { queen } = getFleetState();
 
   try {
+    // ADR-051: Route task to optimal model tier
+    const routingResult = await routeDomainTask(
+      `Assess quality with ${params.runGate ? 'quality gate' : 'metrics analysis'}`,
+      'quality-assessment'
+    );
+
     const submitResult = await queen!.submitTask({
       type: 'assess-quality',
       priority: 'p0',
@@ -707,6 +775,9 @@ export async function handleQualityAssess(
         runGate: params.runGate || false,
         threshold: params.threshold || 80,
         metrics: params.metrics || ['coverage', 'complexity', 'maintainability'],
+        // ADR-051: Include routing decision
+        routingTier: routingResult?.decision.tier,
+        useAgentBooster: routingResult?.useAgentBooster,
       },
       timeout: 180000,
     });
@@ -800,6 +871,12 @@ export async function handleSecurityScan(
     if (params.sast !== false) scanTypes.push('SAST');
     if (params.dast) scanTypes.push('DAST');
 
+    // ADR-051: Route task to optimal model tier
+    const routingResult = await routeDomainTask(
+      `Security scan (${scanTypes.join(', ')}) for ${params.target || 'project'}`,
+      'security-compliance'
+    );
+
     const submitResult = await queen!.submitTask({
       type: 'scan-security',
       priority: 'p0',
@@ -809,6 +886,9 @@ export async function handleSecurityScan(
         dast: params.dast || false,
         compliance: params.compliance || [],
         target: params.target || '.',
+        // ADR-051: Include routing decision
+        routingTier: routingResult?.decision.tier,
+        useAgentBooster: routingResult?.useAgentBooster,
       },
       timeout: 600000,
     });
@@ -899,6 +979,12 @@ export async function handleContractValidate(
   const { queen } = getFleetState();
 
   try {
+    // ADR-051: Route task to optimal model tier
+    const routingResult = await routeDomainTask(
+      `Validate API contract at ${params.contractPath}`,
+      'contract-testing'
+    );
+
     const submitResult = await queen!.submitTask({
       type: 'validate-contracts',
       priority: 'p1',
@@ -908,6 +994,9 @@ export async function handleContractValidate(
         providerUrl: params.providerUrl,
         consumerName: params.consumerName,
         checkBreakingChanges: params.checkBreakingChanges !== false,
+        // ADR-051: Include routing decision
+        routingTier: routingResult?.decision.tier,
+        useAgentBooster: routingResult?.useAgentBooster,
       },
       timeout: 180000,
     });
@@ -990,6 +1079,12 @@ export async function handleAccessibilityTest(
   const { queen } = getFleetState();
 
   try {
+    // ADR-051: Route task to optimal model tier
+    const routingResult = await routeDomainTask(
+      `Test accessibility for ${params.url} against ${params.standard || 'WCAG 2.1 AA'} standard`,
+      'visual-accessibility'
+    );
+
     const submitResult = await queen!.submitTask({
       type: 'test-accessibility',
       priority: 'p1',
@@ -998,6 +1093,9 @@ export async function handleAccessibilityTest(
         url: params.url,
         standard: params.standard || 'wcag21-aa',
         includeScreenReader: params.includeScreenReader || false,
+        // ADR-051: Include routing decision
+        routingTier: routingResult?.decision.tier,
+        useAgentBooster: routingResult?.useAgentBooster,
       },
       timeout: 180000,
     });
@@ -1084,6 +1182,12 @@ export async function handleChaosTest(
   const { queen } = getFleetState();
 
   try {
+    // ADR-051: Route task to optimal model tier
+    const routingResult = await routeDomainTask(
+      `Run chaos test with ${params.faultType || 'latency'} fault injection on ${params.target}`,
+      'chaos-resilience'
+    );
+
     const submitResult = await queen!.submitTask({
       type: 'run-chaos',
       priority: 'p2',
@@ -1094,6 +1198,9 @@ export async function handleChaosTest(
         duration: params.duration || 30000,
         intensity: params.intensity || 50,
         dryRun: params.dryRun !== false,
+        // ADR-051: Include routing decision
+        routingTier: routingResult?.decision.tier,
+        useAgentBooster: routingResult?.useAgentBooster,
       },
       timeout: (params.duration || 30000) + 60000,
     });
@@ -1187,6 +1294,12 @@ export async function handleDefectPredict(
   const { queen } = getFleetState();
 
   try {
+    // ADR-051: Route task to optimal model tier
+    const routingResult = await routeDomainTask(
+      `Predict defects in ${params.target || 'codebase'} with ${params.lookback || 30} day lookback`,
+      'defect-intelligence'
+    );
+
     const submitResult = await queen!.submitTask({
       type: 'predict-defects',
       priority: 'p1',
@@ -1195,6 +1308,9 @@ export async function handleDefectPredict(
         target: params.target || '.',
         lookback: params.lookback || 30,
         minConfidence: params.minConfidence || 0.7,
+        // ADR-051: Include routing decision
+        routingTier: routingResult?.decision.tier,
+        useAgentBooster: routingResult?.useAgentBooster,
       },
       timeout: 180000,
     });
@@ -1283,6 +1399,12 @@ export async function handleRequirementsValidate(
   const { queen } = getFleetState();
 
   try {
+    // ADR-051: Route task to optimal model tier
+    const routingResult = await routeDomainTask(
+      `Validate requirements${params.generateBDD ? ' and generate BDD scenarios' : ''}`,
+      'requirements-validation'
+    );
+
     const submitResult = await queen!.submitTask({
       type: 'validate-requirements',
       priority: 'p1',
@@ -1291,6 +1413,9 @@ export async function handleRequirementsValidate(
         requirementsPath: params.requirementsPath,
         testPath: params.testPath,
         generateBDD: params.generateBDD || false,
+        // ADR-051: Include routing decision
+        routingTier: routingResult?.decision.tier,
+        useAgentBooster: routingResult?.useAgentBooster,
       },
       timeout: 180000,
     });
@@ -1380,6 +1505,12 @@ export async function handleCodeIndex(
   const { queen } = getFleetState();
 
   try {
+    // ADR-051: Route task to optimal model tier
+    const routingResult = await routeDomainTask(
+      `Index code in ${params.target || 'codebase'}${params.incremental ? ' incrementally' : ''}`,
+      'code-intelligence'
+    );
+
     const submitResult = await queen!.submitTask({
       type: 'index-code',
       priority: 'p2',
@@ -1388,6 +1519,9 @@ export async function handleCodeIndex(
         target: params.target || '.',
         incremental: params.incremental || false,
         gitSince: params.gitSince,
+        // ADR-051: Include routing decision
+        routingTier: routingResult?.decision.tier,
+        useAgentBooster: routingResult?.useAgentBooster,
       },
       timeout: 300000,
     });

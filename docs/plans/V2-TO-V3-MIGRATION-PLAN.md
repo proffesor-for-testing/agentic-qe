@@ -504,7 +504,7 @@ Week 5-8:
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ruvnet/agentic-qe.git",
+    "url": "git+https://github.com/proffesor-for-testing/agentic-qe.git",
     "directory": "v3"
   }
 }

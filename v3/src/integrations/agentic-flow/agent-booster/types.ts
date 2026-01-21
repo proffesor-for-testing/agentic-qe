@@ -455,6 +455,9 @@ export interface AgentBoosterHealth {
   /** Whether WASM is available */
   wasmAvailable: boolean;
 
+  /** ADR-051: Whether transforms loaded from PatternLoader */
+  patternsLoaded: boolean;
+
   /** Available transforms */
   availableTransforms: TransformType[];
 

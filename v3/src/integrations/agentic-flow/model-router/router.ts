@@ -27,6 +27,8 @@ import {
   DEFAULT_ROUTER_CONFIG,
 } from './types';
 
+import { getPatternLoader } from '../pattern-loader';
+
 import type { IComplexityAnalyzer } from './types';
 import { ComplexityAnalyzer } from './complexity-analyzer';
 
@@ -328,6 +330,10 @@ export class ModelRouter implements IModelRouter {
   private readonly metrics: InMemoryMetricsTracker;
   private persistentMetricsTracker?: PersistentMetricsTracker;
 
+  // ADR-051: PatternLoader integration
+  private patternsLoaded = false;
+  private tierHierarchyFromPatterns: Awaited<ReturnType<ReturnType<typeof getPatternLoader>['getTierHierarchy']>> = null;
+
   constructor(
     config: Partial<ModelRouterConfig> = {},
     agentBoosterAdapter?: IAgentBoosterAdapter,
@@ -356,6 +362,49 @@ export class ModelRouter implements IModelRouter {
    */
   setPersistentMetricsTracker(tracker: PersistentMetricsTracker): void {
     this.persistentMetricsTracker = tracker;
+  }
+
+  /**
+   * ADR-051: Load tier configuration from PatternLoader
+   * Falls back to hardcoded defaults if patterns unavailable
+   */
+  async loadPatternsFromLoader(): Promise<void> {
+    try {
+      const loader = getPatternLoader();
+      const tierHierarchy = await loader.getTierHierarchy();
+
+      if (tierHierarchy) {
+        this.tierHierarchyFromPatterns = tierHierarchy;
+        this.patternsLoaded = true;
+
+        // Log successful pattern load (patterns provide configuration reference)
+        console.info('[ModelRouter] Loaded tier hierarchy from PatternLoader', {
+          tiers: Object.keys(tierHierarchy),
+        });
+        return;
+      }
+
+      console.debug('[ModelRouter] PatternLoader returned no tier hierarchy, using defaults');
+    } catch (error) {
+      console.warn('[ModelRouter] Failed to load patterns from PatternLoader, using defaults', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+    this.patternsLoaded = false;
+  }
+
+  /**
+   * ADR-051: Get pattern loading status for health checks
+   */
+  getPatternsLoaded(): boolean {
+    return this.patternsLoaded;
+  }
+
+  /**
+   * ADR-051: Get tier hierarchy from patterns (for debugging/reporting)
+   */
+  getTierHierarchyFromPatterns(): typeof this.tierHierarchyFromPatterns {
+    return this.tierHierarchyFromPatterns;
   }
 
   /**
@@ -802,6 +851,8 @@ export function createModelRouter(
 /**
  * Create a model router with Agent Booster enabled
  *
+ * ADR-051: Now loads tier configuration from PatternLoader
+ *
  * @param config - Router configuration
  * @param persistentMetricsTracker - Optional persistent metrics tracker
  *
@@ -821,6 +872,9 @@ export function createModelRouter(
  * // Check real success rate
  * const stats = await metricsTracker.getSuccessRate('router');
  * console.log(`Router success rate: ${(stats.rate * 100).toFixed(1)}%`);
+ *
+ * // ADR-051: Check pattern loading status
+ * console.log(`Patterns loaded: ${router.getPatternsLoaded()}`);
  * ```
  */
 export async function createModelRouterWithAgentBooster(
@@ -834,5 +888,10 @@ export async function createModelRouterWithAgentBooster(
     enabled: true,
   });
 
-  return new ModelRouter(config, agentBoosterAdapter, persistentMetricsTracker);
+  const router = new ModelRouter(config, agentBoosterAdapter, persistentMetricsTracker);
+
+  // ADR-051: Load tier configuration from PatternLoader
+  await router.loadPatternsFromLoader();
+
+  return router;
 }

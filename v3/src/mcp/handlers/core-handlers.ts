@@ -8,6 +8,15 @@ import { QEKernel } from '../../kernel/interfaces';
 import { QEKernelImpl } from '../../kernel/kernel';
 import { ALL_DOMAINS, DomainName } from '../../shared/types';
 import { QueenCoordinator, createQueenCoordinator } from '../../coordination/queen-coordinator';
+
+/**
+ * User-facing QE domains (excludes internal 'coordination' domain)
+ * Documentation refers to "12 DDD domains" - these are the QE-focused domains
+ * The 'coordination' domain is internal infrastructure for Queen Coordinator
+ */
+const QE_USER_DOMAINS: readonly DomainName[] = ALL_DOMAINS.filter(
+  (d) => d !== 'coordination'
+) as DomainName[];
 import { CrossDomainEventRouter } from '../../coordination/cross-domain-router';
 import { resetServiceCaches } from '../../coordination/task-executor';
 import { resetTaskExecutor } from './domain-handlers';
@@ -75,7 +84,8 @@ export async function handleFleetInit(
           fleetId: state.fleetId!,
           topology: params.topology || 'hierarchical',
           maxAgents: params.maxAgents || 15,
-          enabledDomains: (params.enabledDomains || ALL_DOMAINS) as DomainName[],
+          // Show only user-facing QE domains (12 domains, excludes internal 'coordination')
+          enabledDomains: (params.enabledDomains || QE_USER_DOMAINS) as DomainName[],
           status: 'ready',
         },
       };
@@ -85,7 +95,10 @@ export async function handleFleetInit(
     state.fleetId = `fleet-${uuidv4().slice(0, 8)}`;
 
     // Determine enabled domains
+    // Use QE_USER_DOMAINS (12 domains) for user-facing output, but internally still enable all 13
+    // The 'coordination' domain is used by Queen Coordinator internally
     const enabledDomains: DomainName[] = params.enabledDomains || [...ALL_DOMAINS];
+    const userFacingDomains: DomainName[] = enabledDomains.filter(d => d !== 'coordination') as DomainName[];
 
     // Create kernel
     state.kernel = new QEKernelImpl({
@@ -130,7 +143,8 @@ export async function handleFleetInit(
         fleetId: state.fleetId,
         topology: params.topology || 'hierarchical',
         maxAgents: params.maxAgents || 15,
-        enabledDomains,
+        // Return user-facing domains (12) - coordination is internal
+        enabledDomains: userFacingDomains,
         status: 'initialized',
       },
     };

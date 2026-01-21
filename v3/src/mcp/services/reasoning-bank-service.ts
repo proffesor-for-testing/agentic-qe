@@ -16,6 +16,7 @@ import {
   type RealQEReasoningBankStats,
 } from '../../learning/real-qe-reasoning-bank';
 import type { QEPattern, QEDomain } from '../../learning/qe-patterns';
+import { getPatternLoader } from '../../integrations/agentic-flow/pattern-loader';
 
 // ============================================================================
 // Types
@@ -112,6 +113,10 @@ export class ReasoningBankService {
   private readonly reasoningBank: RealQEReasoningBank;
   private disposed = false;
 
+  // ADR-051: Pattern loading status
+  private patternsLoaded = false;
+  private qualityThresholdsFromPatterns: Awaited<ReturnType<ReturnType<typeof getPatternLoader>['getQualityGateThresholds']>> = null;
+
   // Metrics tracking
   private tasksRecorded = 0;
   private successfulTasks = 0;
@@ -170,8 +175,55 @@ export class ReasoningBankService {
 
     await reasoningBank.initialize();
 
+    const service = new ReasoningBankService(fullConfig, reasoningBank);
+
+    // ADR-051: Load quality thresholds from PatternLoader
+    await service.loadPatternsFromLoader();
+
     console.error('[ReasoningBankService] Initialized with HNSW index');
-    return new ReasoningBankService(fullConfig, reasoningBank);
+    return service;
+  }
+
+  /**
+   * ADR-051: Load quality gate thresholds from PatternLoader
+   * Falls back to hardcoded defaults if patterns unavailable
+   */
+  private async loadPatternsFromLoader(): Promise<void> {
+    try {
+      const loader = getPatternLoader();
+      const thresholds = await loader.getQualityGateThresholds();
+
+      if (thresholds) {
+        this.qualityThresholdsFromPatterns = thresholds;
+        this.patternsLoaded = true;
+
+        console.error('[ReasoningBankService] Loaded quality thresholds from PatternLoader', {
+          tiers: Object.keys(thresholds),
+        });
+        return;
+      }
+
+      console.error('[ReasoningBankService] PatternLoader returned no thresholds, using defaults');
+    } catch (error) {
+      console.error('[ReasoningBankService] Failed to load patterns from PatternLoader, using defaults', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+    this.patternsLoaded = false;
+  }
+
+  /**
+   * ADR-051: Get pattern loading status for health checks
+   */
+  getPatternsLoaded(): boolean {
+    return this.patternsLoaded;
+  }
+
+  /**
+   * ADR-051: Get quality thresholds from patterns (for debugging/reporting)
+   */
+  getQualityThresholdsFromPatterns(): typeof this.qualityThresholdsFromPatterns {
+    return this.qualityThresholdsFromPatterns;
   }
 
   /**
@@ -357,6 +409,7 @@ export class ReasoningBankService {
       successRate: number;
       patternsStored: number;
       routingRequests: number;
+      patternsLoaded: boolean; // ADR-051
     };
     reasoningBank: RealQEReasoningBankStats;
   }> {
@@ -371,6 +424,7 @@ export class ReasoningBankService {
           this.tasksRecorded > 0 ? this.successfulTasks / this.tasksRecorded : 0,
         patternsStored: this.patternsStored,
         routingRequests: this.routingRequests,
+        patternsLoaded: this.patternsLoaded, // ADR-051
       },
       reasoningBank: bankStats,
     };

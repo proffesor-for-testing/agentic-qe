@@ -1,7 +1,7 @@
 /**
  * Agentic QE v3 - Pattern Loader
  *
- * Loads JSON patterns from .agentic-qe/patterns/ directory and provides
+ * Loads JSON patterns from assets/patterns/ directory and provides
  * typed access to pattern data for Agent Booster, Model Router, ONNX Embeddings,
  * and ReasoningBank integrations.
  *
@@ -930,17 +930,11 @@ export class PatternLoader {
       // Navigate from src/integrations/agentic-flow to project root
       const projectRoot = join(currentDir, '..', '..', '..');
 
-      // Check for assets/patterns first (bundled with package, tracked in git)
-      const assetsPath = join(projectRoot, 'assets', 'patterns');
-      if (existsSync(assetsPath)) {
-        return assetsPath;
-      }
-
-      // Fall back to .agentic-qe/patterns (user/runtime directory)
-      return join(projectRoot, '.agentic-qe', 'patterns');
+      // Use assets/patterns (bundled with package, tracked in git)
+      return join(projectRoot, 'assets', 'patterns');
     } catch {
       // Fallback for CJS or other environments
-      return join(process.cwd(), '.agentic-qe', 'patterns');
+      return join(process.cwd(), 'assets', 'patterns');
     }
   }
 

@@ -508,5 +508,5 @@ npm test -- tests/cli/agent.test.ts
 ## Support
 
 For issues or questions:
-- GitHub: https://github.com/ruvnet/agentic-qe
+- GitHub: https://github.com/proffesor-for-testing/agentic-qe
 - Documentation: `/docs`
