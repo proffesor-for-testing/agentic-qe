@@ -615,7 +615,7 @@ export class InitOrchestrator {
   /**
    * Remove v2 QE agents from .claude/agents/ root folder
    * V2 QE agents are replaced by v3 agents in .claude/agents/v3/
-   * Only removes qe-* files, preserves other agents
+   * Removes qe-* files and specific v2 agents (qx-partner, base-template-generator)
    */
   private async removeV2QEAgents(): Promise<void> {
     const agentsDir = join(this.projectRoot, '.claude', 'agents');
@@ -624,13 +624,29 @@ export class InitOrchestrator {
       return;
     }
 
+    // V2 agents that don't follow qe-* naming but should be migrated
+    // These have v3 equivalents (qe-qx-partner) or are superseded
+    const V2_LEGACY_AGENTS = [
+      'qx-partner.md',
+      'base-template-generator.md',
+    ];
+
     try {
       const entries = readdirSync(agentsDir);
       const v2QEAgents: string[] = [];
 
       for (const entry of entries) {
-        // Only remove qe-* agent files (not directories, not other agents)
+        // Remove qe-* agent files (not directories, not other agents)
         if (entry.startsWith('qe-') && entry.endsWith('.md')) {
+          const fullPath = join(agentsDir, entry);
+          const stat = statSync(fullPath);
+
+          if (stat.isFile()) {
+            v2QEAgents.push(entry);
+          }
+        }
+        // Also remove legacy v2 agents that don't follow qe-* naming
+        else if (V2_LEGACY_AGENTS.includes(entry)) {
           const fullPath = join(agentsDir, entry);
           const stat = statSync(fullPath);
 
