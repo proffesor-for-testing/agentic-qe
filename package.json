@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 48 specialized QE agents, deep Claude Flow integration",
   "main": "./v3/dist/index.js",
   "types": "./v3/dist/index.d.ts",
