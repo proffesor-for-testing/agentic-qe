@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-> Domain-Driven Quality Engineering with 12 Bounded Contexts, 50 Specialized QE Agents (43 main + 7 subagents), ReasoningBank Learning, and HNSW Vector Search
+> Domain-Driven Quality Engineering with 12 Bounded Contexts, 50 Specialized QE Agents, 60 QE Skills, ReasoningBank Learning, and HNSW Vector Search
 
 ## Quick Start
 
@@ -38,6 +38,7 @@ npx aqe test generate src/
 ## Why Agentic QE?
 
 - **50 Specialized QE Agents** - Domain-focused quality engineering agents (43 main + 7 subagents)
+- **60 QE Skills** - Domain-specific skills for testing, security, accessibility, and more
 - **12 DDD Bounded Contexts** - Modular, extensible architecture
 - **TinyDancer Model Routing** - 3-tier intelligent routing for cost optimization
 - **O(log n) Coverage Analysis** - Sublinear performance with HNSW indexing
@@ -461,6 +462,7 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Memory | SQLite only | HNSW + SQLite hybrid |
 | Learning | Basic patterns | ReasoningBank + SONA + Dream Cycles |
 | Agents | 32 | 50 QE agents (43 main + 7 subagents) |
+| Skills | 35 | 60 QE skills (v2 + v3 domain skills) |
 | Coverage | O(n) | O(log n) |
 | Pattern Search | Linear | O(log n) HNSW indexing |
 | Coordination | Sequential | Queen + Work Stealing + Consensus |
@@ -575,6 +577,89 @@ Agentic QE includes 50 specialized quality engineering agents (43 main + 7 subag
 
 ### Additional Agents (New in v3)
 `qe-product-factors-assessor` (SFDIPOT analysis), `qe-test-idea-rewriter` (passive→active test transforms)
+
+## 60 QE Skills
+
+Agentic QE includes 60 domain-specific quality engineering skills that agents automatically apply:
+
+<details>
+<summary><b>View All 60 QE Skills</b></summary>
+
+### Core Testing & Methodologies (12)
+- `agentic-quality-engineering` - Core PACT principles for AI-powered QE
+- `holistic-testing-pact` - Evolved testing model with PACT integration
+- `context-driven-testing` - Practices chosen based on project context
+- `tdd-london-chicago` - Test-driven development with both school approaches
+- `xp-practices` - Extreme programming practices for quality
+- `risk-based-testing` - Focus testing effort on highest-risk areas
+- `test-automation-strategy` - Strategic approach to automation
+- `refactoring-patterns` - Safe code improvement patterns
+- `shift-left-testing` - Early testing in development lifecycle
+- `shift-right-testing` - Production testing and observability
+- `regression-testing` - Strategic regression management
+- `verification-quality` - Quality verification practices
+
+### Specialized Testing (12)
+- `accessibility-testing` - WCAG 2.2 compliance and inclusive design
+- `mobile-testing` - iOS and Android platform testing
+- `database-testing` - Schema validation and data integrity
+- `contract-testing` - Consumer-driven contract testing
+- `chaos-engineering-resilience` - Fault injection and resilience testing
+- `visual-testing-advanced` - Visual regression and UI testing
+- `compliance-testing` - Regulatory compliance (GDPR, HIPAA, SOC2)
+- `compatibility-testing` - Cross-browser and platform testing
+- `localization-testing` - i18n and l10n testing
+- `mutation-testing` - Test suite effectiveness evaluation
+- `performance-testing` - Load, stress, and scalability testing
+- `security-testing` - OWASP and security vulnerability testing
+
+### V3 Domain Skills (14)
+- `qe-test-generation` - AI-powered test synthesis
+- `qe-test-execution` - Parallel execution and retry logic
+- `qe-coverage-analysis` - O(log n) sublinear coverage
+- `qe-quality-assessment` - Quality gates and deployment readiness
+- `qe-defect-intelligence` - ML defect prediction and root cause
+- `qe-requirements-validation` - BDD scenarios and acceptance criteria
+- `qe-code-intelligence` - Knowledge graphs and token reduction
+- `qe-security-compliance` - OWASP and CVE detection
+- `qe-contract-testing` - Pact and schema validation
+- `qe-visual-accessibility` - Visual regression and WCAG
+- `qe-chaos-resilience` - Fault injection and resilience
+- `qe-learning-optimization` - Transfer learning and self-improvement
+- `qe-iterative-loop` - QE iteration patterns
+- `aqe-v2-v3-migration` - Migration guide from v2 to v3
+
+### Strategic & Communication (8)
+- `six-thinking-hats` - Edward de Bono's methodology for QE
+- `brutal-honesty-review` - Unvarnished technical criticism
+- `sherlock-review` - Evidence-based investigative code review
+- `cicd-pipeline-qe-orchestrator` - CI/CD quality orchestration
+- `bug-reporting-excellence` - High-quality bug reports
+- `consultancy-practices` - QE consultancy workflows
+- `quality-metrics` - Effective quality measurement
+- `pair-programming` - AI-assisted pair programming
+
+### Testing Techniques & Management (9)
+- `exploratory-testing-advanced` - SBTM and RST heuristics
+- `test-design-techniques` - Test design methodologies
+- `test-data-management` - Test data strategies
+- `test-environment-management` - Environment configuration
+- `test-reporting-analytics` - Quality dashboards and KPIs
+- `testability-scoring` - Score code testability
+- `technical-writing` - Documentation practices
+- `code-review-quality` - Context-driven code reviews
+- `api-testing-patterns` - REST and GraphQL testing
+
+### n8n Workflow Testing (5)
+- `n8n-workflow-testing-fundamentals` - Execution lifecycle and data flow
+- `n8n-expression-testing` - Expression validation and testing
+- `n8n-security-testing` - Workflow security scanning
+- `n8n-trigger-testing-strategies` - Webhook and event testing
+- `n8n-integration-testing-patterns` - API contract testing for n8n
+
+</details>
+
+> **Note**: Claude Flow platform skills (agentdb, github, flow-nexus, etc.) are managed separately by the claude-flow package and not counted in QE skills.
 
 ## Requirements
 
