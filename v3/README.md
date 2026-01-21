@@ -449,18 +449,7 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Neural Backbone | N/A | SONA + Q-Learning | Persistent learning ✅ |
 | Agent Coordination | Sequential | Work stealing | Improved |
 
-### ADR-051 Benchmark Results (2026-01-21)
-
-All components verified with **100% success rate** across 300 operations:
-
-| Component | Success Rate | Avg Latency | Key Metrics |
-|-----------|--------------|-------------|-------------|
-| **AgentBooster** | 100% | 0.02-0.05ms | WASM transforms, 81% accuracy |
-| **ModelRouter** | 100% | 0.01-0.04ms | 3-tier routing decisions |
-| **ONNXEmbeddings** | 100% | 0.02-0.04ms | Local vector generation |
-| **ReasoningBank** | 100% | 0.42-21.23ms | HNSW O(log n) search |
-
-*✅ = Verified via benchmarks. See `/docs/reports/success-rate-benchmark-*.md` for details.*
+*✅ = Verified via benchmarks*
 
 ## Key Differences from v2
 
