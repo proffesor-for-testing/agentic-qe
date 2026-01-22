@@ -490,9 +490,12 @@ export class ProjectAnalyzer {
     let result = content;
 
     if (['.ts', '.tsx', '.js', '.jsx', '.java', '.go'].includes(ext)) {
-      // Remove single-line comments (use [^\n] instead of . to avoid ReDoS)
-      result = result.replace(/\/\/[^\n]*$/gm, '');
-      // Remove multi-line comments
+      // Remove single-line comments - process line by line to avoid ReDoS
+      result = result.split('\n').map(line => {
+        const idx = line.indexOf('//');
+        return idx >= 0 ? line.slice(0, idx) : line;
+      }).join('\n');
+      // Remove multi-line comments (non-greedy, bounded)
       result = result.replace(/\/\*[\s\S]*?\*\//g, '');
       // Remove template literals
       result = result.replace(/`[^`]*`/g, '""');
@@ -501,8 +504,11 @@ export class ProjectAnalyzer {
       // Remove single-quoted strings
       result = result.replace(/'(?:[^'\\]|\\.)*'/g, "''");
     } else if (ext === '.py') {
-      // Remove single-line comments (use [^\n] instead of . to avoid ReDoS)
-      result = result.replace(/#[^\n]*$/gm, '');
+      // Remove single-line comments - process line by line to avoid ReDoS
+      result = result.split('\n').map(line => {
+        const idx = line.indexOf('#');
+        return idx >= 0 ? line.slice(0, idx) : line;
+      }).join('\n');
       // Remove triple-quoted strings (docstrings)
       result = result.replace(/"""[\s\S]*?"""/g, '""');
       result = result.replace(/'''[\s\S]*?'''/g, "''");

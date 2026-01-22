@@ -321,23 +321,26 @@ export class TestEmbeddingGenerator extends EmbeddingGenerator {
 
   /**
    * Extract assertions from test code
+   * Uses line-by-line processing to avoid ReDoS vulnerabilities
    */
   private extractAssertions(testCode: string): string[] {
     const assertions: string[] = [];
 
-    // Common assertion patterns
-    const patterns = [
-      // Use [^)]* instead of .*? to avoid ReDoS with nested patterns
-      /expect\(([^)]*)\)\.([^(]*)\(([^)]*)\)/g,
-      /assert\(([^)]*)\)/g,
-      /to(?:Equal|Be|Contain|Match)\(([^)]*)\)/g,
-      /\.should\.([^(]*)\(([^)]*)\)/g,
-    ];
+    // Limit input to prevent DoS
+    const MAX_LENGTH = 50000;
+    const code = testCode.length > MAX_LENGTH ? testCode.slice(0, MAX_LENGTH) : testCode;
 
-    for (const pattern of patterns) {
-      let match;
-      while ((match = pattern.exec(testCode)) !== null) {
-        assertions.push(match[0]);
+    // Process line by line to avoid ReDoS with complex patterns
+    const lines = code.split('\n');
+    for (const line of lines) {
+      // Simple keyword matching without backtracking-prone patterns
+      if (line.includes('expect(') || line.includes('assert(')) {
+        assertions.push(line.trim());
+      } else if (line.includes('.toEqual(') || line.includes('.toBe(') ||
+                 line.includes('.toContain(') || line.includes('.toMatch(')) {
+        assertions.push(line.trim());
+      } else if (line.includes('.should.')) {
+        assertions.push(line.trim());
       }
     }
 
