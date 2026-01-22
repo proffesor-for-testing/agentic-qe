@@ -208,6 +208,8 @@ export class ConfigSetCommand {
     }
 
     // Use Object.defineProperty instead of direct assignment
+    // CodeQL: False positive - finalKey validated against dangerousKeys Set above
+    // lgtm[js/prototype-pollution-utility]
     Object.defineProperty(current, finalKey, {
       value: value,
       writable: true,

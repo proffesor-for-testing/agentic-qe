@@ -1128,6 +1128,8 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
       throw new Error(`Invalid final key: '${finalKey}' is a dangerous prototype key`);
     }
     // Use Object.defineProperty for safe final assignment
+    // CodeQL: False positive - finalKey validated against dangerousKeys Set above
+    // lgtm[js/prototype-pollution-utility]
     Object.defineProperty(current, finalKey, {
       value,
       writable: true,

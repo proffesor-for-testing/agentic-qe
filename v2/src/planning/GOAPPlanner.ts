@@ -834,6 +834,8 @@ export class GOAPPlanner {
       return;
     }
     // Use Object.defineProperty for safe final assignment
+    // CodeQL: False positive - finalKey validated against dangerousProps Set above
+    // lgtm[js/prototype-pollution-utility]
     Object.defineProperty(current, finalKey, {
       value,
       writable: true,

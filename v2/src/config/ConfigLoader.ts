@@ -481,6 +481,8 @@ export class ConfigLoader {
       typeof current === 'object'
     ) {
       // Use Object.defineProperty for safe assignment
+      // CodeQL: False positive - finalKey validated against dangerousKeys Set above
+      // lgtm[js/prototype-pollution-utility]
       Object.defineProperty(current, finalKey, {
         value,
         writable: true,
