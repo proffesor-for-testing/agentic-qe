@@ -17,6 +17,12 @@ import type { ExecutionStrategy } from './services/e2e-runner';
 // ============================================================================
 
 export interface TestExecutionAPI {
+  /**
+   * Simple test execution - convenience method for CLI
+   * Auto-detects framework and uses sensible defaults
+   */
+  runTests(request: SimpleTestRequest): Promise<Result<TestRunResult, Error>>;
+
   /** Execute test suite */
   execute(request: ExecuteTestsRequest): Promise<Result<TestRunResult, Error>>;
 
@@ -42,6 +48,23 @@ export interface TestExecutionAPI {
 // ============================================================================
 // Request/Response Types
 // ============================================================================
+
+/**
+ * Simple test request for CLI convenience method
+ * Auto-detects framework and uses sensible defaults
+ */
+export interface SimpleTestRequest {
+  /** Test files to execute */
+  testFiles: string[];
+  /** Run tests in parallel (default: true) */
+  parallel?: boolean;
+  /** Number of retry attempts for failed tests (default: 0) */
+  retryCount?: number;
+  /** Timeout in milliseconds (default: 60000) */
+  timeout?: number;
+  /** Number of parallel workers (default: auto based on file count) */
+  workers?: number;
+}
 
 export interface ExecuteTestsRequest {
   testFiles: string[];

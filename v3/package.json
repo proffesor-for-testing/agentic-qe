@@ -52,8 +52,8 @@
   "scripts": {
     "preinstall": "node scripts/preinstall.cjs",
     "build": "tsc && npm run build:cli && npm run build:mcp",
-    "build:cli": "esbuild src/cli/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/cli/bundle.js",
-    "build:mcp": "esbuild src/mcp/entry.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/mcp/bundle.js --banner:js='#!/usr/bin/env node'",
+    "build:cli": "node scripts/build-cli.js",
+    "build:mcp": "node scripts/build-mcp.js",
     "prepublishOnly": "npm run sync:agents && bash scripts/prepare-assets.sh",
     "cli": "tsx src/cli/index.ts",
     "aqe": "tsx src/cli/index.ts",

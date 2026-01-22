@@ -251,10 +251,13 @@ async function cleanupAndExit(code: number = 0): Promise<never> {
 
 const program = new Command();
 
+// Version injected at build time from root package.json
+const VERSION = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : '0.0.0-dev';
+
 program
   .name('aqe')
   .description('Agentic QE - Domain-Driven Quality Engineering')
-  .version('3.0.0-alpha.1');
+  .version(VERSION);
 
 // ============================================================================
 // Init Command
