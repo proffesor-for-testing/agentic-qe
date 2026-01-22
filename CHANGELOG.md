@@ -5,6 +5,16 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.5] - 2026-01-22
+
+### Added
+
+- **Root-level preinstall script** - Added migration detection for users upgrading from:
+  - `@agentic-qe/v3` (alpha package) → `agentic-qe@latest`
+  - `agentic-qe` v2 → `agentic-qe@latest`
+  - Provides clear instructions to resolve binary conflicts
+  - Supports `AQE_AUTO_MIGRATE=true` for automatic migration
+
 ## [3.1.4] - 2026-01-22
 
 ### Changed
