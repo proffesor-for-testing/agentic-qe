@@ -469,7 +469,13 @@ export class ConfigLoader {
       current !== Function.prototype &&
       typeof current === 'object'
     ) {
-      current[finalKey] = value;
+      // Use Object.defineProperty for safe assignment
+      Object.defineProperty(current, finalKey, {
+        value,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
     }
   }
 

@@ -797,28 +797,39 @@ export class GOAPPlanner {
     const parts = key.split('.');
 
     // Prevent prototype pollution by rejecting dangerous property names
-    const dangerousProps = ['__proto__', 'constructor', 'prototype'];
+    const dangerousProps = new Set(['__proto__', 'constructor', 'prototype']);
     for (const part of parts) {
-      if (dangerousProps.includes(part)) {
+      if (dangerousProps.has(part)) {
         this.logger.warn('Attempted prototype pollution blocked', { key, part });
         return;
       }
     }
 
-    // All parts have been validated against prototype pollution above
     let current: any = state;
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      // lgtm[js/prototype-pollution-utility] - part validated against dangerousProps
-      if (current[part] === undefined) {
-        current[part] = {};
+      // Use Object.hasOwn for safe property check
+      if (!Object.hasOwn(current, part)) {
+        // Use Object.defineProperty for safe assignment
+        Object.defineProperty(current, part, {
+          value: Object.create(null),
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       }
       current = current[part];
     }
 
-    // lgtm[js/prototype-pollution-utility] - all parts validated against dangerousProps
-    current[parts[parts.length - 1]] = value;
+    const finalKey = parts[parts.length - 1];
+    // Use Object.defineProperty for safe final assignment
+    Object.defineProperty(current, finalKey, {
+      value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
   }
 
   /**

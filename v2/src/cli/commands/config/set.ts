@@ -143,13 +143,16 @@ export class ConfigSetCommand {
 
       // Security: Additional check - only process own properties
       if (!Object.prototype.hasOwnProperty.call(current, key)) {
-        // Use Object.create(null) to avoid prototype chain
-        current[key] = Object.create(null);
+        // Use Object.defineProperty for safe assignment
+        Object.defineProperty(current, key, {
+          value: Object.create(null),
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       }
 
-      // lgtm[js/prototype-pollution-utility]
-      // Safe: All keys validated against dangerous names above (line 121-129)
-      // Using Object.create(null) and explicit hasOwnProperty checks
+      // Safe: All keys validated against dangerous names above
       const nextValue = current[key];
 
       // Validate we're still working with an object

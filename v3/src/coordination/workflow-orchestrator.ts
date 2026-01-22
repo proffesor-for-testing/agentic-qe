@@ -1093,23 +1093,39 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
   ): void {
     const parts = path.split('.');
 
-    // Guard against prototype pollution
-    const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
-    if (parts.some(part => dangerousKeys.includes(part))) {
-      throw new Error(`Invalid path: contains dangerous prototype key`);
+    // Guard against prototype pollution - check ALL parts before any assignment
+    const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
+    for (const part of parts) {
+      if (dangerousKeys.has(part)) {
+        throw new Error(`Invalid path: contains dangerous prototype key`);
+      }
     }
 
     let current = obj;
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      if (!(part in current)) {
-        current[part] = {};
+      // Use Object.hasOwn for safe property check
+      if (!Object.hasOwn(current, part)) {
+        // Use Object.defineProperty for safe assignment
+        Object.defineProperty(current, part, {
+          value: Object.create(null),
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       }
       current = current[part] as Record<string, unknown>;
     }
 
-    current[parts[parts.length - 1]] = value;
+    const finalKey = parts[parts.length - 1];
+    // Use Object.defineProperty for safe final assignment
+    Object.defineProperty(current, finalKey, {
+      value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
   }
 
   // ============================================================================

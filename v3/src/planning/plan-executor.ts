@@ -963,15 +963,15 @@ export class PlanExecutor {
 
   /**
    * Set value in nested state using dot notation
-   * Protected against prototype pollution
+   * Protected against prototype pollution using Object.defineProperty
    */
   private setStateValue(state: V3WorldState, key: string, value: unknown): void {
     const parts = key.split('.');
 
-    // Prevent prototype pollution
-    const dangerousProps = ['__proto__', 'constructor', 'prototype'];
+    // Prevent prototype pollution - use Set for O(1) lookup
+    const dangerousProps = new Set(['__proto__', 'constructor', 'prototype']);
     for (const part of parts) {
-      if (dangerousProps.includes(part)) {
+      if (dangerousProps.has(part)) {
         console.warn(`[PlanExecutor] Blocked prototype pollution attempt: ${key}`);
         return;
       }
@@ -984,13 +984,27 @@ export class PlanExecutor {
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      if (current[part] === undefined) {
-        current[part] = {};
+      // Use Object.hasOwn for safe property check
+      if (!Object.hasOwn(current, part)) {
+        // Use Object.defineProperty for safe assignment
+        Object.defineProperty(current, part, {
+          value: Object.create(null),
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       }
       current = current[part] as Record<string, unknown>;
     }
 
-    current[parts[parts.length - 1]] = value;
+    const finalKey = parts[parts.length - 1];
+    // Use Object.defineProperty for safe final assignment
+    Object.defineProperty(current, finalKey, {
+      value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
   }
 
   /**
