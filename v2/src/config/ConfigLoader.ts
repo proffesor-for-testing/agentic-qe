@@ -441,14 +441,21 @@ export class ConfigLoader {
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      // Skip if part is a dangerous key (defense in depth)
+      // CodeQL fix: Immediate dangerous key check before property access
       if (dangerousKeys.has(part)) {
+        this.logger.warn(`Blocked prototype pollution: ${part}`);
         return;
       }
       if (!Object.prototype.hasOwnProperty.call(current, part)) {
-        // Create plain object without prototype chain risks
-        current[part] = Object.create(null);
-        Object.setPrototypeOf(current[part], Object.prototype);
+        // Create plain object using Object.defineProperty for safety
+        const newObj = Object.create(null);
+        Object.setPrototypeOf(newObj, Object.prototype);
+        Object.defineProperty(current, part, {
+          value: newObj,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       }
       current = current[part];
       // Ensure we haven't traversed to a built-in prototype
@@ -459,9 +466,13 @@ export class ConfigLoader {
     }
 
     const finalKey = parts[parts.length - 1];
-    // Final safety check: ensure finalKey is safe and current is a valid target
+    // CodeQL fix: Immediate dangerous key check before Object.defineProperty
+    if (dangerousKeys.has(finalKey)) {
+      this.logger.warn(`Blocked prototype pollution: ${finalKey}`);
+      return;
+    }
+    // Final safety check: ensure current is a valid target
     if (
-      !dangerousKeys.has(finalKey) &&
       current !== null &&
       current !== undefined &&
       current !== Object.prototype &&

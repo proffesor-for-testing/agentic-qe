@@ -212,6 +212,32 @@ export class V2ToV3Migrator {
   // Private Methods
   // -------------------------------------------------------------------------
 
+  /**
+   * Safely parse JSON, returning a wrapper object for non-JSON strings
+   * Handles V2 data where state/action columns may contain plain strings like "task-started"
+   */
+  private safeJsonParse(value: string | null | undefined, fieldName: string = 'value'): Record<string, unknown> {
+    if (value === null || value === undefined || value === '') {
+      return {};
+    }
+
+    // Trim whitespace
+    const trimmed = value.trim();
+
+    // Check if it looks like JSON (starts with { or [)
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        // If parsing fails, wrap as string
+        return { [fieldName]: trimmed, _parseError: true };
+      }
+    }
+
+    // Not JSON - wrap the plain string value
+    return { [fieldName]: trimmed, _isPlainString: true };
+  }
+
   private async reportProgress(
     stage: V2MigrationProgress['stage'],
     current: number,
@@ -360,18 +386,21 @@ export class V2ToV3Migrator {
     const transaction = this.v3Db.transaction(() => {
       for (const pattern of patterns) {
         try {
-          // Parse V2 pattern data
-          const patternData = JSON.parse(pattern.pattern);
-          const metadata = pattern.metadata ? JSON.parse(pattern.metadata) : {};
+          // Parse V2 pattern data - use safe parsing for non-JSON values
+          const patternData = this.safeJsonParse(pattern.pattern, 'pattern');
+          const metadata = this.safeJsonParse(pattern.metadata, 'metadata');
 
           // Map V2 domain to V3 QEDomain
-          const qeDomain = this.mapV2DomainToV3(pattern.domain || metadata.domain || 'general');
+          const qeDomain = this.mapV2DomainToV3(pattern.domain || String(metadata.domain || 'general'));
 
           // Determine pattern type from metadata or pattern content
-          const patternType = this.inferPatternType(patternData, metadata);
+          const patternType = this.inferPatternType(patternData, metadata as Record<string, unknown>);
 
           // Calculate quality score from confidence and success rate
           const qualityScore = (pattern.confidence * 0.6) + (pattern.success_rate * 0.4);
+
+          // Get pattern name safely
+          const patternName = String(patternData.name || metadata.name || pattern.pattern.substring(0, 50));
 
           // Insert pattern
           insert.run(
@@ -379,8 +408,8 @@ export class V2ToV3Migrator {
             patternType,
             qeDomain,
             pattern.domain || 'general',
-            patternData.name || metadata.name || pattern.pattern.substring(0, 50),
-            patternData.description || metadata.description || null,
+            patternName,
+            String(patternData.description || metadata.description || '') || null,
             pattern.confidence,
             pattern.usage_count,
             pattern.success_rate,
@@ -421,11 +450,15 @@ export class V2ToV3Migrator {
     let count = 0;
     for (const exp of experiences) {
       try {
-        const execution = JSON.parse(exp.execution);
-        const context = JSON.parse(exp.context);
-        const outcome = JSON.parse(exp.outcome);
+        // Use safe parsing - V2 may store non-JSON values
+        const execution = this.safeJsonParse(exp.execution, 'execution');
+        const context = this.safeJsonParse(exp.context, 'context');
+        const outcome = this.safeJsonParse(exp.outcome, 'outcome');
 
         const qeDomain = this.mapTaskTypeToDomain(exp.task_type);
+
+        // Safely access outcome.success with fallback
+        const isSuccess = typeof outcome.success === 'boolean' ? outcome.success : false;
 
         insert.run(
           exp.id, // Use original ID
@@ -434,9 +467,9 @@ export class V2ToV3Migrator {
           exp.task_type,
           `Experience: ${exp.task_type}`,
           `Agent: ${exp.agent_type}, Task: ${exp.task_type}`,
-          outcome.success ? 0.8 : 0.3, // Confidence based on outcome
+          isSuccess ? 0.8 : 0.3, // Confidence based on outcome
           1, // One usage
-          outcome.success ? 1.0 : 0.0, // Success rate
+          isSuccess ? 1.0 : 0.0, // Success rate
           'short-term',
           JSON.stringify({ context, execution, outcome }),
           new Date(exp.created_at * 1000).toISOString()
@@ -469,9 +502,10 @@ export class V2ToV3Migrator {
     let count = 0;
     for (const exp of experiences) {
       try {
-        const state = JSON.parse(exp.state);
-        const nextState = exp.next_state ? JSON.parse(exp.next_state) : null;
-        const metadata = exp.metadata ? JSON.parse(exp.metadata) : {};
+        // Use safe parsing - V2 may store plain strings like "task-started" instead of JSON
+        const state = this.safeJsonParse(exp.state, 'state');
+        const nextState = exp.next_state ? this.safeJsonParse(exp.next_state, 'nextState') : null;
+        const metadata = this.safeJsonParse(exp.metadata, 'metadata');
 
         const qeDomain = this.mapTaskTypeToDomain(exp.task_type);
 
@@ -521,8 +555,9 @@ export class V2ToV3Migrator {
     // Store concept nodes as knowledge graph patterns
     for (const node of nodes) {
       try {
-        const properties = node.properties ? JSON.parse(node.properties) : {};
-        const embedding = node.embedding ? JSON.parse(node.embedding) : null;
+        // Use safe parsing for non-JSON values
+        const properties = this.safeJsonParse(node.properties, 'properties');
+        const embedding = this.safeJsonParse(node.embedding, 'embedding');
 
         insert.run(
           `cn_${node.id}`, // Prefix for concept node
@@ -530,7 +565,7 @@ export class V2ToV3Migrator {
           'code-intelligence',
           node.type,
           node.name,
-          properties.description || `Concept: ${node.name}`,
+          String(properties.description || '') || `Concept: ${node.name}`,
           node.activation_level || 0.5,
           0,
           1.0, // Concepts are valid by default

@@ -483,6 +483,30 @@ export class ProjectAnalyzer {
   }
 
   /**
+   * Remove delimited blocks (like multi-line comments or strings) without regex
+   * to avoid ReDoS vulnerabilities
+   */
+  private removeDelimitedBlocks(text: string, startDelim: string, endDelim: string): string {
+    let result = '';
+    let i = 0;
+    while (i < text.length) {
+      const startIdx = text.indexOf(startDelim, i);
+      if (startIdx === -1) {
+        result += text.slice(i);
+        break;
+      }
+      result += text.slice(i, startIdx);
+      const endIdx = text.indexOf(endDelim, startIdx + startDelim.length);
+      if (endIdx === -1) {
+        // No closing delimiter, skip the rest
+        break;
+      }
+      i = endIdx + endDelim.length;
+    }
+    return result;
+  }
+
+  /**
    * Strip comments and string literals from code
    * Prevents false positives from commented-out code or strings containing keywords
    */
@@ -495,26 +519,26 @@ export class ProjectAnalyzer {
         const idx = line.indexOf('//');
         return idx >= 0 ? line.slice(0, idx) : line;
       }).join('\n');
-      // Remove multi-line comments (non-greedy, bounded)
-      result = result.replace(/\/\*[\s\S]*?\*\//g, '');
-      // Remove template literals
-      result = result.replace(/`[^`]*`/g, '""');
-      // Remove double-quoted strings
-      result = result.replace(/"(?:[^"\\]|\\.)*"/g, '""');
+      // Remove multi-line comments using safe iterative approach
+      result = this.removeDelimitedBlocks(result, '/*', '*/');
+      // Remove template literals using safe iterative approach
+      result = this.removeDelimitedBlocks(result, '`', '`');
+      // Remove double-quoted strings (simple removal, not perfect but safe)
+      result = this.removeDelimitedBlocks(result, '"', '"');
       // Remove single-quoted strings
-      result = result.replace(/'(?:[^'\\]|\\.)*'/g, "''");
+      result = this.removeDelimitedBlocks(result, "'", "'");
     } else if (ext === '.py') {
       // Remove single-line comments - process line by line to avoid ReDoS
       result = result.split('\n').map(line => {
         const idx = line.indexOf('#');
         return idx >= 0 ? line.slice(0, idx) : line;
       }).join('\n');
-      // Remove triple-quoted strings (docstrings)
-      result = result.replace(/"""[\s\S]*?"""/g, '""');
-      result = result.replace(/'''[\s\S]*?'''/g, "''");
+      // Remove triple-quoted strings (docstrings) using safe iterative approach
+      result = this.removeDelimitedBlocks(result, '"""', '"""');
+      result = this.removeDelimitedBlocks(result, "'''", "'''");
       // Remove regular strings
-      result = result.replace(/"(?:[^"\\]|\\.)*"/g, '""');
-      result = result.replace(/'(?:[^'\\]|\\.)*'/g, "''");
+      result = this.removeDelimitedBlocks(result, '"', '"');
+      result = this.removeDelimitedBlocks(result, "'", "'");
     }
 
     return result;

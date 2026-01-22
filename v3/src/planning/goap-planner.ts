@@ -685,6 +685,11 @@ export class GOAPPlanner {
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
+      // CodeQL fix: Immediate dangerous key check before property access
+      if (dangerousProps.has(part)) {
+        console.warn(`[GOAPPlanner] Blocked prototype pollution: ${part}`);
+        return;
+      }
       // Use Object.hasOwn for safe property check
       if (!Object.hasOwn(current, part)) {
         // Use Object.defineProperty for safe assignment
@@ -699,6 +704,11 @@ export class GOAPPlanner {
     }
 
     const finalKey = parts[parts.length - 1];
+    // CodeQL fix: Immediate dangerous key check before Object.defineProperty
+    if (dangerousProps.has(finalKey)) {
+      console.warn(`[GOAPPlanner] Blocked prototype pollution: ${finalKey}`);
+      return;
+    }
     // Use Object.defineProperty for safe final assignment
     Object.defineProperty(current, finalKey, {
       value,

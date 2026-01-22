@@ -1105,6 +1105,10 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
+      // CodeQL fix: Immediate dangerous key check before property access
+      if (dangerousKeys.has(part)) {
+        throw new Error(`Invalid path segment: '${part}' is a dangerous prototype key`);
+      }
       // Use Object.hasOwn for safe property check
       if (!Object.hasOwn(current, part)) {
         // Use Object.defineProperty for safe assignment
@@ -1119,6 +1123,10 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     }
 
     const finalKey = parts[parts.length - 1];
+    // CodeQL fix: Immediate dangerous key check before Object.defineProperty
+    if (dangerousKeys.has(finalKey)) {
+      throw new Error(`Invalid final key: '${finalKey}' is a dangerous prototype key`);
+    }
     // Use Object.defineProperty for safe final assignment
     Object.defineProperty(current, finalKey, {
       value,

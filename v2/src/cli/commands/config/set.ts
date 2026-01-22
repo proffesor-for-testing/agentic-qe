@@ -126,10 +126,10 @@ export class ConfigSetCommand {
     const keys = path.split('.');
     let current = obj;
 
-    // Security: Validate all keys in the path
-    const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
+    // Security: Validate all keys in the path - use Set for O(1) lookup
+    const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
     for (const key of keys) {
-      if (dangerousKeys.includes(key)) {
+      if (dangerousKeys.has(key)) {
         throw new Error(
           `Invalid configuration key '${key}': Prototype pollution attempt detected. ` +
           `Keys '__proto__', 'constructor', and 'prototype' are not allowed.`
@@ -140,6 +140,11 @@ export class ConfigSetCommand {
     // Navigate to the parent object
     for (let i = 0; i < keys.length - 1; i++) {
       const key = keys[i];
+
+      // CodeQL fix: Immediate dangerous key check before property access
+      if (dangerousKeys.has(key)) {
+        throw new Error(`Invalid key '${key}': prototype pollution blocked`);
+      }
 
       // Security: Additional check - only process own properties
       if (!Object.prototype.hasOwnProperty.call(current, key)) {
@@ -197,8 +202,12 @@ export class ConfigSetCommand {
       throw new Error('Cannot modify constructor prototypes');
     }
 
+    // CodeQL fix: Immediate dangerous key check before Object.defineProperty
+    if (dangerousKeys.has(finalKey)) {
+      throw new Error(`Invalid final key '${finalKey}': prototype pollution blocked`);
+    }
+
     // Use Object.defineProperty instead of direct assignment
-    // All dangerous keys have been validated at the beginning of the function
     Object.defineProperty(current, finalKey, {
       value: value,
       writable: true,
