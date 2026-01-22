@@ -281,6 +281,7 @@ mcp__agentic-qe__memory_share({
 
 ## 📚 Reference Documentation
 
+- **⚠️ PUBLISH STRUCTURE**: [docs/PUBLISH-STRUCTURE.md](docs/PUBLISH-STRUCTURE.md) - **IMPORTANT: Read before publishing!**
 - **Claude Flow Details**: [docs/reference/claude-flow.md](docs/reference/claude-flow.md)
 - **AQE Fleet Details**: [docs/reference/aqe-fleet.md](docs/reference/aqe-fleet.md)
 - **Git Policy**: [docs/policies/git-operations.md](docs/policies/git-operations.md)
