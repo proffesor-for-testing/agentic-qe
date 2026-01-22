@@ -11,7 +11,7 @@
 
 **V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 50 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
+> **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 51 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
 🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **61 QE Skills** 
 
@@ -58,7 +58,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 
 **What V3 provides:**
 - ✅ **12 DDD Bounded Contexts**: Organized by business domain (test-generation, coverage-analysis, security-compliance, etc.)
-- ✅ **50 QE Agents**: Including Queen Coordinator for hierarchical orchestration (43 main + 7 TDD subagents)
+- ✅ **51 QE Agents**: Including Queen Coordinator for hierarchical orchestration (44 main + 7 TDD subagents)
 - ✅ **TinyDancer Model Routing**: 3-tier intelligent routing (Haiku/Sonnet/Opus) for cost optimization
 - ✅ **ReasoningBank Learning**: HNSW-indexed pattern storage with experience replay
 - ✅ **O(log n) Coverage Analysis**: Sublinear algorithms for efficient gap detection
@@ -79,7 +79,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 | **AI testing tools are expensive** | TinyDancer 3-tier model routing reduces costs by matching task complexity to appropriate model |
 | **No memory between test runs—every analysis starts from scratch** | ReasoningBank remembers patterns, strategies, and what works for your codebase |
 | **Agents waste tokens reading irrelevant code** | Code Intelligence provides token reduction with semantic search and knowledge graphs |
-| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 50 agents across 12 domains with consensus and MinCut topology |
+| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 51 agents across 12 domains with consensus and MinCut topology |
 | **Tools don't understand your testing frameworks** | Works with Jest, Cypress, Playwright, Vitest, Mocha, Jasmine, AVA |
 
 ---
@@ -153,7 +153,7 @@ The **qe-queen-coordinator** manages the entire fleet with intelligent task dist
 ```
 
 **Capabilities:**
-- Orchestrate 50 QE agents concurrently across 12 domains
+- Orchestrate 51 QE agents concurrently across 12 domains
 - TinyDancer 3-tier model routing (Haiku/Sonnet/Opus) with confidence-based decisions
 - Byzantine fault-tolerant consensus for critical quality decisions
 - MinCut graph-based topology optimization for self-healing coordination
@@ -608,7 +608,7 @@ agentic-qe/
 │   │   ├── mcp/             # MCP server
 │   │   └── cli/             # V3 CLI
 │   ├── tests/               # 5,600+ tests
-│   └── assets/agents/       # 50 QE agent definitions (43 main + 7 subagents)
+│   └── assets/agents/       # 51 QE agent definitions (44 main + 7 subagents)
 ├── v2/                      # V2 Implementation (Legacy)
 │   ├── src/                 # V2 source code
 │   ├── tests/               # V2 tests

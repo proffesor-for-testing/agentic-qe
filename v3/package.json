@@ -1,7 +1,7 @@
 {
   "name": "@agentic-qe/v3",
   "version": "3.1.0",
-  "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 47 specialized QE agents",
+  "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 51 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -67,7 +67,7 @@
     "lint": "eslint src tests --ext .ts",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "sync:agents": "cp ../.claude/agents/v3/qe-*.md ./assets/agents/v3/ && mkdir -p ./assets/agents/v3/subagents && cp ../.claude/agents/v3/subagents/qe-*.md ./assets/agents/v3/subagents/ 2>/dev/null; echo '✓ Synced v3 QE agents (41 main + 7 subagents = 48 total)'",
+    "sync:agents": "cp ../.claude/agents/v3/qe-*.md ./assets/agents/v3/ && mkdir -p ./assets/agents/v3/subagents && cp ../.claude/agents/v3/subagents/qe-*.md ./assets/agents/v3/subagents/ 2>/dev/null; echo '✓ Synced v3 QE agents (44 main + 7 subagents = 51 total)'",
     "sync:agents:check": "echo 'Checking v3 QE agents sync status:' && for f in ../.claude/agents/v3/qe-*.md; do diff -q \"$f\" \"./assets/agents/v3/$(basename $f)\" >/dev/null 2>&1 || echo \"  ⚠ $(basename $f)\"; done && for f in ../.claude/agents/v3/subagents/qe-*.md; do diff -q \"$f\" \"./assets/agents/v3/subagents/$(basename $f)\" >/dev/null 2>&1 || echo \"  ⚠ subagents/$(basename $f)\"; done; echo '✓ Check complete'"
   },
   "keywords": [
