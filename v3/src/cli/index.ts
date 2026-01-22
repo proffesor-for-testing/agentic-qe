@@ -7,7 +7,13 @@
  * All commands delegate to domain services via the coordination layer.
  */
 
+import { createRequire } from 'module';
 import { Command } from 'commander';
+
+// Read version from package.json
+const require = createRequire(import.meta.url);
+const pkg = require('../../package.json');
+const VERSION = pkg.version;
 import chalk from 'chalk';
 import { QEKernel } from '../kernel/interfaces';
 import { QEKernelImpl } from '../kernel/kernel';

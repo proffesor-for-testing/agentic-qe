@@ -3,6 +3,12 @@
  * Domain-Driven Design Architecture with 12 Bounded Contexts
  */
 
+import { createRequire } from 'module';
+
+// Read version from package.json dynamically
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
+
 // Shared Kernel - export types and utilities
 export * from './shared/types';
 export * from './shared/value-objects';
@@ -250,8 +256,8 @@ export type {
   ActionExecutor,
 } from './strange-loop';
 
-// Version info
-export const VERSION = '3.0.0-alpha';
+// Version info - read from package.json
+export const VERSION: string = pkg.version;
 export const ARCHITECTURE = 'DDD with 12 Bounded Contexts';
 export const MAX_CONCURRENT_AGENTS = 15;
 
