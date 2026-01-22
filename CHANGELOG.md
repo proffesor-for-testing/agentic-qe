@@ -5,6 +5,20 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.1] - 2026-01-22
+
+### Fixed
+
+- **Critical: Missing `typescript` dependency** - Moved `typescript` from `devDependencies` to `dependencies` in root package.json. This fixes the `Cannot find package 'typescript'` error when running `aqe --version` after npm install.
+
+### Added
+
+- **docs/PUBLISH-STRUCTURE.md** - Documentation explaining the package publishing structure:
+  - Which package.json is published (root, not v3)
+  - Where to add dependencies (root dependencies, not devDependencies)
+  - Build process and entry points
+  - Troubleshooting guide for common issues
+
 ## [3.1.0] - 2026-01-22
 
 ### Added
