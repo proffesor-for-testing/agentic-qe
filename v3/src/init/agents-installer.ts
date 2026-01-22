@@ -60,6 +60,7 @@ const V3_QE_AGENTS = [
   'qe-property-tester',
   'qe-mutation-tester',
   'qe-test-idea-rewriter',
+  'qe-quality-criteria-recommender',
 
   // Test Execution Domain
   'qe-parallel-executor',
@@ -167,19 +168,22 @@ export class AgentsInstaller {
   /**
    * Find the source agents directory
    * Looks in multiple locations to support different installation scenarios
+   * PRIORITY: assets directory (has helpers) > root .claude (no helpers)
    */
   private findSourceAgentsDir(): string {
     // Try relative to this module (development)
     const moduleDir = dirname(fileURLToPath(import.meta.url));
 
-    // Possible locations for agents
+    // Possible locations for agents - PRIORITY ORDER MATTERS
+    // Assets directory is canonical source (contains helpers/)
     const possiblePaths = [
-      // Development: relative to v3/src/init/ (3 levels up to agentic-qe root)
-      join(moduleDir, '../../../.claude/agents/v3'),
-      // Development: relative to v3/dist/init/ (3 levels up to agentic-qe root)
-      join(moduleDir, '../../../.claude/agents/v3'),
       // NPM package: assets directory at package root (dist/init -> dist -> package root)
+      // This is the canonical source with helpers/ directory
       join(moduleDir, '../../assets/agents/v3'),
+      // Development: v3/src/init/ -> v3/assets/agents/v3/
+      join(moduleDir, '../../../v3/assets/agents/v3'),
+      // Fallback: root .claude/agents/v3 (may not have helpers/)
+      join(moduleDir, '../../../.claude/agents/v3'),
       // Local install: in node_modules
       join(this.projectRoot, 'node_modules/@agentic-qe/v3/assets/agents/v3'),
     ];
@@ -243,6 +247,9 @@ export class AgentsInstaller {
     if (!existsSync(targetSubagentsDir)) {
       mkdirSync(targetSubagentsDir, { recursive: true });
     }
+
+    // Copy helpers directory (agent-specific reference files)
+    await this.copyHelpersDirectory(targetAgentsDir);
 
     // Get list of available agents
     const availableAgents = this.getAvailableAgents();
@@ -403,6 +410,45 @@ export class AgentsInstaller {
   }
 
   /**
+   * Recursively copy a directory
+   */
+  private copyDirectoryRecursive(source: string, target: string): void {
+    if (!existsSync(source)) return;
+
+    if (!existsSync(target)) {
+      mkdirSync(target, { recursive: true });
+    }
+
+    const entries = readdirSync(source);
+    for (const entry of entries) {
+      const sourcePath = join(source, entry);
+      const targetPath = join(target, entry);
+      const stat = statSync(sourcePath);
+
+      if (stat.isDirectory()) {
+        this.copyDirectoryRecursive(sourcePath, targetPath);
+      } else {
+        // Only copy if target doesn't exist or overwrite is enabled
+        if (!existsSync(targetPath) || this.options.overwrite) {
+          copyFileSync(sourcePath, targetPath);
+        }
+      }
+    }
+  }
+
+  /**
+   * Copy helpers directory (agent-specific reference files, templates, scripts)
+   */
+  private async copyHelpersDirectory(targetAgentsDir: string): Promise<void> {
+    const sourceHelpersDir = join(this.sourceAgentsDir, 'helpers');
+    const targetHelpersDir = join(targetAgentsDir, 'helpers');
+
+    if (existsSync(sourceHelpersDir)) {
+      this.copyDirectoryRecursive(sourceHelpersDir, targetHelpersDir);
+    }
+  }
+
+  /**
    * Extract description from agent markdown file
    */
   private getAgentDescription(agentFile: string): string | undefined {
@@ -455,6 +501,7 @@ export class AgentsInstaller {
       'requirements-validator': 'requirements-validation',
       'qx-partner': 'requirements-validation',
       'product-factors-assessor': 'requirements-validation',
+      'quality-criteria-recommender': 'requirements-validation',
       'test-idea-rewriter': 'test-generation',
       'code-intelligence': 'code-intelligence',
       'kg-builder': 'code-intelligence',

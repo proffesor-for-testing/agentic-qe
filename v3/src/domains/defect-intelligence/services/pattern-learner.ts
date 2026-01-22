@@ -695,7 +695,7 @@ export class PatternLearnerService implements IPatternLearnerService {
 
         clusters.set(clusterId, {
           id: clusterId,
-          label: `Behavioral: ${key.replace('|', ', ')}`,
+          label: `Behavioral: ${key.replace(/\|/g, ', ')}`,
           defects: groupDefects.map((d) => d.id),
           commonFactors,
           suggestedFix: this.suggestFix(commonFactors),

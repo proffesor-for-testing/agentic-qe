@@ -1,0 +1,143 @@
+name: oauth-flow
+version: "1.0.0"
+description: "OAuth2/OIDC authentication testing workflow with provider integration"
+variables:
+  - name: appUrl
+    type: string
+    required: true
+    description: "Application URL that initiates OAuth flow"
+  - name: oauthProvider
+    type: string
+    required: true
+    description: "OAuth provider name (google, github, microsoft, etc.)"
+  - name: email
+    type: string
+    required: true
+    description: "Test account email"
+  - name: password
+    type: string
+    required: true
+    description: "Test account password"
+  - name: loginButtonSelector
+    type: string
+    required: false
+    default: 'button:has-text("Sign in with"), [data-provider]'
+    description: "CSS selector for OAuth login button"
+  - name: callbackUrl
+    type: string
+    required: false
+    description: "Expected callback URL pattern"
+
+steps:
+  - name: navigate-to-app
+    action: navigate
+    config:
+      url: "{{appUrl}}"
+      waitUntil: networkidle
+    assertions:
+      - condition: "response.status === 200"
+        message: "Application should load successfully"
+
+  - name: click-oauth-button
+    action: click
+    config:
+      selector: "{{loginButtonSelector}}"
+    assertions:
+      - condition: "element.exists"
+        message: "OAuth login button should exist"
+
+  - name: wait-for-provider-redirect
+    action: wait
+    config:
+      timeout: 10000
+      waitUntil: networkidle
+
+  - name: verify-provider-page
+    action: evaluate
+    config:
+      script: "window.location.hostname"
+    assertions:
+      - condition: "result.includes('{{oauthProvider}}') || result.includes('login') || result.includes('auth')"
+        message: "Should redirect to OAuth provider page"
+
+  - name: take-provider-screenshot
+    action: screenshot
+    config:
+      name: "oauth-provider-page"
+      fullPage: false
+
+  - name: fill-email
+    action: fill
+    config:
+      selector: 'input[type="email"], input[name="email"], input[name="username"]'
+      value: "{{email}}"
+
+  - name: click-next-or-submit
+    action: click
+    config:
+      selector: 'button[type="submit"], button:has-text("Next"), button:has-text("Continue")'
+
+  - name: wait-for-password-field
+    action: wait
+    config:
+      selector: 'input[type="password"], input[name="password"]'
+      timeout: 5000
+
+  - name: fill-password
+    action: fill
+    config:
+      selector: 'input[type="password"], input[name="password"]'
+      value: "{{password}}"
+
+  - name: submit-credentials
+    action: click
+    config:
+      selector: 'button[type="submit"], button:has-text("Sign in"), button:has-text("Log in")'
+
+  - name: wait-for-authorization
+    action: wait
+    config:
+      timeout: 15000
+      waitUntil: networkidle
+
+  - name: handle-consent-if-present
+    action: click
+    config:
+      selector: 'button:has-text("Allow"), button:has-text("Accept"), button:has-text("Authorize")'
+      optional: true
+
+  - name: wait-for-callback
+    action: wait
+    config:
+      timeout: 10000
+      waitUntil: networkidle
+
+  - name: verify-callback-url
+    action: evaluate
+    config:
+      script: "window.location.href"
+    assertions:
+      - condition: "result.startsWith('{{callbackUrl}}') || result.includes('callback') || result.includes('redirect')"
+        message: "Should redirect to callback URL"
+
+  - name: take-callback-screenshot
+    action: screenshot
+    config:
+      name: "oauth-callback"
+      fullPage: false
+
+  - name: verify-token-in-url
+    action: evaluate
+    config:
+      script: "window.location.hash.includes('access_token') || window.location.search.includes('code=')"
+    assertions:
+      - condition: "result === true"
+        message: "OAuth token or code should be present in URL"
+
+  - name: verify-authentication
+    action: evaluate
+    config:
+      script: "localStorage.getItem('access_token') !== null || sessionStorage.getItem('access_token') !== null || document.cookie.includes('token')"
+    assertions:
+      - condition: "result === true"
+        message: "Access token should be stored after OAuth flow"

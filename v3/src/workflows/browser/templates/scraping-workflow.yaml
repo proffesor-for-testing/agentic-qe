@@ -1,0 +1,172 @@
+name: scraping-workflow
+version: "1.0.0"
+description: "Data extraction workflow for web scraping with pagination and structured output"
+variables:
+  - name: targetUrl
+    type: string
+    required: true
+    description: "URL to scrape data from"
+  - name: dataSelector
+    type: string
+    required: true
+    description: "CSS selector for data elements to extract"
+  - name: paginationSelector
+    type: string
+    required: false
+    default: 'a[rel="next"], button:has-text("Next"), .pagination .next'
+    description: "CSS selector for next page button"
+  - name: maxPages
+    type: number
+    required: false
+    default: 10
+    description: "Maximum number of pages to scrape"
+  - name: waitBetweenPages
+    type: number
+    required: false
+    default: 2000
+    description: "Milliseconds to wait between page loads"
+  - name: extractAttributes
+    type: array
+    required: false
+    default: ["textContent", "href"]
+    description: "Attributes to extract from each element"
+
+steps:
+  - name: navigate-to-target
+    action: navigate
+    config:
+      url: "{{targetUrl}}"
+      waitUntil: networkidle
+    assertions:
+      - condition: "response.status === 200"
+        message: "Target page should load successfully"
+
+  - name: wait-for-content
+    action: wait
+    config:
+      selector: "{{dataSelector}}"
+      timeout: 10000
+    assertions:
+      - condition: "element.exists"
+        message: "Data elements should be present on page"
+
+  - name: take-initial-screenshot
+    action: screenshot
+    config:
+      name: "scraping-page-1"
+      fullPage: true
+
+  - name: extract-page-data
+    action: evaluate
+    config:
+      script: |
+        const elements = Array.from(document.querySelectorAll('{{dataSelector}}'));
+        const attributes = {{extractAttributes}};
+        return elements.map((el, index) => {
+          const data = { index };
+          attributes.forEach(attr => {
+            if (attr === 'textContent') {
+              data[attr] = el.textContent.trim();
+            } else if (attr === 'innerText') {
+              data[attr] = el.innerText.trim();
+            } else if (attr === 'innerHTML') {
+              data[attr] = el.innerHTML;
+            } else {
+              data[attr] = el.getAttribute(attr);
+            }
+          });
+          return data;
+        });
+    assertions:
+      - condition: "Array.isArray(result) && result.length > 0"
+        message: "Should extract at least one data element"
+
+  - name: store-page-data
+    action: evaluate
+    config:
+      script: |
+        window.scrapedData = window.scrapedData || [];
+        const pageData = {{previous.result}};
+        window.scrapedData.push(...pageData);
+        return window.scrapedData.length;
+
+  - name: check-pagination
+    action: evaluate
+    config:
+      script: "document.querySelector('{{paginationSelector}}') !== null"
+
+  - name: loop-pagination
+    action: loop
+    config:
+      condition: "{{previous.result}} === true && {{currentPage}} < {{maxPages}}"
+      maxIterations: "{{maxPages}}"
+      steps:
+        - name: click-next-page
+          action: click
+          config:
+            selector: "{{paginationSelector}}"
+
+        - name: wait-for-page-load
+          action: wait
+          config:
+            timeout: "{{waitBetweenPages}}"
+            waitUntil: networkidle
+
+        - name: extract-next-page-data
+          action: evaluate
+          config:
+            script: |
+              const elements = Array.from(document.querySelectorAll('{{dataSelector}}'));
+              const attributes = {{extractAttributes}};
+              return elements.map((el, index) => {
+                const data = { index, page: {{currentPage}} };
+                attributes.forEach(attr => {
+                  if (attr === 'textContent') {
+                    data[attr] = el.textContent.trim();
+                  } else if (attr === 'innerText') {
+                    data[attr] = el.innerText.trim();
+                  } else if (attr === 'innerHTML') {
+                    data[attr] = el.innerHTML;
+                  } else {
+                    data[attr] = el.getAttribute(attr);
+                  }
+                });
+                return data;
+              });
+
+        - name: append-page-data
+          action: evaluate
+          config:
+            script: |
+              const pageData = {{previous.result}};
+              window.scrapedData.push(...pageData);
+              return window.scrapedData.length;
+
+        - name: take-page-screenshot
+          action: screenshot
+          config:
+            name: "scraping-page-{{currentPage}}"
+            fullPage: true
+
+  - name: get-final-data
+    action: evaluate
+    config:
+      script: "window.scrapedData || []"
+    assertions:
+      - condition: "Array.isArray(result) && result.length > 0"
+        message: "Should have scraped data from at least one page"
+
+  - name: validate-data-structure
+    action: evaluate
+    config:
+      script: |
+        const data = window.scrapedData || [];
+        return data.every(item => typeof item === 'object' && item !== null);
+    assertions:
+      - condition: "result === true"
+        message: "All scraped items should be valid objects"
+
+  - name: export-data
+    action: evaluate
+    config:
+      script: "JSON.stringify(window.scrapedData, null, 2)"

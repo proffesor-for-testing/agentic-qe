@@ -35,7 +35,7 @@ function createMockMemoryBackend(): MemoryBackend {
       return storage.has(key);
     }),
     search: vi.fn().mockImplementation(async (pattern: string, limit?: number) => {
-      const regex = new RegExp(pattern.replace('*', '.*'));
+      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
       const keys = Array.from(storage.keys()).filter((k) => regex.test(k));
       return keys.slice(0, limit);
     }),

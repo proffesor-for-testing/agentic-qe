@@ -15,6 +15,7 @@ import { CoverageAnalyzeTool, CoverageGapsTool } from './coverage-analysis';
 import { QualityEvaluateTool } from './quality-assessment/evaluate';
 import { DefectPredictTool } from './defect-intelligence/predict';
 import { RequirementsValidateTool } from './requirements-validation/validate';
+import { QualityCriteriaTool } from './requirements-validation/quality-criteria';
 import { CodeAnalyzeTool } from './code-intelligence/analyze';
 import { SecurityScanTool } from './security-compliance/scan';
 import { ContractValidateTool } from './contract-testing/validate';
@@ -55,6 +56,7 @@ export const QE_TOOL_NAMES = {
 
   // Requirements Validation
   REQUIREMENTS_VALIDATE: 'qe/requirements/validate',
+  QUALITY_CRITERIA: 'qe/requirements/quality-criteria',
 
   // Code Intelligence
   CODE_ANALYZE: 'qe/code/analyze',
@@ -121,6 +123,7 @@ export const QE_TOOLS: MCPToolBase[] = [
 
   // Requirements Validation Domain
   new RequirementsValidateTool(),
+  new QualityCriteriaTool(),
 
   // Code Intelligence Domain
   new CodeAnalyzeTool(),

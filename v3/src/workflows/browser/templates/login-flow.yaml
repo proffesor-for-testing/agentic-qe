@@ -1,0 +1,129 @@
+name: login-flow
+version: "1.0.0"
+description: "Authentication testing workflow for login forms with credential validation"
+variables:
+  - name: loginUrl
+    type: string
+    required: true
+    description: "URL of the login page"
+  - name: username
+    type: string
+    required: true
+    description: "Test username or email"
+  - name: password
+    type: string
+    required: true
+    description: "Test password"
+  - name: usernameSelector
+    type: string
+    required: false
+    default: 'input[name="username"], input[type="email"], input[name="email"]'
+    description: "CSS selector for username field"
+  - name: passwordSelector
+    type: string
+    required: false
+    default: 'input[name="password"], input[type="password"]'
+    description: "CSS selector for password field"
+  - name: submitSelector
+    type: string
+    required: false
+    default: 'button[type="submit"], input[type="submit"]'
+    description: "CSS selector for submit button"
+  - name: successIndicator
+    type: string
+    required: false
+    default: 'body'
+    description: "CSS selector that appears after successful login"
+  - name: errorSelector
+    type: string
+    required: false
+    default: '.error, [role="alert"], .alert-danger'
+    description: "CSS selector for error messages"
+
+steps:
+  - name: navigate-to-login
+    action: navigate
+    config:
+      url: "{{loginUrl}}"
+      waitUntil: domcontentloaded
+    assertions:
+      - condition: "response.status === 200"
+        message: "Login page should load successfully"
+
+  - name: wait-for-form
+    action: wait
+    config:
+      selector: "{{usernameSelector}}"
+      timeout: 5000
+    assertions:
+      - condition: "element.isVisible"
+        message: "Username field should be visible"
+
+  - name: fill-username
+    action: fill
+    config:
+      selector: "{{usernameSelector}}"
+      value: "{{username}}"
+    assertions:
+      - condition: "element.value === '{{username}}'"
+        message: "Username should be filled correctly"
+
+  - name: fill-password
+    action: fill
+    config:
+      selector: "{{passwordSelector}}"
+      value: "{{password}}"
+    assertions:
+      - condition: "element.value.length > 0"
+        message: "Password should be filled"
+
+  - name: take-before-screenshot
+    action: screenshot
+    config:
+      name: "login-form-filled"
+      fullPage: false
+
+  - name: submit-form
+    action: click
+    config:
+      selector: "{{submitSelector}}"
+    assertions:
+      - condition: "element.isEnabled"
+        message: "Submit button should be clickable"
+
+  - name: wait-for-navigation
+    action: wait
+    config:
+      timeout: 10000
+      waitUntil: networkidle
+
+  - name: verify-success
+    action: wait
+    config:
+      selector: "{{successIndicator}}"
+      timeout: 5000
+    assertions:
+      - condition: "element.exists"
+        message: "Success indicator should appear after login"
+
+  - name: check-no-errors
+    action: evaluate
+    config:
+      script: "document.querySelector('{{errorSelector}}') === null"
+    assertions:
+      - condition: "result === true"
+        message: "No error messages should be visible after successful login"
+
+  - name: take-after-screenshot
+    action: screenshot
+    config:
+      name: "login-successful"
+      fullPage: false
+
+  - name: verify-session
+    action: evaluate
+    config:
+      script: "document.cookie.includes('session') || localStorage.getItem('token') !== null"
+    assertions:
+      - condition: "result === true"
+        message: "Session cookie or token should be set"

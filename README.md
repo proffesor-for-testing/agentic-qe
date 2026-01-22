@@ -11,9 +11,9 @@
 
 **V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 50 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
+> **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 51 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
-🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **60 QE Skills** 
+🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **61 QE Skills** 
 
 </div>
 
@@ -58,14 +58,14 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 
 **What V3 provides:**
 - ✅ **12 DDD Bounded Contexts**: Organized by business domain (test-generation, coverage-analysis, security-compliance, etc.)
-- ✅ **50 QE Agents**: Including Queen Coordinator for hierarchical orchestration (43 main + 7 TDD subagents)
+- ✅ **51 QE Agents**: Including Queen Coordinator for hierarchical orchestration (44 main + 7 TDD subagents)
 - ✅ **TinyDancer Model Routing**: 3-tier intelligent routing (Haiku/Sonnet/Opus) for cost optimization
 - ✅ **ReasoningBank Learning**: HNSW-indexed pattern storage with experience replay
 - ✅ **O(log n) Coverage Analysis**: Sublinear algorithms for efficient gap detection
 - ✅ **Claude Flow Integration**: Deep integration with MCP tools and swarm orchestration
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
-- ✅ **60 QE Skills**: Domain-specific skills for testing, security, accessibility, and more
+- ✅ **61 QE Skills**: Domain-specific skills for testing, security, accessibility, and more
 
 ---
 
@@ -79,7 +79,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 | **AI testing tools are expensive** | TinyDancer 3-tier model routing reduces costs by matching task complexity to appropriate model |
 | **No memory between test runs—every analysis starts from scratch** | ReasoningBank remembers patterns, strategies, and what works for your codebase |
 | **Agents waste tokens reading irrelevant code** | Code Intelligence provides token reduction with semantic search and knowledge graphs |
-| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 50 agents across 12 domains with consensus and MinCut topology |
+| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 51 agents across 12 domains with consensus and MinCut topology |
 | **Tools don't understand your testing frameworks** | Works with Jest, Cypress, Playwright, Vitest, Mocha, Jasmine, AVA |
 
 ---
@@ -107,6 +107,33 @@ V3 is built on **12 DDD Bounded Contexts**, each with dedicated agents and clear
 
 ---
 
+### 🌐 Browser Automation Integration (v3.1.0)
+
+V3.1.0 adds full browser automation support via **@claude-flow/browser** integration:
+
+| Component | Description |
+|-----------|-------------|
+| **BrowserSwarmCoordinator** | Parallel multi-viewport testing (4x faster) |
+| **BrowserSecurityScanner** | URL validation, PII detection with auto-masking |
+| **9 Workflow Templates** | YAML-based reusable browser workflows |
+| **TrajectoryAdapter** | SONA learning integration with HNSW indexing |
+
+**Available Workflow Templates:**
+- `login-flow`, `oauth-flow` - Authentication testing
+- `form-validation`, `navigation-flow` - User journey testing
+- `visual-regression`, `accessibility-audit` - Quality validation
+- `performance-audit`, `api-integration`, `scraping-workflow` - Advanced workflows
+
+```bash
+# Use browser automation from Claude Code
+claude "Use security-visual-testing skill to test https://example.com across mobile, tablet, desktop viewports"
+
+# Load and execute a workflow template
+aqe workflow load login-flow --vars '{"username": "test", "password": "secret"}'
+```
+
+---
+
 ### 👑 Queen Coordinator & Hierarchical Orchestration
 
 The **qe-queen-coordinator** manages the entire fleet with intelligent task distribution:
@@ -126,7 +153,7 @@ The **qe-queen-coordinator** manages the entire fleet with intelligent task dist
 ```
 
 **Capabilities:**
-- Orchestrate 50 QE agents concurrently across 12 domains
+- Orchestrate 51 QE agents concurrently across 12 domains
 - TinyDancer 3-tier model routing (Haiku/Sonnet/Opus) with confidence-based decisions
 - Byzantine fault-tolerant consensus for critical quality decisions
 - MinCut graph-based topology optimization for self-healing coordination
@@ -406,12 +433,12 @@ claude "Coordinate security audit across the monorepo:
 
 ---
 
-## 🎓 60 QE Skills
+## 🎓 61 QE Skills
 
 V3 agents automatically apply relevant skills from the comprehensive skill library:
 
 <details>
-<summary><b>View All 60 QE Skills</b></summary>
+<summary><b>View All 61 QE Skills</b></summary>
 
 **Core Testing & Methodologies (12)**
 - agentic-quality-engineering - Core PACT principles for AI-powered QE
@@ -427,13 +454,14 @@ V3 agents automatically apply relevant skills from the comprehensive skill libra
 - regression-testing - Strategic regression management
 - verification-quality - Quality verification practices
 
-**Specialized Testing (12)**
+**Specialized Testing (13)**
 - accessibility-testing - WCAG 2.2 compliance and inclusive design
 - mobile-testing - iOS and Android platform testing
 - database-testing - Schema validation and data integrity
 - contract-testing - Consumer-driven contract testing
 - chaos-engineering-resilience - Fault injection and resilience testing
 - visual-testing-advanced - Visual regression and UI testing
+- security-visual-testing - Security-first visual testing with PII detection
 - compliance-testing - Regulatory compliance (GDPR, HIPAA, SOC2)
 - compatibility-testing - Cross-browser and platform testing
 - localization-testing - i18n and l10n testing
@@ -580,7 +608,7 @@ agentic-qe/
 │   │   ├── mcp/             # MCP server
 │   │   └── cli/             # V3 CLI
 │   ├── tests/               # 5,600+ tests
-│   └── assets/agents/       # 50 QE agent definitions (43 main + 7 subagents)
+│   └── assets/agents/       # 51 QE agent definitions (44 main + 7 subagents)
 ├── v2/                      # V2 Implementation (Legacy)
 │   ├── src/                 # V2 source code
 │   ├── tests/               # V2 tests

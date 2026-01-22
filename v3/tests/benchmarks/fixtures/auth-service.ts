@@ -405,8 +405,9 @@ export class AuthenticationService {
 
   private verifyMfaCode(secret: string, code: string): boolean {
     // Simplified TOTP verification (use proper library in production)
+    // Using SHA-256 instead of SHA-1 for better security
     const timeStep = Math.floor(Date.now() / 30000);
-    const expectedCode = createHash('sha1')
+    const expectedCode = createHash('sha256')
       .update(secret + timeStep.toString())
       .digest('hex')
       .slice(0, 6);

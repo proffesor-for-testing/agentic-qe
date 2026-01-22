@@ -1,0 +1,237 @@
+name: form-validation
+version: "1.0.0"
+description: "Input validation testing workflow for form fields with error handling"
+variables:
+  - name: formUrl
+    type: string
+    required: true
+    description: "URL containing the form to test"
+  - name: formSelector
+    type: string
+    required: false
+    default: 'form'
+    description: "CSS selector for the form element"
+  - name: submitSelector
+    type: string
+    required: false
+    default: 'button[type="submit"], input[type="submit"]'
+    description: "CSS selector for submit button"
+  - name: errorSelector
+    type: string
+    required: false
+    default: '.error, [role="alert"], .invalid-feedback, [data-error]'
+    description: "CSS selector for error messages"
+  - name: fields
+    type: array
+    required: true
+    description: "Array of field configurations to test"
+
+steps:
+  - name: navigate-to-form
+    action: navigate
+    config:
+      url: "{{formUrl}}"
+      waitUntil: networkidle
+    assertions:
+      - condition: "response.status === 200"
+        message: "Form page should load successfully"
+
+  - name: wait-for-form
+    action: wait
+    config:
+      selector: "{{formSelector}}"
+      timeout: 5000
+    assertions:
+      - condition: "element.exists"
+        message: "Form should be present on page"
+
+  - name: take-initial-screenshot
+    action: screenshot
+    config:
+      name: "form-initial"
+      fullPage: false
+
+  - name: test-empty-submission
+    action: click
+    config:
+      selector: "{{submitSelector}}"
+
+  - name: wait-for-validation
+    action: wait
+    config:
+      timeout: 2000
+
+  - name: check-empty-errors
+    action: evaluate
+    config:
+      script: "document.querySelectorAll('{{errorSelector}}').length > 0"
+    assertions:
+      - condition: "result === true"
+        message: "Required field errors should appear on empty submission"
+
+  - name: take-empty-error-screenshot
+    action: screenshot
+    config:
+      name: "form-empty-errors"
+      fullPage: false
+
+  - name: loop-field-tests
+    action: loop
+    config:
+      items: "{{fields}}"
+      steps:
+        - name: focus-field
+          action: click
+          config:
+            selector: "{{currentItem.selector}}"
+
+        - name: test-invalid-input
+          action: fill
+          config:
+            selector: "{{currentItem.selector}}"
+            value: "{{currentItem.invalidValue}}"
+
+        - name: trigger-blur
+          action: evaluate
+          config:
+            script: "document.querySelector('{{currentItem.selector}}').blur()"
+
+        - name: wait-for-field-validation
+          action: wait
+          config:
+            timeout: 1000
+
+        - name: check-field-error
+          action: evaluate
+          config:
+            script: |
+              const field = document.querySelector('{{currentItem.selector}}');
+              const form = field.closest('form');
+              const errors = form.querySelectorAll('{{errorSelector}}');
+              const fieldError = Array.from(errors).find(err => {
+                const fieldId = field.id || field.name;
+                return err.textContent.toLowerCase().includes(fieldId.toLowerCase()) ||
+                       err.getAttribute('for') === fieldId ||
+                       field.getAttribute('aria-describedby') === err.id;
+              });
+              return fieldError !== null && fieldError !== undefined;
+          assertions:
+            - condition: "result === true"
+              message: "Error should appear for invalid value in {{currentItem.selector}}"
+
+        - name: take-field-error-screenshot
+          action: screenshot
+          config:
+            name: "form-field-error-{{currentItem.name}}"
+            fullPage: false
+
+        - name: clear-field
+          action: fill
+          config:
+            selector: "{{currentItem.selector}}"
+            value: ""
+
+        - name: test-valid-input
+          action: fill
+          config:
+            selector: "{{currentItem.selector}}"
+            value: "{{currentItem.validValue}}"
+
+        - name: trigger-validation
+          action: evaluate
+          config:
+            script: "document.querySelector('{{currentItem.selector}}').blur()"
+
+        - name: wait-for-revalidation
+          action: wait
+          config:
+            timeout: 1000
+
+        - name: check-no-error
+          action: evaluate
+          config:
+            script: |
+              const field = document.querySelector('{{currentItem.selector}}');
+              const form = field.closest('form');
+              const errors = form.querySelectorAll('{{errorSelector}}');
+              const fieldError = Array.from(errors).find(err => {
+                const fieldId = field.id || field.name;
+                return err.textContent.toLowerCase().includes(fieldId.toLowerCase()) ||
+                       err.getAttribute('for') === fieldId ||
+                       field.getAttribute('aria-describedby') === err.id;
+              });
+              return fieldError === null || fieldError === undefined || !fieldError.offsetParent;
+          assertions:
+            - condition: "result === true"
+              message: "Error should clear for valid value in {{currentItem.selector}}"
+
+        - name: store-field-result
+          action: evaluate
+          config:
+            script: |
+              window.fieldResults = window.fieldResults || [];
+              window.fieldResults.push({
+                field: '{{currentItem.name}}',
+                selector: '{{currentItem.selector}}',
+                invalidTested: true,
+                validTested: true,
+                passed: true
+              });
+              return window.fieldResults.length;
+
+  - name: fill-all-valid
+    action: loop
+    config:
+      items: "{{fields}}"
+      steps:
+        - name: fill-valid-value
+          action: fill
+          config:
+            selector: "{{currentItem.selector}}"
+            value: "{{currentItem.validValue}}"
+
+  - name: take-filled-screenshot
+    action: screenshot
+    config:
+      name: "form-all-valid"
+      fullPage: false
+
+  - name: submit-valid-form
+    action: click
+    config:
+      selector: "{{submitSelector}}"
+
+  - name: wait-for-submission
+    action: wait
+    config:
+      timeout: 5000
+      waitUntil: networkidle
+
+  - name: verify-no-errors
+    action: evaluate
+    config:
+      script: "document.querySelectorAll('{{errorSelector}}').length === 0"
+    assertions:
+      - condition: "result === true"
+        message: "No errors should appear after valid submission"
+
+  - name: verify-submission-success
+    action: evaluate
+    config:
+      script: |
+        return window.location.href !== '{{formUrl}}' ||
+               document.querySelector('[role="status"], .success, .alert-success') !== null;
+    assertions:
+      - condition: "result === true"
+        message: "Form should submit successfully or show success message"
+
+  - name: generate-validation-report
+    action: evaluate
+    config:
+      script: |
+        const results = window.fieldResults || [];
+        return {
+          totalFields: results.length,
+          allPassed: results.every(r => r.passed),
+          results
+        };

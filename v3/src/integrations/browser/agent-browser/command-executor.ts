@@ -216,14 +216,16 @@ export class AgentBrowserCommandExecutor {
    * Fill input by ref or selector
    */
   fill(target: string, text: string): CommandResult<void> {
-    return this.execute('fill', [target, `"${text.replace(/"/g, '\\"')}"`]);
+    // Escape backslashes first, then quotes
+    return this.execute('fill', [target, `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`]);
   }
 
   /**
    * Type text (without clearing)
    */
   type(target: string, text: string): CommandResult<void> {
-    return this.execute('type', [target, `"${text.replace(/"/g, '\\"')}"`]);
+    // Escape backslashes first, then quotes
+    return this.execute('type', [target, `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`]);
   }
 
   /**
@@ -392,7 +394,8 @@ export class AgentBrowserCommandExecutor {
    * Evaluate JavaScript in page context
    */
   eval<T = unknown>(script: string): CommandResult<T> {
-    const escapedScript = script.replace(/"/g, '\\"').replace(/\n/g, ' ');
+    // Escape backslashes first, then quotes, then newlines
+    const escapedScript = script.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
     return this.execute<T>('eval', [`"${escapedScript}"`, '--json']);
   }
 

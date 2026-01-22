@@ -80,7 +80,7 @@ class MockMemoryBackend implements MemoryBackend {
     return this.store.has(key);
   }
   async search(pattern: string, limit?: number): Promise<string[]> {
-    return Array.from(this.store.keys()).filter(k => k.includes(pattern.replace('*', '')));
+    return Array.from(this.store.keys()).filter(k => k.includes(pattern.replace(/\*/g, '')));
   }
   async vectorSearch(embedding: number[], k: number): Promise<VectorSearchResult[]> {
     return [];

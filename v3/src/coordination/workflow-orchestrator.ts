@@ -1092,6 +1092,13 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     value: unknown
   ): void {
     const parts = path.split('.');
+
+    // Guard against prototype pollution
+    const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
+    if (parts.some(part => dangerousKeys.includes(part))) {
+      throw new Error(`Invalid path: contains dangerous prototype key`);
+    }
+
     let current = obj;
 
     for (let i = 0; i < parts.length - 1; i++) {
@@ -1896,6 +1903,12 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     action: string,
     handler: DomainAction
   ): void {
+    // Guard against prototype pollution
+    const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
+    if (dangerousKeys.includes(domain) || dangerousKeys.includes(action)) {
+      throw new Error('Invalid domain or action name: contains dangerous prototype key');
+    }
+
     if (!this.actionRegistry[domain]) {
       this.actionRegistry[domain] = {};
     }

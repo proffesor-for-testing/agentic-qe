@@ -7,13 +7,7 @@
  * All commands delegate to domain services via the coordination layer.
  */
 
-import { createRequire } from 'module';
 import { Command } from 'commander';
-
-// Read version from package.json
-const require = createRequire(import.meta.url);
-const pkg = require('../../package.json');
-const VERSION = pkg.version;
 import chalk from 'chalk';
 import { QEKernel } from '../kernel/interfaces';
 import { QEKernelImpl } from '../kernel/kernel';
@@ -256,6 +250,9 @@ async function cleanupAndExit(code: number = 0): Promise<never> {
 // ============================================================================
 
 const program = new Command();
+
+// Version injected at build time from root package.json
+const VERSION = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : '0.0.0-dev';
 
 program
   .name('aqe')

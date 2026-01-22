@@ -1,0 +1,91 @@
+name: security-visual-testing
+version: "1.0.0"
+description: |
+  Security-first visual testing skill that combines URL validation,
+  PII detection, and visual regression testing with parallel viewport support.
+
+  This skill integrates:
+  - @claude-flow/browser for browser automation
+  - visual-accessibility domain for visual testing
+  - Security scanning for URL validation and PII detection
+  - Parallel viewport testing for responsive design
+
+  Key Features:
+  - URL security validation before navigation
+  - PII detection in screenshots
+  - Visual regression testing with baselines
+  - Parallel multi-viewport testing
+  - Accessibility audits (WCAG 2.1 A/AA/AAA)
+  - Comprehensive reporting
+
+dependencies:
+  - "@claude-flow/browser"
+  - "visual-accessibility"
+  - "test-execution"
+
+capabilities:
+  - url-security-validation
+  - pii-detection
+  - visual-regression
+  - parallel-viewport-testing
+  - accessibility-audit
+  - screenshot-capture
+  - baseline-management
+
+workflows:
+  security-visual-audit:
+    description: "Full security + visual audit pipeline"
+    steps:
+      - validate-urls               # Validate URLs for security issues
+      - scan-for-security-issues    # Check for XSS, SQL injection patterns
+      - capture-parallel-viewports  # Screenshot multiple viewports
+      - compare-with-baselines      # Visual regression detection
+      - audit-accessibility         # WCAG compliance check
+      - generate-report             # Consolidated findings
+
+    error-handling:
+      - continue-on-url-failure     # Skip invalid URLs
+      - mask-pii-before-save        # Always protect sensitive data
+      - retry-on-timeout            # Retry failed screenshots
+
+    parallelization:
+      max-concurrent: 4             # Max parallel browser sessions
+      per-viewport: true            # Test all viewports in parallel
+
+  pii-safe-screenshot:
+    description: "Screenshot with PII detection and masking"
+    steps:
+      - validate-url                # Check URL security
+      - capture-screenshot          # Take screenshot
+      - scan-for-pii                # Detect sensitive data
+      - mask-sensitive-content      # Redact PII if found
+      - save-safe-version           # Save masked screenshot
+
+    pii-detection:
+      - email-addresses
+      - phone-numbers
+      - credit-cards
+      - ssn
+      - api-keys
+      - passwords
+
+    masking-strategy:
+      method: "blur"                # or "redact", "pixelate"
+      intensity: "high"
+
+  responsive-visual-audit:
+    description: "Test visual consistency across viewports"
+    steps:
+      - define-viewports            # Mobile, tablet, desktop
+      - parallel-capture            # Capture all viewports
+      - detect-layout-shifts        # Find layout issues
+      - compare-baselines           # Visual regression
+      - report-viewport-issues      # Viewport-specific problems
+
+metadata:
+  domain: visual-accessibility
+  category: testing
+  maturity: stable
+  requires-browser: true
+  supports-parallel: true
+  pii-safe: true

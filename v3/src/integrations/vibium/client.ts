@@ -497,8 +497,10 @@ export class VibiumClientImpl implements VibiumClient {
 
     try {
       // Vibium doesn't have findAll, use evaluate to get all matching elements
+      // Escape backslashes first, then single quotes
+      const escapedSelector = options.selector.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       const elements = await this.vibeInstance!.evaluate<Array<{ tag: string; text: string }>>(`
-        Array.from(document.querySelectorAll('${options.selector.replace(/'/g, "\\'")}'))
+        Array.from(document.querySelectorAll('${escapedSelector}'))
           .map(el => ({
             tag: el.tagName.toLowerCase(),
             text: el.textContent?.trim() || ''
@@ -563,8 +565,10 @@ export class VibiumClientImpl implements VibiumClient {
 
       // Clear existing text if requested
       if (options.clear) {
+        // Escape backslashes first, then single quotes
+        const escapedSel = options.selector.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         await this.vibeInstance!.evaluate(`
-          const el = document.querySelector('${options.selector.replace(/'/g, "\\'")}');
+          const el = document.querySelector('${escapedSel}');
           if (el) el.value = '';
         `);
       }

@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../shared/types';
 import {
   TestExecutionAPI,
+  SimpleTestRequest,
   ExecuteTestsRequest,
   ParallelExecutionRequest,
   TestRunResult,
@@ -220,6 +221,75 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
   // ============================================================================
   // TestExecutionAPI Implementation
   // ============================================================================
+
+  /**
+   * Simple test execution - convenience method for CLI
+   * Auto-detects framework and uses sensible defaults
+   */
+  async runTests(request: SimpleTestRequest): Promise<Result<TestRunResult, Error>> {
+    const framework = this.detectFramework(request.testFiles);
+    const workers = request.workers ?? Math.min(4, Math.max(1, request.testFiles.length));
+    const timeout = request.timeout ?? 60000;
+
+    // Use parallel execution by default (unless explicitly disabled)
+    if (request.parallel !== false && request.testFiles.length > 1) {
+      const result = await this.executeParallel({
+        testFiles: request.testFiles,
+        framework,
+        workers,
+        timeout,
+      });
+
+      // Handle retries if requested and there were failures
+      if (request.retryCount && request.retryCount > 0 && result.success && result.value.failed > 0) {
+        const failedTestIds = result.value.failedTests.map(t => t.testId);
+        await this.retry({
+          runId: result.value.runId,
+          failedTests: failedTestIds,
+          maxRetries: request.retryCount,
+          backoff: 'exponential',
+        });
+      }
+
+      return result;
+    }
+
+    // Sequential execution
+    const result = await this.execute({
+      testFiles: request.testFiles,
+      framework,
+      timeout,
+    });
+
+    // Handle retries if requested and there were failures
+    if (request.retryCount && request.retryCount > 0 && result.success && result.value.failed > 0) {
+      const failedTestIds = result.value.failedTests.map(t => t.testId);
+      await this.retry({
+        runId: result.value.runId,
+        failedTests: failedTestIds,
+        maxRetries: request.retryCount,
+        backoff: 'exponential',
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Detect test framework from file patterns and project configuration
+   */
+  private detectFramework(testFiles: string[]): string {
+    // Check file patterns for common framework indicators
+    const hasVitestPattern = testFiles.some(f => f.includes('.test.') || f.includes('.spec.'));
+    const hasMochaPattern = testFiles.some(f => f.includes('_test.') || f.includes('.mocha.'));
+
+    // Default to vitest as it's most common in modern projects
+    if (hasVitestPattern) return 'vitest';
+    if (hasMochaPattern) return 'mocha';
+
+    // Could add project config detection here (vitest.config.ts, jest.config.js, etc.)
+    return 'vitest';
+  }
 
   /**
    * Execute a test suite

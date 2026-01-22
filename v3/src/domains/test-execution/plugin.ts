@@ -42,6 +42,7 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
     }
 
     const api: TestExecutionAPI = {
+      runTests: this.coordinator.runTests.bind(this.coordinator),
       execute: this.coordinator.execute.bind(this.coordinator),
       executeParallel: this.coordinator.executeParallel.bind(this.coordinator),
       detectFlaky: this.coordinator.detectFlaky.bind(this.coordinator),

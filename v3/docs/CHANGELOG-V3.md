@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [3.0.0] - 2026-01-17
+## [3.1.0] - 2026-01-17
 
 ### Major Release: Domain-Driven Quality Engineering
 
@@ -260,7 +260,7 @@ See [Migration Guide](./MIGRATION-GUIDE.md) for detailed instructions.
 - `@xenova/transformers` ^2.17.2 - Transformer models
 - `axe-core` ^4.11.1 - Accessibility testing
 - `better-sqlite3` ^12.5.0 - SQLite database
-- `hnswlib-node` ^3.0.0 - HNSW indexing
+- `hnswlib-node` ^3.1.0 - HNSW indexing
 - `commander` ^12.1.0 - CLI framework
 - `vibium` ^0.1.2 - Validation utilities
 
@@ -299,36 +299,36 @@ Thanks to all contributors who made v3 possible.
 
 ## Pre-Release Versions
 
-### [3.0.0-alpha.26] - 2026-01-17
+### [3.1.0-alpha.26] - 2026-01-17
 - Implemented ADR-048 v2-to-v3 migration with schema compatibility
 - Added comprehensive migration CLI
 - Fixed CI test failures for shell detection
 
-### [3.0.0-alpha.25] - 2026-01-16
+### [3.1.0-alpha.25] - 2026-01-16
 - Fixed shell detection in task-executor
 - Improved timeout handling
 
-### [3.0.0-alpha.24] - 2026-01-15
+### [3.1.0-alpha.24] - 2026-01-15
 - Data persistence audit and fixes
 - Memory unification improvements
 
-### [3.0.0-alpha.23] - 2026-01-14
+### [3.1.0-alpha.23] - 2026-01-14
 - ReasoningBank integration
 - SONA neural learning
 
-### [3.0.0-alpha.22] - 2026-01-13
+### [3.1.0-alpha.22] - 2026-01-13
 - Queen coordinator implementation
 - Work stealing algorithm
 
-### [3.0.0-alpha.21] - 2026-01-12
+### [3.1.0-alpha.21] - 2026-01-12
 - HNSW vector search integration
 - 150x search performance improvement
 
-### [3.0.0-alpha.20] - 2026-01-11
+### [3.1.0-alpha.20] - 2026-01-11
 - All 12 DDD domains implemented
 - Event bus cross-domain communication
 
-### [3.0.0-alpha.1-19] - 2025-12 to 2026-01
+### [3.1.0-alpha.1-19] - 2025-12 to 2026-01
 - Progressive domain implementation
 - Agent development
 - CLI development

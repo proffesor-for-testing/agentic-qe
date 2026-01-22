@@ -56,7 +56,7 @@ class TestMemoryBackend implements MemoryBackend {
     return this.store.has(key);
   }
   async search(pattern: string): Promise<string[]> {
-    const regex = new RegExp(pattern.replace('*', '.*'));
+    const regex = new RegExp(pattern.replace(/\*/g, '.*'));
     return Array.from(this.store.keys()).filter((k) => regex.test(k));
   }
   async vectorSearch(): Promise<VectorSearchResult[]> {
