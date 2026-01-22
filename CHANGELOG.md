@@ -5,6 +5,17 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.4] - 2026-01-22
+
+### Changed
+
+- **Major dependency cleanup** - Removed 49 unused dependencies from root package.json
+  - Reduced from 66 to 17 production dependencies
+  - Removed unused: @anthropic-ai/sdk, @babel/*, @modelcontextprotocol/sdk, @opentelemetry/*, @supabase/*, agentdb, agentic-flow, ajv, axe-core, chokidar, cors, dockerode, express, fs-extra, graphql, inquirer, ioredis, openai, pg, playwright, react-dom, tree-sitter-*, ts-morph, web-tree-sitter, winston, ws, and more
+  - Kept only packages actually imported in v3/src: uuid, better-sqlite3, chalk, commander, typescript, @faker-js/faker, @ruvector/{attention,gnn,sona}, @xenova/transformers, hnswlib-node, fast-glob, ora, cli-progress, secure-json-parse, yaml, vibium
+  - Significantly faster npm install for users
+  - Smaller package footprint
+
 ## [3.1.3] - 2026-01-22
 
 ### Fixed
