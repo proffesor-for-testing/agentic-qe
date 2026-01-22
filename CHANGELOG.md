@@ -5,7 +5,7 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.1.0] - 2026-01-21
+## [3.1.0] - 2026-01-22
 
 ### Added
 
@@ -54,6 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - V2 compatibility maintained via MCP bridge
 
 ### Fixed
+
+- **Critical CLI bugs (Issue #197)** - Fixed deployment-blocking issues
+  - **Version command** - Now reads from root package.json via build-time injection
+    - Created `v3/scripts/build-cli.js` and `build-mcp.js` for esbuild version injection
+    - Resolves `MODULE_NOT_FOUND` error when `v3/package.json` not in published package
+    - `aqe --version` now correctly shows `3.1.0`
+  - **Test execute command** - Added `runTests()` convenience method to test-execution domain
+    - Auto-detects test framework (vitest, jest, mocha)
+    - Supports parallel execution, retry count, and sensible defaults
+    - `aqe test execute .` now works correctly
 
 - **GitHub Code Scanning vulnerabilities** - Fixed 21 security issues
   - HIGH: 5 ReDoS vulnerabilities (split compound regex, use indexOf)
