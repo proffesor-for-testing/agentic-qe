@@ -413,7 +413,9 @@ export class CrossDomainEventRouter implements CrossDomainRouter {
     if (pattern === '*') return true;
 
     // Support patterns like "test-execution.*" or "*.TestRunCompleted"
+    // Security: Escape backslashes first, then dots, to prevent regex injection
     const regexPattern = pattern
+      .replace(/\\/g, '\\\\')  // Escape backslashes first
       .replace(/\./g, '\\.')
       .replace(/\*/g, '.*');
     const regex = new RegExp(`^${regexPattern}$`);
