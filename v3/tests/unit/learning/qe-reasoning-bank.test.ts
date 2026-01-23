@@ -75,7 +75,8 @@ describe.runIf(canTest.gnn)('QE ReasoningBank', () => {
   });
 
   describe('Pattern Storage', () => {
-    it('should store a new pattern', async () => {
+    // First pattern storage loads the embedding model, which can take time
+    it('should store a new pattern', { timeout: 30000 }, async () => {
       const result = await reasoningBank.storePattern({
         patternType: 'test-template',
         name: 'Test Pattern',

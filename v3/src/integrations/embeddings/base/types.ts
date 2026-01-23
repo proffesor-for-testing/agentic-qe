@@ -16,7 +16,7 @@ export type EmbeddingDimension = 256 | 384 | 512 | 768 | 1024 | 1536;
 /**
  * Embedding namespace for separation
  */
-export type EmbeddingNamespace = 'text' | 'code' | 'test' | 'coverage' | 'defect';
+export type EmbeddingNamespace = 'text' | 'code' | 'test' | 'coverage' | 'defect' | 'experiences';
 
 /**
  * Quantization type for memory reduction
