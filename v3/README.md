@@ -662,6 +662,41 @@ Agentic QE includes 60 domain-specific quality engineering skills that agents au
 
 > **Note**: Claude Flow platform skills (agentdb, github, flow-nexus, etc.) are managed separately by the claude-flow package and not counted in QE skills.
 
+## Troubleshooting
+
+### ENOTEMPTY Error When Upgrading Global Installation
+
+If you encounter this error when upgrading:
+
+```
+npm error code ENOTEMPTY
+npm error ENOTEMPTY: directory not empty, rename '.../node_modules/agentic-qe' -> '...'
+```
+
+This is a [known npm issue](https://github.com/npm/cli/issues/4828) with global package upgrades. **Workaround:**
+
+```bash
+# Option 1: Remove existing installation first
+rm -rf $(npm root -g)/agentic-qe
+npm install -g agentic-qe@latest
+
+# Option 2: Force install
+npm install -g agentic-qe@latest --force
+
+# Option 3: Clean cache and reinstall
+npm cache clean --force
+npm install -g agentic-qe@latest
+```
+
+### Access Token Expired Notices
+
+If you see `npm notice Access token expired or revoked`, you can safely ignore these messages when installing public packages. To clear them:
+
+```bash
+npm logout
+npm install -g agentic-qe@latest
+```
+
 ## Requirements
 
 - Node.js 18.0.0 or higher
