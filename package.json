@@ -77,6 +77,7 @@
     "commander": "^14.0.1",
     "fast-glob": "^3.3.3",
     "hnswlib-node": "^3.0.0",
+    "lodash": "^4.17.23",
     "ora": "^5.4.1",
     "secure-json-parse": "^4.1.0",
     "typescript": "^5.9.3",
