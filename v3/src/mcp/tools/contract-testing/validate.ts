@@ -73,7 +73,7 @@ export interface VerificationResult {
 
 export interface ContractFailure {
   endpoint: string;
-  type: 'schema-mismatch' | 'status-code-mismatch' | 'missing-endpoint' | 'response-body-mismatch';
+  type: 'schema-mismatch' | 'status-code-mismatch' | 'missing-endpoint' | 'response-body-mismatch' | 'validation-error';
   expected: string;
   actual: string;
   message: string;
@@ -97,6 +97,48 @@ export interface Deprecation {
   reason: string;
   removalVersion?: string;
   replacement?: string;
+}
+
+// ============================================================================
+// Security Helpers
+// ============================================================================
+
+/**
+ * Validate URL to prevent SSRF attacks
+ * Only allows HTTP/HTTPS protocols and rejects potentially malicious patterns
+ */
+function validateHttpUrl(urlString: string): { valid: boolean; error?: string } {
+  try {
+    const url = new URL(urlString);
+
+    // Only allow HTTP and HTTPS protocols (prevents javascript:, file:, etc.)
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return { valid: false, error: `Invalid protocol: ${url.protocol}. Only http/https allowed.` };
+    }
+
+    // Block localhost and private IP ranges (SSRF protection)
+    const hostname = url.hostname.toLowerCase();
+    const blockedPatterns = [
+      /^localhost$/i,
+      /^127\./,
+      /^10\./,
+      /^172\.(1[6-9]|2[0-9]|3[01])\./,
+      /^192\.168\./,
+      /^0\.0\.0\.0$/,
+      /^\[::1\]$/,
+      /^169\.254\./, // Link-local
+    ];
+
+    for (const pattern of blockedPatterns) {
+      if (pattern.test(hostname)) {
+        return { valid: false, error: `Blocked hostname: ${hostname}. Cannot access internal/private addresses.` };
+      }
+    }
+
+    return { valid: true };
+  } catch {
+    return { valid: false, error: `Invalid URL format: ${urlString}` };
+  }
 }
 
 // ============================================================================
@@ -466,6 +508,24 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
     const failures: ContractFailure[] = [];
     const warnings: ContractWarning[] = [];
 
+    // Validate provider URL first (SSRF protection)
+    const providerValidation = validateHttpUrl(providerUrl);
+    if (!providerValidation.valid) {
+      return {
+        provider: providerUrl,
+        consumer: consumerName,
+        passed: false,
+        failures: [{
+          endpoint: providerUrl,
+          type: 'validation-error',
+          expected: 'Valid HTTP/HTTPS URL',
+          actual: providerValidation.error || 'Invalid URL',
+          message: `Provider URL validation failed: ${providerValidation.error}`,
+        }],
+        warnings: [],
+      };
+    }
+
     // Build contract and verify
     const contract = this.buildContractFromContent(contractContent, format, consumerName);
 
@@ -474,6 +534,19 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
       try {
         // Construct the full URL
         const url = `${providerUrl}${endpoint.path}`;
+
+        // Validate constructed URL (prevents path traversal attacks)
+        const urlValidation = validateHttpUrl(url);
+        if (!urlValidation.valid) {
+          failures.push({
+            endpoint: `${endpoint.method} ${endpoint.path}`,
+            type: 'validation-error',
+            expected: 'Valid URL',
+            actual: urlValidation.error || 'Invalid URL',
+            message: `URL validation failed: ${urlValidation.error}`,
+          });
+          continue;
+        }
 
         // Make a simple request to verify the endpoint exists
         const response = await fetch(url, {

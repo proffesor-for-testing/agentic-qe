@@ -22,6 +22,7 @@
 
 import type { Result } from '../../../shared/types';
 import { ok, err } from '../../../shared/types';
+import { safeEvaluateBoolean } from '../../../shared/utils/safe-expression-evaluator.js';
 // Import Vibium types for backward compatibility
 import type {
   VibiumClient,
@@ -2094,19 +2095,17 @@ export class E2ETestRunnerService implements IE2ETestRunnerService {
 
   /**
    * Evaluate conditional expression
+   * Uses safe expression evaluator to prevent code injection (CVE fix)
    */
   private evaluateCondition(condition: string, context: StepExecutionContext): boolean {
-    try {
-      // Simple variable substitution evaluation
-      const evalContext = {
-        ...context.variables,
-        env: process.env,
-      };
-      const fn = new Function(...Object.keys(evalContext), `return ${condition}`);
-      return Boolean(fn(...Object.values(evalContext)));
-    } catch {
-      return true; // On error, execute the step
-    }
+    // Build evaluation context from step variables
+    // Note: process.env is excluded for security - only explicit variables allowed
+    const evalContext: Record<string, unknown> = {
+      ...context.variables,
+    };
+
+    // Use safe evaluator instead of new Function() - prevents code injection
+    return safeEvaluateBoolean(condition, evalContext, true);
   }
 
   /**

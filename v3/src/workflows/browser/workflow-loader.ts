@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'fs/promises';
 import { join, basename } from 'path';
 import { parse as parseYaml } from 'yaml';
+import { safeEvaluateBoolean } from '../../shared/utils/safe-expression-evaluator.js';
 
 /**
  * Browser workflow variable definition
@@ -332,26 +333,21 @@ export function interpolateVariables(
 
 /**
  * Helper function to evaluate workflow conditions
+ * Uses safe expression evaluator to prevent code injection (CVE fix)
  */
 export function evaluateCondition(
   condition: string,
   context: WorkflowContext
 ): boolean {
-  try {
-    // Create a safe evaluation context
-    const evalContext = {
-      ...context.variables,
-      result: context.results.get('__last_result__'),
-    };
+  // Create a safe evaluation context
+  const evalContext: Record<string, unknown> = {
+    ...context.variables,
+    result: context.results.get('__last_result__'),
+  };
 
-    // Interpolate variables first
-    const interpolated = interpolateVariables(condition, evalContext);
+  // Interpolate variables first to replace {{var}} syntax
+  const interpolated = interpolateVariables(condition, evalContext);
 
-    // Simple evaluation (in production, use a safer evaluation library)
-    // This is a basic implementation for demonstration
-    return eval(interpolated);
-  } catch (error) {
-    console.error('Error evaluating condition:', condition, error);
-    return false;
-  }
+  // Use safe evaluator instead of eval() - prevents code injection
+  return safeEvaluateBoolean(interpolated, evalContext, false);
 }
