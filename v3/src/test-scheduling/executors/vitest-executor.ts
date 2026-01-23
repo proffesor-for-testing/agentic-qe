@@ -219,10 +219,16 @@ export class VitestPhaseExecutor implements PhaseExecutor {
       let stdout = '';
       let stderr = '';
 
-      this.currentProcess = spawn(command, args, {
+      // Security: shell: false prevents command injection through arguments
+      // Cross-platform: Use .cmd extension on Windows for npm scripts
+      const executable = process.platform === 'win32' && command === 'npx'
+        ? 'npx.cmd'
+        : command;
+
+      this.currentProcess = spawn(executable, args, {
         cwd: this.config.cwd || process.cwd(),
         env: { ...process.env, ...this.config.env },
-        shell: true,
+        shell: false,
       });
 
       const timeout = setTimeout(() => {

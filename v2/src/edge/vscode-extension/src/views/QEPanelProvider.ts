@@ -740,7 +740,7 @@ export class QEPanelProvider implements vscode.WebviewViewProvider {
           const cov = f.coverage ?? 0;
           return \`
             <div class="function-item">
-              <span class="function-name">\${f.name}</span>
+              <span class="function-name">\${escapeHtml(f.name)}</span>
               <span class="function-coverage \${getCoverageClass(cov)}">\${cov}%</span>
             </div>
           \`;
@@ -752,9 +752,9 @@ export class QEPanelProvider implements vscode.WebviewViewProvider {
         suggestionsEl.innerHTML = '<div class="empty-state">No suggestions</div>';
       } else {
         suggestionsEl.innerHTML = analysis.suggestions.slice(0, 5).map(s => \`
-          <div class="suggestion-item" onclick="applySuggestion('\${escape(s.code)}')">
-            <div class="suggestion-title">\${s.title}</div>
-            <div class="suggestion-desc">\${s.description}</div>
+          <div class="suggestion-item" onclick="applySuggestion('\${escapeForAttr(s.code)}')">
+            <div class="suggestion-title">\${escapeHtml(s.title)}</div>
+            <div class="suggestion-desc">\${escapeHtml(s.description)}</div>
           </div>
         \`).join('');
       }
@@ -771,8 +771,8 @@ export class QEPanelProvider implements vscode.WebviewViewProvider {
       } else {
         suggestionsEl.innerHTML = suggestions.map(s => \`
           <div class="suggestion-item">
-            <div class="suggestion-title">\${s.title}</div>
-            <div class="suggestion-desc">\${s.description}</div>
+            <div class="suggestion-title">\${escapeHtml(s.title)}</div>
+            <div class="suggestion-desc">\${escapeHtml(s.description)}</div>
           </div>
         \`).join('');
       }
@@ -790,8 +790,20 @@ export class QEPanelProvider implements vscode.WebviewViewProvider {
       return 'low';
     }
 
-    function escape(str) {
-      return str.replace(/'/g, "\\\\'").replace(/"/g, '\\\\"');
+    // HTML entity escape to prevent XSS
+    function escapeHtml(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // URL-encode for use in onclick handlers
+    function escapeForAttr(str) {
+      return encodeURIComponent(String(str || ''));
     }
 
     function applySuggestion(code) {

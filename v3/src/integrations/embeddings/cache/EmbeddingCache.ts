@@ -432,6 +432,7 @@ export class EmbeddingCache {
       test: 0,
       coverage: 0,
       defect: 0,
+      experiences: 0,
     };
 
     for (const [ns, cache] of this.memoryCache.entries()) {

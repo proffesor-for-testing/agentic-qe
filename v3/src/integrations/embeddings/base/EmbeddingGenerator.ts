@@ -376,6 +376,7 @@ export class EmbeddingGenerator {
         test: 0,
         coverage: 0,
         defect: 0,
+        experiences: 0,
       },
       cacheHits: 0,
       cacheMisses: 0,

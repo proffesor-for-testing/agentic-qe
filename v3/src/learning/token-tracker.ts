@@ -31,6 +31,8 @@
  * @module learning/token-tracker
  */
 
+import { randomUUID } from 'crypto';
+
 // ============================================================================
 // Token Usage Types (ADR-042 Specification)
 // ============================================================================
@@ -231,7 +233,8 @@ class TokenMetricsCollectorImpl {
   private isDirty = false;
 
   constructor() {
-    this.sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    // Use cryptographically secure random UUID instead of Math.random()
+    this.sessionId = `session-${Date.now()}-${randomUUID().substring(0, 8)}`;
     this.sessionStartTime = Date.now();
     this.costConfig = DEFAULT_COST_CONFIG;
   }
@@ -638,7 +641,8 @@ class TokenMetricsCollectorImpl {
     this.taskMetrics = [];
     this.agentMetrics.clear();
     this.domainMetrics.clear();
-    this.sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    // Use cryptographically secure random UUID instead of Math.random()
+    this.sessionId = `session-${Date.now()}-${randomUUID().substring(0, 8)}`;
     this.sessionStartTime = Date.now();
     this.cacheHits = 0;
     this.earlyExits = 0;

@@ -10,11 +10,11 @@
  * @module security-compliance/semgrep-integration
  */
 
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // ============================================================================
 // Types
@@ -72,7 +72,7 @@ export interface SemgrepConfig {
  */
 export async function isSemgrepAvailable(): Promise<boolean> {
   try {
-    await execAsync('semgrep --version', { timeout: 5000 });
+    await execFileAsync('semgrep', ['--version'], { timeout: 5000 });
     return true;
   } catch {
     return false;
@@ -84,7 +84,7 @@ export async function isSemgrepAvailable(): Promise<boolean> {
  */
 export async function getSemgrepVersion(): Promise<string | null> {
   try {
-    const { stdout } = await execAsync('semgrep --version', { timeout: 5000 });
+    const { stdout } = await execFileAsync('semgrep', ['--version'], { timeout: 5000 });
     return stdout.trim();
   } catch {
     return null;
@@ -115,20 +115,26 @@ export async function runSemgrep(config: Partial<SemgrepConfig>): Promise<Semgre
   }
 
   try {
-    // Build command
-    const excludeArgs = fullConfig.exclude.map((e) => `--exclude="${e}"`).join(' ');
-    const cmd = [
-      'semgrep scan',
+    // Build command arguments array (prevents shell injection)
+    const args: string[] = [
+      'scan',
       `--config=${fullConfig.config}`,
       '--json',
-      excludeArgs,
       fullConfig.verbose ? '--verbose' : '--quiet',
       `--max-target-bytes=${fullConfig.maxFileSize}`,
-      fullConfig.target,
-    ].join(' ');
+    ];
+
+    // Add exclude patterns safely as separate arguments
+    for (const excludePattern of fullConfig.exclude) {
+      args.push(`--exclude=${excludePattern}`);
+    }
+
+    // Add target path last
+    args.push(fullConfig.target);
 
     const timeoutMs = (fullConfig.timeout ?? 300) * 1000;
-    const { stdout, stderr } = await execAsync(cmd, {
+    // Use execFileAsync with array args to prevent command injection
+    const { stdout, stderr } = await execFileAsync('semgrep', args, {
       timeout: timeoutMs,
       maxBuffer: 50 * 1024 * 1024, // 50MB buffer for large results
       cwd: path.isAbsolute(fullConfig.target) ? undefined : process.cwd(),
