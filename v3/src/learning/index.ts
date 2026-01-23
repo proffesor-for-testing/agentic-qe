@@ -337,3 +337,40 @@ export type {
   PatternImportData,
   NeighborResult,
 } from './dream/index.js';
+
+// ============================================================================
+// Unified AQE Learning Engine (Standalone with CF Enhancement)
+// ============================================================================
+
+export {
+  AQELearningEngine,
+  createAQELearningEngine,
+  createDefaultLearningEngine,
+  DEFAULT_ENGINE_CONFIG,
+} from './aqe-learning-engine.js';
+
+export type {
+  AQELearningEngineConfig,
+  AQELearningEngineStatus,
+  AQELearningEngineStats,
+  TaskExecution,
+  TaskStep,
+} from './aqe-learning-engine.js';
+
+// ============================================================================
+// Experience Capture (Phase 4: Self-Learning)
+// ============================================================================
+
+export {
+  ExperienceCaptureService,
+  createExperienceCaptureService,
+  DEFAULT_EXPERIENCE_CONFIG,
+} from './experience-capture.js';
+
+export type {
+  TaskExperience,
+  ExperienceStep,
+  ExperienceCaptureConfig,
+  ExperienceCaptureStats,
+  PatternExtractionResult,
+} from './experience-capture.js';

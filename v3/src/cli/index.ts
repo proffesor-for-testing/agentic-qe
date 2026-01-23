@@ -22,7 +22,13 @@ import { DefaultProtocolExecutor } from '../coordination/protocol-executor';
 import { WorkflowOrchestrator, type WorkflowDefinition, type WorkflowExecutionStatus } from '../coordination/workflow-orchestrator';
 import { DomainName, ALL_DOMAINS, Priority } from '../shared/types';
 import { InitOrchestrator, type InitOrchestratorOptions } from '../init/init-wizard';
+import {
+  ModularInitOrchestrator,
+  createModularInitOrchestrator,
+  formatInitResultModular,
+} from '../init/orchestrator.js';
 import { integrateCodeIntelligence, type FleetIntegrationResult } from '../init/fleet-integration';
+import { setupClaudeFlowIntegration, type ClaudeFlowSetupResult } from './commands/claude-flow-setup.js';
 import {
   generateCompletion,
   detectShell,
@@ -276,6 +282,9 @@ program
   .option('--skip-patterns', 'Skip loading pre-trained patterns')
   .option('--with-n8n', 'Install n8n workflow testing agents and skills')
   .option('--auto-migrate', 'Automatically migrate from v2 if detected')
+  .option('--with-claude-flow', 'Force Claude Flow integration setup')
+  .option('--skip-claude-flow', 'Skip Claude Flow integration')
+  .option('--modular', 'Use new modular init system (default for --auto)')
   .action(async (options) => {
     try {
       // --auto-migrate implies --auto (must use orchestrator for migration)
@@ -287,6 +296,82 @@ program
       if (options.wizard || options.auto) {
         console.log(chalk.blue('\n🚀 Agentic QE v3 Initialization\n'));
 
+        // Use modular orchestrator for --auto or --modular
+        if (options.auto || options.modular) {
+          const orchestrator = createModularInitOrchestrator({
+            projectRoot: process.cwd(),
+            autoMode: options.auto,
+            minimal: options.minimal,
+            skipPatterns: options.skipPatterns,
+            withN8n: options.withN8n,
+            autoMigrate: options.autoMigrate,
+          });
+
+          console.log(chalk.white('🔍 Analyzing project...\n'));
+
+          const result = await orchestrator.initialize();
+
+          // Display step results
+          for (const step of result.steps) {
+            const statusIcon = step.status === 'success' ? '✓' : step.status === 'error' ? '✗' : '⚠';
+            const statusColor = step.status === 'success' ? chalk.green : step.status === 'error' ? chalk.red : chalk.yellow;
+            console.log(statusColor(`  ${statusIcon} ${step.step} (${step.durationMs}ms)`));
+          }
+          console.log('');
+
+          // Claude Flow integration (after base init)
+          let cfResult: ClaudeFlowSetupResult | undefined;
+          if (!options.skipClaudeFlow && (options.withClaudeFlow || result.success)) {
+            try {
+              cfResult = await setupClaudeFlowIntegration({
+                projectRoot: process.cwd(),
+                force: options.withClaudeFlow,
+              });
+
+              if (cfResult.available) {
+                console.log(chalk.green('✓ Claude Flow integration enabled'));
+                if (cfResult.features.trajectories) {
+                  console.log(chalk.gray('  • SONA trajectory tracking'));
+                }
+                if (cfResult.features.modelRouting) {
+                  console.log(chalk.gray('  • 3-tier model routing (haiku/sonnet/opus)'));
+                }
+                if (cfResult.features.pretrain) {
+                  console.log(chalk.gray('  • Codebase pretrain analysis'));
+                }
+                console.log('');
+              }
+            } catch {
+              // Claude Flow not available - continue without it
+            }
+          }
+
+          if (result.success) {
+            console.log(chalk.green('✅ AQE v3 initialized successfully!\n'));
+
+            // Show summary
+            console.log(chalk.blue('📊 Summary:'));
+            console.log(chalk.gray(`  • Patterns loaded: ${result.summary.patternsLoaded}`));
+            console.log(chalk.gray(`  • Skills installed: ${result.summary.skillsInstalled}`));
+            console.log(chalk.gray(`  • Agents installed: ${result.summary.agentsInstalled}`));
+            console.log(chalk.gray(`  • Hooks configured: ${result.summary.hooksConfigured ? 'Yes' : 'No'}`));
+            console.log(chalk.gray(`  • Workers started: ${result.summary.workersStarted}`));
+            console.log(chalk.gray(`  • Claude Flow: ${cfResult?.available ? 'Enabled' : 'Standalone mode'}`));
+            console.log(chalk.gray(`  • Total time: ${result.totalDurationMs}ms\n`));
+
+            console.log(chalk.white('Next steps:'));
+            console.log(chalk.gray('  1. Add MCP: claude mcp add aqe -- aqe-mcp'));
+            console.log(chalk.gray('  2. Run tests: aqe test <path>'));
+            console.log(chalk.gray('  3. Check status: aqe status\n'));
+          } else {
+            console.log(chalk.red('❌ Initialization failed. Check errors above.\n'));
+            await cleanupAndExit(1);
+          }
+
+          await cleanupAndExit(0);
+        }
+
+        // Legacy wizard mode using InitOrchestrator
         const orchestratorOptions: InitOrchestratorOptions = {
           projectRoot: process.cwd(),
           autoMode: options.auto,
