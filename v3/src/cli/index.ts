@@ -81,6 +81,7 @@ import {
   createQEReasoningBank,
   createSQLitePatternStore,
 } from '../learning/index.js';
+import type { VisualAccessibilityAPI } from '../domains/visual-accessibility/plugin.js';
 
 // ============================================================================
 // CLI State
@@ -105,6 +106,31 @@ const context: CLIContext = {
   persistentScheduler: null,
   initialized: false,
 };
+
+/**
+ * Register domain workflow actions with the WorkflowOrchestrator (Issue #206)
+ * This enables domain-specific actions to be used in pipeline YAML workflows.
+ */
+function registerDomainWorkflowActions(
+  kernel: QEKernel,
+  orchestrator: WorkflowOrchestrator
+): void {
+  // Register visual-accessibility domain actions
+  const visualAccessibilityAPI = kernel.getDomainAPI<VisualAccessibilityAPI>('visual-accessibility');
+  if (visualAccessibilityAPI?.registerWorkflowActions) {
+    try {
+      visualAccessibilityAPI.registerWorkflowActions(orchestrator);
+    } catch (error) {
+      // Log but don't fail - domain may not be enabled
+      console.error(
+        chalk.yellow(`  ⚠ Could not register visual-accessibility workflow actions: ${error instanceof Error ? error.message : String(error)}`)
+      );
+    }
+  }
+
+  // Additional domain action registrations can be added here as needed
+  // Example: registerTestGenerationWorkflowActions(kernel, orchestrator);
+}
 
 // ============================================================================
 // Helper Functions
@@ -173,6 +199,9 @@ async function autoInitialize(): Promise<void> {
     context.kernel.coordinator
   );
   await context.workflowOrchestrator.initialize();
+
+  // Register domain workflow actions (Issue #206)
+  registerDomainWorkflowActions(context.kernel, context.workflowOrchestrator);
 
   // Create persistent scheduler for workflow scheduling (ADR-041)
   context.persistentScheduler = createPersistentScheduler();
@@ -480,6 +509,9 @@ program
         context.kernel.coordinator
       );
       await context.workflowOrchestrator.initialize();
+
+      // Register domain workflow actions (Issue #206)
+      registerDomainWorkflowActions(context.kernel, context.workflowOrchestrator);
       console.log(chalk.green('  ✓ Workflow orchestrator initialized'));
 
       // Create Queen Coordinator
@@ -3431,6 +3463,9 @@ fleetCmd
           context.kernel.coordinator
         );
         await context.workflowOrchestrator.initialize();
+
+        // Register domain workflow actions (Issue #206)
+        registerDomainWorkflowActions(context.kernel, context.workflowOrchestrator);
         console.log(chalk.green('  ✓ Workflow orchestrator initialized'));
 
         context.persistentScheduler = createPersistentScheduler();
