@@ -3,13 +3,14 @@
  * Integrates the visual & accessibility testing domain into the kernel
  */
 
-import { DomainName, DomainEvent, Result } from '../../shared/types/index.js';
+import { DomainName, DomainEvent, Result, ok, err } from '../../shared/types/index.js';
 import {
   EventBus,
   MemoryBackend,
   AgentCoordinator,
 } from '../../kernel/interfaces.js';
 import { BaseDomainPlugin } from '../domain-interface.js';
+import type { WorkflowOrchestrator, WorkflowContext } from '../../coordination/workflow-orchestrator.js';
 import {
   Viewport,
   VisualTestReport,
@@ -79,6 +80,9 @@ export interface VisualAccessibilityAPI {
   // Responsive testing service methods
   testResponsiveness(url: string, options?: Partial<ResponsiveTestConfig>): Promise<Result<ResponsiveTestResult, Error>>;
   analyzeBreakpoints(url: string): Promise<Result<BreakpointAnalysis, Error>>;
+
+  // Workflow integration (Issue #206)
+  registerWorkflowActions(orchestrator: WorkflowOrchestrator): void;
 
   // Internal access
   getCoordinator(): IVisualAccessibilityCoordinatorExtended;
@@ -150,6 +154,9 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
       // Responsive testing service methods
       testResponsiveness: this.testResponsiveness.bind(this),
       analyzeBreakpoints: this.analyzeBreakpoints.bind(this),
+
+      // Workflow integration (Issue #206)
+      registerWorkflowActions: this.registerWorkflowActions.bind(this),
 
       // Internal access methods
       getCoordinator: () => this.coordinator!,
@@ -552,6 +559,186 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
       },
       errors: [...health.errors.slice(-9), error.message],
     });
+  }
+
+  // ============================================================================
+  // Workflow Action Registration (Issue #206)
+  // ============================================================================
+
+  /**
+   * Register workflow actions with the WorkflowOrchestrator
+   * This enables the visual-accessibility domain to be used in pipeline YAML workflows
+   *
+   * Actions registered:
+   * - runVisualTest: Execute visual regression tests on specified URLs
+   * - runAccessibilityTest: Run WCAG accessibility audits
+   */
+  registerWorkflowActions(orchestrator: WorkflowOrchestrator): void {
+    if (!this._initialized) {
+      throw new Error('VisualAccessibilityPlugin must be initialized before registering workflow actions');
+    }
+
+    // Register runVisualTest action
+    // Maps to CLI command: `aqe visual test`
+    orchestrator.registerAction(
+      'visual-accessibility',
+      'runVisualTest',
+      async (
+        input: Record<string, unknown>,
+        _context: WorkflowContext
+      ): Promise<Result<unknown, Error>> => {
+        try {
+          this.ensureInitialized();
+
+          // Extract URLs from input
+          const urls = this.extractUrls(input);
+          if (urls.length === 0) {
+            return err(new Error('No URLs provided for visual test. Provide "url" or "urls" parameter.'));
+          }
+
+          // Extract viewports from input, using defaults if not specified
+          const viewports = this.extractViewports(input);
+
+          // Run visual tests
+          const result = await this.coordinator!.runVisualTests(urls, viewports);
+
+          if (result.success) {
+            return ok({
+              passed: result.value.passed,
+              failed: result.value.failed,
+              totalTests: result.value.totalTests,
+              newBaselines: result.value.newBaselines,
+              duration: result.value.duration,
+              results: result.value.results.map(r => ({
+                url: r.url,
+                viewport: `${r.viewport.width}x${r.viewport.height}`,
+                status: r.status,
+                diffPercentage: r.diff?.diffPercentage,
+              })),
+            });
+          }
+
+          return err(result.error);
+        } catch (error) {
+          return err(error instanceof Error ? error : new Error(String(error)));
+        }
+      }
+    );
+
+    // Register runAccessibilityTest action
+    // Maps to CLI command: `aqe accessibility test`
+    orchestrator.registerAction(
+      'visual-accessibility',
+      'runAccessibilityTest',
+      async (
+        input: Record<string, unknown>,
+        _context: WorkflowContext
+      ): Promise<Result<unknown, Error>> => {
+        try {
+          this.ensureInitialized();
+
+          // Extract URLs from input
+          const urls = this.extractUrls(input);
+          if (urls.length === 0) {
+            return err(new Error('No URLs provided for accessibility test. Provide "url" or "urls" parameter.'));
+          }
+
+          // Extract WCAG level from input, defaulting to AA
+          const level = this.extractWcagLevel(input);
+
+          // Run accessibility audit
+          const result = await this.coordinator!.runAccessibilityAudit(urls, level);
+
+          if (result.success) {
+            return ok({
+              totalUrls: result.value.totalUrls,
+              passingUrls: result.value.passingUrls,
+              totalViolations: result.value.totalViolations,
+              criticalViolations: result.value.criticalViolations,
+              averageScore: result.value.averageScore,
+              topIssues: result.value.topIssues.map(issue => ({
+                ruleId: issue.ruleId,
+                description: issue.description,
+                occurrences: issue.occurrences,
+                impact: issue.impact,
+              })),
+            });
+          }
+
+          return err(result.error);
+        } catch (error) {
+          return err(error instanceof Error ? error : new Error(String(error)));
+        }
+      }
+    );
+  }
+
+  /**
+   * Extract URLs from workflow input
+   * Supports: url (string), urls (string[]), or target (string)
+   */
+  private extractUrls(input: Record<string, unknown>): string[] {
+    if (typeof input.url === 'string') {
+      return [input.url];
+    }
+    if (Array.isArray(input.urls)) {
+      return input.urls.filter((u): u is string => typeof u === 'string');
+    }
+    if (typeof input.target === 'string') {
+      return [input.target];
+    }
+    return [];
+  }
+
+  /**
+   * Extract viewports from workflow input
+   * Supports: viewport (object), viewports (array), or defaults
+   */
+  private extractViewports(input: Record<string, unknown>): Viewport[] {
+    const DEFAULT_VIEWPORTS: Viewport[] = [
+      { width: 1920, height: 1080, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
+      { width: 1280, height: 720, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
+      { width: 768, height: 1024, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+      { width: 375, height: 812, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+    ];
+
+    if (Array.isArray(input.viewports)) {
+      return input.viewports
+        .filter((v): v is Record<string, unknown> => typeof v === 'object' && v !== null)
+        .map(v => ({
+          width: typeof v.width === 'number' ? v.width : 1920,
+          height: typeof v.height === 'number' ? v.height : 1080,
+          deviceScaleFactor: typeof v.deviceScaleFactor === 'number' ? v.deviceScaleFactor : 1,
+          isMobile: typeof v.isMobile === 'boolean' ? v.isMobile : false,
+          hasTouch: typeof v.hasTouch === 'boolean' ? v.hasTouch : false,
+        }));
+    }
+
+    if (typeof input.viewport === 'object' && input.viewport !== null) {
+      const v = input.viewport as Record<string, unknown>;
+      return [{
+        width: typeof v.width === 'number' ? v.width : 1920,
+        height: typeof v.height === 'number' ? v.height : 1080,
+        deviceScaleFactor: typeof v.deviceScaleFactor === 'number' ? v.deviceScaleFactor : 1,
+        isMobile: typeof v.isMobile === 'boolean' ? v.isMobile : false,
+        hasTouch: typeof v.hasTouch === 'boolean' ? v.hasTouch : false,
+      }];
+    }
+
+    return DEFAULT_VIEWPORTS;
+  }
+
+  /**
+   * Extract WCAG compliance level from workflow input
+   * Supports: level (string), wcagLevel (string), or default 'AA'
+   */
+  private extractWcagLevel(input: Record<string, unknown>): 'A' | 'AA' | 'AAA' {
+    const levelStr = (input.level ?? input.wcagLevel ?? 'AA') as string;
+    const normalized = levelStr.toUpperCase();
+    if (normalized === 'A' || normalized === 'AA' || normalized === 'AAA') {
+      return normalized;
+    }
+    return 'AA';
   }
 }
 

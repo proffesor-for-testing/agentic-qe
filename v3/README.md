@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-> Domain-Driven Quality Engineering with 12 Bounded Contexts, 51 Specialized QE Agents, 61 QE Skills, ReasoningBank Learning, and HNSW Vector Search
+> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 12 Bounded Contexts, 51 Specialized QE Agents, 61 QE Skills, and ReasoningBank Learning
 
 ## Quick Start
 
@@ -46,6 +46,7 @@ npx aqe test generate src/
 - **ReasoningBank + SONA + Dream Cycles** - Neural pattern learning with 9 RL algorithms
 - **Queen-led Coordination** - 3-5x throughput with work stealing and consensus
 - **MinCut Topology** - Graph-based self-healing agent coordination
+- **Coherence Verification** (v3.3.0) - Mathematical proof of belief consistency using WASM engines
 - **Zero-Breaking-Changes Migration** - Full v2 backward compatibility
 - **Browser Automation** (v3.1.0) - @claude-flow/browser integration with 9 workflow templates
 
@@ -80,6 +81,28 @@ Advanced coordination for reliable multi-agent decisions:
 - **MinCut Topology**: Graph-based self-healing agent coordination
 - **Multi-Model Voting**: Aggregate decisions from multiple model tiers
 - **Claim Verification**: Cryptographic verification of agent work claims
+
+### Coherence-Gated Quality Engineering (v3.3.0)
+
+Mathematical verification using Prime Radiant WASM engines:
+
+- **Contradiction Detection**: Sheaf cohomology identifies conflicting requirements before test generation
+- **Collapse Prediction**: Spectral analysis predicts swarm failures before they happen
+- **Causal Verification**: Distinguishes true causation from spurious correlations
+- **Auto-Tuning Thresholds**: EMA-based calibration adapts to your codebase
+
+| Coherence Energy | Action | Latency |
+|------------------|--------|---------|
+| < 0.1 (Reflex) | Execute immediately | <1ms |
+| 0.1-0.4 (Retrieval) | Fetch more context | ~10ms |
+| 0.4-0.7 (Heavy) | Deep analysis | ~100ms |
+| > 0.7 (Human) | Escalate to Queen | Async |
+
+**Benefits:**
+- Prevents contradictory test generation
+- Detects swarm drift 10x faster
+- Mathematical proof instead of statistical confidence
+- "Coherence Verified" CI/CD badges
 
 ## Architecture Overview
 

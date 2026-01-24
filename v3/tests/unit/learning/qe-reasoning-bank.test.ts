@@ -469,23 +469,59 @@ describe('QE Pattern Utilities', () => {
     };
 
     it('should promote pattern with 3+ successful uses', () => {
-      expect(shouldPromotePattern(basePattern)).toBe(true);
+      const result = shouldPromotePattern(basePattern);
+      expect(result.meetsUsageCriteria).toBe(true);
+      expect(result.meetsQualityCriteria).toBe(true);
+      expect(result.meetsCoherenceCriteria).toBe(true);
+      expect(result.blockReason).toBeUndefined();
     });
 
     it('should not promote already long-term patterns', () => {
-      expect(shouldPromotePattern({ ...basePattern, tier: 'long-term' })).toBe(false);
+      const result = shouldPromotePattern({ ...basePattern, tier: 'long-term' });
+      expect(result.meetsUsageCriteria).toBe(false);
+      expect(result.blockReason).toBe('insufficient_usage');
     });
 
     it('should not promote patterns with low confidence', () => {
-      expect(shouldPromotePattern({ ...basePattern, confidence: 0.4 })).toBe(false);
+      const result = shouldPromotePattern({ ...basePattern, confidence: 0.4 });
+      expect(result.meetsQualityCriteria).toBe(false);
+      expect(result.blockReason).toBe('low_quality');
     });
 
     it('should not promote patterns with low success rate', () => {
-      expect(shouldPromotePattern({ ...basePattern, successRate: 0.5 })).toBe(false);
+      const result = shouldPromotePattern({ ...basePattern, successRate: 0.5 });
+      expect(result.meetsQualityCriteria).toBe(false);
+      expect(result.blockReason).toBe('low_quality');
     });
 
     it('should not promote patterns with few successful uses', () => {
-      expect(shouldPromotePattern({ ...basePattern, successfulUses: 2 })).toBe(false);
+      const result = shouldPromotePattern({ ...basePattern, successfulUses: 2 });
+      expect(result.meetsUsageCriteria).toBe(false);
+      expect(result.blockReason).toBe('insufficient_usage');
+    });
+
+    it('should block promotion when coherence energy exceeds threshold', () => {
+      const result = shouldPromotePattern(basePattern, 0.5, 0.4);
+      expect(result.meetsUsageCriteria).toBe(true);
+      expect(result.meetsQualityCriteria).toBe(true);
+      expect(result.meetsCoherenceCriteria).toBe(false);
+      expect(result.blockReason).toBe('coherence_violation');
+    });
+
+    it('should allow promotion when coherence energy is below threshold', () => {
+      const result = shouldPromotePattern(basePattern, 0.3, 0.4);
+      expect(result.meetsUsageCriteria).toBe(true);
+      expect(result.meetsQualityCriteria).toBe(true);
+      expect(result.meetsCoherenceCriteria).toBe(true);
+      expect(result.blockReason).toBeUndefined();
+    });
+
+    it('should allow promotion when coherence energy is not provided', () => {
+      const result = shouldPromotePattern(basePattern);
+      expect(result.meetsUsageCriteria).toBe(true);
+      expect(result.meetsQualityCriteria).toBe(true);
+      expect(result.meetsCoherenceCriteria).toBe(true);
+      expect(result.blockReason).toBeUndefined();
     });
   });
 

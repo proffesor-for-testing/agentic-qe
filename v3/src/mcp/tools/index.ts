@@ -7,7 +7,7 @@
  * Tool naming convention: qe/<domain>/<action>
  * Example: qe/tests/generate, qe/coverage/analyze
  *
- * 15 Tools across 12 DDD Domains:
+ * 19 Tools across 13 DDD Domains:
  * 1. qe/tests/generate       - Test generation (AI-powered)
  * 2. qe/tests/execute        - Test execution (parallel, retry, flaky detection)
  * 3. qe/coverage/analyze     - Coverage analysis
@@ -23,6 +23,10 @@
  * 13. qe/chaos/inject        - Chaos engineering
  * 14. qe/learning/optimize   - Learning optimization
  * 15. qe/analysis/token_usage - Token consumption analysis (ADR-042)
+ * 16. qe/coherence/check     - Coherence verification (ADR-052)
+ * 17. qe/coherence/audit     - Memory coherence audit (ADR-052)
+ * 18. qe/coherence/consensus - Multi-agent consensus verification (ADR-052)
+ * 19. qe/coherence/collapse  - Swarm collapse prediction (ADR-052)
  */
 
 // ============================================================================
@@ -249,6 +253,31 @@ export {
   type EmbeddingStoreResult,
   type EmbeddingStatsResult,
 } from './embeddings';
+
+// ============================================================================
+// Coherence Domain (ADR-052)
+// ============================================================================
+
+export {
+  CoherenceCheckTool,
+  CoherenceAuditTool,
+  CoherenceConsensusTool,
+  CoherenceCollapseTool,
+  createCoherenceCheckTool,
+  createCoherenceAuditTool,
+  createCoherenceConsensusTool,
+  createCoherenceCollapseTool,
+  COHERENCE_TOOLS,
+  COHERENCE_TOOL_NAMES,
+  type CoherenceCheckParams,
+  type CoherenceCheckResult,
+  type CoherenceAuditParams,
+  type CoherenceAuditResult,
+  type CoherenceConsensusParams,
+  type CoherenceConsensusResult,
+  type CoherenceCollapseParams,
+  type CoherenceCollapseResult,
+} from './coherence';
 
 // ============================================================================
 // Registry and Registration

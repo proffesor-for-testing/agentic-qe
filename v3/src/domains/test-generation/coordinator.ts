@@ -82,6 +82,18 @@ import type {
   RLExperience,
 } from '../../integrations/rl-suite/interfaces.js';
 
+// Coherence Gate Integration (ADR-052)
+import {
+  TestGenerationCoherenceGate,
+  createTestGenerationCoherenceGate,
+  CoherenceError as CoherenceGateError,
+  type Requirement,
+  type TestSpecification,
+  type RequirementCoherenceResult,
+} from './coherence-gate.js';
+
+import type { ICoherenceService } from '../../integrations/coherence/coherence-service.js';
+
 /**
  * Interface for the test generation coordinator
  */
@@ -92,6 +104,9 @@ export interface ITestGenerationCoordinator extends TestGenerationAPI {
   // @ruvector integration methods (ADR-040)
   getQESONAStats(): QESONAStats | null;
   getFlashAttentionMetrics(): QEFlashAttentionMetrics[] | null;
+  // Coherence gate methods (ADR-052)
+  checkRequirementCoherence(requirements: Requirement[]): Promise<RequirementCoherenceResult>;
+  isCoherenceGateAvailable(): boolean;
 }
 
 /**
@@ -122,6 +137,10 @@ export interface CoordinatorConfig {
   enableDecisionTransformer: boolean;
   sonaPatternType: QEPatternType;
   flashAttentionWorkload: QEWorkloadType;
+  // Coherence gate config (ADR-052)
+  enableCoherenceGate: boolean;
+  blockOnIncoherentRequirements: boolean;
+  enrichOnRetrievalLane: boolean;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -135,6 +154,10 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   enableDecisionTransformer: true,
   sonaPatternType: 'test-generation',
   flashAttentionWorkload: 'test-similarity',
+  // Coherence gate defaults (ADR-052)
+  enableCoherenceGate: true,
+  blockOnIncoherentRequirements: true,
+  enrichOnRetrievalLane: true,
 };
 
 /**
@@ -159,15 +182,32 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   private decisionTransformer: DecisionTransformerAlgorithm | null = null;
   private testEmbeddings: Map<string, Float32Array> = new Map();
 
+  // Coherence gate (ADR-052)
+  private coherenceGate: TestGenerationCoherenceGate | null = null;
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: Partial<CoordinatorConfig> = {}
+    config: Partial<CoordinatorConfig> = {},
+    private readonly coherenceService?: ICoherenceService | null
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.testGenerator = new TestGeneratorService(memory);
     this.patternMatcher = new PatternMatcherService(memory);
+
+    // Initialize coherence gate if service is provided (ADR-052)
+    if (this.config.enableCoherenceGate && coherenceService) {
+      this.coherenceGate = createTestGenerationCoherenceGate(
+        coherenceService,
+        undefined, // Use default embedding service
+        {
+          enabled: true,
+          blockOnHumanLane: this.config.blockOnIncoherentRequirements,
+          enrichOnRetrievalLane: this.config.enrichOnRetrievalLane,
+        }
+      );
+    }
   }
 
   /**
@@ -1018,6 +1058,66 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
       return null;
     }
     return this.flashAttention.getMetrics();
+  }
+
+  // ============================================================================
+  // Coherence Gate Methods (ADR-052)
+  // ============================================================================
+
+  /**
+   * Check coherence of requirements before test generation
+   * Per ADR-052: Verify requirement coherence using Prime Radiant
+   *
+   * @param requirements - Array of requirements to check for coherence
+   * @returns Coherence result with lane recommendation
+   */
+  async checkRequirementCoherence(
+    requirements: Requirement[]
+  ): Promise<RequirementCoherenceResult> {
+    if (!this.coherenceGate) {
+      // Return passing result if gate is not configured
+      return {
+        isCoherent: true,
+        energy: 0,
+        lane: 'reflex',
+        contradictions: [],
+        recommendations: [],
+        durationMs: 0,
+        usedFallback: true,
+      };
+    }
+
+    return this.coherenceGate.checkRequirementCoherence(requirements);
+  }
+
+  /**
+   * Check if the coherence gate is available and initialized
+   * Per ADR-052: Expose coherence gate availability
+   */
+  isCoherenceGateAvailable(): boolean {
+    return this.coherenceGate?.isAvailable() ?? false;
+  }
+
+  /**
+   * Verify requirements coherence and enrich spec if needed
+   * Per ADR-052: Main integration point for test generation
+   *
+   * @param spec - Test specification to verify
+   * @returns Validated and possibly enriched specification
+   * @throws CoherenceGateError if requirements have unresolvable contradictions
+   */
+  private async verifyAndEnrichSpec(spec: TestSpecification): Promise<TestSpecification> {
+    if (!this.coherenceGate || !this.config.enableCoherenceGate) {
+      return spec;
+    }
+
+    const result = await this.coherenceGate.validateAndEnrich(spec);
+
+    if (result.success) {
+      return result.value;
+    }
+
+    throw result.error;
   }
 
   // ============================================================================

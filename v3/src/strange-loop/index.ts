@@ -102,3 +102,21 @@ export {
   createStrangeLoopOrchestrator,
   createInMemoryStrangeLoop,
 } from './strange-loop.js';
+
+// Belief Reconciler (ADR-052)
+export {
+  BeliefReconciler,
+  createBeliefReconciler,
+  DEFAULT_BELIEF_RECONCILER_CONFIG,
+  type ReconciliationStrategy,
+  type ReconciliationResult,
+  type ReconciliationRecord,
+  type BeliefReconcilerConfig,
+  type IBeliefReconciler,
+  type IVoteCollector,
+  type IWitnessAdapter,
+  type BeliefVote,
+  type BeliefReconcilerEvent,
+  type BeliefReconcilerEventType,
+  type BeliefReconcilerEventListener,
+} from './belief-reconciler.js';

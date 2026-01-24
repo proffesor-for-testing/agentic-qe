@@ -760,8 +760,20 @@ export class PatternStore implements IPatternStore {
         const nameLower = pattern.name.toLowerCase();
         const descLower = pattern.description.toLowerCase();
 
+        // Exact match in name gets high score
         if (nameLower.includes(queryLower)) score += 0.5;
-        if (descLower.includes(queryLower)) score += 0.3;
+
+        // Check description - higher score for exact task match
+        // Pattern descriptions often contain "Pattern extracted from: {task}"
+        if (descLower.includes(queryLower)) {
+          // If the query is a substantial part of description, it's a strong match
+          const queryRatio = queryLower.length / descLower.length;
+          if (queryRatio > 0.3) {
+            score += 0.5; // Strong match - query is significant part of description
+          } else {
+            score += 0.3; // Weak match - query is small part of description
+          }
+        }
 
         for (const tag of pattern.context.tags) {
           if (tag.toLowerCase().includes(queryLower)) {
@@ -769,6 +781,9 @@ export class PatternStore implements IPatternStore {
             break;
           }
         }
+
+        // Cap at 1.0
+        score = Math.min(score, 1.0);
       } else {
         // No query - use quality score
         score = pattern.qualityScore;
@@ -927,8 +942,12 @@ export class PatternStore implements IPatternStore {
       lastUsedAt: now,
     };
 
-    // Check for promotion
-    if (shouldPromotePattern(updated) && updated.tier === 'short-term') {
+    // Check for promotion (ADR-052: shouldPromotePattern returns PromotionCheck object)
+    const promotionCheck = shouldPromotePattern(updated);
+    const shouldPromote = promotionCheck.meetsUsageCriteria &&
+                          promotionCheck.meetsQualityCriteria &&
+                          promotionCheck.meetsCoherenceCriteria;
+    if (shouldPromote && updated.tier === 'short-term') {
       await this.promote(id);
     } else {
       // Update in store (no namespace in options - key has prefix for isolation)
@@ -1074,8 +1093,12 @@ export class PatternStore implements IPatternStore {
     const toPromote: string[] = [];
 
     for (const pattern of this.patternCache.values()) {
-      // Check for promotion
-      if (shouldPromotePattern(pattern)) {
+      // Check for promotion (ADR-052: returns PromotionCheck object)
+      const promotionCheck = shouldPromotePattern(pattern);
+      const canPromote = promotionCheck.meetsUsageCriteria &&
+                         promotionCheck.meetsQualityCriteria &&
+                         promotionCheck.meetsCoherenceCriteria;
+      if (canPromote) {
         toPromote.push(pattern.id);
         continue;
       }

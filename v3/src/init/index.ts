@@ -91,3 +91,67 @@ export {
   checkCodeIntelligenceStatus,
   integrateCodeIntelligence,
 } from './fleet-integration.js';
+
+// Modular Init System (Phase-based architecture)
+export type {
+  InitPhase,
+  InitContext,
+  InitOptions,
+  PhaseResult,
+  V2DetectionResult,
+  EnhancementStatus,
+} from './phases/index.js';
+export {
+  BasePhase,
+  PhaseRegistry,
+  createPhaseRegistry,
+  getDefaultPhases,
+  detectionPhase,
+  analysisPhase,
+  configurationPhase,
+  databasePhase,
+  learningPhase,
+  codeIntelligencePhase,
+  hooksPhase,
+  mcpPhase,
+  assetsPhase,
+  workersPhase,
+  claudeMdPhase,
+  verificationPhase,
+} from './phases/index.js';
+
+// Modular Orchestrator
+export type { OrchestratorOptions } from './orchestrator.js';
+export {
+  ModularInitOrchestrator,
+  createModularInitOrchestrator,
+  quickInitModular,
+  formatInitResultModular,
+} from './orchestrator.js';
+
+// Enhancement Adapters
+export type {
+  EnhancementAdapter,
+  ClaudeFlowAdapter,
+  ClaudeFlowFeatures,
+  EnhancementRegistry,
+} from './enhancements/index.js';
+export {
+  detectEnhancements,
+  createClaudeFlowAdapter,
+  createEnhancementRegistry,
+} from './enhancements/index.js';
+
+// Migration
+export type {
+  V2DetectionInfo,
+  MigrationResult,
+} from './migration/index.js';
+export {
+  V2Detector,
+  createV2Detector,
+  V2DataMigrator,
+  createV2DataMigrator,
+  V2ConfigMigrator,
+  createV2ConfigMigrator,
+} from './migration/index.js';

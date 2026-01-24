@@ -315,16 +315,50 @@ export function calculateQualityScore(pattern: {
 }
 
 /**
+ * Pattern promotion check result
+ */
+export interface PromotionCheck {
+  meetsUsageCriteria: boolean;
+  meetsQualityCriteria: boolean;
+  meetsCoherenceCriteria: boolean;
+  blockReason?: 'insufficient_usage' | 'low_quality' | 'coherence_violation';
+}
+
+/**
  * Check if pattern should be promoted to long-term storage
  * Requires 3+ successful uses as per ADR-021
+ * Optionally checks coherence energy to prevent contradictory patterns (ADR-052)
+ *
+ * @param pattern - Pattern to evaluate for promotion
+ * @param coherenceEnergy - Optional coherence energy from coherence gate
+ * @param coherenceThreshold - Threshold for coherence violation (default: 0.4)
  */
-export function shouldPromotePattern(pattern: QEPattern): boolean {
-  return (
-    pattern.tier === 'short-term' &&
-    pattern.successfulUses >= 3 &&
-    pattern.successRate >= 0.7 &&
-    pattern.confidence >= 0.6
-  );
+export function shouldPromotePattern(
+  pattern: QEPattern,
+  coherenceEnergy?: number,
+  coherenceThreshold: number = 0.4
+): PromotionCheck {
+  const meetsUsageCriteria = pattern.tier === 'short-term' && pattern.successfulUses >= 3;
+  const meetsQualityCriteria = pattern.successRate >= 0.7 && pattern.confidence >= 0.6;
+
+  // NEW: Coherence criteria - only block if coherence energy is provided and exceeds threshold
+  const meetsCoherenceCriteria = coherenceEnergy === undefined || coherenceEnergy < coherenceThreshold;
+
+  let blockReason: PromotionCheck['blockReason'] | undefined;
+  if (!meetsUsageCriteria) {
+    blockReason = 'insufficient_usage';
+  } else if (!meetsQualityCriteria) {
+    blockReason = 'low_quality';
+  } else if (!meetsCoherenceCriteria) {
+    blockReason = 'coherence_violation';
+  }
+
+  return {
+    meetsUsageCriteria,
+    meetsQualityCriteria,
+    meetsCoherenceCriteria,
+    blockReason,
+  };
 }
 
 /**

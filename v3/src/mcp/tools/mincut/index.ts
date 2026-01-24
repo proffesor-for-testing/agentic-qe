@@ -74,7 +74,8 @@ export interface MinCutHealthParams extends Record<string, unknown> {
 
 export interface MinCutHealthResult {
   health: {
-    status: 'healthy' | 'warning' | 'critical';
+    // Issue #205 fix: Added 'idle' status for fresh/empty topology
+    status: 'healthy' | 'idle' | 'warning' | 'critical';
     minCutValue: number;
     healthyThreshold: number;
     warningThreshold: number;

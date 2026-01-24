@@ -492,6 +492,23 @@ export interface SelfDiagnosis {
 
   /** Timestamp of diagnosis */
   diagnosedAt: number;
+
+  // ADR-052: Coherence-related fields
+
+  /** Sheaf Laplacian coherence energy (lower = more coherent). Optional - only present if coherence service is available */
+  coherenceEnergy?: number;
+
+  /** Whether the swarm beliefs are coherent. Optional - only present if coherence service is available */
+  isCoherent?: boolean;
+
+  /** Compute lane recommendation based on coherence energy. Optional - only present if coherence service is available */
+  computeLane?: ComputeLane;
+
+  /** Number of detected contradictions in swarm beliefs. Optional - only present if coherence service is available */
+  contradictionCount?: number;
+
+  /** Whether collapse is predicted based on spectral analysis. Optional - only present if coherence service is available */
+  collapseRiskPredicted?: boolean;
 }
 
 // ============================================================================
@@ -528,6 +545,44 @@ export interface StrangeLoopConfig {
 
   /** Whether to log detailed metrics */
   verboseLogging: boolean;
+
+  // ============================================================================
+  // Coherence Config (ADR-052)
+  // ============================================================================
+
+  /**
+   * Enable coherence checking in observation cycle.
+   * When enabled, each observation will include coherence verification
+   * using the Sheaf Laplacian energy metric.
+   */
+  coherenceEnabled: boolean;
+
+  /**
+   * Coherence energy threshold for violation detection (default: 0.4).
+   * Energy values above this threshold trigger coherence_violation events.
+   * Based on compute lane thresholds:
+   * - < 0.1: Reflex lane (highly coherent)
+   * - 0.1-0.4: Retrieval lane (mostly coherent)
+   * - 0.4-0.7: Heavy lane (requires analysis)
+   * - > 0.7: Human lane (requires escalation)
+   */
+  coherenceThreshold: number;
+
+  /**
+   * Number of collapse risk values to keep in history.
+   * Used for trend analysis and early warning detection.
+   */
+  collapseRiskHistorySize: number;
+
+  /**
+   * Default reconciliation strategy for belief conflicts.
+   * - 'latest': Use most recent belief (last-write-wins)
+   * - 'authority': Defer to higher-authority agent
+   * - 'consensus': Use consensus voting among agents
+   * - 'merge': Attempt to merge conflicting beliefs
+   * - 'escalate': Escalate to queen for resolution
+   */
+  defaultReconciliationStrategy: ReconciliationStrategy;
 }
 
 /**
@@ -543,11 +598,27 @@ export const DEFAULT_STRANGE_LOOP_CONFIG: StrangeLoopConfig = {
   autoStart: false,
   actionCooldownMs: 10000, // 10 seconds
   verboseLogging: false,
+
+  // Coherence defaults (ADR-052)
+  coherenceEnabled: true,
+  coherenceThreshold: 0.4, // Heavy lane threshold
+  collapseRiskHistorySize: 20,
+  defaultReconciliationStrategy: 'latest',
 };
 
 // ============================================================================
 // Statistics Types
 // ============================================================================
+
+/**
+ * Coherence state for the strange loop system (ADR-052)
+ */
+export type CoherenceState = 'coherent' | 'uncertain' | 'incoherent';
+
+/**
+ * Reconciliation strategy for belief conflicts (ADR-052)
+ */
+export type ReconciliationStrategy = 'latest' | 'authority' | 'consensus' | 'merge' | 'escalate';
 
 /**
  * Statistics about the strange loop operation
@@ -594,6 +665,64 @@ export interface StrangeLoopStats {
 
   /** Last observation timestamp */
   lastObservationAt: number;
+
+  // ============================================================================
+  // Coherence Metrics (ADR-052)
+  // ============================================================================
+
+  /**
+   * Number of coherence violations detected.
+   * A coherence violation occurs when the swarm's collective belief state
+   * contains contradictory or inconsistent information.
+   */
+  coherenceViolationCount: number;
+
+  /**
+   * Average coherence energy across observations.
+   * Coherence energy measures the stability of the belief state (0-1).
+   * Lower values indicate more stable, coherent beliefs.
+   */
+  avgCoherenceEnergy: number;
+
+  /**
+   * Belief reconciliation success rate (0-1).
+   * Tracks how often belief conflicts are successfully resolved
+   * without requiring escalation.
+   */
+  reconciliationSuccessRate: number;
+
+  /**
+   * Last coherence check timestamp.
+   * Unix timestamp (ms) of the most recent coherence verification.
+   */
+  lastCoherenceCheck: number;
+
+  /**
+   * Collapse risk history (last N values).
+   * Tracks recent collapse risk scores for trend analysis.
+   * Values range from 0 (no risk) to 1 (imminent collapse).
+   */
+  collapseRiskHistory: number[];
+
+  /**
+   * Current coherence state of the swarm.
+   * - 'coherent': Beliefs are consistent and stable
+   * - 'uncertain': Some inconsistencies detected, monitoring
+   * - 'incoherent': Significant contradictions requiring intervention
+   */
+  currentCoherenceState: CoherenceState;
+
+  /**
+   * Total number of consensus verifications performed.
+   * Tracks how often the swarm has validated collective beliefs.
+   */
+  consensusVerifications: number;
+
+  /**
+   * Number of invalid consensus attempts detected.
+   * When consensus fails to achieve quorum or produces contradictory results.
+   */
+  invalidConsensusCount: number;
 }
 
 // ============================================================================
@@ -615,7 +744,13 @@ export type StrangeLoopEventType =
   | 'health_improved'
   | 'bottleneck_detected'
   | 'loop_started'
-  | 'loop_stopped';
+  | 'loop_stopped'
+  // ADR-052: Coherence integration events
+  | 'coherence_violation'
+  | 'coherence_restored'
+  | 'consensus_invalid'
+  | 'collapse_predicted'
+  | 'belief_reconciled';
 
 /**
  * Event payload for strange loop events
@@ -638,3 +773,124 @@ export interface StrangeLoopEvent {
  * Event listener callback type
  */
 export type StrangeLoopEventListener = (event: StrangeLoopEvent) => void;
+
+// ============================================================================
+// ADR-052: Coherence Integration Types
+// ============================================================================
+
+/**
+ * Compute lane based on energy threshold (from CoherenceService)
+ *
+ * | Lane | Energy Range | Latency | Action |
+ * |------|--------------|---------|--------|
+ * | Reflex | E < 0.1 | <1ms | Immediate execution |
+ * | Retrieval | 0.1 - 0.4 | ~10ms | Fetch additional context |
+ * | Heavy | 0.4 - 0.7 | ~100ms | Deep analysis |
+ * | Human | E > 0.7 | Async | Queen escalation |
+ */
+export type ComputeLane = 'reflex' | 'retrieval' | 'heavy' | 'human';
+
+/**
+ * Contradiction detected during coherence check
+ */
+export interface Contradiction {
+  /** IDs of the conflicting nodes */
+  nodeIds: [string, string];
+  /** Severity of the contradiction */
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  /** Description of the contradiction */
+  description: string;
+  /** Confidence that this is a true contradiction (0-1) */
+  confidence: number;
+  /** Suggested resolution */
+  resolution?: string;
+}
+
+/**
+ * Data for coherence violation events
+ * Emitted when swarm beliefs are found to be incoherent
+ */
+export interface CoherenceViolationData {
+  /** Sheaf Laplacian energy (lower = more coherent) */
+  energy: number;
+  /** Recommended compute lane based on energy */
+  lane: ComputeLane;
+  /** Detected contradictions between agent beliefs */
+  contradictions: Contradiction[];
+  /** Timestamp of the violation detection */
+  timestamp: number;
+  /** Whether fallback logic was used for detection */
+  usedFallback?: boolean;
+}
+
+/**
+ * Data for consensus invalid events
+ * Emitted when multi-agent consensus fails verification
+ */
+export interface ConsensusInvalidData {
+  /** Fiedler value (algebraic connectivity) - lower = weaker consensus */
+  fiedlerValue: number;
+  /** Agent IDs involved in the invalid consensus */
+  agents: string[];
+  /** Reason the consensus was deemed invalid */
+  reason: string;
+  /** Collapse risk score (0-1) */
+  collapseRisk?: number;
+  /** Whether this appears to be a false consensus */
+  isFalseConsensus?: boolean;
+  /** Timestamp of the detection */
+  timestamp: number;
+}
+
+/**
+ * Data for collapse predicted events
+ * Emitted when spectral analysis predicts swarm collapse
+ */
+export interface CollapsePredictedData {
+  /** Collapse risk score (0-1) */
+  risk: number;
+  /** Fiedler value (spectral gap) */
+  fiedlerValue: number;
+  /** Whether collapse is imminent */
+  collapseImminent: boolean;
+  /** Agent IDs at highest risk */
+  weakVertices: string[];
+  /** Recommended remediation actions */
+  recommendations: string[];
+  /** Timestamp of the prediction */
+  timestamp: number;
+}
+
+/**
+ * Data for belief reconciled events
+ * Emitted after contradicting beliefs have been resolved
+ */
+export interface BeliefReconciledData {
+  /** IDs of the reconciled contradictions */
+  reconciledContradictionIds: string[];
+  /** Number of contradictions that were resolved */
+  resolvedCount: number;
+  /** Number of contradictions that remain unresolved */
+  remainingCount: number;
+  /** New coherence energy after reconciliation */
+  newEnergy: number;
+  /** Timestamp of the reconciliation */
+  timestamp: number;
+}
+
+/**
+ * Data for coherence restored events
+ * Emitted when swarm returns to coherent state
+ */
+export interface CoherenceRestoredData {
+  /** Previous coherence energy before restoration */
+  previousEnergy: number;
+  /** Current coherence energy after restoration */
+  currentEnergy: number;
+  /** How long the swarm was incoherent (ms) */
+  incoherentDurationMs: number;
+  /** Actions that led to restoration */
+  restorationActions: string[];
+  /** Timestamp of restoration */
+  timestamp: number;
+}

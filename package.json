@@ -15,6 +15,7 @@
     "postinstall": "test -f v3/package.json && cd v3 && npm install || true",
     "build": "cd v3 && npm run build",
     "test": "cd v3 && npm test -- --run",
+    "test:dev": "cd v3 && npm run test:dev",
     "test:v3": "cd v3 && npm test -- --run",
     "test:mcp": "cd v3 && npm test -- --run tests/unit/mcp/",
     "test:mcp:integration": "cd v3 && npm test -- --run tests/integration/mcp/",

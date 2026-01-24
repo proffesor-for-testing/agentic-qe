@@ -308,10 +308,10 @@ describe('ADR-047: MinCut Integration', () => {
       const graph = createSwarmGraph();
       const monitor = createMinCutHealthMonitor(graph);
 
-      // Initially empty graph
+      // Initially empty graph - Issue #205: Empty is 'idle', not 'critical' (fresh install UX)
       let health = monitor.checkHealth();
       expect(health.minCutValue).toBe(0);
-      expect(health.status).toBe('critical'); // Empty graph is critical
+      expect(health.status).toBe('idle'); // Empty graph is idle (fresh install)
 
       // Add connected vertices
       graph.addVertex({

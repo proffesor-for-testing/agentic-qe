@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 8 Complete (Agentic-Flow Integration - ADR-051 Implemented)
+**Status:** Phase 9 Complete (Coherence-Gated QE - ADR-052 Implemented)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-01-21 (ADR-001-051: 51 Implemented, 100% Benchmark Success)
+**Last Verified:** 2026-01-24 (ADR-001-052: 52 Implemented, 382+ coherence tests passing)
 
 ---
 
@@ -63,6 +63,7 @@
 | [ADR-049](./ADR-049-V3-MAIN-PUBLISH.md) | V3 Main Package Publication | **Accepted** | 2026-01-17 | ✅ Root package publishes v3 CLI + MCP bundles, version 3.0.0 release strategy |
 | [ADR-050](./ADR-050-ruvector-neural-backbone.md) | RuVector as Primary Neural Backbone | **Implemented** | 2026-01-20 | ✅ ML-first architecture, Q-Learning/SONA persistence, hypergraph code intelligence |
 | [ADR-051](./ADR-051-agentic-flow-integration.md) | Agentic-Flow Deep Integration | **Implemented** | 2026-01-21 | ✅ 100% success rate: Agent Booster, ReasoningBank (HNSW), Model Router, ONNX Embeddings |
+| [ADR-052](./ADR-052-coherence-gated-qe.md) | Coherence-Gated Quality Engineering | **Implemented** | 2026-01-24 | ✅ 382+ tests: CoherenceService + 6 engines + ThresholdTuner + WASM Fallback + CI Badge + Test Gen Gate |
 
 ---
 

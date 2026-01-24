@@ -638,13 +638,31 @@ export class QueenCoordinator implements IQueenCoordinator {
 
     // Fallback: compute from agent coordinator
     const agents = this.agentCoordinator.listAgents({ domain });
+    const activeAgents = agents.filter(a => a.status === 'running').length;
+    const idleAgents = agents.filter(a => a.status === 'idle').length;
+    const failedAgents = agents.filter(a => a.status === 'failed').length;
+
+    // Issue #205 fix: Determine status based on agent state
+    // 'idle' is normal for ephemeral agent model (agents spawn on-demand)
+    let status: DomainHealth['status'];
+    if (failedAgents > 0 && failedAgents >= agents.length / 2) {
+      status = 'unhealthy';
+    } else if (failedAgents > 0) {
+      status = 'degraded';
+    } else if (activeAgents > 0) {
+      status = 'healthy';
+    } else {
+      // No agents or all idle - normal for ephemeral agent model
+      status = 'idle';
+    }
+
     return {
-      status: agents.length > 0 ? 'healthy' : 'degraded',
+      status,
       agents: {
         total: agents.length,
-        active: agents.filter(a => a.status === 'running').length,
-        idle: agents.filter(a => a.status === 'idle').length,
-        failed: agents.filter(a => a.status === 'failed').length,
+        active: activeAgents,
+        idle: idleAgents,
+        failed: failedAgents,
       },
       lastActivity: this.domainLastActivity.get(domain),
       errors: [],
@@ -790,10 +808,15 @@ export class QueenCoordinator implements IQueenCoordinator {
     let unhealthyCount = 0;
     let degradedCount = 0;
 
-    for (const domain of ALL_DOMAINS) {
+    // Issue #205 fix: Only check enabled domains, not ALL_DOMAINS
+    // This prevents alarming warnings for domains that aren't configured
+    const enabledDomains = this.getEnabledDomains();
+
+    for (const domain of enabledDomains) {
       const health = this.getDomainHealth(domain);
       if (health) {
         domainHealth.set(domain, health);
+        // Issue #205 fix: 'idle' status is normal - don't report as issue
         if (health.status === 'unhealthy') {
           unhealthyCount++;
           issues.push({
@@ -811,6 +834,7 @@ export class QueenCoordinator implements IQueenCoordinator {
             timestamp: new Date(),
           });
         }
+        // Note: 'idle' and 'healthy' don't generate issues
       }
     }
 
@@ -819,13 +843,15 @@ export class QueenCoordinator implements IQueenCoordinator {
     const pendingTasks = this.getQueuedTaskCount();
     const runningTasks = this.getRunningTaskCount();
 
-    // Determine overall health
+    // Issue #205 fix: Determine overall health
+    // An idle system (no agents, no tasks) should show 'healthy', not 'degraded'
     let status: QueenHealth['status'] = 'healthy';
     if (unhealthyCount > 0) {
       status = 'unhealthy';
-    } else if (degradedCount > ALL_DOMAINS.length / 2) {
+    } else if (degradedCount > enabledDomains.length / 2) {
       status = 'degraded';
     }
+    // Note: All domains being 'idle' means system is ready, not degraded
 
     const baseHealth: QueenHealth = {
       status,
@@ -951,6 +977,19 @@ export class QueenCoordinator implements IQueenCoordinator {
   // ============================================================================
   // Private Methods
   // ============================================================================
+
+  /**
+   * Get list of enabled domains
+   * Issue #205 fix: Used to only check enabled domains in health reporting
+   */
+  private getEnabledDomains(): DomainName[] {
+    // If we have domain plugins loaded, use those as the source of truth
+    if (this.domainPlugins && this.domainPlugins.size > 0) {
+      return Array.from(this.domainPlugins.keys());
+    }
+    // Fallback to ALL_DOMAINS if no plugins loaded yet
+    return [...ALL_DOMAINS];
+  }
 
   private subscribeToEvents(): void {
     // PAP-003 FIX: Store subscription IDs for proper cleanup during dispose()

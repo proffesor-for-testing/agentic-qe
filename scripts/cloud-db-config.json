@@ -1,0 +1,37 @@
+{
+  "cloud": {
+    "project": "${GCP_PROJECT_ID}",
+    "zone": "us-central1-a",
+    "instance": "ruvector-postgres",
+    "database": "aqe_learning",
+    "user": "ruvector",
+    "port": 5432,
+    "access": "iap-tunnel",
+    "tunnelLocalPort": 15432
+  },
+  "local": {
+    "memoryDb": ".agentic-qe/memory.db",
+    "cacheDb": ".agentic-qe/ruvector-cache.db",
+    "telemetryDb": ".agentic-qe/aqe-telemetry.db",
+    "patternsDb": ".agentic-qe/qe-patterns.db"
+  },
+  "sync": {
+    "enabled": false,
+    "mode": "incremental",
+    "interval": "5m",
+    "tables": [
+      "memory_entries",
+      "patterns",
+      "learning_experiences",
+      "goap_actions",
+      "goap_plans",
+      "qe_patterns",
+      "embeddings"
+    ]
+  },
+  "security": {
+    "method": "iap-tunnel",
+    "publicAccess": false,
+    "allowedUsers": []
+  }
+}

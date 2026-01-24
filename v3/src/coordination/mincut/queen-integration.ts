@@ -446,9 +446,22 @@ export class QueenMinCutBridge {
   }
 
   /**
+   * Issue #205 fix: Check if topology is empty/fresh (no agents spawned yet)
+   */
+  private isEmptyTopology(): boolean {
+    return this.graph.vertexCount === 0 || this.graph.edgeCount === 0;
+  }
+
+  /**
    * Convert MinCut alerts to Queen health issues
    */
   getHealthIssuesFromMinCut(): HealthIssue[] {
+    // Issue #205 fix: Don't report issues for fresh/empty topology
+    // Empty topology is expected for fresh installs - not an error condition
+    if (this.isEmptyTopology()) {
+      return [];
+    }
+
     const alerts = this.monitor.getActiveAlerts();
     const issues: HealthIssue[] = [];
 
@@ -493,11 +506,13 @@ export class QueenMinCutBridge {
     const minCutHealth = this.getMinCutHealth();
     const minCutIssues = this.getHealthIssuesFromMinCut();
 
-    // Potentially degrade overall health based on MinCut
+    // Issue #205 fix: Only degrade status for actual critical issues
+    // 'idle' status is normal for fresh installs - don't degrade health
     let status = baseHealth.status;
     if (minCutHealth.status === 'critical' && status === 'healthy') {
       status = 'degraded';
     }
+    // Note: 'idle' status does NOT trigger degradation - it's expected for fresh systems
 
     return {
       ...baseHealth,

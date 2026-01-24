@@ -1,9 +1,13 @@
 /**
  * Strange Loop Orchestrator
  * ADR-031: Strange Loop Self-Awareness
+ * ADR-052: Coherence Integration
  *
  * Orchestrates the complete self-awareness cycle:
  * Observe -> Model -> Decide -> Act -> (repeat)
+ *
+ * With ADR-052 coherence integration, the cycle becomes:
+ * Observe -> Check Coherence -> Model -> Decide -> Act -> (repeat)
  *
  * "You look in a mirror. You see yourself looking.
  *  You adjust your hair *because* you saw it was messy.
@@ -24,11 +28,57 @@ import type {
   SwarmModelDelta,
   TrendDirection,
   AgentHealthMetrics,
+  Contradiction,
+  ComputeLane,
+  CoherenceViolationData,
+  CollapsePredictedData,
+  BeliefReconciledData,
+  CoherenceRestoredData,
+  CoherenceState,
 } from './types.js';
 import { DEFAULT_STRANGE_LOOP_CONFIG } from './types.js';
 import { SwarmObserver, AgentProvider, InMemoryAgentProvider } from './swarm-observer.js';
 import { SwarmSelfModel } from './self-model.js';
 import { SelfHealingController, ActionExecutor, NoOpActionExecutor } from './healing-controller.js';
+import type {
+  ICoherenceService,
+  CoherenceNode,
+  CoherenceResult,
+  CollapseRisk,
+  SwarmState,
+  Contradiction as CoherenceContradiction,
+} from '../integrations/coherence/index.js';
+
+// ============================================================================
+// Belief Reconciler Interface
+// ============================================================================
+
+/**
+ * Interface for reconciling contradicting beliefs across agents.
+ * Implementations should resolve conflicts detected by the CoherenceService.
+ */
+export interface IBeliefReconciler {
+  /**
+   * Reconcile contradicting beliefs.
+   * @param contradictions - Array of contradictions to resolve
+   * @returns Result of reconciliation attempt
+   */
+  reconcile(contradictions: Contradiction[]): Promise<BeliefReconciliationResult>;
+}
+
+/**
+ * Result of a belief reconciliation attempt
+ */
+export interface BeliefReconciliationResult {
+  /** Number of contradictions successfully resolved */
+  resolvedCount: number;
+  /** Number of contradictions that could not be resolved */
+  unresolvedCount: number;
+  /** IDs of resolved contradictions (joined nodeIds) */
+  resolvedContradictionIds: string[];
+  /** Actions taken during reconciliation */
+  actionsTaken: string[];
+}
 
 // ============================================================================
 // Strange Loop Orchestrator
@@ -36,12 +86,24 @@ import { SelfHealingController, ActionExecutor, NoOpActionExecutor } from './hea
 
 /**
  * Orchestrates the strange loop self-awareness cycle
+ *
+ * With ADR-052 coherence integration, the orchestrator can optionally:
+ * - Check swarm coherence after each observation
+ * - Emit coherence_violation events when beliefs are incoherent
+ * - Trigger belief reconciliation when contradictions are detected
+ * - Predict swarm collapse using spectral analysis
  */
 export class StrangeLoopOrchestrator {
   private observer: SwarmObserver;
   private model: SwarmSelfModel;
   private healer: SelfHealingController;
   private config: StrangeLoopConfig;
+
+  // ADR-052: Optional coherence integration
+  private coherenceService: ICoherenceService | null = null;
+  private beliefReconciler: IBeliefReconciler | null = null;
+  private lastCoherenceEnergy: number = 0;
+  private incoherentSince: number | null = null;
 
   private running: boolean = false;
   private loopHandle: NodeJS.Timeout | null = null;
@@ -50,10 +112,21 @@ export class StrangeLoopOrchestrator {
   private eventListeners: Map<StrangeLoopEventType, StrangeLoopEventListener[]> = new Map();
   private myAgentId: string;
 
+  /**
+   * Create a new StrangeLoopOrchestrator.
+   *
+   * @param provider - Agent provider for observing swarm state
+   * @param executor - Action executor for healing actions
+   * @param config - Optional configuration overrides
+   * @param coherenceService - Optional CoherenceService for belief coherence checking (ADR-052)
+   * @param beliefReconciler - Optional belief reconciler for resolving contradictions (ADR-052)
+   */
   constructor(
     provider: AgentProvider,
     executor: ActionExecutor,
-    config: Partial<StrangeLoopConfig> = {}
+    config: Partial<StrangeLoopConfig> = {},
+    coherenceService?: ICoherenceService,
+    beliefReconciler?: IBeliefReconciler
   ) {
     this.config = { ...DEFAULT_STRANGE_LOOP_CONFIG, ...config };
     this.myAgentId = provider.getObserverId();
@@ -62,7 +135,51 @@ export class StrangeLoopOrchestrator {
     this.model = new SwarmSelfModel(this.config.historySize);
     this.healer = new SelfHealingController(this.model, executor, this.config);
 
+    // ADR-052: Store optional coherence dependencies
+    this.coherenceService = coherenceService ?? null;
+    this.beliefReconciler = beliefReconciler ?? null;
+
     this.stats = this.initializeStats();
+  }
+
+  /**
+   * Set the coherence service for belief coherence checking.
+   * Can be called after construction to enable coherence integration.
+   *
+   * @param service - The CoherenceService instance
+   */
+  setCoherenceService(service: ICoherenceService): void {
+    this.coherenceService = service;
+    if (this.config.verboseLogging) {
+      console.log('[StrangeLoop] Coherence service attached');
+    }
+  }
+
+  /**
+   * Set the belief reconciler for resolving contradictions.
+   * Can be called after construction to enable reconciliation.
+   *
+   * @param reconciler - The belief reconciler instance
+   */
+  setBeliefReconciler(reconciler: IBeliefReconciler): void {
+    this.beliefReconciler = reconciler;
+    if (this.config.verboseLogging) {
+      console.log('[StrangeLoop] Belief reconciler attached');
+    }
+  }
+
+  /**
+   * Check if coherence service is available.
+   */
+  hasCoherenceService(): boolean {
+    return this.coherenceService !== null;
+  }
+
+  /**
+   * Check if belief reconciler is available.
+   */
+  hasBeliefReconciler(): boolean {
+    return this.beliefReconciler !== null;
   }
 
   /**
@@ -123,12 +240,20 @@ export class StrangeLoopOrchestrator {
 
   /**
    * Run a single observation-model-decide-act cycle
+   *
+   * With ADR-052 coherence integration, the cycle becomes:
+   * 1. OBSERVE: Gather swarm state
+   * 2. CHECK COHERENCE: Verify belief consistency (if service available)
+   * 3. MODEL: Update internal representation
+   * 4. DECIDE: Determine if healing is needed
+   * 5. ACT: Execute healing actions
    */
   async runCycle(): Promise<{
     observation: SwarmHealthObservation;
     delta: SwarmModelDelta;
     actions: SelfHealingAction[];
     results: ActionResult[];
+    coherenceResult?: CoherenceResult;
   }> {
     const cycleStart = Date.now();
 
@@ -146,6 +271,12 @@ export class StrangeLoopOrchestrator {
       this.stats.currentHealth = observation.overallHealth;
 
       this.emit('observation_complete', { observation, durationMs: observationDuration });
+
+      // ADR-052: CHECK COHERENCE after observation
+      let coherenceResult: CoherenceResult | undefined;
+      if (this.coherenceService) {
+        coherenceResult = await this.checkCoherenceAfterObservation(observation);
+      }
 
       // MODEL: Update internal representation
       const delta = this.model.updateModel(observation);
@@ -225,7 +356,7 @@ export class StrangeLoopOrchestrator {
         }
       }
 
-      return { observation, delta, actions, results };
+      return { observation, delta, actions, results, coherenceResult };
     } catch (error) {
       if (this.config.verboseLogging) {
         console.error('[StrangeLoop] Error in self-observation cycle:', error);
@@ -235,7 +366,8 @@ export class StrangeLoopOrchestrator {
   }
 
   /**
-   * The agent observes itself being the bottleneck
+   * The agent observes itself being the bottleneck.
+   * With ADR-052 coherence integration, also checks belief coherence.
    */
   async selfDiagnose(): Promise<SelfDiagnosis> {
     const observation = await this.observer.observe();
@@ -261,7 +393,8 @@ export class StrangeLoopOrchestrator {
       }
     }
 
-    return {
+    // Build base diagnosis
+    const diagnosis: SelfDiagnosis = {
       agentId: myId,
       isHealthy: myHealth ? myHealth.responsiveness > 0.8 : true,
       isBottleneck: amIBottleneck,
@@ -270,6 +403,91 @@ export class StrangeLoopOrchestrator {
       overallSwarmHealth: observation.overallHealth,
       diagnosedAt: Date.now(),
     };
+
+    // ADR-052: Add coherence information if service is available and enabled
+    if (this.coherenceService && this.config.coherenceEnabled) {
+      try {
+        // Convert agent health to coherence nodes
+        const coherenceNodes: CoherenceNode[] = [];
+        for (const [agentId, metrics] of observation.agentHealth) {
+          const embedding = [
+            metrics.responsiveness,
+            metrics.taskCompletionRate,
+            metrics.memoryUtilization,
+            metrics.cpuUtilization,
+            metrics.errorRate,
+            metrics.degree / 10,
+            metrics.queuedTasks / 100,
+            metrics.isBottleneck ? 1.0 : 0.0,
+          ];
+          coherenceNodes.push({
+            id: agentId,
+            embedding,
+            weight: metrics.responsiveness,
+          });
+        }
+
+        const coherenceResult = await this.coherenceService.checkCoherence(coherenceNodes);
+
+        diagnosis.coherenceEnergy = coherenceResult.energy;
+        diagnosis.isCoherent = coherenceResult.isCoherent;
+        diagnosis.computeLane = coherenceResult.lane as ComputeLane;
+        diagnosis.contradictionCount = coherenceResult.contradictions?.length ?? 0;
+
+        // Add coherence-based recommendations
+        if (!coherenceResult.isCoherent) {
+          recommendations.push('Resolve belief contradictions before proceeding');
+          if (coherenceResult.lane === 'human') {
+            recommendations.push('Escalate to human review due to high coherence energy');
+          }
+        }
+
+        // Check for collapse risk if available
+        if (this.coherenceService.predictCollapse) {
+          const swarmState: SwarmState = {
+            agents: Array.from(observation.agentHealth.entries()).map(([agentId, metrics]) => ({
+              agentId,
+              agentType: 'specialist',
+              health: metrics.responsiveness,
+              beliefs: [],
+              lastActivity: new Date(metrics.lastHeartbeat),
+              errorCount: Math.round(metrics.errorRate * 100),
+              successRate: metrics.taskCompletionRate,
+            })),
+            activeTasks: Array.from(observation.agentHealth.values()).reduce(
+              (sum, m) => sum + m.queuedTasks,
+              0
+            ),
+            pendingTasks: 0,
+            errorRate: observation.overallHealth < 0.5 ? 0.5 - observation.overallHealth : 0,
+            utilization:
+              Array.from(observation.agentHealth.values()).reduce(
+                (sum, m) => sum + m.cpuUtilization,
+                0
+              ) / observation.agentHealth.size || 0,
+            timestamp: new Date(observation.timestamp),
+          };
+
+          const collapseRisk = await this.coherenceService.predictCollapse(swarmState);
+          if (collapseRisk && collapseRisk.collapseImminent) {
+            diagnosis.collapseRiskPredicted = true;
+            recommendations.push('WARNING: Swarm collapse predicted. Take immediate action.');
+            for (const rec of collapseRisk.recommendations || []) {
+              recommendations.push(rec);
+            }
+          } else {
+            diagnosis.collapseRiskPredicted = false;
+          }
+        }
+      } catch (error) {
+        if (this.config.verboseLogging) {
+          console.error('[StrangeLoop] Coherence check failed during self-diagnosis:', error);
+        }
+        // Continue with diagnosis even if coherence check fails
+      }
+    }
+
+    return diagnosis;
   }
 
   /**
@@ -390,6 +608,16 @@ export class StrangeLoopOrchestrator {
       healthTrend: 'stable',
       uptimeMs: 0,
       lastObservationAt: 0,
+
+      // Coherence metrics (ADR-052)
+      coherenceViolationCount: 0,
+      avgCoherenceEnergy: 0,
+      reconciliationSuccessRate: 1.0, // Start at 100% (no failures yet)
+      lastCoherenceCheck: 0,
+      collapseRiskHistory: [],
+      currentCoherenceState: 'coherent' as CoherenceState,
+      consensusVerifications: 0,
+      invalidConsensusCount: 0,
     };
   }
 
@@ -410,6 +638,284 @@ export class StrangeLoopOrchestrator {
       errorRate: 0,
     };
   }
+
+  // ============================================================================
+  // ADR-052: Coherence Integration Methods
+  // ============================================================================
+
+  /**
+   * Check coherence after an observation and update stats accordingly.
+   * This method is called after each observation when a coherence service is available.
+   *
+   * @param observation - The swarm health observation to check coherence against
+   * @returns The coherence result from the service
+   */
+  private async checkCoherenceAfterObservation(
+    observation: SwarmHealthObservation
+  ): Promise<CoherenceResult | undefined> {
+    if (!this.coherenceService || !this.config.coherenceEnabled) {
+      return undefined;
+    }
+
+    try {
+      // Convert SwarmHealthObservation to CoherenceNode array for coherence service
+      // Each agent's health metrics are encoded as a simple embedding for coherence checking
+      const coherenceNodes: CoherenceNode[] = [];
+      for (const [agentId, metrics] of observation.agentHealth) {
+        // Create a simple embedding from health metrics
+        // This allows coherence checking to detect agents with conflicting states
+        const embedding = [
+          metrics.responsiveness,
+          metrics.taskCompletionRate,
+          metrics.memoryUtilization,
+          metrics.cpuUtilization,
+          metrics.errorRate,
+          metrics.degree / 10, // Normalize degree
+          metrics.queuedTasks / 100, // Normalize queue
+          metrics.isBottleneck ? 1.0 : 0.0,
+        ];
+
+        coherenceNodes.push({
+          id: agentId,
+          embedding,
+          weight: metrics.responsiveness, // Weight by responsiveness
+          metadata: {
+            lastHeartbeat: metrics.lastHeartbeat,
+            activeConnections: metrics.activeConnections,
+          },
+        });
+      }
+
+      // Check coherence using CoherenceNode array
+      const coherenceResult = await this.coherenceService.checkCoherence(coherenceNodes);
+
+      // Update coherence stats
+      this.stats.lastCoherenceCheck = Date.now();
+
+      // Update average coherence energy (rolling average)
+      const totalChecks = this.stats.totalObservations;
+      if (totalChecks > 1) {
+        this.stats.avgCoherenceEnergy =
+          (this.stats.avgCoherenceEnergy * (totalChecks - 1) + coherenceResult.energy) / totalChecks;
+      } else {
+        this.stats.avgCoherenceEnergy = coherenceResult.energy;
+      }
+
+      // Determine coherence state based on energy
+      const previousState = this.stats.currentCoherenceState;
+      if (coherenceResult.energy < 0.1) {
+        this.stats.currentCoherenceState = 'coherent';
+      } else if (coherenceResult.energy < this.config.coherenceThreshold) {
+        this.stats.currentCoherenceState = 'uncertain';
+      } else {
+        this.stats.currentCoherenceState = 'incoherent';
+      }
+
+      // Check for coherence violation
+      if (coherenceResult.energy >= this.config.coherenceThreshold) {
+        this.stats.coherenceViolationCount++;
+
+        // Track when incoherence started
+        if (this.incoherentSince === null) {
+          this.incoherentSince = Date.now();
+        }
+
+        // Convert coherence contradictions to local type for event emission
+        const localContradictions: Contradiction[] = (coherenceResult.contradictions || []).map(
+          (c: CoherenceContradiction) => ({
+            nodeIds: c.nodeIds,
+            severity: this.mapSeverity(c.severity),
+            description: c.description,
+            confidence: c.confidence,
+            resolution: c.resolution,
+          })
+        );
+
+        // Emit coherence violation event
+        const violationData: CoherenceViolationData = {
+          energy: coherenceResult.energy,
+          lane: coherenceResult.lane,
+          contradictions: localContradictions,
+          timestamp: Date.now(),
+          usedFallback: coherenceResult.usedFallback,
+        };
+        this.emit('coherence_violation', violationData);
+
+        // Attempt reconciliation if we have contradictions and a reconciler
+        if (localContradictions.length > 0 && this.beliefReconciler) {
+          await this.attemptReconciliation(localContradictions);
+        }
+      } else if (previousState === 'incoherent' && this.stats.currentCoherenceState !== 'incoherent') {
+        // Coherence restored
+        const incoherentDuration = this.incoherentSince ? Date.now() - this.incoherentSince : 0;
+        this.incoherentSince = null;
+
+        const restoredData: CoherenceRestoredData = {
+          previousEnergy: this.lastCoherenceEnergy,
+          currentEnergy: coherenceResult.energy,
+          incoherentDurationMs: incoherentDuration,
+          restorationActions: [],
+          timestamp: Date.now(),
+        };
+        this.emit('coherence_restored', restoredData);
+      }
+
+      // Store energy for next comparison
+      this.lastCoherenceEnergy = coherenceResult.energy;
+
+      // Check for collapse risk prediction
+      await this.checkCollapseRiskFromObservation(observation);
+
+      return coherenceResult;
+    } catch (error) {
+      if (this.config.verboseLogging) {
+        console.error('[StrangeLoop] Coherence check failed:', error);
+      }
+      return undefined;
+    }
+  }
+
+  /**
+   * Map severity from coherence module to local type.
+   * The coherence module uses 'info' | 'low' | 'medium' | 'high' | 'critical'
+   * while we use 'low' | 'medium' | 'high' | 'critical'.
+   */
+  private mapSeverity(
+    severity: string
+  ): 'low' | 'medium' | 'high' | 'critical' {
+    switch (severity) {
+      case 'info':
+      case 'low':
+        return 'low';
+      case 'medium':
+        return 'medium';
+      case 'high':
+        return 'high';
+      case 'critical':
+        return 'critical';
+      default:
+        return 'medium';
+    }
+  }
+
+  /**
+   * Check collapse risk from observation data.
+   * Converts observation to SwarmState format required by coherence service.
+   */
+  private async checkCollapseRiskFromObservation(
+    observation: SwarmHealthObservation
+  ): Promise<void> {
+    if (!this.coherenceService?.predictCollapse) {
+      return;
+    }
+
+    try {
+      // Convert observation to SwarmState format
+      const swarmState: SwarmState = {
+        agents: Array.from(observation.agentHealth.entries()).map(([agentId, metrics]) => ({
+          agentId,
+          agentType: 'specialist', // Default type
+          health: metrics.responsiveness,
+          beliefs: [], // Empty beliefs for now
+          lastActivity: new Date(metrics.lastHeartbeat),
+          errorCount: Math.round(metrics.errorRate * 100),
+          successRate: metrics.taskCompletionRate,
+        })),
+        activeTasks: Array.from(observation.agentHealth.values()).reduce(
+          (sum, m) => sum + m.queuedTasks,
+          0
+        ),
+        pendingTasks: 0,
+        errorRate: observation.overallHealth < 0.5 ? 0.5 - observation.overallHealth : 0,
+        utilization:
+          Array.from(observation.agentHealth.values()).reduce(
+            (sum, m) => sum + m.cpuUtilization,
+            0
+          ) / observation.agentHealth.size || 0,
+        timestamp: new Date(observation.timestamp),
+      };
+
+      const collapseRisk = await this.coherenceService.predictCollapse(swarmState);
+      this.updateCollapseRiskHistory(collapseRisk.risk);
+
+      if (collapseRisk.collapseImminent || collapseRisk.risk > 0.7) {
+        const collapsePredictedData: CollapsePredictedData = {
+          risk: collapseRisk.risk,
+          fiedlerValue: collapseRisk.fiedlerValue,
+          collapseImminent: collapseRisk.collapseImminent,
+          weakVertices: collapseRisk.weakVertices || [],
+          recommendations: collapseRisk.recommendations || [],
+          timestamp: Date.now(),
+        };
+        this.emit('collapse_predicted', collapsePredictedData);
+      }
+    } catch (error) {
+      if (this.config.verboseLogging) {
+        console.warn('[StrangeLoop] Collapse prediction failed:', error);
+      }
+    }
+  }
+
+  /**
+   * Attempt to reconcile contradicting beliefs.
+   *
+   * @param contradictions - Array of contradictions to resolve
+   */
+  private async attemptReconciliation(contradictions: Contradiction[]): Promise<void> {
+    if (!this.beliefReconciler) {
+      return;
+    }
+
+    try {
+      const result = await this.beliefReconciler.reconcile(contradictions);
+
+      // Update reconciliation stats
+      this.stats.consensusVerifications++;
+      const totalAttempts = this.stats.consensusVerifications;
+      const previousSuccessTotal = this.stats.reconciliationSuccessRate * (totalAttempts - 1);
+      const currentSuccess = result.resolvedCount > 0 ? 1 : 0;
+      this.stats.reconciliationSuccessRate = (previousSuccessTotal + currentSuccess) / totalAttempts;
+
+      if (result.unresolvedCount > 0) {
+        this.stats.invalidConsensusCount++;
+      }
+
+      // Emit reconciliation event
+      const reconciledData: BeliefReconciledData = {
+        reconciledContradictionIds: result.resolvedContradictionIds,
+        resolvedCount: result.resolvedCount,
+        remainingCount: result.unresolvedCount,
+        newEnergy: this.lastCoherenceEnergy, // Will be updated in next check
+        timestamp: Date.now(),
+      };
+      this.emit('belief_reconciled', reconciledData);
+
+      if (this.config.verboseLogging) {
+        console.log(
+          `[StrangeLoop] Reconciled ${result.resolvedCount}/${contradictions.length} contradictions`
+        );
+      }
+    } catch (error) {
+      if (this.config.verboseLogging) {
+        console.error('[StrangeLoop] Reconciliation failed:', error);
+      }
+      this.stats.invalidConsensusCount++;
+    }
+  }
+
+  /**
+   * Update collapse risk history, maintaining the configured history size.
+   *
+   * @param risk - The new collapse risk value (0-1)
+   */
+  private updateCollapseRiskHistory(risk: number): void {
+    this.stats.collapseRiskHistory.push(risk);
+
+    // Trim to configured size
+    while (this.stats.collapseRiskHistory.length > this.config.collapseRiskHistorySize) {
+      this.stats.collapseRiskHistory.shift();
+    }
+  }
 }
 
 // ============================================================================
@@ -417,7 +923,27 @@ export class StrangeLoopOrchestrator {
 // ============================================================================
 
 /**
- * Create a strange loop orchestrator
+ * Options for creating a StrangeLoopOrchestrator with coherence integration.
+ */
+export interface StrangeLoopOrchestratorOptions {
+  /** Agent provider for observing swarm state */
+  provider: AgentProvider;
+  /** Action executor for healing actions */
+  executor: ActionExecutor;
+  /** Optional configuration overrides */
+  config?: Partial<StrangeLoopConfig>;
+  /** Optional CoherenceService for belief coherence checking (ADR-052) */
+  coherenceService?: ICoherenceService;
+  /** Optional belief reconciler for resolving contradictions (ADR-052) */
+  beliefReconciler?: IBeliefReconciler;
+}
+
+/**
+ * Create a strange loop orchestrator.
+ *
+ * @param provider - Agent provider for observing swarm state
+ * @param executor - Action executor for healing actions
+ * @param config - Optional configuration overrides
  */
 export function createStrangeLoopOrchestrator(
   provider: AgentProvider,
@@ -428,7 +954,46 @@ export function createStrangeLoopOrchestrator(
 }
 
 /**
- * Create a strange loop orchestrator with in-memory components (for testing)
+ * Create a strange loop orchestrator with coherence integration (ADR-052).
+ *
+ * @param options - Configuration options including coherence dependencies
+ * @returns Configured StrangeLoopOrchestrator with coherence integration
+ *
+ * @example
+ * ```typescript
+ * const orchestrator = createStrangeLoopWithCoherence({
+ *   provider: agentProvider,
+ *   executor: actionExecutor,
+ *   config: { verboseLogging: true },
+ *   coherenceService: await createCoherenceService(wasmLoader),
+ *   beliefReconciler: myReconciler,
+ * });
+ *
+ * orchestrator.on('coherence_violation', (event) => {
+ *   console.log('Beliefs incoherent:', event.data);
+ * });
+ *
+ * await orchestrator.start();
+ * ```
+ */
+export function createStrangeLoopWithCoherence(
+  options: StrangeLoopOrchestratorOptions
+): StrangeLoopOrchestrator {
+  return new StrangeLoopOrchestrator(
+    options.provider,
+    options.executor,
+    options.config,
+    options.coherenceService,
+    options.beliefReconciler
+  );
+}
+
+/**
+ * Create a strange loop orchestrator with in-memory components (for testing).
+ *
+ * @param observerId - ID of the observer agent
+ * @param config - Optional configuration overrides
+ * @returns Object containing orchestrator, provider, and executor
  */
 export function createInMemoryStrangeLoop(
   observerId: string = 'observer-0',
@@ -441,6 +1006,38 @@ export function createInMemoryStrangeLoop(
   const provider = new InMemoryAgentProvider(observerId);
   const executor = new NoOpActionExecutor();
   const orchestrator = new StrangeLoopOrchestrator(provider, executor, config);
+
+  return { orchestrator, provider, executor };
+}
+
+/**
+ * Create a strange loop orchestrator with in-memory components and coherence (for testing).
+ *
+ * @param observerId - ID of the observer agent
+ * @param config - Optional configuration overrides
+ * @param coherenceService - Optional CoherenceService for belief coherence checking
+ * @param beliefReconciler - Optional belief reconciler for resolving contradictions
+ * @returns Object containing orchestrator, provider, and executor
+ */
+export function createInMemoryStrangeLoopWithCoherence(
+  observerId: string = 'observer-0',
+  config?: Partial<StrangeLoopConfig>,
+  coherenceService?: ICoherenceService,
+  beliefReconciler?: IBeliefReconciler
+): {
+  orchestrator: StrangeLoopOrchestrator;
+  provider: InMemoryAgentProvider;
+  executor: NoOpActionExecutor;
+} {
+  const provider = new InMemoryAgentProvider(observerId);
+  const executor = new NoOpActionExecutor();
+  const orchestrator = new StrangeLoopOrchestrator(
+    provider,
+    executor,
+    config,
+    coherenceService,
+    beliefReconciler
+  );
 
   return { orchestrator, provider, executor };
 }

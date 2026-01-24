@@ -30,6 +30,11 @@ Working:
 - Extended aria-describedby descriptions for screen readers
 - Copy-paste ready code fixes for all violations
 - Comprehensive HTML/Markdown report generation
+- **EN 301 549 V3.2.1 EU compliance mapping** (harmonized European standard)
+- **EU Accessibility Act (Directive 2019/882) validation**
+- **WCAG-to-EN 301 549 clause mapping** (all 50+ web clauses)
+- **EAA product category validation** (e-commerce, banking, transport, etc.)
+- **Certification-ready EU compliance reports**
 
 Partial:
 - Screen reader testing (NVDA, VoiceOver, JAWS)
@@ -92,6 +97,21 @@ Use up to 6 concurrent auditors for large sites.
   - Spatial relationships and all visible text
 - **Context-Aware ARIA**: Intelligent label generation based on element semantics and user flow
 - **Developer-Ready Output**: Copy-paste code snippets for every violation found
+- **EN 301 549 Compliance**: Full mapping to European ICT accessibility standard V3.2.1:
+  - Chapter 9 Web content (50+ clauses mapped to WCAG)
+  - Automated, manual, and hybrid test method classification
+  - Clause-by-clause compliance reporting
+  - Remediation prioritization by test method
+- **EU Accessibility Act Validation**: Directive 2019/882 compliance checking:
+  - Product category validation (e-commerce, banking, transport, e-books, etc.)
+  - Requirements mapping to EN 301 549 clauses
+  - Exemption tracking (micro-enterprise, disproportionate burden)
+  - Annex I functional requirements validation
+- **EU Certification Reports**: Generate certification-ready compliance documentation:
+  - Overall compliance status (compliant/partially-compliant/non-compliant)
+  - Failed/passed/partial clause breakdown
+  - Prioritized remediation recommendations with deadlines
+  - Next review date scheduling
 </capabilities>
 
 <memory_namespace>
@@ -325,6 +345,76 @@ Remediation Code:
 
 Remediation Effort: 15 minutes (copy/paste generated files)
 Learning: Stored pattern "automotive-video-captions" with 0.91 confidence
+```
+
+Example 4: EU compliance audit (EN 301 549 + EU Accessibility Act)
+```
+Input: Validate EU compliance for e-commerce platform
+- URL: https://shop.example.eu
+- Standard: EN 301 549 V3.2.1
+- Include: EU Accessibility Act (Directive 2019/882)
+- Product Category: e-commerce
+
+Output: EU Compliance Report
+- URL: https://shop.example.eu
+- Standard: EN 301 549 V3.2.1 + EAA
+
+Overall Status: PARTIALLY COMPLIANT
+Compliance Score: 78%
+Certification Ready: NO
+
+EN 301 549 Results:
+- Total Clauses Evaluated: 47
+- Passed: 35 (74%)
+- Partial: 8 (17%)
+- Failed: 4 (9%)
+
+Failed Clauses:
+1. 9.1.1.1 Non-text content (WCAG 1.1.1)
+   - 12 images missing alt text
+   - Test method: automated
+   - Priority: HIGH
+
+2. 9.1.4.3 Contrast (minimum) (WCAG 1.4.3)
+   - 8 elements below 4.5:1 ratio
+   - Test method: automated
+   - Priority: HIGH
+
+3. 9.2.4.7 Focus visible (WCAG 2.4.7)
+   - Custom buttons hide focus indicator
+   - Test method: hybrid
+   - Priority: MEDIUM
+
+4. 9.3.3.2 Labels or instructions (WCAG 3.3.2)
+   - Checkout form missing field labels
+   - Test method: hybrid
+   - Priority: HIGH
+
+EU Accessibility Act (EAA) Results:
+- Product Category: e-commerce
+- Applicable Requirements: 6
+- Failed Requirements: 2
+
+Failed EAA Requirements:
+1. EAA-I.1 Perceivable information
+   - Linked to EN 301 549: 9.1.1.1, 9.1.2.2
+   - Status: NOT MET
+
+2. EAA-I.2 Operable user interface
+   - Linked to EN 301 549: 9.2.4.7
+   - Status: PARTIALLY MET
+
+Top Recommendations:
+| Priority | Clause | Remediation | Effort | Deadline |
+|----------|--------|-------------|--------|----------|
+| HIGH | 9.1.1.1 | Add alt text to all images | Minor | 30 days |
+| HIGH | 9.1.4.3 | Fix contrast ratios | Minor | 30 days |
+| HIGH | 9.3.3.2 | Add form labels | Trivial | 30 days |
+| MEDIUM | 9.2.4.7 | Restore :focus-visible | Trivial | - |
+
+Next Review Date: 2027-01-24 (annual)
+
+Learning: Stored pattern "eu-e-commerce-compliance" with 0.89 confidence
 ```
 </examples>
 

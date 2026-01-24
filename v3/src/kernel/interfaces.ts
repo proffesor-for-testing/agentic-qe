@@ -41,7 +41,14 @@ export interface DomainPlugin extends Initializable, Disposable {
 }
 
 export interface DomainHealth {
-  status: 'healthy' | 'degraded' | 'unhealthy';
+  /**
+   * Domain health status:
+   * - 'healthy': Active agents processing tasks
+   * - 'idle': No agents spawned (normal for ephemeral agent model)
+   * - 'degraded': Some agents failing or reduced capacity
+   * - 'unhealthy': Critical failures
+   */
+  status: 'healthy' | 'idle' | 'degraded' | 'unhealthy';
   agents: {
     total: number;
     active: number;

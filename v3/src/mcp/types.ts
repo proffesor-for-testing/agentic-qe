@@ -411,7 +411,8 @@ export interface FleetStatusResult {
  */
 export interface DomainStatusResult {
   domain: DomainName;
-  status: 'healthy' | 'degraded' | 'unhealthy';
+  // Issue #205 fix: Added 'idle' status for fresh/ready domains
+  status: 'healthy' | 'idle' | 'degraded' | 'unhealthy';
   agents: number;
   load: number;
 }

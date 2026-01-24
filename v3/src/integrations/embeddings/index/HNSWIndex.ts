@@ -13,7 +13,11 @@ import type {
   EmbeddingNamespace,
   ISearchOptions,
 } from '../base/types.js';
-import { HierarchicalNSW } from 'hnswlib-node';
+
+// ESM/CJS interop: hnswlib-node is CommonJS, we import via default export
+// This pattern matches real-qe-reasoning-bank.ts for consistency
+import hnswlib from 'hnswlib-node';
+const { HierarchicalNSW } = hnswlib as { HierarchicalNSW: typeof import('hnswlib-node').HierarchicalNSW };
 
 /**
  * HNSW index manager
@@ -22,7 +26,7 @@ import { HierarchicalNSW } from 'hnswlib-node';
  * 150x-12,500x faster than linear search for large embedding collections.
  */
 export class HNSWEmbeddingIndex {
-  private indexes: Map<EmbeddingNamespace, HierarchicalNSW>;
+  private indexes: Map<EmbeddingNamespace, InstanceType<typeof HierarchicalNSW>>;
   private config: IHNSWConfig;
   private initialized: Set<EmbeddingNamespace>;
   private nextId: Map<EmbeddingNamespace, number>;
@@ -162,7 +166,7 @@ export class HNSWEmbeddingIndex {
     const result = index.searchKnn(queryVector, k);
 
     // Convert hnswlib-node result format to our format
-    return result.neighbors.map((id, i) => ({
+    return result.neighbors.map((id: number, i: number) => ({
       id,
       distance: result.distances[i],
     }));

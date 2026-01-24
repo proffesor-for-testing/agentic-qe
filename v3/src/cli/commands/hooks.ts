@@ -25,6 +25,11 @@ import {
 import { QEDomain } from '../../learning/qe-patterns.js';
 import { HybridMemoryBackend } from '../../kernel/hybrid-backend.js';
 import type { MemoryBackend } from '../../kernel/interfaces.js';
+import {
+  wasmLoader,
+  createCoherenceService,
+  type ICoherenceService,
+} from '../../integrations/coherence/index.js';
 
 // ============================================================================
 // Hooks State Management
@@ -36,6 +41,7 @@ import type { MemoryBackend } from '../../kernel/interfaces.js';
 interface HooksSystemState {
   reasoningBank: QEReasoningBank | null;
   hookRegistry: QEHookRegistry | null;
+  coherenceService: ICoherenceService | null;
   sessionId: string | null;
   initialized: boolean;
   initializationPromise: Promise<void> | null;
@@ -44,6 +50,7 @@ interface HooksSystemState {
 const state: HooksSystemState = {
   reasoningBank: null,
   hookRegistry: null,
+  coherenceService: null,
   sessionId: null,
   initialized: false,
   initializationPromise: null,
@@ -98,14 +105,25 @@ async function initializeHooksSystem(): Promise<void> {
     // Use hybrid backend with timeout protection
     const memoryBackend = await createHybridBackendWithTimeout(dataDir);
 
-    // Create reasoning bank
+    // Initialize CoherenceService (optional - falls back to TypeScript implementation)
+    try {
+      state.coherenceService = await createCoherenceService(wasmLoader);
+      console.log(chalk.dim('[hooks] CoherenceService initialized with WASM engines'));
+    } catch (error) {
+      // WASM not available - will use fallback
+      console.log(
+        chalk.dim(`[hooks] CoherenceService WASM unavailable, using fallback: ${error instanceof Error ? error.message : 'unknown'}`)
+      );
+    }
+
+    // Create reasoning bank with coherence service
     state.reasoningBank = createQEReasoningBank(memoryBackend, undefined, {
       enableLearning: true,
       enableGuidance: true,
       enableRouting: true,
       embeddingDimension: 128,
       useONNXEmbeddings: false, // Hash-based for ARM64 compatibility
-    });
+    }, state.coherenceService ?? undefined);
 
     // Initialize with timeout
     const initTimeout = 10000; // 10 seconds

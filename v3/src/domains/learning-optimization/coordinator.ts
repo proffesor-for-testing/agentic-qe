@@ -58,6 +58,7 @@ import {
   type QESONAAdaptationResult,
 } from '../../integrations/ruvector/wrappers.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
+import type { TaskExperience } from '../../learning/experience-capture.js';
 
 /**
  * Workflow status tracking
@@ -1022,6 +1023,12 @@ export class LearningOptimizationCoordinator
       'quality-assessment.QualityGateEvaluated',
       this.handleQualityGate.bind(this)
     );
+
+    // Subscribe to experience capture events (Phase 4 integration)
+    this.eventBus.subscribe(
+      'learning.ExperienceCaptured',
+      this.handleExperienceCaptured.bind(this)
+    );
   }
 
   private async handleTestRunCompleted(event: {
@@ -1103,6 +1110,97 @@ export class LearningOptimizationCoordinator
       },
       reward: passed ? 1 : 0,
     });
+  }
+
+  /**
+   * Handle experience captured from ExperienceCaptureService
+   * This is the bridge between Phase 4 experience capture and the coordinator
+   */
+  private async handleExperienceCaptured(event: {
+    payload: { experience: TaskExperience };
+  }): Promise<void> {
+    const { experience } = event.payload;
+
+    // Skip low-quality experiences
+    if (!experience.success || experience.quality < 0.7) {
+      return;
+    }
+
+    // Map QEDomain to DomainName for coordinator's learning service
+    const domain = experience.domain || 'learning-optimization';
+
+    // Record as coordinator experience
+    await this.learningService.recordExperience({
+      agentId: {
+        value: experience.agent || 'unknown',
+        domain: domain as DomainName,
+        type: 'specialist', // Valid AgentType
+      },
+      domain: domain as DomainName,
+      action: experience.task,
+      state: {
+        context: {
+          experienceId: experience.id,
+          trajectoryId: experience.trajectoryId,
+          model: experience.model,
+        },
+        metrics: {
+          durationMs: experience.durationMs,
+          stepCount: experience.steps.length,
+          quality: experience.quality,
+        },
+      },
+      result: {
+        success: experience.success,
+        outcome: {
+          quality: experience.quality,
+          patterns_extracted: experience.patterns?.length || 0,
+        },
+        duration: experience.durationMs,
+      },
+      reward: experience.quality,
+    });
+
+    // If experience has patterns, share them cross-domain
+    if (experience.patterns && experience.patterns.length > 0 && experience.domain) {
+      const relatedDomains = this.getRelatedDomains(experience.domain as DomainName);
+
+      for (const targetDomain of relatedDomains) {
+        if (targetDomain === experience.domain) continue;
+
+        // Transfer the experience knowledge to related domains
+        await this.transferService.transferKnowledge(
+          {
+            id: `exp-${experience.id}`,
+            domain: experience.domain as DomainName,
+            type: 'workflow', // Valid KnowledgeType
+            content: {
+              format: 'json' as const,
+              data: {
+                task: experience.task,
+                steps: experience.steps,
+                quality: experience.quality,
+                patterns: experience.patterns,
+              },
+            },
+            sourceAgentId: {
+              value: experience.agent || 'experience-capture',
+              domain: experience.domain as DomainName,
+              type: 'specialist',
+            },
+            targetDomains: [targetDomain],
+            relevanceScore: experience.quality,
+            version: 1,
+            createdAt: new Date(experience.startedAt),
+          },
+          targetDomain
+        );
+      }
+
+      console.log(
+        `[LearningOptimizationCoordinator] Experience ${experience.id} transferred to ${relatedDomains.length} related domains`
+      );
+    }
   }
 
   // ============================================================================

@@ -17,8 +17,8 @@ describe('QE Tool Registry', () => {
   describe('QE_TOOL_NAMES', () => {
     it('should have all tool names', () => {
       const names = Object.values(QE_TOOL_NAMES);
-      // 15 original + 3 GOAP + 3 MinCut + 1 Dream + 5 new + 1 QualityCriteria = 28 tools
-      expect(names.length).toBe(28);
+      // 15 original + 3 GOAP + 3 MinCut + 1 Dream + 5 new + 1 QualityCriteria + 4 Coherence (ADR-052) = 32 tools
+      expect(names.length).toBe(32);
     });
 
     it('should follow qe/* naming convention', () => {
@@ -87,15 +87,15 @@ describe('QE Tool Registry', () => {
 
   describe('QE_TOOLS', () => {
     it('should have all tool instances', () => {
-      // 15 original + 3 GOAP + 3 MinCut + 1 Dream + 5 new + 1 QualityCriteria = 28 tools
-      expect(QE_TOOLS.length).toBe(28);
+      // 15 original + 3 GOAP + 3 MinCut + 1 Dream + 5 new + 1 QualityCriteria + 4 Coherence (ADR-052) = 32 tools
+      expect(QE_TOOLS.length).toBe(32);
     });
 
     it('should have all unique names', () => {
       const names = QE_TOOLS.map(t => t.name);
       const uniqueNames = new Set(names);
-      // 15 original + 3 GOAP + 3 MinCut + 1 Dream + 5 new + 1 QualityCriteria = 28 tools
-      expect(uniqueNames.size).toBe(28);
+      // 15 original + 3 GOAP + 3 MinCut + 1 Dream + 5 new + 1 QualityCriteria + 4 Coherence (ADR-052) = 32 tools
+      expect(uniqueNames.size).toBe(32);
     });
 
     it('should have descriptions for all tools', () => {
@@ -203,8 +203,8 @@ describe('QE Tool Registry', () => {
   describe('getAllToolDefinitions', () => {
     it('should return all tool definitions', () => {
       const definitions = getAllToolDefinitions();
-      // 15 original + 3 GOAP + 3 MinCut + 1 Dream + 5 new + 1 QualityCriteria = 28 tools
-      expect(definitions.length).toBe(28);
+      // 15 original + 3 GOAP + 3 MinCut + 1 Dream + 5 new + 1 QualityCriteria + 4 Coherence (ADR-052) = 32 tools
+      expect(definitions.length).toBe(32);
     });
 
     it('should return MCP-compatible definitions', () => {
@@ -222,8 +222,8 @@ describe('QE Tool Registry', () => {
       const definitions = getAllToolDefinitions();
       const names = definitions.map(d => d.name);
       const uniqueNames = new Set(names);
-      // 15 original + 3 GOAP + 3 MinCut + 1 Dream + 5 new + 1 QualityCriteria = 28 tools
-      expect(uniqueNames.size).toBe(28);
+      // 15 original + 3 GOAP + 3 MinCut + 1 Dream + 5 new + 1 QualityCriteria + 4 Coherence (ADR-052) = 32 tools
+      expect(uniqueNames.size).toBe(32);
     });
   });
 
