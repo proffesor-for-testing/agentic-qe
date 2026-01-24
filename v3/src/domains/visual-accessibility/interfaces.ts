@@ -83,6 +83,142 @@ export interface WCAGCriterion {
   readonly title: string;
 }
 
+// ============================================================================
+// EU Compliance Types (EN 301 549, EU Accessibility Act)
+// ============================================================================
+
+/**
+ * EN 301 549 requirement clause
+ * European standard for ICT accessibility requirements
+ */
+export interface EN301549Clause {
+  readonly id: string;
+  readonly title: string;
+  readonly chapter: string;
+  readonly wcagMapping: string[];
+  readonly description: string;
+  readonly testMethod: 'automated' | 'manual' | 'hybrid';
+}
+
+/**
+ * EU Accessibility Act (EAA) requirement
+ * Directive (EU) 2019/882 requirements
+ */
+export interface EAARequirement {
+  readonly id: string;
+  readonly title: string;
+  readonly article: string;
+  readonly description: string;
+  readonly applicableTo: EAAProductCategory[];
+  readonly en301549Mapping: string[];
+}
+
+/**
+ * Product categories covered by EU Accessibility Act
+ */
+export type EAAProductCategory =
+  | 'computers'
+  | 'smartphones'
+  | 'tv-equipment'
+  | 'telephony-services'
+  | 'audiovisual-media'
+  | 'transport-services'
+  | 'banking-services'
+  | 'e-commerce'
+  | 'e-books';
+
+/**
+ * EU compliance validation result
+ */
+export interface EUComplianceResult {
+  readonly standard: 'EN301549' | 'EAA' | 'both';
+  readonly version: string;
+  readonly passed: boolean;
+  readonly score: number;
+  readonly failedClauses: EN301549ClauseResult[];
+  readonly passedClauses: EN301549ClauseResult[];
+  readonly partialClauses: EN301549ClauseResult[];
+  readonly wcagMapping: WCAGtoEN301549Mapping[];
+  readonly recommendations: EUComplianceRecommendation[];
+}
+
+/**
+ * Individual clause validation result
+ */
+export interface EN301549ClauseResult {
+  readonly clause: EN301549Clause;
+  readonly status: 'passed' | 'failed' | 'partial' | 'not-applicable';
+  readonly violations: AccessibilityViolation[];
+  readonly notes?: string;
+}
+
+/**
+ * Mapping between WCAG criteria and EN 301 549 clauses
+ */
+export interface WCAGtoEN301549Mapping {
+  readonly wcagCriterion: string;
+  readonly wcagLevel: 'A' | 'AA' | 'AAA';
+  readonly en301549Clause: string;
+  readonly en301549Chapter: string;
+  readonly conformanceLevel: 'required' | 'recommended' | 'conditional';
+}
+
+/**
+ * EU compliance recommendation
+ */
+export interface EUComplianceRecommendation {
+  readonly priority: 'high' | 'medium' | 'low';
+  readonly clause: string;
+  readonly description: string;
+  readonly remediation: string;
+  readonly estimatedEffort: 'trivial' | 'minor' | 'moderate' | 'major';
+  readonly deadline?: Date;
+}
+
+/**
+ * EU compliance report combining all standards
+ */
+export interface EUComplianceReport {
+  readonly url: string;
+  readonly timestamp: Date;
+  readonly en301549: EUComplianceResult;
+  readonly eaaCompliance?: EAAComplianceResult;
+  readonly overallStatus: 'compliant' | 'partially-compliant' | 'non-compliant';
+  readonly complianceScore: number;
+  readonly certificationReady: boolean;
+  readonly nextReviewDate?: Date;
+}
+
+/**
+ * EU Accessibility Act specific compliance result
+ */
+export interface EAAComplianceResult {
+  readonly productCategory: EAAProductCategory;
+  readonly passed: boolean;
+  readonly applicableRequirements: EAARequirement[];
+  readonly failedRequirements: EAARequirementResult[];
+  readonly exemptions?: EAAExemption[];
+}
+
+/**
+ * EAA requirement validation result
+ */
+export interface EAARequirementResult {
+  readonly requirement: EAARequirement;
+  readonly status: 'met' | 'not-met' | 'partially-met';
+  readonly evidence: string;
+  readonly remediationRequired: boolean;
+}
+
+/**
+ * EAA exemption (for micro-enterprises or disproportionate burden)
+ */
+export interface EAAExemption {
+  readonly type: 'micro-enterprise' | 'disproportionate-burden' | 'fundamental-alteration';
+  readonly justification: string;
+  readonly validUntil?: Date;
+}
+
 export interface ViolationNode {
   readonly selector: string;
   readonly html: string;
@@ -213,6 +349,30 @@ export interface IAccessibilityAuditingService {
    * Check keyboard navigation
    */
   checkKeyboardNavigation(url: string): Promise<Result<KeyboardNavigationReport>>;
+
+  /**
+   * Validate EU compliance (EN 301 549 and EU Accessibility Act)
+   */
+  validateEUCompliance(
+    url: string,
+    options?: EUComplianceOptions
+  ): Promise<Result<EUComplianceReport>>;
+}
+
+/**
+ * Options for EU compliance validation
+ */
+export interface EUComplianceOptions {
+  /** EN 301 549 version to validate against */
+  readonly en301549Version?: '3.2.1' | '3.1.1';
+  /** Include EU Accessibility Act validation */
+  readonly includeEAA?: boolean;
+  /** Product category for EAA validation */
+  readonly productCategory?: EAAProductCategory;
+  /** Generate certification-ready report */
+  readonly certificationReport?: boolean;
+  /** Custom clause exclusions */
+  readonly excludeClauses?: string[];
 }
 
 export interface AuditOptions {

@@ -38,7 +38,10 @@ import {
   AuditOptions,
   PassedRule,
   IncompleteCheck,
+  EUComplianceReport,
+  EUComplianceOptions,
 } from '../interfaces.js';
+import { EUComplianceService } from './eu-compliance.js';
 import type {
   VibiumClient,
   AccessibilityResult as VibiumAccessibilityResult,
@@ -199,6 +202,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
   private readonly vibiumClient: VibiumClient | null;
   private readonly browserClient: IBrowserClient | null;
   private managedBrowserClient: IBrowserClient | null = null;
+  private readonly euComplianceService: EUComplianceService;
 
   /**
    * Create an AccessibilityTesterService
@@ -216,6 +220,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
     this.rules = this.initializeRules();
     this.vibiumClient = vibiumClient ?? null;
     this.browserClient = config.browserClient ?? null;
+    this.euComplianceService = new EUComplianceService(memory);
   }
 
   /**
@@ -2026,6 +2031,85 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
       hash = hash & hash;
     }
     return Math.abs(hash).toString(36);
+  }
+
+  // ============================================================================
+  // EU Compliance Methods
+  // ============================================================================
+
+  /**
+   * Validate EU compliance (EN 301 549 and EU Accessibility Act)
+   *
+   * This method performs a WCAG audit first, then maps the results to
+   * European accessibility standards:
+   * - EN 301 549 V3.2.1 (harmonized European standard)
+   * - EU Accessibility Act (Directive 2019/882)
+   *
+   * @param url - URL to validate
+   * @param options - EU compliance options
+   * @returns Full EU compliance report with EN 301 549 and EAA results
+   *
+   * @example
+   * ```typescript
+   * const report = await service.validateEUCompliance('https://example.com', {
+   *   includeEAA: true,
+   *   productCategory: 'e-commerce',
+   *   en301549Version: '3.2.1',
+   * });
+   *
+   * if (report.success) {
+   *   console.log(`EU Compliance Score: ${report.value.complianceScore}%`);
+   *   console.log(`Status: ${report.value.overallStatus}`);
+   *   console.log(`Certification Ready: ${report.value.certificationReady}`);
+   * }
+   * ```
+   */
+  async validateEUCompliance(
+    url: string,
+    options?: EUComplianceOptions
+  ): Promise<Result<EUComplianceReport, Error>> {
+    try {
+      // First, run a WCAG AA audit (EN 301 549 requires WCAG 2.1 AA)
+      const wcagResult = await this.audit(url, {
+        wcagLevel: 'AA',
+        includeWarnings: true,
+      });
+
+      if (!wcagResult.success) {
+        return err(new Error(`WCAG audit failed: ${wcagResult.error.message}`));
+      }
+
+      // Then validate EU compliance based on WCAG results
+      const euResult = await this.euComplianceService.validateCompliance(
+        wcagResult.value,
+        options
+      );
+
+      return euResult;
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Get EN 301 549 clauses for reference
+   */
+  getEN301549Clauses() {
+    return this.euComplianceService.getEN301549Clauses();
+  }
+
+  /**
+   * Get EU Accessibility Act requirements for reference
+   */
+  getEAARequirements() {
+    return this.euComplianceService.getEAARequirements();
+  }
+
+  /**
+   * Get WCAG to EN 301 549 mapping table
+   */
+  getWCAGtoEN301549Mapping() {
+    return this.euComplianceService.getWCAGMapping();
   }
 
   /**

@@ -76,3 +76,12 @@ export {
   type PhishingResult,
   type BrowserSecurityScannerConfig,
 } from './browser-security-scanner.js';
+
+export {
+  EUComplianceService,
+  EN_301_549_WEB_CLAUSES,
+  EAA_WEB_REQUIREMENTS,
+  WCAG_TO_EN301549_MAP,
+  getWCAGLevel,
+  type EUComplianceServiceConfig,
+} from './eu-compliance.js';

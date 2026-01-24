@@ -84,6 +84,15 @@ export {
   type IVisualRegressionService,
 } from './services/visual-regression.js';
 
+export {
+  EUComplianceService,
+  EN_301_549_WEB_CLAUSES,
+  EAA_WEB_REQUIREMENTS,
+  WCAG_TO_EN301549_MAP,
+  getWCAGLevel,
+  type EUComplianceServiceConfig,
+} from './services/eu-compliance.js';
+
 // ============================================================================
 // Interfaces (Types Only)
 // ============================================================================
@@ -142,6 +151,20 @@ export type {
   AccessibilityAuditCompletedEvent,
   BaselineUpdatedEvent,
   ContrastFailureEvent,
+
+  // EU Compliance Types
+  EN301549Clause,
+  EAARequirement,
+  EAAProductCategory,
+  EUComplianceResult,
+  EN301549ClauseResult,
+  WCAGtoEN301549Mapping,
+  EUComplianceRecommendation,
+  EUComplianceReport,
+  EAAComplianceResult,
+  EAARequirementResult,
+  EAAExemption,
+  EUComplianceOptions,
 } from './interfaces.js';
 
 // ============================================================================
