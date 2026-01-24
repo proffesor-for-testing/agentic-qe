@@ -119,7 +119,9 @@ coordination/orchestration/*
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
-claude-flow
+# Claude Flow runtime (but not source adapters)
+/claude-flow
+!v3/src/adapters/claude-flow/
 .agentic-qe/memory/
 .agentic-qe/data/learning/state.json
 .agentic-qe/data/improvement/state.json
@@ -164,7 +166,6 @@ coordination/orchestration/*
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
-claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
 tests/tmp/*
