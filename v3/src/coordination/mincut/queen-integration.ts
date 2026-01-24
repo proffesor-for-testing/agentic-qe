@@ -447,9 +447,14 @@ export class QueenMinCutBridge {
 
   /**
    * Issue #205 fix: Check if topology is empty/fresh (no agents spawned yet)
+   *
+   * Note: Domain coordinator vertices and workflow edges are always created,
+   * so we check for actual agent vertices instead of raw counts.
    */
   private isEmptyTopology(): boolean {
-    return this.graph.vertexCount === 0 || this.graph.edgeCount === 0;
+    // Empty if no agent vertices (domain coordinators don't count - they're always present)
+    const agentVertices = this.graph.getVerticesByType('agent');
+    return agentVertices.length === 0;
   }
 
   /**

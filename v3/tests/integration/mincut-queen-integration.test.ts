@@ -475,6 +475,92 @@ describe('ADR-047: MinCut Integration', () => {
     });
   });
 
+  describe('Issue #205 Fresh Install Regression', () => {
+    it('should return idle status when domain coordinators exist but no agents', async () => {
+      // Issue #205 regression test: This tests the exact scenario that caused
+      // the "degraded" status on fresh installs.
+      //
+      // The problem: buildGraphFromAgents() creates domain coordinator vertices
+      // AND workflow edges between them. The old isEmptyTopology() check only
+      // looked at vertexCount === 0 || edgeCount === 0, which returned false
+      // because domain coordinators + edges exist. This caused fresh installs
+      // to show "degraded" status with MinCut critical warnings.
+      //
+      // The fix: isEmptyTopology() now checks for agent vertices specifically,
+      // not raw counts. Domain coordinators don't count as "topology with agents".
+
+      const mockEventBus = {
+        publish: vi.fn().mockResolvedValue(undefined),
+        subscribe: vi.fn().mockReturnValue('sub-1'),
+        unsubscribe: vi.fn(),
+        once: vi.fn(),
+        listSubscribers: vi.fn().mockReturnValue([]),
+      };
+
+      // Key: listAgents returns EMPTY array (fresh install, no agents spawned yet)
+      const mockAgentCoordinator = {
+        listAgents: vi.fn().mockReturnValue([]),
+        spawnAgent: vi.fn(),
+        terminateAgent: vi.fn(),
+        getAgent: vi.fn(),
+        updateAgentStatus: vi.fn(),
+      };
+
+      const bridge = createQueenMinCutBridge(
+        mockEventBus as any,
+        mockAgentCoordinator as any,
+        {
+          includeInQueenHealth: true,
+          autoUpdateFromEvents: false,
+          persistData: false,
+        }
+      );
+
+      // Initialize triggers buildGraphFromAgents() which adds domain coordinators + workflow edges
+      await bridge.initialize();
+
+      // Verify domain coordinators were created
+      const graph = bridge.getGraph();
+      const domainVertices = graph.getVerticesByType('domain');
+      expect(domainVertices.length).toBeGreaterThan(0);
+
+      // Verify workflow edges exist
+      expect(graph.edgeCount).toBeGreaterThan(0);
+
+      // Critical: No agent vertices should exist
+      const agentVertices = graph.getVerticesByType('agent');
+      expect(agentVertices.length).toBe(0);
+
+      // CRITICAL TEST: MinCut health should be 'idle', NOT 'critical'
+      const minCutHealth = bridge.getMinCutHealth();
+      expect(minCutHealth.status).toBe('idle');
+
+      // Queen health extension should NOT degrade status
+      const mockQueenHealth = {
+        status: 'healthy' as const,
+        domainHealth: new Map(),
+        totalAgents: 0,
+        activeAgents: 0,
+        pendingTasks: 0,
+        runningTasks: 0,
+        workStealingActive: false,
+        lastHealthCheck: new Date(),
+        issues: [],
+      };
+
+      const extended = bridge.extendQueenHealth(mockQueenHealth);
+      expect(extended.status).toBe('healthy'); // Should NOT be 'degraded'
+
+      // There should be NO critical MinCut issues for empty agent topology
+      const minCutIssues = extended.issues.filter(i => i.message.includes('MinCut'));
+      expect(minCutIssues.filter(i => i.severity === 'critical')).toHaveLength(0);
+
+      // No "Weak agent topology" issues for fresh install
+      const weakTopologyIssues = extended.issues.filter(i => i.message.includes('Weak agent topology'));
+      expect(weakTopologyIssues).toHaveLength(0);
+    });
+  });
+
   describe('Real Data vs Mock Data', () => {
     it('MCP tools mark results as real data', async () => {
       const result = await healthTool.execute(

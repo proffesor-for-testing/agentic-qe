@@ -147,9 +147,10 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
     // Initialize coordinator
     await this.coordinator.initialize();
 
-    // Update health status
+    // Issue #205 fix: Start with 'idle' status (0 agents)
+    // Transitions to 'healthy' when agents spawn
     this.updateHealth({
-      status: 'healthy',
+      status: 'idle',
       agents: { total: 0, active: 0, idle: 0, failed: 0 },
       lastActivity: new Date(),
       errors: [],

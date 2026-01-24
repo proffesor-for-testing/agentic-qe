@@ -11,8 +11,10 @@ import { DomainPlugin, DomainHealth, EventBus, MemoryBackend } from '../kernel/i
  */
 export abstract class BaseDomainPlugin implements DomainPlugin {
   protected _initialized = false;
+  // Issue #205 fix: Default to 'idle' status for fresh installs (0 agents)
+  // Domains transition to 'healthy' when they have active agents
   protected _health: DomainHealth = {
-    status: 'healthy',
+    status: 'idle',
     agents: { total: 0, active: 0, idle: 0, failed: 0 },
     errors: [],
   };

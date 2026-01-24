@@ -105,10 +105,14 @@ export class MinCutHealthMonitor {
   /**
    * Issue #205 fix: Check if topology is empty/fresh (no agents spawned yet)
    * An empty topology is normal for a fresh install - not a critical issue
+   *
+   * Note: Domain coordinator vertices and workflow edges are always created,
+   * so we check for actual agent vertices instead of raw counts.
    */
   private isEmptyTopology(): boolean {
-    // Empty if no vertices, or only domain coordinator vertices with no agent connections
-    return this.graph.vertexCount === 0 || this.graph.edgeCount === 0;
+    // Empty if no agent vertices (domain coordinators don't count - they're always present)
+    const agentVertices = this.graph.getVerticesByType('agent');
+    return agentVertices.length === 0;
   }
 
   /**
