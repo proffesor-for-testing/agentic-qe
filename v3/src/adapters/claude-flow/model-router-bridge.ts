@@ -212,14 +212,17 @@ export class ModelRouterBridge {
   }
 
   /**
-   * Escape shell argument - use single quotes and escape internal single quotes
-   * This is the safest approach as single-quoted strings don't interpolate variables
-   * CodeQL: js/incomplete-sanitization - Fixed by using single-quote wrapping
+   * Escape shell argument using $'...' syntax for complete safety
+   * This ANSI-C quoting handles ALL special characters including backslashes
+   * CodeQL: js/incomplete-sanitization - Fixed by escaping backslashes AND quotes
    */
   private escapeArg(arg: string): string {
-    // Single quotes don't interpolate, escape any internal single quotes
-    // by ending the quote, adding an escaped quote, and starting a new quote
-    return "'" + arg.replace(/'/g, "'\\''") + "'";
+    // Escape backslashes first, then single quotes, using ANSI-C quoting
+    // $'...' syntax interprets escape sequences like \\ and \'
+    const escaped = arg
+      .replace(/\\/g, '\\\\')  // Escape backslashes first
+      .replace(/'/g, "\\'");   // Then escape single quotes
+    return "$'" + escaped + "'";
   }
 }
 
