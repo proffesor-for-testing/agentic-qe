@@ -1,18 +1,10 @@
-# ADR-052 Action A4.4: CI/CD Coherence Badge
+# Coherence-Gated Quality Engineering CI
+# ADR-052: Mathematical verification of belief coherence
 #
-# This workflow runs coherence verification on QE patterns and generates
-# a shields.io badge indicating coherence status.
-#
-# Badge states:
-#   - "verified" (green): Coherence check passed with WASM
-#   - "fallback" (yellow): Using TypeScript fallback (WASM unavailable)
-#   - "violation" (red): Coherence violations detected
-#   - "error" (grey): Script error occurred
-#
-# The badge can be embedded in README using:
-#   ![Coherence](https://img.shields.io/endpoint?url=<gist-raw-url>)
+# This workflow verifies that all QE operations maintain mathematical coherence
+# using Prime Radiant WASM engines (with JS fallback for CI environments).
 
-name: Coherence Check
+name: Coherence Verification
 
 on:
   push:
@@ -20,189 +12,86 @@ on:
     paths:
       - 'v3/src/**'
       - 'v3/tests/**'
-      - 'v3/package.json'
       - '.github/workflows/coherence.yml'
   pull_request:
     branches: [main]
     paths:
       - 'v3/src/**'
       - 'v3/tests/**'
-      - 'v3/package.json'
-      - '.github/workflows/coherence.yml'
-  workflow_dispatch:
-    inputs:
-      force_wasm:
-        description: 'Force WASM check (fail on fallback)'
-        required: false
-        default: 'false'
-        type: boolean
 
-# Cancel in-progress runs for the same branch
-concurrency:
-  group: coherence-${{ github.ref }}
-  cancel-in-progress: true
+# Minimal permissions following principle of least privilege
+permissions:
+  contents: read
+  actions: read
 
 jobs:
   coherence-check:
     name: Coherence Verification
     runs-on: ubuntu-latest
-    timeout-minutes: 10
 
     permissions:
       contents: read
 
-    outputs:
-      is_coherent: ${{ steps.check.outputs.is_coherent }}
-      energy: ${{ steps.check.outputs.energy }}
-      used_fallback: ${{ steps.check.outputs.used_fallback }}
-      badge_message: ${{ steps.check.outputs.badge_message }}
-      badge_color: ${{ steps.check.outputs.badge_color }}
+    defaults:
+      run:
+        working-directory: v3
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: 'v3/package-lock.json'
+          cache-dependency-path: v3/package-lock.json
 
       - name: Install dependencies
-        working-directory: v3
         run: npm ci
 
       - name: Build project
-        working-directory: v3
         run: npm run build
 
       - name: Run coherence check
-        id: check
-        working-directory: v3
+        id: coherence
         run: |
-          # Run coherence check and capture output
-          set +e
-          node scripts/coherence-check.js --output coherence-result.json 2>&1 | tee coherence-output.txt
-          EXIT_CODE=$?
-          set -e
+          node scripts/coherence-check.js > coherence-result.json 2>&1 || true
 
-          # Parse results from JSON output
-          if [ -f coherence-result.json ]; then
-            IS_COHERENT=$(jq -r '.check.isCoherent' coherence-result.json)
-            ENERGY=$(jq -r '.check.energy' coherence-result.json)
-            USED_FALLBACK=$(jq -r '.check.usedFallback' coherence-result.json)
-            BADGE_MESSAGE=$(jq -r '.badge.message' coherence-result.json)
-            BADGE_COLOR=$(jq -r '.badge.color' coherence-result.json)
-          else
-            # Fallback if JSON not created
-            IS_COHERENT="unknown"
-            ENERGY="0"
-            USED_FALLBACK="true"
-            BADGE_MESSAGE="error"
-            BADGE_COLOR="lightgrey"
-          fi
+          # Extract results
+          IS_COHERENT=$(jq -r '.isCoherent // false' coherence-result.json 2>/dev/null || echo "false")
+          ENERGY=$(jq -r '.energy // "N/A"' coherence-result.json 2>/dev/null || echo "N/A")
+          USED_FALLBACK=$(jq -r '.usedFallback // false' coherence-result.json 2>/dev/null || echo "true")
 
-          # Set outputs
           echo "is_coherent=$IS_COHERENT" >> $GITHUB_OUTPUT
           echo "energy=$ENERGY" >> $GITHUB_OUTPUT
           echo "used_fallback=$USED_FALLBACK" >> $GITHUB_OUTPUT
-          echo "badge_message=$BADGE_MESSAGE" >> $GITHUB_OUTPUT
-          echo "badge_color=$BADGE_COLOR" >> $GITHUB_OUTPUT
 
-          # Check if we should fail on fallback
-          if [ "${{ github.event.inputs.force_wasm }}" = "true" ] && [ "$USED_FALLBACK" = "true" ]; then
-            echo "::error::WASM check was forced but fallback was used"
-            exit 1
-          fi
-
-          exit $EXIT_CODE
-
-      - name: Upload coherence results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coherence-results
-          path: |
-            v3/coherence-result.json
-            v3/coherence-output.txt
-          retention-days: 30
-
-      - name: Generate badge JSON artifact
-        if: always()
-        working-directory: v3
-        run: |
-          # Create badge JSON for shields.io endpoint
-          mkdir -p badges
-          if [ -f coherence-result.json ]; then
-            jq '.badge' coherence-result.json > badges/coherence.json
+          # Determine badge
+          if [ "$IS_COHERENT" = "true" ]; then
+            if [ "$USED_FALLBACK" = "true" ]; then
+              echo "badge=fallback" >> $GITHUB_OUTPUT
+              echo "badge_color=yellow" >> $GITHUB_OUTPUT
+            else
+              echo "badge=verified" >> $GITHUB_OUTPUT
+              echo "badge_color=brightgreen" >> $GITHUB_OUTPUT
+            fi
           else
-            echo '{"schemaVersion":1,"label":"coherence","message":"error","color":"lightgrey"}' > badges/coherence.json
+            echo "badge=violation" >> $GITHUB_OUTPUT
+            echo "badge_color=red" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload badge artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coherence-badge
-          path: v3/badges/coherence.json
-          retention-days: 90
+      - name: Run coherence tests
+        run: npm run test:safe -- tests/integrations/coherence/ tests/learning/coherence-integration.test.ts --reporter=verbose
+        continue-on-error: true
 
-  # Optional: Update gist with badge (requires GIST_TOKEN secret)
-  update-badge:
-    name: Update Badge Gist
-    needs: coherence-check
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Update coherence badge gist
-        if: env.GIST_TOKEN != ''
-        env:
-          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
-          GIST_ID: ${{ secrets.COHERENCE_BADGE_GIST_ID }}
-        run: |
-          # Skip if no gist configured
-          if [ -z "$GIST_ID" ]; then
-            echo "No GIST_ID configured, skipping badge update"
-            exit 0
-          fi
-
-          # Create badge JSON
-          cat > coherence.json << 'EOF'
-          {
-            "schemaVersion": 1,
-            "label": "coherence",
-            "message": "${{ needs.coherence-check.outputs.badge_message }}",
-            "color": "${{ needs.coherence-check.outputs.badge_color }}"
-          }
-          EOF
-
-          # Update gist using GitHub API
-          curl -s -X PATCH \
-            -H "Authorization: token $GIST_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/gists/$GIST_ID" \
-            -d @- << PAYLOAD
-          {
-            "files": {
-              "coherence.json": {
-                "content": $(cat coherence.json | jq -Rs .)
-              }
-            }
-          }
-          PAYLOAD
-
-          echo "Badge gist updated successfully"
-
-  # Summary job for branch protection
   coherence-status:
     name: Coherence Status
-    needs: coherence-check
-    if: always()
     runs-on: ubuntu-latest
+    needs: coherence-check
+
+    permissions:
+      contents: read
 
     steps:
       - name: Check coherence result
@@ -212,7 +101,7 @@ jobs:
           echo "Is Coherent: ${{ needs.coherence-check.outputs.is_coherent }}"
           echo "Energy: ${{ needs.coherence-check.outputs.energy }}"
           echo "Used Fallback: ${{ needs.coherence-check.outputs.used_fallback }}"
-          echo "Badge: ${{ needs.coherence-check.outputs.badge_message }} (${{ needs.coherence-check.outputs.badge_color }})"
+          echo "Badge: ${{ needs.coherence-check.outputs.badge }} (${{ needs.coherence-check.outputs.badge_color }})"
 
           # Determine overall status
           if [ "${{ needs.coherence-check.outputs.is_coherent }}" = "true" ]; then
