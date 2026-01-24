@@ -70,7 +70,7 @@ export class ModelRouterBridge {
       try {
         const { execSync } = await import('child_process');
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks model-route --task "${this.escapeArg(task)}" 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks model-route --task ${this.escapeArg(task)} 2>/dev/null`,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
 
@@ -111,7 +111,7 @@ export class ModelRouterBridge {
       try {
         const { execSync } = await import('child_process');
         execSync(
-          `npx @claude-flow/cli@latest hooks model-outcome --task "${this.escapeArg(outcome.task)}" --model ${outcome.model} --outcome ${outcome.outcome} 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks model-outcome --task ${this.escapeArg(outcome.task)} --model ${outcome.model} --outcome ${outcome.outcome} 2>/dev/null`,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
       } catch {

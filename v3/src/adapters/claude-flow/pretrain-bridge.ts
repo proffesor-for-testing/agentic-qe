@@ -67,7 +67,7 @@ export class PretrainBridge {
       try {
         const { execSync } = await import('child_process');
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks pretrain --path "${targetPath}" --depth ${depth} 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks pretrain --path ${this.escapeArg(targetPath)} --depth ${depth} 2>/dev/null`,
           { encoding: 'utf-8', timeout: 120000, cwd: this.options.projectRoot }
         );
 
@@ -140,7 +140,7 @@ export class PretrainBridge {
       try {
         const { execSync } = await import('child_process');
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks transfer --source-path "${sourcePath}" --min-confidence ${minConfidence} 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks transfer --source-path ${this.escapeArg(sourcePath)} --min-confidence ${minConfidence} 2>/dev/null`,
           { encoding: 'utf-8', timeout: 60000, cwd: this.options.projectRoot }
         );
 
@@ -164,6 +164,20 @@ export class PretrainBridge {
    */
   isClaudeFlowAvailable(): boolean {
     return this.claudeFlowAvailable;
+  }
+
+  /**
+   * Escape shell argument using $'...' syntax for complete safety
+   * This ANSI-C quoting handles ALL special characters including backslashes
+   * CodeQL: js/incomplete-sanitization - Fixed by escaping backslashes AND quotes
+   */
+  private escapeArg(arg: string): string {
+    // Escape backslashes first, then single quotes, using ANSI-C quoting
+    // $'...' syntax interprets escape sequences like \\ and \'
+    const escaped = arg
+      .replace(/\\/g, '\\\\')  // Escape backslashes first
+      .replace(/'/g, "\\'");   // Then escape single quotes
+    return "$'" + escaped + "'";
   }
 
   /**
