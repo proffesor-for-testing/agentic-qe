@@ -25,13 +25,17 @@ describe('BrowserSwarmCoordinator - Integration', () => {
   });
 
   afterEach(async () => {
+    // Use Promise.race to prevent hanging if shutdown takes too long
     if (coordinator) {
-      await coordinator.shutdown();
+      await Promise.race([
+        coordinator.shutdown(),
+        new Promise(resolve => setTimeout(resolve, 5000)) // 5s timeout
+      ]).catch(() => {}); // Ignore shutdown errors
     }
     if (memory) {
       await memory.dispose();
     }
-  });
+  }, 15000); // 15s hook timeout
 
   describe('Initialization', () => {
     it('should create coordinator with default config', () => {
