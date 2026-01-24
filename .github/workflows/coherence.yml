@@ -32,6 +32,14 @@ jobs:
     permissions:
       contents: read
 
+    # Export outputs for dependent jobs
+    outputs:
+      is_coherent: ${{ steps.coherence.outputs.is_coherent }}
+      energy: ${{ steps.coherence.outputs.energy }}
+      used_fallback: ${{ steps.coherence.outputs.used_fallback }}
+      badge: ${{ steps.coherence.outputs.badge }}
+      badge_color: ${{ steps.coherence.outputs.badge_color }}
+
     defaults:
       run:
         working-directory: v3
