@@ -58,6 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fresh install UX now shows 'idle' status instead of alarming warnings
 - ESM/CommonJS interop issue with hnswlib-node resolved
 - Visual-accessibility workflow actions properly registered with orchestrator
+- **DevPod/Codespaces OOM crash** - Test suite now uses forks pool with process isolation
+  - Prevents HNSW native module segfaults from concurrent access
+  - Limits to 2 parallel workers (was unlimited)
+  - Added `npm run test:safe` script with 1.5GB heap limit
 
 ### Performance
 
