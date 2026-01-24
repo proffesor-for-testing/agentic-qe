@@ -2102,6 +2102,10 @@ program.addCommand(createTokenUsageCommand());
 import { createLLMRouterCommand } from './commands/llm-router.js';
 program.addCommand(createLLMRouterCommand());
 
+// aqe sync (Cloud Sync)
+import { createSyncCommands } from './commands/sync.js';
+program.addCommand(createSyncCommands());
+
 // aqe quality
 program
   .command('quality')
