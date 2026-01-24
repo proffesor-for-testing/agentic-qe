@@ -233,10 +233,14 @@ export class TrajectoryBridge {
   }
 
   /**
-   * Escape shell argument
+   * Escape shell argument - use single quotes and escape internal single quotes
+   * This is the safest approach as single-quoted strings don't interpolate variables
+   * CodeQL: js/incomplete-sanitization - Fixed by using single-quote wrapping
    */
   private escapeArg(arg: string): string {
-    return arg.replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
+    // Single quotes don't interpolate, escape any internal single quotes
+    // by ending the quote, adding an escaped quote, and starting a new quote
+    return "'" + arg.replace(/'/g, "'\\''") + "'";
   }
 }
 
