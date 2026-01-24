@@ -51,6 +51,25 @@ export {
 } from './services/pattern-matcher';
 
 // ============================================================================
+// Coherence Gate (ADR-052)
+// ============================================================================
+
+export {
+  TestGenerationCoherenceGate,
+  createTestGenerationCoherenceGate,
+  CoherenceError,
+  DEFAULT_COHERENCE_GATE_CONFIG,
+  type Requirement,
+  type TestSpecification,
+  type EnrichmentRecommendation,
+  type RequirementCoherenceResult,
+  type RequirementContradiction,
+  type ContradictionSeverity,
+  type TestGenerationCoherenceGateConfig,
+  type IEmbeddingService,
+} from './coherence-gate';
+
+// ============================================================================
 // Interfaces (Types Only)
 // ============================================================================
 

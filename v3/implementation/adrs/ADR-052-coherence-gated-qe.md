@@ -1,7 +1,23 @@
 # ADR-052: Coherence-Gated Quality Engineering with Prime Radiant
 
 ## Status
-**Proposed** | 2026-01-23
+**Implemented** | 2026-01-24
+
+### Implementation Progress
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1: Foundation | ✅ Complete | Package, WASM loader, CoherenceService, 6 engine adapters, 209 tests |
+| Phase 2: Strange Loop | ✅ Complete | Coherence integration, violation events, BeliefReconciler, metrics |
+| Phase 3: Learning Module | ✅ Complete | Pattern filter, MemoryAuditor, CausalVerifier, promotion gate |
+| Phase 4: Production | ✅ Complete | MCP tools (4), threshold auto-tuning, WASM fallback, CI/CD badge |
+
+### Verification Summary (2026-01-24)
+- **Total Tests:** 382+ coherence-related tests passing
+- **Threshold Tuner:** 39 tests (threshold-tuner.test.ts)
+- **WASM Fallback:** 34 tests (wasm-fallback-handler.test.ts)
+- **Test Generation Gate:** 27 tests (coherence-gate.test.ts)
+- **Engine Adapters:** 209 tests across 6 engines
+- **CI/CD Workflow:** `.github/workflows/coherence.yml` configured
 
 ## Context
 

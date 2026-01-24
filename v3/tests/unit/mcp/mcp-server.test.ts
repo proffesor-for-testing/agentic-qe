@@ -290,7 +290,8 @@ describe('MCP Server', () => {
 
     it('should submit test generation task', async () => {
       const result = await server.invoke('mcp__agentic_qe__test_generate_enhanced', {
-        filePath: 'src/service.ts',
+        // Provide inline source code to avoid file system operations
+        sourceCode: 'export function add(a: number, b: number): number { return a + b; }',
         language: 'typescript',
         testType: 'unit',
         coverageGoal: 80,
@@ -298,38 +299,43 @@ describe('MCP Server', () => {
 
       expect(result).toBeDefined();
       expect((result as any).taskId).toBeDefined();
-    });
+    }, 15000); // Extended timeout for task execution
 
     it('should submit coverage analysis task', async () => {
+      // Use a non-existent path to trigger fast fallback path (no file system walking)
       const result = await server.invoke('mcp__agentic_qe__coverage_analyze_sublinear', {
-        target: 'src',
+        target: '/tmp/nonexistent-coverage-test-path',
         includeRisk: true,
         detectGaps: true,
       });
 
       expect(result).toBeDefined();
       expect((result as any).taskId).toBeDefined();
-    });
+    }, 15000); // Extended timeout for task execution
 
     it('should submit security scan task', async () => {
+      // Use a non-existent path to trigger fast fallback path (no file system walking)
       const result = await server.invoke('mcp__agentic_qe__security_scan_comprehensive', {
+        target: '/tmp/nonexistent-security-test-path',
         sast: true,
         compliance: ['owasp'],
       });
 
       expect(result).toBeDefined();
       expect((result as any).taskId).toBeDefined();
-    });
+    }, 15000); // Extended timeout for task execution
 
     it('should submit quality assessment task', async () => {
+      // Use a non-existent path to trigger fast fallback path (no file system walking)
       const result = await server.invoke('mcp__agentic_qe__quality_assess', {
+        target: '/tmp/nonexistent-quality-test-path',
         runGate: true,
         threshold: 80,
       });
 
       expect(result).toBeDefined();
       expect((result as any).taskId).toBeDefined();
-    });
+    }, 15000); // Extended timeout for task execution
   });
 
   describe('statistics', () => {

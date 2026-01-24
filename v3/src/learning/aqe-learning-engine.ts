@@ -72,6 +72,12 @@ import {
   type ExperienceCaptureStats,
 } from './experience-capture.js';
 import { createPatternStore, type PatternStore } from './pattern-store.js';
+import {
+  wasmLoader,
+  createCoherenceService,
+  type CoherenceService,
+  type ICoherenceService,
+} from '../integrations/coherence/index.js';
 
 // ============================================================================
 // Types
@@ -174,6 +180,7 @@ export class AQELearningEngine {
   private claudeFlowBridge?: ClaudeFlowBridge;
   private experienceCapture?: ExperienceCaptureService;
   private patternStore?: PatternStore;
+  private coherenceService?: ICoherenceService;
   private initialized = false;
 
   // Task tracking
@@ -195,17 +202,32 @@ export class AQELearningEngine {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    // Initialize CoherenceService (optional - falls back to TypeScript implementation)
+    try {
+      this.coherenceService = await createCoherenceService(wasmLoader);
+      if (this.coherenceService.isInitialized()) {
+        console.log('[AQELearningEngine] CoherenceService initialized with WASM engines');
+      }
+    } catch (error) {
+      // WASM not available - coherence service will use fallback
+      console.log(
+        '[AQELearningEngine] CoherenceService WASM unavailable, using fallback:',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+
     // Initialize PatternStore (always available)
     this.patternStore = createPatternStore(this.memory, {
       promotionThreshold: this.config.promotionThreshold,
     });
     await this.patternStore.initialize();
 
-    // Initialize QEReasoningBank (always available)
+    // Initialize QEReasoningBank with CoherenceService for filtering
     this.reasoningBank = createQEReasoningBank(
       this.memory,
       this.eventBus,
-      this.config.reasoningBank
+      this.config.reasoningBank,
+      this.coherenceService // Pass coherence service for coherence-gated retrieval
     );
     await this.reasoningBank.initialize();
 

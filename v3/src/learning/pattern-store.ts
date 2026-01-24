@@ -942,8 +942,12 @@ export class PatternStore implements IPatternStore {
       lastUsedAt: now,
     };
 
-    // Check for promotion
-    if (shouldPromotePattern(updated) && updated.tier === 'short-term') {
+    // Check for promotion (ADR-052: shouldPromotePattern returns PromotionCheck object)
+    const promotionCheck = shouldPromotePattern(updated);
+    const shouldPromote = promotionCheck.meetsUsageCriteria &&
+                          promotionCheck.meetsQualityCriteria &&
+                          promotionCheck.meetsCoherenceCriteria;
+    if (shouldPromote && updated.tier === 'short-term') {
       await this.promote(id);
     } else {
       // Update in store (no namespace in options - key has prefix for isolation)
@@ -1089,8 +1093,12 @@ export class PatternStore implements IPatternStore {
     const toPromote: string[] = [];
 
     for (const pattern of this.patternCache.values()) {
-      // Check for promotion
-      if (shouldPromotePattern(pattern)) {
+      // Check for promotion (ADR-052: returns PromotionCheck object)
+      const promotionCheck = shouldPromotePattern(pattern);
+      const canPromote = promotionCheck.meetsUsageCriteria &&
+                         promotionCheck.meetsQualityCriteria &&
+                         promotionCheck.meetsCoherenceCriteria;
+      if (canPromote) {
         toPromote.push(pattern.id);
         continue;
       }

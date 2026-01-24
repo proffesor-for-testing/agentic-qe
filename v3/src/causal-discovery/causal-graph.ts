@@ -7,6 +7,7 @@
  * - Transitive closure (Floyd-Warshall)
  * - Path finding
  * - Strongly connected components (Tarjan's algorithm)
+ * - Optional causal verification using CausalEngine (ADR-052 Phase 3 A3.3)
  */
 
 import {
@@ -15,20 +16,28 @@ import {
   TestEventType,
 } from './types';
 
+// Optional integration with CausalVerifier
+import type { CausalVerifier } from '../learning/causal-verifier.js';
+
 /**
  * Implementation of the CausalGraph interface
  */
 export class CausalGraphImpl implements CausalGraph {
   private readonly edgeMap: Map<string, CausalEdge[]>;
   private readonly reverseEdgeMap: Map<string, CausalEdge[]>;
+  private causalVerifier?: CausalVerifier;
 
   constructor(
     public readonly nodes: TestEventType[],
-    public readonly edges: CausalEdge[]
+    public readonly edges: CausalEdge[],
+    causalVerifier?: CausalVerifier
   ) {
     // Build adjacency maps for efficient lookup
     this.edgeMap = new Map();
     this.reverseEdgeMap = new Map();
+
+    // Store optional causal verifier for rigorous verification
+    this.causalVerifier = causalVerifier;
 
     for (const node of nodes) {
       this.edgeMap.set(node, []);
@@ -446,5 +455,142 @@ export class CausalGraphImpl implements CausalGraph {
       hasCycles: this.hasCycles(),
       numComponents: this.stronglyConnectedComponents().length,
     };
+  }
+
+  // ==========================================================================
+  // Optional Causal Verification Integration (ADR-052 Phase 3 A3.3)
+  // ==========================================================================
+
+  /**
+   * Set a CausalVerifier for rigorous causal verification
+   *
+   * @param verifier - CausalVerifier instance
+   *
+   * @example
+   * ```typescript
+   * import { createCausalVerifier } from '../learning/causal-verifier';
+   * import { wasmLoader } from '../integrations/coherence/wasm-loader';
+   *
+   * const verifier = await createCausalVerifier(wasmLoader);
+   * graph.setCausalVerifier(verifier);
+   * ```
+   */
+  setCausalVerifier(verifier: CausalVerifier): void {
+    this.causalVerifier = verifier;
+  }
+
+  /**
+   * Verify an edge using the CausalEngine for rigorous causal analysis
+   *
+   * This method uses intervention-based causal inference to determine if
+   * an edge represents a true causal relationship or a spurious correlation.
+   *
+   * @param source - Source node
+   * @param target - Target node
+   * @param observations - Temporal observations of both events
+   * @returns Verification result, or null if no verifier is configured
+   *
+   * @example
+   * ```typescript
+   * const verification = await graph.verifyEdge(
+   *   'test_failed',
+   *   'build_failed',
+   *   {
+   *     sourceOccurrences: [1, 0, 1, 1, 0],
+   *     targetOccurrences: [0, 0, 1, 1, 0],
+   *   }
+   * );
+   *
+   * if (verification && verification.isSpurious) {
+   *   console.log('Spurious correlation detected!');
+   * }
+   * ```
+   */
+  async verifyEdge(
+    source: TestEventType,
+    target: TestEventType,
+    observations: {
+      sourceOccurrences: number[];
+      targetOccurrences: number[];
+      confounders?: Record<string, number[]>;
+    }
+  ): Promise<{ isSpurious: boolean; confidence: number; explanation: string } | null> {
+    if (!this.causalVerifier || !this.causalVerifier.isInitialized()) {
+      // No verifier configured - return null to indicate verification not available
+      return null;
+    }
+
+    const result = await this.causalVerifier.verifyCausalEdge(
+      source,
+      target,
+      observations
+    );
+
+    return {
+      isSpurious: result.isSpurious,
+      confidence: result.confidence,
+      explanation: result.explanation,
+    };
+  }
+
+  /**
+   * Filter edges by removing those identified as spurious correlations
+   *
+   * This creates a new graph with only verified causal edges.
+   * Requires a CausalVerifier to be configured.
+   *
+   * @param observations - Map of edge observations for verification
+   * @returns New graph with spurious edges removed
+   *
+   * @example
+   * ```typescript
+   * const observations = new Map();
+   * observations.set('test_failed->build_failed', {
+   *   sourceOccurrences: [1, 0, 1, 1, 0],
+   *   targetOccurrences: [0, 0, 1, 1, 0],
+   * });
+   *
+   * const verifiedGraph = await graph.filterSpuriousEdges(observations);
+   * ```
+   */
+  async filterSpuriousEdges(
+    observations: Map<string, {
+      sourceOccurrences: number[];
+      targetOccurrences: number[];
+      confounders?: Record<string, number[]>;
+    }>
+  ): Promise<CausalGraph> {
+    if (!this.causalVerifier || !this.causalVerifier.isInitialized()) {
+      // No verifier - return this graph unchanged
+      console.warn('[CausalGraph] No CausalVerifier configured. Returning unfiltered graph.');
+      return this;
+    }
+
+    const verifiedEdges: CausalEdge[] = [];
+
+    for (const edge of this.edges) {
+      const key = `${edge.source}->${edge.target}`;
+      const obs = observations.get(key);
+
+      if (!obs) {
+        // No observations for this edge - keep it (conservative)
+        verifiedEdges.push(edge);
+        continue;
+      }
+
+      const verification = await this.verifyEdge(edge.source, edge.target, obs);
+
+      if (!verification || !verification.isSpurious) {
+        // Either verification failed (keep edge) or edge is not spurious
+        verifiedEdges.push(edge);
+      } else {
+        console.log(
+          `[CausalGraph] Filtered spurious edge: ${edge.source} -> ${edge.target} ` +
+          `(confidence: ${verification.confidence.toFixed(2)})`
+        );
+      }
+    }
+
+    return new CausalGraphImpl([...this.nodes], verifiedEdges, this.causalVerifier);
   }
 }

@@ -595,9 +595,9 @@ describe('A11yAuditTool', () => {
     // The A11yAuditTool uses AccessibilityTesterService which falls back to
     // heuristic mode when browser tools are unavailable. In unit tests,
     // browser mode is not available, so heuristic analysis is used.
-    // Use a test URL that exercises the heuristic analysis without timeouts.
+    // Use a data URL for instant, deterministic offline testing.
     const result = await tool.invoke({
-      urls: ['https://example.com/test-page'],
+      urls: ['data:text/html,<html><head><title>Test</title></head><body><h1>Accessible Page</h1><p>Content</p></body></html>'],
     });
 
     // The tool should succeed with heuristic-based accessibility analysis
@@ -607,9 +607,9 @@ describe('A11yAuditTool', () => {
   }, 30000); // Allow 30s for heuristic analysis with memory backend initialization
 
   it('should support WCAG standard selection', async () => {
-    // Use heuristic mode URL for deterministic test
+    // Use data URL for instant, deterministic offline testing
     const result = await tool.invoke({
-      urls: ['https://example.com/accessible-page'],
+      urls: ['data:text/html,<html><head><title>WCAG Test</title></head><body><main><h1>Main Content</h1></main></body></html>'],
       standard: 'wcag21-aa',
     });
 

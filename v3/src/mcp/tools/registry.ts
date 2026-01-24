@@ -32,6 +32,7 @@ import {
   EmbeddingStoreTool,
   EmbeddingStatsTool,
 } from './embeddings';
+import { COHERENCE_TOOLS, COHERENCE_TOOL_NAMES } from './coherence';
 
 // ============================================================================
 // Tool Names (ADR-010 Naming Convention)
@@ -95,6 +96,9 @@ export const QE_TOOL_NAMES = {
   EMBEDDING_SEARCH: 'qe/embeddings/search',
   EMBEDDING_STORE: 'qe/embeddings/store',
   EMBEDDING_STATS: 'qe/embeddings/stats',
+
+  // Coherence Tools (ADR-052)
+  ...COHERENCE_TOOL_NAMES,
 } as const;
 
 // ============================================================================
@@ -162,6 +166,9 @@ export const QE_TOOLS: MCPToolBase[] = [
   new EmbeddingSearchTool(),
   new EmbeddingStoreTool(),
   new EmbeddingStatsTool(),
+
+  // Coherence Tools (ADR-052)
+  ...COHERENCE_TOOLS,
 ];
 
 // ============================================================================

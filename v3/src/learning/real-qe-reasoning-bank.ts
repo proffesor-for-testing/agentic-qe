@@ -40,6 +40,8 @@ import {
   detectQEDomains,
   mapQEDomainToAQE,
   QE_DOMAIN_LIST,
+  PromotionCheck,
+  shouldPromotePattern,
 } from './qe-patterns.js';
 import {
   QEGuidance,
@@ -85,6 +87,9 @@ export interface RealQEReasoningBankConfig {
     performance: number;
     capabilities: number;
   };
+
+  /** Coherence energy threshold for pattern promotion (ADR-052) */
+  coherenceThreshold?: number;
 }
 
 export const DEFAULT_REAL_CONFIG: RealQEReasoningBankConfig = {
@@ -113,6 +118,7 @@ export const DEFAULT_REAL_CONFIG: RealQEReasoningBankConfig = {
     performance: 0.4,
     capabilities: 0.3,
   },
+  coherenceThreshold: 0.4, // ADR-052: Coherence gate threshold
 };
 
 // ============================================================================
@@ -148,6 +154,17 @@ export interface LearningOutcome {
     executionTimeMs?: number;
   };
   feedback?: string;
+}
+
+/**
+ * Pattern promotion blocked event (ADR-052)
+ */
+export interface PromotionBlockedEvent {
+  patternId: string;
+  patternName: string;
+  reason: 'coherence_violation' | 'insufficient_usage' | 'low_quality';
+  energy?: number;
+  existingPatternConflicts?: string[];
 }
 
 // ============================================================================
@@ -265,7 +282,10 @@ export class RealQEReasoningBank {
     },
   };
 
-  constructor(config: Partial<RealQEReasoningBankConfig> = {}) {
+  constructor(
+    config: Partial<RealQEReasoningBankConfig> = {},
+    private readonly coherenceService?: import('../integrations/coherence/coherence-service.js').ICoherenceService
+  ) {
     this.qeConfig = { ...DEFAULT_REAL_CONFIG, ...config };
     this.sqliteStore = createSQLitePatternStore(this.qeConfig.sqlite);
   }
@@ -656,9 +676,9 @@ export class RealQEReasoningBank {
         this.stats.successfulOutcomes++;
       }
 
-      // Check if pattern should be promoted
+      // Check if pattern should be promoted (with coherence gate)
       const pattern = this.sqliteStore.getPattern(outcome.patternId);
-      if (pattern && this.shouldPromote(pattern)) {
+      if (pattern && await this.checkPatternPromotionWithCoherence(pattern)) {
         this.sqliteStore.promotePattern(outcome.patternId);
         console.log(`[RealQEReasoningBank] Pattern promoted to long-term: ${pattern.name}`);
       }
@@ -667,6 +687,71 @@ export class RealQEReasoningBank {
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }
+  }
+
+  /**
+   * Check if a pattern should be promoted with coherence gate (ADR-052)
+   *
+   * This method implements a two-stage promotion check:
+   * 1. Basic criteria (usage and quality) - cheap to check
+   * 2. Coherence criteria (only if basic passes) - expensive, requires coherence service
+   *
+   * @param pattern - Pattern to evaluate for promotion
+   * @returns true if pattern should be promoted, false otherwise
+   */
+  private async checkPatternPromotionWithCoherence(pattern: QEPattern): Promise<boolean> {
+    // 1. Check basic criteria first (cheap)
+    const basicCheck = shouldPromotePattern(pattern);
+    if (!basicCheck.meetsUsageCriteria || !basicCheck.meetsQualityCriteria) {
+      return false;
+    }
+
+    // 2. Check coherence with existing long-term patterns (expensive, only if basic passes)
+    if (this.coherenceService && this.coherenceService.isInitialized()) {
+      const longTermPatterns = await this.getLongTermPatterns();
+
+      // Create coherence check with candidate pattern added to long-term set
+      const allPatterns = [...longTermPatterns, pattern];
+      const coherenceNodes = allPatterns.map(p => ({
+        id: p.id,
+        embedding: p.embedding || [],
+        weight: p.confidence,
+        metadata: { name: p.name, domain: p.qeDomain },
+      }));
+
+      const coherenceResult = await this.coherenceService.checkCoherence(coherenceNodes);
+
+      if (coherenceResult.energy >= (this.qeConfig.coherenceThreshold || 0.4)) {
+        // Promotion blocked due to coherence violation
+        // Note: RealQEReasoningBank doesn't have eventBus, so we just log
+        console.log(
+          `[RealQEReasoningBank] Pattern promotion blocked due to coherence violation: ` +
+          `${pattern.name} (energy: ${coherenceResult.energy.toFixed(3)})`
+        );
+
+        if (coherenceResult.contradictions && coherenceResult.contradictions.length > 0) {
+          console.log(
+            `[RealQEReasoningBank] Conflicts with existing patterns: ` +
+            coherenceResult.contradictions.map(c => c.nodeIds).flat().join(', ')
+          );
+        }
+
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Get all long-term patterns for coherence checking
+   *
+   * @returns Array of long-term patterns
+   */
+  private async getLongTermPatterns(): Promise<QEPattern[]> {
+    // Use SQLite getPatterns method with tier filter
+    const patterns = this.sqliteStore.getPatterns({ limit: 1000 });
+    return patterns.filter(p => p.tier === 'long-term');
   }
 
   /**
@@ -1066,7 +1151,8 @@ interface HierarchicalNSW {
  * Create a Real QE ReasoningBank
  */
 export function createRealQEReasoningBank(
-  config: Partial<RealQEReasoningBankConfig> = {}
+  config: Partial<RealQEReasoningBankConfig> = {},
+  coherenceService?: import('../integrations/coherence/coherence-service.js').ICoherenceService
 ): RealQEReasoningBank {
-  return new RealQEReasoningBank(config);
+  return new RealQEReasoningBank(config, coherenceService);
 }

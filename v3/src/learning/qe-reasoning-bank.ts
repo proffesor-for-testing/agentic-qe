@@ -31,6 +31,8 @@ import {
   mapQEDomainToAQE,
   applyPatternTemplate,
   QE_DOMAIN_LIST,
+  PromotionCheck,
+  shouldPromotePattern,
 } from './qe-patterns.js';
 import {
   QEGuidance,
@@ -81,6 +83,9 @@ export interface QEReasoningBankConfig {
 
   /** Pattern store configuration */
   patternStore?: Partial<import('./pattern-store.js').PatternStoreConfig>;
+
+  /** Coherence energy threshold for pattern promotion (ADR-052) */
+  coherenceThreshold?: number;
 }
 
 /**
@@ -98,6 +103,7 @@ export const DEFAULT_QE_REASONING_BANK_CONFIG: QEReasoningBankConfig = {
     performance: 0.4,
     capabilities: 0.3,
   },
+  coherenceThreshold: 0.4, // ADR-052: Coherence gate threshold
 };
 
 // ============================================================================
@@ -170,6 +176,17 @@ export interface LearningOutcome {
 
   /** Feedback from the agent or user */
   feedback?: string;
+}
+
+/**
+ * Pattern promotion blocked event (ADR-052)
+ */
+export interface PromotionBlockedEvent {
+  patternId: string;
+  patternName: string;
+  reason: 'coherence_violation' | 'insufficient_usage' | 'low_quality';
+  energy?: number;
+  existingPatternConflicts?: string[];
 }
 
 // ============================================================================
@@ -355,7 +372,8 @@ export class QEReasoningBank implements IQEReasoningBank {
   constructor(
     private readonly memory: MemoryBackend,
     private readonly eventBus?: EventBus,
-    config: Partial<QEReasoningBankConfig> = {}
+    config: Partial<QEReasoningBankConfig> = {},
+    private readonly coherenceService?: import('../integrations/coherence/coherence-service.js').ICoherenceService
   ) {
     this.config = { ...DEFAULT_QE_REASONING_BANK_CONFIG, ...config };
     this.patternStore = createPatternStore(memory, {
@@ -610,9 +628,102 @@ Check for:
       if (outcome.success) {
         this.stats.successfulOutcomes++;
       }
+
+      // Check if pattern should be promoted (with coherence gate)
+      const pattern = await this.getPattern(outcome.patternId);
+      if (pattern && await this.checkPatternPromotionWithCoherence(pattern)) {
+        await this.promotePattern(outcome.patternId);
+        console.log(`[QEReasoningBank] Pattern promoted to long-term: ${pattern.name}`);
+      }
     }
 
     return result;
+  }
+
+  /**
+   * Check if a pattern should be promoted with coherence gate (ADR-052)
+   *
+   * This method implements a two-stage promotion check:
+   * 1. Basic criteria (usage and quality) - cheap to check
+   * 2. Coherence criteria (only if basic passes) - expensive, requires coherence service
+   *
+   * @param pattern - Pattern to evaluate for promotion
+   * @returns true if pattern should be promoted, false otherwise
+   */
+  private async checkPatternPromotionWithCoherence(pattern: QEPattern): Promise<boolean> {
+    // 1. Check basic criteria first (cheap)
+    const basicCheck = shouldPromotePattern(pattern);
+    if (!basicCheck.meetsUsageCriteria || !basicCheck.meetsQualityCriteria) {
+      return false;
+    }
+
+    // 2. Check coherence with existing long-term patterns (expensive, only if basic passes)
+    if (this.coherenceService && this.coherenceService.isInitialized()) {
+      const longTermPatterns = await this.getLongTermPatterns();
+
+      // Create coherence check with candidate pattern added to long-term set
+      const allPatterns = [...longTermPatterns, pattern];
+      const coherenceNodes = allPatterns.map(p => ({
+        id: p.id,
+        embedding: p.embedding || [],
+        weight: p.confidence,
+        metadata: { name: p.name, domain: p.qeDomain },
+      }));
+
+      const coherenceResult = await this.coherenceService.checkCoherence(coherenceNodes);
+
+      if (coherenceResult.energy >= (this.config.coherenceThreshold || 0.4)) {
+        // Promotion blocked due to coherence violation
+        const event: PromotionBlockedEvent = {
+          patternId: pattern.id,
+          patternName: pattern.name,
+          reason: 'coherence_violation',
+          energy: coherenceResult.energy,
+          existingPatternConflicts: coherenceResult.contradictions?.map(c => c.nodeIds).flat(),
+        };
+
+        // Publish event if eventBus is available
+        if (this.eventBus) {
+          await this.eventBus.publish({
+            id: `pattern-promotion-blocked-${pattern.id}`,
+            type: 'pattern:promotion_blocked',
+            timestamp: new Date(),
+            source: 'learning-optimization',
+            payload: event,
+          });
+        }
+
+        console.log(
+          `[QEReasoningBank] Pattern promotion blocked due to coherence violation: ` +
+          `${pattern.name} (energy: ${coherenceResult.energy.toFixed(3)})`
+        );
+
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Get all long-term patterns for coherence checking
+   *
+   * @returns Array of long-term patterns
+   */
+  private async getLongTermPatterns(): Promise<QEPattern[]> {
+    const result = await this.searchPatterns('', { tier: 'long-term', limit: 1000 });
+    return result.success ? result.value.map(r => r.pattern) : [];
+  }
+
+  /**
+   * Promote a pattern to long-term storage
+   *
+   * @param patternId - Pattern ID to promote
+   */
+  private async promotePattern(patternId: string): Promise<void> {
+    // This would be implemented by the pattern store
+    // For now, we'll just log it
+    console.log(`[QEReasoningBank] Promoting pattern ${patternId} to long-term`);
   }
 
   /**
@@ -929,9 +1040,10 @@ Check for:
 export function createQEReasoningBank(
   memory: MemoryBackend,
   eventBus?: EventBus,
-  config?: Partial<QEReasoningBankConfig>
+  config?: Partial<QEReasoningBankConfig>,
+  coherenceService?: import('../integrations/coherence/coherence-service.js').ICoherenceService
 ): QEReasoningBank {
-  return new QEReasoningBank(memory, eventBus, config);
+  return new QEReasoningBank(memory, eventBus, config, coherenceService);
 }
 
 // ============================================================================

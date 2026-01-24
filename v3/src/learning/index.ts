@@ -374,3 +374,36 @@ export type {
   ExperienceCaptureStats,
   PatternExtractionResult,
 } from './experience-capture.js';
+
+// ============================================================================
+// Causal Verifier (ADR-052 Phase 3 Action A3.3)
+// ============================================================================
+
+export {
+  CausalVerifier,
+  createCausalVerifier,
+  createUninitializedCausalVerifier,
+} from './causal-verifier.js';
+
+export type {
+  CausalDirection,
+  CausalVerificationResult,
+  CausalVerificationOptions,
+} from './causal-verifier.js';
+
+// ============================================================================
+// Memory Coherence Auditor (ADR-052 Phase 3 Action A3.2)
+// ============================================================================
+
+export {
+  MemoryCoherenceAuditor,
+  createMemoryAuditor,
+  DEFAULT_AUDITOR_CONFIG,
+} from './memory-auditor.js';
+
+export type {
+  MemoryAuditResult,
+  PatternHotspot,
+  AuditRecommendation,
+  MemoryAuditorConfig,
+} from './memory-auditor.js';
