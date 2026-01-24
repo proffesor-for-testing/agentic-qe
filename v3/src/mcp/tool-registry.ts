@@ -1,6 +1,8 @@
 /**
  * Agentic QE v3 - MCP Tool Registry
  * Manages tool registration, lazy loading, and dispatch
+ *
+ * Security: Implements SEC-001 fix with input validation and sanitization
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -11,7 +13,158 @@ import {
   ToolResult,
   ToolCategory,
   ToolResultMetadata,
+  ToolParameter,
 } from './types';
+import { sanitizeInput } from './security/cve-prevention';
+
+// ============================================================================
+// Security: Input Validation (SEC-001 Fix)
+// ============================================================================
+
+/**
+ * Valid tool name pattern: alphanumeric, underscores, hyphens, colons (for namespacing)
+ * Examples: "fleet_init", "agent-spawn", "mcp:test_generate"
+ */
+const VALID_TOOL_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_:-]{0,127}$/;
+
+/**
+ * Maximum parameter value length to prevent memory exhaustion
+ */
+const MAX_PARAM_STRING_LENGTH = 1_000_000; // 1MB
+
+/**
+ * Validate tool name format
+ */
+function validateToolName(name: string): { valid: boolean; error?: string } {
+  if (typeof name !== 'string') {
+    return { valid: false, error: 'Tool name must be a string' };
+  }
+  if (name.length === 0) {
+    return { valid: false, error: 'Tool name cannot be empty' };
+  }
+  if (name.length > 128) {
+    return { valid: false, error: 'Tool name exceeds maximum length (128)' };
+  }
+  if (!VALID_TOOL_NAME_PATTERN.test(name)) {
+    return {
+      valid: false,
+      error: 'Tool name contains invalid characters. Use only alphanumeric, underscore, hyphen, or colon',
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate a parameter value against its schema definition
+ */
+function validateParamValue(
+  value: unknown,
+  param: ToolParameter
+): { valid: boolean; error?: string } {
+  // Check required
+  if (value === undefined || value === null) {
+    if (param.required) {
+      return { valid: false, error: `Required parameter '${param.name}' is missing` };
+    }
+    return { valid: true };
+  }
+
+  // Type validation
+  switch (param.type) {
+    case 'string':
+      if (typeof value !== 'string') {
+        return { valid: false, error: `Parameter '${param.name}' must be a string` };
+      }
+      if (value.length > MAX_PARAM_STRING_LENGTH) {
+        return { valid: false, error: `Parameter '${param.name}' exceeds maximum length` };
+      }
+      break;
+    case 'number':
+      if (typeof value !== 'number' || isNaN(value)) {
+        return { valid: false, error: `Parameter '${param.name}' must be a number` };
+      }
+      break;
+    case 'boolean':
+      if (typeof value !== 'boolean') {
+        return { valid: false, error: `Parameter '${param.name}' must be a boolean` };
+      }
+      break;
+    case 'object':
+      if (typeof value !== 'object' || Array.isArray(value)) {
+        return { valid: false, error: `Parameter '${param.name}' must be an object` };
+      }
+      break;
+    case 'array':
+      if (!Array.isArray(value)) {
+        return { valid: false, error: `Parameter '${param.name}' must be an array` };
+      }
+      break;
+  }
+
+  // Enum validation
+  if (param.enum && param.enum.length > 0) {
+    if (!param.enum.includes(value as string)) {
+      return {
+        valid: false,
+        error: `Parameter '${param.name}' must be one of: ${param.enum.join(', ')}`,
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate all parameters against tool definition
+ */
+function validateParams(
+  params: Record<string, unknown>,
+  definition: ToolDefinition
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  // Check for unknown parameters (defense against injection)
+  const knownParams = new Set(definition.parameters.map((p) => p.name));
+  for (const key of Object.keys(params)) {
+    if (!knownParams.has(key)) {
+      errors.push(`Unknown parameter: '${key}'`);
+    }
+  }
+
+  // Validate each defined parameter
+  for (const param of definition.parameters) {
+    const result = validateParamValue(params[param.name], param);
+    if (!result.valid && result.error) {
+      errors.push(result.error);
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Sanitize string parameters to prevent injection attacks
+ */
+function sanitizeParams<T extends Record<string, unknown>>(params: T): T {
+  const sanitized = { ...params } as Record<string, unknown>;
+
+  for (const [key, value] of Object.entries(sanitized)) {
+    if (typeof value === 'string') {
+      // Apply sanitization from security module
+      sanitized[key] = sanitizeInput(value);
+    } else if (Array.isArray(value)) {
+      // Sanitize string elements in arrays
+      sanitized[key] = value.map((item) =>
+        typeof item === 'string' ? sanitizeInput(item) : item
+      );
+    } else if (typeof value === 'object' && value !== null) {
+      // Recursively sanitize nested objects
+      sanitized[key] = sanitizeParams(value as Record<string, unknown>);
+    }
+  }
+
+  return sanitized as T;
+}
 
 // ============================================================================
 // Types
@@ -230,7 +383,7 @@ export class ToolRegistry {
   }
 
   /**
-   * Invoke a tool
+   * Invoke a tool with input validation and sanitization (SEC-001 fix)
    */
   async invoke<TParams extends Record<string, unknown> = Record<string, unknown>, TResult = unknown>(
     name: string,
@@ -238,6 +391,17 @@ export class ToolRegistry {
   ): Promise<ToolResult<TResult>> {
     const startTime = Date.now();
     const requestId = uuidv4();
+
+    // SEC-001 FIX: Validate tool name format
+    const nameValidation = validateToolName(name);
+    if (!nameValidation.valid) {
+      this.stats.errors++;
+      return {
+        success: false,
+        error: `Invalid tool name: ${nameValidation.error}`,
+        metadata: this.createMetadata(startTime, requestId),
+      };
+    }
 
     const tool = this.tools.get(name);
     if (!tool) {
@@ -249,6 +413,20 @@ export class ToolRegistry {
       };
     }
 
+    // SEC-001 FIX: Validate parameters against tool schema
+    const paramValidation = validateParams(params, tool.definition);
+    if (!paramValidation.valid) {
+      this.stats.errors++;
+      return {
+        success: false,
+        error: `Parameter validation failed: ${paramValidation.errors.join('; ')}`,
+        metadata: this.createMetadata(startTime, requestId, tool.definition.domain),
+      };
+    }
+
+    // SEC-001 FIX: Sanitize string parameters
+    const sanitizedParams = sanitizeParams(params);
+
     // Mark as loaded on first use
     if (!tool.loaded) {
       tool.loaded = true;
@@ -259,7 +437,7 @@ export class ToolRegistry {
     this.stats.invocations++;
 
     try {
-      const result = await tool.handler(params);
+      const result = await tool.handler(sanitizedParams);
       return {
         ...result,
         metadata: {
