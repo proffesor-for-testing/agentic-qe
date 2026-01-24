@@ -563,7 +563,9 @@ describe('MinCutHealthMonitor', () => {
       monitor = createMonitorWithConfig();
       const health = monitor.getHealth();
 
-      expect(health.status).toBe('critical'); // 0 is below any threshold
+      // Issue #205 fix: Empty graph should be 'idle', not 'critical'
+      // This is expected for fresh installs with no agents
+      expect(health.status).toBe('idle');
       expect(health.minCutValue).toBe(0);
       expect(health.weakVertexCount).toBe(0);
     });

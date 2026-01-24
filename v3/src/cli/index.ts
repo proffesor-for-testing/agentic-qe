@@ -141,6 +141,9 @@ function getStatusColor(status: string): string {
     case 'healthy':
     case 'completed':
       return chalk.green(status);
+    case 'idle':
+      // Issue #205 fix: 'idle' is normal - show in cyan (neutral/ready)
+      return chalk.cyan(status);
     case 'degraded':
     case 'running':
       return chalk.yellow(status);
@@ -667,18 +670,25 @@ program
         console.log(`  Overall: ${getStatusColor(health.status)}`);
         console.log(`  Last Check: ${health.lastHealthCheck.toISOString()}`);
 
-        // Summary by status
-        let healthy = 0, degraded = 0, unhealthy = 0;
+        // Issue #205 fix: Summary by status including 'idle'
+        let healthy = 0, idle = 0, degraded = 0, unhealthy = 0;
         for (const [, domainHealth] of health.domainHealth) {
           if (domainHealth.status === 'healthy') healthy++;
+          else if (domainHealth.status === 'idle') idle++;
           else if (domainHealth.status === 'degraded') degraded++;
           else unhealthy++;
         }
 
         console.log(chalk.blue('\n📦 Domains:'));
         console.log(`  ${chalk.green('●')} Healthy: ${healthy}`);
+        console.log(`  ${chalk.cyan('●')} Idle (ready): ${idle}`);
         console.log(`  ${chalk.yellow('●')} Degraded: ${degraded}`);
         console.log(`  ${chalk.red('●')} Unhealthy: ${unhealthy}`);
+
+        // Issue #205 fix: Add helpful tip for fresh installs
+        if (idle > 0 && healthy === 0 && degraded === 0 && unhealthy === 0) {
+          console.log(chalk.gray('\n  💡 Tip: Domains are idle (ready). Run a task to spawn agents.'));
+        }
       }
 
       console.log('');

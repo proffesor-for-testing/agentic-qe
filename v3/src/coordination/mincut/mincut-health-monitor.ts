@@ -103,19 +103,35 @@ export class MinCutHealthMonitor {
   // ==========================================================================
 
   /**
+   * Issue #205 fix: Check if topology is empty/fresh (no agents spawned yet)
+   * An empty topology is normal for a fresh install - not a critical issue
+   */
+  private isEmptyTopology(): boolean {
+    // Empty if no vertices, or only domain coordinator vertices with no agent connections
+    return this.graph.vertexCount === 0 || this.graph.edgeCount === 0;
+  }
+
+  /**
    * Perform health check
    */
   checkHealth(): MinCutHealth {
     const minCutValue = this.calculator.getMinCutValue(this.graph);
     const weakVertices = this.calculator.findWeakVertices(this.graph);
-    const status = this.determineStatus(minCutValue);
+
+    // Issue #205 fix: Empty topology should be 'idle', not 'critical'
+    const status = this.isEmptyTopology()
+      ? 'idle'
+      : this.determineStatus(minCutValue);
     const trend = this.calculateTrend();
 
     // Record history
     this.recordHistory(minCutValue);
 
-    // Check for alert conditions
-    this.checkAlertConditions(minCutValue, weakVertices, status);
+    // Issue #205 fix: Only check alert conditions if NOT an empty topology
+    // Empty topology is expected for fresh installs
+    if (!this.isEmptyTopology()) {
+      this.checkAlertConditions(minCutValue, weakVertices, status);
+    }
 
     // Emit event
     this.emitEvent('mincut.updated', minCutValue, { status, weakVertexCount: weakVertices.length });
@@ -140,8 +156,13 @@ export class MinCutHealthMonitor {
     const minCutValue = this.calculator.getMinCutValue(this.graph);
     const weakVertices = this.calculator.findWeakVertices(this.graph);
 
+    // Issue #205 fix: Empty topology should be 'idle', not 'critical'
+    const status = this.isEmptyTopology()
+      ? 'idle'
+      : this.determineStatus(minCutValue);
+
     return {
-      status: this.determineStatus(minCutValue),
+      status,
       minCutValue,
       healthyThreshold: this.config.healthyThreshold,
       warningThreshold: this.config.warningThreshold,

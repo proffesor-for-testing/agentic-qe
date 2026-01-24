@@ -197,8 +197,14 @@ export interface StrengtheningAction {
  * MinCut health status
  */
 export interface MinCutHealth {
-  /** Overall health status */
-  readonly status: 'healthy' | 'warning' | 'critical';
+  /**
+   * Overall health status:
+   * - 'healthy': Good topology connectivity
+   * - 'idle': Empty/fresh topology (no agents spawned yet - normal state)
+   * - 'warning': Degraded connectivity
+   * - 'critical': Poor connectivity requiring attention
+   */
+  readonly status: 'healthy' | 'idle' | 'warning' | 'critical';
 
   /** Current MinCut value */
   readonly minCutValue: number;
