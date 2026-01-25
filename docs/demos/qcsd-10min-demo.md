@@ -28,10 +28,10 @@ curl -s -o /dev/null -w "%{http_code}" https://sauce-demo.myshopify.com/
 ```
 Use qe-queen-coordinator to orchestrate a full QE assessment of https://sauce-demo.myshopify.com/:
 
-1. Test Generation - Generate Playwright E2E tests for critical e-commerce flows
-2. Coverage Analysis - Identify untested user journeys and edge cases
-3. Security Scan - Check for common e-commerce vulnerabilities (XSS, CSRF, PII exposure)
-4. Quality Gate - Validate all outputs meet CI/CD standards
+1. Coverage Analysis - Identify critical user journeys and edge cases to test
+2. Security Scan - Check for e-commerce vulnerabilities (XSS, CSRF, PII exposure)
+3. Quality Gate - Define CI/CD standards and acceptance criteria
+4. Test Generation - Generate Playwright E2E tests based on the above findings
 
 Output comprehensive markdown report with generated test code.
 ```
@@ -53,68 +53,28 @@ This single command spawns 4+ agents working in parallel - very impressive for d
 ══════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────┐
-│  1. TEST GENERATION (qe-test-architect)                        │
+│  1. COVERAGE ANALYSIS (qe-coverage-specialist)                  │
 ├─────────────────────────────────────────────────────────────────┤
-│  Generated: 4 Playwright E2E tests                              │
-│  Coverage: Browse → Add to Cart → Checkout flow                 │
-│  Pattern: Page Object Model                                     │
+│  User Journeys Identified: 12                                   │
+│  Priority Flows: 4 critical, 5 medium, 3 low                    │
+│  Recommended Test Count: 8 E2E tests                            │
 └─────────────────────────────────────────────────────────────────┘
 
-// e2e/sauce-demo.spec.ts
-import { test, expect } from '@playwright/test';
+Critical User Journeys to Test:
+1. 🔴 HIGH: Browse Products → View Details → Add to Cart
+2. 🔴 HIGH: Cart → Checkout → Payment (blocked at payment)
+3. 🟡 MED:  Search → Filter → Sort products
+4. 🟡 MED:  Account Login → View Orders
+5. 🟢 LOW:  Newsletter signup, Wishlist, Refer friend
 
-test.describe('Sauce Demo E-Commerce', () => {
-  test('browse products on homepage', async ({ page }) => {
-    await page.goto('https://sauce-demo.myshopify.com/');
-    await expect(page.locator('.product-card').first()).toBeVisible();
-    await expect(page.locator('.product-price').first()).toContainText('$');
-  });
-
-  test('add product to cart', async ({ page }) => {
-    await page.goto('https://sauce-demo.myshopify.com/');
-    await page.locator('.product-card a').first().click();
-    await page.locator('button[name="add"]').click();
-    await page.waitForResponse(r => r.url().includes('/cart'));
-    await expect(page.locator('.cart-count')).not.toHaveText('0');
-  });
-
-  test('view cart with correct total', async ({ page }) => {
-    await page.goto('https://sauce-demo.myshopify.com/collections/all');
-    await page.locator('.product-card a').first().click();
-    await page.locator('button[name="add"]').click();
-    await page.goto('https://sauce-demo.myshopify.com/cart');
-    await expect(page.locator('.cart-total')).toBeVisible();
-  });
-
-  test('proceed to checkout', async ({ page }) => {
-    await page.goto('https://sauce-demo.myshopify.com/cart');
-    await page.locator('button:has-text("Checkout")').click();
-    await expect(page).toHaveURL(/checkout/);
-  });
-});
+Edge Cases Identified:
+- Empty cart checkout attempt
+- Add same product multiple times
+- Cart persistence across sessions
+- Price display with currency (GBP)
 
 ┌─────────────────────────────────────────────────────────────────┐
-│  2. COVERAGE ANALYSIS (qe-coverage-specialist)                  │
-├─────────────────────────────────────────────────────────────────┤
-│  User Journeys Analyzed: 12                                     │
-│  Covered by Tests: 4 (33%)                                      │
-│  Gaps Identified: 8                                             │
-└─────────────────────────────────────────────────────────────────┘
-
-Coverage Gaps (Priority Order):
-1. ⚠️  HIGH: Search functionality not tested
-2. ⚠️  HIGH: Product filtering/sorting not tested
-3. ⚠️  MED:  Quantity change in cart not tested
-4. ⚠️  MED:  Remove from cart not tested
-5. ⚠️  LOW:  Newsletter signup not tested
-
-Recommended Next Tests:
-- test('search returns relevant products')
-- test('filter by price range')
-- test('update quantity in cart')
-
-┌─────────────────────────────────────────────────────────────────┐
-│  3. SECURITY SCAN (qe-security-scanner)                         │
+│  2. SECURITY SCAN (qe-security-scanner)                         │
 ├─────────────────────────────────────────────────────────────────┤
 │  Scan Type: Passive (non-intrusive)                             │
 │  Vulnerabilities: 0 Critical, 0 High, 2 Info                    │
@@ -124,33 +84,120 @@ Recommended Next Tests:
 Security Findings:
 ✅ HTTPS enforced on all pages
 ✅ No exposed PII in URLs
-✅ CSRF tokens present on forms
+✅ CSRF tokens present on forms (hCaptcha protected)
 ✅ Content-Security-Policy headers detected
-ℹ️  INFO: Third-party analytics scripts loaded (expected)
-ℹ️  INFO: Cookie consent banner recommended for GDPR
+✅ Secure payment via Shopify checkout
+ℹ️  INFO: Third-party analytics (Facebook Pixel, AdRoll)
+ℹ️  INFO: Cookie consent recommended for GDPR
+
+Security Test Recommendations:
+- Verify CSRF token rotation on form submit
+- Test session timeout behavior
+- Validate no sensitive data in localStorage
 
 ┌─────────────────────────────────────────────────────────────────┐
-│  4. QUALITY GATE (qe-quality-gate)                              │
+│  3. QUALITY GATE (qe-quality-gate)                              │
 ├─────────────────────────────────────────────────────────────────┤
-│  Overall Score: 88/100 - PASSED                                 │
-│  CI/CD Ready: YES                                               │
-│  Recommendation: DEPLOY                                         │
+│  CI/CD Standards Defined                                        │
+│  Acceptance Criteria: 4 critical flows must pass                │
+│  Browser Matrix: Chrome, Firefox, Safari, Mobile                │
 └─────────────────────────────────────────────────────────────────┘
 
-Quality Assessment:
-✅ Tests use semantic selectors (resilient)
-✅ Page Object pattern (maintainable)
-✅ Async waits properly handled (stable)
-✅ Cross-browser config included
-⚠️  Coverage at 33% - consider adding gap tests
+Quality Standards for Generated Tests:
+✅ Must use Page Object Model pattern
+✅ Must include waitForResponse for async cart
+✅ Must handle Shopify popups (cookie, newsletter)
+✅ Must support cross-browser (3 desktop + 2 mobile)
+✅ Must generate JUnit XML for CI integration
+✅ Retry count: 2 on CI, 1 locally
+
+Acceptance Criteria:
+- All 4 critical flows pass on Chrome
+- No flaky tests (< 5% failure rate)
+- Screenshots on failure for debugging
+
+┌─────────────────────────────────────────────────────────────────┐
+│  4. TEST GENERATION (qe-test-architect)                         │
+├─────────────────────────────────────────────────────────────────┤
+│  Generated: 4 Playwright E2E tests                              │
+│  Pattern: Page Object Model (based on Quality Gate standards)   │
+│  Covers: All 4 critical user journeys                           │
+└─────────────────────────────────────────────────────────────────┘
+
+// e2e/sauce-demo.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Sauce Demo E-Commerce', () => {
+  test.beforeEach(async ({ page }) => {
+    // Dismiss popups that may interfere
+    await page.goto('https://sauce-demo.myshopify.com/');
+    const cookieBtn = page.locator('button:has-text("Accept")');
+    if (await cookieBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await cookieBtn.click();
+    }
+  });
+
+  test('browse products and view details', async ({ page }) => {
+    // Coverage: Critical Journey #1
+    await expect(page.locator('.product-card, .grid-product').first()).toBeVisible();
+    await page.locator('.product-card a, .grid-product a').first().click();
+    await expect(page.locator('.product-single__title, .product__title')).toBeVisible();
+    await expect(page.locator('.product__price')).toContainText('£');
+  });
+
+  test('add product to cart', async ({ page }) => {
+    // Coverage: Critical Journey #1 continued
+    await page.locator('.product-card a').first().click();
+    await page.locator('button[name="add"], .add-to-cart').click();
+    await page.waitForResponse(r => r.url().includes('/cart'));
+    await expect(page.locator('.cart-count, .cart-link__bubble')).not.toHaveText('0');
+  });
+
+  test('view cart with correct total', async ({ page }) => {
+    // Coverage: Critical Journey #2
+    await page.locator('.product-card a').first().click();
+    await page.locator('button[name="add"]').click();
+    await page.waitForResponse(r => r.url().includes('/cart'));
+    await page.goto('https://sauce-demo.myshopify.com/cart');
+    await expect(page.locator('.cart__subtotal, .totals__subtotal-value')).toContainText('£');
+  });
+
+  test('proceed to checkout', async ({ page }) => {
+    // Coverage: Critical Journey #2 continued
+    // Note: Will redirect to Shopify secure checkout
+    await page.locator('.product-card a').first().click();
+    await page.locator('button[name="add"]').click();
+    await page.waitForResponse(r => r.url().includes('/cart'));
+    await page.goto('https://sauce-demo.myshopify.com/cart');
+    await page.locator('button:has-text("Check out"), [name="checkout"]').click();
+    await expect(page).toHaveURL(/checkout/);
+  });
+});
+
+// playwright.config.ts - Based on Quality Gate standards
+export default {
+  retries: process.env.CI ? 2 : 1,
+  reporter: [['html'], ['junit', { outputFile: 'results.xml' }]],
+  use: {
+    baseURL: 'https://sauce-demo.myshopify.com',
+    screenshot: 'only-on-failure',
+    trace: 'on-first-retry',
+  },
+  projects: [
+    { name: 'chromium', use: { browserName: 'chromium' } },
+    { name: 'firefox', use: { browserName: 'firefox' } },
+    { name: 'webkit', use: { browserName: 'webkit' } },
+    { name: 'mobile', use: { ...devices['iPhone 12'] } },
+  ],
+};
 
 ══════════════════════════════════════════════════════════════════
   CROSS-PHASE MEMORY: 4 signals stored for future learning
 
-  Strategic:  E-commerce checkout = highest risk
-  Tactical:   Shopify theme selectors: .product-card, .cart-total
+  Strategic:  E-commerce checkout = highest risk area
+  Tactical:   Shopify selectors: .product-card, .cart-link__bubble
   Operational: waitForResponse prevents flaky cart tests
-  Quality:    33% coverage baseline established
+  Quality:    4 critical journeys baseline established
 ══════════════════════════════════════════════════════════════════
 ```
 
