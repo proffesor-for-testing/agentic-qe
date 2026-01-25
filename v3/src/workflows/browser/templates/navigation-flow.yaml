@@ -1,0 +1,240 @@
+name: navigation-flow
+version: "1.0.0"
+description: "Multi-page navigation workflow for testing user journeys and state persistence"
+variables:
+  - name: startUrl
+    type: string
+    required: true
+    description: "Starting URL for the navigation flow"
+  - name: journey
+    type: array
+    required: true
+    description: "Array of navigation steps with selectors and assertions"
+  - name: captureScreenshots
+    type: boolean
+    required: false
+    default: true
+    description: "Capture screenshot at each step"
+  - name: checkConsoleErrors
+    type: boolean
+    required: false
+    default: true
+    description: "Monitor and fail on console errors"
+  - name: trackPerformance
+    type: boolean
+    required: false
+    default: true
+    description: "Track performance metrics at each step"
+
+steps:
+  - name: setup-console-listener
+    action: evaluate
+    config:
+      script: |
+        window.consoleErrors = [];
+        const originalError = console.error;
+        console.error = function(...args) {
+          window.consoleErrors.push({
+            message: args.join(' '),
+            timestamp: Date.now()
+          });
+          originalError.apply(console, args);
+        };
+
+  - name: navigate-to-start
+    action: navigate
+    config:
+      url: "{{startUrl}}"
+      waitUntil: networkidle
+    assertions:
+      - condition: "response.status === 200"
+        message: "Start page should load successfully"
+
+  - name: wait-for-initial-load
+    action: wait
+    config:
+      timeout: 3000
+      waitUntil: networkidle
+
+  - name: capture-initial-state
+    action: evaluate
+    config:
+      script: |
+        return {
+          url: window.location.href,
+          title: document.title,
+          timestamp: Date.now(),
+          performance: {{trackPerformance}} ? {
+            loadTime: performance.timing.loadEventEnd - performance.timing.navigationStart,
+            domReady: performance.timing.domContentLoadedEventEnd - performance.timing.navigationStart
+          } : null
+        };
+
+  - name: take-initial-screenshot
+    action: screenshot
+    config:
+      name: "navigation-step-0-start"
+      fullPage: false
+
+  - name: loop-navigation-steps
+    action: loop
+    config:
+      items: "{{journey}}"
+      steps:
+        - name: wait-before-action
+          action: wait
+          config:
+            timeout: 1000
+
+        - name: perform-action
+          action: click
+          config:
+            selector: "{{currentItem.selector}}"
+          assertions:
+            - condition: "element.exists"
+              message: "Navigation element should exist: {{currentItem.selector}}"
+
+        - name: wait-for-navigation
+          action: wait
+          config:
+            timeout: 10000
+            waitUntil: networkidle
+
+        - name: verify-expected-element
+          action: wait
+          config:
+            selector: "{{currentItem.expectedElement}}"
+            timeout: 5000
+          assertions:
+            - condition: "element.exists"
+              message: "Expected element should appear: {{currentItem.expectedElement}}"
+
+        - name: verify-url-if-specified
+          action: evaluate
+          config:
+            script: |
+              const expectedUrl = '{{currentItem.expectedUrl}}';
+              if (!expectedUrl) return true;
+              return window.location.href.includes(expectedUrl);
+          assertions:
+            - condition: "result === true"
+              message: "URL should match expected pattern for step {{currentIndex}}"
+
+        - name: capture-step-state
+          action: evaluate
+          config:
+            script: |
+              return {
+                step: {{currentIndex}},
+                name: '{{currentItem.name}}',
+                url: window.location.href,
+                title: document.title,
+                timestamp: Date.now(),
+                performance: {{trackPerformance}} ? {
+                  loadTime: performance.timing.loadEventEnd - performance.timing.navigationStart,
+                  domReady: performance.timing.domContentLoadedEventEnd - performance.timing.navigationStart
+                } : null
+              };
+
+        - name: take-step-screenshot
+          action: screenshot
+          config:
+            name: "navigation-step-{{currentIndex}}-{{currentItem.name}}"
+            fullPage: false
+
+        - name: check-console-errors-step
+          action: evaluate
+          config:
+            script: "window.consoleErrors.length"
+          assertions:
+            - condition: "{{checkConsoleErrors}} === false || result === 0"
+              message: "No console errors should occur during navigation step {{currentIndex}}"
+
+        - name: store-step-result
+          action: evaluate
+          config:
+            script: |
+              window.navigationResults = window.navigationResults || [];
+              const stepState = {{previous.result}};
+              window.navigationResults.push(stepState);
+              return window.navigationResults.length;
+
+  - name: navigate-back-test
+    action: back
+
+  - name: wait-after-back
+    action: wait
+    config:
+      timeout: 2000
+      waitUntil: networkidle
+
+  - name: verify-back-navigation
+    action: evaluate
+    config:
+      script: "window.location.href !== '{{startUrl}}'"
+    assertions:
+      - condition: "result === true"
+        message: "Back navigation should work correctly"
+
+  - name: navigate-forward-test
+    action: forward
+
+  - name: wait-after-forward
+    action: wait
+    config:
+      timeout: 2000
+      waitUntil: networkidle
+
+  - name: test-reload
+    action: reload
+
+  - name: wait-after-reload
+    action: wait
+    config:
+      timeout: 3000
+      waitUntil: networkidle
+
+  - name: verify-state-persistence
+    action: evaluate
+    config:
+      script: |
+        // Check if session/local storage persisted
+        const hasSession = sessionStorage.length > 0;
+        const hasLocal = localStorage.length > 0;
+        const hasCookies = document.cookie.length > 0;
+        return hasSession || hasLocal || hasCookies;
+    assertions:
+      - condition: "result === true"
+        message: "Some form of state should persist after reload"
+
+  - name: get-final-console-errors
+    action: evaluate
+    config:
+      script: "window.consoleErrors || []"
+
+  - name: generate-navigation-report
+    action: evaluate
+    config:
+      script: |
+        const results = window.navigationResults || [];
+        const consoleErrors = window.consoleErrors || [];
+
+        return {
+          totalSteps: results.length,
+          startUrl: '{{startUrl}}',
+          completedSuccessfully: true,
+          consoleErrorCount: consoleErrors.length,
+          consoleErrors: consoleErrors,
+          steps: results,
+          averageLoadTime: {{trackPerformance}} ?
+            (results.reduce((sum, r) => sum + (r.performance?.loadTime || 0), 0) / results.length).toFixed(2) : null
+        };
+    assertions:
+      - condition: "result.consoleErrorCount === 0 || {{checkConsoleErrors}} === false"
+        message: "Navigation flow should complete without console errors"
+
+  - name: take-final-screenshot
+    action: screenshot
+    config:
+      name: "navigation-complete"
+      fullPage: false

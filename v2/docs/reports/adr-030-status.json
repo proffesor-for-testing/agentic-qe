@@ -1,0 +1,119 @@
+{
+  "adr": "ADR-030",
+  "title": "Coherence-Gated Quality Gates",
+  "status": "implemented",
+  "implementation_date": "2026-01-11",
+  "version": "3.0.0-alpha.1",
+  "summary": {
+    "description": "RuVector lambda-coherence integration with 4-tier compute allocation for quality gate decisions",
+    "key_features": [
+      "Lambda calculation (minimum cut in quality dimension graph)",
+      "4-tier response allocation (Normal, Reduced, Safe, Quarantine)",
+      "Quality partition detection (clusters of related issues)",
+      "Coherence-enhanced gate service integration"
+    ]
+  },
+  "files_created": [
+    {
+      "path": "v3/src/domains/quality-assessment/coherence/types.ts",
+      "description": "Core type definitions for coherence-gated quality gates",
+      "lines": 385
+    },
+    {
+      "path": "v3/src/domains/quality-assessment/coherence/lambda-calculator.ts",
+      "description": "Lambda calculation (minimum cut) from quality metrics",
+      "lines": 385
+    },
+    {
+      "path": "v3/src/domains/quality-assessment/coherence/gate-controller.ts",
+      "description": "4-tier gate controller for deployment decisions",
+      "lines": 545
+    },
+    {
+      "path": "v3/src/domains/quality-assessment/coherence/partition-detector.ts",
+      "description": "Quality partition detection and remediation",
+      "lines": 470
+    },
+    {
+      "path": "v3/src/domains/quality-assessment/coherence/index.ts",
+      "description": "Module exports and convenience functions",
+      "lines": 200
+    },
+    {
+      "path": "v3/src/domains/quality-assessment/services/coherence-gate.ts",
+      "description": "Coherence-enhanced gate service integration",
+      "lines": 360
+    },
+    {
+      "path": "v3/tests/unit/domains/quality-assessment/coherence-gate.test.ts",
+      "description": "Comprehensive test suite",
+      "lines": 1010
+    }
+  ],
+  "files_modified": [
+    {
+      "path": "v3/src/domains/quality-assessment/services/index.ts",
+      "description": "Added coherence-gate service exports"
+    },
+    {
+      "path": "v3/src/domains/quality-assessment/index.ts",
+      "description": "Added coherence module exports"
+    }
+  ],
+  "test_results": {
+    "total_tests": 68,
+    "passed": 68,
+    "failed": 0,
+    "coverage_areas": [
+      "LambdaCalculator - lambda calculation and normalization",
+      "CoherenceGateController - 4-tier decision making",
+      "PartitionDetector - quality partition detection",
+      "Integration tests - end-to-end evaluation",
+      "Edge cases - boundary conditions and extreme values",
+      "Performance - execution time benchmarks"
+    ]
+  },
+  "key_types": {
+    "QualityLambda": "Represents minimum cut value (0-100 scale) with dimensions and flags",
+    "QualityTier": "Enum: NORMAL(0), REDUCED(1), SAFE(2), QUARANTINE(3)",
+    "QualityGateDecision": "Complete decision with tier, actions, and explanation",
+    "QualityDimensions": "Normalized quality dimensions (coverage, passRate, security, etc.)",
+    "QualityPartition": "Cluster of related quality issues with severity and remediation"
+  },
+  "key_functions": {
+    "calculateQualityLambda": "Calculate lambda from raw metrics",
+    "evaluateQualityGate": "Get 4-tier decision from lambda",
+    "evaluateCoherenceGate": "End-to-end evaluation from metrics",
+    "detectQualityPartitions": "Find clusters of related issues",
+    "canDeploy": "Quick check if deployment is allowed",
+    "getQualityTier": "Get tier number from metrics",
+    "getQualitySummary": "Get comprehensive quality summary"
+  },
+  "thresholds": {
+    "lambdaMin": 60,
+    "lambdaWarn": 70,
+    "boundaryThreshold": 0.7,
+    "boundaryTolerance": 0.1,
+    "dropRatioQ15Max": 8192,
+    "boundaryEdgesMax": 3,
+    "partitionsMax": 4
+  },
+  "bugs_fixed": [
+    {
+      "description": "Policy mutation bug - updatePolicy was mutating global DEFAULT_COHERENCE_GATE_POLICY",
+      "root_cause": "Shallow copy in constructor and Object.assign in updatePolicy",
+      "fix": "Deep copy policy in constructor and create new object in updatePolicy"
+    }
+  ],
+  "integration_points": {
+    "quality_assessment_domain": "Exported via domain index.ts",
+    "coherence_gate_service": "Extends QualityGateService with coherence analysis",
+    "memory_backend": "Stores coherence results with namespace 'quality-assessment'"
+  },
+  "notes": [
+    "Based on ruvector-mincut-gated-transformer patterns",
+    "Q15 fixed-point format used for boundary concentration (0-32767 range)",
+    "Supports trend analysis with previous lambda tracking",
+    "Partition detection groups issues into testing, security, performance, maintainability clusters"
+  ]
+}

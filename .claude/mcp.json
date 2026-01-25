@@ -1,8 +1,23 @@
 {
   "mcpServers": {
+    "agentic-qe-v3": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "/workspaces/agentic-qe/v3/src/mcp/entry.ts"
+      ],
+      "cwd": "/workspaces/agentic-qe/v3",
+      "env": {
+        "NODE_ENV": "production",
+        "NODE_NO_WARNINGS": "1",
+        "AQE_V3_RELOAD": "2026-01-10-v2"
+      }
+    },
     "agentic-qe": {
       "command": "npx",
-      "args": ["aqe-mcp"],
+      "args": [
+        "aqe-mcp"
+      ],
       "env": {
         "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
         "AQE_LEARNING_ENABLED": "true",
@@ -11,7 +26,11 @@
     },
     "claude-flow": {
       "command": "npx",
-      "args": ["claude-flow@alpha", "mcp", "start"],
+      "args": [
+        "claude-flow@alpha",
+        "mcp",
+        "start"
+      ],
       "env": {
         "CLAUDE_FLOW_HOOKS_ENABLED": "true",
         "NODE_NO_WARNINGS": "1"
@@ -19,9 +38,24 @@
     },
     "ruv-swarm": {
       "command": "npx",
-      "args": ["ruv-swarm", "mcp", "start"],
+      "args": [
+        "ruv-swarm",
+        "mcp",
+        "start"
+      ],
       "env": {
         "NODE_NO_WARNINGS": "1"
+      }
+    },
+    "vibium": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "vibium"
+      ],
+      "env": {
+        "NODE_NO_WARNINGS": "1",
+        "VIBIUM_HEADLESS": "false"
       }
     }
   }

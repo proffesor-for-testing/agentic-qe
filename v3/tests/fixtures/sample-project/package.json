@@ -1,0 +1,8 @@
+{
+  "name": "sample-project",
+  "version": "1.0.0",
+  "description": "Test fixture for metric collector tests",
+  "scripts": {
+    "test": "echo 'no tests configured'"
+  }
+}

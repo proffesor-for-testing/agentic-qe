@@ -105,6 +105,7 @@ jobs:
           path: 'junit.xml'
           reporter: jest-junit
           fail-on-error: false
+          fail-on-empty: false
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

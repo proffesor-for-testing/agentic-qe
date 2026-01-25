@@ -1,0 +1,177 @@
+{
+  "file": "src/utils/SecureRandom.ts",
+  "lines": 267,
+  "cyclomatic": 50,
+  "cognitive": 57,
+  "level": "high",
+  "halstead": {
+    "vocabulary": 251,
+    "length": 1589,
+    "volume": 12667,
+    "difficulty": 31.21,
+    "effort": 395357
+  },
+  "functions": [
+    {
+      "name": "Fixes",
+      "startLine": 18,
+      "endLine": 266,
+      "lines": 249,
+      "complexity": 12,
+      "cognitive": 14
+    },
+    {
+      "name": "generateId",
+      "startLine": 49,
+      "endLine": 52,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "randomInt",
+      "startLine": 66,
+      "endLine": 72,
+      "lines": 7,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 67,
+      "endLine": 70,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "randomFloat",
+      "startLine": 85,
+      "endLine": 90,
+      "lines": 6,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "uuid",
+      "startLine": 101,
+      "endLine": 104,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "randomString",
+      "startLine": 122,
+      "endLine": 158,
+      "lines": 37,
+      "complexity": 5,
+      "cognitive": 6
+    },
+    {
+      "name": "for",
+      "startLine": 133,
+      "endLine": 137,
+      "lines": 5,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "while",
+      "startLine": 140,
+      "endLine": 155,
+      "lines": 16,
+      "complexity": 4,
+      "cognitive": 5
+    },
+    {
+      "name": "for",
+      "startLine": 143,
+      "endLine": 154,
+      "lines": 12,
+      "complexity": 3,
+      "cognitive": 4
+    },
+    {
+      "name": "if",
+      "startLine": 147,
+      "endLine": 150,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "randomBoolean",
+      "startLine": 171,
+      "endLine": 177,
+      "lines": 7,
+      "complexity": 2,
+      "cognitive": 3
+    },
+    {
+      "name": "if",
+      "startLine": 172,
+      "endLine": 175,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 3
+    },
+    {
+      "name": "for",
+      "startLine": 191,
+      "endLine": 195,
+      "lines": 5,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 211,
+      "endLine": 214,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 231,
+      "endLine": 234,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 234,
+      "endLine": 237,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "for",
+      "startLine": 240,
+      "endLine": 246,
+      "lines": 7,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "bytes",
+      "startLine": 262,
+      "endLine": 265,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    }
+  ],
+  "hotspots": [
+    {
+      "name": "Fixes",
+      "line": 18,
+      "complexity": 12,
+      "recommendation": "Consider simplifying"
+    }
+  ],
+  "analyzedAt": "2025-12-10T18:59:38.656Z"
+}

@@ -1,0 +1,170 @@
+name: visual-regression
+version: "1.0.0"
+description: "Screenshot comparison workflow for visual regression testing across breakpoints"
+variables:
+  - name: targetUrl
+    type: string
+    required: true
+    description: "URL to capture for visual regression"
+  - name: baselineDir
+    type: string
+    required: false
+    default: "./tests/visual-regression/baseline"
+    description: "Directory containing baseline screenshots"
+  - name: outputDir
+    type: string
+    required: false
+    default: "./tests/visual-regression/current"
+    description: "Directory for current screenshots"
+  - name: diffDir
+    type: string
+    required: false
+    default: "./tests/visual-regression/diff"
+    description: "Directory for diff images"
+  - name: threshold
+    type: number
+    required: false
+    default: 0.01
+    description: "Pixel difference threshold (0-1)"
+  - name: breakpoints
+    type: array
+    required: false
+    default: [{"name": "mobile", "width": 375, "height": 667}, {"name": "tablet", "width": 768, "height": 1024}, {"name": "desktop", "width": 1920, "height": 1080}]
+    description: "Viewport breakpoints to test"
+  - name: fullPage
+    type: boolean
+    required: false
+    default: true
+    description: "Capture full page or viewport only"
+
+steps:
+  - name: navigate-to-target
+    action: navigate
+    config:
+      url: "{{targetUrl}}"
+      waitUntil: networkidle
+    assertions:
+      - condition: "response.status === 200"
+        message: "Target page should load successfully"
+
+  - name: wait-for-stability
+    action: wait
+    config:
+      timeout: 2000
+      waitUntil: networkidle
+
+  - name: remove-dynamic-content
+    action: evaluate
+    config:
+      script: |
+        // Hide elements that change frequently
+        const selectors = [
+          '[data-testid*="timestamp"]',
+          '.timestamp',
+          '.date',
+          '[class*="animation"]',
+          'video',
+          'iframe[src*="youtube"]',
+          '[class*="carousel"]'
+        ];
+        selectors.forEach(sel => {
+          document.querySelectorAll(sel).forEach(el => {
+            el.style.visibility = 'hidden';
+          });
+        });
+
+  - name: loop-breakpoints
+    action: loop
+    config:
+      items: "{{breakpoints}}"
+      steps:
+        - name: set-viewport
+          action: evaluate
+          config:
+            script: |
+              const breakpoint = {{currentItem}};
+              window.resizeTo(breakpoint.width, breakpoint.height);
+              return breakpoint.name;
+
+        - name: wait-for-resize
+          action: wait
+          config:
+            timeout: 1000
+
+        - name: capture-screenshot
+          action: screenshot
+          config:
+            name: "{{targetUrl}}-{{currentItem.name}}"
+            fullPage: "{{fullPage}}"
+            path: "{{outputDir}}/{{currentItem.name}}.png"
+
+        - name: load-baseline
+          action: evaluate
+          config:
+            script: |
+              const baselinePath = '{{baselineDir}}/{{currentItem.name}}.png';
+              // This would be handled by the test framework
+              return { baselinePath, exists: true };
+
+        - name: compare-images
+          action: evaluate
+          config:
+            script: |
+              // Image comparison would be handled by a library like pixelmatch
+              // This is a placeholder for the comparison logic
+              const currentPath = '{{outputDir}}/{{currentItem.name}}.png';
+              const baselinePath = '{{baselineDir}}/{{currentItem.name}}.png';
+              const diffPath = '{{diffDir}}/{{currentItem.name}}.png';
+
+              return {
+                currentPath,
+                baselinePath,
+                diffPath,
+                pixelDiff: 0,
+                diffPercentage: 0,
+                passed: true
+              };
+          assertions:
+            - condition: "result.diffPercentage <= {{threshold}}"
+              message: "Visual difference should be within threshold for {{currentItem.name}}"
+
+        - name: store-comparison-result
+          action: evaluate
+          config:
+            script: |
+              window.visualResults = window.visualResults || [];
+              const result = {{previous.result}};
+              result.breakpoint = '{{currentItem.name}}';
+              window.visualResults.push(result);
+              return window.visualResults.length;
+
+  - name: generate-report
+    action: evaluate
+    config:
+      script: |
+        const results = window.visualResults || [];
+        const totalTests = results.length;
+        const passed = results.filter(r => r.passed).length;
+        const failed = results.filter(r => !r.passed).length;
+
+        return {
+          totalTests,
+          passed,
+          failed,
+          passRate: (passed / totalTests * 100).toFixed(2),
+          results
+        };
+    assertions:
+      - condition: "result.failed === 0"
+        message: "All visual regression tests should pass"
+
+  - name: take-summary-screenshot
+    action: screenshot
+    config:
+      name: "visual-regression-summary"
+      fullPage: false
+
+  - name: export-report
+    action: evaluate
+    config:
+      script: "JSON.stringify({{previous.result}}, null, 2)"

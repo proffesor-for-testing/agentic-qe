@@ -38,8 +38,10 @@ yarn-error.log*
 # Local n8n data (contains credentials, database, etc.)
 .n8n-local/
 
-# Core dumps
-core
+# Core dumps (file only, not directories)
+/core
+# Allow wizard core infrastructure
+!v3/src/cli/wizards/core/
 
 # Test results (generated files)
 test-results/
@@ -105,8 +107,6 @@ tests/temp/
 
 
 # Ignore memory directories but allow source code
-/memory/
-/coordination/
 memory/claude-flow-data.json
 memory/sessions/*
 !memory/sessions/README.md
@@ -121,7 +121,9 @@ coordination/orchestration/*
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
-claude-flow
+# Claude Flow runtime (but not source adapters)
+/claude-flow
+!v3/src/adapters/claude-flow/
 .agentic-qe/memory/
 .agentic-qe/data/learning/state.json
 .agentic-qe/data/improvement/state.json
@@ -130,9 +132,11 @@ data/
 test-projects/
 
 
-# Mock files - allow agentdb mock for CI
+# Mock files - allow ESM module mocks for CI
 __mocks__/*
 !__mocks__/agentdb.ts
+!__mocks__/@ruvector/
+!__mocks__/@ruvector/**
 
 # Test artifacts that should not be committed
 test-learning-persistence
@@ -141,16 +145,17 @@ docs/qx-reports/*
 
 # Claude Flow generated files
 .claude/settings.local.json
+.claude/memory/
+v3/.claude/
 .mcp.json
 claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
-memory/
 !src/memory/
 !src/core/memory/
 !tests/memory/
-coordination/
+!src/edge/p2p/coordination/
 memory/claude-flow-data.json
 memory/sessions/*
 !memory/sessions/README.md
@@ -165,8 +170,24 @@ coordination/orchestration/*
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
-claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
 tests/tmp/*
 tmp/*
+
+# RuVector intelligence data (local learning, not for git)
+.ruvector/
+**/intelligence.json
+**/.ruvector/
+.env.supabase
+
+#v3 database files
+v3/agentdb.*
+
+# AQE data directories (local, not for git)
+.agentic-qe/results/*
+.agentic-qe/.cve-cache
+.agentic-qe/*-scans/
+v3/.agentic-qe/
+*.db-shm
+v3/.test-tmp/*

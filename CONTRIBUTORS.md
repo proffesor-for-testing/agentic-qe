@@ -28,7 +28,7 @@ We use the [All Contributors](https://allcontributors.org/) specification to rec
 
 | Avatar | Name | Contributions | PRs |
 |--------|------|---------------|-----|
-| <img src="https://github.com/fndlalit.png" width="50" height="50" style="border-radius:50%"/> | **[@fndlalit](https://github.com/fndlalit)** | QX Partner Agent enhancements, Testability Scoring skill, Creativity & Design analysis | [#104](https://github.com/proffesor-for-testing/agentic-qe/pull/104), [#110](https://github.com/proffesor-for-testing/agentic-qe/pull/110) |
+| <img src="https://github.com/fndlalit.png" width="50" height="50" style="border-radius:50%"/> | **[@fndlalit](https://github.com/fndlalit)** | QX Partner Agent, Testability Scoring skill, 15 n8n Workflow Testing Agents | [#104](https://github.com/proffesor-for-testing/agentic-qe/pull/104), [#110](https://github.com/proffesor-for-testing/agentic-qe/pull/110), [#151](https://github.com/proffesor-for-testing/agentic-qe/pull/151) |
 | <img src="https://github.com/shaal.png" width="50" height="50" style="border-radius:50%"/> | **[@shaal](https://github.com/shaal)** | Core development, Testing infrastructure | - |
 | <img src="https://github.com/mondweep.png" width="50" height="50" style="border-radius:50%"/> | **[@mondweep](https://github.com/mondweep)** | Core development, Architecture | - |
 
@@ -103,7 +103,7 @@ Special thanks to the QE community for inspiration and support.
 
 | Contributor | Achievement |
 |-------------|-------------|
-| [@fndlalit](https://github.com/fndlalit) | First community contributor - QX Partner Agent & Testability Scoring |
+| [@fndlalit](https://github.com/fndlalit) | First community contributor - QX Partner Agent, Testability Scoring & 15 n8n Agents |
 
 ---
 

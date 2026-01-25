@@ -280,8 +280,8 @@ See main SKILL.md [Troubleshooting section](SKILL.md#troubleshooting) for:
 - [Microservice Pipeline Workflow](resources/workflows/microservice-pipeline.md)
 - [Monolith Pipeline Workflow](resources/workflows/monolith-pipeline.md)
 - [Mobile Pipeline Workflow](resources/workflows/mobile-pipeline.md)
-- [All 41 QE Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)
-- [All 19 QE Agents Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md)
+- [All 61 QE Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)
+- [All 50 QE Agents Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md)
 
 ## Contributing
 
@@ -301,4 +301,4 @@ Part of the Agentic QE Fleet - MIT License
 
 **Created**: 2025-11-13
 **Version**: 1.0.0
-**Integrations**: 41 QE Skills, 19 QE Agents, All CI/CD platforms
+**Integrations**: 61 QE Skills, 50 QE Agents, All CI/CD platforms

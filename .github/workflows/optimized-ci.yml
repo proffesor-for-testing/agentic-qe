@@ -58,6 +58,15 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=512'
         continue-on-error: true
 
+      - name: Run Code Intelligence Tests (MinCut/Graph Algorithms)
+        id: code-intelligence-tests
+        if: always()
+        run: npm run test:code-intelligence
+        env:
+          NODE_OPTIONS: '--max-old-space-size=768'
+          SKIP_INTEGRATION_TESTS: 'true'
+        continue-on-error: true
+
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -69,11 +78,19 @@ jobs:
       - name: Check test results
         if: always()
         run: |
+          FAILED=0
           if [ "${{ steps.journey-tests.outcome }}" == "failure" ]; then
             echo "❌ Journey tests failed"
+            FAILED=1
+          fi
+          if [ "${{ steps.code-intelligence-tests.outcome }}" == "failure" ]; then
+            echo "❌ Code Intelligence tests failed (MinCut/Graph algorithms)"
+            FAILED=1
+          fi
+          if [ "$FAILED" -eq 1 ]; then
             exit 1
           fi
-          echo "✅ Fast tests passed"
+          echo "✅ Fast tests passed (including Code Intelligence)"
 
   # Infrastructure tests (can run in parallel)
   infrastructure-tests:

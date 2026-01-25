@@ -1,0 +1,18 @@
+{
+  "file": "src/core/memory/PatternCache.ts",
+  "lines": 227,
+  "functions": 17,
+  "classes": 1,
+  "complexity": {
+    "cyclomatic": 18,
+    "cognitive": 20,
+    "level": "medium"
+  },
+  "metrics": {
+    "maintainability": 64,
+    "testability": 93,
+    "reliability": 100
+  },
+  "issues": [],
+  "analyzedAt": "2025-12-10T18:59:33.288Z"
+}

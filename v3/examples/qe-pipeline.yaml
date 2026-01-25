@@ -1,0 +1,55 @@
+# Agentic QE v3 - Daily QE Pipeline Example
+# Per ADR-041: V3 QE CLI Enhancement
+
+name: daily-qe-pipeline
+description: Comprehensive daily quality engineering pipeline
+version: "1.0.0"
+schedule: 0 2 * * *
+tags:
+  - testing
+  - quality
+  - daily
+
+stages:
+  - name: test-generation
+    command: aqe test generate
+    params:
+      target: src/
+      coverage-goal: 90
+      ai-enhanced: true
+    timeout: 120
+
+  - name: parallel-execution
+    command: aqe test execute
+    depends_on:
+      - test-generation
+    params:
+      parallel: 8
+      retry: 3
+      timeout: 300
+
+  - name: coverage-analysis
+    command: aqe coverage analyze
+    depends_on:
+      - parallel-execution
+    params:
+      gap-detection: true
+      report-format: html
+
+  - name: quality-gate
+    command: aqe quality gate
+    depends_on:
+      - coverage-analysis
+    params:
+      fail-threshold: 80
+      coverage-min: 85
+
+triggers:
+  - event: push
+    branches:
+      - main
+      - develop
+  - event: pull_request
+    types:
+      - opened
+      - synchronize

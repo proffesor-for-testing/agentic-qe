@@ -1,0 +1,147 @@
+{
+  "namespace": "adr-051/embedding-patterns",
+  "description": "ONNX Embeddings Integration Patterns from ADR-051",
+  "created": "2026-01-20",
+  "patterns": [
+    {
+      "key": "embeddings-local-generation",
+      "pattern": "Local ONNX Embeddings Generation",
+      "description": "Generate text embeddings locally without external API calls",
+      "models_supported": [
+        "all-MiniLM-L6-v2 (fast, 384-dim)",
+        "all-mpnet-base-v2 (accurate, 768-dim)"
+      ],
+      "generation_process": {
+        "tokenization": "BPE tokenization for input text",
+        "forward_pass": "ONNX runtime inference",
+        "pooling": "Mean pooling of token embeddings",
+        "normalization": "L2 normalization for cosine similarity"
+      },
+      "performance_characteristics": {
+        "latency_per_text": "5-50ms (L6) to 20-100ms (mpnet)",
+        "throughput": "100-1000 embeddings/second",
+        "memory_footprint": "50-200MB model + cache",
+        "cpu_intensive": "Can use GPU acceleration if available"
+      },
+      "quality_metrics": {
+        "semantic_accuracy": "0.85-0.92 correlation with GT",
+        "dimensionality": "384 or 768 dims",
+        "normalized": "Unit sphere for cosine distance"
+      },
+      "successRate": 0.94,
+      "lastUpdated": "2026-01-20"
+    },
+    {
+      "key": "embeddings-lru-cache",
+      "pattern": "LRU Cache Strategy for Embeddings",
+      "description": "Efficient caching of generated embeddings to avoid redundant computation",
+      "cache_architecture": {
+        "cache_type": "LRU (Least Recently Used eviction)",
+        "default_size": "256-1024 entries",
+        "configurable": "Adjust for memory constraints"
+      },
+      "cache_key_strategy": {
+        "primary_key": "SHA256(text)",
+        "collision_rate": "<0.001 (negligible)",
+        "metadata": "Timestamp, model_id, norm_status"
+      },
+      "eviction_policy": {
+        "least_recently_used": "Remove oldest unused entries",
+        "time_to_live": "Optional TTL for staleness",
+        "size_limit": "Enforce max memory footprint"
+      },
+      "hit_ratio_expectations": {
+        "typical_workload": "60-80% cache hit rate",
+        "repeated_queries": "80-95% hit rate",
+        "cold_start": "0% until warmed"
+      },
+      "optimization_techniques": [
+        "Batch embedding for multiple texts",
+        "Predictive prefetching of similar queries",
+        "Compression of cached embeddings",
+        "Distributed cache for multi-agent systems"
+      ],
+      "memory_efficiency": "4x speedup with minimal memory overhead",
+      "successRate": 0.96,
+      "lastUpdated": "2026-01-20"
+    },
+    {
+      "key": "embeddings-hyperbolic-space",
+      "pattern": "Hyperbolic Space for Hierarchical Data",
+      "description": "Use Poincaré ball model for embeddings with hierarchical relationships",
+      "hyperbolic_geometry": {
+        "model": "Poincaré ball",
+        "curvature": "Negative (typically -1)",
+        "distance_metric": "Poincaré distance",
+        "property": "Exponential volume growth captures hierarchies naturally"
+      },
+      "use_cases": [
+        "Taxonomies (file hierarchies, class inheritance)",
+        "Knowledge graphs with parent-child relationships",
+        "Organization structures",
+        "Tree-like data representations",
+        "Ontologies"
+      ],
+      "conversion_process": {
+        "euclidean_to_hyperbolic": "Transform via exponential map",
+        "poincare_projection": "Project to Poincaré ball boundary",
+        "bidirectional": "Can convert back to Euclidean"
+      },
+      "distance_computation": {
+        "poincare_distance": "d(x,y) = arccosh(...) - efficient for hierarchies",
+        "advantages": "Better representation of tree structures",
+        "computational_cost": "Slightly higher than Euclidean"
+      },
+      "similarity_metrics": {
+        "poincare": "Best for hierarchical data",
+        "euclidean": "Used for intermediate euclidean embeddings",
+        "mixed": "Combine metrics based on data type"
+      },
+      "memory_efficiency": "Fewer dimensions needed to capture hierarchy",
+      "successRate": 0.9,
+      "lastUpdated": "2026-01-20"
+    },
+    {
+      "key": "embeddings-similarity-metrics",
+      "pattern": "Multi-Metric Similarity for Different Data Types",
+      "description": "Use appropriate similarity metrics for different embedding spaces",
+      "metrics_overview": {
+        "cosine_similarity": {
+          "formula": "cos(angle) = (a·b) / (||a|| ||b||)",
+          "range": "[-1, 1]",
+          "best_for": "Normalized embeddings, angle-based similarity",
+          "computational_complexity": "O(n)",
+          "use_case": "General purpose text similarity"
+        },
+        "euclidean_distance": {
+          "formula": "sqrt(sum((a_i - b_i)^2))",
+          "range": "[0, inf)",
+          "best_for": "Raw embeddings, geometric distance",
+          "computational_complexity": "O(n)",
+          "use_case": "Cluster-based similarity"
+        },
+        "poincare_distance": {
+          "formula": "arccosh(1 + 2*D/(1-||x||^2)(1-||y||^2))",
+          "range": "[0, inf)",
+          "best_for": "Hyperbolic embeddings, hierarchies",
+          "computational_complexity": "O(n) with overhead",
+          "use_case": "Taxonomies, knowledge graphs"
+        }
+      },
+      "selection_strategy": {
+        "step_1": "Identify embedding space type",
+        "step_2": "Choose metric for space",
+        "step_3": "Apply threshold for similarity",
+        "step_4": "Aggregate scores if combining metrics"
+      },
+      "threshold_tuning": {
+        "cosine": ">0.7 typically indicates similarity",
+        "euclidean": "<0.5 for normalized 384-dim vectors",
+        "poincare": "<1.0 for meaningful hierarchy"
+      },
+      "hybrid_approach": "Combine metrics for ensemble similarity",
+      "successRate": 0.93,
+      "lastUpdated": "2026-01-20"
+    }
+  ]
+}

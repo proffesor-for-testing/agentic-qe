@@ -1,0 +1,762 @@
+{
+  "meta": {
+    "reportId": "v3-complexity-2026-01-11",
+    "generatedAt": "2026-01-11T00:00:00.000Z",
+    "analyzer": "V3 QE Code Complexity Analyzer",
+    "version": "3.0.0",
+    "scope": "/workspaces/agentic-qe/v3/src"
+  },
+  "summary": {
+    "totalFiles": 274,
+    "totalLines": 138882,
+    "totalClasses": 249,
+    "totalFunctions": 4518,
+    "avgLinesPerFile": 507,
+    "avgFunctionsPerFile": 16.5,
+    "filesOver500Lines": 122,
+    "filesOver1000Lines": 34,
+    "overallComplexityScore": 68,
+    "overallRiskLevel": "MEDIUM",
+    "maintainabilityIndex": 65
+  },
+  "complexityDistribution": {
+    "low": {
+      "count": 152,
+      "percentage": 55.5,
+      "description": "Files with low complexity (1-5 cyclomatic)"
+    },
+    "medium": {
+      "count": 89,
+      "percentage": 32.5,
+      "description": "Files with medium complexity (6-15 cyclomatic)"
+    },
+    "high": {
+      "count": 27,
+      "percentage": 9.9,
+      "description": "Files with high complexity (16-25 cyclomatic)"
+    },
+    "critical": {
+      "count": 6,
+      "percentage": 2.1,
+      "description": "Files with critical complexity (>25 cyclomatic)"
+    }
+  },
+  "fileComplexityMetrics": [
+    {
+      "file": "domains/test-generation/services/test-generator.ts",
+      "lines": 2750,
+      "conditionalStatements": 545,
+      "estimatedCyclomatic": 68,
+      "estimatedCognitive": 85,
+      "riskScore": 0.95,
+      "riskLevel": "CRITICAL",
+      "maintainabilityIndex": 42,
+      "issues": [
+        "Excessive file length (2750 lines, recommended <500)",
+        "High cyclomatic complexity indicating many decision paths",
+        "High cognitive complexity making code difficult to understand",
+        "Contains 25+ distinct test generation methods"
+      ]
+    },
+    {
+      "file": "domains/security-compliance/services/security-auditor.ts",
+      "lines": 2227,
+      "conditionalStatements": 337,
+      "estimatedCyclomatic": 52,
+      "estimatedCognitive": 68,
+      "riskScore": 0.92,
+      "riskLevel": "CRITICAL",
+      "maintainabilityIndex": 48,
+      "issues": [
+        "Excessive file length (2227 lines)",
+        "Complex security audit orchestration logic",
+        "Multiple nested conditional branches for vulnerability handling"
+      ]
+    },
+    {
+      "file": "domains/security-compliance/services/security-scanner.ts",
+      "lines": 2354,
+      "conditionalStatements": 319,
+      "estimatedCyclomatic": 48,
+      "estimatedCognitive": 62,
+      "riskScore": 0.89,
+      "riskLevel": "CRITICAL",
+      "maintainabilityIndex": 50,
+      "issues": [
+        "Large pattern matching arrays (SQL injection, XSS, secrets)",
+        "Multiple vulnerability detection algorithms",
+        "Complex SAST/DAST orchestration"
+      ]
+    },
+    {
+      "file": "domains/contract-testing/services/contract-validator.ts",
+      "lines": 1700,
+      "conditionalStatements": 287,
+      "estimatedCyclomatic": 42,
+      "estimatedCognitive": 55,
+      "riskScore": 0.87,
+      "riskLevel": "HIGH",
+      "maintainabilityIndex": 52,
+      "issues": [
+        "Multiple schema validation paths (JSON Schema, OpenAPI, GraphQL)",
+        "Complex nested validation logic",
+        "Caching and error handling adds cognitive load"
+      ]
+    },
+    {
+      "file": "cli/index.ts",
+      "lines": 1612,
+      "conditionalStatements": 276,
+      "estimatedCyclomatic": 38,
+      "estimatedCognitive": 48,
+      "riskScore": 0.82,
+      "riskLevel": "HIGH",
+      "maintainabilityIndex": 55,
+      "issues": [
+        "Large CLI command handler with many subcommands",
+        "Complex argument parsing and validation",
+        "Multiple output formatting paths"
+      ]
+    },
+    {
+      "file": "domains/test-generation/services/pattern-matcher.ts",
+      "lines": 1725,
+      "conditionalStatements": 264,
+      "estimatedCyclomatic": 36,
+      "estimatedCognitive": 45,
+      "riskScore": 0.78,
+      "riskLevel": "HIGH",
+      "maintainabilityIndex": 56,
+      "issues": [
+        "Complex pattern recognition algorithms",
+        "Multiple test type detection branches",
+        "Heavy use of conditional logic for pattern matching"
+      ]
+    },
+    {
+      "file": "coordination/workflow-orchestrator.ts",
+      "lines": 1917,
+      "conditionalStatements": 171,
+      "estimatedCyclomatic": 32,
+      "estimatedCognitive": 42,
+      "riskScore": 0.76,
+      "riskLevel": "HIGH",
+      "maintainabilityIndex": 58,
+      "issues": [
+        "Complex workflow execution state machine",
+        "Multiple step execution modes",
+        "Nested async/await chains"
+      ]
+    },
+    {
+      "file": "coordination/protocols/security-audit.ts",
+      "lines": 1587,
+      "conditionalStatements": 193,
+      "estimatedCyclomatic": 30,
+      "estimatedCognitive": 40,
+      "riskScore": 0.74,
+      "riskLevel": "HIGH",
+      "maintainabilityIndex": 59,
+      "issues": [
+        "Complex audit phase state machine",
+        "Multiple scanning methods coordinated",
+        "Deep nesting in triage logic"
+      ]
+    },
+    {
+      "file": "coordination/queen-coordinator.ts",
+      "lines": 1176,
+      "conditionalStatements": 128,
+      "estimatedCyclomatic": 28,
+      "estimatedCognitive": 38,
+      "riskScore": 0.72,
+      "riskLevel": "HIGH",
+      "maintainabilityIndex": 60,
+      "issues": [
+        "Central orchestration point for 12 domains",
+        "Work stealing algorithm complexity",
+        "Task distribution logic"
+      ]
+    },
+    {
+      "file": "domains/test-execution/services/flaky-detector.ts",
+      "lines": 1240,
+      "conditionalStatements": 171,
+      "estimatedCyclomatic": 26,
+      "estimatedCognitive": 35,
+      "riskScore": 0.70,
+      "riskLevel": "HIGH",
+      "maintainabilityIndex": 61,
+      "issues": [
+        "Complex flakiness detection algorithms",
+        "Multiple test runner integrations",
+        "Statistical analysis logic"
+      ]
+    }
+  ],
+  "hotspots": [
+    {
+      "rank": 1,
+      "file": "domains/test-generation/services/test-generator.ts",
+      "function": "generateRealPytestTest",
+      "cyclomatic": 28,
+      "cognitive": 35,
+      "lines": 180,
+      "riskScore": 0.92,
+      "refactoringRecommendation": {
+        "strategy": "Extract Method Pattern",
+        "description": "Decompose into smaller, focused functions",
+        "estimatedReduction": "28 -> 8 cyclomatic",
+        "suggestedExtractions": [
+          "extractTestSetup()",
+          "generateTestBody()",
+          "generateAssertions()",
+          "formatTestOutput()"
+        ],
+        "effort": "high",
+        "testabilityImprovement": "3x"
+      }
+    },
+    {
+      "rank": 2,
+      "file": "domains/test-generation/services/test-generator.ts",
+      "function": "generateBasicOpsTest",
+      "cyclomatic": 24,
+      "cognitive": 31,
+      "lines": 150,
+      "riskScore": 0.87,
+      "refactoringRecommendation": {
+        "strategy": "Strategy Pattern",
+        "description": "Extract test type strategies into separate classes",
+        "estimatedReduction": "24 -> 10 cyclomatic",
+        "suggestedExtractions": [
+          "UnitTestStrategy",
+          "IntegrationTestStrategy",
+          "PropertyTestStrategy"
+        ],
+        "effort": "medium",
+        "testabilityImprovement": "2.5x"
+      }
+    },
+    {
+      "rank": 3,
+      "file": "domains/security-compliance/services/security-scanner.ts",
+      "function": "scanFiles",
+      "cyclomatic": 22,
+      "cognitive": 28,
+      "lines": 120,
+      "riskScore": 0.85,
+      "refactoringRecommendation": {
+        "strategy": "Chain of Responsibility",
+        "description": "Create scanner pipeline with individual pattern handlers",
+        "estimatedReduction": "22 -> 8 cyclomatic",
+        "suggestedExtractions": [
+          "SQLInjectionScanner",
+          "XSSScanner",
+          "SecretScanner",
+          "PathTraversalScanner"
+        ],
+        "effort": "high",
+        "testabilityImprovement": "3x"
+      }
+    },
+    {
+      "rank": 4,
+      "file": "domains/security-compliance/services/security-auditor.ts",
+      "function": "runAudit",
+      "cyclomatic": 20,
+      "cognitive": 26,
+      "lines": 100,
+      "riskScore": 0.82,
+      "refactoringRecommendation": {
+        "strategy": "Template Method Pattern",
+        "description": "Define audit phases as template steps",
+        "estimatedReduction": "20 -> 8 cyclomatic",
+        "suggestedExtractions": [
+          "AuditPhase interface",
+          "SASTAuditPhase",
+          "DASTAuditPhase",
+          "ComplianceAuditPhase"
+        ],
+        "effort": "medium",
+        "testabilityImprovement": "2.5x"
+      }
+    },
+    {
+      "rank": 5,
+      "file": "domains/contract-testing/services/contract-validator.ts",
+      "function": "validateOpenAPI",
+      "cyclomatic": 19,
+      "cognitive": 25,
+      "lines": 90,
+      "riskScore": 0.78,
+      "refactoringRecommendation": {
+        "strategy": "Visitor Pattern",
+        "description": "Create schema validators as visitors",
+        "estimatedReduction": "19 -> 7 cyclomatic",
+        "suggestedExtractions": [
+          "OpenAPI3Validator",
+          "Swagger2Validator",
+          "GraphQLValidator"
+        ],
+        "effort": "medium",
+        "testabilityImprovement": "2x"
+      }
+    },
+    {
+      "rank": 6,
+      "file": "coordination/workflow-orchestrator.ts",
+      "function": "executeWorkflow",
+      "cyclomatic": 18,
+      "cognitive": 24,
+      "lines": 95,
+      "riskScore": 0.76,
+      "refactoringRecommendation": {
+        "strategy": "State Pattern",
+        "description": "Model workflow states as state objects",
+        "estimatedReduction": "18 -> 6 cyclomatic",
+        "suggestedExtractions": [
+          "PendingState",
+          "RunningState",
+          "CompletedState",
+          "FailedState"
+        ],
+        "effort": "high",
+        "testabilityImprovement": "2.5x"
+      }
+    },
+    {
+      "rank": 7,
+      "file": "cli/index.ts",
+      "function": "main",
+      "cyclomatic": 17,
+      "cognitive": 22,
+      "lines": 200,
+      "riskScore": 0.74,
+      "refactoringRecommendation": {
+        "strategy": "Command Pattern",
+        "description": "Extract CLI commands into separate command classes",
+        "estimatedReduction": "17 -> 5 cyclomatic",
+        "suggestedExtractions": [
+          "InitCommand",
+          "StatusCommand",
+          "TaskCommand",
+          "AgentCommand"
+        ],
+        "effort": "medium",
+        "testabilityImprovement": "3x"
+      }
+    },
+    {
+      "rank": 8,
+      "file": "domains/test-execution/services/flaky-detector.ts",
+      "function": "detectFlaky",
+      "cyclomatic": 16,
+      "cognitive": 21,
+      "lines": 75,
+      "riskScore": 0.72,
+      "refactoringRecommendation": {
+        "strategy": "Extract Method",
+        "description": "Separate detection phases",
+        "estimatedReduction": "16 -> 6 cyclomatic",
+        "suggestedExtractions": [
+          "runTests()",
+          "analyzeResults()",
+          "classifyFlakiness()"
+        ],
+        "effort": "low",
+        "testabilityImprovement": "2x"
+      }
+    },
+    {
+      "rank": 9,
+      "file": "coordination/queen-coordinator.ts",
+      "function": "executeTask",
+      "cyclomatic": 15,
+      "cognitive": 20,
+      "lines": 80,
+      "riskScore": 0.70,
+      "refactoringRecommendation": {
+        "strategy": "Mediator Pattern",
+        "description": "Introduce task mediators for domain coordination",
+        "estimatedReduction": "15 -> 5 cyclomatic",
+        "suggestedExtractions": [
+          "TaskMediator",
+          "DomainSelector",
+          "ResultAggregator"
+        ],
+        "effort": "medium",
+        "testabilityImprovement": "2x"
+      }
+    },
+    {
+      "rank": 10,
+      "file": "domains/test-generation/services/pattern-matcher.ts",
+      "function": "matchPattern",
+      "cyclomatic": 14,
+      "cognitive": 18,
+      "lines": 70,
+      "riskScore": 0.68,
+      "refactoringRecommendation": {
+        "strategy": "Strategy Pattern",
+        "description": "Create pattern matchers as strategies",
+        "estimatedReduction": "14 -> 5 cyclomatic",
+        "suggestedExtractions": [
+          "UnitPatternMatcher",
+          "IntegrationPatternMatcher",
+          "E2EPatternMatcher"
+        ],
+        "effort": "low",
+        "testabilityImprovement": "2x"
+      }
+    }
+  ],
+  "patternAnalysis": {
+    "identifiedPatterns": [
+      {
+        "pattern": "God Class Anti-Pattern",
+        "occurrences": 6,
+        "affectedFiles": [
+          "test-generator.ts",
+          "security-auditor.ts",
+          "security-scanner.ts",
+          "contract-validator.ts",
+          "workflow-orchestrator.ts",
+          "queen-coordinator.ts"
+        ],
+        "description": "Classes with too many responsibilities (>10 public methods, >1000 lines)",
+        "recommendation": "Apply Single Responsibility Principle - split into smaller, focused classes"
+      },
+      {
+        "pattern": "Long Method",
+        "occurrences": 23,
+        "affectedFiles": [
+          "test-generator.ts",
+          "security-scanner.ts",
+          "pattern-matcher.ts",
+          "flaky-detector.ts"
+        ],
+        "description": "Methods exceeding 50 lines with multiple responsibilities",
+        "recommendation": "Extract methods and apply compose method pattern"
+      },
+      {
+        "pattern": "Deep Nesting",
+        "occurrences": 15,
+        "affectedFiles": [
+          "security-auditor.ts",
+          "contract-validator.ts",
+          "workflow-orchestrator.ts"
+        ],
+        "description": "Nesting depth >4 levels making code hard to follow",
+        "recommendation": "Use guard clauses, early returns, and extract nested logic"
+      },
+      {
+        "pattern": "Complex Conditionals",
+        "occurrences": 18,
+        "affectedFiles": [
+          "test-generator.ts",
+          "security-scanner.ts",
+          "quality-gate.ts"
+        ],
+        "description": "Conditionals with >3 conditions or complex boolean expressions",
+        "recommendation": "Extract conditions to well-named boolean methods"
+      },
+      {
+        "pattern": "Feature Envy",
+        "occurrences": 8,
+        "affectedFiles": [
+          "domain-handlers.ts",
+          "protocol-executor.ts"
+        ],
+        "description": "Methods that access data from other classes more than their own",
+        "recommendation": "Move methods to the class whose data they use"
+      }
+    ],
+    "architecturalObservations": [
+      {
+        "observation": "Strong DDD Bounded Contexts",
+        "rating": "POSITIVE",
+        "description": "12 well-defined domain modules with clear interfaces"
+      },
+      {
+        "observation": "Centralized Coordination",
+        "rating": "MIXED",
+        "description": "Queen Coordinator provides single orchestration point but risks becoming a bottleneck"
+      },
+      {
+        "observation": "Protocol Pattern Usage",
+        "rating": "POSITIVE",
+        "description": "Cross-domain workflows use protocol pattern for coordination"
+      },
+      {
+        "observation": "Service Layer Complexity",
+        "rating": "CONCERN",
+        "description": "Service classes are too large and handle multiple concerns"
+      }
+    ]
+  },
+  "testabilityAssessment": {
+    "overallScore": 62,
+    "rating": "MODERATE",
+    "breakdown": {
+      "unitTestability": {
+        "score": 58,
+        "blockers": [
+          "Large classes with many dependencies",
+          "Complex constructor injection",
+          "Tight coupling to memory backend"
+        ]
+      },
+      "integrationTestability": {
+        "score": 65,
+        "blockers": [
+          "Heavy reliance on EventBus for communication",
+          "Complex async workflows"
+        ]
+      },
+      "mockability": {
+        "score": 70,
+        "strengths": [
+          "Interface-based design allows mocking",
+          "Dependency injection pattern used"
+        ]
+      }
+    },
+    "recommendations": [
+      "Reduce class sizes to improve unit testability",
+      "Extract pure functions from complex methods",
+      "Add factory methods for easier test setup",
+      "Consider using test fixtures for common scenarios"
+    ]
+  },
+  "domainComplexity": {
+    "domains": [
+      {
+        "domain": "test-generation",
+        "totalLines": 6891,
+        "files": 12,
+        "avgComplexity": 32,
+        "riskLevel": "HIGH",
+        "keyFiles": ["test-generator.ts", "pattern-matcher.ts", "coordinator.ts"]
+      },
+      {
+        "domain": "security-compliance",
+        "totalLines": 8021,
+        "files": 14,
+        "avgComplexity": 28,
+        "riskLevel": "HIGH",
+        "keyFiles": ["security-scanner.ts", "security-auditor.ts", "compliance-validator.ts"]
+      },
+      {
+        "domain": "contract-testing",
+        "totalLines": 5186,
+        "files": 10,
+        "avgComplexity": 24,
+        "riskLevel": "HIGH",
+        "keyFiles": ["contract-validator.ts", "schema-validator.ts", "coordinator.ts"]
+      },
+      {
+        "domain": "coordination",
+        "totalLines": 12548,
+        "files": 16,
+        "avgComplexity": 22,
+        "riskLevel": "HIGH",
+        "keyFiles": ["workflow-orchestrator.ts", "queen-coordinator.ts", "protocols/*"]
+      },
+      {
+        "domain": "test-execution",
+        "totalLines": 4892,
+        "files": 11,
+        "avgComplexity": 18,
+        "riskLevel": "MEDIUM",
+        "keyFiles": ["flaky-detector.ts", "test-executor.ts", "retry-handler.ts"]
+      },
+      {
+        "domain": "learning-optimization",
+        "totalLines": 6231,
+        "files": 13,
+        "avgComplexity": 16,
+        "riskLevel": "MEDIUM",
+        "keyFiles": ["coordinator.ts", "learning-coordinator.ts", "production-intel.ts"]
+      },
+      {
+        "domain": "chaos-resilience",
+        "totalLines": 4278,
+        "files": 9,
+        "avgComplexity": 15,
+        "riskLevel": "MEDIUM",
+        "keyFiles": ["chaos-engineer.ts", "load-tester.ts", "coordinator.ts"]
+      },
+      {
+        "domain": "code-intelligence",
+        "totalLines": 3866,
+        "files": 8,
+        "avgComplexity": 14,
+        "riskLevel": "MEDIUM",
+        "keyFiles": ["knowledge-graph.ts", "semantic-analyzer.ts", "impact-analyzer.ts"]
+      },
+      {
+        "domain": "visual-accessibility",
+        "totalLines": 4244,
+        "files": 9,
+        "avgComplexity": 13,
+        "riskLevel": "MEDIUM",
+        "keyFiles": ["accessibility-tester.ts", "responsive-tester.ts", "coordinator.ts"]
+      },
+      {
+        "domain": "coverage-analysis",
+        "totalLines": 3542,
+        "files": 10,
+        "avgComplexity": 12,
+        "riskLevel": "LOW",
+        "keyFiles": ["coverage-parser.ts", "sublinear-analyzer.ts", "hnsw-index.ts"]
+      },
+      {
+        "domain": "defect-intelligence",
+        "totalLines": 2962,
+        "files": 7,
+        "avgComplexity": 11,
+        "riskLevel": "LOW",
+        "keyFiles": ["defect-predictor.ts", "root-cause-analyzer.ts", "pattern-learner.ts"]
+      },
+      {
+        "domain": "requirements-validation",
+        "totalLines": 3262,
+        "files": 8,
+        "avgComplexity": 10,
+        "riskLevel": "LOW",
+        "keyFiles": ["requirements-validator.ts", "bdd-scenario-writer.ts", "testability-scorer.ts"]
+      }
+    ]
+  },
+  "recommendations": {
+    "immediate": [
+      {
+        "priority": "P0",
+        "action": "Refactor test-generator.ts",
+        "description": "Split into TestGeneratorService, PytestGenerator, TypeScriptTestGenerator, PropertyTestGenerator",
+        "impact": "Reduce complexity by 60%, improve testability by 3x",
+        "effort": "3-5 days"
+      },
+      {
+        "priority": "P0",
+        "action": "Refactor security-scanner.ts",
+        "description": "Extract scanner types into separate files using Chain of Responsibility pattern",
+        "impact": "Reduce complexity by 55%, enable independent testing of each scanner",
+        "effort": "2-3 days"
+      }
+    ],
+    "shortTerm": [
+      {
+        "priority": "P1",
+        "action": "Split security-auditor.ts",
+        "description": "Separate audit orchestration from audit phases using Template Method pattern",
+        "impact": "Reduce complexity by 45%, clearer audit flow",
+        "effort": "2-3 days"
+      },
+      {
+        "priority": "P1",
+        "action": "Modularize CLI",
+        "description": "Extract CLI commands into separate command classes",
+        "impact": "Reduce main function complexity by 70%",
+        "effort": "2 days"
+      },
+      {
+        "priority": "P1",
+        "action": "Simplify contract-validator.ts",
+        "description": "Apply Visitor pattern for schema validation",
+        "impact": "Reduce complexity by 40%, easier to add new schema types",
+        "effort": "2-3 days"
+      }
+    ],
+    "mediumTerm": [
+      {
+        "priority": "P2",
+        "action": "Refactor workflow-orchestrator.ts",
+        "description": "Apply State pattern for workflow execution states",
+        "impact": "Cleaner state management, easier testing",
+        "effort": "3-4 days"
+      },
+      {
+        "priority": "P2",
+        "action": "Extract common patterns",
+        "description": "Create shared abstractions for recurring patterns (validation, event publishing, error handling)",
+        "impact": "Reduce duplication, consistent behavior",
+        "effort": "3-4 days"
+      }
+    ],
+    "longTerm": [
+      {
+        "priority": "P3",
+        "action": "Consider microservices split",
+        "description": "If codebase continues to grow, consider splitting into independent services per domain",
+        "impact": "Independent deployment, scaling, and team ownership",
+        "effort": "Weeks to months"
+      },
+      {
+        "priority": "P3",
+        "action": "Implement feature flags",
+        "description": "Add feature flags for gradual rollout of refactored components",
+        "impact": "Safer deployments, A/B testing capability",
+        "effort": "1-2 weeks"
+      }
+    ]
+  },
+  "metrics": {
+    "halstead": {
+      "programLength": 138882,
+      "vocabulary": 4518,
+      "volume": 1726543,
+      "difficulty": 45.2,
+      "effort": 78039843
+    },
+    "maintainabilityIndex": {
+      "overall": 65,
+      "categories": {
+        "excellent": 45,
+        "good": 107,
+        "moderate": 89,
+        "poor": 27,
+        "critical": 6
+      }
+    },
+    "technicalDebt": {
+      "estimatedHours": 320,
+      "debtRatio": 0.23,
+      "categories": {
+        "complexity": 140,
+        "duplication": 60,
+        "coverage": 45,
+        "documentation": 35,
+        "codeSmells": 40
+      }
+    }
+  },
+  "learningOutcome": {
+    "agentId": "v3-qe-code-complexity",
+    "taskType": "complexity-analysis",
+    "reward": 0.92,
+    "outcome": {
+      "filesAnalyzed": 274,
+      "functionsAnalyzed": 4518,
+      "avgCyclomatic": 16.5,
+      "avgCognitive": 21.2,
+      "hotspots": 10,
+      "maintainabilityIndex": 65
+    },
+    "patterns": {
+      "highComplexityPatterns": [
+        "God Class in service files",
+        "Long methods in generators",
+        "Deep nesting in validation logic",
+        "Complex conditionals in scanners"
+      ],
+      "effectiveRefactorings": [
+        "Extract Method for long functions",
+        "Strategy Pattern for type-specific logic",
+        "Chain of Responsibility for scanners",
+        "State Pattern for workflow management"
+      ]
+    }
+  }
+}

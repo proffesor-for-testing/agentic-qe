@@ -1,0 +1,136 @@
+name: Publish v3 Alpha
+
+on:
+  push:
+    tags:
+      - 'v3.0.0-alpha.*'
+      - 'v3.0.0-beta.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 3.0.0-alpha.2)'
+        required: true
+        type: string
+      tag:
+        description: 'NPM tag'
+        required: true
+        default: 'alpha'
+        type: choice
+        options:
+          - alpha
+          - beta
+          - next
+
+jobs:
+  test:
+    name: Test v3
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: v3/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test -- --run
+
+      - name: Build
+        run: npm run build
+
+  publish:
+    name: Publish to NPM
+    needs: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v3
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: v3/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build
+        run: npm run build
+
+      - name: Update version (if manual trigger)
+        if: github.event_name == 'workflow_dispatch'
+        run: npm version ${{ inputs.version }} --no-git-tag-version
+
+      - name: Publish to NPM
+        run: |
+          TAG=${{ inputs.tag || 'alpha' }}
+          if [[ "${{ github.ref }}" == refs/tags/v3.0.0-beta.* ]]; then
+            TAG="beta"
+          fi
+          npm publish --tag $TAG --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v3 ${{ github.ref_name }}
+          body: |
+            ## Agentic QE v3 Alpha Release
+
+            Install with:
+            ```bash
+            npm install @agentic-qe/v3@${{ github.ref_name }}
+            ```
+
+            ### What's New
+            - 12 DDD Bounded Contexts
+            - 3178+ tests passing
+            - O(log n) coverage analysis with HNSW
+            - ReasoningBank pattern learning
+            - 78 specialized QE agents
+
+            See [CHANGELOG](./v3/CHANGELOG.md) for details.
+          prerelease: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: Notify
+    needs: publish
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify on success
+        if: needs.publish.result == 'success'
+        run: |
+          echo "✅ @agentic-qe/v3 published successfully!"
+          echo "Install with: npm install @agentic-qe/v3@alpha"
+
+      - name: Notify on failure
+        if: needs.publish.result == 'failure'
+        run: |
+          echo "❌ Failed to publish @agentic-qe/v3"
+          exit 1

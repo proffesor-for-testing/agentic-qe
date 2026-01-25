@@ -1,0 +1,346 @@
+{
+  "name": "agentic-qe-companion",
+  "displayName": "Agentic QE Companion",
+  "description": "AI-powered Quality Engineering assistant with test suggestions, coverage analysis, and pattern recognition powered by @ruvector/edge WASM",
+  "version": "0.2.0",
+  "publisher": "agentic-qe",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/proffesor-for-testing/agentic-qe"
+  },
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Testing",
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "testing",
+    "quality-engineering",
+    "ai",
+    "test-generation",
+    "coverage",
+    "typescript",
+    "javascript"
+  ],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:javascript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascriptreact"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aqe.analyze",
+        "title": "Analyze Current File",
+        "category": "Agentic QE",
+        "icon": "$(search)"
+      },
+      {
+        "command": "aqe.generateTests",
+        "title": "Generate Tests for Selection",
+        "category": "Agentic QE",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "aqe.showPanel",
+        "title": "Show QE Panel",
+        "category": "Agentic QE",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "aqe.suggestTests",
+        "title": "Suggest Tests for Function",
+        "category": "Agentic QE",
+        "icon": "$(lightbulb)"
+      },
+      {
+        "command": "aqe.viewPatterns",
+        "title": "View Stored Patterns",
+        "category": "Agentic QE",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "aqe.clearPatterns",
+        "title": "Clear Pattern Cache",
+        "category": "Agentic QE",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "aqe.showTestQuickPick",
+        "title": "Generate Test (Multi-Step)",
+        "category": "Agentic QE",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "aqe.insertTest",
+        "title": "Insert Test",
+        "category": "Agentic QE"
+      },
+      {
+        "command": "aqe.copyTestToClipboard",
+        "title": "Copy Test to Clipboard",
+        "category": "Agentic QE",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "aqe.generateTestsForFunction",
+        "title": "Generate Tests for Function",
+        "category": "Agentic QE",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "aqe.generateEdgeCaseTests",
+        "title": "Generate Edge Case Tests",
+        "category": "Agentic QE",
+        "icon": "$(symbol-array)"
+      },
+      {
+        "command": "aqe.toggleCoverageOverlay",
+        "title": "Toggle Coverage Overlay",
+        "category": "Agentic QE",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "aqe.showCoverageGaps",
+        "title": "Show Coverage Gaps",
+        "category": "Agentic QE",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "aqe.showRefactoringSuggestions",
+        "title": "Show Refactoring Suggestions",
+        "category": "Agentic QE",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "aqe.generateAllTests",
+        "title": "Generate All Tests",
+        "category": "Agentic QE",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "aqe.viewTestsForFunction",
+        "title": "View Tests for Function",
+        "category": "Agentic QE",
+        "icon": "$(file-code)"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "aqe.generateTests",
+          "group": "aqe@1",
+          "when": "editorHasSelection && resourceLangId =~ /typescript|javascript/"
+        },
+        {
+          "command": "aqe.analyze",
+          "group": "aqe@2",
+          "when": "resourceLangId =~ /typescript|javascript/"
+        },
+        {
+          "command": "aqe.showTestQuickPick",
+          "group": "aqe@3",
+          "when": "resourceLangId =~ /typescript|javascript/"
+        },
+        {
+          "command": "aqe.toggleCoverageOverlay",
+          "group": "aqe@4",
+          "when": "resourceLangId =~ /typescript|javascript/"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "aqe.analyze",
+          "when": "resourceLangId =~ /typescript|javascript/"
+        },
+        {
+          "command": "aqe.generateTests",
+          "when": "editorHasSelection && resourceLangId =~ /typescript|javascript/"
+        },
+        {
+          "command": "aqe.showTestQuickPick",
+          "when": "resourceLangId =~ /typescript|javascript/"
+        },
+        {
+          "command": "aqe.toggleCoverageOverlay",
+          "when": "resourceLangId =~ /typescript|javascript/"
+        },
+        {
+          "command": "aqe.showCoverageGaps",
+          "when": "resourceLangId =~ /typescript|javascript/"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "aqe.toggleCoverageOverlay",
+          "group": "navigation",
+          "when": "resourceLangId =~ /typescript|javascript/"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentic-qe",
+          "title": "Agentic QE",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agentic-qe": [
+        {
+          "type": "webview",
+          "id": "aqe.panel",
+          "name": "QE Dashboard"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Agentic QE Companion",
+      "properties": {
+        "aqe.enableAutoAnalysis": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically analyze files on save"
+        },
+        "aqe.showCoverageDecorations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show coverage decorations in the gutter"
+        },
+        "aqe.showTestSuggestions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show test suggestions as code actions"
+        },
+        "aqe.showInlineHints": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inline test suggestion hints after function declarations"
+        },
+        "aqe.showTestPreviewHover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show test preview on hover over hints"
+        },
+        "aqe.showCoverageOverlay": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show coverage overlay highlighting uncovered code"
+        },
+        "aqe.showCoverageGaps": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show coverage gap visualization"
+        },
+        "aqe.lowTestabilityThreshold": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Testability score threshold for warnings (0-100)"
+        },
+        "aqe.vectorDimension": {
+          "type": "number",
+          "default": 384,
+          "description": "Vector dimension for pattern embeddings"
+        },
+        "aqe.hnswM": {
+          "type": "number",
+          "default": 32,
+          "description": "HNSW M parameter (connections per node)"
+        },
+        "aqe.hnswEfConstruction": {
+          "type": "number",
+          "default": 200,
+          "description": "HNSW efConstruction parameter (search width during build)"
+        },
+        "aqe.defaultTestFramework": {
+          "type": "string",
+          "enum": ["jest", "vitest", "mocha", "playwright", "cypress"],
+          "default": "jest",
+          "description": "Default test framework for generated tests"
+        },
+        "aqe.defaultTestType": {
+          "type": "string",
+          "enum": ["unit", "integration", "e2e", "property-based"],
+          "default": "unit",
+          "description": "Default test type for generated tests"
+        },
+        "aqe.debugMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug logging"
+        }
+      }
+    },
+    "colors": [
+      {
+        "id": "aqe.coveredLine",
+        "description": "Background color for covered lines",
+        "defaults": {
+          "dark": "#4CAF5030",
+          "light": "#4CAF5020"
+        }
+      },
+      {
+        "id": "aqe.uncoveredLine",
+        "description": "Background color for uncovered lines",
+        "defaults": {
+          "dark": "#F4433630",
+          "light": "#F4433620"
+        }
+      },
+      {
+        "id": "aqe.partialLine",
+        "description": "Background color for partially covered lines",
+        "defaults": {
+          "dark": "#FF980030",
+          "light": "#FF980020"
+        }
+      },
+      {
+        "id": "aqe.testHint",
+        "description": "Color for inline test hints",
+        "defaults": {
+          "dark": "#2196F3",
+          "light": "#1976D2"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./dist/test/runTest.js",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "@ruvector/edge": "^0.1.9"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.55.0",
+    "typescript": "^5.3.0",
+    "@vscode/test-electron": "^2.3.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}

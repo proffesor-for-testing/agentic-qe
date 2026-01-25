@@ -1,0 +1,178 @@
+{
+  "file": "src/learning/StateExtractor.ts",
+  "lines": 281,
+  "cyclomatic": 58,
+  "cognitive": 64,
+  "level": "high",
+  "halstead": {
+    "vocabulary": 286,
+    "length": 1751,
+    "volume": 14288,
+    "difficulty": 31.25,
+    "effort": 446498
+  },
+  "functions": [
+    {
+      "name": "constructor",
+      "startLine": 30,
+      "endLine": 32,
+      "lines": 3,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "extractState",
+      "startLine": 38,
+      "endLine": 54,
+      "lines": 17,
+      "complexity": 2,
+      "cognitive": 3
+    },
+    {
+      "name": "extractContextFeatures",
+      "startLine": 43,
+      "endLine": 44,
+      "lines": 2,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "extractFeatures",
+      "startLine": 58,
+      "endLine": 81,
+      "lines": 24,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "min",
+      "startLine": 75,
+      "endLine": 110,
+      "lines": 36,
+      "complexity": 5,
+      "cognitive": 7
+    },
+    {
+      "name": "extractRequiredCapabilities",
+      "startLine": 121,
+      "endLine": 148,
+      "lines": 28,
+      "complexity": 3,
+      "cognitive": 4
+    },
+    {
+      "name": "if",
+      "startLine": 124,
+      "endLine": 127,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "extractContextFeatures",
+      "startLine": 153,
+      "endLine": 181,
+      "lines": 29,
+      "complexity": 4,
+      "cognitive": 5
+    },
+    {
+      "name": "if",
+      "startLine": 156,
+      "endLine": 159,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "if",
+      "startLine": 161,
+      "endLine": 169,
+      "lines": 9,
+      "complexity": 2,
+      "cognitive": 3
+    },
+    {
+      "name": "if",
+      "startLine": 171,
+      "endLine": 178,
+      "lines": 8,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "estimateAvailableResources",
+      "startLine": 186,
+      "endLine": 220,
+      "lines": 35,
+      "complexity": 5,
+      "cognitive": 5
+    },
+    {
+      "name": "if",
+      "startLine": 212,
+      "endLine": 217,
+      "lines": 6,
+      "complexity": 5,
+      "cognitive": 5
+    },
+    {
+      "name": "hashContextFeatures",
+      "startLine": 225,
+      "endLine": 237,
+      "lines": 13,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "for",
+      "startLine": 227,
+      "endLine": 233,
+      "lines": 7,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "encodeState",
+      "startLine": 241,
+      "endLine": 246,
+      "lines": 6,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "encodeAction",
+      "startLine": 250,
+      "endLine": 253,
+      "lines": 4,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "reduceDimensionality",
+      "startLine": 257,
+      "endLine": 279,
+      "lines": 23,
+      "complexity": 5,
+      "cognitive": 5
+    },
+    {
+      "name": "if",
+      "startLine": 258,
+      "endLine": 261,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "for",
+      "startLine": 263,
+      "endLine": 268,
+      "lines": 6,
+      "complexity": 2,
+      "cognitive": 2
+    }
+  ],
+  "hotspots": [],
+  "analyzedAt": "2025-12-10T18:59:38.998Z"
+}

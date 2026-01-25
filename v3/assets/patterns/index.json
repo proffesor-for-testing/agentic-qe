@@ -1,0 +1,136 @@
+{
+  "name": "ADR-051 Pattern Memory Store",
+  "version": "1.0",
+  "description": "Persistent cross-session learning patterns for Agent Booster, Model Router, ONNX Embeddings, and ReasoningBank",
+  "created": "2026-01-20",
+  "namespace_index": {
+    "adr-051": {
+      "booster-patterns": {
+        "file": "adr-051-booster-patterns.json",
+        "patterns": [
+          "booster-transform-eligibility",
+          "booster-batch-optimization",
+          "booster-wasm-fallback"
+        ],
+        "description": "Agent Booster WASM transforms and fallback strategies"
+      },
+      "router-patterns": {
+        "file": "adr-051-router-patterns.json",
+        "patterns": [
+          "router-5tier-complexity",
+          "router-budget-enforcement",
+          "router-booster-integration"
+        ],
+        "description": "Model Router complexity scoring and budget enforcement"
+      },
+      "embedding-patterns": {
+        "file": "adr-051-embedding-patterns.json",
+        "patterns": [
+          "embeddings-local-generation",
+          "embeddings-lru-cache",
+          "embeddings-hyperbolic-space",
+          "embeddings-similarity-metrics"
+        ],
+        "description": "ONNX embeddings generation, caching, and similarity computation"
+      },
+      "reasoning-patterns": {
+        "file": "adr-051-reasoning-patterns.json",
+        "patterns": [
+          "reasoning-trajectory-tracking",
+          "reasoning-pattern-quality-gates",
+          "reasoning-experience-replay",
+          "reasoning-cross-agent-sharing"
+        ],
+        "description": "ReasoningBank trajectory learning and pattern consolidation"
+      },
+      "summary": {
+        "file": "adr-051-integration-summary.json",
+        "description": "Complete ADR-051 integration architecture overview"
+      }
+    }
+  },
+  "pattern_statistics": {
+    "total_patterns": 15,
+    "namespaces": 5,
+    "avg_success_rate": 0.915,
+    "implementation_status": "Production Ready"
+  },
+  "access_patterns": [
+    {
+      "pattern_type": "Simple Lookup",
+      "operation": "Load specific pattern by key",
+      "time_complexity": "O(1)",
+      "use_case": "Quick eligibility checks, cache lookup"
+    },
+    {
+      "pattern_type": "Namespace Query",
+      "operation": "Load all patterns in namespace",
+      "time_complexity": "O(n) where n=patterns per namespace",
+      "use_case": "Multi-pattern decision making, agent coordination"
+    },
+    {
+      "pattern_type": "Semantic Search",
+      "operation": "Find patterns by similarity",
+      "time_complexity": "O(n) with embeddings",
+      "use_case": "Pattern discovery, cross-session learning"
+    }
+  ],
+  "session_initialization": {
+    "steps": [
+      "Load index.json to discover available patterns",
+      "Initialize embedding cache from embeddings-patterns",
+      "Load router configuration from router-patterns",
+      "Initialize booster eligibility rules from booster-patterns",
+      "Setup ReasoningBank trajectory database from reasoning-patterns",
+      "Configure quality gates and thresholds",
+      "Register pattern sharing channels"
+    ],
+    "initialization_time": "<100ms"
+  },
+  "cross_session_learning": {
+    "enabled": true,
+    "persistence_layer": "JSON files in .agentic-qe/patterns/",
+    "synchronization": "File-based with timestamps",
+    "conflict_resolution": "Latest timestamp wins",
+    "archival_strategy": "Keep 30-day history in patterns-archive/",
+    "memory_coordination": {
+      "agent_communication": "Via shared pattern namespace",
+      "knowledge_sharing": "Gossip protocol simulation via file watching",
+      "learning_integration": "Apply new patterns on each session start"
+    }
+  },
+  "usage_examples": {
+    "example_1_booster_check": {
+      "query": "Is 'var-to-const' transform eligible for Agent Booster?",
+      "lookup": "patterns['adr-051/booster-patterns']['booster-transform-eligibility'].eligibility_criteria.simple_transforms",
+      "result": "YES - found in eligibility list"
+    },
+    "example_2_router_selection": {
+      "query": "Route a 5-file refactoring task",
+      "lookup": "patterns['adr-051/router-patterns']['router-5tier-complexity'].scoring_factors",
+      "result": "Complexity score 6 → Route to Sonnet tier"
+    },
+    "example_3_embedding_cache": {
+      "query": "Check embedding cache for similarity query",
+      "lookup": "patterns['adr-051/embedding-patterns']['embeddings-lru-cache'].cache_key_strategy",
+      "result": "Check SHA256(text) in cache, 70% expected hit rate"
+    },
+    "example_4_pattern_quality": {
+      "query": "Is new trajectory eligible for ReasoningBank?",
+      "lookup": "patterns['adr-051/reasoning-patterns']['reasoning-pattern-quality-gates'].gate_thresholds",
+      "result": "Check composite score >= 0.80 for silver tier"
+    }
+  },
+  "maintenance": {
+    "review_frequency": "Monthly",
+    "update_triggers": [
+      "New successful pattern discovered",
+      "Pattern success rate drops below threshold",
+      "New component integration requires patterns",
+      "Performance optimization identified"
+    ],
+    "archival_directory": ".agentic-qe/patterns-archive/",
+    "rollback_capability": "Restore from archive by date"
+  },
+  "notes": "This index enables fast pattern discovery and multi-session learning without requiring external MCP tools or CLI. Patterns are loaded on session initialization and used throughout agent coordination."
+}

@@ -1,0 +1,204 @@
+# ADR Dependency Graph
+# Schema for tracking relationships between Architecture Decision Records
+#
+# Relationship Types:
+# - DEPENDS_ON: Source requires Target to be in place
+# - SUPERSEDES: Source replaces Target
+# - RELATES_TO: Shared context (bidirectional)
+# - REFINES: Source provides detail for Target
+# - PART_OF: Source is child of Master ADR (Target)
+
+schema_version: "1.0"
+last_updated: "2026-01-20"
+
+# Master ADR
+master_adrs:
+  - id: MADR-001
+    title: "Agentic QE V3 Implementation Initiative"
+    status: "In Progress"
+
+# ADR Dependencies
+dependencies:
+  # === Core Architecture ===
+
+  - source: ADR-030
+    target: MADR-001
+    type: PART_OF
+    notes: "Coherence-gated quality gates are part of v3 initiative"
+
+  - source: ADR-031
+    target: MADR-001
+    type: PART_OF
+    notes: "Strange loop self-awareness is part of v3 initiative"
+
+  - source: ADR-031
+    target: ADR-030
+    type: RELATES_TO
+    notes: "Self-awareness feeds quality gate coherence metrics"
+
+  - source: ADR-038
+    target: MADR-001
+    type: PART_OF
+    notes: "Memory unification is part of v3 initiative"
+
+  # === Performance ===
+
+  - source: ADR-032
+    target: MADR-001
+    type: PART_OF
+    notes: "Time crystal scheduling is part of v3 initiative"
+
+  - source: ADR-032
+    target: ADR-031
+    type: DEPENDS_ON
+    notes: "Scheduling requires self-awareness signals for optimization"
+
+  - source: ADR-033
+    target: MADR-001
+    type: PART_OF
+    notes: "Early exit testing is part of v3 initiative"
+
+  - source: ADR-033
+    target: ADR-032
+    type: REFINES
+    notes: "Early exit is a scheduling optimization technique"
+
+  - source: ADR-034
+    target: MADR-001
+    type: PART_OF
+    notes: "Neural topology optimizer is part of v3 initiative"
+
+  - source: ADR-034
+    target: ADR-031
+    type: DEPENDS_ON
+    notes: "Topology optimization uses self-awareness feedback"
+
+  # === Intelligence ===
+
+  - source: ADR-035
+    target: MADR-001
+    type: PART_OF
+    notes: "Causal discovery is part of v3 initiative"
+
+  - source: ADR-035
+    target: ADR-031
+    type: RELATES_TO
+    notes: "Causal discovery enhances self-awareness capabilities"
+
+  - source: ADR-044
+    target: MADR-001
+    type: PART_OF
+    notes: "Domain RL integration is part of v3 initiative"
+
+  - source: ADR-044
+    target: ADR-035
+    type: DEPENDS_ON
+    notes: "RL integration builds on causal discovery"
+
+  # === Integration ===
+
+  - source: ADR-040
+    target: MADR-001
+    type: PART_OF
+    notes: "Agentic flow integration is part of v3 initiative"
+
+  - source: ADR-040
+    target: ADR-038
+    type: DEPENDS_ON
+    notes: "Flow integration requires unified memory"
+
+  - source: ADR-042
+    target: MADR-001
+    type: PART_OF
+    notes: "Token tracking integration is part of v3 initiative"
+
+  - source: ADR-042
+    target: ADR-043
+    type: RELATES_TO
+    notes: "Token tracking supports vendor-independent LLM"
+
+  - source: ADR-043
+    target: MADR-001
+    type: PART_OF
+    notes: "Vendor independent LLM is part of v3 initiative"
+
+  # === Infrastructure ===
+
+  - source: ADR-036
+    target: MADR-001
+    type: PART_OF
+    notes: "Result persistence is part of v3 initiative"
+
+  - source: ADR-036
+    target: ADR-038
+    type: RELATES_TO
+    notes: "Result persistence uses unified memory"
+
+  - source: ADR-039
+    target: MADR-001
+    type: PART_OF
+    notes: "MCP optimization is part of v3 initiative"
+
+  - source: ADR-041
+    target: MADR-001
+    type: PART_OF
+    notes: "CLI enhancement is part of v3 initiative"
+
+  # === Naming & Migration ===
+
+  - source: ADR-037
+    target: MADR-001
+    type: PART_OF
+    notes: "Agent naming is part of v3 initiative"
+
+  - source: ADR-045
+    target: ADR-037
+    type: SUPERSEDES
+    notes: "Version-agnostic naming supersedes v3-prefixed naming"
+
+  - source: ADR-045
+    target: MADR-001
+    type: PART_OF
+    notes: "Version-agnostic naming is part of v3 initiative"
+
+  - source: ADR-046
+    target: MADR-001
+    type: PART_OF
+    notes: "V2 feature integration is part of v3 initiative"
+
+  - source: ADR-046
+    target: ADR-048
+    type: RELATES_TO
+    notes: "Feature integration relates to agent migration"
+
+  - source: ADR-047
+    target: MADR-001
+    type: PART_OF
+    notes: "Mincut self-organizing QE is part of v3 initiative"
+
+  - source: ADR-047
+    target: ADR-034
+    type: REFINES
+    notes: "Mincut refines neural topology optimization"
+
+  - source: ADR-048
+    target: MADR-001
+    type: PART_OF
+    notes: "V2-V3 agent migration is part of v3 initiative"
+
+  - source: ADR-048
+    target: ADR-045
+    type: DEPENDS_ON
+    notes: "Migration depends on version-agnostic naming"
+
+  # === Publication ===
+
+  - source: ADR-049
+    target: MADR-001
+    type: PART_OF
+    notes: "V3 main publish is part of v3 initiative"
+
+  - source: ADR-049
+    target: ADR-048
+    type: DEPENDS_ON
+    notes: "Publication depends on migration being complete"

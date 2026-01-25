@@ -1,0 +1,474 @@
+name: accessibility-audit
+version: "1.0.0"
+description: "WCAG 2.1 Level AA compliance audit workflow with automated accessibility testing"
+variables:
+  - name: targetUrl
+    type: string
+    required: true
+    description: "URL to audit for accessibility"
+  - name: wcagLevel
+    type: string
+    required: false
+    default: "AA"
+    description: "WCAG conformance level (A, AA, AAA)"
+  - name: includeAAA
+    type: boolean
+    required: false
+    default: false
+    description: "Include WCAG AAA criteria"
+  - name: testKeyboardNav
+    type: boolean
+    required: false
+    default: true
+    description: "Test keyboard navigation"
+  - name: testScreenReader
+    type: boolean
+    required: false
+    default: true
+    description: "Test screen reader compatibility"
+
+steps:
+  - name: navigate-to-target
+    action: navigate
+    config:
+      url: "{{targetUrl}}"
+      waitUntil: networkidle
+    assertions:
+      - condition: "response.status === 200"
+        message: "Target page should load successfully"
+
+  - name: wait-for-content
+    action: wait
+    config:
+      timeout: 3000
+      waitUntil: networkidle
+
+  - name: check-page-language
+    action: evaluate
+    config:
+      script: |
+        const html = document.documentElement;
+        return {
+          hasLang: html.hasAttribute('lang'),
+          lang: html.getAttribute('lang'),
+          passed: html.hasAttribute('lang') && html.getAttribute('lang').length > 0
+        };
+    assertions:
+      - condition: "result.passed === true"
+        message: "HTML element should have a valid lang attribute (WCAG 3.1.1)"
+
+  - name: check-page-title
+    action: evaluate
+    config:
+      script: |
+        return {
+          hasTitle: !!document.title,
+          title: document.title,
+          length: document.title.length,
+          passed: document.title && document.title.trim().length > 0
+        };
+    assertions:
+      - condition: "result.passed === true"
+        message: "Page should have a meaningful title (WCAG 2.4.2)"
+
+  - name: check-landmarks
+    action: evaluate
+    config:
+      script: |
+        const landmarks = {
+          main: document.querySelectorAll('main, [role="main"]').length,
+          nav: document.querySelectorAll('nav, [role="navigation"]').length,
+          header: document.querySelectorAll('header, [role="banner"]').length,
+          footer: document.querySelectorAll('footer, [role="contentinfo"]').length
+        };
+
+        return {
+          landmarks,
+          hasMain: landmarks.main >= 1,
+          hasMultipleMain: landmarks.main > 1,
+          passed: landmarks.main === 1
+        };
+    assertions:
+      - condition: "result.passed === true"
+        message: "Page should have exactly one main landmark (WCAG 2.4.1)"
+
+  - name: check-heading-structure
+    action: evaluate
+    config:
+      script: |
+        const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+        const levels = headings.map(h => parseInt(h.tagName.substring(1)));
+
+        let hasH1 = levels.includes(1);
+        let h1Count = levels.filter(l => l === 1).length;
+        let skippedLevels = false;
+
+        for (let i = 1; i < levels.length; i++) {
+          if (levels[i] - levels[i-1] > 1) {
+            skippedLevels = true;
+            break;
+          }
+        }
+
+        return {
+          headingCount: headings.length,
+          hasH1,
+          h1Count,
+          skippedLevels,
+          levels,
+          passed: hasH1 && h1Count === 1 && !skippedLevels
+        };
+    assertions:
+      - condition: "result.hasH1 === true"
+        message: "Page should have at least one H1 heading (WCAG 2.4.6)"
+
+  - name: check-images
+    action: evaluate
+    config:
+      script: |
+        const images = Array.from(document.querySelectorAll('img'));
+        const issues = [];
+
+        images.forEach((img, index) => {
+          const hasAlt = img.hasAttribute('alt');
+          const altText = img.getAttribute('alt');
+          const isDecorative = altText === '';
+          const src = img.src;
+
+          if (!hasAlt) {
+            issues.push({
+              index,
+              src: src.substring(0, 50),
+              issue: 'Missing alt attribute'
+            });
+          } else if (!isDecorative && (!altText || altText.trim().length === 0)) {
+            issues.push({
+              index,
+              src: src.substring(0, 50),
+              issue: 'Empty alt text for non-decorative image'
+            });
+          }
+        });
+
+        return {
+          totalImages: images.length,
+          issueCount: issues.length,
+          issues: issues.slice(0, 10),
+          passed: issues.length === 0
+        };
+    assertions:
+      - condition: "result.passed === true"
+        message: "All images should have appropriate alt text (WCAG 1.1.1)"
+
+  - name: check-form-labels
+    action: evaluate
+    config:
+      script: |
+        const inputs = Array.from(document.querySelectorAll('input, select, textarea'));
+        const issues = [];
+
+        inputs.forEach((input, index) => {
+          const type = input.type;
+          if (type === 'hidden' || type === 'submit' || type === 'button') return;
+
+          const id = input.id;
+          const hasLabel = id && document.querySelector(`label[for="${id}"]`);
+          const hasAriaLabel = input.hasAttribute('aria-label') || input.hasAttribute('aria-labelledby');
+          const hasTitle = input.hasAttribute('title');
+
+          if (!hasLabel && !hasAriaLabel && !hasTitle) {
+            issues.push({
+              index,
+              type,
+              id: id || 'no-id',
+              name: input.name || 'no-name',
+              issue: 'No associated label'
+            });
+          }
+        });
+
+        return {
+          totalInputs: inputs.length,
+          issueCount: issues.length,
+          issues: issues.slice(0, 10),
+          passed: issues.length === 0
+        };
+    assertions:
+      - condition: "result.passed === true"
+        message: "All form inputs should have associated labels (WCAG 3.3.2)"
+
+  - name: check-color-contrast
+    action: evaluate
+    config:
+      script: |
+        // Basic contrast check (real implementation would use computed styles)
+        const textElements = Array.from(document.querySelectorAll('p, span, a, button, h1, h2, h3, h4, h5, h6, li'));
+        const issues = [];
+
+        textElements.slice(0, 50).forEach((el, index) => {
+          const styles = window.getComputedStyle(el);
+          const color = styles.color;
+          const bgColor = styles.backgroundColor;
+          const fontSize = parseFloat(styles.fontSize);
+
+          // This is a simplified check - real contrast calculation is more complex
+          if (color && bgColor && color !== bgColor) {
+            // Would need to calculate actual contrast ratio
+            // For now, just flag transparent backgrounds
+            if (bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent') {
+              issues.push({
+                index,
+                element: el.tagName.toLowerCase(),
+                issue: 'Transparent background may cause contrast issues'
+              });
+            }
+          }
+        });
+
+        return {
+          checkedElements: Math.min(50, textElements.length),
+          potentialIssues: issues.length,
+          issues: issues.slice(0, 5),
+          note: 'Manual contrast checking recommended for accurate results'
+        };
+
+  - name: check-links
+    action: evaluate
+    config:
+      script: |
+        const links = Array.from(document.querySelectorAll('a'));
+        const issues = [];
+
+        links.forEach((link, index) => {
+          const href = link.getAttribute('href');
+          const text = link.textContent.trim();
+          const ariaLabel = link.getAttribute('aria-label');
+          const hasText = text.length > 0 || ariaLabel;
+
+          if (!hasText) {
+            issues.push({
+              index,
+              href: href ? href.substring(0, 50) : 'no-href',
+              issue: 'Link has no accessible text'
+            });
+          } else if (text.toLowerCase() === 'click here' || text.toLowerCase() === 'read more') {
+            issues.push({
+              index,
+              href: href ? href.substring(0, 50) : 'no-href',
+              text,
+              issue: 'Link text is not descriptive'
+            });
+          }
+        });
+
+        return {
+          totalLinks: links.length,
+          issueCount: issues.length,
+          issues: issues.slice(0, 10),
+          passed: issues.length === 0
+        };
+    assertions:
+      - condition: "result.issueCount === 0"
+        message: "All links should have descriptive text (WCAG 2.4.4)"
+
+  - name: check-aria-attributes
+    action: evaluate
+    config:
+      script: |
+        const elementsWithAria = Array.from(document.querySelectorAll('[role], [aria-label], [aria-labelledby], [aria-describedby]'));
+        const issues = [];
+
+        elementsWithAria.forEach((el, index) => {
+          const role = el.getAttribute('role');
+          const ariaLabelledby = el.getAttribute('aria-labelledby');
+          const ariaDescribedby = el.getAttribute('aria-describedby');
+
+          // Check if referenced IDs exist
+          if (ariaLabelledby) {
+            const ids = ariaLabelledby.split(' ');
+            ids.forEach(id => {
+              if (!document.getElementById(id)) {
+                issues.push({
+                  element: el.tagName.toLowerCase(),
+                  issue: `aria-labelledby references non-existent ID: ${id}`
+                });
+              }
+            });
+          }
+
+          if (ariaDescribedby) {
+            const ids = ariaDescribedby.split(' ');
+            ids.forEach(id => {
+              if (!document.getElementById(id)) {
+                issues.push({
+                  element: el.tagName.toLowerCase(),
+                  issue: `aria-describedby references non-existent ID: ${id}`
+                });
+              }
+            });
+          }
+        });
+
+        return {
+          elementsWithAria: elementsWithAria.length,
+          issueCount: issues.length,
+          issues: issues.slice(0, 10),
+          passed: issues.length === 0
+        };
+
+  - name: test-keyboard-navigation
+    action: evaluate
+    config:
+      script: |
+        const focusableElements = Array.from(document.querySelectorAll(
+          'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        ));
+
+        const issues = [];
+        focusableElements.forEach((el, index) => {
+          const tabindex = el.getAttribute('tabindex');
+          if (tabindex && parseInt(tabindex) > 0) {
+            issues.push({
+              index,
+              element: el.tagName.toLowerCase(),
+              tabindex,
+              issue: 'Positive tabindex disrupts natural tab order'
+            });
+          }
+        });
+
+        return {
+          focusableElements: focusableElements.length,
+          tabindexIssues: issues.length,
+          issues: issues.slice(0, 10),
+          passed: issues.length === 0
+        };
+
+  - name: take-accessibility-screenshot
+    action: screenshot
+    config:
+      name: "accessibility-audit"
+      fullPage: true
+
+  - name: generate-accessibility-report
+    action: evaluate
+    config:
+      script: |
+        const pageLanguage = {{steps['check-page-language'].result}};
+        const pageTitle = {{steps['check-page-title'].result}};
+        const landmarks = {{steps['check-landmarks'].result}};
+        const headings = {{steps['check-heading-structure'].result}};
+        const images = {{steps['check-images'].result}};
+        const formLabels = {{steps['check-form-labels'].result}};
+        const colorContrast = {{steps['check-color-contrast'].result}};
+        const links = {{steps['check-links'].result}};
+        const aria = {{steps['check-aria-attributes'].result}};
+        const keyboard = {{steps['test-keyboard-navigation'].result}};
+
+        const totalIssues =
+          (!pageLanguage.passed ? 1 : 0) +
+          (!pageTitle.passed ? 1 : 0) +
+          (!landmarks.passed ? 1 : 0) +
+          (!headings.passed ? 1 : 0) +
+          images.issueCount +
+          formLabels.issueCount +
+          colorContrast.potentialIssues +
+          links.issueCount +
+          aria.issueCount +
+          keyboard.tabindexIssues;
+
+        const passedTests = [
+          pageLanguage.passed,
+          pageTitle.passed,
+          landmarks.passed,
+          headings.passed,
+          images.passed,
+          formLabels.passed,
+          links.passed,
+          aria.passed,
+          keyboard.passed
+        ].filter(p => p).length;
+
+        const totalTests = 9;
+        const score = Math.round((passedTests / totalTests) * 100);
+
+        return {
+          score,
+          grade: score >= 90 ? 'A' : score >= 75 ? 'B' : score >= 60 ? 'C' : score >= 50 ? 'D' : 'F',
+          wcagLevel: '{{wcagLevel}}',
+          url: '{{targetUrl}}',
+          timestamp: Date.now(),
+          summary: {
+            totalTests,
+            passedTests,
+            totalIssues
+          },
+          results: {
+            pageLanguage,
+            pageTitle,
+            landmarks,
+            headings,
+            images,
+            formLabels,
+            colorContrast,
+            links,
+            aria,
+            keyboard
+          },
+          recommendations: []
+        };
+
+  - name: add-accessibility-recommendations
+    action: evaluate
+    config:
+      script: |
+        const report = {{previous.result}};
+        const recommendations = [];
+
+        if (!report.results.pageLanguage.passed) {
+          recommendations.push('Add a lang attribute to the HTML element (WCAG 3.1.1)');
+        }
+
+        if (!report.results.pageTitle.passed) {
+          recommendations.push('Add a descriptive page title (WCAG 2.4.2)');
+        }
+
+        if (!report.results.landmarks.passed) {
+          recommendations.push('Use proper HTML5 landmark elements or ARIA roles (WCAG 2.4.1)');
+        }
+
+        if (!report.results.headings.passed) {
+          recommendations.push('Fix heading structure - use proper hierarchy without skipping levels (WCAG 2.4.6)');
+        }
+
+        if (report.results.images.issueCount > 0) {
+          recommendations.push(`Add alt text to ${report.results.images.issueCount} images (WCAG 1.1.1)`);
+        }
+
+        if (report.results.formLabels.issueCount > 0) {
+          recommendations.push(`Add labels to ${report.results.formLabels.issueCount} form inputs (WCAG 3.3.2)`);
+        }
+
+        if (report.results.links.issueCount > 0) {
+          recommendations.push(`Improve link text for ${report.results.links.issueCount} links (WCAG 2.4.4)`);
+        }
+
+        if (report.results.aria.issueCount > 0) {
+          recommendations.push('Fix ARIA attribute references (WCAG 4.1.2)');
+        }
+
+        if (report.results.keyboard.tabindexIssues > 0) {
+          recommendations.push('Remove positive tabindex values to maintain natural tab order (WCAG 2.4.3)');
+        }
+
+        recommendations.push('Perform manual testing with screen readers (JAWS, NVDA, VoiceOver)');
+        recommendations.push('Test with keyboard-only navigation');
+        recommendations.push('Validate with axe DevTools or WAVE browser extension');
+
+        report.recommendations = recommendations;
+        return report;
+
+  - name: export-accessibility-report
+    action: evaluate
+    config:
+      script: "JSON.stringify({{previous.result}}, null, 2)"

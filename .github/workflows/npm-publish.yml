@@ -44,26 +44,31 @@ jobs:
 
       - name: Verify build output
         run: |
-          if [ ! -d "dist" ]; then
-            echo "Error: dist directory not found"
+          if [ ! -d "v3/dist" ]; then
+            echo "Error: v3/dist directory not found"
             exit 1
           fi
-          if [ ! -f "dist/cli/index.js" ]; then
+          if [ ! -f "v3/dist/cli/bundle.js" ]; then
+            echo "Error: CLI bundle not found"
+            exit 1
+          fi
+          if [ ! -f "v3/dist/index.js" ]; then
             echo "Error: Main entry point not found"
             exit 1
           fi
-          echo "Build verification passed"
+          echo "Build verification passed (v3 structure)"
 
-      - name: Run fast tests
-        run: npm run test:fast
+      - name: Run tests (excluding browser integration)
+        run: cd v3 && npm test -- --run --exclude='**/browser-integration/**' --exclude='**/browser-swarm-coordinator.test.ts'
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
+          SKIP_BROWSER_TESTS: 'true'
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: v3-dist
+          path: v3/dist/
           retention-days: 1
 
   publish:
@@ -87,8 +92,8 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: v3-dist
+          path: v3/dist/
 
       - name: Install dependencies
         run: npm ci

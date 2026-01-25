@@ -1,0 +1,25 @@
+{
+  "file": "src/mcp/handlers/base-handler.ts",
+  "lines": 146,
+  "functions": 12,
+  "classes": 1,
+  "complexity": {
+    "cyclomatic": 8,
+    "cognitive": 16,
+    "level": "low"
+  },
+  "metrics": {
+    "maintainability": 79,
+    "testability": 98,
+    "reliability": 100
+  },
+  "issues": [
+    {
+      "type": "type-safety",
+      "severity": "medium",
+      "message": "Found 6 'any' type annotations",
+      "line": null
+    }
+  ],
+  "analyzedAt": "2025-12-10T18:59:36.978Z"
+}

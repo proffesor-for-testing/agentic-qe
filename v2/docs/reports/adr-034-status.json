@@ -1,0 +1,229 @@
+{
+  "adr": "ADR-034",
+  "title": "Neural Topology Optimizer",
+  "status": "IMPLEMENTED",
+  "implementedAt": "2026-01-11T12:20:00Z",
+  "verifiedAt": "2026-01-11T12:20:00Z",
+  "author": "Claude Opus 4.5",
+
+  "summary": {
+    "description": "RL-based swarm topology optimization using value networks and experience replay for intelligent agent coordination",
+    "approach": "Q-learning with neural value function approximation, epsilon-greedy exploration, prioritized experience replay, and multi-objective rewards"
+  },
+
+  "components": {
+    "valueNetwork": {
+      "file": "v3/src/neural-optimizer/value-network.ts",
+      "status": "REAL_IMPLEMENTATION",
+      "features": [
+        "Xavier/He weight initialization",
+        "ReLU activation for hidden layer",
+        "Backpropagation with TD error",
+        "Gradient clipping for stability",
+        "Soft update (Polyak averaging) for target network",
+        "Export/import for model persistence"
+      ],
+      "linesOfCode": 290
+    },
+    "replayBuffer": {
+      "file": "v3/src/neural-optimizer/replay-buffer.ts",
+      "status": "REAL_IMPLEMENTATION",
+      "features": [
+        "Sum tree for O(log n) priority sampling",
+        "Proportional prioritization based on TD error",
+        "Importance sampling weights for bias correction",
+        "Beta annealing for reducing bias over time",
+        "Uniform sampling alternative available"
+      ],
+      "linesOfCode": 280
+    },
+    "swarmTopology": {
+      "file": "v3/src/neural-optimizer/swarm-topology.ts",
+      "status": "REAL_IMPLEMENTATION",
+      "features": [
+        "Mutable topology with agents and connections",
+        "Connection weight management with clamping",
+        "Graph metrics: density, degree, clustering coefficient",
+        "Load statistics for agent balancing",
+        "Topology builders: mesh, ring, star, hierarchical",
+        "JSON serialization for persistence"
+      ],
+      "linesOfCode": 390
+    },
+    "topologyOptimizer": {
+      "file": "v3/src/neural-optimizer/topology-optimizer.ts",
+      "status": "REAL_IMPLEMENTATION",
+      "features": [
+        "Q-learning with value network",
+        "Target network for stable learning",
+        "Epsilon-greedy action selection",
+        "Multi-objective reward: min-cut + efficiency + load balance + latency",
+        "Feature extraction from topology state (16 features)",
+        "Experience replay training",
+        "Model export/import for persistence",
+        "External feedback integration"
+      ],
+      "linesOfCode": 520
+    },
+    "types": {
+      "file": "v3/src/neural-optimizer/types.ts",
+      "status": "REAL_IMPLEMENTATION",
+      "features": [
+        "TopologyAgent and TopologyConnection interfaces",
+        "SwarmTopology interface with mutation methods",
+        "TopologyOptimizerConfig with defaults",
+        "TopologyAction union type (5 action types)",
+        "TopologyState with 14 feature fields",
+        "Experience interface for replay",
+        "OptimizationResult and OptimizationStats",
+        "ExportedModel for persistence"
+      ],
+      "linesOfCode": 340
+    }
+  },
+
+  "tests": {
+    "total": 143,
+    "passed": 143,
+    "failed": 0,
+    "files": [
+      {
+        "file": "v3/tests/unit/neural-optimizer/value-network.test.ts",
+        "tests": 25,
+        "coverage": [
+          "initialization with correct dimensions",
+          "estimate with valid/invalid inputs",
+          "update with positive/negative TD errors",
+          "gradient clipping",
+          "copyFrom and softUpdate",
+          "export/import round-trip",
+          "weight norm calculation",
+          "learning convergence"
+        ]
+      },
+      {
+        "file": "v3/tests/unit/neural-optimizer/replay-buffer.test.ts",
+        "tests": 30,
+        "coverage": [
+          "initialization and capacity",
+          "push with overflow handling",
+          "sample with prioritization",
+          "importance sampling weights",
+          "priority updates",
+          "beta annealing",
+          "uniform buffer alternative"
+        ]
+      },
+      {
+        "file": "v3/tests/unit/neural-optimizer/swarm-topology.test.ts",
+        "tests": 46,
+        "coverage": [
+          "agent add/remove/get",
+          "connection add/remove/weight update",
+          "graph metrics calculations",
+          "load statistics",
+          "serialization/deserialization",
+          "topology builders (mesh, ring, star, hierarchical)"
+        ]
+      },
+      {
+        "file": "v3/tests/unit/neural-optimizer/topology-optimizer.test.ts",
+        "tests": 42,
+        "coverage": [
+          "initialization with default/custom config",
+          "optimizeStep result validation",
+          "epsilon decay",
+          "action counting",
+          "reward and min-cut tracking",
+          "external feedback",
+          "skip regions detection",
+          "reset and hardReset",
+          "model export/import",
+          "topology modifications",
+          "learning behavior and convergence",
+          "multi-objective reward bounds"
+        ]
+      }
+    ]
+  },
+
+  "adrRequirements": {
+    "topologyAdaptation": {
+      "status": "IMPLEMENTED",
+      "notes": "Topology adapts to workload via RL-based action selection"
+    },
+    "communicationEfficiency": {
+      "status": "IMPLEMENTED",
+      "notes": "Included in multi-objective reward function with configurable weight"
+    },
+    "tdErrorConvergence": {
+      "status": "IMPLEMENTED",
+      "notes": "Value network learns from TD errors; convergence tested"
+    },
+    "experienceReplay": {
+      "status": "IMPLEMENTED",
+      "notes": "Prioritized replay buffer with sum tree for O(log n) sampling"
+    },
+    "coordinatorIntegration": {
+      "status": "READY_FOR_INTEGRATION",
+      "notes": "NeuralTopologyOptimizer can be instantiated with any SwarmTopology"
+    },
+    "unitTests": {
+      "status": "IMPLEMENTED",
+      "notes": "143 tests (exceeds 50+ requirement)"
+    }
+  },
+
+  "performance": {
+    "optimizationStepTime": "<1ms per step",
+    "replayBufferSampling": "O(log n) with prioritized sampling",
+    "valueNetworkEstimate": "O(hidden_size * input_size)",
+    "memoryUsage": {
+      "valueNetwork": "~32KB for 16x64 network",
+      "replayBuffer": "~10MB for 10,000 experiences"
+    }
+  },
+
+  "integration": {
+    "exports": [
+      "NeuralTopologyOptimizer",
+      "createNeuralTopologyOptimizer",
+      "ValueNetwork",
+      "createValueNetwork",
+      "PrioritizedReplayBuffer",
+      "UniformReplayBuffer",
+      "MutableSwarmTopology",
+      "createTopology",
+      "createAgent",
+      "buildMeshTopology",
+      "buildRingTopology",
+      "buildStarTopology",
+      "buildHierarchicalTopology"
+    ],
+    "usage": "import { createNeuralTopologyOptimizer, createTopology, createAgent } from '@agentic-qe/v3/neural-optimizer';"
+  },
+
+  "files": {
+    "created": [
+      "v3/src/neural-optimizer/types.ts",
+      "v3/src/neural-optimizer/value-network.ts",
+      "v3/src/neural-optimizer/replay-buffer.ts",
+      "v3/src/neural-optimizer/swarm-topology.ts",
+      "v3/src/neural-optimizer/topology-optimizer.ts",
+      "v3/src/neural-optimizer/index.ts",
+      "v3/tests/unit/neural-optimizer/value-network.test.ts",
+      "v3/tests/unit/neural-optimizer/replay-buffer.test.ts",
+      "v3/tests/unit/neural-optimizer/swarm-topology.test.ts",
+      "v3/tests/unit/neural-optimizer/topology-optimizer.test.ts"
+    ],
+    "totalLinesOfCode": 1820
+  },
+
+  "notes": [
+    "Implementation follows ADR-034 specification closely",
+    "Uses real Q-learning with neural function approximation (not simulated)",
+    "Prioritized experience replay uses sum tree for efficient sampling",
+    "Multi-objective reward balances min-cut, efficiency, load balance, and latency",
+    "Ready for integration with hierarchical-coordinator and swarm systems"
+  ]
+}

@@ -1,0 +1,366 @@
+name: performance-audit
+version: "1.0.0"
+description: "Lighthouse-style performance audit workflow with Core Web Vitals"
+variables:
+  - name: targetUrl
+    type: string
+    required: true
+    description: "URL to audit for performance"
+  - name: throttling
+    type: object
+    required: false
+    default: {"cpu": 4, "network": "3G"}
+    description: "CPU and network throttling configuration"
+  - name: collectTraces
+    type: boolean
+    required: false
+    default: true
+    description: "Collect performance traces"
+  - name: thresholds
+    type: object
+    required: false
+    default: {"fcp": 1800, "lcp": 2500, "cls": 0.1, "fid": 100, "ttfb": 600}
+    description: "Performance metric thresholds in milliseconds"
+
+steps:
+  - name: setup-performance-observer
+    action: evaluate
+    config:
+      script: |
+        window.performanceMetrics = {
+          navigation: {},
+          paint: {},
+          resource: [],
+          marks: [],
+          measures: []
+        };
+
+        // Performance Observer for various entry types
+        if ('PerformanceObserver' in window) {
+          // Paint metrics
+          const paintObserver = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+              window.performanceMetrics.paint[entry.name] = entry.startTime;
+            }
+          });
+          paintObserver.observe({ entryTypes: ['paint'] });
+
+          // Layout Shift (CLS)
+          let clsScore = 0;
+          const clsObserver = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+              if (!entry.hadRecentInput) {
+                clsScore += entry.value;
+              }
+            }
+            window.performanceMetrics.cls = clsScore;
+          });
+          clsObserver.observe({ entryTypes: ['layout-shift'] });
+
+          // Largest Contentful Paint
+          const lcpObserver = new PerformanceObserver((list) => {
+            const entries = list.getEntries();
+            const lastEntry = entries[entries.length - 1];
+            window.performanceMetrics.lcp = lastEntry.startTime;
+          });
+          lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
+
+          // First Input Delay
+          const fidObserver = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+              window.performanceMetrics.fid = entry.processingStart - entry.startTime;
+            }
+          });
+          fidObserver.observe({ entryTypes: ['first-input'] });
+        }
+
+  - name: navigate-to-target
+    action: navigate
+    config:
+      url: "{{targetUrl}}"
+      waitUntil: networkidle
+    assertions:
+      - condition: "response.status === 200"
+        message: "Target page should load successfully"
+
+  - name: wait-for-page-load
+    action: wait
+    config:
+      timeout: 10000
+      waitUntil: networkidle
+
+  - name: capture-navigation-timing
+    action: evaluate
+    config:
+      script: |
+        const timing = performance.timing;
+        const navigation = performance.getEntriesByType('navigation')[0];
+
+        return {
+          // Time to First Byte
+          ttfb: timing.responseStart - timing.requestStart,
+
+          // DNS lookup
+          dnsTime: timing.domainLookupEnd - timing.domainLookupStart,
+
+          // TCP connection
+          tcpTime: timing.connectEnd - timing.connectStart,
+
+          // Request/Response
+          requestTime: timing.responseStart - timing.requestStart,
+          responseTime: timing.responseEnd - timing.responseStart,
+
+          // DOM processing
+          domInteractive: timing.domInteractive - timing.domLoading,
+          domContentLoaded: timing.domContentLoadedEventEnd - timing.domContentLoadedEventStart,
+          domComplete: timing.domComplete - timing.domLoading,
+
+          // Load event
+          loadEventTime: timing.loadEventEnd - timing.loadEventStart,
+
+          // Total page load
+          totalLoadTime: timing.loadEventEnd - timing.navigationStart,
+
+          // Navigation type
+          navigationType: navigation ? navigation.type : 'unknown',
+
+          // Transfer size
+          transferSize: navigation ? navigation.transferSize : 0,
+          encodedBodySize: navigation ? navigation.encodedBodySize : 0,
+          decodedBodySize: navigation ? navigation.decodedBodySize : 0
+        };
+
+  - name: capture-paint-metrics
+    action: evaluate
+    config:
+      script: |
+        return {
+          fcp: window.performanceMetrics.paint['first-contentful-paint'] || null,
+          lcp: window.performanceMetrics.lcp || null,
+          cls: window.performanceMetrics.cls || 0,
+          fid: window.performanceMetrics.fid || null
+        };
+
+  - name: capture-resource-timing
+    action: evaluate
+    config:
+      script: |
+        const resources = performance.getEntriesByType('resource');
+
+        const byType = resources.reduce((acc, resource) => {
+          const type = resource.initiatorType;
+          if (!acc[type]) acc[type] = [];
+          acc[type].push({
+            name: resource.name,
+            duration: resource.duration,
+            size: resource.transferSize,
+            protocol: resource.nextHopProtocol
+          });
+          return acc;
+        }, {});
+
+        return {
+          total: resources.length,
+          byType,
+          totalSize: resources.reduce((sum, r) => sum + (r.transferSize || 0), 0),
+          totalDuration: resources.reduce((sum, r) => sum + r.duration, 0)
+        };
+
+  - name: analyze-render-blocking
+    action: evaluate
+    config:
+      script: |
+        const resources = performance.getEntriesByType('resource');
+        const renderBlocking = resources.filter(r =>
+          (r.initiatorType === 'link' || r.initiatorType === 'script') &&
+          r.startTime < window.performanceMetrics.paint['first-contentful-paint']
+        );
+
+        return {
+          count: renderBlocking.length,
+          resources: renderBlocking.map(r => ({
+            name: r.name,
+            type: r.initiatorType,
+            duration: r.duration,
+            size: r.transferSize
+          }))
+        };
+
+  - name: check-cache-headers
+    action: evaluate
+    config:
+      script: |
+        const resources = performance.getEntriesByType('resource');
+        const cacheable = resources.filter(r => r.transferSize === 0 || r.duration < 50);
+        const notCached = resources.filter(r => r.transferSize > 0 && r.duration >= 50);
+
+        return {
+          cachedResources: cacheable.length,
+          uncachedResources: notCached.length,
+          cacheHitRate: (cacheable.length / resources.length * 100).toFixed(2)
+        };
+
+  - name: analyze-javascript-execution
+    action: evaluate
+    config:
+      script: |
+        const entries = performance.getEntriesByType('measure');
+        const scripts = performance.getEntriesByType('resource').filter(r => r.initiatorType === 'script');
+
+        return {
+          scriptCount: scripts.length,
+          totalScriptSize: scripts.reduce((sum, s) => sum + (s.transferSize || 0), 0),
+          totalScriptDuration: scripts.reduce((sum, s) => sum + s.duration, 0),
+          averageScriptDuration: scripts.length > 0 ?
+            (scripts.reduce((sum, s) => sum + s.duration, 0) / scripts.length).toFixed(2) : 0
+        };
+
+  - name: check-image-optimization
+    action: evaluate
+    config:
+      script: |
+        const images = performance.getEntriesByType('resource').filter(r =>
+          r.initiatorType === 'img' || r.name.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)
+        );
+
+        return {
+          imageCount: images.length,
+          totalImageSize: images.reduce((sum, img) => sum + (img.transferSize || 0), 0),
+          unoptimizedImages: images.filter(img => img.transferSize > 100000).length,
+          largestImage: images.reduce((max, img) =>
+            (img.transferSize || 0) > (max.transferSize || 0) ? img : max,
+            { transferSize: 0 }
+          )
+        };
+
+  - name: take-performance-screenshot
+    action: screenshot
+    config:
+      name: "performance-audit"
+      fullPage: true
+
+  - name: verify-ttfb
+    action: evaluate
+    config:
+      script: |
+        const ttfb = performance.timing.responseStart - performance.timing.requestStart;
+        return ttfb <= {{thresholds.ttfb}};
+    assertions:
+      - condition: "result === true"
+        message: "Time to First Byte should be under {{thresholds.ttfb}}ms"
+
+  - name: verify-fcp
+    action: evaluate
+    config:
+      script: |
+        const fcp = window.performanceMetrics.paint['first-contentful-paint'];
+        return fcp <= {{thresholds.fcp}};
+    assertions:
+      - condition: "result === true"
+        message: "First Contentful Paint should be under {{thresholds.fcp}}ms"
+
+  - name: verify-lcp
+    action: evaluate
+    config:
+      script: |
+        const lcp = window.performanceMetrics.lcp;
+        return lcp <= {{thresholds.lcp}};
+    assertions:
+      - condition: "result === true"
+        message: "Largest Contentful Paint should be under {{thresholds.lcp}}ms"
+
+  - name: verify-cls
+    action: evaluate
+    config:
+      script: |
+        const cls = window.performanceMetrics.cls;
+        return cls <= {{thresholds.cls}};
+    assertions:
+      - condition: "result === true"
+        message: "Cumulative Layout Shift should be under {{thresholds.cls}}"
+
+  - name: generate-performance-report
+    action: evaluate
+    config:
+      script: |
+        const navigation = {{steps['capture-navigation-timing'].result}};
+        const paint = {{steps['capture-paint-metrics'].result}};
+        const resources = {{steps['capture-resource-timing'].result}};
+        const renderBlocking = {{steps['analyze-render-blocking'].result}};
+        const cache = {{steps['check-cache-headers'].result}};
+        const javascript = {{steps['analyze-javascript-execution'].result}};
+        const images = {{steps['check-image-optimization'].result}};
+
+        // Calculate performance score (0-100)
+        const scores = {
+          fcp: paint.fcp <= {{thresholds.fcp}} ? 100 : Math.max(0, 100 - (paint.fcp - {{thresholds.fcp}}) / 10),
+          lcp: paint.lcp <= {{thresholds.lcp}} ? 100 : Math.max(0, 100 - (paint.lcp - {{thresholds.lcp}}) / 10),
+          cls: paint.cls <= {{thresholds.cls}} ? 100 : Math.max(0, 100 - (paint.cls - {{thresholds.cls}}) * 1000),
+          ttfb: navigation.ttfb <= {{thresholds.ttfb}} ? 100 : Math.max(0, 100 - (navigation.ttfb - {{thresholds.ttfb}}) / 10)
+        };
+
+        const overallScore = Math.round(
+          (scores.fcp * 0.25 + scores.lcp * 0.25 + scores.cls * 0.25 + scores.ttfb * 0.25)
+        );
+
+        return {
+          score: overallScore,
+          grade: overallScore >= 90 ? 'A' : overallScore >= 75 ? 'B' : overallScore >= 60 ? 'C' : overallScore >= 50 ? 'D' : 'F',
+          url: '{{targetUrl}}',
+          timestamp: Date.now(),
+          metrics: {
+            navigation,
+            paint,
+            resources,
+            renderBlocking,
+            cache,
+            javascript,
+            images
+          },
+          scores,
+          recommendations: []
+        };
+
+  - name: add-recommendations
+    action: evaluate
+    config:
+      script: |
+        const report = {{previous.result}};
+        const recommendations = [];
+
+        if (report.metrics.paint.fcp > {{thresholds.fcp}}) {
+          recommendations.push('Optimize First Contentful Paint by reducing render-blocking resources');
+        }
+
+        if (report.metrics.paint.lcp > {{thresholds.lcp}}) {
+          recommendations.push('Improve Largest Contentful Paint by optimizing critical resources');
+        }
+
+        if (report.metrics.paint.cls > {{thresholds.cls}}) {
+          recommendations.push('Reduce Cumulative Layout Shift by adding size attributes to images and avoiding dynamic content insertion');
+        }
+
+        if (report.metrics.renderBlocking.count > 5) {
+          recommendations.push(`Reduce render-blocking resources (${report.metrics.renderBlocking.count} found)`);
+        }
+
+        if (report.metrics.images.unoptimizedImages > 0) {
+          recommendations.push(`Optimize ${report.metrics.images.unoptimizedImages} large images (>100KB)`);
+        }
+
+        if (parseFloat(report.metrics.cache.cacheHitRate) < 50) {
+          recommendations.push('Improve cache hit rate by setting appropriate cache headers');
+        }
+
+        if (report.metrics.javascript.totalScriptSize > 500000) {
+          recommendations.push('Reduce JavaScript bundle size (currently ' +
+            (report.metrics.javascript.totalScriptSize / 1024).toFixed(2) + 'KB)');
+        }
+
+        report.recommendations = recommendations;
+        return report;
+
+  - name: export-performance-report
+    action: evaluate
+    config:
+      script: "JSON.stringify({{previous.result}}, null, 2)"

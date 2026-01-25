@@ -1,0 +1,107 @@
+# Hosted-Only Deployment Mode
+# Uses only cloud-hosted providers (Groq, OpenRouter, Claude)
+# Ideal for: Production environments, CI/CD pipelines, teams without local infrastructure
+
+mode: hosted
+
+# Provider configuration
+providers:
+  # Primary: Groq (fast inference, generous free tier)
+  - type: groq
+    enabled: true
+    priority: 10  # Highest priority
+    apiKey: ${GROQ_API_KEY}
+    baseUrl: https://api.groq.com/openai/v1
+    defaultModel: llama-3.3-70b-versatile
+
+    # Groq models optimized for different tasks
+    modelOverrides:
+      test-generation: llama-3.3-70b-versatile
+      code-review: llama-3.1-70b-versatile
+      documentation: llama3-8b-8192
+      refactoring: llama-3.3-70b-versatile
+      performance-testing: llama-3.1-70b-versatile
+      security-scanning: llama-3.1-70b-versatile
+
+    costPer1MTokens:
+      input: 0.59
+      output: 0.79
+
+    # Groq rate limits (free tier)
+    limits:
+      requestsPerMinute: 30
+      requestsPerDay: 14400
+      tokensPerMinute: 20000
+      tokensPerDay: 1000000
+
+    fallbackProvider: openrouter
+
+  # Secondary: OpenRouter (multi-model routing)
+  - type: openrouter
+    enabled: true
+    priority: 20
+    apiKey: ${OPENROUTER_API_KEY}
+    baseUrl: https://openrouter.ai/api/v1
+    defaultModel: anthropic/claude-3.5-sonnet
+
+    # Premium models for complex tasks
+    modelOverrides:
+      code-review: anthropic/claude-3.5-sonnet
+      security-scanning: anthropic/claude-3.5-sonnet
+      refactoring: anthropic/claude-3.5-sonnet
+      test-generation: google/gemini-flash-1.5-8b
+      documentation: google/gemini-flash-1.5-8b
+
+    costPer1MTokens:
+      input: 3.0
+      output: 15.0
+      cacheReadMultiplier: 0.1   # 90% discount for cache hits
+      cacheWriteMultiplier: 1.25  # 25% premium for cache writes
+
+    fallbackProvider: claude
+
+  # Tertiary: Direct Claude API (ultimate fallback)
+  - type: claude
+    enabled: true
+    priority: 30
+    apiKey: ${ANTHROPIC_API_KEY}
+    baseUrl: https://api.anthropic.com/v1
+    defaultModel: claude-sonnet-4-20250514
+
+    costPer1MTokens:
+      input: 3.0
+      output: 15.0
+      cacheReadMultiplier: 0.1
+      cacheWriteMultiplier: 1.25
+
+# Fallback chain: Groq -> OpenRouter -> Claude
+fallbackChain:
+  - groq
+  - openrouter
+  - claude
+
+# Cost budget
+costBudget:
+  daily: 20.0    # $20/day
+  monthly: 500.0 # $500/month
+  warnThreshold: 85
+  enforceLimit: true
+
+# Health monitoring
+enableHealthChecks: true
+healthCheckInterval: 300000  # 5 minutes (hosted providers are stable)
+maxConsecutiveFailures: 5
+
+# Retry configuration
+enableRetries: true
+maxRetries: 3
+
+# Caching (optimize costs)
+enableCaching: true
+cacheTTL: 3600  # 1 hour
+
+# Cost tracking
+enableCostTracking: true
+
+# Logging
+logLevel: info

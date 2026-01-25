@@ -1,0 +1,178 @@
+{
+  "file": "src/reasoning/PatternExtractor.ts",
+  "lines": 779,
+  "cyclomatic": 126,
+  "cognitive": 182,
+  "level": "high",
+  "halstead": {
+    "vocabulary": 532,
+    "length": 4911,
+    "volume": 44470,
+    "difficulty": 48.1,
+    "effort": 2139083
+  },
+  "functions": [
+    {
+      "name": "constructor",
+      "startLine": 41,
+      "endLine": 62,
+      "lines": 22,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "extractFromFiles",
+      "startLine": 66,
+      "endLine": 101,
+      "lines": 36,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "for",
+      "startLine": 73,
+      "endLine": 89,
+      "lines": 17,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "catch",
+      "startLine": 80,
+      "endLine": 88,
+      "lines": 9,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "extractFromFile",
+      "startLine": 105,
+      "endLine": 125,
+      "lines": 21,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "extractFromTestSuite",
+      "startLine": 131,
+      "endLine": 132,
+      "lines": 2,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "for",
+      "startLine": 133,
+      "endLine": 210,
+      "lines": 78,
+      "complexity": 10,
+      "cognitive": 22
+    },
+    {
+      "name": "if",
+      "startLine": 136,
+      "endLine": 139,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 3
+    },
+    {
+      "name": "catch",
+      "startLine": 206,
+      "endLine": 209,
+      "lines": 4,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "normalizeTestCode",
+      "startLine": 218,
+      "endLine": 233,
+      "lines": 16,
+      "complexity": 1,
+      "cognitive": 1
+    },
+    {
+      "name": "extractTags",
+      "startLine": 238,
+      "endLine": 255,
+      "lines": 18,
+      "complexity": 3,
+      "cognitive": 4
+    },
+    {
+      "name": "for",
+      "startLine": 246,
+      "endLine": 252,
+      "lines": 7,
+      "complexity": 3,
+      "cognitive": 4
+    },
+    {
+      "name": "normalizeFramework",
+      "startLine": 260,
+      "endLine": 269,
+      "lines": 10,
+      "complexity": 7,
+      "cognitive": 7
+    },
+    {
+      "name": "parseCode",
+      "startLine": 274,
+      "endLine": 293,
+      "lines": 20,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "catch",
+      "startLine": 290,
+      "endLine": 292,
+      "lines": 3,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "detectFramework",
+      "startLine": 299,
+      "endLine": 326,
+      "lines": 28,
+      "complexity": 8,
+      "cognitive": 23
+    },
+    {
+      "name": "extractEdgeCasePatterns",
+      "startLine": 331,
+      "endLine": 360,
+      "lines": 30,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "if",
+      "startLine": 343,
+      "endLine": 355,
+      "lines": 13,
+      "complexity": 2,
+      "cognitive": 2
+    },
+    {
+      "name": "extractBoundaryConditionPatterns",
+      "startLine": 365,
+      "endLine": 395,
+      "lines": 31,
+      "complexity": 3,
+      "cognitive": 3
+    },
+    {
+      "name": "if",
+      "startLine": 377,
+      "endLine": 390,
+      "lines": 14,
+      "complexity": 2,
+      "cognitive": 2
+    }
+  ],
+  "hotspots": [],
+  "analyzedAt": "2025-12-10T18:59:39.236Z"
+}

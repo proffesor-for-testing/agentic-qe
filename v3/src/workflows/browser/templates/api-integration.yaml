@@ -1,0 +1,298 @@
+name: api-integration
+version: "1.0.0"
+description: "Browser-API hybrid testing workflow for validating frontend-backend integration"
+variables:
+  - name: appUrl
+    type: string
+    required: true
+    description: "Application URL to test"
+  - name: apiBaseUrl
+    type: string
+    required: true
+    description: "API base URL for backend calls"
+  - name: apiEndpoints
+    type: array
+    required: true
+    description: "Array of API endpoints to intercept and validate"
+  - name: authToken
+    type: string
+    required: false
+    description: "Authentication token for API calls"
+  - name: mockResponses
+    type: object
+    required: false
+    description: "Mock API responses for testing error scenarios"
+
+steps:
+  - name: setup-request-interception
+    action: evaluate
+    config:
+      script: |
+        window.interceptedRequests = [];
+        window.apiResponses = [];
+
+        // Store original fetch
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+          const url = args[0];
+          const options = args[1] || {};
+
+          window.interceptedRequests.push({
+            url,
+            method: options.method || 'GET',
+            timestamp: Date.now(),
+            headers: options.headers
+          });
+
+          const response = await originalFetch(...args);
+          const clonedResponse = response.clone();
+
+          try {
+            const data = await clonedResponse.json();
+            window.apiResponses.push({
+              url,
+              status: response.status,
+              data,
+              timestamp: Date.now()
+            });
+          } catch (e) {
+            // Not JSON response
+          }
+
+          return response;
+        };
+
+  - name: navigate-to-app
+    action: navigate
+    config:
+      url: "{{appUrl}}"
+      waitUntil: networkidle
+    assertions:
+      - condition: "response.status === 200"
+        message: "Application should load successfully"
+
+  - name: inject-auth-token
+    action: evaluate
+    config:
+      script: |
+        const token = '{{authToken}}';
+        if (token) {
+          localStorage.setItem('token', token);
+          sessionStorage.setItem('token', token);
+        }
+
+  - name: take-initial-screenshot
+    action: screenshot
+    config:
+      name: "api-integration-start"
+      fullPage: false
+
+  - name: loop-api-scenarios
+    action: loop
+    config:
+      items: "{{apiEndpoints}}"
+      steps:
+        - name: trigger-api-call
+          action: click
+          config:
+            selector: "{{currentItem.triggerSelector}}"
+          assertions:
+            - condition: "element.exists"
+              message: "Trigger element should exist for {{currentItem.endpoint}}"
+
+        - name: wait-for-api-call
+          action: wait
+          config:
+            timeout: 5000
+
+        - name: verify-request-sent
+          action: evaluate
+          config:
+            script: |
+              const requests = window.interceptedRequests;
+              const endpoint = '{{currentItem.endpoint}}';
+              return requests.some(req => req.url.includes(endpoint));
+          assertions:
+            - condition: "result === true"
+              message: "API request should be sent to {{currentItem.endpoint}}"
+
+        - name: get-request-details
+          action: evaluate
+          config:
+            script: |
+              const requests = window.interceptedRequests;
+              const endpoint = '{{currentItem.endpoint}}';
+              return requests.find(req => req.url.includes(endpoint));
+
+        - name: verify-request-method
+          action: evaluate
+          config:
+            script: |
+              const request = {{previous.result}};
+              const expectedMethod = '{{currentItem.method}}' || 'GET';
+              return request.method.toUpperCase() === expectedMethod.toUpperCase();
+          assertions:
+            - condition: "result === true"
+              message: "Request method should be {{currentItem.method}} for {{currentItem.endpoint}}"
+
+        - name: verify-auth-header
+          action: evaluate
+          config:
+            script: |
+              const request = {{previous.result}};
+              const hasAuth = request.headers && (
+                request.headers.Authorization ||
+                request.headers.authorization ||
+                '{{authToken}}' === ''
+              );
+              return hasAuth;
+          assertions:
+            - condition: "result === true"
+              message: "Authorization header should be present if token provided"
+
+        - name: wait-for-response
+          action: wait
+          config:
+            timeout: 3000
+
+        - name: verify-response-received
+          action: evaluate
+          config:
+            script: |
+              const responses = window.apiResponses;
+              const endpoint = '{{currentItem.endpoint}}';
+              return responses.some(res => res.url.includes(endpoint));
+          assertions:
+            - condition: "result === true"
+              message: "API response should be received from {{currentItem.endpoint}}"
+
+        - name: get-response-details
+          action: evaluate
+          config:
+            script: |
+              const responses = window.apiResponses;
+              const endpoint = '{{currentItem.endpoint}}';
+              return responses.find(res => res.url.includes(endpoint));
+
+        - name: verify-response-status
+          action: evaluate
+          config:
+            script: |
+              const response = {{previous.result}};
+              const expectedStatus = {{currentItem.expectedStatus}} || 200;
+              return response.status === expectedStatus;
+          assertions:
+            - condition: "result === true"
+              message: "Response status should be {{currentItem.expectedStatus}} for {{currentItem.endpoint}}"
+
+        - name: verify-ui-update
+          action: wait
+          config:
+            selector: "{{currentItem.expectedUIElement}}"
+            timeout: 3000
+          assertions:
+            - condition: "element.exists"
+              message: "UI should update after API response: {{currentItem.expectedUIElement}}"
+
+        - name: verify-data-displayed
+          action: evaluate
+          config:
+            script: |
+              const element = document.querySelector('{{currentItem.expectedUIElement}}');
+              return element && element.textContent.trim().length > 0;
+          assertions:
+            - condition: "result === true"
+              message: "Data should be displayed in UI after API call"
+
+        - name: take-api-result-screenshot
+          action: screenshot
+          config:
+            name: "api-integration-{{currentIndex}}-{{currentItem.endpoint}}"
+            fullPage: false
+
+        - name: store-scenario-result
+          action: evaluate
+          config:
+            script: |
+              window.apiTestResults = window.apiTestResults || [];
+              const request = window.interceptedRequests.find(req => req.url.includes('{{currentItem.endpoint}}'));
+              const response = window.apiResponses.find(res => res.url.includes('{{currentItem.endpoint}}'));
+
+              window.apiTestResults.push({
+                endpoint: '{{currentItem.endpoint}}',
+                request,
+                response,
+                passed: true,
+                timestamp: Date.now()
+              });
+
+              return window.apiTestResults.length;
+
+  - name: test-error-handling
+    action: evaluate
+    config:
+      script: |
+        // Override fetch to return error for next call
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+          return new Response(
+            JSON.stringify({ error: 'Test error' }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+          );
+        };
+
+  - name: trigger-error-scenario
+    action: click
+    config:
+      selector: "{{apiEndpoints[0].triggerSelector}}"
+      optional: true
+
+  - name: wait-for-error-handling
+    action: wait
+    config:
+      timeout: 3000
+
+  - name: verify-error-ui
+    action: evaluate
+    config:
+      script: |
+        const errorElements = document.querySelectorAll('.error, [role="alert"], .alert-danger');
+        return errorElements.length > 0;
+    assertions:
+      - condition: "result === true"
+        message: "Error UI should appear when API call fails"
+
+  - name: take-error-screenshot
+    action: screenshot
+    config:
+      name: "api-integration-error-handling"
+      fullPage: false
+
+  - name: generate-integration-report
+    action: evaluate
+    config:
+      script: |
+        const results = window.apiTestResults || [];
+        const requests = window.interceptedRequests || [];
+        const responses = window.apiResponses || [];
+
+        return {
+          totalEndpoints: results.length,
+          allPassed: results.every(r => r.passed),
+          totalRequests: requests.length,
+          totalResponses: responses.length,
+          averageResponseTime: responses.length > 0 ?
+            responses.reduce((sum, r, i) => {
+              const req = requests.find(req => req.url === r.url);
+              return sum + (req ? r.timestamp - req.timestamp : 0);
+            }, 0) / responses.length : 0,
+          results
+        };
+    assertions:
+      - condition: "result.allPassed === true"
+        message: "All API integration tests should pass"
+
+  - name: export-integration-data
+    action: evaluate
+    config:
+      script: "JSON.stringify({{previous.result}}, null, 2)"

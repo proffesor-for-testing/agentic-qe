@@ -1,0 +1,35 @@
+{
+  "name": "Code Intelligence Token Consumption Benchmark",
+  "timestamp": "2025-12-22T16:04:15.467Z",
+  "scenarios": [
+    {
+      "scenario": "Baseline (No Code Intelligence)",
+      "inputTokens": 1671,
+      "outputTokens": 472,
+      "totalTokens": 2143,
+      "responseTimeMs": 150,
+      "contextFiles": 6,
+      "contextLines": 270,
+      "relevanceScore": 0.35
+    },
+    {
+      "scenario": "With Code Intelligence",
+      "inputTokens": 336,
+      "outputTokens": 472,
+      "totalTokens": 808,
+      "responseTimeMs": 50,
+      "contextFiles": 2,
+      "contextLines": 55,
+      "relevanceScore": 0.92
+    }
+  ],
+  "summary": {
+    "baselineTokens": 2143,
+    "codeIntelTokens": 808,
+    "tokenReduction": 1335,
+    "tokenReductionPercent": 79.89228007181327,
+    "avgResponseTimeBaseline": 150,
+    "avgResponseTimeCI": 50,
+    "speedImprovement": 66.66666666666666
+  }
+}

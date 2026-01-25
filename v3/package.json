@@ -1,0 +1,144 @@
+{
+  "name": "@agentic-qe/v3",
+  "version": "3.3.1",
+  "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 51 specialized QE agents",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "aqe": "dist/cli/bundle.js",
+    "aqe-mcp": "dist/mcp/bundle.js"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/proffesor-for-testing/agentic-qe.git",
+    "directory": "v3"
+  },
+  "bugs": {
+    "url": "https://github.com/proffesor-for-testing/agentic-qe/issues"
+  },
+  "homepage": "https://github.com/proffesor-for-testing/agentic-qe/tree/main/v3#readme",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./kernel": {
+      "import": "./dist/kernel/index.js",
+      "types": "./dist/kernel/index.d.ts"
+    },
+    "./shared": {
+      "import": "./dist/shared/index.js",
+      "types": "./dist/shared/index.d.ts"
+    },
+    "./cli": {
+      "import": "./dist/cli/index.js"
+    },
+    "./ruvector": {
+      "import": "./dist/integrations/ruvector/wrappers.js",
+      "types": "./dist/integrations/ruvector/wrappers.d.ts"
+    },
+    "./sync": {
+      "import": "./dist/sync/index.js",
+      "types": "./dist/sync/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "assets",
+    "scripts",
+    "README.md"
+  ],
+  "scripts": {
+    "preinstall": "node scripts/preinstall.cjs",
+    "build": "tsc && npm run build:cli && npm run build:mcp",
+    "build:cli": "node scripts/build-cli.js",
+    "build:mcp": "node scripts/build-mcp.js",
+    "prepublishOnly": "npm run sync:agents && bash scripts/prepare-assets.sh",
+    "cli": "tsx src/cli/index.ts",
+    "aqe": "tsx src/cli/index.ts",
+    "mcp": "tsx src/mcp/entry.ts",
+    "test": "vitest run",
+    "test:safe": "NODE_OPTIONS='--max-old-space-size=1536' vitest run",
+    "test:dev": "vitest run --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/vibium/**' --exclude='**/browser-swarm-coordinator.test.ts'",
+    "test:regression": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:perf": "vitest bench tests/performance/",
+    "test:integration:browser": "VIBIUM_REAL_TESTS=true vitest run tests/integrations/vibium/vibium-real.test.ts",
+    "benchmark:token-reduction": "vitest bench tests/benchmarks/code-intelligence-token-reduction.bench.ts",
+    "lint": "eslint src tests --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "sync:agents": "cp ../.claude/agents/v3/qe-*.md ./assets/agents/v3/ && mkdir -p ./assets/agents/v3/subagents && cp ../.claude/agents/v3/subagents/qe-*.md ./assets/agents/v3/subagents/ 2>/dev/null; echo '✓ Synced v3 QE agents (44 main + 7 subagents = 51 total)'",
+    "sync:agents:check": "echo 'Checking v3 QE agents sync status:' && for f in ../.claude/agents/v3/qe-*.md; do diff -q \"$f\" \"./assets/agents/v3/$(basename $f)\" >/dev/null 2>&1 || echo \"  ⚠ $(basename $f)\"; done && for f in ../.claude/agents/v3/subagents/qe-*.md; do diff -q \"$f\" \"./assets/agents/v3/subagents/$(basename $f)\" >/dev/null 2>&1 || echo \"  ⚠ subagents/$(basename $f)\"; done; echo '✓ Check complete'",
+    "sync:cloud": "tsx src/cli/index.ts sync",
+    "sync:cloud:full": "tsx src/cli/index.ts sync --full",
+    "sync:cloud:status": "tsx src/cli/index.ts sync status",
+    "sync:cloud:verify": "tsx src/cli/index.ts sync verify",
+    "sync:cloud:init": "tsx src/cli/index.ts sync init --output ./src/sync/schema/cloud-schema.sql",
+    "sync:cloud:config": "tsx src/cli/index.ts sync config --sources"
+  },
+  "keywords": [
+    "agentic",
+    "quality-engineering",
+    "testing",
+    "ai",
+    "ddd",
+    "domain-driven-design"
+  ],
+  "author": "Agentic QE Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20.10.0",
+    "@types/uuid": "^10.0.0",
+    "@vitest/coverage-v8": "^4.0.16",
+    "esbuild": "^0.27.2",
+    "glob": "^13.0.0",
+    "msw": "^2.12.7",
+    "tsx": "^4.21.0",
+    "vitest": "^4.0.16"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^10.2.0",
+    "@ruvector/attention": "0.1.3",
+    "@ruvector/gnn": "0.1.19",
+    "@ruvector/sona": "0.1.5",
+    "@types/cli-progress": "^3.11.6",
+    "@xenova/transformers": "^2.17.2",
+    "axe-core": "^4.11.1",
+    "better-sqlite3": "^12.5.0",
+    "chalk": "^5.6.2",
+    "cli-progress": "^3.12.0",
+    "commander": "^12.1.0",
+    "fast-glob": "^3.3.3",
+    "hnswlib-node": "^3.0.0",
+    "ora": "^9.0.0",
+    "pg": "^8.17.2",
+    "prime-radiant-advanced-wasm": "^0.1.3",
+    "secure-json-parse": "^4.1.0",
+    "typescript": "^5.9.3",
+    "uuid": "^9.0.0",
+    "vibium": "^0.1.2",
+    "yaml": "^2.8.2"
+  },
+  "optionalDependencies": {
+    "@claude-flow/browser": "^3.0.0",
+    "@ruvector/attention-darwin-arm64": "0.1.3",
+    "@ruvector/attention-linux-arm64-gnu": "0.1.3",
+    "@ruvector/gnn-darwin-arm64": "0.1.19",
+    "@ruvector/gnn-linux-arm64-gnu": "0.1.19"
+  },
+  "overrides": {
+    "@ruvector/gnn-linux-x64-musl": "npm:@ruvector/gnn-linux-x64-gnu@0.1.19",
+    "@ruvector/gnn-linux-arm64-musl": "npm:@ruvector/gnn-linux-arm64-gnu@0.1.19"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,17 @@
+.vscode/**
+.vscode-test/**
+src/**
+webview/**/*.ts
+**/*.map
+**/tsconfig.json
+**/.eslintrc*
+**/jest.config.*
+**/*.test.ts
+**/*.spec.ts
+# Exclude node_modules except @ruvector which is needed at runtime
+node_modules/**
+!node_modules/@ruvector/**
+!node_modules/@ruvector/edge/**
+!node_modules/@ruvector/edge-full/**
+.gitignore
+# Include README.md and CHANGELOG.md for marketplace (removed from ignore)
