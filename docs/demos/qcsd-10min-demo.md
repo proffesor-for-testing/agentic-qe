@@ -66,7 +66,7 @@ High-Risk Areas Requiring Tests:
 
 ### PHASE 2: Test Generation (4 mins)
 
-**[NARRATE]**: "Now we spawn TWO agents in parallel - one for BDD scenarios, one for unit tests."
+**[NARRATE]**: "Now we spawn TWO agents in parallel - one for BDD scenarios, one for Playwright E2E tests."
 
 **[EXECUTE in Claude Code]**:
 ```
@@ -74,14 +74,14 @@ Spawn two QE agents in parallel:
 
 1. qe-bdd-generator: Generate 3 BDD scenarios in Gherkin format for the high-risk areas in cross-phase-memory.ts (file I/O failures, TTL handling, concurrent access)
 
-2. qe-test-architect: Generate Jest/Vitest unit tests for CrossPhaseMemoryService covering storeRiskSignal and queryStrategicSignals methods. Make tests CI/CD ready.
+2. qe-test-architect: Generate Playwright E2E tests in TypeScript for the QE Dashboard. Include page object model, proper test:id selectors, retry logic, and CI/CD ready configuration. Cover: login flow, signal storage verification, and cross-phase query display.
 
 Run both in background.
 ```
 
 **[WHILE WAITING, EXPLAIN]**:
 - "BDD scenarios capture business requirements in human-readable format"
-- "Unit tests verify implementation details"
+- "Playwright E2E tests verify full user flows with real browser automation"
 - "Both agents learned from production defect patterns via cross-phase memory"
 
 **[EXPECTED OUTPUT - BDD]**:
@@ -113,64 +113,93 @@ Feature: Cross-Phase Memory Signal Storage
     And cleanup should mark it for removal
 ```
 
-**[EXPECTED OUTPUT - Unit Tests]**:
+**[EXPECTED OUTPUT - Playwright E2E Tests]**:
 ```typescript
-// cross-phase-memory.test.ts - CI/CD Ready
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { CrossPhaseMemoryService } from '../src/memory/cross-phase-memory';
-import * as fs from 'fs/promises';
+// e2e/qe-dashboard.spec.ts - Playwright CI/CD Ready
+import { test, expect, Page } from '@playwright/test';
 
-describe('CrossPhaseMemoryService', () => {
-  let service: CrossPhaseMemoryService;
+// Page Object Model
+class QEDashboardPage {
+  constructor(private page: Page) {}
 
-  beforeEach(() => {
-    service = new CrossPhaseMemoryService('/tmp/test-memory');
+  async goto() {
+    await this.page.goto('/dashboard');
+  }
+
+  async login(username: string, password: string) {
+    await this.page.getByTestId('username-input').fill(username);
+    await this.page.getByTestId('password-input').fill(password);
+    await this.page.getByTestId('login-button').click();
+    await expect(this.page.getByTestId('dashboard-header')).toBeVisible();
+  }
+
+  async storeSignal(category: string, weight: number) {
+    await this.page.getByTestId('new-signal-btn').click();
+    await this.page.getByTestId('signal-category').fill(category);
+    await this.page.getByTestId('signal-weight').fill(weight.toString());
+    await this.page.getByTestId('submit-signal').click();
+  }
+
+  async querySignals(loop: string) {
+    await this.page.getByTestId('query-tab').click();
+    await this.page.getByTestId('loop-selector').selectOption(loop);
+    await this.page.getByTestId('run-query-btn').click();
+    return this.page.getByTestId('signal-results');
+  }
+}
+
+test.describe('QE Dashboard E2E', () => {
+  let dashboard: QEDashboardPage;
+
+  test.beforeEach(async ({ page }) => {
+    dashboard = new QEDashboardPage(page);
+    await dashboard.goto();
   });
 
-  afterEach(async () => {
-    await fs.rm('/tmp/test-memory', { recursive: true, force: true });
+  test('user can login and view dashboard', async ({ page }) => {
+    await dashboard.login('qe-admin', 'test-password');
+    await expect(page.getByTestId('cross-phase-panel')).toBeVisible();
+    await expect(page.getByTestId('signal-count')).toHaveText(/\d+ signals/);
   });
 
-  describe('storeRiskSignal', () => {
-    it('should persist signal to correct namespace', async () => {
-      const riskWeights = [{ category: 'auth', weight: 0.8, confidence: 0.9 }];
+  test('user can store and query strategic signals', async ({ page }) => {
+    await dashboard.login('qe-admin', 'test-password');
 
-      await service.storeRiskSignal(riskWeights, { forRiskAssessor: [], forQualityCriteria: [] });
+    // Store a new signal
+    await dashboard.storeSignal('authentication', 0.85);
+    await expect(page.getByTestId('toast-success')).toBeVisible();
 
-      const signals = await service.queryStrategicSignals('90d');
-      expect(signals).toHaveLength(1);
-      expect(signals[0].riskWeights[0].category).toBe('auth');
-    });
-
-    it('should handle concurrent writes without data loss', async () => {
-      const writes = Array.from({ length: 10 }, (_, i) =>
-        service.storeRiskSignal(
-          [{ category: `test-${i}`, weight: 0.5, confidence: 0.9 }],
-          { forRiskAssessor: [], forQualityCriteria: [] }
-        )
-      );
-
-      await Promise.all(writes);
-
-      const signals = await service.queryStrategicSignals('90d');
-      expect(signals.length).toBeGreaterThanOrEqual(10);
-    });
+    // Query and verify
+    const results = await dashboard.querySignals('strategic');
+    await expect(results).toContainText('authentication');
+    await expect(results).toContainText('0.85');
   });
 
-  describe('queryStrategicSignals', () => {
-    it('should filter by maxAge parameter', async () => {
-      // Store signal
-      await service.storeRiskSignal(
-        [{ category: 'test', weight: 0.5, confidence: 0.9 }],
-        { forRiskAssessor: [], forQualityCriteria: [] }
-      );
+  test('cross-phase feedback loop displays correctly', async ({ page }) => {
+    await dashboard.login('qe-admin', 'test-password');
 
-      // Query with short maxAge should still find recent signal
-      const signals = await service.queryStrategicSignals('1d');
-      expect(signals.length).toBeGreaterThanOrEqual(1);
-    });
+    await page.getByTestId('feedback-loops-tab').click();
+
+    // Verify all 4 loops are shown
+    await expect(page.getByTestId('loop-strategic')).toBeVisible();
+    await expect(page.getByTestId('loop-tactical')).toBeVisible();
+    await expect(page.getByTestId('loop-operational')).toBeVisible();
+    await expect(page.getByTestId('loop-quality-criteria')).toBeVisible();
   });
 });
+
+// playwright.config.ts snippet for CI/CD
+export default {
+  testDir: './e2e',
+  retries: 2,
+  workers: process.env.CI ? 2 : undefined,
+  reporter: [['html'], ['junit', { outputFile: 'results.xml' }]],
+  use: {
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+};
 ```
 
 ---
