@@ -1,8 +1,8 @@
 # Cross-Phase Memory Implementation
 
-**Version**: 1.1
+**Version**: 1.2
 **Date**: 2026-01-25
-**Status**: ✅ IMPLEMENTED
+**Status**: ✅ IMPLEMENTED & INTEGRATED
 
 ---
 
@@ -14,8 +14,27 @@
 | Memory Service | ✅ Implemented | `v3/src/memory/cross-phase-memory.ts` |
 | Hook Executor | ✅ Implemented | `v3/src/hooks/cross-phase-hooks.ts` |
 | Hook Config | ✅ Implemented | `.claude/hooks/cross-phase-memory.yaml` |
+| **MCP Handlers** | ✅ **INTEGRATED** | `v3/src/mcp/handlers/cross-phase-handlers.ts` |
+| **MCP Server** | ✅ **INTEGRATED** | `v3/src/mcp/server.ts` (8 new tools) |
+| **Integration Tests** | ✅ **11 PASSING** | `v3/tests/integration/cross-phase-integration.test.ts` |
 
-**Commit**: `50dc1aaa` - feat(v3): implement cross-phase memory system for QCSD feedback loops
+### Commits
+
+1. `50dc1aaa` - feat(v3): implement cross-phase memory system for QCSD feedback loops
+2. `54e90176` - feat(v3): integrate cross-phase memory with MCP server + add tests
+
+### MCP Tools Available
+
+| Tool | Description |
+|------|-------------|
+| `mcp__agentic_qe__cross_phase_store` | Store signals by loop type |
+| `mcp__agentic_qe__cross_phase_query` | Query signals with filters |
+| `mcp__agentic_qe__agent_complete` | Trigger hooks on agent completion |
+| `mcp__agentic_qe__phase_start` | Get injected signals at phase start |
+| `mcp__agentic_qe__phase_end` | Store accumulated signals at phase end |
+| `mcp__agentic_qe__cross_phase_stats` | Get memory statistics |
+| `mcp__agentic_qe__format_signals` | Format for agent prompt injection |
+| `mcp__agentic_qe__cross_phase_cleanup` | Clean up expired signals |
 
 ---
 
