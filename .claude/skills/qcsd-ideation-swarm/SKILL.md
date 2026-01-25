@@ -3,10 +3,10 @@ name: qcsd-ideation-swarm
 description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins."
 category: qcsd-phases
 priority: critical
-tokenEstimate: 2200
+tokenEstimate: 1800
 agents: [qe-quality-criteria-recommender, qe-risk-assessor, qe-requirements-validator, qe-accessibility-auditor, qe-security-auditor, qe-qx-partner]
-implementation_status: implemented
-optimization_version: 1.0
+implementation_status: working
+optimization_version: 2.0
 last_optimized: 2026-01-25
 dependencies: [testability-scoring, risk-based-testing, context-driven-testing, holistic-testing-pact]
 quick_reference_card: true
@@ -15,390 +15,299 @@ tags: [qcsd, ideation, htsm, quality-criteria, risk-storming, testability, enabl
 
 # QCSD Ideation Swarm
 
+## WORKING IMPLEMENTATION
+
 <default_to_action>
 When running Quality Criteria sessions, PI Planning, or Ideation phase analysis:
 
-1. **INITIALIZE** fleet with ideation domains:
+**Step 1: Initialize Fleet (MCP Tool)**
 ```javascript
-mcp__aqe__fleet_init({
+mcp__agentic_qe__fleet_init({
   topology: "hierarchical",
-  enabledDomains: ["requirements-validation", "coverage-analysis", "security-compliance"],
-  maxAgents: 6
+  enabledDomains: ["requirements-validation", "quality-assessment", "security-compliance", "visual-accessibility"],
+  maxAgents: 6,
+  lazyLoading: true
 })
 ```
 
-2. **SPAWN** parallel agents for comprehensive analysis:
+**Step 2: Spawn Agents in Parallel (Task Tool)**
+Use a SINGLE message with multiple Task calls for parallel execution:
+
 ```javascript
-// Run in parallel via Task tool
-Task("HTSM Quality Criteria", epicContent, "qe-quality-criteria-recommender")
-Task("Risk Assessment", epicContent, "qe-risk-assessor")
-Task("Requirements Validation", acceptanceCriteria, "qe-requirements-validator")
+// ALL THREE in ONE message for parallel execution
+Task({
+  prompt: `Run HTSM v6.3 Quality Criteria analysis on this epic:
+
+${epicContent}
+
+Analyze ALL 10 HTSM categories:
+1. Capability - Can it perform required functions?
+2. Reliability - Will it resist failure?
+3. Usability - How easy for real users?
+4. Charisma - How appealing/engaging?
+5. Security - How protected against threats?
+6. Scalability - How well does it scale?
+7. Compatibility - Works with external systems?
+8. Performance - How speedy and responsive?
+9. Installability - How easily deployed?
+10. Development - How well can we test/modify?
+
+For each category provide:
+- Score (1-5)
+- Evidence type (Direct with file:line, Inferred with reasoning, or Claimed)
+- Key risks
+- Test focus recommendations
+
+Output as structured markdown report.`,
+  subagent_type: "qe-quality-criteria-recommender",
+  run_in_background: true
+})
+
+Task({
+  prompt: `Perform Risk Storming analysis on this epic:
+
+${epicContent}
+
+Identify and score risks in these categories:
+1. Technical risks (architecture, dependencies, complexity)
+2. Business risks (compliance, deadlines, budget)
+3. Quality risks (testability, coverage gaps, tech debt)
+4. Integration risks (APIs, external systems, data)
+
+For each risk provide:
+- Description
+- Likelihood (Low/Medium/High)
+- Impact (Low/Medium/High)
+- Risk Score (Likelihood × Impact)
+- Mitigation strategy
+
+Output as Risk Matrix table.`,
+  subagent_type: "qe-risk-assessor",
+  run_in_background: true
+})
+
+Task({
+  prompt: `Validate acceptance criteria completeness:
+
+Acceptance Criteria:
+${acceptanceCriteria}
+
+Check each AC for:
+1. Testability - Can we write automated tests?
+2. Completeness - Edge cases covered?
+3. Clarity - Unambiguous language?
+4. Measurability - Quantifiable success criteria?
+
+Output:
+- AC Validation Report
+- Missing edge cases
+- Suggested improvements
+- Testability score (0-100%)`,
+  subagent_type: "qe-requirements-validator",
+  run_in_background: true
+})
 ```
 
-3. **INVOKE** testability-scoring skill:
-```bash
-/testability-scoring <design-doc-or-epic>
-```
+**Step 3: Store Results (MCP Tool)**
+After agents complete, store learnings:
 
-4. **AGGREGATE** results into Ideation Report with evidence-based recommendations
-
-5. **STORE** learnings for future sprints:
 ```javascript
-mcp__aqe__memory_store({
-  key: "aqe/qcsd/ideation/epic-{id}",
-  namespace: "aqe/qcsd/ideation",
-  value: { htsmScores, riskMatrix, testabilityScore },
-  persist: true
+mcp__agentic_qe__memory_store({
+  key: "qcsd-ideation-epic-" + epicId,
+  namespace: "qcsd-ideation",
+  value: {
+    epicId: epicId,
+    htsmScores: htsmResults,
+    riskMatrix: riskResults,
+    acValidation: validationResults,
+    timestamp: new Date().toISOString()
+  }
 })
 ```
 
 **Quick Commands:**
-- Full ideation swarm: `/qcsd-ideation-swarm "Epic: <description>"`
-- Quality criteria only: `Task("HTSM", epic, "qe-quality-criteria-recommender")`
-- Risk storming only: `Task("Risk", epic, "qe-risk-assessor")`
-
-**HTSM Quality Categories (Never Omit):**
-| Category | Question | Can Omit? |
-|----------|----------|-----------|
-| Capability | Can it perform required functions? | Never |
-| Reliability | Will it resist failure? | Never |
-| Security | How protected against threats? | Never |
-| Performance | How speedy and responsive? | Never |
-| Development | How well can we test/modify? | Never |
+- Full swarm: `/qcsd-ideation-swarm "Epic: <description>"`
+- HTSM only: `Task({ prompt: "HTSM analysis...", subagent_type: "qe-quality-criteria-recommender" })`
+- Risk only: `Task({ prompt: "Risk assessment...", subagent_type: "qe-risk-assessor" })`
 </default_to_action>
 
-## Quick Reference Card
+---
 
-### When to Use
-- PI Planning sessions (before sprint commitment)
-- Quality Criteria sessions (QCSD Enable & Engage)
-- Epic/Feature kickoff meetings
-- Risk Storming workshops
-- Design reviews with QE + UX pairing
-- Before development begins on any significant feature
+## When to Use
 
-### QCSD Phase Mapping
-```
-ENABLE & ENGAGE → IDEATION SWARM (this skill)
-    │
-    ├── Quality Criteria Session (HTSM v6.3)
-    ├── Risk Storming
-    ├── Testing the Design
-    └── QX Sessions (QE + UX)
-```
+| Context | Use This Skill? |
+|---------|-----------------|
+| PI Planning sessions | ✅ Yes |
+| Sprint Planning | ✅ Yes |
+| Epic/Feature kickoff | ✅ Yes |
+| Quality Criteria workshops | ✅ Yes |
+| Risk Storming sessions | ✅ Yes |
+| Small bug fixes | ❌ No (overkill) |
+| Single-file changes | ❌ No |
 
-### Agent-to-Activity Matrix
+---
 
-| Agent | Activity | Priority | Output |
-|-------|----------|----------|--------|
-| `qe-quality-criteria-recommender` | HTSM v6.3 Analysis | P0 | 10 Quality Category Scores |
-| `qe-risk-assessor` | Risk Storming | P0 | Risk Matrix (likelihood × impact) |
-| `qe-requirements-validator` | AC Validation | P1 | Completeness/Testability Report |
-| `qe-accessibility-auditor` | Early A11y Review | P1 | WCAG Compliance Gaps |
-| `qe-security-auditor` | Threat Modeling | P1 | Security Risk Findings |
-| `qe-qx-partner` | QE + UX Pairing | P2 | Quality Experience Assessment |
+## Agent Responsibilities
 
-### Quality Gate Thresholds (Ideation Exit)
+| Agent | What It Does | Output |
+|-------|--------------|--------|
+| `qe-quality-criteria-recommender` | HTSM v6.3 analysis of 10 quality categories | Quality Criteria Report |
+| `qe-risk-assessor` | Risk identification and scoring | Risk Matrix |
+| `qe-requirements-validator` | AC completeness and testability check | Validation Report |
+| `qe-accessibility-auditor` | WCAG compliance gaps (UI features) | A11y Findings |
+| `qe-security-auditor` | Threat modeling (security features) | Security Risks |
+| `qe-qx-partner` | QE + UX quality pairing | QX Assessment |
+
+---
+
+## Quality Gate Thresholds
 
 | Metric | Minimum | Target | Blocker |
 |--------|---------|--------|---------|
 | HTSM Coverage | 8/10 categories | 10/10 | <6 categories |
 | Testability Score | 60% | 80%+ | <40% |
-| Risk Items Identified | 5+ | 10+ | 0 (not analyzed) |
+| Risk Items Identified | 5+ | 10+ | 0 |
 | AC Completeness | 70% | 90%+ | <50% |
-| Security Risks Documented | All critical | All high+ | None documented |
 
 ---
 
-## HTSM v6.3 Quality Criteria Framework
+## HTSM v6.3 Quality Categories
 
-James Bach's Heuristic Test Strategy Model provides 10 quality categories for comprehensive analysis:
-
-### The 10 Quality Categories
-
-| # | Category | Focus Question | Evidence Types |
-|---|----------|---------------|----------------|
-| 1 | **Capability** | Can it perform all required functions? | Direct (code), Inferred (design) |
-| 2 | **Reliability** | Will it work without failure under expected conditions? | Direct (tests), Claimed (docs) |
-| 3 | **Usability** | How easy is it for real users to accomplish tasks? | Inferred (UX review) |
-| 4 | **Charisma** | How appealing and engaging is the experience? | Inferred (design) |
-| 5 | **Security** | How well protected against unauthorized use? | Direct (scan), Inferred (arch) |
-| 6 | **Scalability** | How well does it handle growth in users/data? | Claimed (arch), Inferred |
-| 7 | **Compatibility** | Does it work with external systems/browsers? | Direct (matrix), Claimed |
-| 8 | **Performance** | How fast and responsive under load? | Direct (benchmarks) |
-| 9 | **Installability** | How easily deployed/configured? | Claimed (runbook) |
-| 10 | **Development** | How well can we create, test, and modify it? | Direct (code), Inferred |
+| # | Category | Question | Never Omit? |
+|---|----------|----------|-------------|
+| 1 | Capability | Can it perform required functions? | **NEVER** |
+| 2 | Reliability | Will it resist failure? | **NEVER** |
+| 3 | Usability | How easy for real users? | Rarely |
+| 4 | Charisma | How appealing/engaging? | With evidence |
+| 5 | Security | How protected against threats? | **NEVER** |
+| 6 | Scalability | How well does it scale? | Rarely |
+| 7 | Compatibility | Works with external systems? | With evidence |
+| 8 | Performance | How speedy and responsive? | **NEVER** |
+| 9 | Installability | How easily deployed? | SaaS only |
+| 10 | Development | How well can we test/modify? | **NEVER** |
 
 ### Evidence Classification
 
-| Type | Definition | Confidence |
-|------|------------|------------|
-| **Direct** | Actual code/doc quote with `file:line` reference | High |
-| **Inferred** | Logical deduction with reasoning chain | Medium |
-| **Claimed** | Stated but requires verification | Low |
-
-### Category Omission Rules
-
-| Category | Can Omit? | Condition |
-|----------|-----------|-----------|
-| Capability | **Never** | Core functionality |
-| Reliability | **Never** | System stability |
-| Usability | Rarely | Backend-only services |
-| Charisma | With evidence | Internal tools only |
-| Security | **Never** | Any data handling |
-| Scalability | Rarely | Fixed-scale systems |
-| Compatibility | With evidence | Single-platform only |
-| Performance | **Never** | User-facing systems |
-| Installability | SaaS only | Managed platforms |
-| Development | **Never** | All software |
+| Type | Definition | How to Cite |
+|------|------------|-------------|
+| **Direct** | Actual code/doc quote | `src/auth/login.ts:45-52` |
+| **Inferred** | Logical deduction | Show reasoning chain |
+| **Claimed** | Needs verification | State "requires verification" |
 
 ---
 
-## Swarm Coordination Flow
+## Complete Example: Running Ideation Swarm
 
-### Ideation Swarm Architecture
-
+### Input: Epic Description
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      IDEATION SWARM                          │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  Epic/Feature Input                                          │
-│         │                                                    │
-│         ▼                                                    │
-│  ┌─────────────────────────────────────────────────────────┐│
-│  │  qe-quality-criteria-recommender (HTSM v6.3)           ││
-│  │  - Analyzes 10 quality categories                       ││
-│  │  - Collects evidence with file:line refs               ││
-│  │  - Generates quality recommendations                    ││
-│  └─────────────────────────────────────────────────────────┘│
-│         │                                                    │
-│         ├──────────────────┬──────────────────┐             │
-│         ▼                  ▼                  ▼             │
-│  testability-         qe-risk-         qe-requirements-     │
-│  scoring (skill)      assessor         validator            │
-│         │                  │                  │             │
-│         └──────────────────┴──────────────────┘             │
-│                            │                                 │
-│                            ▼                                 │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │     IDEATION REPORT                                   │  │
-│  │  - HTSM Quality Criteria (10 categories)              │  │
-│  │  - Testability Score (10 principles)                  │  │
-│  │  - Risk Assessment (likelihood × impact)              │  │
-│  │  - Requirements Validation (gaps + recommendations)   │  │
-│  └───────────────────────────────────────────────────────┘  │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+Epic: User Authentication Overhaul
+- Implement SSO with OAuth2/OIDC
+- Add MFA support (TOTP, SMS, email)
+- Session management with 30-min timeout
+- Audit logging for all auth events
 ```
 
-### Execution Sequence
-
-```
-1. PARALLEL: Quality Criteria + Risk Assessment
-   ├── qe-quality-criteria-recommender → HTSM scores
-   └── qe-risk-assessor → Risk matrix
-
-2. SEQUENTIAL: Validation (depends on step 1)
-   └── qe-requirements-validator → AC completeness
-
-3. PARALLEL: Specialized Support (if needed)
-   ├── qe-accessibility-auditor → A11y gaps (UI features)
-   ├── qe-security-auditor → Threat model (data features)
-   └── qe-qx-partner → QX assessment (UX features)
-
-4. AGGREGATE: Compile Ideation Report
-```
-
----
-
-## MCP Integration
-
-### Full Ideation Swarm Orchestration
-
+### Step 1: Initialize Fleet
 ```javascript
-// Step 1: Initialize fleet
-mcp__aqe__fleet_init({
+mcp__agentic_qe__fleet_init({
   topology: "hierarchical",
-  enabledDomains: ["requirements-validation", "coverage-analysis", "security-compliance"],
-  maxAgents: 6
+  enabledDomains: ["requirements-validation", "quality-assessment", "security-compliance"],
+  maxAgents: 6,
+  lazyLoading: true
+})
+```
+
+### Step 2: Spawn Agents (Single Message, Parallel)
+
+```javascript
+// Message 1: All three agents spawn in parallel
+Task({
+  prompt: `Run HTSM v6.3 Quality Criteria analysis on:
+
+Epic: User Authentication Overhaul
+- Implement SSO with OAuth2/OIDC
+- Add MFA support (TOTP, SMS, email)
+- Session management with 30-min timeout
+- Audit logging for all auth events
+
+Analyze ALL 10 HTSM categories with scores, evidence, risks, and test focus.`,
+  subagent_type: "qe-quality-criteria-recommender",
+  run_in_background: true
 })
 
-// Step 2: Orchestrate ideation assessment (uses task-orchestrate handler)
-mcp__aqe__task_orchestrate({
-  task: {
-    type: "qcsd-ideation",
-    strategy: "parallel",
-    priority: "high"
-  },
-  context: {
-    useBlackboard: true,
-    blackboardKey: "aqe/qcsd/ideation/epic-E2"
-  },
-  payload: {
-    epicId: "E2",
-    epicName: "Progressive Enhancement & Core Web Vitals",
-    epicPriority: "HIGH",
-    acceptanceCriteria: [
-      "Homepage renders meaningful content without JavaScript",
-      "LCP < 2.5 seconds on 4G connections",
-      "FID < 100ms / INP < 200ms",
-      "CLS < 0.1"
-    ],
-    userStories: [
-      "US1: As a user on slow mobile, I can see homepage within 3 seconds",
-      "US2: As a user with JS disabled, I can browse categories"
-    ]
+Task({
+  prompt: `Perform Risk Storming on:
+
+Epic: User Authentication Overhaul
+- SSO with OAuth2/OIDC
+- MFA (TOTP, SMS, email)
+- Session management
+- Audit logging
+
+Identify technical, business, quality, and integration risks with likelihood/impact scoring.`,
+  subagent_type: "qe-risk-assessor",
+  run_in_background: true
+})
+
+Task({
+  prompt: `Validate acceptance criteria:
+
+AC1: Users can login via corporate SSO
+AC2: MFA is required for admin accounts
+AC3: Sessions expire after 30 minutes of inactivity
+AC4: All auth events are logged with user ID, timestamp, action
+
+Check testability, completeness, clarity, measurability.`,
+  subagent_type: "qe-requirements-validator",
+  run_in_background: true
+})
+```
+
+### Step 3: Optional Specialized Agents
+
+For security-sensitive features like auth, also spawn:
+
+```javascript
+Task({
+  prompt: `Perform threat modeling on authentication epic:
+- SSO/OAuth2 attack vectors
+- MFA bypass risks
+- Session hijacking
+- Token security
+
+Output: STRIDE threat analysis with mitigations.`,
+  subagent_type: "qe-security-auditor",
+  run_in_background: true
+})
+```
+
+### Step 4: Store Results
+
+```javascript
+mcp__agentic_qe__memory_store({
+  key: "qcsd-ideation-auth-overhaul",
+  namespace: "qcsd-ideation",
+  value: {
+    epicId: "AUTH-001",
+    epicName: "User Authentication Overhaul",
+    htsmScores: {
+      capability: 4,
+      reliability: 3,
+      usability: 4,
+      charisma: 2,
+      security: 5,
+      scalability: 3,
+      compatibility: 4,
+      performance: 3,
+      installability: 3,
+      development: 4
+    },
+    overallScore: 35,
+    riskCount: 12,
+    criticalRisks: 3,
+    acCompleteness: 75,
+    recommendation: "CONDITIONAL - address critical security risks"
   }
-})
-// Returns orchestration with 8 workflow steps:
-// 1. analyze-product-factors, 2. assess-quality-criteria, 3. assess-risks,
-// 4. accessibility-audit, 5. security-audit, 6. generate-htsm-report,
-// 7. prioritize-criteria, 8. generate-test-strategy
-
-// Step 3: Store results for future reference
-mcp__aqe__memory_store({
-  key: "aqe/qcsd/ideation/epic-E2",
-  namespace: "aqe/qcsd/ideation",
-  value: {
-    epicId: "E2",
-    htsmScores: { capability: 85, reliability: 70, performance: 60 },
-    testabilityScore: 72,
-    riskMatrix: [
-      { risk: "SSR migration breaks features", likelihood: "medium", impact: "high" }
-    ],
-    recommendations: ["Add progressive enhancement tests", "Performance baseline required"]
-  },
-  persist: true,
-  ttl: 2592000  // 30 days
-})
-```
-
-### Individual Agent Invocations
-
-```javascript
-// HTSM Quality Criteria Analysis
-Task("Run HTSM v6.3 Quality Criteria analysis", `
-  Analyze Epic: ${epicDescription}
-
-  For each of the 10 HTSM categories:
-  1. Score relevance (1-5)
-  2. Identify evidence (Direct/Inferred/Claimed)
-  3. List quality risks
-  4. Recommend test focus areas
-
-  Output: Quality Criteria Report with evidence references
-`, "qe-quality-criteria-recommender")
-
-// Risk Assessment
-Task("Perform Risk Storming analysis", `
-  Analyze Epic: ${epicDescription}
-
-  Identify risks using:
-  1. Technical risks (architecture, dependencies)
-  2. Business risks (compliance, deadlines)
-  3. Quality risks (testability, coverage)
-
-  Output: Risk Matrix (likelihood × impact) with mitigation strategies
-`, "qe-risk-assessor")
-
-// Requirements Validation
-Task("Validate acceptance criteria completeness", `
-  Acceptance Criteria: ${acceptanceCriteria}
-
-  Check for:
-  1. Testability (can we write automated tests?)
-  2. Completeness (edge cases covered?)
-  3. Clarity (unambiguous language?)
-  4. Measurability (quantifiable success criteria?)
-
-  Output: AC Validation Report with improvement suggestions
-`, "qe-requirements-validator")
-```
-
----
-
-## Agent Coordination Hints
-
-```yaml
-coordination:
-  topology: hierarchical
-  commander: qe-fleet-commander
-  phase: ideation
-  memory_namespace: aqe/qcsd/ideation
-  blackboard_topic: qcsd-ideation
-
-preload_skills:
-  - qcsd-ideation-swarm      # This skill
-  - testability-scoring       # For testability analysis
-  - risk-based-testing        # For risk prioritization
-  - context-driven-testing    # For context adaptation
-
-agent_assignments:
-  qe-quality-criteria-recommender: [testability-scoring, holistic-testing-pact]
-  qe-risk-assessor: [risk-based-testing, context-driven-testing]
-  qe-requirements-validator: [context-driven-testing]
-  qe-accessibility-auditor: [accessibility-testing]
-  qe-security-auditor: [security-testing]
-  qe-qx-partner: [context-driven-testing, holistic-testing-pact]
-```
-
-### Memory Namespaces
-
-```
-aqe/qcsd/ideation/*           - Ideation phase artifacts
-aqe/qcsd/ideation/epic-{id}   - Per-epic analysis results
-aqe/qcsd/ideation/risks/*     - Risk assessments
-aqe/qcsd/ideation/htsm/*      - HTSM quality criteria scores
-aqe/qcsd/learning/ideation/*  - Patterns learned from ideation
-```
-
-### Blackboard Events
-
-| Event | Trigger | Subscribers |
-|-------|---------|-------------|
-| `ideation:started` | Swarm initialized | All ideation agents |
-| `htsm:complete` | Quality criteria analyzed | risk-assessor, requirements-validator |
-| `risk:identified` | New risk found | quality-criteria-recommender |
-| `validation:complete` | AC validated | Fleet commander |
-| `ideation:report` | All analysis complete | User, memory store |
-
-### Three-Phase Memory Protocol
-
-```javascript
-// PHASE 1: STATUS - Ideation starting
-mcp__aqe__memory_store({
-  key: "aqe/qcsd/ideation/epic-E2/status",
-  namespace: "aqe/qcsd/ideation",
-  value: { status: "running", phase: "ideation", startTime: Date.now() },
-  persist: true
-})
-
-// PHASE 2: PROGRESS - Intermediate updates
-mcp__aqe__memory_store({
-  key: "aqe/qcsd/ideation/epic-E2/progress",
-  namespace: "aqe/qcsd/ideation",
-  value: {
-    htsmComplete: true,
-    riskComplete: false,
-    categoriesAnalyzed: 10
-  },
-  persist: true
-})
-
-// PHASE 3: COMPLETE - Ideation finished
-mcp__aqe__memory_store({
-  key: "aqe/qcsd/ideation/epic-E2/complete",
-  namespace: "aqe/qcsd/ideation",
-  value: {
-    status: "complete",
-    htsmScore: 78,
-    testabilityScore: 72,
-    risksIdentified: 8,
-    recommendations: 12,
-    duration: 45000
-  },
-  persist: true
 })
 ```
 
@@ -406,143 +315,112 @@ mcp__aqe__memory_store({
 
 ## Output: Ideation Report Template
 
-The Ideation Swarm produces a structured report:
-
 ```markdown
 # Ideation Report: [Epic Name]
 
 ## Executive Summary
-- **Overall Quality Readiness:** [Score]%
+- **Overall Quality Readiness:** [Score]/50
 - **Testability Score:** [Score]%
 - **Risk Level:** [Low/Medium/High/Critical]
 - **Recommendation:** [GO/CONDITIONAL/NO-GO]
 
-## HTSM Quality Criteria (10 Categories)
+## HTSM Quality Criteria
 
-| Category | Score | Evidence | Key Risks | Test Focus |
-|----------|-------|----------|-----------|------------|
-| Capability | 85% | Direct | ... | ... |
-| Reliability | 70% | Inferred | ... | ... |
-| ... | ... | ... | ... | ... |
+| Category | Score | Evidence | Key Risks |
+|----------|-------|----------|-----------|
+| Capability | 4/5 | Direct: `src/auth/sso.ts` | SSO provider integration |
+| Reliability | 3/5 | Inferred | No failover for MFA |
+| Security | 5/5 | Direct: threat model | Token expiry, session mgmt |
+| ... | ... | ... | ... |
 
 ## Risk Matrix
 
 | Risk | Likelihood | Impact | Score | Mitigation |
 |------|------------|--------|-------|------------|
-| SSR breaks features | Medium | High | 6 | Feature flags, phased rollout |
-| ... | ... | ... | ... | ... |
+| OAuth provider outage | Medium | High | 6 | Fallback auth method |
+| MFA SMS delivery failure | Medium | Medium | 4 | Multiple MFA options |
+| Session token theft | Low | Critical | 5 | Secure cookies, rotation |
 
-## Testability Assessment
-
-| Principle | Score | Gap | Recommendation |
-|-----------|-------|-----|----------------|
-| Observability | 3/5 | Logging gaps | Add structured logging |
-| ... | ... | ... | ... |
-
-## Acceptance Criteria Validation
+## AC Validation
 
 | AC | Testable? | Complete? | Issues |
 |----|-----------|-----------|--------|
-| AC1 | Yes | Yes | - |
-| AC2 | Partial | No | Missing edge cases |
+| AC1: SSO login | Yes | Yes | - |
+| AC2: Admin MFA | Yes | Partial | Missing "admin" definition |
+| AC3: Session timeout | Yes | Yes | - |
+| AC4: Audit logging | Yes | No | Missing retention policy |
 
 ## Recommendations
-1. [Priority 1 recommendation]
-2. [Priority 2 recommendation]
-...
+1. **P0:** Define threat model before development
+2. **P1:** Add failover authentication method
+3. **P1:** Specify audit log retention policy
+4. **P2:** Add performance requirements for login latency
 
 ## Next Steps
-- [ ] Address critical risks before sprint commitment
-- [ ] Refine incomplete acceptance criteria
-- [ ] Schedule testability improvement session
+- [ ] Address P0 items before sprint commitment
+- [ ] Refine AC2 and AC4
+- [ ] Schedule security review with AppSec team
 ```
 
 ---
 
 ## Troubleshooting
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| HTSM scores all low | Insufficient epic detail | Request more requirements context |
-| No risks identified | Analysis too shallow | Run deeper threat modeling with security-auditor |
-| Testability score < 40% | Design not testable | Invoke testability improvement session |
-| Agents not coordinating | Memory namespace mismatch | Check `aqe/qcsd/ideation/*` namespace |
-| Report incomplete | Agent timeout | Increase timeout, reduce parallel agents |
-| Evidence all "Claimed" | No code/docs provided | Request design documents, architecture diagrams |
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| MCP tool fails | Fleet not initialized | Run `mcp__agentic_qe__fleet_init` first |
+| Agent timeout | Complex analysis | Increase timeout, split into smaller prompts |
+| Low HTSM scores | Insufficient epic detail | Request more requirements/design docs |
+| No risks found | Shallow analysis | Run security-auditor for deeper threat model |
+| Evidence all "Claimed" | No code provided | Provide design docs or architecture diagrams |
 
 ---
 
-## Integration with QCSD Flow
+## Valid Domain Names
 
-### Upstream (Before Ideation)
-- Product backlog refinement
-- Epic definition
-- Initial requirements gathering
-
-### Downstream (After Ideation)
-- `/qcsd-grooming-swarm` - SFDIPOT + BDD for user stories
-- Sprint planning with quality-informed estimates
-- Development with testability built-in
-
-### Feedback Loops
-
-```
-Production Issues → qe-defect-predictor → qe-learning-coordinator
-                                              │
-                                              ▼
-                              qe-risk-assessor (improved risk models)
-                                              │
-                                              ▼
-                              IDEATION SWARM (better predictions)
-```
-
----
-
-## Related Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `testability-scoring` | Invoked for testability analysis (10 principles) |
-| `risk-based-testing` | Informs risk prioritization approach |
-| `context-driven-testing` | Adapts analysis to project context |
-| `holistic-testing-pact` | PACT principles guide agent behavior |
-| `qcsd-grooming-swarm` | Next phase after ideation |
-| `accessibility-testing` | Deep-dive for UI features |
-| `security-testing` | Deep-dive for security-sensitive features |
+For `enabledDomains` parameter, use these exact strings:
+- `test-generation`
+- `test-execution`
+- `coverage-analysis`
+- `quality-assessment`
+- `defect-intelligence`
+- `requirements-validation`
+- `code-intelligence`
+- `security-compliance`
+- `contract-testing`
+- `visual-accessibility`
+- `chaos-resilience`
+- `learning-optimization`
 
 ---
 
 ## CLI Usage
 
 ```bash
-# Full ideation swarm on an epic
-claude "/qcsd-ideation-swarm Epic 2: Progressive Enhancement & Core Web Vitals from /path/to/roadmap.pdf"
+# Invoke the full swarm
+claude "/qcsd-ideation-swarm Epic: User Authentication Overhaul - SSO, MFA, session management"
 
-# With specific acceptance criteria
-claude "/qcsd-ideation-swarm 'Feature: User Authentication' --ac 'Users can login with SSO' --ac 'Session expires after 30 min'"
+# With file input
+claude "/qcsd-ideation-swarm $(cat docs/epics/auth-overhaul.md)"
 
 # Quality criteria only
-claude "Run HTSM Quality Criteria analysis on Epic 2"
-
-# Risk storming only
-claude "Perform Risk Storming on the Progressive Enhancement epic"
+claude "Run HTSM Quality Criteria analysis on the authentication epic in docs/epics/auth-overhaul.md"
 ```
 
 ---
 
-## Remember
+## Key Principle
 
-**Ideation Swarm answers THREE questions before development:**
+**Quality is built in from the start, not tested in at the end.**
 
-1. **What quality risks exist?** (HTSM Quality Criteria)
-2. **How testable is this design?** (Testability Score)
-3. **What could go wrong?** (Risk Matrix)
-
-**Key Principle:** Quality is built in from the start, not tested in at the end.
+The Ideation Swarm answers THREE questions before development:
+1. **What quality risks exist?** → HTSM Quality Criteria
+2. **How testable is this design?** → Testability assessment
+3. **What could go wrong?** → Risk Matrix
 
 **Success Metric:** Zero "surprise" quality issues in development that could have been identified in ideation.
 
 ---
 
 **QCSD Phase:** Enable & Engage → Ideation
-**Next Phase:** `/qcsd-grooming-swarm` for story-level analysis
+**Next Phase:** Grooming Swarm (SFDIPOT + BDD for user stories)
