@@ -38,8 +38,10 @@ yarn-error.log*
 # Local n8n data (contains credentials, database, etc.)
 .n8n-local/
 
-# Core dumps
-core
+# Core dumps (file only, not directories)
+/core
+# Allow wizard core infrastructure
+!v3/src/cli/wizards/core/
 
 # Test results (generated files)
 test-results/
@@ -143,6 +145,8 @@ docs/qx-reports/*
 
 # Claude Flow generated files
 .claude/settings.local.json
+.claude/memory/
+v3/.claude/
 .mcp.json
 claude-flow.config.json
 .swarm/

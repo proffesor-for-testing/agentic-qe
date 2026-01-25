@@ -9,8 +9,7 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base';
 import { ToolResult } from '../../types';
-import { TestGeneratorService } from '../../../domains/test-generation/services/test-generator';
-import { MemoryBackend } from '../../../kernel/interfaces';
+import { createTestGeneratorService, type TestGeneratorService } from '../../../domains/test-generation/services/test-generator';
 import { GenerateTestsRequest } from '../../../domains/test-generation/interfaces';
 import { TokenOptimizerService } from '../../../optimization/token-optimizer-service.js';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
@@ -74,11 +73,12 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
 
   /**
    * Initialize or get the test generator service with persistent storage
+   * Uses factory function for proper dependency injection
    */
   private async getService(): Promise<TestGeneratorService> {
     if (!this.testGeneratorService) {
       const memory = await getSharedMemoryBackend();
-      this.testGeneratorService = new TestGeneratorService(
+      this.testGeneratorService = createTestGeneratorService(
         memory,
         {
           defaultFramework: 'vitest',

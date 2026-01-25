@@ -30,7 +30,7 @@ import {
 import { getPatternLoader } from '../pattern-loader';
 
 import type { IComplexityAnalyzer } from './types';
-import { ComplexityAnalyzer } from './complexity-analyzer';
+import { createComplexityAnalyzer } from './complexity-analyzer';
 
 import type { IBudgetEnforcer } from './types';
 import { BudgetEnforcer } from './budget-enforcer';
@@ -344,7 +344,7 @@ export class ModelRouter implements IModelRouter {
     this.persistentMetricsTracker = persistentMetricsTracker;
 
     // Initialize components
-    this.complexityAnalyzer = new ComplexityAnalyzer(
+    this.complexityAnalyzer = createComplexityAnalyzer(
       this.config,
       agentBoosterAdapter
     );

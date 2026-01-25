@@ -535,7 +535,9 @@ export class MemoryCoherenceAuditor {
     return patterns
       .filter(p => {
         const hasGenericName = /generic|general|common|basic/i.test(p.name);
-        const hasLowSpecificity = p.context.tags.length < 2;
+        // Defensive: handle patterns without context or tags
+        const tags = p.context?.tags;
+        const hasLowSpecificity = !tags || tags.length < 2;
         return hasGenericName || hasLowSpecificity;
       })
       .map(p => p.id);

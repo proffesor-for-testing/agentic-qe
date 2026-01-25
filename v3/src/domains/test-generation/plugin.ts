@@ -29,7 +29,7 @@ import {
   CoordinatorConfig,
 } from './coordinator';
 import {
-  TestGeneratorService,
+  createTestGeneratorService,
   ITestGenerationService,
   TestGeneratorConfig,
 } from './services/test-generator';
@@ -125,8 +125,8 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
   // ============================================================================
 
   protected async onInitialize(): Promise<void> {
-    // Create services
-    this.testGenerator = new TestGeneratorService(
+    // Create services using factory function for proper DI
+    this.testGenerator = createTestGeneratorService(
       this.memory,
       this.pluginConfig.testGenerator
     );
@@ -147,9 +147,10 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
     // Initialize coordinator
     await this.coordinator.initialize();
 
-    // Update health status
+    // Issue #205 fix: Start with 'idle' status (0 agents)
+    // Transitions to 'healthy' when agents spawn
     this.updateHealth({
-      status: 'healthy',
+      status: 'idle',
       agents: { total: 0, active: 0, idle: 0, failed: 0 },
       lastActivity: new Date(),
       errors: [],

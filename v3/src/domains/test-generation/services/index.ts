@@ -5,9 +5,27 @@
 
 export {
   TestGeneratorService,
+  createTestGeneratorService,
+  createTestGeneratorServiceWithDependencies,
   type ITestGenerationService,
   type TestGeneratorConfig,
+  type TestGeneratorDependencies,
 } from './test-generator';
+
+export {
+  TDDGeneratorService,
+  type ITDDGeneratorService,
+} from './tdd-generator';
+
+export {
+  PropertyTestGeneratorService,
+  type IPropertyTestGeneratorService,
+} from './property-test-generator';
+
+export {
+  TestDataGeneratorService,
+  type ITestDataGeneratorService,
+} from './test-data-generator';
 
 export {
   PatternMatcherService,
@@ -34,7 +52,7 @@ export {
   type CodeTransformResult,
 } from './code-transform-integration';
 
-// Coherence Gate (ADR-052)
+// Coherence Gate Service (ADR-052)
 export {
   TestGenerationCoherenceGate,
   createTestGenerationCoherenceGate,
@@ -48,4 +66,37 @@ export {
   type ContradictionSeverity,
   type TestGenerationCoherenceGateConfig,
   type IEmbeddingService,
-} from '../coherence-gate';
+} from './coherence-gate-service';
+
+// Strategy Pattern - Test Generators (ADR-XXX)
+export {
+  // Interfaces
+  type ITestGenerator,
+  type ITestGeneratorFactory,
+  type TestFramework,
+  type TestType,
+  type FunctionInfo,
+  type ClassInfo,
+  type ParameterInfo,
+  type PropertyInfo,
+  type TestCase,
+  type CodeAnalysis,
+  type TestGenerationContext,
+  type Pattern as GeneratorPattern,
+} from '../interfaces';
+
+// Generator implementations
+export {
+  BaseTestGenerator,
+  JestVitestGenerator,
+  MochaGenerator,
+  PytestGenerator,
+} from '../generators';
+
+// Factory
+export {
+  TestGeneratorFactory,
+  testGeneratorFactory,
+  createTestGenerator,
+  isValidTestFramework,
+} from '../factories';

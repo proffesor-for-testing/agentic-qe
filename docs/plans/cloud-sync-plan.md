@@ -95,7 +95,7 @@ CREATE TABLE aqe.memory_entries (
     partition TEXT NOT NULL DEFAULT 'default',
     value JSONB NOT NULL,
     metadata JSONB,
-    embedding vector(384),  -- For semantic search
+    embedding ruvector(384),  -- For semantic search (ruvector)
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     expires_at TIMESTAMPTZ,
@@ -167,7 +167,7 @@ CREATE TABLE aqe.patterns (
     metadata JSONB,
     domain TEXT DEFAULT 'general',
     success_rate REAL DEFAULT 1.0,
-    embedding vector(384),
+    embedding ruvector(384),
     source_env TEXT NOT NULL,
     expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -199,7 +199,7 @@ CREATE TABLE aqe.claude_flow_memory (
     key TEXT NOT NULL,
     value JSONB NOT NULL,
     category TEXT,  -- 'adr-analysis', 'agent-patterns', etc.
-    embedding vector(384),
+    embedding ruvector(384),
     source_env TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(key, source_env)
@@ -249,8 +249,8 @@ CREATE TABLE aqe.sona_patterns (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,
     domain TEXT,
-    state_embedding vector(384),
-    action_embedding vector(384),
+    state_embedding ruvector(384),
+    action_embedding ruvector(384),
     action_type TEXT,
     action_value JSONB,
     outcome_reward REAL,
@@ -269,7 +269,7 @@ CREATE TABLE aqe.qe_patterns (
     pattern_type TEXT NOT NULL,
     qe_domain TEXT,  -- 'test-generation', 'coverage-analysis', etc.
     content JSONB NOT NULL,
-    embedding vector(384),
+    embedding ruvector(384),
     confidence REAL,
     usage_count INTEGER DEFAULT 0,
     success_rate REAL DEFAULT 1.0,
@@ -380,35 +380,50 @@ CREATE INDEX idx_patterns_domain ON aqe.patterns(domain);
 
 ## 4. Implementation Plan
 
-### Phase 1: Schema Migration (Day 1)
-- [ ] Create PostgreSQL schema in cloud DB
-- [ ] Set up ruvector indexes
-- [ ] Create sync_state tracking table
-- [ ] Test schema with sample data
+### Phase 1: Schema Migration (Day 1) ✅ COMPLETED
+- [x] Create PostgreSQL schema in cloud DB (`v3/src/sync/schema/cloud-schema.sql`)
+- [x] Set up ruvector HNSW indexes (using `ruvector_cosine_ops`)
+- [x] Create sync_state tracking table
+- [x] Apply migration for additional columns (`migration-001.sql`)
 
-### Phase 2: Sync Agent (Days 2-3)
-- [ ] Create TypeScript sync agent
-- [ ] Implement IAP tunnel connection
-- [ ] Add SQLite → PostgreSQL data conversion
-- [ ] Handle JSON/JSONB transformations
-- [ ] Add conflict resolution logic
+### Phase 2: Sync Agent (Days 2-3) ✅ COMPLETED
+- [x] Create TypeScript sync agent (`v3/src/sync/sync-agent.ts`)
+- [x] Implement IAP tunnel connection (`v3/src/sync/cloud/tunnel-manager.ts`)
+- [x] Add SQLite → PostgreSQL data conversion (`v3/src/sync/readers/`)
+- [x] Handle JSON/JSONB transformations (auto-wrap non-JSON strings)
+- [x] Handle timestamp conversions (Unix ms → ISO 8601)
+- [x] Add conflict resolution logic (ON CONFLICT DO UPDATE)
 
-### Phase 3: Initial Migration (Day 4)
-- [ ] Full sync of all historical data
-- [ ] Verify data integrity
-- [ ] Generate embeddings for patterns
-- [ ] Test vector similarity search
+### Phase 3: Initial Migration (Day 4) ✅ COMPLETED
+- [x] Full sync of all historical data (5,062 records total)
+- [x] Verify data integrity (all tables verified)
+- [ ] Generate embeddings for patterns (planned)
+- [ ] Test vector similarity search (planned)
 
-### Phase 4: Incremental Sync (Day 5)
-- [ ] Implement change detection
+### Phase 4: Incremental Sync (Day 5) 🔄 IN PROGRESS
+- [x] Implement change detection (incremental mode)
 - [ ] Set up periodic sync (cron/hook)
-- [ ] Add sync status monitoring
-- [ ] Handle network failures gracefully
+- [x] Add sync status monitoring (`aqe sync status`)
+- [x] Handle network failures gracefully (port connectivity check, retries)
 
 ### Phase 5: Bidirectional Learning (Day 6+)
 - [ ] Enable pattern sharing across environments
 - [ ] Implement consensus for conflicting patterns
 - [ ] Add cross-environment success rate aggregation
+
+### Sync Results (2026-01-24)
+| Source | Records | Status |
+|--------|---------|--------|
+| v3-qe-patterns | 1,073 | ✅ |
+| v3-sona-patterns | 34 | ✅ |
+| v3-goap-actions | 40 | ✅ |
+| claude-flow-memory | 2 | ✅ |
+| root-memory-entries | 2,060 | ✅ |
+| root-learning-experiences | 665 | ✅ |
+| root-goap-actions | 61 | ✅ |
+| root-patterns | 45 | ✅ |
+| root-events | 1,082 | ✅ |
+| **Total** | **5,062** | ✅ |
 
 ---
 
@@ -554,30 +569,90 @@ async function withTunnel<T>(fn: (conn: Connection) => Promise<T>): Promise<T>;
 
 ---
 
-## 9. CLI Commands
+## 9. CLI Commands ✅ IMPLEMENTED
 
 ```bash
+# In v3/ directory (or use npm -w v3)
+cd v3
+
 # Initial setup
-npm run sync:init              # Create cloud schema
-npm run sync:migrate           # Full initial migration
+npm run sync:cloud:init        # Generate cloud schema SQL
+npm run sync:cloud:config      # Show sync configuration
 
 # Regular sync
-npm run sync                   # Incremental sync
-npm run sync:full              # Force full sync
-npm run sync:status            # Check sync state
+npm run sync:cloud             # Incremental sync (default)
+npm run sync:cloud:full        # Force full sync
 
-# Utilities
-npm run sync:verify            # Verify data integrity
-npm run sync:rollback          # Rollback last sync
-npm run sync:export            # Export cloud data locally
+# Status & verification
+npm run sync:cloud:status      # Check sync state
+npm run sync:cloud:verify      # Verify data integrity
+
+# Or use the CLI directly:
+npx tsx src/cli/index.ts sync           # Incremental sync
+npx tsx src/cli/index.ts sync --full    # Full sync
+npx tsx src/cli/index.ts sync status    # Check status
+npx tsx src/cli/index.ts sync verify    # Verify integrity
+npx tsx src/cli/index.ts sync config    # Show config
+```
+
+### Environment Variables
+
+```bash
+# Required
+export PGPASSWORD=aqe_secure_2024
+
+# Optional (defaults shown)
+export GCP_PROJECT=ferrous-griffin-480616-s9
+export GCP_ZONE=us-central1-a
+export GCP_INSTANCE=ruvector-postgres
+export GCP_DATABASE=aqe_learning
+export GCP_USER=ruvector
+export GCP_TUNNEL_PORT=15432
+export AQE_ENV=devpod
 ```
 
 ---
 
 ## 10. Next Steps
 
-1. **Approve this plan** - Review and confirm approach
-2. **Create cloud schema** - Run migration SQL
-3. **Build sync agent** - TypeScript implementation
-4. **Initial migration** - Sync historical data
-5. **Set up automation** - Cron or hook-based sync
+1. ~~**Approve this plan**~~ ✅ DONE - Review and confirm approach
+2. ~~**Create cloud schema**~~ ✅ DONE - Schema applied with ruvector
+3. ~~**Build sync agent**~~ ✅ DONE - TypeScript implementation complete
+4. ~~**Initial migration**~~ ✅ DONE - 5,062 records synced
+5. **Set up automation** - Cron or hook-based sync (TODO)
+6. **Generate embeddings** - Use ruvector for semantic search (TODO)
+7. **Enable bidirectional sync** - Multi-environment learning (TODO)
+
+---
+
+## 11. Cloud Infrastructure
+
+### GCE VM Setup
+
+The cloud database runs on a GCE VM with the ruvector-postgres Docker container:
+
+```bash
+# VM: ruvector-postgres
+# Zone: us-central1-a
+# Project: ferrous-griffin-480616-s9
+
+# Docker container running on VM
+docker run -d \
+  --name ruvector-db \
+  -e POSTGRES_USER=ruvector \
+  -e POSTGRES_PASSWORD=aqe_secure_2024 \
+  -e POSTGRES_DB=aqe_learning \
+  -p 5432:5432 \
+  ruvnet/ruvector-postgres:latest
+
+# Access via IAP tunnel (no public IP needed)
+gcloud compute start-iap-tunnel ruvector-postgres 5432 \
+  --local-host-port=localhost:15432 \
+  --zone=us-central1-a \
+  --project=ferrous-griffin-480616-s9
+```
+
+### Security
+- No public IP on the VM
+- Access only through IAP tunnel with Google authentication
+- Database credentials stored in environment variables

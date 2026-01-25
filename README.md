@@ -34,8 +34,12 @@ aqe init --wizard
 # Or with auto-configuration
 aqe init --auto
 
-# Add MCP server to Claude Code (optional)
-claude mcp add agentic-qe npx agentic-qe mcp
+# Add MCP server to Claude Code (pick one)
+# Option 1: Global install (recommended after npm install -g)
+claude mcp add aqe -- aqe-mcp
+
+# Option 2: Via npx (no global install needed)
+claude mcp add aqe -- npx agentic-qe mcp
 
 # Verify connection
 claude mcp list

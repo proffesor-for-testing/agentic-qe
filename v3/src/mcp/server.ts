@@ -309,6 +309,7 @@ const DOMAIN_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
       domain: 'quality-assessment',
       lazyLoad: true,
       parameters: [
+        { name: 'target', type: 'string', description: 'Target path to analyze' },
         { name: 'runGate', type: 'boolean', description: 'Run quality gate evaluation', default: false },
         { name: 'threshold', type: 'number', description: 'Quality threshold', default: 80 },
         { name: 'metrics', type: 'array', description: 'Metrics to evaluate' },

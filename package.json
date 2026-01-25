@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 51 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
   "main": "./v3/dist/index.js",
   "types": "./v3/dist/index.d.ts",
@@ -41,6 +41,11 @@
     "v2:test": "cd v2 && npm test",
     "v2:dev": "cd v2 && tsx src/cli/index.ts",
     "sync:agents": "cd v3 && npm run sync:agents",
+    "sync:cloud": "cd v3 && npm run sync:cloud",
+    "sync:cloud:full": "cd v3 && npm run sync:cloud:full",
+    "sync:cloud:status": "cd v3 && npm run sync:cloud:status",
+    "sync:cloud:verify": "cd v3 && npm run sync:cloud:verify",
+    "sync:cloud:config": "cd v3 && npm run sync:cloud:config",
     "prepublishOnly": "cd v3 && npm run build"
   },
   "keywords": [

@@ -3,15 +3,27 @@
  * ADR-041: V3 QE CLI Enhancement
  *
  * Interactive wizard for security scanning with step-by-step configuration.
- * Prompts for target directory, scan types, compliance frameworks, severity level,
- * fix suggestions, and report format.
+ * Refactored to use Command Pattern for reduced complexity and better reusability.
  */
 
-import { createInterface } from 'readline';
 import chalk from 'chalk';
-import { existsSync, statSync } from 'fs';
-import { join, resolve, relative } from 'path';
+import { createInterface } from 'readline';
 import * as readline from 'readline';
+import {
+  BaseWizard,
+  BaseWizardResult,
+  IWizardCommand,
+  WizardContext,
+  CommandResult,
+  BaseWizardCommand,
+  SingleSelectStep,
+  MultiSelectStep,
+  BooleanStep,
+  PathInputStep,
+  WizardPrompt,
+  WizardFormat,
+  WizardSuggestions,
+} from './core/index.js';
 
 // ============================================================================
 // Types
@@ -41,7 +53,7 @@ export type ComplianceFramework = 'owasp' | 'gdpr' | 'hipaa' | 'soc2' | 'pci-dss
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low';
 export type ReportFormat = 'json' | 'html' | 'markdown' | 'text';
 
-export interface SecurityWizardResult {
+export interface SecurityWizardResult extends BaseWizardResult {
   /** Target directory or file to scan */
   target: string;
   /** Selected scan types */
@@ -56,8 +68,6 @@ export interface SecurityWizardResult {
   generateReport: boolean;
   /** Report output format (if generateReport is true) */
   reportFormat: ReportFormat;
-  /** Whether the wizard was cancelled */
-  cancelled: boolean;
 }
 
 // ============================================================================
@@ -138,363 +148,39 @@ const SEVERITY_CONFIG: Record<SeverityLevel, { priority: number; description: st
 };
 
 // ============================================================================
-// Wizard Implementation
+// Custom Report Step
 // ============================================================================
 
-export class SecurityScanWizard {
-  private options: SecurityWizardOptions;
-  private cwd: string;
+/**
+ * Custom step for report generation with conditional format selection
+ */
+class ReportStep extends BaseWizardCommand<{ generateReport: boolean; reportFormat: ReportFormat }> {
+  readonly id = 'report';
+  readonly stepNumber: string;
+  readonly title = 'Report Generation';
+  readonly description = 'Generate a detailed security report';
 
-  constructor(options: SecurityWizardOptions = {}) {
-    this.options = options;
-    this.cwd = process.cwd();
+  private defaultGenerate: boolean;
+  private defaultFormat: ReportFormat;
+
+  constructor(stepNumber: string, defaultGenerate: boolean, defaultFormat: ReportFormat) {
+    super({ generateReport: defaultGenerate, reportFormat: defaultFormat });
+    this.stepNumber = stepNumber;
+    this.defaultGenerate = defaultGenerate;
+    this.defaultFormat = defaultFormat;
   }
 
-  /**
-   * Run the interactive wizard
-   */
-  async run(): Promise<SecurityWizardResult> {
-    // Non-interactive mode returns defaults
-    if (this.options.nonInteractive) {
-      return this.getDefaults();
+  async execute(context: WizardContext): Promise<CommandResult<{ generateReport: boolean; reportFormat: ReportFormat }>> {
+    if (context.nonInteractive) {
+      return this.success({ generateReport: this.defaultGenerate, reportFormat: this.defaultFormat });
     }
 
-    const rl = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
+    WizardPrompt.printStepHeader(this.stepNumber, this.title, this.description);
 
-    try {
-      // Print header
-      this.printHeader();
-
-      // Step 1: Target directory
-      const target = await this.promptTarget(rl);
-      if (!target) {
-        return this.getCancelled();
-      }
-
-      // Step 2: Scan types
-      const scanTypes = await this.promptScanTypes(rl);
-      if (scanTypes.length === 0) {
-        return this.getCancelled();
-      }
-
-      // Step 3: Compliance frameworks
-      const complianceFrameworks = await this.promptComplianceFrameworks(rl);
-
-      // Step 4: Minimum severity level
-      const severity = await this.promptSeverity(rl);
-
-      // Step 5: Include fix suggestions
-      const includeFixes = await this.promptIncludeFixes(rl);
-
-      // Step 6: Generate report
-      const { generateReport, reportFormat } = await this.promptReport(rl);
-
-      // Print summary
-      const result: SecurityWizardResult = {
-        target,
-        scanTypes,
-        complianceFrameworks,
-        severity,
-        includeFixes,
-        generateReport,
-        reportFormat,
-        cancelled: false,
-      };
-
-      this.printSummary(result);
-
-      // Confirm
-      const confirmed = await this.promptConfirmation(rl);
-      if (!confirmed) {
-        return this.getCancelled();
-      }
-
-      return result;
-    } finally {
-      rl.close();
-    }
-  }
-
-  /**
-   * Print wizard header
-   */
-  private printHeader(): void {
-    console.log('');
-    console.log(chalk.blue('========================================'));
-    console.log(chalk.blue.bold('       Security Scan Wizard'));
-    console.log(chalk.blue('========================================'));
-    console.log(chalk.gray('Comprehensive security scanning with SAST/DAST'));
-    console.log(chalk.gray('Press Ctrl+C to cancel at any time'));
-    console.log('');
-  }
-
-  /**
-   * Step 1: Prompt for target directory/file
-   */
-  private async promptTarget(rl: readline.Interface): Promise<string> {
-    console.log(chalk.cyan('Step 1/6: Target Directory'));
-    console.log(chalk.gray('Enter the directory or file to scan for security issues'));
-    console.log(chalk.gray('Examples: src/, ./lib, package.json'));
-    console.log('');
-
-    // Show suggestions
-    const suggestions = this.getTargetSuggestions();
-    if (suggestions.length > 0) {
-      console.log(chalk.yellow('Detected directories:'));
-      suggestions.slice(0, 5).forEach((s, i) => {
-        console.log(chalk.gray(`  ${i + 1}. ${s}`));
-      });
-      console.log('');
-    }
-
-    const defaultValue = this.options.defaultTarget || '.';
-    const input = await this.prompt(rl, `Target directory [${chalk.gray(defaultValue)}]: `);
-
-    const value = input.trim() || defaultValue;
-
-    // Resolve and validate the path
-    const resolved = resolve(this.cwd, value);
-    if (!existsSync(resolved)) {
-      console.log(chalk.yellow(`  Warning: '${value}' does not exist, using current directory.`));
-      return this.cwd;
-    }
-
-    return resolved;
-  }
-
-  /**
-   * Step 2: Prompt for scan types (multi-select)
-   */
-  private async promptScanTypes(rl: readline.Interface): Promise<ScanType[]> {
-    console.log('');
-    console.log(chalk.cyan('Step 2/6: Scan Types'));
-    console.log(chalk.gray('Select scan types to perform (comma-separated numbers or names)'));
-    console.log(chalk.gray('Example: 1,2,3 or sast,dependency,secret'));
-    console.log('');
-
-    const options: Array<{ key: string; value: ScanType }> = [
-      { key: '1', value: 'sast' },
-      { key: '2', value: 'dast' },
-      { key: '3', value: 'dependency' },
-      { key: '4', value: 'secret' },
-    ];
-
-    const defaultValue: ScanType[] = this.options.defaultScanTypes || ['sast', 'dependency', 'secret'];
-
-    options.forEach(opt => {
-      const config = SCAN_TYPE_CONFIG[opt.value];
-      const isDefault = defaultValue.includes(opt.value);
-      const marker = isDefault ? chalk.green(' *') : '';
-      console.log(chalk.white(`  ${opt.key}. ${opt.value}${marker}`));
-      console.log(chalk.gray(`     ${config.name}`));
-      console.log(chalk.gray(`     ${config.description}`));
-    });
-    console.log('');
-    console.log(chalk.gray('  * = included in default selection'));
-    console.log('');
-
-    const input = await this.prompt(rl, `Select scan types [${chalk.gray(defaultValue.join(','))}]: `);
-
-    const value = input.trim();
-    if (!value) return defaultValue;
-
-    // Parse input - can be numbers or names
-    const parts = value.split(',').map(p => p.trim().toLowerCase()).filter(p => p.length > 0);
-    const result: ScanType[] = [];
-
-    for (const part of parts) {
-      const numInput = parseInt(part, 10);
-      if (numInput >= 1 && numInput <= options.length) {
-        result.push(options[numInput - 1].value);
-      } else {
-        const validTypes: ScanType[] = ['sast', 'dast', 'dependency', 'secret'];
-        if (validTypes.includes(part as ScanType)) {
-          result.push(part as ScanType);
-        }
-      }
-    }
-
-    if (result.length === 0) {
-      console.log(chalk.yellow(`  Invalid input, using default: ${defaultValue.join(',')}`));
-      return defaultValue;
-    }
-
-    // Remove duplicates
-    return [...new Set(result)];
-  }
-
-  /**
-   * Step 3: Prompt for compliance frameworks (multi-select)
-   */
-  private async promptComplianceFrameworks(rl: readline.Interface): Promise<ComplianceFramework[]> {
-    console.log('');
-    console.log(chalk.cyan('Step 3/6: Compliance Frameworks'));
-    console.log(chalk.gray('Select compliance frameworks to check against (comma-separated)'));
-    console.log(chalk.gray('Leave blank to skip compliance checking'));
-    console.log('');
-
-    const options: Array<{ key: string; value: ComplianceFramework }> = [
-      { key: '1', value: 'owasp' },
-      { key: '2', value: 'gdpr' },
-      { key: '3', value: 'hipaa' },
-      { key: '4', value: 'soc2' },
-      { key: '5', value: 'pci-dss' },
-      { key: '6', value: 'ccpa' },
-    ];
-
-    const defaultValue: ComplianceFramework[] = this.options.defaultComplianceFrameworks || ['owasp'];
-
-    options.forEach(opt => {
-      const config = COMPLIANCE_CONFIG[opt.value];
-      const isDefault = defaultValue.includes(opt.value);
-      const marker = isDefault ? chalk.green(' *') : '';
-      console.log(chalk.white(`  ${opt.key}. ${opt.value}${marker}`));
-      console.log(chalk.gray(`     ${config.name} - ${config.description}`));
-    });
-    console.log('');
-    console.log(chalk.gray('  * = included in default selection'));
-    console.log('');
-
-    const input = await this.prompt(
-      rl,
-      `Select frameworks [${chalk.gray(defaultValue.join(','))}]: `
-    );
-
-    const value = input.trim();
-    if (!value) return defaultValue;
-
-    // Handle 'none' or empty explicitly
-    if (value.toLowerCase() === 'none' || value === '-') {
-      return [];
-    }
-
-    // Parse input - can be numbers or names
-    const parts = value.split(',').map(p => p.trim().toLowerCase()).filter(p => p.length > 0);
-    const result: ComplianceFramework[] = [];
-
-    for (const part of parts) {
-      const numInput = parseInt(part, 10);
-      if (numInput >= 1 && numInput <= options.length) {
-        result.push(options[numInput - 1].value);
-      } else {
-        const validFrameworks: ComplianceFramework[] = ['owasp', 'gdpr', 'hipaa', 'soc2', 'pci-dss', 'ccpa'];
-        if (validFrameworks.includes(part as ComplianceFramework)) {
-          result.push(part as ComplianceFramework);
-        }
-      }
-    }
-
-    if (result.length === 0) {
-      console.log(chalk.yellow(`  Invalid input, using default: ${defaultValue.join(',')}`));
-      return defaultValue;
-    }
-
-    // Remove duplicates
-    return [...new Set(result)];
-  }
-
-  /**
-   * Step 4: Prompt for minimum severity level
-   */
-  private async promptSeverity(rl: readline.Interface): Promise<SeverityLevel> {
-    console.log('');
-    console.log(chalk.cyan('Step 4/6: Minimum Severity Level'));
-    console.log(chalk.gray('Select the minimum severity level to report'));
-    console.log(chalk.gray('Issues below this level will be filtered out'));
-    console.log('');
-
-    const options: Array<{ key: string; value: SeverityLevel }> = [
-      { key: '1', value: 'critical' },
-      { key: '2', value: 'high' },
-      { key: '3', value: 'medium' },
-      { key: '4', value: 'low' },
-    ];
-
-    const defaultValue = this.options.defaultSeverity || 'medium';
-
-    options.forEach(opt => {
-      const config = SEVERITY_CONFIG[opt.value];
-      const marker = opt.value === defaultValue ? chalk.green(' (default)') : '';
-      console.log(chalk.white(`  ${opt.key}. ${opt.value}${marker}`));
-      console.log(chalk.gray(`     ${config.description}`));
-    });
-    console.log('');
-
-    const input = await this.prompt(rl, `Select severity level [${chalk.gray(defaultValue)}]: `);
-
-    const value = input.trim().toLowerCase();
-    if (!value) return defaultValue;
-
-    // Check if input is a number
-    const numInput = parseInt(value, 10);
-    if (numInput >= 1 && numInput <= options.length) {
-      return options[numInput - 1].value;
-    }
-
-    // Check if input is a valid severity
-    const validLevels: SeverityLevel[] = ['critical', 'high', 'medium', 'low'];
-    if (validLevels.includes(value as SeverityLevel)) {
-      return value as SeverityLevel;
-    }
-
-    console.log(chalk.yellow(`  Invalid input, using default: ${defaultValue}`));
-    return defaultValue;
-  }
-
-  /**
-   * Step 5: Prompt for include fix suggestions
-   */
-  private async promptIncludeFixes(rl: readline.Interface): Promise<boolean> {
-    console.log('');
-    console.log(chalk.cyan('Step 5/6: Fix Suggestions'));
-    console.log(chalk.gray('Include automated fix suggestions for detected vulnerabilities'));
-    console.log(chalk.gray('Fixes may include code patches, dependency updates, or configuration changes'));
-    console.log('');
-
-    const defaultValue = this.options.defaultIncludeFixes !== undefined
-      ? this.options.defaultIncludeFixes
-      : true;
-
-    const defaultStr = defaultValue ? 'Y/n' : 'y/N';
-    const input = await this.prompt(rl, `Include fix suggestions? [${chalk.gray(defaultStr)}]: `);
-
-    const value = input.trim().toLowerCase();
-
-    if (value === '') {
-      return defaultValue;
-    }
-
-    if (value === 'n' || value === 'no') {
-      return false;
-    }
-    if (value === 'y' || value === 'yes') {
-      return true;
-    }
-
-    return defaultValue;
-  }
-
-  /**
-   * Step 6: Prompt for report generation
-   */
-  private async promptReport(
-    rl: readline.Interface
-  ): Promise<{ generateReport: boolean; reportFormat: ReportFormat }> {
-    console.log('');
-    console.log(chalk.cyan('Step 6/6: Report Generation'));
-    console.log(chalk.gray('Generate a detailed security report'));
-    console.log('');
-
-    const defaultGenerate = this.options.defaultGenerateReport !== undefined
-      ? this.options.defaultGenerateReport
-      : true;
-
-    const generateStr = defaultGenerate ? 'Y/n' : 'y/N';
-    const generateInput = await this.prompt(
-      rl,
+    // First, ask if they want to generate a report
+    const generateStr = this.defaultGenerate ? 'Y/n' : 'y/N';
+    const generateInput = await WizardPrompt.prompt(
+      context.rl,
       `Generate report? [${chalk.gray(generateStr)}]: `
     );
 
@@ -502,21 +188,18 @@ export class SecurityScanWizard {
     let generateReport: boolean;
 
     if (generateValue === '') {
-      generateReport = defaultGenerate;
+      generateReport = this.defaultGenerate;
     } else if (generateValue === 'n' || generateValue === 'no') {
       generateReport = false;
     } else if (generateValue === 'y' || generateValue === 'yes') {
       generateReport = true;
     } else {
-      generateReport = defaultGenerate;
+      generateReport = this.defaultGenerate;
     }
 
     // If not generating report, return default format
     if (!generateReport) {
-      return {
-        generateReport: false,
-        reportFormat: this.options.defaultReportFormat || 'json',
-      };
+      return this.success({ generateReport: false, reportFormat: this.defaultFormat });
     }
 
     // Prompt for format
@@ -530,89 +213,184 @@ export class SecurityScanWizard {
       { key: '4', value: 'text', description: 'Text - Simple console output' },
     ];
 
-    const defaultFormat = this.options.defaultReportFormat || 'json';
-
     formatOptions.forEach(opt => {
-      const marker = opt.value === defaultFormat ? chalk.green(' (default)') : '';
+      const marker = opt.value === this.defaultFormat ? chalk.green(' (default)') : '';
       console.log(chalk.white(`  ${opt.key}. ${opt.value}${marker}`));
       console.log(chalk.gray(`     ${opt.description}`));
     });
     console.log('');
 
-    const formatInput = await this.prompt(
-      rl,
-      `Select format [${chalk.gray(defaultFormat)}]: `
+    const formatInput = await WizardPrompt.prompt(
+      context.rl,
+      `Select format [${chalk.gray(this.defaultFormat)}]: `
     );
 
     const formatValue = formatInput.trim().toLowerCase();
     let reportFormat: ReportFormat;
 
     if (!formatValue) {
-      reportFormat = defaultFormat;
+      reportFormat = this.defaultFormat;
     } else {
-      // Check if input is a number
       const numInput = parseInt(formatValue, 10);
       if (numInput >= 1 && numInput <= formatOptions.length) {
         reportFormat = formatOptions[numInput - 1].value;
       } else {
-        // Check if input is a valid format
         const validFormats: ReportFormat[] = ['json', 'html', 'markdown', 'text'];
         if (validFormats.includes(formatValue as ReportFormat)) {
           reportFormat = formatValue as ReportFormat;
         } else {
-          console.log(chalk.yellow(`  Invalid input, using default: ${defaultFormat}`));
-          reportFormat = defaultFormat;
+          console.log(chalk.yellow(`  Invalid input, using default: ${this.defaultFormat}`));
+          reportFormat = this.defaultFormat;
         }
       }
     }
 
-    return { generateReport, reportFormat };
+    return this.success({ generateReport, reportFormat });
+  }
+}
+
+// ============================================================================
+// Wizard Implementation
+// ============================================================================
+
+export class SecurityScanWizard extends BaseWizard<SecurityWizardOptions, SecurityWizardResult> {
+  constructor(options: SecurityWizardOptions = {}) {
+    super(options);
   }
 
-  /**
-   * Prompt for final confirmation
-   */
-  private async promptConfirmation(rl: readline.Interface): Promise<boolean> {
-    console.log('');
-    const input = await this.prompt(
-      rl,
-      `${chalk.green('Proceed with security scan?')} [${chalk.gray('Y/n')}]: `
-    );
-
-    const value = input.trim().toLowerCase();
-    if (value === 'n' || value === 'no') {
-      console.log(chalk.yellow('\nWizard cancelled.'));
-      return false;
-    }
-    return true;
+  protected getTitle(): string {
+    return 'Security Scan Wizard';
   }
 
-  /**
-   * Print configuration summary
-   */
-  private printSummary(result: SecurityWizardResult): void {
-    console.log('');
-    console.log(chalk.blue('========================================'));
-    console.log(chalk.blue.bold('       Configuration Summary'));
-    console.log(chalk.blue('========================================'));
-    console.log('');
+  protected getSubtitle(): string {
+    return 'Comprehensive security scanning with SAST/DAST';
+  }
 
-    const relativePath = relative(this.cwd, result.target) || '.';
-    console.log(chalk.white(`  Target:             ${chalk.cyan(relativePath)}`));
-    console.log(chalk.white(`  Scan Types:         ${chalk.cyan(result.scanTypes.join(', '))}`));
+  protected getConfirmationPrompt(): string {
+    return 'Proceed with security scan?';
+  }
+
+  protected isNonInteractive(): boolean {
+    return this.options.nonInteractive ?? false;
+  }
+
+  protected getCommands(): IWizardCommand<unknown>[] {
+    return [
+      // Step 1: Target directory
+      new PathInputStep({
+        id: 'target',
+        stepNumber: '1/6',
+        title: 'Target Directory',
+        description: 'Enter the directory or file to scan for security issues',
+        examples: 'src/, ./lib, package.json',
+        defaultValue: this.options.defaultTarget || '.',
+        suggestionsProvider: WizardSuggestions.getSecurityTargets,
+        validatePath: true,
+      }),
+
+      // Step 2: Scan types
+      new MultiSelectStep<ScanType>({
+        id: 'scanTypes',
+        stepNumber: '2/6',
+        title: 'Scan Types',
+        description: 'Select scan types to perform (comma-separated numbers or names)',
+        instructions: 'Example: 1,2,3 or sast,dependency,secret',
+        options: Object.entries(SCAN_TYPE_CONFIG).map(([value, config], index) => ({
+          key: String(index + 1),
+          value: value as ScanType,
+          label: value,
+          description: `${config.name}\n     ${config.description}`,
+        })),
+        defaultValue: this.options.defaultScanTypes || ['sast', 'dependency', 'secret'],
+        validValues: ['sast', 'dast', 'dependency', 'secret'],
+      }),
+
+      // Step 3: Compliance frameworks
+      new MultiSelectStep<ComplianceFramework>({
+        id: 'complianceFrameworks',
+        stepNumber: '3/6',
+        title: 'Compliance Frameworks',
+        description: 'Select compliance frameworks to check against (comma-separated)',
+        instructions: 'Leave blank to skip compliance checking',
+        options: Object.entries(COMPLIANCE_CONFIG).map(([value, config], index) => ({
+          key: String(index + 1),
+          value: value as ComplianceFramework,
+          label: value,
+          description: `${config.name} - ${config.description}`,
+        })),
+        defaultValue: this.options.defaultComplianceFrameworks || ['owasp'],
+        validValues: ['owasp', 'gdpr', 'hipaa', 'soc2', 'pci-dss', 'ccpa'],
+        allowEmpty: true,
+      }),
+
+      // Step 4: Severity level
+      new SingleSelectStep<SeverityLevel>({
+        id: 'severity',
+        stepNumber: '4/6',
+        title: 'Minimum Severity Level',
+        description: 'Select the minimum severity level to report. Issues below this level will be filtered out.',
+        options: Object.entries(SEVERITY_CONFIG).map(([value, config], index) => ({
+          key: String(index + 1),
+          value: value as SeverityLevel,
+          label: value,
+          description: config.description,
+        })),
+        defaultValue: this.options.defaultSeverity || 'medium',
+        validValues: ['critical', 'high', 'medium', 'low'],
+      }),
+
+      // Step 5: Include fix suggestions
+      new BooleanStep({
+        id: 'includeFixes',
+        stepNumber: '5/6',
+        title: 'Include fix suggestions',
+        description: 'Include automated fix suggestions for detected vulnerabilities',
+        additionalInfo: 'Fixes may include code patches, dependency updates, or configuration changes',
+        defaultValue: this.options.defaultIncludeFixes ?? true,
+      }),
+
+      // Step 6: Report generation
+      new ReportStep(
+        '6/6',
+        this.options.defaultGenerateReport ?? true,
+        this.options.defaultReportFormat || 'json'
+      ),
+    ];
+  }
+
+  protected buildResult(results: Record<string, unknown>): SecurityWizardResult {
+    const reportResult = results.report as { generateReport: boolean; reportFormat: ReportFormat };
+    return {
+      target: results.target as string,
+      scanTypes: results.scanTypes as ScanType[],
+      complianceFrameworks: results.complianceFrameworks as ComplianceFramework[],
+      severity: results.severity as SeverityLevel,
+      includeFixes: results.includeFixes as boolean,
+      generateReport: reportResult.generateReport,
+      reportFormat: reportResult.reportFormat,
+      cancelled: false,
+    };
+  }
+
+  protected printSummary(result: SecurityWizardResult): void {
+    WizardPrompt.printSummaryHeader();
+
+    const relativePath = WizardFormat.relativePath(result.target, this.cwd);
+    WizardPrompt.printSummaryField('Target', relativePath);
+    WizardPrompt.printSummaryField('Scan Types', result.scanTypes.join(', '));
 
     if (result.complianceFrameworks.length > 0) {
-      console.log(chalk.white(`  Compliance:         ${chalk.cyan(result.complianceFrameworks.join(', '))}`));
+      WizardPrompt.printSummaryField('Compliance', result.complianceFrameworks.join(', '));
     } else {
-      console.log(chalk.white(`  Compliance:         ${chalk.gray('(none)')}`));
+      console.log(chalk.white(`  Compliance:       ${chalk.gray('(none)')}`));
     }
 
-    console.log(chalk.white(`  Min Severity:       ${chalk.cyan(result.severity)}`));
-    console.log(chalk.white(`  Include Fixes:      ${chalk.cyan(result.includeFixes ? 'Yes' : 'No')}`));
-    console.log(chalk.white(`  Generate Report:    ${chalk.cyan(result.generateReport ? 'Yes' : 'No')}`));
+    WizardPrompt.printSummaryField('Min Severity', result.severity);
+    WizardPrompt.printSummaryField('Include Fixes', WizardFormat.yesNo(result.includeFixes));
+    WizardPrompt.printSummaryField('Generate Report', WizardFormat.yesNo(result.generateReport));
 
     if (result.generateReport) {
-      console.log(chalk.white(`  Report Format:      ${chalk.cyan(result.reportFormat)}`));
+      WizardPrompt.printSummaryField('Report Format', result.reportFormat);
     }
 
     // Show scan type details
@@ -622,81 +400,23 @@ export class SecurityScanWizard {
       const config = SCAN_TYPE_CONFIG[type];
       console.log(chalk.gray(`    - ${config.name}`));
     });
-
     console.log('');
   }
 
-  /**
-   * Generic prompt helper
-   */
-  private prompt(rl: readline.Interface, question: string): Promise<string> {
-    return new Promise(resolve => {
-      rl.question(question, answer => {
-        resolve(answer);
-      });
-    });
-  }
-
-  /**
-   * Get target directory suggestions
-   */
-  private getTargetSuggestions(): string[] {
-    const suggestions: string[] = [];
-
-    // Check for common source directories
-    const commonDirs = ['src', 'lib', 'app', 'packages', 'api'];
-    for (const dir of commonDirs) {
-      const dirPath = join(this.cwd, dir);
-      if (existsSync(dirPath) && statSync(dirPath).isDirectory()) {
-        suggestions.push(dir);
-      }
-    }
-
-    // Check for security-relevant files
-    const securityFiles = [
-      'package.json',
-      'package-lock.json',
-      'yarn.lock',
-      'pnpm-lock.yaml',
-      '.env',
-      '.env.example',
-      'docker-compose.yml',
-      'Dockerfile',
-    ];
-    for (const file of securityFiles) {
-      const filePath = join(this.cwd, file);
-      if (existsSync(filePath)) {
-        suggestions.push(file);
-      }
-    }
-
-    return suggestions;
-  }
-
-  /**
-   * Get default result for non-interactive mode
-   */
-  private getDefaults(): SecurityWizardResult {
+  protected getDefaults(): SecurityWizardResult {
     return {
       target: this.options.defaultTarget || this.cwd,
       scanTypes: this.options.defaultScanTypes || ['sast', 'dependency', 'secret'],
       complianceFrameworks: this.options.defaultComplianceFrameworks || ['owasp'],
       severity: this.options.defaultSeverity || 'medium',
-      includeFixes: this.options.defaultIncludeFixes !== undefined
-        ? this.options.defaultIncludeFixes
-        : true,
-      generateReport: this.options.defaultGenerateReport !== undefined
-        ? this.options.defaultGenerateReport
-        : true,
+      includeFixes: this.options.defaultIncludeFixes ?? true,
+      generateReport: this.options.defaultGenerateReport ?? true,
       reportFormat: this.options.defaultReportFormat || 'json',
       cancelled: false,
     };
   }
 
-  /**
-   * Get cancelled result
-   */
-  private getCancelled(): SecurityWizardResult {
+  protected getCancelled(): SecurityWizardResult {
     return {
       target: '.',
       scanTypes: ['sast', 'dependency', 'secret'],

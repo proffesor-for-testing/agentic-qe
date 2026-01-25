@@ -33,8 +33,11 @@ export {
 
 export {
   TestGeneratorService,
+  createTestGeneratorService,
+  createTestGeneratorServiceWithDependencies,
   type ITestGenerationService,
   type TestGeneratorConfig,
+  type TestGeneratorDependencies,
 } from './services/test-generator';
 
 export {
@@ -51,7 +54,7 @@ export {
 } from './services/pattern-matcher';
 
 // ============================================================================
-// Coherence Gate (ADR-052)
+// Coherence Gate Service (ADR-052)
 // ============================================================================
 
 export {
@@ -67,7 +70,7 @@ export {
   type ContradictionSeverity,
   type TestGenerationCoherenceGateConfig,
   type IEmbeddingService,
-} from './coherence-gate';
+} from './services/coherence-gate-service';
 
 // ============================================================================
 // Interfaces (Types Only)

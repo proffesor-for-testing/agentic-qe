@@ -62,17 +62,16 @@ function createSpectralEngineWrapper(rawEngine: IRawSpectralEngine): ISpectralEn
   };
 
   // Build graph representation for WASM calls using numeric IDs
-  // WASM may expect nodes as objects with id/label or as simple numeric array depending on engine
+  // WASM SpectralEngine expects:
+  // - n: number of nodes
+  // - edges: array of TUPLES [source, target, weight]
   const buildGraph = (): unknown => ({
-    nodes: Array.from(nodes).map(id => ({
-      id: getOrCreateIndex(id), // Numeric index
-      label: id, // Original string ID as label
-    })),
-    edges: edges.map(e => ({
-      source: getOrCreateIndex(e.source), // Convert to numeric
-      target: getOrCreateIndex(e.target), // Convert to numeric
-      weight: e.weight,
-    })),
+    n: nodes.size,  // Number of nodes
+    edges: edges.map(e => [
+      getOrCreateIndex(e.source),  // source as numeric index
+      getOrCreateIndex(e.target),  // target as numeric index
+      e.weight,                     // weight
+    ]),
   });
 
   return {
@@ -99,23 +98,69 @@ function createSpectralEngineWrapper(rawEngine: IRawSpectralEngine): ISpectralEn
     },
 
     compute_fiedler_value(): number {
-      const graph = buildGraph();
-      return rawEngine.algebraicConnectivity(graph);
+      // Edge case: need at least 2 nodes and 1 edge for meaningful Fiedler value
+      if (nodes.size < 2) {
+        return 0; // Trivial or empty graph
+      }
+      if (edges.length === 0) {
+        return 0; // Disconnected graph - Fiedler value is 0
+      }
+
+      try {
+        const graph = buildGraph();
+        const fiedler = rawEngine.algebraicConnectivity(graph);
+        // Ensure valid return (some WASM versions may return NaN or negative)
+        return Number.isFinite(fiedler) && fiedler >= 0 ? fiedler : 0;
+      } catch (error) {
+        // WASM error - return 0 (disconnected/unstable)
+        console.warn('[SpectralAdapter] algebraicConnectivity failed:', error);
+        return 0;
+      }
     },
 
     predict_collapse_risk(): number {
-      const graph = buildGraph();
-      const fiedler = rawEngine.algebraicConnectivity(graph);
-      // Lower Fiedler value = higher collapse risk
-      return Math.max(0, Math.min(1, 1 - fiedler));
+      // Edge case: need at least 2 nodes and 1 edge for meaningful analysis
+      if (nodes.size < 2) {
+        return 0; // Trivial graph - no collapse possible
+      }
+      if (edges.length === 0) {
+        return 1; // Completely disconnected - maximum collapse risk
+      }
+
+      try {
+        const graph = buildGraph();
+        const fiedler = rawEngine.algebraicConnectivity(graph);
+        // Lower Fiedler value = higher collapse risk
+        const validFiedler = Number.isFinite(fiedler) && fiedler >= 0 ? fiedler : 0;
+        return Math.max(0, Math.min(1, 1 - validFiedler));
+      } catch (error) {
+        // WASM error - assume high risk
+        console.warn('[SpectralAdapter] predict_collapse_risk failed:', error);
+        return 0.8; // High but not maximum risk
+      }
     },
 
     get_weak_vertices(count: number): string[] {
-      const graph = buildGraph();
-      const minCut = rawEngine.predictMinCut(graph) as { vertices?: number[] } | null;
-      if (!minCut?.vertices) return Array.from(nodes).slice(0, count);
-      // Convert numeric indices back to string IDs
-      return minCut.vertices.slice(0, count).map(idx => getStringId(idx));
+      // Edge case: empty graph
+      if (nodes.size === 0) {
+        return [];
+      }
+      if (edges.length === 0) {
+        // No edges - all nodes are equally "weak"
+        return Array.from(nodes).slice(0, count);
+      }
+
+      try {
+        const graph = buildGraph();
+        const minCut = rawEngine.predictMinCut(graph) as { vertices?: number[] } | null;
+        if (!minCut?.vertices) return Array.from(nodes).slice(0, count);
+        // Convert numeric indices back to string IDs
+        return minCut.vertices.slice(0, count).map(idx => getStringId(idx));
+      } catch (error) {
+        // WASM error - return first N nodes
+        console.warn('[SpectralAdapter] predictMinCut failed:', error);
+        return Array.from(nodes).slice(0, count);
+      }
     },
 
     clear(): void {
@@ -325,11 +370,22 @@ export class SpectralAdapter implements ISpectralAdapter {
       return 0; // Need at least 2 nodes for meaningful analysis
     }
 
-    const fiedlerValue = this.engine!.compute_fiedler_value();
+    if (this.edges.length === 0) {
+      return 0; // Disconnected graph - Fiedler value is 0
+    }
 
-    this.logger.debug('Computed Fiedler value', { fiedlerValue });
-
-    return fiedlerValue;
+    try {
+      const fiedlerValue = this.engine!.compute_fiedler_value();
+      this.logger.debug('Computed Fiedler value', { fiedlerValue });
+      return fiedlerValue;
+    } catch (error) {
+      this.logger.warn('Failed to compute Fiedler value', {
+        error: error instanceof Error ? error.message : String(error),
+        nodeCount: this.nodes.size,
+        edgeCount: this.edges.length,
+      });
+      return 0;
+    }
   }
 
   /**
@@ -346,11 +402,22 @@ export class SpectralAdapter implements ISpectralAdapter {
       return 0; // Can't collapse with fewer than 2 nodes
     }
 
-    const risk = this.engine!.predict_collapse_risk();
+    if (this.edges.length === 0) {
+      return 1; // Completely disconnected - maximum collapse risk
+    }
 
-    this.logger.debug('Predicted collapse risk', { risk });
-
-    return risk;
+    try {
+      const risk = this.engine!.predict_collapse_risk();
+      this.logger.debug('Predicted collapse risk', { risk });
+      return risk;
+    } catch (error) {
+      this.logger.warn('Failed to predict collapse risk', {
+        error: error instanceof Error ? error.message : String(error),
+        nodeCount: this.nodes.size,
+        edgeCount: this.edges.length,
+      });
+      return 0.8; // High but not maximum risk on error
+    }
   }
 
   /**
@@ -369,15 +436,31 @@ export class SpectralAdapter implements ISpectralAdapter {
       return [];
     }
 
+    if (this.edges.length === 0) {
+      // No edges - all nodes are equally "weak"
+      return Array.from(this.nodes).slice(0, count);
+    }
+
     const safeCount = Math.min(count, this.nodes.size);
-    const weakVertices = this.engine!.get_weak_vertices(safeCount);
 
-    this.logger.debug('Retrieved weak vertices', {
-      requested: count,
-      returned: weakVertices.length,
-    });
+    try {
+      const weakVertices = this.engine!.get_weak_vertices(safeCount);
 
-    return weakVertices;
+      this.logger.debug('Retrieved weak vertices', {
+        requested: count,
+        returned: weakVertices.length,
+      });
+
+      return weakVertices;
+    } catch (error) {
+      this.logger.warn('Failed to get weak vertices', {
+        error: error instanceof Error ? error.message : String(error),
+        nodeCount: this.nodes.size,
+        edgeCount: this.edges.length,
+      });
+      // Return first N nodes as fallback
+      return Array.from(this.nodes).slice(0, count);
+    }
   }
 
   /**
@@ -459,9 +542,12 @@ export class SpectralAdapter implements ISpectralAdapter {
     const typeBonus = agent1.agentType === agent2.agentType ? 0.2 : 0;
 
     // 4. Belief overlap (if both have beliefs)
+    // Defensive: handle agents without beliefs array
     let beliefSim = 0;
-    if (agent1.beliefs.length > 0 && agent2.beliefs.length > 0) {
-      beliefSim = this.computeBeliefOverlap(agent1.beliefs, agent2.beliefs);
+    const beliefs1 = agent1.beliefs ?? [];
+    const beliefs2 = agent2.beliefs ?? [];
+    if (beliefs1.length > 0 && beliefs2.length > 0) {
+      beliefSim = this.computeBeliefOverlap(beliefs1, beliefs2);
     }
 
     // Weighted combination

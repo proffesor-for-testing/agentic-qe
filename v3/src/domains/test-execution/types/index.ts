@@ -1,56 +1,80 @@
 /**
  * Agentic QE v3 - Test Execution Domain Types
- * Public type exports for the test execution domain
+ * @deprecated This file has been merged into interfaces.ts - import from '../interfaces' instead
+ *
+ * Re-exports for backward compatibility
  */
 
-// ============================================================================
-// E2E Step Types
-// ============================================================================
+export type {
+  // E2E Step Types
+  E2EStepType,
+  NavigateStepOptions,
+  ClickStepOptions,
+  TypeStepOptions,
+  WaitStepOptions,
+  WaitConditionType,
+  AssertStepOptions,
+  AssertionType,
+  ScreenshotStepOptions,
+  A11yCheckStepOptions,
+  StepOptions,
+  E2EStepBase,
+  NavigateStep,
+  ClickStep,
+  TypeStep,
+  WaitStep,
+  AssertStep,
+  ScreenshotStep,
+  A11yCheckStep,
+  E2EStep,
+  E2EStepResult,
+  Viewport,
+  BrowserContextOptions,
+  E2ETestHooks,
+  E2ETestCase,
+  E2ETestResult,
+  E2ETestSuite,
+  E2ETestSuiteResult,
+  ExtractStepType,
+  StepOptionsFor,
+  E2EStepBuilder,
+  SerializableE2ETestCase,
+} from './e2e-step.types';
+
+export type {
+  // Flow Template Types
+  FlowCategory,
+  FlowStatus,
+  RecordedActionType,
+  RecordedAction,
+  NavigateAction,
+  ClickAction,
+  TypeAction,
+  HoverAction,
+  ScrollAction,
+  SelectAction,
+  UploadAction,
+  DownloadAction,
+  DragDropAction,
+  KeyboardAction,
+  AssertionAction,
+  AnyRecordedAction,
+  FlowTemplateBase,
+  LoginFlowTemplate,
+  CheckoutFlowTemplate,
+  FormSubmissionFlowTemplate,
+  SearchFlowTemplate,
+  NavigationFlowTemplate,
+  FlowTemplate,
+  RecordingConfig,
+  RecordingSession,
+  UserFlow,
+  CodeGenerationOptions,
+  GeneratedTestCode,
+} from './flow-templates.types';
 
 export {
-  // Step Type Enumeration
-  E2EStepType,
-
-  // Step Options
-  type NavigateStepOptions,
-  type ClickStepOptions,
-  type TypeStepOptions,
-  type WaitStepOptions,
-  type WaitConditionType,
-  type AssertStepOptions,
-  type AssertionType,
-  type ScreenshotStepOptions,
-  type A11yCheckStepOptions,
-  type StepOptions,
-
-  // Step Interfaces
-  type E2EStepBase,
-  type NavigateStep,
-  type ClickStep,
-  type TypeStep,
-  type WaitStep,
-  type AssertStep,
-  type ScreenshotStep,
-  type A11yCheckStep,
-  type E2EStep,
-
-  // Step Result
-  type E2EStepResult,
-
-  // Test Case
-  type Viewport,
-  type BrowserContextOptions,
-  type E2ETestHooks,
-  type E2ETestCase,
-
-  // Test Result
-  type E2ETestResult,
-
-  // Test Suite
-  type E2ETestSuite,
-  type E2ETestSuiteResult,
-
-  // Factory Functions
+  // E2E Step Type Guards and Factories
   createNavigateStep,
   createClickStep,
   createTypeStep,
@@ -59,8 +83,6 @@ export {
   createScreenshotStep,
   createA11yCheckStep,
   createE2ETestCase,
-
-  // Type Guards
   isNavigateStep,
   isClickStep,
   isTypeStep,
@@ -68,60 +90,10 @@ export {
   isAssertStep,
   isScreenshotStep,
   isA11yCheckStep,
-
-  // Utility Types
-  type ExtractStepType,
-  type StepOptionsFor,
-  type E2EStepBuilder,
-  type SerializableE2ETestCase,
 } from './e2e-step.types';
 
-// ============================================================================
-// Flow Template Types
-// ============================================================================
-
 export {
-  // Enumerations
-  FlowCategory,
-  FlowStatus,
-  RecordedActionType,
-
-  // Recorded Action Types
-  type RecordedAction,
-  type NavigateAction,
-  type ClickAction,
-  type TypeAction,
-  type HoverAction,
-  type ScrollAction,
-  type SelectAction,
-  type UploadAction,
-  type DownloadAction,
-  type DragDropAction,
-  type KeyboardAction,
-  type AssertionAction,
-  type AnyRecordedAction,
-
-  // Flow Template Types
-  type FlowTemplateBase,
-  type LoginFlowTemplate,
-  type CheckoutFlowTemplate,
-  type FormSubmissionFlowTemplate,
-  type SearchFlowTemplate,
-  type NavigationFlowTemplate,
-  type FlowTemplate,
-
-  // Recording Types
-  type RecordingConfig,
-  type RecordingSession,
-  DEFAULT_RECORDING_CONFIG,
-
-  // Generated Flow Types
-  type UserFlow,
-  type CodeGenerationOptions,
-  type GeneratedTestCode,
-  DEFAULT_CODE_GENERATION_OPTIONS,
-
-  // Type Guards
+  // Flow Template Type Guards and Constants
   isNavigateAction,
   isClickAction,
   isTypeAction,
@@ -131,4 +103,6 @@ export {
   isFormSubmissionFlowTemplate,
   isSearchFlowTemplate,
   isNavigationFlowTemplate,
+  DEFAULT_RECORDING_CONFIG,
+  DEFAULT_CODE_GENERATION_OPTIONS,
 } from './flow-templates.types';

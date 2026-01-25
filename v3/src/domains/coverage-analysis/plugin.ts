@@ -61,8 +61,9 @@ export class CoverageAnalysisPlugin extends BaseDomainPlugin {
 
   protected async onInitialize(): Promise<void> {
     await this.coordinator.initialize();
+    // Issue #205 fix: Start with 'idle' status (0 agents)
     this.updateHealth({
-      status: 'healthy',
+      status: 'idle',
       lastActivity: new Date(),
     });
   }

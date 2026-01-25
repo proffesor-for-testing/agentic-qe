@@ -574,5 +574,46 @@ describe('MinCutHealthMonitor', () => {
       monitor = createMonitorWithConfig();
       expect(() => monitor.checkHealth()).not.toThrow();
     });
+
+    it('should return idle status when domain coordinators exist but no agents (Issue #205 regression)', () => {
+      // Issue #205 regression: Domain coordinators with workflow edges
+      // are always created, but no actual agent vertices exist.
+      // This simulates a fresh install scenario.
+
+      // Add domain coordinator vertices (like queen-integration does)
+      graph.addVertex({
+        id: 'domain:test-generation',
+        type: 'domain',
+        domain: 'test-generation',
+        weight: 2.0,
+        createdAt: new Date(),
+      });
+      graph.addVertex({
+        id: 'domain:test-execution',
+        type: 'domain',
+        domain: 'test-execution',
+        weight: 2.0,
+        createdAt: new Date(),
+      });
+
+      // Add workflow edge between domain coordinators
+      graph.addEdge({
+        source: 'domain:test-generation',
+        target: 'domain:test-execution',
+        weight: 1.5,
+        type: 'workflow',
+        bidirectional: false,
+      });
+
+      // Now we have vertices AND edges, but NO agent vertices
+      monitor = createMonitorWithConfig();
+      const health = monitor.getHealth();
+
+      // Should still be 'idle' because there are no agent vertices
+      expect(health.status).toBe('idle');
+      expect(graph.vertexCount).toBe(2); // Domain coordinators exist
+      expect(graph.edgeCount).toBe(1); // Workflow edge exists
+      expect(graph.getVerticesByType('agent').length).toBe(0); // But no agents
+    });
   });
 });

@@ -448,7 +448,9 @@ describe('Tool Registry', () => {
           name: 'echo_tool',
           description: 'Echo tool',
           category: 'core',
-          parameters: [],
+          parameters: [
+            { name: 'message', type: 'string', description: 'Message to echo' },
+          ],
         },
         async (params) => ({ success: true, data: params })
       );
