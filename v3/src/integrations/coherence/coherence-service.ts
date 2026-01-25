@@ -526,8 +526,30 @@ export class CoherenceService implements ICoherenceService {
   async predictCollapse(state: SwarmState): Promise<CollapseRisk> {
     this.ensureInitialized();
 
+    // Edge case: need agents to analyze
+    if (!state.agents || state.agents.length === 0) {
+      return {
+        risk: 0,
+        fiedlerValue: 0,
+        collapseImminent: false,
+        weakVertices: [],
+        recommendations: ['No agents to analyze'],
+        durationMs: 0,
+        usedFallback: true,
+      };
+    }
+
     if (this.spectralAdapter?.isInitialized()) {
-      return this.spectralAdapter.analyzeSwarmState(state);
+      try {
+        return this.spectralAdapter.analyzeSwarmState(state);
+      } catch (error) {
+        // WASM error - fall back to heuristic analysis
+        this.logger.warn('Spectral collapse prediction failed, using fallback', {
+          error: error instanceof Error ? error.message : String(error),
+          agentCount: state.agents.length,
+        });
+        return this.predictCollapseWithFallback(state);
+      }
     }
 
     // Fallback implementation
@@ -756,43 +778,77 @@ export class CoherenceService implements ICoherenceService {
 
     const startTime = Date.now();
 
+    // Edge case: need at least 2 votes for meaningful consensus analysis
+    if (votes.length < 2) {
+      return {
+        isValid: votes.length === 1,
+        confidence: votes.length === 1 ? votes[0].confidence : 0,
+        isFalseConsensus: false,
+        fiedlerValue: votes.length === 1 ? 1 : 0,
+        collapseRisk: 0,
+        recommendation: votes.length === 0
+          ? 'No votes to analyze'
+          : 'Single vote - consensus trivially achieved',
+        durationMs: Date.now() - startTime,
+        usedFallback: true,
+      };
+    }
+
     if (this.spectralAdapter?.isInitialized()) {
-      // Build spectral graph from votes
-      this.spectralAdapter.clear();
+      try {
+        // Build spectral graph from votes
+        this.spectralAdapter.clear();
 
-      // Add agents as nodes
-      for (const vote of votes) {
-        this.spectralAdapter.addNode(vote.agentId);
-      }
+        // Add agents as nodes
+        for (const vote of votes) {
+          this.spectralAdapter.addNode(vote.agentId);
+        }
 
-      // Connect agents that agree
-      for (let i = 0; i < votes.length; i++) {
-        for (let j = i + 1; j < votes.length; j++) {
-          if (votes[i].verdict === votes[j].verdict) {
-            this.spectralAdapter.addEdge(
-              votes[i].agentId,
-              votes[j].agentId,
-              Math.min(votes[i].confidence, votes[j].confidence)
-            );
+        // Connect agents that agree - count edges for validation
+        let edgeCount = 0;
+        for (let i = 0; i < votes.length; i++) {
+          for (let j = i + 1; j < votes.length; j++) {
+            if (votes[i].verdict === votes[j].verdict) {
+              this.spectralAdapter.addEdge(
+                votes[i].agentId,
+                votes[j].agentId,
+                Math.min(votes[i].confidence, votes[j].confidence)
+              );
+              edgeCount++;
+            }
           }
         }
+
+        // Edge case: no agreement edges means completely disconnected graph
+        // Fall back to majority analysis instead of risking WASM error
+        if (edgeCount === 0) {
+          this.logger.debug('No agreement edges, using fallback consensus');
+          return this.verifyConsensusWithFallback(votes, startTime);
+        }
+
+        const collapseRisk = this.spectralAdapter.predictCollapseRisk();
+        const fiedlerValue = this.spectralAdapter.computeFiedlerValue();
+
+        return {
+          isValid: collapseRisk < 0.3 && fiedlerValue > 0.1,
+          confidence: 1 - collapseRisk,
+          isFalseConsensus: fiedlerValue < 0.05,
+          fiedlerValue,
+          collapseRisk,
+          recommendation: collapseRisk > 0.3
+            ? 'Spawn independent reviewer'
+            : 'Consensus verified',
+          durationMs: Date.now() - startTime,
+          usedFallback: false,
+        };
+      } catch (error) {
+        // WASM error - fall back to simple majority analysis
+        this.logger.warn('Spectral consensus verification failed, using fallback', {
+          error: error instanceof Error ? error.message : String(error),
+          voteCount: votes.length,
+        });
+        return this.verifyConsensusWithFallback(votes, startTime);
       }
-
-      const collapseRisk = this.spectralAdapter.predictCollapseRisk();
-      const fiedlerValue = this.spectralAdapter.computeFiedlerValue();
-
-      return {
-        isValid: collapseRisk < 0.3 && fiedlerValue > 0.1,
-        confidence: 1 - collapseRisk,
-        isFalseConsensus: fiedlerValue < 0.05,
-        fiedlerValue,
-        collapseRisk,
-        recommendation: collapseRisk > 0.3
-          ? 'Spawn independent reviewer'
-          : 'Consensus verified',
-        durationMs: Date.now() - startTime,
-        usedFallback: false,
-      };
     }
 
     // Fallback: simple majority analysis
@@ -992,17 +1048,20 @@ export class CoherenceService implements ICoherenceService {
    * Convert agent health to a numerical embedding
    */
   private agentHealthToEmbedding(health: AgentHealth): number[] {
+    // Defensive: handle agents without beliefs array
+    const beliefs = health.beliefs ?? [];
+
     // Create a fixed-size embedding from agent state
     return [
       health.health,
       health.successRate,
       Math.min(1, health.errorCount / 10),
       this.agentTypeToNumber(health.agentType),
-      health.beliefs.length / 10,
+      beliefs.length / 10,
       // Add belief embeddings (first 3 beliefs, padded)
-      ...(health.beliefs[0]?.embedding.slice(0, 5) || [0, 0, 0, 0, 0]),
-      ...(health.beliefs[1]?.embedding.slice(0, 5) || [0, 0, 0, 0, 0]),
-      ...(health.beliefs[2]?.embedding.slice(0, 5) || [0, 0, 0, 0, 0]),
+      ...(beliefs[0]?.embedding.slice(0, 5) || [0, 0, 0, 0, 0]),
+      ...(beliefs[1]?.embedding.slice(0, 5) || [0, 0, 0, 0, 0]),
+      ...(beliefs[2]?.embedding.slice(0, 5) || [0, 0, 0, 0, 0]),
     ];
   }
 
