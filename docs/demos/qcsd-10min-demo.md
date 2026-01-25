@@ -22,6 +22,142 @@ curl -s -o /dev/null -w "%{http_code}" https://sauce-demo.myshopify.com/
 
 ## Demo Script
 
+### OPTION A: Single Queen Command (Recommended - Most Impressive)
+
+**[EXECUTE in Claude Code]**:
+```
+Use qe-queen-coordinator to orchestrate a full QE assessment of https://sauce-demo.myshopify.com/:
+
+1. Test Generation - Generate Playwright E2E tests for critical e-commerce flows
+2. Coverage Analysis - Identify untested user journeys and edge cases
+3. Security Scan - Check for common e-commerce vulnerabilities (XSS, CSRF, PII exposure)
+4. Quality Gate - Validate all outputs meet CI/CD standards
+
+Output comprehensive markdown report with generated test code.
+```
+
+This single command spawns 4+ agents working in parallel - very impressive for demos!
+
+**[WHILE QUEEN ORCHESTRATES, EXPLAIN]**:
+- "The Queen Coordinator is spawning specialized agents in parallel"
+- "Each agent focuses on its domain: test gen, coverage, security, quality"
+- "They share findings through cross-phase memory"
+- "Results are synthesized into a single comprehensive report"
+
+**[EXPECTED OUTPUT - Queen Orchestration Report]**:
+```
+══════════════════════════════════════════════════════════════════
+  QE FLEET ASSESSMENT: sauce-demo.myshopify.com
+  Orchestrated by: qe-queen-coordinator
+  Agents Deployed: 4 | Duration: ~45s | Status: COMPLETE
+══════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────┐
+│  1. TEST GENERATION (qe-test-architect)                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Generated: 4 Playwright E2E tests                              │
+│  Coverage: Browse → Add to Cart → Checkout flow                 │
+│  Pattern: Page Object Model                                     │
+└─────────────────────────────────────────────────────────────────┘
+
+// e2e/sauce-demo.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Sauce Demo E-Commerce', () => {
+  test('browse products on homepage', async ({ page }) => {
+    await page.goto('https://sauce-demo.myshopify.com/');
+    await expect(page.locator('.product-card').first()).toBeVisible();
+    await expect(page.locator('.product-price').first()).toContainText('$');
+  });
+
+  test('add product to cart', async ({ page }) => {
+    await page.goto('https://sauce-demo.myshopify.com/');
+    await page.locator('.product-card a').first().click();
+    await page.locator('button[name="add"]').click();
+    await page.waitForResponse(r => r.url().includes('/cart'));
+    await expect(page.locator('.cart-count')).not.toHaveText('0');
+  });
+
+  test('view cart with correct total', async ({ page }) => {
+    await page.goto('https://sauce-demo.myshopify.com/collections/all');
+    await page.locator('.product-card a').first().click();
+    await page.locator('button[name="add"]').click();
+    await page.goto('https://sauce-demo.myshopify.com/cart');
+    await expect(page.locator('.cart-total')).toBeVisible();
+  });
+
+  test('proceed to checkout', async ({ page }) => {
+    await page.goto('https://sauce-demo.myshopify.com/cart');
+    await page.locator('button:has-text("Checkout")').click();
+    await expect(page).toHaveURL(/checkout/);
+  });
+});
+
+┌─────────────────────────────────────────────────────────────────┐
+│  2. COVERAGE ANALYSIS (qe-coverage-specialist)                  │
+├─────────────────────────────────────────────────────────────────┤
+│  User Journeys Analyzed: 12                                     │
+│  Covered by Tests: 4 (33%)                                      │
+│  Gaps Identified: 8                                             │
+└─────────────────────────────────────────────────────────────────┘
+
+Coverage Gaps (Priority Order):
+1. ⚠️  HIGH: Search functionality not tested
+2. ⚠️  HIGH: Product filtering/sorting not tested
+3. ⚠️  MED:  Quantity change in cart not tested
+4. ⚠️  MED:  Remove from cart not tested
+5. ⚠️  LOW:  Newsletter signup not tested
+
+Recommended Next Tests:
+- test('search returns relevant products')
+- test('filter by price range')
+- test('update quantity in cart')
+
+┌─────────────────────────────────────────────────────────────────┐
+│  3. SECURITY SCAN (qe-security-scanner)                         │
+├─────────────────────────────────────────────────────────────────┤
+│  Scan Type: Passive (non-intrusive)                             │
+│  Vulnerabilities: 0 Critical, 0 High, 2 Info                    │
+│  Compliance: Shopify platform handles PCI-DSS                   │
+└─────────────────────────────────────────────────────────────────┘
+
+Security Findings:
+✅ HTTPS enforced on all pages
+✅ No exposed PII in URLs
+✅ CSRF tokens present on forms
+✅ Content-Security-Policy headers detected
+ℹ️  INFO: Third-party analytics scripts loaded (expected)
+ℹ️  INFO: Cookie consent banner recommended for GDPR
+
+┌─────────────────────────────────────────────────────────────────┐
+│  4. QUALITY GATE (qe-quality-gate)                              │
+├─────────────────────────────────────────────────────────────────┤
+│  Overall Score: 88/100 - PASSED                                 │
+│  CI/CD Ready: YES                                               │
+│  Recommendation: DEPLOY                                         │
+└─────────────────────────────────────────────────────────────────┘
+
+Quality Assessment:
+✅ Tests use semantic selectors (resilient)
+✅ Page Object pattern (maintainable)
+✅ Async waits properly handled (stable)
+✅ Cross-browser config included
+⚠️  Coverage at 33% - consider adding gap tests
+
+══════════════════════════════════════════════════════════════════
+  CROSS-PHASE MEMORY: 4 signals stored for future learning
+
+  Strategic:  E-commerce checkout = highest risk
+  Tactical:   Shopify theme selectors: .product-card, .cart-total
+  Operational: waitForResponse prevents flaky cart tests
+  Quality:    33% coverage baseline established
+══════════════════════════════════════════════════════════════════
+```
+
+---
+
+### OPTION B: Step-by-Step (If you prefer to narrate each phase)
+
 ### INTRO (1 min) - Slide/Talk
 
 > "Today I'll demonstrate how AI agents work as a fleet to automate Quality Engineering.
