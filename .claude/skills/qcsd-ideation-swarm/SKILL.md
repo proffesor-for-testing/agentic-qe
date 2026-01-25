@@ -3,25 +3,126 @@ name: qcsd-ideation-swarm
 description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins."
 category: qcsd-phases
 priority: critical
-version: 6.1.0
-tokenEstimate: 3000
+version: 7.0.0
+tokenEstimate: 3500
+# DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
+domains:
+  primary:
+    - domain: requirements-validation
+      agents: [qe-quality-criteria-recommender, qe-requirements-validator]
+    - domain: coverage-analysis
+      agents: [qe-risk-assessor]
+  conditional:
+    - domain: security-compliance
+      agents: [qe-security-auditor]
+    - domain: visual-accessibility
+      agents: [qe-accessibility-auditor]
+    - domain: cross-domain
+      agents: [qe-qx-partner]
+# Agent Inventory
 agents:
   core: [qe-quality-criteria-recommender, qe-risk-assessor, qe-requirements-validator]
   conditional: [qe-accessibility-auditor, qe-security-auditor, qe-qx-partner]
-skills: [testability-scoring]
-methodologies: [risk-based-testing, context-driven-testing, holistic-testing-pact]
-execution_model: task-tool-swarm
+  total: 6
+  sub_agents: 0
+skills: [testability-scoring, risk-based-testing, context-driven-testing, holistic-testing-pact]
+# Execution Models (Task Tool is PRIMARY)
+execution:
+  primary: task-tool
+  alternatives: [mcp-tools, cli]
 swarm_pattern: true
 parallel_batches: 2
 last_updated: 2026-01-25
 html_output: true
 enforcement_level: strict
-tags: [qcsd, ideation, htsm, quality-criteria, risk-storming, testability, swarm, parallel]
+tags: [qcsd, ideation, htsm, quality-criteria, risk-storming, testability, swarm, parallel, ddd]
 ---
 
-# QCSD Ideation Swarm v6.1
+# QCSD Ideation Swarm v7.0
 
 Shift-left quality engineering swarm for PI Planning and Sprint Planning.
+
+---
+
+## DDD Domain Integration
+
+This swarm operates across **3 primary domains** and **3 conditional domains**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        QCSD IDEATION - DOMAIN MAP                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  PRIMARY DOMAINS (Always Active)                                             │
+│  ┌─────────────────────────┐ ┌─────────────────────────┐                    │
+│  │  requirements-validation │ │    coverage-analysis    │                    │
+│  │  ─────────────────────── │ │  ───────────────────── │                    │
+│  │  • qe-quality-criteria-  │ │  • qe-risk-assessor    │                    │
+│  │    recommender (PRIMARY) │ │                        │                    │
+│  │  • qe-requirements-      │ │                        │                    │
+│  │    validator             │ │                        │                    │
+│  └─────────────────────────┘ └─────────────────────────┘                    │
+│                                                                              │
+│  CONDITIONAL DOMAINS (Based on Epic Content)                                 │
+│  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐                │
+│  │security-complnce│ │visual-a11y      │ │  cross-domain   │                │
+│  │─────────────────│ │─────────────────│ │─────────────────│                │
+│  │qe-security-     │ │qe-accessibility-│ │  qe-qx-partner  │                │
+│  │auditor          │ │auditor          │ │                 │                │
+│  │[IF HAS_SECURITY]│ │[IF HAS_UI]      │ │[IF HAS_UX]      │                │
+│  └─────────────────┘ └─────────────────┘ └─────────────────┘                │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Execution Model Options
+
+This skill supports **3 execution models**. Choose based on your environment:
+
+| Model | When to Use | Pros | Cons |
+|-------|-------------|------|------|
+| **Task Tool** (PRIMARY) | Claude Code sessions | Full agent capabilities, parallel execution | Requires Claude Code |
+| **MCP Tools** | MCP server available | Fleet coordination, memory persistence | Requires MCP setup |
+| **CLI** | Terminal/scripts | Works anywhere, scriptable | Sequential only |
+
+### Quick Start by Model
+
+**Option A: Task Tool (RECOMMENDED)**
+```
+Just follow the skill phases below - uses Task() calls with run_in_background: true
+```
+
+**Option B: MCP Tools**
+```javascript
+// Initialize fleet for Ideation domains
+mcp__agentic_qe__fleet_init({
+  topology: "hierarchical",
+  enabledDomains: ["requirements-validation", "coverage-analysis", "security-compliance"],
+  maxAgents: 6
+})
+
+// Orchestrate ideation task
+mcp__agentic_qe__task_orchestrate({
+  task: "qcsd-ideation-analysis",
+  strategy: "parallel"
+})
+```
+
+**Option C: CLI**
+```bash
+# Initialize coordination
+npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 6
+
+# Route task
+npx @claude-flow/cli@latest hooks pre-task --description "QCSD Ideation for [Epic]"
+
+# Execute agents
+npx @claude-flow/cli@latest agent spawn --type qe-quality-criteria-recommender
+npx @claude-flow/cli@latest agent spawn --type qe-risk-assessor
+npx @claude-flow/cli@latest agent spawn --type qe-requirements-validator
+```
 
 ---
 
@@ -104,6 +205,14 @@ Before proceeding to Phase 2, confirm:
 │  FAILED this phase. Start over.                                │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Domain Context
+
+| Agent | Domain | MCP Tool Mapping |
+|-------|--------|------------------|
+| qe-quality-criteria-recommender | requirements-validation | `requirements_validate` |
+| qe-risk-assessor | coverage-analysis | `defect_predict` |
+| qe-requirements-validator | requirements-validation | `requirements_validate` |
 
 ### Agent 1: Quality Criteria Recommender (PRIMARY)
 
@@ -324,6 +433,88 @@ Specific, actionable recommendations to improve testability.
 })
 ```
 
+### Alternative: MCP Tools Execution
+
+If using MCP instead of Task tool:
+
+```javascript
+// Option 1: Orchestrate via Queen Coordinator
+mcp__agentic_qe__fleet_init({
+  topology: "hierarchical",
+  enabledDomains: ["requirements-validation", "coverage-analysis"],
+  maxAgents: 6,
+  lazyLoading: true
+})
+
+// Submit tasks to specific domains
+mcp__agentic_qe__task_submit({
+  type: "quality-criteria-analysis",
+  priority: "p0",
+  payload: {
+    epicContent: epicContent,
+    outputFormat: "html",
+    htsmVersion: "6.3"
+  }
+})
+
+mcp__agentic_qe__task_submit({
+  type: "risk-assessment",
+  priority: "p0",
+  payload: {
+    epicContent: epicContent,
+    riskCategories: ["technical", "business", "quality", "integration"]
+  }
+})
+
+mcp__agentic_qe__task_submit({
+  type: "requirements-validation",
+  priority: "p0",
+  payload: {
+    acceptanceCriteria: acContent,
+    scoreTestability: true,
+    validateInvest: true
+  }
+})
+
+// Check task status
+mcp__agentic_qe__task_list({ status: "pending" })
+```
+
+### Alternative: CLI Execution
+
+If using CLI instead of Task tool:
+
+```bash
+# Initialize swarm for ideation
+npx @claude-flow/cli@latest swarm init \
+  --topology hierarchical \
+  --max-agents 6 \
+  --strategy specialized
+
+# Pre-task hook for routing
+npx @claude-flow/cli@latest hooks pre-task \
+  --description "QCSD Ideation: Quality Criteria, Risk Assessment, AC Validation"
+
+# Spawn agents (run in separate terminals or background)
+npx @claude-flow/cli@latest agent spawn \
+  --type qe-quality-criteria-recommender \
+  --task "Analyze HTSM categories for epic" &
+
+npx @claude-flow/cli@latest agent spawn \
+  --type qe-risk-assessor \
+  --task "Risk storming analysis" &
+
+npx @claude-flow/cli@latest agent spawn \
+  --type qe-requirements-validator \
+  --task "AC validation and testability scoring" &
+
+# Wait for completion
+wait
+
+# Check swarm status
+npx @claude-flow/cli@latest swarm status
+```
+
 ### Post-Spawn Confirmation
 
 After sending all three Task calls, you MUST tell the user:
@@ -331,17 +522,17 @@ After sending all three Task calls, you MUST tell the user:
 ```
 I've launched 3 core agents in parallel:
 
-🎯 qe-quality-criteria-recommender
+🎯 qe-quality-criteria-recommender [Domain: requirements-validation]
    - Analyzing all 10 HTSM v6.3 categories
    - Collecting evidence with classifications
    - Generating HTML report
 
-⚠️ qe-risk-assessor
+⚠️ qe-risk-assessor [Domain: coverage-analysis]
    - Identifying Technical, Business, Quality, Integration risks
    - Scoring likelihood × impact
    - Prioritizing mitigations
 
-✅ qe-requirements-validator
+✅ qe-requirements-validator [Domain: requirements-validation]
    - Scoring testability (10 principles)
    - Validating ACs against INVEST
    - Identifying gaps
@@ -410,6 +601,14 @@ From qe-requirements-validator:
 │  Skipping a flagged agent is a FAILURE of this skill.          │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Conditional Domain Mapping
+
+| Flag | Agent | Domain | MCP Tool |
+|------|-------|--------|----------|
+| HAS_UI | qe-accessibility-auditor | visual-accessibility | `accessibility_test` |
+| HAS_SECURITY | qe-security-auditor | security-compliance | `security_scan_comprehensive` |
+| HAS_UX | qe-qx-partner | cross-domain | `task_orchestrate` |
 
 ### Decision Tree
 
@@ -597,14 +796,71 @@ What UX-specific tests are needed?
 })
 ```
 
+### Alternative: MCP Tools for Conditional Agents
+
+```javascript
+// IF HAS_UI - Enable visual-accessibility domain
+if (HAS_UI) {
+  mcp__agentic_qe__accessibility_test({
+    url: targetUrl,  // if web-based
+    standard: "WCAG21AA"
+  })
+}
+
+// IF HAS_SECURITY - Enable security-compliance domain
+if (HAS_SECURITY) {
+  mcp__agentic_qe__security_scan_comprehensive({
+    target: "src/",
+    sast: true,
+    dast: false  // No runtime yet in ideation
+  })
+}
+
+// IF HAS_UX - Cross-domain analysis
+if (HAS_UX) {
+  mcp__agentic_qe__task_orchestrate({
+    task: "qx-analysis",
+    strategy: "adaptive"
+  })
+}
+```
+
+### Alternative: CLI for Conditional Agents
+
+```bash
+# IF HAS_UI
+if [ "$HAS_UI" = "TRUE" ]; then
+  npx @claude-flow/cli@latest agent spawn \
+    --type qe-accessibility-auditor \
+    --task "WCAG 2.1 AA assessment" &
+fi
+
+# IF HAS_SECURITY
+if [ "$HAS_SECURITY" = "TRUE" ]; then
+  npx @claude-flow/cli@latest agent spawn \
+    --type qe-security-auditor \
+    --task "STRIDE threat modeling" &
+fi
+
+# IF HAS_UX
+if [ "$HAS_UX" = "TRUE" ]; then
+  npx @claude-flow/cli@latest agent spawn \
+    --type qe-qx-partner \
+    --task "PACT quality experience analysis" &
+fi
+
+# Wait for conditional agents
+wait
+```
+
 ### Post-Spawn Confirmation (If Applicable)
 
 ```
 I've launched [N] conditional agent(s) in parallel:
 
-[IF HAS_UI] ♿ qe-accessibility-auditor - WCAG 2.1 AA assessment
-[IF HAS_SECURITY] 🔒 qe-security-auditor - STRIDE threat modeling
-[IF HAS_UX] 💫 qe-qx-partner - PACT quality experience analysis
+[IF HAS_UI] ♿ qe-accessibility-auditor [Domain: visual-accessibility] - WCAG 2.1 AA assessment
+[IF HAS_SECURITY] 🔒 qe-security-auditor [Domain: security-compliance] - STRIDE threat modeling
+[IF HAS_UX] 💫 qe-qx-partner [Domain: cross-domain] - PACT quality experience analysis
 
 ⏳ WAITING for conditional agents to complete...
 ```
@@ -807,28 +1063,95 @@ Before presenting report:
 
 ---
 
-## PHASE 7: Store Learnings (OPTIONAL)
+## PHASE 7: Store Learnings & Persist State
 
-If MCP memory tools available:
+### Purpose
+
+Store ideation findings for:
+- Cross-phase feedback loops (Production → next Ideation cycle)
+- Historical analysis of GO/CONDITIONAL/NO-GO decisions
+- Pattern learning across epics
+
+### Option A: MCP Memory Tools (RECOMMENDED)
 
 ```javascript
-mcp__agentic-qe__memory_store({
+// Store ideation findings
+mcp__agentic_qe__memory_store({
   key: `qcsd-ideation-${epicId}-${Date.now()}`,
   namespace: "qcsd-ideation",
   value: {
     epicId: epicId,
     epicName: epicName,
-    recommendation: recommendation,
+    recommendation: recommendation,  // GO, CONDITIONAL, NO-GO
     metrics: {
       htsmCoverage: htsmCoverage,
       testabilityScore: testabilityScore,
       acCompleteness: acCompleteness,
       criticalRisks: criticalRisks
     },
+    domains: {
+      requirementsValidation: true,
+      coverageAnalysis: true,
+      securityCompliance: HAS_SECURITY,
+      visualAccessibility: HAS_UI,
+      crossDomain: HAS_UX
+    },
     agentsInvoked: agentList,
     timestamp: new Date().toISOString()
   }
 })
+
+// Share learnings with learning coordinator for cross-domain patterns
+mcp__agentic_qe__memory_share({
+  sourceAgentId: "qcsd-ideation-swarm",
+  targetAgentIds: ["qe-learning-coordinator", "qe-pattern-learner"],
+  knowledgeDomain: "ideation-patterns"
+})
+
+// Query previous ideation results for similar epics
+mcp__agentic_qe__memory_query({
+  pattern: "qcsd-ideation-*",
+  namespace: "qcsd-ideation"
+})
+```
+
+### Option B: CLI Memory Commands
+
+```bash
+# Store ideation findings
+npx @claude-flow/cli@latest memory store \
+  --key "qcsd-ideation-${EPIC_ID}" \
+  --value '{"recommendation":"GO","testabilityScore":85,"htsmCoverage":9}' \
+  --namespace qcsd-ideation
+
+# Search for similar epics
+npx @claude-flow/cli@latest memory search \
+  --query "ideation recommendation" \
+  --namespace qcsd-ideation
+
+# List all ideation records
+npx @claude-flow/cli@latest memory list \
+  --namespace qcsd-ideation
+
+# Post-task hook for learning
+npx @claude-flow/cli@latest hooks post-task \
+  --task-id "qcsd-ideation-${EPIC_ID}" \
+  --success true
+```
+
+### Option C: Direct File Storage (Fallback)
+
+If MCP/CLI not available, save to `.agentic-qe/`:
+
+```bash
+# Output directory structure
+.agentic-qe/
+├── quality-criteria/
+│   └── [epic-name]-htsm-analysis.html
+├── ideation-reports/
+│   └── [epic-name]-ideation-report.md
+└── learnings/
+    └── [epic-id]-ideation-metrics.json
 ```
 
 ---
@@ -845,6 +1168,7 @@ mcp__agentic-qe__memory_store({
 | 4 | Spawn ALL flagged conditional agents | Skipping a TRUE flag |
 | 5 | Apply EXACT decision logic | Wrong recommendation |
 | 6 | Generate COMPLETE report | Missing sections |
+| 7 | Store learnings (if MCP/CLI available) | Pattern loss |
 
 ### Quality Gate Thresholds
 
@@ -855,10 +1179,69 @@ mcp__agentic-qe__memory_store({
 | AC Completeness | ≥90% | 50-89% | <50% |
 | Critical Risks | 0 | 1-2 | >2 |
 
+### Domain-to-Agent Mapping
+
+| Domain | Agent | Primary Phase |
+|--------|-------|---------------|
+| requirements-validation | qe-quality-criteria-recommender | Ideation (P) |
+| requirements-validation | qe-requirements-validator | Ideation (P) |
+| coverage-analysis | qe-risk-assessor | Ideation (P) |
+| security-compliance | qe-security-auditor | Ideation (S - conditional) |
+| visual-accessibility | qe-accessibility-auditor | Ideation (S - conditional) |
+| cross-domain | qe-qx-partner | Ideation (S - conditional) |
+
+### Execution Model Quick Reference
+
+| Model | Initialization | Agent Spawn | Memory Store |
+|-------|---------------|-------------|--------------|
+| **Task Tool** | N/A | `Task({ subagent_type, run_in_background: true })` | N/A (use MCP) |
+| **MCP Tools** | `fleet_init({})` | `task_submit({})` | `memory_store({})` |
+| **CLI** | `swarm init` | `agent spawn` | `memory store` |
+
+### MCP Tools Quick Reference
+
+```javascript
+// Initialization
+mcp__agentic_qe__fleet_init({ topology: "hierarchical", enabledDomains: [...], maxAgents: 6 })
+
+// Task submission
+mcp__agentic_qe__task_submit({ type: "...", priority: "p0", payload: {...} })
+mcp__agentic_qe__task_orchestrate({ task: "...", strategy: "parallel" })
+
+// Status
+mcp__agentic_qe__fleet_status({ verbose: true })
+mcp__agentic_qe__task_list({ status: "pending" })
+
+// Memory
+mcp__agentic_qe__memory_store({ key: "...", value: {...}, namespace: "qcsd-ideation" })
+mcp__agentic_qe__memory_query({ pattern: "qcsd-*", namespace: "qcsd-ideation" })
+mcp__agentic_qe__memory_share({ sourceAgentId: "...", targetAgentIds: [...], knowledgeDomain: "..." })
+```
+
+### CLI Quick Reference
+
+```bash
+# Initialization
+npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 6
+
+# Agent operations
+npx @claude-flow/cli@latest agent spawn --type [agent-type] --task "[description]"
+npx @claude-flow/cli@latest hooks pre-task --description "[task]"
+npx @claude-flow/cli@latest hooks post-task --task-id "[id]" --success true
+
+# Status
+npx @claude-flow/cli@latest swarm status
+
+# Memory
+npx @claude-flow/cli@latest memory store --key "[key]" --value "[json]" --namespace qcsd-ideation
+npx @claude-flow/cli@latest memory search --query "[query]" --namespace qcsd-ideation
+npx @claude-flow/cli@latest memory list --namespace qcsd-ideation
+```
+
 ### Swarm Topology
 
 ```
-              QCSD IDEATION SWARM
+              QCSD IDEATION SWARM v7.0
                      │
      ┌───────────────┼───────────────┐
      │               │               │
@@ -866,6 +1249,8 @@ mcp__agentic-qe__memory_store({
 │Quality  │   │   Risk    │   │    AC     │
 │Criteria │   │ Assessor  │   │ Validator │
 │ (HTML)  │   │           │   │           │
+│─────────│   │───────────│   │───────────│
+│req-valid│   │cov-anlysis│   │req-valid  │
 └────┬────┘   └─────┬─────┘   └─────┬─────┘
      │               │               │
      └───────────────┼───────────────┘
@@ -877,8 +1262,27 @@ mcp__agentic-qe__memory_store({
 ┌────▼────┐   ┌─────▼─────┐   ┌─────▼─────┐
 │  A11y   │   │ Security  │   │    QX     │
 │[IF UI]  │   │[IF AUTH]  │   │ [IF UX]   │
+│─────────│   │───────────│   │───────────│
+│vis-a11y │   │sec-compli │   │cross-dom  │
 └─────────┘   └───────────┘   └───────────┘
 ```
+
+---
+
+## Inventory Summary
+
+| Resource Type | Count | Primary | Conditional |
+|---------------|:-----:|:-------:|:-----------:|
+| **Agents** | 6 | 3 | 3 |
+| **Sub-agents** | 0 | - | - |
+| **Skills** | 4 | 4 | - |
+| **Domains** | 5 | 2 | 3 |
+
+**Skills Used:**
+1. `testability-scoring` - 10 testability principles
+2. `risk-based-testing` - Risk prioritization
+3. `context-driven-testing` - Context-appropriate strategy
+4. `holistic-testing-pact` - PACT methodology (People, Activities, Contexts, Technologies)
 
 ---
 
@@ -892,3 +1296,4 @@ This swarm provides:
 3. **Are requirements testable?** → AC Validation (10 principles)
 4. **Is it accessible/secure/good UX?** → Conditional specialists
 5. **Should we proceed?** → GO/CONDITIONAL/NO-GO decision
+6. **What did we learn?** → Memory persistence for future cycles
