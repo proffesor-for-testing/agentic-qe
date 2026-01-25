@@ -16,7 +16,7 @@ import {
   type Requirement,
   type TestSpecification,
   type IEmbeddingService,
-} from '../../../src/domains/test-generation/coherence-gate.js';
+} from '../../../src/domains/test-generation/services/coherence-gate-service.js';
 import type { ICoherenceService } from '../../../src/integrations/coherence/coherence-service.js';
 import type {
   CoherenceResult,
