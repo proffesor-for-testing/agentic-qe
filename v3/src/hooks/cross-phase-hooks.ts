@@ -413,11 +413,15 @@ export class CrossPhaseHookExecutor {
       const actual = this.getValueFromPath(context, path);
       const expected = isNaN(Number(value)) ? value : Number(value);
 
+      // Cast actual to number for comparison operations
+      const actualNum = typeof actual === 'number' ? actual : Number(actual);
+      const expectedNum = typeof expected === 'number' ? expected : Number(expected);
+
       switch (op) {
-        case '>': return actual > expected;
-        case '<': return actual < expected;
-        case '>=': return actual >= expected;
-        case '<=': return actual <= expected;
+        case '>': return actualNum > expectedNum;
+        case '<': return actualNum < expectedNum;
+        case '>=': return actualNum >= expectedNum;
+        case '<=': return actualNum <= expectedNum;
         case '==': return actual == expected;
         case '!=': return actual != expected;
         default: return false;

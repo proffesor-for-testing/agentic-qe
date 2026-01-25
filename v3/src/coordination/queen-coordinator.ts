@@ -54,6 +54,9 @@ import {
 } from '../routing/queen-integration.js';
 import type { ClassifiableTask } from '../routing/task-classifier.js';
 
+// V3 Integration: Cross-Phase Memory Hooks (QCSD feedback loops)
+import { getCrossPhaseHookExecutor } from '../hooks/cross-phase-hooks.js';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -1058,6 +1061,25 @@ export class QueenCoordinator implements IQueenCoordinator {
 
       // SEC-003 Simplified: Log task completion
       this.auditLogger.logComplete(taskId, execution.assignedAgents[0]);
+
+      // QCSD: Invoke cross-phase hooks on agent completion
+      // This enables feedback loops: Production→Ideation, CI/CD→Development, etc.
+      try {
+        const hookExecutor = getCrossPhaseHookExecutor();
+        const agentName = execution.assignedAgents[0];
+        if (agentName) {
+          await hookExecutor.onAgentComplete(agentName, {
+            taskId,
+            taskType: execution.task.type,
+            domain: execution.assignedDomain,
+            result,
+            duration,
+          });
+        }
+      } catch (hookError) {
+        // Non-fatal: log but don't fail the task completion
+        console.warn('[QueenCoordinator] Cross-phase hook error:', hookError);
+      }
     }
 
     // Process queue for next task

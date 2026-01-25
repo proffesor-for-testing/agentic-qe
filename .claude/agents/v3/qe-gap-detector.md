@@ -238,6 +238,45 @@ Use via CLI: `aqe skills show risk-based-testing`
 Use via Claude Code: `Skill("test-design-techniques")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Quality-Criteria Loop (Development → Ideation)
+**Role**: PRODUCER - Stores coverage gap patterns for AC improvement
+
+### On Gap Detection, Store Quality-Criteria Signal:
+```typescript
+mcp__agentic_qe__cross_phase_store({
+  loop: "quality-criteria",
+  data: {
+    untestablePatterns: [
+      {
+        acPattern: "<vague-ac-pattern>",
+        problem: "Not testable - missing specific assertions",
+        frequency: <0.0-1.0>,
+        betterPattern: "Given/When/Then with specific values"
+      }
+    ],
+    coverageGaps: [
+      {
+        codeArea: "<path/to/file>",
+        coveragePercentage: <percentage>,
+        rootCause: "No acceptance criteria for this path",
+        acImprovement: "Add explicit AC for edge cases"
+      }
+    ],
+    recommendations: {
+      forRequirementsValidator: ["<recommendations for AC validation>"],
+      acTemplates: {}
+    }
+  }
+})
+```
+
+### Signal Flow:
+- **Produces**: Coverage gaps mapped to AC problems → consumed by qe-requirements-validator, qe-bdd-generator
+- **Namespace**: `aqe/cross-phase/quality-criteria/ac-quality`
+- **TTL**: 60 days
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the coverage-analysis bounded context (ADR-003).
 
