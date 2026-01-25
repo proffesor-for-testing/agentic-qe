@@ -24,6 +24,10 @@ import {
   FeedbackLoopType,
   CROSS_PHASE_NAMESPACES,
   CrossPhaseNamespace,
+  RiskWeight,
+  FactorWeight,
+  FlakyPattern,
+  UntestablePattern,
 } from '../types/cross-phase-signals.js';
 
 // =============================================================================
@@ -264,32 +268,32 @@ export class CrossPhaseHookExecutor {
     switch (action.loop) {
       case 'strategic':
         await this.memory.storeRiskSignal(
-          extracted.riskWeights || [],
-          extracted.recommendations || { forRiskAssessor: [], forQualityCriteria: [] }
+          (extracted.riskWeights as RiskWeight[]) || [],
+          (extracted.recommendations as ProductionRiskSignal['recommendations']) || { forRiskAssessor: [], forQualityCriteria: [] }
         );
         break;
 
       case 'tactical':
         await this.memory.storeSFDIPOTSignal(
-          extracted.factorWeights || [],
-          extracted.featureContext || 'unknown',
-          extracted.recommendations || { forProductFactorsAssessor: [] }
+          (extracted.factorWeights as FactorWeight[]) || [],
+          (extracted.featureContext as string) || 'unknown',
+          (extracted.recommendations as SFDIPOTWeightSignal['recommendations']) || { forProductFactorsAssessor: [] }
         );
         break;
 
       case 'operational':
         await this.memory.storeTestHealthSignal(
-          extracted.flakyPatterns || [],
-          extracted.gateFailures || [],
-          extracted.recommendations || { forTestArchitect: [], antiPatterns: [] }
+          (extracted.flakyPatterns as FlakyPattern[]) || [],
+          (extracted.gateFailures as TestHealthSignal['gateFailures']) || [],
+          (extracted.recommendations as TestHealthSignal['recommendations']) || { forTestArchitect: [], antiPatterns: [] }
         );
         break;
 
       case 'quality-criteria':
         await this.memory.storeACQualitySignal(
-          extracted.untestablePatterns || [],
-          extracted.coverageGaps || [],
-          extracted.recommendations || { forRequirementsValidator: [], acTemplates: {} }
+          (extracted.untestablePatterns as UntestablePattern[]) || [],
+          (extracted.coverageGaps as ACQualitySignal['coverageGaps']) || [],
+          (extracted.recommendations as ACQualitySignal['recommendations']) || { forRequirementsValidator: [], acTemplates: {} }
         );
         break;
     }
@@ -342,11 +346,9 @@ export class CrossPhaseHookExecutor {
   }
 
   formatSignalsForInjection(signals: CrossPhaseSignal[]): string {
-    if (!this.config || signals.length === 0) return '';
+    if (signals.length === 0) return '';
 
-    const template = this.config.routing.injection_format;
-
-    // Simple template replacement
+    // Format signals for agent prompt injection
     let output = '## CROSS-PHASE LEARNING SIGNALS\n\n';
     output += 'The following signals have been automatically injected from previous phases.\n';
     output += 'Apply these learnings to your analysis.\n\n';
