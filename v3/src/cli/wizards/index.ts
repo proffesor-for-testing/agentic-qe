@@ -3,7 +3,11 @@
  * ADR-041: V3 QE CLI Enhancement
  *
  * Exports all interactive wizards for the AQE v3 CLI.
+ * Refactored to use Command Pattern for reduced complexity.
  */
+
+// Core wizard infrastructure (Command Pattern)
+export * from './core/index.js';
 
 // Test Generation Wizard
 export {

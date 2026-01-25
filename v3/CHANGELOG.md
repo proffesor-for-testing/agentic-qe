@@ -5,6 +5,94 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.1] - 2026-01-25
+
+### 🎯 Highlights
+
+**GOAP Quality Remediation Complete** - Comprehensive 6-phase quality improvement achieving production-ready status. Quality score improved from 37 to 82 (+121%), cyclomatic complexity reduced by 52%, and 527 tests now passing with 80%+ coverage.
+
+### Added
+
+#### Quality Metrics Improvement
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Quality Score | 37/100 | 82/100 | +121% |
+| Cyclomatic Complexity | 41.91 | <20 | -52% |
+| Maintainability Index | 20.13 | 88/100 | +337% |
+| Test Coverage | 70% | 80%+ | +14% |
+| Security False Positives | 20 | 0 | -100% |
+
+#### New Modules (Extract Method + Strategy Pattern)
+- **score-calculator.ts** - Extracted complexity score calculations
+- **tier-recommender.ts** - Extracted model tier recommendation logic
+- **validators/** - Security validation using Strategy Pattern:
+  - `path-traversal-validator.ts` - Directory traversal prevention
+  - `regex-safety-validator.ts` - ReDoS attack prevention
+  - `command-validator.ts` - Shell injection prevention
+  - `input-sanitizer.ts` - General input sanitization
+  - `crypto-validator.ts` - Cryptographic input validation
+  - `validation-orchestrator.ts` - Orchestrates all validators
+
+#### CLI Commands Modularization
+- Extracted standalone command modules: `code.ts`, `coverage.ts`, `fleet.ts`, `security.ts`, `test.ts`, `quality.ts`, `migrate.ts`, `completions.ts`
+- Added `command-registry.ts` for centralized command management
+- Improved CLI handlers organization
+
+#### Test Generation Improvements
+- **coherence-gate-service.ts** - Service layer for coherence verification
+- **property-test-generator.ts** - Property-based testing support
+- **tdd-generator.ts** - TDD-specific test generation
+- **test-data-generator.ts** - Test data factory patterns
+- Factory pattern implementation in `factories/`
+- Interface segregation in `interfaces/`
+
+#### 527 New Tests (Phase 4)
+- `score-calculator.test.ts` - 109 tests for complexity scoring
+- `tier-recommender.test.ts` - 86 tests for tier selection
+- `validation-orchestrator.test.ts` - 136 tests for security validators
+- `coherence-gate-service.test.ts` - 56 tests for coherence service
+- `complexity-analyzer.test.ts` - 89 tests for signal collection
+- `test-generator-di.test.ts` - 11 tests for dependency injection
+- `test-generator-factory.test.ts` - 40 tests for factory patterns
+
+#### Cloud Sync Feature
+- **feat(sync)**: Cloud sync to ruvector-postgres backend
+- Incremental and full sync modes
+- Sync status and verification commands
+
+### Changed
+
+- **complexity-analyzer.ts** - Refactored from 656 to ~200 lines using Extract Method
+- **cve-prevention.ts** - Refactored from 823 to ~300 lines using Strategy Pattern
+- **test-generator.ts** - Refactored to use dependency injection
+- **Wizard files** - Standardized using Command Pattern
+- All domains now follow consistent code organization standards
+
+### Fixed
+
+- **fix(coherence)**: Resolve WASM SpectralEngine binding and add defensive null checks
+- **fix(init)**: Preserve config.yaml customizations on reinstall
+- **fix(security)**: Implement SEC-001 input validation and sanitization
+- **fix(ux)**: Resolve issue #205 regression - fresh install shows 'idle' not 'degraded'
+- Security scanner false positives eliminated via `.gitleaks.toml` and `security-scan.config.json`
+- Defect-prone files remediated with comprehensive test coverage
+
+### Security
+
+- Resolved 20 false positive AWS secret detections in wizard files
+- CodeQL incomplete-sanitization alerts #116-121 fixed
+- Shell argument backslash escaping (CodeQL #117)
+
+### Documentation
+
+- `CODE-ORGANIZATION-STANDARDIZATION.md` - Domain structure guidelines
+- `DOMAIN-STRUCTURE-GUIDE.md` - DDD implementation guide
+- `JSDOC-TEMPLATES.md` - 15 JSDoc documentation templates
+- `quality-remediation-final.md` - Complete remediation report
+- `phase3-verification-report.md` - Maintainability improvements
+
+---
+
 ## [3.3.0] - 2026-01-24
 
 ### 🎯 Highlights

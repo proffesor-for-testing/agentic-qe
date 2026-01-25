@@ -1,0 +1,147 @@
+{
+  "$schema": "https://raw.githubusercontent.com/agentic-qe/v3/main/schemas/security-scan.schema.json",
+  "version": "1.0.0",
+  "description": "Agentic QE v3 Security Scanner Configuration - Phase 1 Quality Remediation",
+  "created": "2026-01-24",
+
+  "scanner": {
+    "enabled": true,
+    "sast": true,
+    "dast": false,
+    "secretDetection": true,
+    "dependencyCheck": true
+  },
+
+  "targets": {
+    "include": [
+      "v3/src/**/*.ts",
+      "v3/src/**/*.js"
+    ],
+    "exclude": [
+      "v3/dist/**",
+      "v3/node_modules/**",
+      "v3/**/*.test.ts",
+      "v3/**/*.spec.ts",
+      "v3/tests/**"
+    ]
+  },
+
+  "falsePositives": {
+    "description": "Known false positive patterns to exclude from scan results",
+    "rules": [
+      {
+        "id": "FP-001",
+        "type": "aws-secret-key",
+        "reason": "Chalk terminal formatting strings trigger AWS key pattern detection",
+        "files": [
+          "v3/src/cli/wizards/coverage-wizard.ts",
+          "v3/src/cli/wizards/fleet-wizard.ts",
+          "v3/src/cli/wizards/security-wizard.ts"
+        ],
+        "linePatterns": [
+          "chalk.blue('",
+          "chalk.blue.bold('",
+          "chalk.cyan('",
+          "chalk.green('",
+          "chalk.yellow('",
+          "chalk.red('",
+          "chalk.gray('"
+        ],
+        "action": "ignore"
+      },
+      {
+        "id": "FP-002",
+        "type": "generic-secret",
+        "reason": "ScanType enum values contain words like 'secret' that trigger detection",
+        "patterns": [
+          "ScanType.SECRET",
+          "scanType: 'secret'",
+          "'secret' as ScanType"
+        ],
+        "action": "ignore"
+      },
+      {
+        "id": "FP-003",
+        "type": "hardcoded-credential",
+        "reason": "UI prompt text contains words like 'password' or 'token' in descriptions",
+        "patterns": [
+          "Enter your password:",
+          "API token required",
+          "description: 'token",
+          "placeholder: 'your-"
+        ],
+        "action": "ignore"
+      }
+    ]
+  },
+
+  "allowlist": {
+    "paths": [
+      {
+        "pattern": "v3/src/cli/wizards/**/*.ts",
+        "rules": ["aws-access-key", "aws-secret-key"],
+        "reason": "Wizard UI files contain chalk formatting, not secrets"
+      },
+      {
+        "pattern": "v3/docs/**",
+        "rules": ["*"],
+        "reason": "Documentation may contain example patterns"
+      }
+    ],
+    "patterns": [
+      {
+        "regex": "console\\.log\\(chalk\\.",
+        "rules": ["aws-secret-key"],
+        "reason": "Chalk console output formatting"
+      },
+      {
+        "regex": "chalk\\.(blue|green|red|yellow|cyan)\\(",
+        "rules": ["aws-secret-key", "generic-credential"],
+        "reason": "Terminal color formatting functions"
+      },
+      {
+        "regex": "process\\.env\\.",
+        "rules": ["hardcoded-credential"],
+        "reason": "Environment variable references are safe"
+      }
+    ]
+  },
+
+  "severity": {
+    "critical": {
+      "failBuild": true,
+      "threshold": 0
+    },
+    "high": {
+      "failBuild": true,
+      "threshold": 0
+    },
+    "medium": {
+      "failBuild": false,
+      "threshold": 50
+    },
+    "low": {
+      "failBuild": false,
+      "threshold": 100
+    }
+  },
+
+  "reporting": {
+    "format": ["sarif", "json", "markdown"],
+    "outputDir": ".agentic-qe/results/security",
+    "includeRemediation": true,
+    "groupByFile": true
+  },
+
+  "integration": {
+    "ci": {
+      "enabled": true,
+      "blockPR": true,
+      "requireApproval": ["critical", "high"]
+    },
+    "preCommit": {
+      "enabled": true,
+      "quickScan": true
+    }
+  }
+}

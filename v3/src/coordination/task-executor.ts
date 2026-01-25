@@ -17,7 +17,7 @@ import { ResultSaver, createResultSaver, SaveOptions } from './result-saver';
 // Import real domain services
 import { CoverageAnalyzerService, type CoverageData, type FileCoverage } from '../domains/coverage-analysis';
 import { SecurityScannerService, type FullScanResult } from '../domains/security-compliance';
-import { TestGeneratorService, type GeneratedTests } from '../domains/test-generation';
+import { createTestGeneratorService, type TestGeneratorService, type GeneratedTests } from '../domains/test-generation';
 import { KnowledgeGraphService } from '../domains/code-intelligence';
 import { QualityAnalyzerService, type QualityReport } from '../domains/quality-assessment';
 
@@ -76,7 +76,7 @@ function getSecurityScanner(memory: MemoryBackend): SecurityScannerService {
 
 function getTestGenerator(memory: MemoryBackend): TestGeneratorService {
   if (!testGenerator) {
-    testGenerator = new TestGeneratorService(memory);
+    testGenerator = createTestGeneratorService(memory);
   }
   return testGenerator;
 }

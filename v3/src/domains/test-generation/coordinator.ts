@@ -41,7 +41,7 @@ import {
   TestGenerationAPI,
 } from './interfaces';
 import {
-  TestGeneratorService,
+  createTestGeneratorService,
   ITestGenerationService,
 } from './services/test-generator';
 import {
@@ -90,7 +90,7 @@ import {
   type Requirement,
   type TestSpecification,
   type RequirementCoherenceResult,
-} from './coherence-gate.js';
+} from './services/coherence-gate-service.js';
 
 import type { ICoherenceService } from '../../integrations/coherence/coherence-service.js';
 
@@ -193,7 +193,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
     private readonly coherenceService?: ICoherenceService | null
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.testGenerator = new TestGeneratorService(memory);
+    this.testGenerator = createTestGeneratorService(memory);
     this.patternMatcher = new PatternMatcherService(memory);
 
     // Initialize coherence gate if service is provided (ADR-052)

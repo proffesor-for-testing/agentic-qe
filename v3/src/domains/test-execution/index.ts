@@ -27,48 +27,6 @@ export type {
 // ============================================================================
 
 export {
-  // Step Type Enumeration
-  E2EStepType,
-
-  // Step Options Types
-  type NavigateStepOptions,
-  type ClickStepOptions,
-  type TypeStepOptions,
-  type WaitStepOptions,
-  type WaitConditionType,
-  type AssertStepOptions,
-  type AssertionType,
-  type ScreenshotStepOptions,
-  type A11yCheckStepOptions,
-  type StepOptions,
-
-  // Step Interfaces
-  type E2EStepBase,
-  type NavigateStep,
-  type ClickStep,
-  type TypeStep,
-  type WaitStep,
-  type AssertStep,
-  type ScreenshotStep,
-  type A11yCheckStep,
-  type E2EStep,
-
-  // Step Result
-  type E2EStepResult,
-
-  // Test Case Types
-  type Viewport,
-  type BrowserContextOptions,
-  type E2ETestHooks,
-  type E2ETestCase,
-
-  // Test Result
-  type E2ETestResult,
-
-  // Test Suite
-  type E2ETestSuite,
-  type E2ETestSuiteResult,
-
   // Factory Functions
   createNavigateStep,
   createClickStep,
@@ -87,12 +45,56 @@ export {
   isAssertStep,
   isScreenshotStep,
   isA11yCheckStep,
+} from './types';
+
+export type {
+  // Step Type Enumeration
+  E2EStepType,
+
+  // Step Options Types
+  NavigateStepOptions,
+  ClickStepOptions,
+  TypeStepOptions,
+  WaitStepOptions,
+  WaitConditionType,
+  AssertStepOptions,
+  AssertionType,
+  ScreenshotStepOptions,
+  A11yCheckStepOptions,
+  StepOptions,
+
+  // Step Interfaces
+  E2EStepBase,
+  NavigateStep,
+  ClickStep,
+  TypeStep,
+  WaitStep,
+  AssertStep,
+  ScreenshotStep,
+  A11yCheckStep,
+  E2EStep,
+
+  // Step Result
+  E2EStepResult,
+
+  // Test Case Types
+  Viewport,
+  BrowserContextOptions,
+  E2ETestHooks,
+  E2ETestCase,
+
+  // Test Result
+  E2ETestResult,
+
+  // Test Suite
+  E2ETestSuite,
+  E2ETestSuiteResult,
 
   // Utility Types
-  type ExtractStepType,
-  type StepOptionsFor,
-  type E2EStepBuilder,
-  type SerializableE2ETestCase,
+  ExtractStepType,
+  StepOptionsFor,
+  E2EStepBuilder,
+  SerializableE2ETestCase,
 } from './types';
 
 // ============================================================================

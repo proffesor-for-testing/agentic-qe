@@ -29,7 +29,7 @@ import {
   CoordinatorConfig,
 } from './coordinator';
 import {
-  TestGeneratorService,
+  createTestGeneratorService,
   ITestGenerationService,
   TestGeneratorConfig,
 } from './services/test-generator';
@@ -125,8 +125,8 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
   // ============================================================================
 
   protected async onInitialize(): Promise<void> {
-    // Create services
-    this.testGenerator = new TestGeneratorService(
+    // Create services using factory function for proper DI
+    this.testGenerator = createTestGeneratorService(
       this.memory,
       this.pluginConfig.testGenerator
     );
