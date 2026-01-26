@@ -3,13 +3,13 @@
  * Integrates the quality assessment domain into the kernel
  */
 
-import { DomainName, DomainEvent, Result } from '../../shared/types';
+import { DomainName, DomainEvent, Result, ok, err } from '../../shared/types';
 import {
   EventBus,
   MemoryBackend,
   AgentCoordinator,
 } from '../../kernel/interfaces';
-import { BaseDomainPlugin } from '../domain-interface';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import {
   QualityAssessmentAPI,
   GateEvaluationRequest,
@@ -20,6 +20,8 @@ import {
   DeploymentAdvice,
   ComplexityRequest,
   ComplexityReport,
+  QualityMetrics,
+  GateThresholds,
 } from './interfaces';
 import {
   QualityAssessmentCoordinator,
@@ -129,6 +131,89 @@ export class QualityAssessmentPlugin extends BaseDomainPlugin {
     };
 
     return api as T;
+  }
+
+  // ============================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ============================================================================
+
+  /**
+   * Get task handlers for direct Queen-Domain integration
+   * Maps task types to coordinator methods
+   */
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      // Evaluate quality gate task - main task type for this domain
+      ['evaluate-gate', async (payload): Promise<Result<unknown, Error>> => {
+        const gateName = payload.gateName as string | undefined;
+        const metrics = payload.metrics as QualityMetrics | undefined;
+        const thresholds = payload.thresholds as GateThresholds | undefined;
+
+        if (!gateName || !metrics || !thresholds) {
+          return err(new Error('Invalid evaluate-gate payload: missing gateName, metrics, or thresholds'));
+        }
+
+        const request: GateEvaluationRequest = {
+          gateName,
+          metrics,
+          thresholds,
+        };
+
+        return this.evaluateGate(request);
+      }],
+
+      // Analyze quality task
+      ['analyze-quality', async (payload): Promise<Result<unknown, Error>> => {
+        const sourceFiles = payload.sourceFiles as string[] | undefined;
+
+        if (!sourceFiles || sourceFiles.length === 0) {
+          return err(new Error('Invalid analyze-quality payload: missing sourceFiles'));
+        }
+
+        const request: QualityAnalysisRequest = {
+          sourceFiles,
+          includeMetrics: (payload.includeMetrics as string[]) ?? ['coverage', 'complexity', 'maintainability'],
+          compareBaseline: payload.compareBaseline as string | undefined,
+        };
+
+        return this.analyzeQuality(request);
+      }],
+
+      // Get deployment advice task
+      ['deployment-advice', async (payload): Promise<Result<unknown, Error>> => {
+        const releaseCandidate = payload.releaseCandidate as string | undefined;
+        const metrics = payload.metrics as QualityMetrics | undefined;
+        const riskTolerance = payload.riskTolerance as 'low' | 'medium' | 'high' | undefined;
+
+        if (!releaseCandidate || !metrics) {
+          return err(new Error('Invalid deployment-advice payload: missing releaseCandidate or metrics'));
+        }
+
+        const request: DeploymentRequest = {
+          releaseCandidate,
+          metrics,
+          riskTolerance: riskTolerance ?? 'medium',
+        };
+
+        return this.getDeploymentAdvice(request);
+      }],
+
+      // Analyze complexity task
+      ['analyze-complexity', async (payload): Promise<Result<unknown, Error>> => {
+        const sourceFiles = payload.sourceFiles as string[] | undefined;
+
+        if (!sourceFiles || sourceFiles.length === 0) {
+          return err(new Error('Invalid analyze-complexity payload: missing sourceFiles'));
+        }
+
+        const request: ComplexityRequest = {
+          sourceFiles,
+          metrics: (payload.metrics as ComplexityRequest['metrics']) ?? ['cyclomatic', 'cognitive'],
+        };
+
+        return this.analyzeComplexity(request);
+      }],
+    ]);
   }
 
   // ============================================================================
