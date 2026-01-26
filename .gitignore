@@ -191,3 +191,6 @@ v3/agentdb.*
 v3/.agentic-qe/
 *.db-shm
 v3/.test-tmp/*
+
+# Accessibility scan outputs (generated, may contain site-specific data)
+docs/accessibility-scans/
