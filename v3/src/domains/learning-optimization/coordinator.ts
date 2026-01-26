@@ -161,7 +161,7 @@ export class LearningOptimizationCoordinator
     config: Partial<LearningCoordinatorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.learningService = new LearningCoordinatorService(memory);
+    this.learningService = new LearningCoordinatorService({ memory });
     this.transferService = new TransferSpecialistService(memory);
     this.optimizerService = new MetricsOptimizerService(memory);
     this.productionIntel = new ProductionIntelService(memory);

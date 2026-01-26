@@ -1,6 +1,8 @@
 /**
  * Agentic QE v3 - Coverage Analyzer Service
  * Implements ICoverageAnalysisService with O(log n) vector-based analysis
+ *
+ * ADR-051: LLM-powered coverage analysis for intelligent gap detection
  */
 
 import { Result, ok, err, Severity } from '../../../shared/types';
@@ -15,6 +17,9 @@ import {
   CoverageGaps,
   CoverageGap,
 } from '../interfaces';
+
+// ADR-051: LLM Router for AI-enhanced coverage analysis
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 
 // ============================================================================
 // Service Interface
@@ -32,6 +37,69 @@ export interface ICoverageAnalysisService {
 }
 
 // ============================================================================
+// Configuration and Dependencies
+// ============================================================================
+
+/**
+ * Configuration for the coverage analyzer
+ */
+export interface CoverageAnalyzerConfig {
+  /** Default coverage threshold percentage */
+  defaultThreshold: number;
+  /** ADR-051: Enable LLM-powered coverage analysis */
+  enableLLMAnalysis?: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier?: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens?: number;
+}
+
+const DEFAULT_CONFIG: CoverageAnalyzerConfig = {
+  defaultThreshold: 80,
+  enableLLMAnalysis: true, // On by default - opt-out
+  llmModelTier: 2, // Sonnet by default
+  llmMaxTokens: 2048,
+};
+
+/**
+ * Dependencies for CoverageAnalyzerService
+ * Enables dependency injection and testing
+ */
+export interface CoverageAnalyzerDependencies {
+  memory: MemoryBackend;
+  /** ADR-051: Optional LLM router for AI-enhanced coverage analysis */
+  llmRouter?: HybridRouter;
+}
+
+/**
+ * LLM-generated coverage insights
+ * ADR-051: Structured analysis results from LLM
+ */
+export interface CoverageInsights {
+  /** Explanation of why code is uncovered */
+  uncoveredReasoning: string[];
+  /** Suggested test cases to cover gaps */
+  suggestedTestCases: SuggestedTestCase[];
+  /** Risk assessment for uncovered paths */
+  riskAssessment: RiskAssessment;
+}
+
+export interface SuggestedTestCase {
+  name: string;
+  description: string;
+  type: 'unit' | 'integration' | 'edge-case';
+  targetLines: number[];
+  estimatedEffort: 'low' | 'medium' | 'high';
+}
+
+export interface RiskAssessment {
+  overallRisk: 'low' | 'medium' | 'high' | 'critical';
+  riskFactors: string[];
+  businessImpact: string;
+  recommendations: string[];
+}
+
+// ============================================================================
 // Service Implementation
 // ============================================================================
 
@@ -39,14 +107,54 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
   private static readonly DEFAULT_THRESHOLD = 80;
   private static readonly VECTOR_DIMENSION = 128;
 
-  constructor(private readonly memory: MemoryBackend) {}
+  private readonly memory: MemoryBackend;
+  private readonly config: CoverageAnalyzerConfig;
+  private readonly llmRouter?: HybridRouter;
+
+  /**
+   * Constructor with backward compatibility support
+   * @param memoryOrDependencies - Either a MemoryBackend (legacy) or CoverageAnalyzerDependencies
+   * @param config - Optional configuration overrides
+   */
+  constructor(
+    memoryOrDependencies: MemoryBackend | CoverageAnalyzerDependencies,
+    config: Partial<CoverageAnalyzerConfig> = {}
+  ) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Support both old (MemoryBackend) and new (Dependencies) signatures
+    if (this.isMemoryBackend(memoryOrDependencies)) {
+      // Legacy: direct MemoryBackend parameter
+      this.memory = memoryOrDependencies;
+      this.llmRouter = undefined;
+    } else {
+      // New: dependencies object
+      this.memory = memoryOrDependencies.memory;
+      this.llmRouter = memoryOrDependencies.llmRouter;
+    }
+  }
+
+  /**
+   * Type guard to check if input is a MemoryBackend
+   */
+  private isMemoryBackend(
+    input: MemoryBackend | CoverageAnalyzerDependencies
+  ): input is MemoryBackend {
+    // MemoryBackend has 'get', 'set', 'delete' methods directly
+    // CoverageAnalyzerDependencies has a 'memory' property
+    return (
+      typeof (input as MemoryBackend).get === 'function' &&
+      typeof (input as MemoryBackend).set === 'function' &&
+      !('memory' in input)
+    );
+  }
 
   /**
    * Analyze coverage from reports
    */
   async analyze(request: AnalyzeCoverageRequest): Promise<Result<CoverageReport, Error>> {
     try {
-      const { coverageData, threshold = CoverageAnalyzerService.DEFAULT_THRESHOLD } = request;
+      const { coverageData, threshold = this.config.defaultThreshold } = request;
 
       // Calculate current metrics
       const summary = this.calculateMetrics(coverageData);
@@ -86,7 +194,7 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
    */
   async findGaps(
     coverageData: CoverageData,
-    threshold: number = CoverageAnalyzerService.DEFAULT_THRESHOLD
+    threshold: number = this.config.defaultThreshold
   ): Promise<Result<CoverageGaps, Error>> {
     try {
       const gaps: CoverageGap[] = [];
@@ -175,6 +283,229 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
       function: totalFunctions > 0 ? (coveredFunctions / totalFunctions) * 100 : 0,
       statement: totalStatements > 0 ? (coveredStatements / totalStatements) * 100 : 0,
       files: files.length,
+    };
+  }
+
+  // ============================================================================
+  // ADR-051: LLM Enhancement Methods
+  // ============================================================================
+
+  /**
+   * Check if LLM analysis is available and enabled
+   */
+  isLLMAnalysisAvailable(): boolean {
+    return this.config.enableLLMAnalysis === true && this.llmRouter !== undefined;
+  }
+
+  /**
+   * Get model ID for the configured tier
+   */
+  private getModelForTier(tier: number): string {
+    switch (tier) {
+      case 1:
+        return 'claude-3-5-haiku-20241022';
+      case 2:
+        return 'claude-sonnet-4-20250514';
+      case 3:
+        return 'claude-sonnet-4-20250514';
+      case 4:
+        return 'claude-opus-4-5-20251101';
+      default:
+        return 'claude-sonnet-4-20250514';
+    }
+  }
+
+  /**
+   * Analyze coverage gaps using LLM for intelligent insights
+   * ADR-051: Provides explanations, test suggestions, and risk assessment
+   *
+   * @param gaps - Coverage gaps to analyze
+   * @param sourceCode - Source code content (optional, for deeper analysis)
+   * @returns LLM-generated coverage insights
+   */
+  async analyzeCoverageWithLLM(
+    gaps: CoverageGap[],
+    sourceCode?: string
+  ): Promise<CoverageInsights> {
+    if (!this.llmRouter) {
+      return this.getDefaultInsights();
+    }
+
+    try {
+      const prompt = this.buildCoverageAnalysisPrompt(gaps, sourceCode);
+      const modelId = this.getModelForTier(this.config.llmModelTier ?? 2);
+
+      const response: ChatResponse = await this.llmRouter.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert code coverage analyst and test engineer. Analyze coverage gaps and provide actionable insights.
+
+Your response MUST be valid JSON with this exact structure:
+{
+  "uncoveredReasoning": ["reason1", "reason2", ...],
+  "suggestedTestCases": [
+    {
+      "name": "test name",
+      "description": "what this test covers",
+      "type": "unit" | "integration" | "edge-case",
+      "targetLines": [1, 2, 3],
+      "estimatedEffort": "low" | "medium" | "high"
+    }
+  ],
+  "riskAssessment": {
+    "overallRisk": "low" | "medium" | "high" | "critical",
+    "riskFactors": ["factor1", "factor2"],
+    "businessImpact": "description of potential business impact",
+    "recommendations": ["recommendation1", "recommendation2"]
+  }
+}
+
+Provide thoughtful, specific analysis based on the coverage data. Do not include any text outside the JSON.`,
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        model: modelId,
+        maxTokens: this.config.llmMaxTokens ?? 2048,
+        temperature: 0.3, // Low temperature for consistent analysis
+      });
+
+      if (response.content && response.content.length > 0) {
+        return this.parseInsightsResponse(response.content);
+      }
+
+      return this.getDefaultInsights();
+    } catch (error) {
+      console.warn('[CoverageAnalyzer] LLM analysis failed, using defaults:', error);
+      return this.getDefaultInsights();
+    }
+  }
+
+  /**
+   * Build the prompt for LLM coverage analysis
+   */
+  private buildCoverageAnalysisPrompt(gaps: CoverageGap[], sourceCode?: string): string {
+    let prompt = '## Coverage Gaps to Analyze\n\n';
+
+    for (const gap of gaps.slice(0, 10)) {
+      // Limit to top 10 gaps to avoid token limits
+      prompt += `### File: ${gap.file}\n`;
+      prompt += `- Uncovered lines: ${gap.lines.slice(0, 20).join(', ')}${gap.lines.length > 20 ? '...' : ''}\n`;
+      prompt += `- Uncovered branches: ${gap.branches.length}\n`;
+      prompt += `- Risk score: ${(gap.riskScore * 100).toFixed(1)}%\n`;
+      prompt += `- Severity: ${gap.severity}\n`;
+      prompt += `- Current recommendation: ${gap.recommendation}\n\n`;
+    }
+
+    if (sourceCode) {
+      // Truncate source code to avoid token limits
+      const truncatedSource =
+        sourceCode.length > 3000 ? sourceCode.substring(0, 3000) + '\n... (truncated)' : sourceCode;
+      prompt += `## Source Code Context\n\`\`\`typescript\n${truncatedSource}\n\`\`\`\n\n`;
+    }
+
+    prompt += `## Analysis Request\n`;
+    prompt += `1. Explain why these code sections might be uncovered (common patterns, complexity, etc.)\n`;
+    prompt += `2. Suggest specific test cases to cover the gaps, with effort estimates\n`;
+    prompt += `3. Assess the risk of leaving this code uncovered\n`;
+    prompt += `4. Provide actionable recommendations prioritized by impact\n`;
+
+    return prompt;
+  }
+
+  /**
+   * Parse LLM response into CoverageInsights structure
+   */
+  private parseInsightsResponse(content: string): CoverageInsights {
+    try {
+      // Try to extract JSON from response (handling potential markdown fences)
+      let jsonContent = content;
+      const jsonMatch = content.match(/```(?:json)?\n?([\s\S]*?)```/);
+      if (jsonMatch) {
+        jsonContent = jsonMatch[1].trim();
+      }
+
+      const parsed = JSON.parse(jsonContent);
+
+      // Validate and normalize the response structure
+      return {
+        uncoveredReasoning: Array.isArray(parsed.uncoveredReasoning)
+          ? parsed.uncoveredReasoning
+          : [],
+        suggestedTestCases: Array.isArray(parsed.suggestedTestCases)
+          ? parsed.suggestedTestCases.map(this.normalizeTestCase)
+          : [],
+        riskAssessment: this.normalizeRiskAssessment(parsed.riskAssessment),
+      };
+    } catch {
+      console.warn('[CoverageAnalyzer] Failed to parse LLM response as JSON');
+      return this.getDefaultInsights();
+    }
+  }
+
+  /**
+   * Normalize a suggested test case to ensure valid structure
+   */
+  private normalizeTestCase(testCase: Partial<SuggestedTestCase>): SuggestedTestCase {
+    return {
+      name: testCase.name || 'Unnamed test',
+      description: testCase.description || 'No description provided',
+      type: ['unit', 'integration', 'edge-case'].includes(testCase.type as string)
+        ? (testCase.type as 'unit' | 'integration' | 'edge-case')
+        : 'unit',
+      targetLines: Array.isArray(testCase.targetLines) ? testCase.targetLines : [],
+      estimatedEffort: ['low', 'medium', 'high'].includes(testCase.estimatedEffort as string)
+        ? (testCase.estimatedEffort as 'low' | 'medium' | 'high')
+        : 'medium',
+    };
+  }
+
+  /**
+   * Normalize risk assessment to ensure valid structure
+   */
+  private normalizeRiskAssessment(assessment: Partial<RiskAssessment> | undefined): RiskAssessment {
+    if (!assessment) {
+      return {
+        overallRisk: 'medium',
+        riskFactors: ['Unable to determine specific risk factors'],
+        businessImpact: 'Unknown - manual review recommended',
+        recommendations: ['Review uncovered code paths manually'],
+      };
+    }
+
+    return {
+      overallRisk: ['low', 'medium', 'high', 'critical'].includes(assessment.overallRisk as string)
+        ? (assessment.overallRisk as 'low' | 'medium' | 'high' | 'critical')
+        : 'medium',
+      riskFactors: Array.isArray(assessment.riskFactors) ? assessment.riskFactors : [],
+      businessImpact: assessment.businessImpact || 'Unknown',
+      recommendations: Array.isArray(assessment.recommendations) ? assessment.recommendations : [],
+    };
+  }
+
+  /**
+   * Get default insights when LLM is unavailable
+   */
+  private getDefaultInsights(): CoverageInsights {
+    return {
+      uncoveredReasoning: [
+        'LLM analysis not available - using rule-based analysis',
+        'Consider enabling LLM analysis for deeper insights',
+      ],
+      suggestedTestCases: [],
+      riskAssessment: {
+        overallRisk: 'medium',
+        riskFactors: ['Unable to perform automated risk analysis'],
+        businessImpact: 'Unknown - manual review recommended',
+        recommendations: [
+          'Enable LLM analysis for intelligent gap detection',
+          'Review high-risk files manually',
+          'Prioritize branch coverage for conditional logic',
+        ],
+      },
     };
   }
 
@@ -446,4 +777,38 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
     const hoursPerTestLine = 1 / 20;
     return Math.ceil(testLinesNeeded * hoursPerTestLine);
   }
+}
+
+// ============================================================================
+// Factory Functions
+// ============================================================================
+
+/**
+ * Create a CoverageAnalyzerService instance with default dependencies
+ * Maintains backward compatibility with existing code
+ *
+ * @param memory - Memory backend for vector storage and caching
+ * @param config - Optional configuration overrides
+ * @returns Configured CoverageAnalyzerService instance
+ */
+export function createCoverageAnalyzerService(
+  memory: MemoryBackend,
+  config: Partial<CoverageAnalyzerConfig> = {}
+): CoverageAnalyzerService {
+  return new CoverageAnalyzerService(memory, config);
+}
+
+/**
+ * Create a CoverageAnalyzerService instance with custom dependencies
+ * Used for testing or when LLM integration is needed
+ *
+ * @param dependencies - All service dependencies including optional LLM router
+ * @param config - Optional configuration overrides
+ * @returns Configured CoverageAnalyzerService instance
+ */
+export function createCoverageAnalyzerServiceWithDependencies(
+  dependencies: CoverageAnalyzerDependencies,
+  config: Partial<CoverageAnalyzerConfig> = {}
+): CoverageAnalyzerService {
+  return new CoverageAnalyzerService(dependencies, config);
 }

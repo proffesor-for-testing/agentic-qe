@@ -136,7 +136,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
     this.config = fullConfig;
 
     // Create services with appropriate configuration
-    this.executor = new TestExecutorService(memory, {
+    this.executor = new TestExecutorService({ memory }, {
       simulateForTesting: fullConfig.simulateForTesting,
       ...fullConfig.executorConfig,
     });

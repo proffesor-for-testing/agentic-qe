@@ -36,8 +36,9 @@ import {
   PrioritizedVisualTest,
 } from './interfaces.js';
 import {
-  VisualTesterService,
+  createVisualTesterService,
   VisualTesterConfig,
+  VisualTesterService,
 } from './services/visual-tester.js';
 import {
   AccessibilityTesterService,
@@ -125,7 +126,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
     responsiveConfig: Partial<ResponsiveTestConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.visualTester = new VisualTesterService(memory, visualConfig);
+    this.visualTester = createVisualTesterService(memory, visualConfig);
     this.accessibilityTester = new AccessibilityTesterService(memory, accessibilityConfig);
     this.responsiveTester = new ResponsiveTesterService(memory, responsiveConfig);
   }

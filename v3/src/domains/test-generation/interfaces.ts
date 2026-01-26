@@ -52,6 +52,8 @@ export interface IGeneratedTest {
   testCode: string;
   type: 'unit' | 'integration' | 'e2e';
   assertions: number;
+  /** ADR-051: Whether test was enhanced by LLM */
+  llmEnhanced?: boolean;
 }
 
 export interface ITDDRequest {

@@ -108,7 +108,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
     config: Partial<CoordinatorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.chaosEngineer = new ChaosEngineerService(memory);
+    this.chaosEngineer = new ChaosEngineerService({ memory });
     this.loadTester = new LoadTesterService(memory);
     this.performanceProfiler = new PerformanceProfilerService(memory);
   }

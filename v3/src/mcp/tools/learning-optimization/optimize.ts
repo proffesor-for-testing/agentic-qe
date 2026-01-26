@@ -154,7 +154,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
   }> {
     if (!this.learningCoordinator || !this.metricsOptimizer || !this.transferSpecialist) {
       const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || await getSharedMemoryBackend();
-      this.learningCoordinator = new LearningCoordinatorService(memory);
+      this.learningCoordinator = new LearningCoordinatorService({ memory });
       this.metricsOptimizer = new MetricsOptimizerService(memory);
       this.transferSpecialist = new TransferSpecialistService(memory);
     }

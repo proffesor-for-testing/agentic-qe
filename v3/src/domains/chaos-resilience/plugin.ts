@@ -182,7 +182,7 @@ export class ChaosResiliencePlugin extends BaseDomainPlugin {
   protected async onInitialize(): Promise<void> {
     // Create services
     this.chaosEngineer = new ChaosEngineerService(
-      this.memory,
+      { memory: this.memory },
       this.pluginConfig.chaosEngineer
     );
 

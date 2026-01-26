@@ -112,7 +112,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     config: Partial<CoordinatorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.contractValidator = new ContractValidatorService(memory);
+    this.contractValidator = new ContractValidatorService({ memory });
     this.apiCompatibility = new ApiCompatibilityService(memory);
     this.httpClient = createHttpClient();
     this.fileReader = new FileReader();
