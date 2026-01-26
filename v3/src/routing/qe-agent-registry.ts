@@ -1117,3 +1117,138 @@ export function getAgentCounts(): {
     total: QE_AGENT_REGISTRY.length,
   };
 }
+
+// ============================================================================
+// INTEGRATION FIX: Agent Performance Update
+// ============================================================================
+
+/**
+ * Performance update data from task outcomes
+ */
+export interface AgentPerformanceUpdate {
+  /** Whether the task succeeded */
+  success: boolean;
+  /** Task execution time in milliseconds */
+  executionTimeMs: number;
+  /** Quality score (0-1) */
+  qualityScore?: number;
+}
+
+/**
+ * Update an agent's performance metrics based on task outcome
+ * INTEGRATION FIX: Closes the feedback loop from ReasoningBank learning
+ *
+ * @param agentId - The agent ID to update
+ * @param update - Performance update data
+ */
+export function updateAgentPerformance(
+  agentId: string,
+  update: AgentPerformanceUpdate
+): void {
+  const agent = QE_AGENT_REGISTRY.find(a => a.id === agentId);
+  if (!agent) {
+    // Try to find by partial match (e.g., "qe-test-architect" matches "v3-qe-test-architect")
+    const partialMatch = QE_AGENT_REGISTRY.find(a =>
+      a.id.includes(agentId) || agentId.includes(a.id)
+    );
+    if (!partialMatch) {
+      console.error(`[AgentRegistry] Agent not found: ${agentId}`);
+      return;
+    }
+    updateAgentMetrics(partialMatch, update);
+    return;
+  }
+
+  updateAgentMetrics(agent, update);
+}
+
+/**
+ * Internal function to update agent metrics
+ */
+function updateAgentMetrics(
+  agent: QEAgentProfile,
+  update: AgentPerformanceUpdate
+): void {
+  const previousTasks = agent.tasksCompleted;
+  const previousSuccesses = Math.round(agent.successRate * previousTasks);
+
+  // Increment task count
+  agent.tasksCompleted++;
+
+  // Update success rate (exponential moving average for recent weighting)
+  const newSuccesses = previousSuccesses + (update.success ? 1 : 0);
+  agent.successRate = agent.tasksCompleted > 0
+    ? newSuccesses / agent.tasksCompleted
+    : 0;
+
+  // Update average duration (exponential moving average)
+  if (previousTasks === 0) {
+    agent.avgDurationMs = update.executionTimeMs;
+  } else {
+    // Weight recent results more heavily (alpha = 0.3)
+    const alpha = 0.3;
+    agent.avgDurationMs = alpha * update.executionTimeMs + (1 - alpha) * agent.avgDurationMs;
+  }
+
+  // Update performance score based on success rate and quality
+  const qualityFactor = update.qualityScore ?? (update.success ? 0.7 : 0.3);
+  const successFactor = agent.successRate;
+
+  // Performance score = weighted combination (quality 40%, success rate 60%)
+  const newPerformanceScore = 0.4 * qualityFactor + 0.6 * successFactor;
+
+  // Exponential moving average for stability
+  if (previousTasks === 0) {
+    agent.performanceScore = newPerformanceScore;
+  } else {
+    const alpha = 0.2;
+    agent.performanceScore = alpha * newPerformanceScore + (1 - alpha) * agent.performanceScore;
+  }
+
+  // Clamp performance score to valid range
+  agent.performanceScore = Math.max(0, Math.min(1, agent.performanceScore));
+
+  console.error(
+    `[AgentRegistry] Updated ${agent.id}: tasks=${agent.tasksCompleted} ` +
+    `successRate=${(agent.successRate * 100).toFixed(1)}% ` +
+    `performanceScore=${agent.performanceScore.toFixed(3)} ` +
+    `avgDurationMs=${agent.avgDurationMs.toFixed(0)}`
+  );
+}
+
+/**
+ * Get agents sorted by performance score
+ */
+export function getAgentsByPerformance(domain?: QEDomain): QEAgentProfile[] {
+  let agents = [...QE_AGENT_REGISTRY];
+
+  if (domain) {
+    agents = agents.filter(a => a.domains.includes(domain));
+  }
+
+  return agents.sort((a, b) => {
+    // Primary sort by performance score (descending)
+    if (b.performanceScore !== a.performanceScore) {
+      return b.performanceScore - a.performanceScore;
+    }
+    // Secondary sort by success rate (descending)
+    if (b.successRate !== a.successRate) {
+      return b.successRate - a.successRate;
+    }
+    // Tertiary sort by tasks completed (descending) - prefer experienced agents
+    return b.tasksCompleted - a.tasksCompleted;
+  });
+}
+
+/**
+ * Reset all agent performance metrics (for testing)
+ */
+export function resetAgentPerformanceMetrics(): void {
+  for (const agent of QE_AGENT_REGISTRY) {
+    agent.performanceScore = 0.7;
+    agent.tasksCompleted = 0;
+    agent.successRate = 0;
+    agent.avgDurationMs = 0;
+  }
+  console.error('[AgentRegistry] Reset all agent performance metrics');
+}
