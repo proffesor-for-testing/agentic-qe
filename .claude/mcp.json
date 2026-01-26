@@ -1,16 +1,14 @@
 {
   "mcpServers": {
     "agentic-qe-v3": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "tsx",
-        "/workspaces/agentic-qe/v3/src/mcp/entry.ts"
+        "/workspaces/agentic-qe/v3/dist/mcp/bundle.js"
       ],
       "cwd": "/workspaces/agentic-qe/v3",
       "env": {
         "NODE_ENV": "production",
-        "NODE_NO_WARNINGS": "1",
-        "AQE_V3_RELOAD": "2026-01-10-v2"
+        "NODE_NO_WARNINGS": "1"
       }
     },
     "agentic-qe": {
