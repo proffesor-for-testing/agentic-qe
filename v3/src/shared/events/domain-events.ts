@@ -260,10 +260,37 @@ export interface TransferCompletedPayload {
   successRate: number;
 }
 
+/**
+ * Payload for dream cycle completion event
+ * Contains insights generated during the dream cycle
+ */
+export interface DreamCycleCompletedPayload {
+  /** Unique cycle identifier */
+  cycleId: string;
+  /** Duration of dream cycle in milliseconds */
+  durationMs: number;
+  /** Number of concepts processed */
+  conceptsProcessed: number;
+  /** Insights generated during the dream cycle */
+  insights: Array<{
+    id: string;
+    type: string;
+    description: string;
+    noveltyScore: number;
+    confidenceScore: number;
+    actionable: boolean;
+    suggestedAction?: string;
+    sourceConcepts: string[];
+  }>;
+  /** Number of patterns created from insights */
+  patternsCreated: number;
+}
+
 export const LearningOptimizationEvents = {
   PatternConsolidated: 'learning-optimization.PatternConsolidated',
   TransferCompleted: 'learning-optimization.TransferCompleted',
   OptimizationApplied: 'learning-optimization.OptimizationApplied',
+  DreamCycleCompleted: 'learning-optimization.dream.completed',
 } as const;
 
 // ============================================================================

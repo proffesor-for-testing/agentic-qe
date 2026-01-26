@@ -5,6 +5,52 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.2] - 2026-01-26
+
+### 🎯 Highlights
+
+**Automatic Dream Scheduling** - Dream Cycles are now actively triggered by QE agents instead of being passive-only. This upgrade brings QE v3 agent utilization to full capacity with cross-domain pattern consolidation.
+
+### Added
+
+#### DreamScheduler Service
+- **dream-scheduler.ts** - Central scheduling service for automatic dream cycles
+- Multiple trigger types:
+  | Trigger | When | Duration | Priority |
+  |---------|------|----------|----------|
+  | `scheduled` | Every 1 hour (configurable) | 30s | Low |
+  | `experience_threshold` | After 20 tasks accumulated | 10s | Medium |
+  | `quality_gate_failure` | On quality gate failure | 5s (quick) | High |
+  | `domain_milestone` | On domain milestone | 10s | Medium |
+  | `manual` | On-demand API call | Configurable | Varies |
+
+#### Cross-Domain Dream Integration
+- **EventBus integration** - `learning-optimization.dream.completed` event broadcasts insights
+- **TestGenerationCoordinator** - Subscribes to dream insights, auto-applies high-confidence patterns
+- **QualityAssessmentCoordinator** - Subscribes to dream insights for quality threshold tuning
+- **LearningOptimizationCoordinator** - Records task experiences, manages DreamScheduler lifecycle
+
+#### New Tests (84 total)
+- `dream-scheduler.test.ts` (unit) - 38 tests for scheduler triggers, lifecycle, status
+- `dream-scheduler.test.ts` (integration) - 46 tests for full pipeline, cross-domain events
+
+### Changed
+
+- **LearningOptimizationCoordinator** - Now initializes and manages DreamScheduler
+- **interfaces.ts** - Added `publishDreamCycleCompleted()` method
+- **domain-events.ts** - Added `DreamCycleCompletedPayload` type
+
+### Fixed
+
+- **fix(coordination)**: Wire Queen-Domain direct task execution integration
+- **fix(learning)**: Close ReasoningBank integration gaps for full learning pipeline
+
+### Documentation
+
+- `DREAM_SCHEDULER_DESIGN.md` - Architecture design document with trigger specifications
+
+---
+
 ## [3.3.1] - 2026-01-25
 
 ### 🎯 Highlights

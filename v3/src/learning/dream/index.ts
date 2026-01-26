@@ -134,6 +134,20 @@ export {
 } from './dream-engine.js';
 
 // ============================================================================
+// DreamScheduler
+// ============================================================================
+
+export {
+  DreamScheduler,
+  createDreamScheduler,
+  type DreamSchedulerConfig,
+  type DreamSchedulerDependencies,
+  type DreamSchedulerStatus,
+  type TaskExperience,
+  DEFAULT_DREAM_SCHEDULER_CONFIG,
+} from './dream-scheduler.js';
+
+// ============================================================================
 // Default Export
 // ============================================================================
 

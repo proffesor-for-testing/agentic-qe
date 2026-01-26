@@ -22,6 +22,7 @@ import {
   LearningOptimizationEvents,
   PatternConsolidatedPayload,
   TransferCompletedPayload,
+  DreamCycleCompletedPayload,
   createEvent,
 } from '../../shared/events/domain-events.js';
 import {
@@ -59,6 +60,13 @@ import {
 } from '../../integrations/ruvector/wrappers.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 import type { TaskExperience } from '../../learning/experience-capture.js';
+import {
+  DreamScheduler,
+  createDreamScheduler,
+  createDreamEngine,
+  type DreamSchedulerStatus,
+  type EngineResult as DreamCycleResult,
+} from '../../learning/dream/index.js';
 
 /**
  * Workflow status tracking
@@ -83,6 +91,22 @@ export interface LearningCoordinatorConfig {
   enableAutoOptimization: boolean;
   publishEvents: boolean;
   learningCycleIntervalMs: number;
+
+  // Dream Scheduler configuration
+  /** Enable dream scheduler for offline learning */
+  enableDreamScheduler: boolean;
+  /** Interval for automatic dream cycles in ms (default: same as learningCycleIntervalMs) */
+  dreamCycleIntervalMs: number;
+  /** Enable dream trigger after experience threshold */
+  enableExperienceTrigger: boolean;
+  /** Number of experiences to accumulate before triggering dream */
+  experienceThreshold: number;
+  /** Enable dream trigger on quality gate failure */
+  enableQualityGateFailureTrigger: boolean;
+  /** Automatically apply high-confidence insights from dreams */
+  autoApplyHighConfidenceInsights: boolean;
+  /** Minimum confidence threshold for auto-applying insights (0-1) */
+  autoApplyConfidenceThreshold: number;
 }
 
 const DEFAULT_CONFIG: LearningCoordinatorConfig = {
@@ -91,6 +115,15 @@ const DEFAULT_CONFIG: LearningCoordinatorConfig = {
   enableAutoOptimization: true,
   publishEvents: true,
   learningCycleIntervalMs: 3600000, // 1 hour
+
+  // Dream Scheduler defaults
+  enableDreamScheduler: true,
+  dreamCycleIntervalMs: 3600000, // 1 hour
+  enableExperienceTrigger: true,
+  experienceThreshold: 50,
+  enableQualityGateFailureTrigger: true,
+  autoApplyHighConfidenceInsights: false,
+  autoApplyConfidenceThreshold: 0.8,
 };
 
 /**
@@ -114,6 +147,12 @@ export class LearningOptimizationCoordinator
    * Now uses PersistentSONAEngine to survive restarts
    */
   private sona!: PersistentSONAEngine;
+
+  /**
+   * DreamScheduler for offline pattern consolidation and insight generation
+   * Wraps DreamEngine with automatic scheduling and trigger support
+   */
+  private dreamScheduler: DreamScheduler | null = null;
 
   constructor(
     private readonly eventBus: EventBus,
@@ -150,6 +189,37 @@ export class LearningOptimizationCoordinator
       throw error; // Learning optimization requires SONA
     }
 
+    // Initialize DreamScheduler if enabled
+    if (this.config.enableDreamScheduler) {
+      try {
+        const dreamEngine = await createDreamEngine();
+        await dreamEngine.initialize();
+
+        this.dreamScheduler = createDreamScheduler(
+          {
+            dreamEngine,
+            eventBus: this.eventBus,
+            memoryBackend: this.memory,
+          },
+          {
+            autoScheduleIntervalMs: this.config.dreamCycleIntervalMs,
+            enableExperienceTrigger: this.config.enableExperienceTrigger,
+            experienceThreshold: this.config.experienceThreshold,
+            enableQualityGateFailureTrigger: this.config.enableQualityGateFailureTrigger,
+            autoApplyHighConfidenceInsights: this.config.autoApplyHighConfidenceInsights,
+            insightConfidenceThreshold: this.config.autoApplyConfidenceThreshold,
+          }
+        );
+
+        await this.dreamScheduler.initialize();
+        this.dreamScheduler.start();
+        console.log('[LearningOptimizationCoordinator] DreamScheduler initialized and started');
+      } catch (error) {
+        console.warn('[LearningOptimizationCoordinator] Failed to initialize DreamScheduler:', error);
+        // DreamScheduler is optional - continue without it
+      }
+    }
+
     // Subscribe to relevant events
     this.subscribeToEvents();
 
@@ -168,6 +238,17 @@ export class LearningOptimizationCoordinator
 
     // Clear active workflows
     this.workflows.clear();
+
+    // Dispose DreamScheduler
+    if (this.dreamScheduler) {
+      try {
+        await this.dreamScheduler.dispose();
+        console.log('[LearningOptimizationCoordinator] DreamScheduler disposed');
+      } catch (error) {
+        console.error('[LearningOptimizationCoordinator] Error disposing DreamScheduler:', error);
+      }
+      this.dreamScheduler = null;
+    }
 
     // V3: Clean up SONA engine (persistent patterns)
     if (this.initialized && this.sona) {
@@ -749,6 +830,103 @@ export class LearningOptimizationCoordinator
     return this.sona.verifyPerformance(iterations);
   }
 
+  // ============================================================================
+  // Dream Scheduler Methods
+  // ============================================================================
+
+  /**
+   * Trigger a dream cycle manually.
+   * Dreams consolidate patterns and generate novel insights through spreading activation.
+   *
+   * @param durationMs - Optional duration override in ms
+   * @returns Dream cycle result with generated insights
+   * @throws Error if DreamScheduler is not initialized
+   */
+  async triggerDreamCycle(durationMs?: number): Promise<DreamCycleResult> {
+    if (!this.dreamScheduler) {
+      throw new Error('[LearningOptimizationCoordinator] DreamScheduler not initialized');
+    }
+
+    const result = await this.dreamScheduler.triggerDream(durationMs);
+
+    // Publish event for other domains to consume
+    if (this.config.publishEvents) {
+      await this.publishDreamCycleCompleted(
+        result.cycle.id,
+        result.cycle.durationMs ?? 0,
+        result.cycle.conceptsProcessed,
+        result.insights.map((i) => ({
+          id: i.id,
+          type: i.type,
+          description: i.description,
+          noveltyScore: i.noveltyScore,
+          confidenceScore: i.confidenceScore,
+          actionable: i.actionable,
+          suggestedAction: i.suggestedAction,
+          sourceConcepts: i.sourceConcepts,
+        })),
+        result.patternsCreated
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Get the current status of the DreamScheduler.
+   *
+   * @returns DreamScheduler status or null if not initialized
+   */
+  getDreamStatus(): DreamSchedulerStatus | null {
+    return this.dreamScheduler?.getStatus() ?? null;
+  }
+
+  /**
+   * Check if the DreamScheduler is available and running.
+   *
+   * @returns True if DreamScheduler is initialized
+   */
+  isDreamSchedulerAvailable(): boolean {
+    return this.dreamScheduler !== null;
+  }
+
+  /**
+   * Get the last dream cycle result from the scheduler.
+   *
+   * @returns Last dream result or null if no dreams have completed
+   */
+  getLastDreamResult(): DreamCycleResult | null {
+    return this.dreamScheduler?.getLastDreamResult() ?? null;
+  }
+
+  /**
+   * Trigger a quick dream cycle for rapid insight generation.
+   *
+   * @returns Dream cycle result
+   * @throws Error if DreamScheduler is not initialized
+   */
+  async triggerQuickDream(): Promise<DreamCycleResult> {
+    if (!this.dreamScheduler) {
+      throw new Error('[LearningOptimizationCoordinator] DreamScheduler not initialized');
+    }
+
+    return this.dreamScheduler.triggerQuickDream();
+  }
+
+  /**
+   * Trigger a full dream cycle for comprehensive pattern consolidation.
+   *
+   * @returns Dream cycle result
+   * @throws Error if DreamScheduler is not initialized
+   */
+  async triggerFullDream(): Promise<DreamCycleResult> {
+    if (!this.dreamScheduler) {
+      throw new Error('[LearningOptimizationCoordinator] DreamScheduler not initialized');
+    }
+
+    return this.dreamScheduler.triggerFullDream();
+  }
+
   /**
    * Export learned models
    */
@@ -1201,6 +1379,24 @@ export class LearningOptimizationCoordinator
         `[LearningOptimizationCoordinator] Experience ${experience.id} transferred to ${relatedDomains.length} related domains`
       );
     }
+
+    // Record experience for dream scheduler to trigger insight generation
+    if (this.dreamScheduler) {
+      this.dreamScheduler.recordExperience({
+        id: experience.id,
+        agentType: experience.agent || 'unknown',
+        domain: domain,
+        taskType: experience.task,
+        success: experience.success,
+        duration: experience.durationMs,
+        context: {
+          quality: experience.quality,
+          steps: experience.steps.length,
+          patterns: experience.patterns?.length || 0,
+        },
+        timestamp: new Date(experience.startedAt),
+      });
+    }
   }
 
   // ============================================================================
@@ -1258,6 +1454,59 @@ export class LearningOptimizationCoordinator
     );
 
     await this.eventBus.publish(event);
+  }
+
+  /**
+   * Publish a dream cycle completion event.
+   * This broadcasts dream insights to all interested domain coordinators.
+   *
+   * Called by the DreamScheduler or DreamEngine after completing a dream cycle.
+   *
+   * @param cycleId - Unique identifier for the dream cycle
+   * @param durationMs - How long the dream cycle took
+   * @param conceptsProcessed - Number of concepts processed during dreaming
+   * @param insights - Array of insights generated during the dream cycle
+   * @param patternsCreated - Number of patterns created from insights
+   */
+  async publishDreamCycleCompleted(
+    cycleId: string,
+    durationMs: number,
+    conceptsProcessed: number,
+    insights: Array<{
+      id: string;
+      type: string;
+      description: string;
+      noveltyScore: number;
+      confidenceScore: number;
+      actionable: boolean;
+      suggestedAction?: string;
+      sourceConcepts: string[];
+    }>,
+    patternsCreated: number
+  ): Promise<void> {
+    if (!this.config.publishEvents) {
+      return;
+    }
+
+    const payload: DreamCycleCompletedPayload = {
+      cycleId,
+      durationMs,
+      conceptsProcessed,
+      insights,
+      patternsCreated,
+    };
+
+    const event = createEvent(
+      LearningOptimizationEvents.DreamCycleCompleted,
+      'learning-optimization',
+      payload
+    );
+
+    await this.eventBus.publish(event);
+
+    console.log(
+      `[LearningOptimizationCoordinator] Published dream cycle completion: ${insights.length} insights for ${conceptsProcessed} concepts`
+    );
   }
 
   // ============================================================================

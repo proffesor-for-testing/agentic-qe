@@ -2,21 +2,34 @@
  * Agentic QE v3 - ReasoningBank Service
  * ADR-051: Provides ReasoningBank integration for MCP task handlers
  *
- * This service bridges the RealQEReasoningBank with MCP task execution,
- * enabling learning from task outcomes and intelligent routing.
+ * This service bridges the EnhancedReasoningBankAdapter with MCP task execution,
+ * enabling learning from task outcomes, intelligent routing, and trajectory tracking.
+ *
+ * INTEGRATION FIX: Now uses EnhancedReasoningBankAdapter for full learning pipeline:
+ * - Trajectory tracking during task execution
+ * - Experience-guided routing decisions
+ * - Pattern evolution and consolidation
+ * - Synchronous learning (no fire-and-forget)
  */
 
 import {
-  RealQEReasoningBank,
-  createRealQEReasoningBank,
-  type RealQEReasoningBankConfig,
+  EnhancedReasoningBankAdapter,
+  createEnhancedReasoningBank,
+  type Trajectory,
+  type TrajectoryStep as TrackerTrajectoryStep,
+  type TrajectoryOptions,
+  type ExperienceGuidance,
+  type EnhancedReasoningBankAdapterStats,
+} from '../../integrations/agentic-flow/reasoning-bank/index.js';
+import {
   type RealQERoutingRequest,
   type RealQERoutingResult,
   type LearningOutcome,
   type RealQEReasoningBankStats,
-} from '../../learning/real-qe-reasoning-bank';
-import type { QEPattern, QEDomain } from '../../learning/qe-patterns';
-import { getPatternLoader } from '../../integrations/agentic-flow/pattern-loader';
+} from '../../learning/real-qe-reasoning-bank.js';
+import type { QEPattern, QEDomain } from '../../learning/qe-patterns.js';
+import { getPatternLoader } from '../../integrations/agentic-flow/pattern-loader.js';
+import { updateAgentPerformance } from '../../routing/qe-agent-registry.js';
 
 // ============================================================================
 // Types
@@ -72,6 +85,19 @@ export interface TrajectoryStep {
 }
 
 /**
+ * Enhanced routing result with experience guidance
+ */
+export interface EnhancedRoutingResult extends RealQERoutingResult {
+  experienceGuidance?: ExperienceGuidance;
+  similarTrajectories?: Array<{
+    id: string;
+    task: string;
+    outcome: string;
+    similarity: number;
+  }>;
+}
+
+/**
  * ReasoningBank service configuration
  */
 export interface ReasoningBankServiceConfig {
@@ -81,6 +107,12 @@ export interface ReasoningBankServiceConfig {
   enableRouting: boolean;
   /** Enable pattern guidance */
   enableGuidance: boolean;
+  /** Enable trajectory tracking */
+  enableTrajectories: boolean;
+  /** Enable experience replay */
+  enableExperienceReplay: boolean;
+  /** Auto-store successful trajectories as experiences */
+  autoStoreExperiences: boolean;
   /** Minimum quality score to store patterns */
   minQualityThreshold: number;
 }
@@ -92,6 +124,9 @@ export const DEFAULT_SERVICE_CONFIG: ReasoningBankServiceConfig = {
   enableLearning: true,
   enableRouting: true,
   enableGuidance: true,
+  enableTrajectories: true,
+  enableExperienceReplay: true,
+  autoStoreExperiences: true,
   minQualityThreshold: 0.6,
 };
 
@@ -103,14 +138,18 @@ export const DEFAULT_SERVICE_CONFIG: ReasoningBankServiceConfig = {
  * ReasoningBank Service
  *
  * Provides learning and routing capabilities for MCP task execution.
- * Integrates with RealQEReasoningBank for HNSW-indexed pattern storage.
+ * Uses EnhancedReasoningBankAdapter for full learning pipeline including:
+ * - Trajectory tracking
+ * - Experience replay
+ * - Pattern evolution
+ * - HNSW-indexed pattern storage
  */
 export class ReasoningBankService {
   private static instance: ReasoningBankService | null = null;
   private static initPromise: Promise<ReasoningBankService> | null = null;
 
   private readonly config: ReasoningBankServiceConfig;
-  private readonly reasoningBank: RealQEReasoningBank;
+  private readonly enhancedAdapter: EnhancedReasoningBankAdapter;
   private disposed = false;
 
   // ADR-051: Pattern loading status
@@ -124,12 +163,15 @@ export class ReasoningBankService {
   private patternsStored = 0;
   private routingRequests = 0;
 
+  // INTEGRATION FIX: Track active trajectories per task
+  private activeTrajectories = new Map<string, string>();
+
   private constructor(
     config: ReasoningBankServiceConfig,
-    reasoningBank: RealQEReasoningBank
+    enhancedAdapter: EnhancedReasoningBankAdapter
   ) {
     this.config = config;
-    this.reasoningBank = reasoningBank;
+    this.enhancedAdapter = enhancedAdapter;
   }
 
   /**
@@ -167,20 +209,26 @@ export class ReasoningBankService {
       ...config,
     };
 
-    const reasoningBank = createRealQEReasoningBank({
-      enableLearning: fullConfig.enableLearning,
-      enableRouting: fullConfig.enableRouting,
-      enableGuidance: fullConfig.enableGuidance,
+    // INTEGRATION FIX: Use EnhancedReasoningBankAdapter instead of RealQEReasoningBank
+    const enhancedAdapter = createEnhancedReasoningBank({
+      enableTrajectories: fullConfig.enableTrajectories,
+      enableExperienceReplay: fullConfig.enableExperienceReplay,
+      enablePatternEvolution: true,
+      autoStoreExperiences: fullConfig.autoStoreExperiences,
+      autoConsolidate: true,
     });
 
-    await reasoningBank.initialize();
+    await enhancedAdapter.initialize();
 
-    const service = new ReasoningBankService(fullConfig, reasoningBank);
+    const service = new ReasoningBankService(fullConfig, enhancedAdapter);
 
     // ADR-051: Load quality thresholds from PatternLoader
     await service.loadPatternsFromLoader();
 
-    console.error('[ReasoningBankService] Initialized with HNSW index');
+    // INTEGRATION FIX: Seed initial patterns if none exist
+    await service.seedInitialPatternsIfNeeded();
+
+    console.error('[ReasoningBankService] Initialized with EnhancedReasoningBankAdapter (trajectory + experience + evolution)');
     return service;
   }
 
@@ -213,6 +261,106 @@ export class ReasoningBankService {
   }
 
   /**
+   * INTEGRATION FIX: Seed initial QE patterns for bootstrap
+   * This ensures the system has baseline data to work with
+   */
+  private async seedInitialPatternsIfNeeded(): Promise<void> {
+    try {
+      const stats = await this.enhancedAdapter.getStats();
+      if (stats.reasoningBank.totalPatterns > 0) {
+        console.error(`[ReasoningBankService] Found ${stats.reasoningBank.totalPatterns} existing patterns, skipping seed`);
+        return;
+      }
+
+      console.error('[ReasoningBankService] Seeding initial QE patterns...');
+
+      // Helper to create template variables
+      const makeVar = (name: string, type: 'string' | 'number' = 'string', required = false) => ({
+        name,
+        type,
+        required,
+        description: `${name} parameter`,
+      });
+
+      const seedPatterns = [
+        {
+          patternType: 'test-template' as const,
+          name: 'unit-test-generation',
+          description: 'Generate comprehensive unit tests for TypeScript/JavaScript modules',
+          domain: 'test-generation' as QEDomain,
+          template: {
+            type: 'workflow' as const,
+            content: 'Analyze module exports, identify edge cases, generate Jest/Vitest tests with proper mocking',
+            variables: [makeVar('modulePath'), makeVar('framework')],
+          },
+          context: { tags: ['unit', 'typescript', 'jest', 'vitest'] },
+        },
+        {
+          patternType: 'coverage-strategy' as const,
+          name: 'coverage-gap-analysis',
+          description: 'Identify untested code paths and recommend targeted tests',
+          domain: 'coverage-analysis' as QEDomain,
+          template: {
+            type: 'workflow' as const,
+            content: 'Parse coverage report, identify uncovered branches, prioritize by risk, generate recommendations',
+            variables: [makeVar('coveragePath'), makeVar('threshold', 'number')],
+          },
+          context: { tags: ['coverage', 'analysis', 'risk'] },
+        },
+        {
+          patternType: 'test-template' as const,
+          name: 'integration-test-generation',
+          description: 'Generate integration tests for API endpoints and service interactions',
+          domain: 'test-generation' as QEDomain,
+          template: {
+            type: 'workflow' as const,
+            content: 'Identify API contracts, generate request/response tests, validate error handling',
+            variables: [makeVar('apiPath'), makeVar('framework')],
+          },
+          context: { tags: ['integration', 'api', 'contract'] },
+        },
+        {
+          patternType: 'flaky-fix' as const,
+          name: 'flaky-test-remediation',
+          description: 'Detect and fix flaky tests through pattern analysis',
+          domain: 'test-execution' as QEDomain,
+          template: {
+            type: 'workflow' as const,
+            content: 'Analyze test history, identify timing/race conditions, apply stabilization patterns',
+            variables: [makeVar('testPath'), makeVar('retryCount', 'number')],
+          },
+          context: { tags: ['flaky', 'stability', 'retry'] },
+        },
+        {
+          patternType: 'error-handling' as const,
+          name: 'security-vulnerability-scan',
+          description: 'Scan code for security vulnerabilities using OWASP patterns',
+          domain: 'security-compliance' as QEDomain,
+          template: {
+            type: 'workflow' as const,
+            content: 'Run SAST analysis, check for injection risks, validate authentication/authorization',
+            variables: [makeVar('targetPath'), makeVar('severity')],
+          },
+          context: { tags: ['security', 'owasp', 'sast'] },
+        },
+      ];
+
+      for (const pattern of seedPatterns) {
+        try {
+          await this.enhancedAdapter.storePattern(pattern);
+          this.patternsStored++;
+        } catch (err) {
+          console.error(`[ReasoningBankService] Failed to seed pattern ${pattern.name}:`, err);
+        }
+      }
+
+      console.error(`[ReasoningBankService] Seeded ${seedPatterns.length} initial patterns`);
+    } catch (error) {
+      console.error('[ReasoningBankService] Failed to seed patterns:', error);
+    }
+  }
+
+  /**
    * ADR-051: Get pattern loading status for health checks
    */
   getPatternsLoaded(): boolean {
@@ -226,10 +374,116 @@ export class ReasoningBankService {
     return this.qualityThresholdsFromPatterns;
   }
 
+  // ============================================================================
+  // INTEGRATION FIX: Trajectory Tracking Methods
+  // ============================================================================
+
+  /**
+   * Start tracking a task trajectory
+   * Call this when a task begins execution
+   */
+  async startTaskTrajectory(
+    taskId: string,
+    task: string,
+    options: TrajectoryOptions = {}
+  ): Promise<string> {
+    if (!this.config.enableTrajectories || this.disposed) {
+      return taskId; // Return taskId as fallback trajectory ID
+    }
+
+    try {
+      const trajectoryId = await this.enhancedAdapter.startTaskTrajectory(task, options);
+      this.activeTrajectories.set(taskId, trajectoryId);
+
+      console.error(`[ReasoningBankService] Started trajectory: task=${taskId} trajectory=${trajectoryId}`);
+      return trajectoryId;
+    } catch (error) {
+      console.error('[ReasoningBankService] Failed to start trajectory:', error);
+      return taskId;
+    }
+  }
+
+  /**
+   * Record a step in the current task trajectory
+   */
+  async recordTrajectoryStep(
+    taskId: string,
+    action: string,
+    result: TrackerTrajectoryStep['result'],
+    options?: {
+      quality?: number;
+      durationMs?: number;
+      tokensUsed?: number;
+      context?: Record<string, unknown>;
+    }
+  ): Promise<void> {
+    if (!this.config.enableTrajectories || this.disposed) {
+      return;
+    }
+
+    const trajectoryId = this.activeTrajectories.get(taskId);
+    if (!trajectoryId) {
+      console.error(`[ReasoningBankService] No active trajectory for task ${taskId}`);
+      return;
+    }
+
+    try {
+      await this.enhancedAdapter.recordTaskStep(trajectoryId, action, result, options);
+    } catch (error) {
+      console.error('[ReasoningBankService] Failed to record trajectory step:', error);
+    }
+  }
+
+  /**
+   * End a task trajectory and trigger learning
+   * Call this when a task completes
+   */
+  async endTaskTrajectory(
+    taskId: string,
+    success: boolean,
+    feedback?: string
+  ): Promise<Trajectory | null> {
+    if (!this.config.enableTrajectories || this.disposed) {
+      return null;
+    }
+
+    const trajectoryId = this.activeTrajectories.get(taskId);
+    if (!trajectoryId) {
+      console.error(`[ReasoningBankService] No active trajectory for task ${taskId}`);
+      return null;
+    }
+
+    try {
+      const trajectory = await this.enhancedAdapter.endTaskTrajectory(trajectoryId, success, feedback);
+      this.activeTrajectories.delete(taskId);
+
+      console.error(
+        `[ReasoningBankService] Ended trajectory: task=${taskId} success=${success} ` +
+        `steps=${trajectory.steps.length} quality=${trajectory.metrics.averageQuality.toFixed(2)}`
+      );
+
+      return trajectory;
+    } catch (error) {
+      console.error('[ReasoningBankService] Failed to end trajectory:', error);
+      this.activeTrajectories.delete(taskId);
+      return null;
+    }
+  }
+
+  /**
+   * Get active trajectory ID for a task
+   */
+  getActiveTrajectoryId(taskId: string): string | undefined {
+    return this.activeTrajectories.get(taskId);
+  }
+
+  // ============================================================================
+  // Record Task Outcome (Synchronous Learning)
+  // ============================================================================
+
   /**
    * Record a task outcome for learning
-   *
-   * This is called after task execution to learn from the outcome.
+   * INTEGRATION FIX: Now synchronous (awaited) to ensure learning occurs
    */
   async recordTaskOutcome(outcome: TaskOutcome): Promise<void> {
     if (!this.config.enableLearning || this.disposed) {
@@ -259,7 +513,7 @@ export class ReasoningBankService {
         feedback: outcome.error,
       };
 
-      await this.reasoningBank.recordOutcome(learningOutcome);
+      await this.enhancedAdapter.recordPatternOutcome(learningOutcome);
 
       // If high quality, store as a pattern
       if (
@@ -270,12 +524,42 @@ export class ReasoningBankService {
         this.patternsStored++;
       }
 
+      // INTEGRATION FIX: Update agent performance metrics
+      if (outcome.agentId) {
+        await this.updateAgentPerformanceFromOutcome(outcome);
+      }
+
       console.error(
         `[ReasoningBankService] Recorded outcome: task=${outcome.taskId} ` +
           `success=${outcome.success} quality=${outcome.qualityScore?.toFixed(2) || 'N/A'}`
       );
     } catch (error) {
       console.error('[ReasoningBankService] Failed to record outcome:', error);
+      // INTEGRATION FIX: Re-throw to ensure caller knows learning failed
+      throw error;
+    }
+  }
+
+  /**
+   * INTEGRATION FIX: Update agent performance metrics from task outcome
+   */
+  private async updateAgentPerformanceFromOutcome(outcome: TaskOutcome): Promise<void> {
+    if (!outcome.agentId) return;
+
+    try {
+      updateAgentPerformance(outcome.agentId, {
+        success: outcome.success,
+        executionTimeMs: outcome.executionTimeMs,
+        qualityScore: outcome.qualityScore,
+      });
+
+      console.error(
+        `[ReasoningBankService] Updated agent performance: agent=${outcome.agentId} ` +
+        `success=${outcome.success} duration=${outcome.executionTimeMs}ms`
+      );
+    } catch (error) {
+      // Don't fail the whole operation if performance update fails
+      console.error('[ReasoningBankService] Failed to update agent performance:', error);
     }
   }
 
@@ -292,7 +576,7 @@ export class ReasoningBankService {
         outcome.modelTier ? `tier:${outcome.modelTier}` : undefined,
       ].filter((t): t is string => t !== undefined);
 
-      await this.reasoningBank.storeQEPattern({
+      await this.enhancedAdapter.storePattern({
         patternType: 'test-template',
         name: `${outcome.taskType}-${outcome.domain || 'general'}`,
         description: outcome.task,
@@ -314,14 +598,17 @@ export class ReasoningBankService {
     }
   }
 
+  // ============================================================================
+  // INTEGRATION FIX: Experience-Guided Routing
+  // ============================================================================
+
   /**
-   * Get routing recommendation for a task
-   *
-   * Uses pattern similarity to recommend the best agent and approach.
+   * Get routing recommendation with experience guidance
+   * INTEGRATION FIX: Uses routeTaskWithExperience for enhanced routing
    */
   async getRoutingRecommendation(
     request: RealQERoutingRequest
-  ): Promise<RealQERoutingResult> {
+  ): Promise<EnhancedRoutingResult> {
     if (!this.config.enableRouting || this.disposed) {
       return this.createFallbackRouting(request);
     }
@@ -329,22 +616,50 @@ export class ReasoningBankService {
     this.routingRequests++;
 
     try {
-      const result = await this.reasoningBank.routeTask(request);
+      // INTEGRATION FIX: Use experience-guided routing
+      const result = await this.enhancedAdapter.routeTaskWithExperience(request);
 
       if (!result.success) {
         console.error('[ReasoningBankService] Routing returned error:', result.error);
         return this.createFallbackRouting(request);
       }
 
+      const enhancedResult = result.value as EnhancedRoutingResult;
+
+      // Log experience guidance if available
+      if (enhancedResult.experienceGuidance) {
+        console.error(
+          `[ReasoningBankService] Experience guidance: strategy="${enhancedResult.experienceGuidance.recommendedStrategy}" ` +
+          `confidence=${enhancedResult.experienceGuidance.confidence.toFixed(2)} ` +
+          `tokenSavings=${enhancedResult.experienceGuidance.estimatedTokenSavings}`
+        );
+      }
+
       console.error(
         `[ReasoningBankService] Routing: task="${request.task.slice(0, 50)}..." ` +
-          `→ agent=${result.value.recommendedAgent} confidence=${result.value.confidence.toFixed(2)}`
+          `-> agent=${enhancedResult.recommendedAgent} confidence=${enhancedResult.confidence.toFixed(2)}`
       );
 
-      return result.value;
+      return enhancedResult;
     } catch (error) {
       console.error('[ReasoningBankService] Routing failed:', error);
       return this.createFallbackRouting(request);
+    }
+  }
+
+  /**
+   * Get experience guidance for a task (without routing)
+   */
+  async getExperienceGuidance(task: string, domain?: QEDomain): Promise<ExperienceGuidance | null> {
+    if (!this.config.enableExperienceReplay || this.disposed) {
+      return null;
+    }
+
+    try {
+      return await this.enhancedAdapter.getExperienceGuidance(task, domain);
+    } catch (error) {
+      console.error('[ReasoningBankService] Failed to get experience guidance:', error);
+      return null;
     }
   }
 
@@ -357,7 +672,7 @@ export class ReasoningBankService {
     }
 
     try {
-      const result = await this.reasoningBank.routeTask({
+      const result = await this.enhancedAdapter.routeTaskWithExperience({
         task,
         domain,
       });
@@ -383,7 +698,7 @@ export class ReasoningBankService {
     }
 
     try {
-      const results = await this.reasoningBank.searchQEPatterns(query, {
+      const results = await this.enhancedAdapter.searchPatterns(query, {
         limit: options?.limit || 10,
         domain: options?.domain,
       });
@@ -391,7 +706,7 @@ export class ReasoningBankService {
         console.error('[ReasoningBankService] Search returned error:', results.error);
         return [];
       }
-      return results.value.map((r) => r.pattern);
+      return results.value.map((r: { pattern: QEPattern; similarity: number }) => r.pattern);
     } catch (error) {
       console.error('[ReasoningBankService] Search failed:', error);
       return [];
@@ -409,11 +724,13 @@ export class ReasoningBankService {
       successRate: number;
       patternsStored: number;
       routingRequests: number;
-      patternsLoaded: boolean; // ADR-051
+      patternsLoaded: boolean;
+      activeTrajectories: number;
     };
     reasoningBank: RealQEReasoningBankStats;
+    adapter: EnhancedReasoningBankAdapterStats;
   }> {
-    const bankStats = await this.reasoningBank.getQEStats();
+    const adapterStats = await this.enhancedAdapter.getStats();
 
     return {
       service: {
@@ -424,16 +741,18 @@ export class ReasoningBankService {
           this.tasksRecorded > 0 ? this.successfulTasks / this.tasksRecorded : 0,
         patternsStored: this.patternsStored,
         routingRequests: this.routingRequests,
-        patternsLoaded: this.patternsLoaded, // ADR-051
+        patternsLoaded: this.patternsLoaded,
+        activeTrajectories: this.activeTrajectories.size,
       },
-      reasoningBank: bankStats,
+      reasoningBank: adapterStats.reasoningBank,
+      adapter: adapterStats.adapter,
     };
   }
 
   /**
    * Create fallback routing when service unavailable
    */
-  private createFallbackRouting(request: RealQERoutingRequest): RealQERoutingResult {
+  private createFallbackRouting(request: RealQERoutingRequest): EnhancedRoutingResult {
     return {
       recommendedAgent: 'qe-test-architect',
       confidence: 0.5,
@@ -460,7 +779,8 @@ export class ReasoningBankService {
     if (this.disposed) return;
 
     this.disposed = true;
-    await this.reasoningBank.dispose();
+    await this.enhancedAdapter.dispose();
+    this.activeTrajectories.clear();
     ReasoningBankService.instance = null;
 
     console.error('[ReasoningBankService] Disposed');
@@ -504,7 +824,31 @@ export async function recordTaskOutcome(outcome: TaskOutcome): Promise<void> {
  */
 export async function getRoutingRecommendation(
   request: RealQERoutingRequest
-): Promise<RealQERoutingResult> {
+): Promise<EnhancedRoutingResult> {
   const service = await getReasoningBankService();
   return service.getRoutingRecommendation(request);
+}
+
+/**
+ * Start task trajectory (shorthand)
+ */
+export async function startTaskTrajectory(
+  taskId: string,
+  task: string,
+  options?: TrajectoryOptions
+): Promise<string> {
+  const service = await getReasoningBankService();
+  return service.startTaskTrajectory(taskId, task, options);
+}
+
+/**
+ * End task trajectory (shorthand)
+ */
+export async function endTaskTrajectory(
+  taskId: string,
+  success: boolean,
+  feedback?: string
+): Promise<Trajectory | null> {
+  const service = await getReasoningBankService();
+  return service.endTaskTrajectory(taskId, success, feedback);
 }

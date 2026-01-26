@@ -24,6 +24,8 @@ import {
 } from '../../kernel/interfaces';
 import {
   QualityAssessmentEvents,
+  LearningOptimizationEvents,
+  DreamCycleCompletedPayload,
   createEvent,
 } from '../../shared/events/domain-events';
 import {
@@ -172,6 +174,18 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
   // Quality domain name for SONA
   private readonly domain: DomainName = 'quality-assessment';
+
+  // Cache of recent dream insights for quality assessment enhancement
+  private recentDreamInsights: Array<{
+    id: string;
+    type: string;
+    description: string;
+    suggestedAction?: string;
+    confidenceScore: number;
+    noveltyScore: number;
+    sourceConcepts: string[];
+    receivedAt: Date;
+  }> = [];
 
   constructor(
     private readonly eventBus: EventBus,
@@ -694,6 +708,202 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       'security-compliance.SecurityAuditCompleted',
       this.handleSecurityAuditCompleted.bind(this)
     );
+
+    // Subscribe to dream cycle events from learning-optimization domain
+    this.subscribeToDreamEvents();
+  }
+
+  // ============================================================================
+  // Dream Event Handling (ADR-021 Integration)
+  // ============================================================================
+
+  /**
+   * Subscribe to dream cycle completion events from learning-optimization domain.
+   * Dream insights can suggest quality improvements, threshold adjustments, and risk patterns.
+   */
+  private subscribeToDreamEvents(): void {
+    this.eventBus.subscribe(
+      LearningOptimizationEvents.DreamCycleCompleted,
+      this.handleDreamCycleCompleted.bind(this)
+    );
+  }
+
+  /**
+   * Handle dream cycle completion event.
+   * Filters insights relevant to quality assessment and applies actionable ones.
+   */
+  private async handleDreamCycleCompleted(
+    event: { payload: DreamCycleCompletedPayload }
+  ): Promise<void> {
+    const { insights, cycleId } = event.payload;
+
+    if (!insights || insights.length === 0) {
+      return;
+    }
+
+    // Filter insights relevant to this domain
+    const relevantInsights = insights.filter((insight) => {
+      // Check if suggested action mentions this domain
+      const actionRelevant =
+        insight.suggestedAction?.toLowerCase().includes(this.domain) ||
+        insight.suggestedAction?.toLowerCase().includes('quality') ||
+        insight.suggestedAction?.toLowerCase().includes('gate') ||
+        insight.suggestedAction?.toLowerCase().includes('threshold');
+
+      // Check if source concepts include quality-related terms
+      const conceptsRelevant = insight.sourceConcepts.some(
+        (c) =>
+          c.toLowerCase().includes('quality') ||
+          c.toLowerCase().includes(this.domain) ||
+          c.toLowerCase().includes('metric') ||
+          c.toLowerCase().includes('gate')
+      );
+
+      // Check for quality-assessment related insight types
+      const typeRelevant =
+        insight.type === 'optimization' || insight.type === 'pattern_merge';
+
+      return actionRelevant || conceptsRelevant || (typeRelevant && insight.actionable);
+    });
+
+    if (relevantInsights.length === 0) {
+      return;
+    }
+
+    console.log(
+      `[${this.domain}] Received ${relevantInsights.length} relevant dream insights from cycle ${cycleId}`
+    );
+
+    // Apply high-confidence actionable insights
+    for (const insight of relevantInsights) {
+      if (insight.confidenceScore > 0.7 && insight.actionable) {
+        await this.applyDreamInsight(insight, cycleId);
+      }
+
+      // Cache all relevant insights for quality enhancement
+      this.recentDreamInsights.push({
+        ...insight,
+        receivedAt: new Date(),
+      });
+    }
+
+    // Prune old insights (keep last 50)
+    if (this.recentDreamInsights.length > 50) {
+      this.recentDreamInsights = this.recentDreamInsights.slice(-50);
+    }
+  }
+
+  /**
+   * Apply a dream insight by storing it as a learned pattern via SONA.
+   * This allows the insight to influence future quality assessment decisions.
+   *
+   * @param insight - The dream insight to apply
+   * @param cycleId - The dream cycle ID for tracking
+   */
+  private async applyDreamInsight(
+    insight: DreamCycleCompletedPayload['insights'][0],
+    cycleId: string
+  ): Promise<void> {
+    console.log(
+      `[${this.domain}] Applying dream insight: ${insight.description.slice(0, 100)}...`
+    );
+
+    // Store as a learned pattern via SONA if available
+    if (this.qesona) {
+      try {
+        // Create state representation from insight
+        const state: RLState = {
+          id: `dream-insight-${insight.id}`,
+          features: this.encodeInsightAsFeatures(insight),
+          metadata: {
+            insightType: insight.type,
+            cycleId,
+            sourceConcepts: insight.sourceConcepts,
+          },
+        };
+
+        // Create action representing the suggested action
+        const action: RLAction = {
+          type: 'dream-insight',
+          value: insight.suggestedAction || insight.description,
+        };
+
+        // Create pattern in QESONA with dream-derived marker
+        this.qesona.createPattern(
+          state,
+          action,
+          {
+            reward: insight.confidenceScore,
+            success: true,
+            quality: insight.noveltyScore,
+          },
+          'quality-assessment',
+          this.domain,
+          {
+            insightId: insight.id,
+            cycleId,
+            description: insight.description,
+            suggestedAction: insight.suggestedAction,
+            dreamDerived: true,
+          }
+        );
+
+        console.log(
+          `[${this.domain}] Created SONA pattern from dream insight ${insight.id}`
+        );
+      } catch (error) {
+        console.error(
+          `[${this.domain}] Failed to store dream insight pattern:`,
+          error
+        );
+      }
+    }
+
+    // Store insight in memory for downstream usage
+    await this.memory.set(
+      `${this.domain}:dream-insight:${insight.id}`,
+      {
+        insight,
+        cycleId,
+        appliedAt: new Date().toISOString(),
+      },
+      { namespace: this.domain, ttl: 86400 * 7 } // 7 days
+    );
+  }
+
+  /**
+   * Encode a dream insight as feature vector for SONA pattern creation.
+   */
+  private encodeInsightAsFeatures(
+    insight: DreamCycleCompletedPayload['insights'][0]
+  ): number[] {
+    const features: number[] = [];
+
+    // Encode insight type
+    const typeMap: Record<string, number> = {
+      pattern_merge: 0.2,
+      novel_association: 0.4,
+      optimization: 0.6,
+      gap_detection: 0.8,
+    };
+    features.push(typeMap[insight.type] || 0.5);
+
+    // Encode confidence and novelty
+    features.push(insight.confidenceScore);
+    features.push(insight.noveltyScore);
+
+    // Encode actionability
+    features.push(insight.actionable ? 1.0 : 0.0);
+
+    // Encode source concept count (normalized)
+    features.push(Math.min(1, insight.sourceConcepts.length / 10));
+
+    // Pad to consistent size
+    while (features.length < 384) {
+      features.push(0);
+    }
+
+    return features.slice(0, 384);
   }
 
   private async handleTestRunCompleted(event: DomainEvent): Promise<void> {

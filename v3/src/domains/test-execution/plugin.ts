@@ -3,10 +3,10 @@
  * Registers the test execution domain with the kernel
  */
 
-import { DomainName, DomainEvent } from '../../shared/types';
-import { BaseDomainPlugin } from '../domain-interface';
+import { DomainName, DomainEvent, Result, ok, err } from '../../shared/types';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
-import { TestExecutionAPI } from './interfaces';
+import { TestExecutionAPI, IExecuteTestsRequest, ISimpleTestRequest } from './interfaces';
 import { TestExecutionCoordinator, createTestExecutionCoordinator } from './coordinator';
 
 // ============================================================================
@@ -53,6 +53,93 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
     };
 
     return api as T;
+  }
+
+  // ============================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ============================================================================
+
+  /**
+   * Get task handlers for direct Queen-Domain integration
+   * Maps task types to coordinator methods
+   */
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      // Execute tests task - main task type for this domain
+      ['execute-tests', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        // Support both simple and full request formats
+        if (payload.testFiles && Array.isArray(payload.testFiles)) {
+          // Simple request format
+          const request: ISimpleTestRequest = {
+            testFiles: payload.testFiles as string[],
+            parallel: payload.parallel as boolean | undefined,
+            retryCount: payload.retryCount as number | undefined,
+            timeout: payload.timeout as number | undefined,
+            workers: payload.workers as number | undefined,
+          };
+          return this.coordinator.runTests(request);
+        } else if (payload.framework) {
+          // Full request format
+          const request: IExecuteTestsRequest = {
+            testFiles: (payload.testFiles as string[]) || [],
+            framework: payload.framework as string,
+            timeout: payload.timeout as number | undefined,
+            env: payload.env as Record<string, string> | undefined,
+            reporters: payload.reporters as string[] | undefined,
+          };
+          return this.coordinator.execute(request);
+        }
+
+        return err(new Error('Invalid execute-tests payload: missing testFiles or framework'));
+      }],
+
+      // Detect flaky tests task
+      ['detect-flaky', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        const testFiles = payload.testFiles as string[] | undefined;
+        const runs = payload.runs as number | undefined;
+        const threshold = payload.threshold as number | undefined;
+
+        if (!testFiles) {
+          return err(new Error('Invalid detect-flaky payload: missing testFiles'));
+        }
+
+        return this.coordinator.detectFlaky({
+          testFiles,
+          runs: runs ?? 5,
+          threshold: threshold ?? 0.1,
+        });
+      }],
+
+      // Retry failed tests task
+      ['retry-tests', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        const runId = payload.runId as string | undefined;
+        const failedTests = payload.failedTests as string[] | undefined;
+        const maxRetries = payload.maxRetries as number | undefined;
+
+        if (!runId || !failedTests) {
+          return err(new Error('Invalid retry-tests payload: missing runId or failedTests'));
+        }
+
+        return this.coordinator.retry({
+          runId,
+          failedTests,
+          maxRetries: maxRetries ?? 3,
+          backoff: payload.backoff as 'linear' | 'exponential' | undefined,
+        });
+      }],
+    ]);
   }
 
   // ============================================================================

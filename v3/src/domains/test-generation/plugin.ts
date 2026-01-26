@@ -3,13 +3,13 @@
  * Integrates the test generation domain into the kernel
  */
 
-import { DomainName, DomainEvent } from '../../shared/types';
+import { DomainName, DomainEvent, Result, ok, err } from '../../shared/types';
 import {
   EventBus,
   MemoryBackend,
   AgentCoordinator,
 } from '../../kernel/interfaces';
-import { BaseDomainPlugin } from '../domain-interface';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import {
   TestGenerationAPI,
   GenerateTestsRequest,
@@ -118,6 +118,107 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
     };
 
     return api as T;
+  }
+
+  // ============================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ============================================================================
+
+  /**
+   * Get task handlers for direct Queen-Domain integration
+   * Maps task types to coordinator methods
+   */
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      // Generate tests task - main task type for this domain
+      ['generate-tests', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        const sourceFiles = payload.sourceFiles as string[] | undefined;
+        const testType = payload.testType as 'unit' | 'integration' | 'e2e' | undefined;
+        const framework = payload.framework as 'jest' | 'vitest' | 'mocha' | 'pytest' | undefined;
+
+        if (!sourceFiles || sourceFiles.length === 0) {
+          return err(new Error('Invalid generate-tests payload: missing sourceFiles'));
+        }
+
+        const request: GenerateTestsRequest = {
+          sourceFiles,
+          testType: testType ?? 'unit',
+          framework: framework ?? 'vitest',
+          coverageTarget: payload.coverageTarget as number | undefined,
+          patterns: payload.patterns as string[] | undefined,
+        };
+
+        return this.coordinator.generateTests(request);
+      }],
+
+      // TDD tests generation task
+      ['generate-tdd-tests', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        const feature = payload.feature as string | undefined;
+        const behavior = payload.behavior as string | undefined;
+        const framework = payload.framework as string | undefined;
+        const phase = payload.phase as 'red' | 'green' | 'refactor' | undefined;
+
+        if (!feature || !behavior) {
+          return err(new Error('Invalid generate-tdd-tests payload: missing feature or behavior'));
+        }
+
+        return this.coordinator.generateTDDTests({
+          feature,
+          behavior,
+          framework: framework ?? 'vitest',
+          phase: phase ?? 'red',
+        });
+      }],
+
+      // Property-based tests generation task
+      ['generate-property-tests', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        const fn = payload.function as string | undefined;
+        const properties = payload.properties as string[] | undefined;
+
+        if (!fn || !properties || properties.length === 0) {
+          return err(new Error('Invalid generate-property-tests payload: missing function or properties'));
+        }
+
+        return this.coordinator.generatePropertyTests({
+          function: fn,
+          properties,
+          constraints: payload.constraints as Record<string, unknown> | undefined,
+        });
+      }],
+
+      // Test data generation task
+      ['generate-test-data', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        const schema = payload.schema as Record<string, unknown> | undefined;
+        const count = payload.count as number | undefined;
+
+        if (!schema) {
+          return err(new Error('Invalid generate-test-data payload: missing schema'));
+        }
+
+        return this.coordinator.generateTestData({
+          schema,
+          count: count ?? 10,
+          locale: payload.locale as string | undefined,
+          preserveRelationships: payload.preserveRelationships as boolean | undefined,
+        });
+      }],
+    ]);
   }
 
   // ============================================================================

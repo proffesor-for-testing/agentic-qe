@@ -11,6 +11,7 @@ import {
   AgentStatus,
   Disposable,
   Initializable,
+  Priority,
 } from '../shared/types';
 
 // ============================================================================
@@ -38,6 +39,26 @@ export interface DomainPlugin extends Initializable, Disposable {
 
   /** Get domain's public API */
   getAPI<T>(): T;
+
+  /**
+   * Execute a task assigned by Queen Coordinator
+   * Optional - domains without this method use event-based fallback
+   * @param request - Task execution request from Queen
+   * @param onComplete - Callback to report completion/failure
+   * @returns Result indicating whether task was accepted for execution
+   */
+  executeTask?(
+    request: DomainTaskRequest,
+    onComplete: TaskCompletionCallback
+  ): Promise<Result<void, Error>>;
+
+  /**
+   * Check if domain can handle a specific task type
+   * Optional - domains without this method are assumed to handle all assigned tasks
+   * @param taskType - The type of task to check
+   * @returns true if domain can handle the task type
+   */
+  canHandleTask?(taskType: string): boolean;
 }
 
 export interface DomainHealth {
@@ -58,6 +79,51 @@ export interface DomainHealth {
   lastActivity?: Date;
   errors: string[];
 }
+
+// ============================================================================
+// Domain Task Execution Contract (Queen-Domain Integration)
+// ============================================================================
+
+/**
+ * Task execution request from Queen to Domain
+ * Represents a task that the Queen assigns to a domain for execution
+ */
+export interface DomainTaskRequest {
+  /** Unique task identifier */
+  readonly taskId: string;
+  /** Type of task (e.g., 'execute-tests', 'generate-tests') */
+  readonly taskType: string;
+  /** Task-specific data */
+  readonly payload: Record<string, unknown>;
+  /** Task priority level */
+  readonly priority: Priority;
+  /** Timeout in milliseconds */
+  readonly timeout: number;
+  /** Correlation ID for tracing */
+  readonly correlationId?: string;
+}
+
+/**
+ * Task execution result from Domain to Queen
+ * Reported via callback when task completes or fails
+ */
+export interface DomainTaskResult {
+  /** Task identifier */
+  readonly taskId: string;
+  /** Whether the task succeeded */
+  readonly success: boolean;
+  /** Result data if successful */
+  readonly data?: unknown;
+  /** Error message if failed */
+  readonly error?: string;
+  /** Duration in milliseconds */
+  readonly duration: number;
+}
+
+/**
+ * Callback for domains to report task completion to Queen
+ */
+export type TaskCompletionCallback = (result: DomainTaskResult) => Promise<void>;
 
 // ============================================================================
 // Event Bus Interface
