@@ -485,6 +485,27 @@ export interface ILearningOptimizationCoordinator {
    * Import learned models
    */
   importModels(modelExport: ModelExport): Promise<Result<ImportReport>>;
+
+  /**
+   * Publish dream cycle completion event.
+   * Called by DreamScheduler/DreamEngine to broadcast insights to domain coordinators.
+   */
+  publishDreamCycleCompleted(
+    cycleId: string,
+    durationMs: number,
+    conceptsProcessed: number,
+    insights: Array<{
+      id: string;
+      type: string;
+      description: string;
+      noveltyScore: number;
+      confidenceScore: number;
+      actionable: boolean;
+      suggestedAction?: string;
+      sourceConcepts: string[];
+    }>,
+    patternsCreated: number
+  ): Promise<void>;
 }
 
 export interface LearningCycleReport {
