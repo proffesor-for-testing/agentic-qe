@@ -3,7 +3,7 @@ name: qcsd-ideation-swarm
 description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins."
 category: qcsd-phases
 priority: critical
-version: 7.0.0
+version: 7.1.0
 tokenEstimate: 3500
 # DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
 domains:
@@ -32,7 +32,7 @@ execution:
   alternatives: [mcp-tools, cli]
 swarm_pattern: true
 parallel_batches: 2
-last_updated: 2026-01-25
+last_updated: 2026-01-27
 html_output: true
 enforcement_level: strict
 tags: [qcsd, ideation, htsm, quality-criteria, risk-storming, testability, swarm, parallel, ddd]
@@ -41,6 +41,328 @@ tags: [qcsd, ideation, htsm, quality-criteria, risk-storming, testability, swarm
 # QCSD Ideation Swarm v7.0
 
 Shift-left quality engineering swarm for PI Planning and Sprint Planning.
+
+---
+
+## URL-Based Analysis Mode (v7.1)
+
+When analyzing a live website URL, use this specialized execution pattern.
+
+### Parameters
+
+- `URL`: Website to analyze (required)
+- `OUTPUT_FOLDER`: Where to save reports (default: `/workspaces/agentic-qe/Agentic QCSD/{domain}/`)
+
+---
+
+## ⛔ URL MODE: COMPLETE EXECUTION FLOW
+
+**You MUST follow ALL phases in order. Skipping phases is a FAILURE.**
+
+### PHASE URL-1: Setup and Content Fetch
+
+```javascript
+// 1. Create output folder
+Bash({ command: `mkdir -p "${OUTPUT_FOLDER}"` })
+
+// 2. Fetch website content
+const content = await WebFetch({ url: URL, prompt: "Return the complete HTML content" })
+
+// 3. Store content for agents
+// Keep the fetched content available for all agent prompts
+```
+
+### PHASE URL-2: Programmatic Flag Detection (MANDATORY)
+
+**You MUST detect flags from the fetched content. Do NOT skip this phase.**
+
+```javascript
+// Detect HAS_UI
+const HAS_UI = (
+  /<(form|button|input|select|textarea|img|video|canvas|nav|header|footer|aside)/i.test(content) ||
+  /carousel|slider|modal|dialog|dropdown|menu|tab|accordion/i.test(content) ||
+  /class=["'][^"']*btn|button|card|grid|flex/i.test(content)
+);
+
+// Detect HAS_SECURITY
+const HAS_SECURITY = (
+  /login|password|auth|token|session|credential|oauth|jwt|sso/i.test(content) ||
+  /newsletter|subscribe|signup|email.*input|register/i.test(content) || // PII collection
+  /payment|checkout|credit.*card|billing/i.test(content) ||
+  /cookie|consent|gdpr|privacy/i.test(content)
+);
+
+// Detect HAS_UX
+const HAS_UX = (
+  /user|customer|visitor|journey|experience|engagement/i.test(content) ||
+  /<form/i.test(content) && /<button/i.test(content) || // Interactive forms
+  /onboarding|wizard|step.*step|progress/i.test(content) ||
+  /feedback|rating|review|comment/i.test(content)
+);
+```
+
+**You MUST output flag detection results before proceeding:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    FLAG DETECTION RESULTS                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  HAS_UI:       [TRUE/FALSE]                                 │
+│  Evidence:     [what triggered it - specific patterns]      │
+│                                                             │
+│  HAS_SECURITY: [TRUE/FALSE]                                 │
+│  Evidence:     [what triggered it - specific patterns]      │
+│                                                             │
+│  HAS_UX:       [TRUE/FALSE]                                 │
+│  Evidence:     [what triggered it - specific patterns]      │
+│                                                             │
+│  EXPECTED AGENTS:                                           │
+│  - Core: 3 (always)                                         │
+│  - Conditional: [count based on TRUE flags]                 │
+│  - TOTAL: [3 + conditional count]                           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**❌ DO NOT proceed to Phase URL-3 without outputting flag detection results.**
+
+### PHASE URL-3: Spawn Core Agents (PARALLEL)
+
+**All 3 core agents MUST be spawned. Fewer is a FAILURE.**
+
+Spawn ALL THREE in a single message:
+
+```javascript
+// Agent 1: Quality Criteria (HTSM v6.3)
+Task({
+  description: "QCSD Quality Criteria Analysis",
+  prompt: `You are qe-quality-criteria-recommender analyzing ${URL}.
+
+## WEBSITE CONTENT
+${content}
+
+## ANALYSIS REQUIREMENTS
+Analyze ALL 10 HTSM v6.3 categories with weight and testability score for each.
+
+## OUTPUT REQUIREMENTS (MANDATORY)
+1. Write your complete analysis to: ${OUTPUT_FOLDER}/02-quality-criteria-analysis.md
+2. Use the Write tool to save BEFORE completing
+3. Report MUST be complete - no placeholders`,
+  subagent_type: "qe-quality-criteria-recommender",
+  run_in_background: true
+})
+
+// Agent 2: Risk Assessment (SFDIPOT)
+Task({
+  description: "QCSD Risk Assessment",
+  prompt: `You are qe-risk-assessor analyzing ${URL}.
+
+## WEBSITE CONTENT
+${content}
+
+## ANALYSIS REQUIREMENTS
+Apply SFDIPOT framework: Structure, Function, Data, Interfaces, Platform, Operations, Time.
+Identify minimum 10 risks with probability, impact, and score.
+
+## OUTPUT REQUIREMENTS (MANDATORY)
+1. Write your complete analysis to: ${OUTPUT_FOLDER}/04-risk-assessment.md
+2. Use the Write tool to save BEFORE completing
+3. Report MUST be complete - no placeholders`,
+  subagent_type: "qe-risk-assessor",
+  run_in_background: true
+})
+
+// Agent 3: Requirements Validator (Testability)
+Task({
+  description: "QCSD Testability Assessment",
+  prompt: `You are qe-requirements-validator analyzing ${URL}.
+
+## WEBSITE CONTENT
+${content}
+
+## ANALYSIS REQUIREMENTS
+Apply 10 Principles of Testability. Score each principle 0-100.
+Identify blockers and recommendations.
+
+## OUTPUT REQUIREMENTS (MANDATORY)
+1. Write your complete analysis to: ${OUTPUT_FOLDER}/03-testability-assessment.md
+2. Use the Write tool to save BEFORE completing
+3. Report MUST be complete - no placeholders`,
+  subagent_type: "qe-requirements-validator",
+  run_in_background: true
+})
+```
+
+### PHASE URL-4: Spawn Conditional Agents (PARALLEL)
+
+**Spawn agents based on flags detected in Phase URL-2.**
+
+```javascript
+// IF HAS_UI === TRUE
+Task({
+  description: "QCSD Accessibility Audit",
+  prompt: `You are qe-accessibility-auditor analyzing ${URL}.
+
+## WEBSITE CONTENT
+${content}
+
+## ANALYSIS REQUIREMENTS
+Perform WCAG 2.2 AA compliance assessment.
+Identify accessibility barriers, missing ARIA, color contrast issues.
+
+## OUTPUT REQUIREMENTS (MANDATORY)
+1. Write your complete analysis to: ${OUTPUT_FOLDER}/07-accessibility-audit.md
+2. Use the Write tool to save BEFORE completing`,
+  subagent_type: "qe-accessibility-auditor",
+  run_in_background: true
+})
+
+// IF HAS_SECURITY === TRUE
+Task({
+  description: "QCSD Security Threat Model",
+  prompt: `You are qe-security-auditor analyzing ${URL}.
+
+## WEBSITE CONTENT
+${content}
+
+## ANALYSIS REQUIREMENTS
+Apply STRIDE threat modeling framework.
+Identify vulnerabilities, attack vectors, and mitigations.
+
+## OUTPUT REQUIREMENTS (MANDATORY)
+1. Write your complete analysis to: ${OUTPUT_FOLDER}/05-security-threat-model.md
+2. Use the Write tool to save BEFORE completing`,
+  subagent_type: "qe-security-auditor",
+  run_in_background: true
+})
+
+// IF HAS_UX === TRUE
+Task({
+  description: "QCSD Quality Experience Analysis",
+  prompt: `You are qe-qx-partner analyzing ${URL}.
+
+## WEBSITE CONTENT
+${content}
+
+## ANALYSIS REQUIREMENTS
+Analyze user journeys, experience quality, friction points.
+Map key user flows and identify UX risks.
+
+## OUTPUT REQUIREMENTS (MANDATORY)
+1. Write your complete analysis to: ${OUTPUT_FOLDER}/08-quality-experience.md
+2. Use the Write tool to save BEFORE completing`,
+  subagent_type: "qe-qx-partner",
+  run_in_background: true
+})
+```
+
+### PHASE URL-5: Agent Count Validation
+
+**Before proceeding, verify agent count:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   AGENT COUNT VALIDATION                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  CORE AGENTS (ALWAYS 3):                                    │
+│    □ qe-quality-criteria-recommender - SPAWNED? [Y/N]       │
+│    □ qe-risk-assessor - SPAWNED? [Y/N]                      │
+│    □ qe-requirements-validator - SPAWNED? [Y/N]             │
+│                                                             │
+│  CONDITIONAL AGENTS (based on flags):                       │
+│    □ qe-accessibility-auditor - SPAWNED? [Y/N] (HAS_UI)     │
+│    □ qe-security-auditor - SPAWNED? [Y/N] (HAS_SECURITY)    │
+│    □ qe-qx-partner - SPAWNED? [Y/N] (HAS_UX)                │
+│                                                             │
+│  VALIDATION:                                                │
+│    Expected agents: [3 + count of TRUE flags]               │
+│    Actual spawned:  [count]                                 │
+│    Status:          [PASS/FAIL]                             │
+│                                                             │
+│  If ACTUAL < EXPECTED, you have FAILED. Spawn missing       │
+│  agents before proceeding.                                  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**❌ DO NOT proceed if validation FAILS.**
+
+### PHASE URL-6: Wait for Agents and Verify Reports
+
+After spawning, inform user and wait:
+
+```
+I've launched [N] agents in background:
+- 📊 Quality Criteria Recommender: HTSM v6.3 analysis → 02-quality-criteria-analysis.md
+- ⚠️ Risk Assessor: SFDIPOT analysis → 04-risk-assessment.md
+- 🧪 Requirements Validator: Testability assessment → 03-testability-assessment.md
+[IF HAS_UI]
+- ♿ Accessibility Auditor: WCAG 2.2 audit → 07-accessibility-audit.md
+[IF HAS_SECURITY]
+- 🔒 Security Auditor: STRIDE threat model → 05-security-threat-model.md
+[IF HAS_UX]
+- 🎯 QX Partner: User experience analysis → 08-quality-experience.md
+
+Each agent will write directly to: ${OUTPUT_FOLDER}/
+```
+
+Verify reports exist before synthesis:
+```bash
+ls -la "${OUTPUT_FOLDER}"
+```
+
+### PHASE URL-7: Invoke Related Skills (MANDATORY)
+
+**After agent reports are complete, invoke these skills:**
+
+```javascript
+// Testability Scoring - applies formal scoring methodology
+Skill({ skill: "testability-scoring", args: `${OUTPUT_FOLDER}/03-testability-assessment.md` })
+
+// Risk-Based Testing - prioritizes test selection
+Skill({ skill: "risk-based-testing", args: `${OUTPUT_FOLDER}/04-risk-assessment.md` })
+```
+
+**Required Skill Invocations:**
+
+| Skill | When | Purpose |
+|-------|------|---------|
+| `testability-scoring` | After testability report | Formal 0-100 score calculation |
+| `risk-based-testing` | After risk report | Test prioritization matrix |
+| `context-driven-testing` | Always | Apply CDT principles to recommendations |
+| `holistic-testing-pact` | Always | Validate test strategy completeness |
+
+**❌ Analysis is INCOMPLETE without invoking related skills.**
+
+### PHASE URL-8: Synthesis and Executive Summary
+
+After all agents complete and skills are invoked:
+
+1. **Read all agent reports**
+2. **Generate Executive Summary** → `${OUTPUT_FOLDER}/01-executive-summary.md`
+3. **Generate Consolidated Test Ideas** → `${OUTPUT_FOLDER}/06-test-ideas.md`
+4. **Store learnings in memory**:
+   ```bash
+   npx @claude-flow/cli@latest memory store \
+     --key "qcsd-${domain}-pattern" \
+     --value "[key learnings from this analysis]" \
+     --namespace patterns
+   ```
+
+### Report Filename Mapping
+
+| Agent | Report Filename |
+|-------|----------------|
+| qe-quality-criteria-recommender | `02-quality-criteria-analysis.md` |
+| qe-requirements-validator | `03-testability-assessment.md` |
+| qe-risk-assessor | `04-risk-assessment.md` |
+| qe-security-auditor | `05-security-threat-model.md` |
+| qe-accessibility-auditor | `07-accessibility-audit.md` |
+| qe-qx-partner | `08-quality-experience.md` |
+| Synthesis | `01-executive-summary.md` |
+| Synthesis | `06-test-ideas.md` |
 
 ---
 

@@ -294,6 +294,20 @@ export class QCSDIdeationPlugin {
       'extractWebsiteContent',
       this.extractWebsiteContent.bind(this)
     );
+
+    // Register auditAccessibility action for HAS_UI conditional
+    orchestrator.registerAction(
+      'visual-accessibility',
+      'auditAccessibility',
+      this.auditAccessibility.bind(this)
+    );
+
+    // Register analyzeQualityExperience action for HAS_UX conditional
+    orchestrator.registerAction(
+      'cross-domain',
+      'analyzeQualityExperience',
+      this.analyzeQualityExperience.bind(this)
+    );
   }
 
   // ============================================================================
@@ -1477,6 +1491,175 @@ export class QCSDIdeationPlugin {
       estimatedEffort,
     };
   }
+
+  // ============================================================================
+  // Conditional Agent Actions (HAS_UI, HAS_UX)
+  // ============================================================================
+
+  /**
+   * Audit accessibility for websites with UI components (HAS_UI flag)
+   * Triggered when website extraction detects UI elements
+   */
+  private async auditAccessibility(
+    input: Record<string, unknown>,
+    context: WorkflowContext
+  ): Promise<Result<{ wcagLevel: string; violations: string[]; recommendations: string[] }, Error>> {
+    try {
+      const targetId = input.targetId as string || context.input.targetId as string;
+      const url = input.url as string || context.input.url as string;
+      const description = input.description as string || context.input.description as string || '';
+      const features = input.features as string[] || context.input.features as string[] || [];
+
+      // Analyze accessibility concerns based on detected features
+      const violations: string[] = [];
+      const recommendations: string[] = [];
+
+      // Check for common accessibility issues based on features
+      const featureAnalysis: Record<string, { issue: string; rec: string }> = {
+        'Image carousel': {
+          issue: 'Carousels may lack pause controls and keyboard navigation',
+          rec: 'Ensure carousel has pause button, keyboard controls, and ARIA labels',
+        },
+        'Form interactions': {
+          issue: 'Forms may lack proper labels and error announcements',
+          rec: 'Add aria-describedby for errors, ensure all inputs have associated labels',
+        },
+        'Modal dialogs': {
+          issue: 'Modals may trap focus or lack escape key handling',
+          rec: 'Implement focus trap, escape key closure, and return focus on close',
+        },
+        'Video content': {
+          issue: 'Videos may lack captions and audio descriptions',
+          rec: 'Add WebVTT captions and audio description track for video content',
+        },
+        'Site navigation': {
+          issue: 'Navigation may lack skip links and landmark roles',
+          rec: 'Add skip-to-main link, use proper landmark roles (nav, main, aside)',
+        },
+        'Newsletter subscription': {
+          issue: 'Signup forms may lack clear success/error feedback',
+          rec: 'Use aria-live regions for form submission feedback',
+        },
+      };
+
+      for (const feature of features) {
+        const analysis = featureAnalysis[feature];
+        if (analysis) {
+          violations.push(analysis.issue);
+          recommendations.push(analysis.rec);
+        }
+      }
+
+      // Add general WCAG recommendations
+      recommendations.push(
+        'Verify color contrast meets WCAG 2.2 AA (4.5:1 for text)',
+        'Test with screen reader (NVDA/VoiceOver)',
+        'Verify keyboard navigation for all interactive elements',
+        'Check focus indicators are visible'
+      );
+
+      // Determine WCAG level based on violations
+      const wcagLevel = violations.length > 5 ? 'Likely fails AA' :
+                        violations.length > 2 ? 'Partial AA compliance' : 'Potential AA compliance';
+
+      // Store result
+      await this.memory.set(
+        `qcsd-ideation:accessibility:${targetId}`,
+        { wcagLevel, violations, recommendations, url, timestamp: new Date().toISOString() },
+        { namespace: 'qcsd-ideation', ttl: 3600 }
+      );
+
+      return ok({ wcagLevel, violations, recommendations });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Analyze quality experience for websites with UX concerns (HAS_UX flag)
+   * Triggered when website extraction detects user experience patterns
+   */
+  private async analyzeQualityExperience(
+    input: Record<string, unknown>,
+    context: WorkflowContext
+  ): Promise<Result<{ journeys: string[]; frictionPoints: string[]; recommendations: string[] }, Error>> {
+    try {
+      const targetId = input.targetId as string || context.input.targetId as string;
+      const url = input.url as string || context.input.url as string;
+      const description = input.description as string || context.input.description as string || '';
+      const features = input.features as string[] || context.input.features as string[] || [];
+
+      const journeys: string[] = [];
+      const frictionPoints: string[] = [];
+      const recommendations: string[] = [];
+
+      // Identify user journeys based on detected features
+      const journeyMapping: Record<string, { journey: string; friction: string; rec: string }> = {
+        'Newsletter subscription': {
+          journey: 'Content subscription flow: Landing -> Email signup -> Confirmation',
+          friction: 'Multi-step signup may cause abandonment',
+          rec: 'Implement single-field inline signup with immediate feedback',
+        },
+        'Search functionality': {
+          journey: 'Content discovery flow: Search -> Filter -> Select -> Read',
+          friction: 'Poor search results relevance frustrates users',
+          rec: 'Add search suggestions, filters, and "no results" helpful messaging',
+        },
+        'User authentication': {
+          journey: 'Account access flow: Login page -> Auth -> Dashboard',
+          friction: 'Password requirements and recovery flow complexity',
+          rec: 'Add social login options, clear password requirements, easy recovery',
+        },
+        'Shopping cart': {
+          journey: 'Purchase flow: Browse -> Add to cart -> Checkout -> Payment',
+          friction: 'Cart abandonment at checkout due to complexity',
+          rec: 'Guest checkout, progress indicator, saved cart, multiple payment options',
+        },
+        'Comment system': {
+          journey: 'Engagement flow: Read article -> Scroll to comments -> Write comment',
+          friction: 'Login requirement for commenting reduces engagement',
+          rec: 'Allow guest comments with moderation, or social login for quick auth',
+        },
+        'PDF downloads': {
+          journey: 'Content access flow: Browse catalog -> Select issue -> Download PDF',
+          friction: 'Large file sizes and unclear progress',
+          rec: 'Show file size before download, progress indicator, resume support',
+        },
+      };
+
+      for (const feature of features) {
+        const mapping = journeyMapping[feature];
+        if (mapping) {
+          journeys.push(mapping.journey);
+          frictionPoints.push(mapping.friction);
+          recommendations.push(mapping.rec);
+        }
+      }
+
+      // Add general QX recommendations
+      recommendations.push(
+        'Map complete user journeys with entry/exit points',
+        'Identify drop-off points using analytics',
+        'Test critical paths with real users',
+        'Monitor Core Web Vitals for performance impact on UX'
+      );
+
+      // Store result
+      await this.memory.set(
+        `qcsd-ideation:qx:${targetId}`,
+        { journeys, frictionPoints, recommendations, url, timestamp: new Date().toISOString() },
+        { namespace: 'qcsd-ideation', ttl: 3600 }
+      );
+
+      return ok({ journeys, frictionPoints, recommendations });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  // ============================================================================
+  // Helper Methods - Continued
+  // ============================================================================
 
   private identifyBlockers(
     testability: TestabilityAssessment,

@@ -1857,8 +1857,8 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
       id: 'qcsd-ideation-swarm',
       name: 'QCSD Ideation Swarm',
       description:
-        'Quality Conscious Software Delivery ideation phase: [url-extraction] -> quality-criteria (HTSM) -> [testability, risk, requirements] in parallel -> aggregated report. Supports live website URLs.',
-      version: '2.0.0',
+        'Quality Conscious Software Delivery ideation phase: [url-extraction] -> [flag-detection] -> quality-criteria (HTSM) -> [testability, risk, requirements, security*, accessibility*, qx*] in parallel -> aggregated report. Supports live website URLs with conditional agent spawning based on HAS_UI, HAS_SECURITY, HAS_UX flags.',
+      version: '3.0.0',
       tags: ['qcsd', 'ideation', 'quality-criteria', 'htsm', 'shift-left', 'url-analysis'],
       steps: [
         // Step 0: Optional - Website Content Extraction (for URL input)
@@ -1963,10 +1963,10 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
           timeout: 90000,
           continueOnFailure: true,
         },
-        // Step 3: Optional - Security Threat Modeling (if security concerns or URL with security features)
+        // Step 3a: Optional - Security Threat Modeling (if HAS_SECURITY flag is true)
         {
           id: 'security-threat-modeling',
-          name: 'Early Security Threat Modeling',
+          name: 'Early Security Threat Modeling (STRIDE)',
           domain: 'security-compliance',
           action: 'modelSecurityThreats',
           dependsOn: ['quality-criteria-analysis'],
@@ -1989,7 +1989,61 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
           timeout: 120000,
           continueOnFailure: true,
         },
-        // Step 4: Aggregate Ideation Report
+        // Step 3b: Optional - Accessibility Audit (if HAS_UI flag is true)
+        {
+          id: 'accessibility-audit',
+          name: 'Accessibility Audit (WCAG 2.2)',
+          domain: 'visual-accessibility',
+          action: 'auditAccessibility',
+          dependsOn: ['quality-criteria-analysis'],
+          // Trigger if website has UI components
+          condition: {
+            path: 'results.website-content-extraction.detectedFlags.hasUI || input.hasUI',
+            operator: 'eq',
+            value: true,
+          },
+          inputMapping: {
+            targetId: 'input.targetId',
+            url: 'input.url',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            features: 'results.website-content-extraction.extractedFeatures',
+          },
+          outputMapping: {
+            wcagLevel: 'accessibility.wcagLevel',
+            violations: 'accessibility.violations',
+            recommendations: 'accessibility.recommendations',
+          },
+          timeout: 180000, // 3 minutes for comprehensive audit
+          continueOnFailure: true,
+        },
+        // Step 3c: Optional - Quality Experience Analysis (if HAS_UX flag is true)
+        {
+          id: 'quality-experience-analysis',
+          name: 'Quality Experience Analysis (QX Partner)',
+          domain: 'cross-domain',
+          action: 'analyzeQualityExperience',
+          dependsOn: ['quality-criteria-analysis'],
+          // Trigger if website has UX concerns
+          condition: {
+            path: 'results.website-content-extraction.detectedFlags.hasUX || input.hasUX',
+            operator: 'eq',
+            value: true,
+          },
+          inputMapping: {
+            targetId: 'input.targetId',
+            url: 'input.url',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            features: 'results.website-content-extraction.extractedFeatures',
+          },
+          outputMapping: {
+            journeys: 'qx.journeys',
+            frictionPoints: 'qx.frictionPoints',
+            recommendations: 'qx.recommendations',
+          },
+          timeout: 150000,
+          continueOnFailure: true,
+        },
+        // Step 4: Aggregate Ideation Report (waits for all parallel assessments)
         {
           id: 'aggregate-ideation-report',
           name: 'Generate Ideation Report',
@@ -2000,6 +2054,9 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
             'testability-assessment',
             'risk-assessment',
             'requirements-validation',
+            'security-threat-modeling', // Optional - may be skipped
+            'accessibility-audit', // Optional - may be skipped
+            'quality-experience-analysis', // Optional - may be skipped
           ],
           inputMapping: {
             targetId: 'input.targetId',

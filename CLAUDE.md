@@ -43,6 +43,98 @@
 
 ---
 
+## 🎯 V3 QE SKILLS (PROPERLY INTEGRATED)
+
+V3 QE capabilities are integrated via the **Skill system**. Skills are invoked using the `Skill` tool or `/skill-name` syntax.
+
+### Available QE Skills
+
+| Skill | Invocation | Description |
+|-------|------------|-------------|
+| `a11y-ally` | `/a11y-ally URL` | Accessibility audit with **MANDATORY video pipeline** |
+| `accessibility-testing` | `/accessibility-testing` | WCAG 2.2 compliance testing |
+| `security-testing` | `/security-testing` | OWASP vulnerability scanning |
+
+### Accessibility Audit with Video Captions
+
+```bash
+# Invoke skill directly - Skill tool auto-loads the full pipeline
+/a11y-ally https://example.com/page-with-video
+```
+
+The `a11y-ally` skill automatically:
+1. Fetches page content
+2. Detects video elements
+3. Downloads videos
+4. Extracts frames with ffmpeg
+5. Analyzes frames with Claude Vision
+6. Generates WebVTT captions (`captions.vtt`)
+7. Generates audio descriptions (`audiodesc.vtt`)
+8. Saves to `docs/accessibility/captions/{page-slug}/`
+
+### Skill vs Task Tool
+
+| Use Case | Tool | Why |
+|----------|------|-----|
+| Accessibility audit | `Skill("a11y-ally")` | Full video pipeline integrated |
+| Simple agent spawn | `Task(subagent_type: "coder")` | Built-in agents work fine |
+| Custom behavior | `Skill` with custom SKILL.md | Skill system loads full spec |
+
+### Skill Files Location
+
+Skills are defined in `.claude/skills/{skill-name}/SKILL.md` and registered in `.claude/skills/skills-manifest.json`.
+
+---
+
+## 🎯 QCSD AUTO-INVOCATION RULES (MANDATORY)
+
+**QCSD Ideation Swarm MUST be invoked via the Skill tool. Manual agent spawning is FORBIDDEN.**
+
+### Trigger Patterns - IMMEDIATELY invoke `/qcsd-ideation-swarm`
+
+When user requests ANY of these, use `Skill({ skill: "qcsd-ideation-swarm" })`:
+- "QCSD analysis" / "QCSD Ideation"
+- "Quality Criteria analysis" / "HTSM analysis"
+- "evaluate with QCSD" / "run QCSD"
+- "analyze [URL] for quality"
+- "shift-left quality assessment"
+- "quality criteria session"
+- "risk storming"
+
+### What You MUST NOT Do
+
+- ❌ **NEVER** manually spawn qe-quality-criteria-recommender, qe-risk-assessor, qe-security-scanner, qe-accessibility-auditor, qe-qx-partner for QCSD without using the skill
+- ❌ **NEVER** skip flag detection (HAS_UI, HAS_SECURITY, HAS_UX)
+- ❌ **NEVER** spawn fewer agents than flags indicate
+- ❌ **NEVER** skip conditional agents when their flags are TRUE
+- ❌ **NEVER** skip related skills (testability-scoring, risk-based-testing, etc.)
+
+### Correct Invocation Pattern
+
+```javascript
+// For epic/story analysis
+Skill({ skill: "qcsd-ideation-swarm", args: "<epic content>" })
+
+// For URL analysis
+Skill({ skill: "qcsd-ideation-swarm", args: "<URL> <output-folder>" })
+```
+
+### Post-Invocation Verification
+
+After QCSD skill completes, verify:
+```
+✓ Flag detection was performed (HAS_UI, HAS_SECURITY, HAS_UX output visible)
+✓ All core agents were spawned (3 minimum)
+✓ Conditional agents spawned per flags (up to 3 more)
+✓ Each agent wrote its report directly to output folder
+✓ Related skills were invoked (testability-scoring, risk-based-testing)
+✓ Executive summary synthesized from all reports
+```
+
+**If any verification fails, the QCSD analysis is INCOMPLETE.**
+
+---
+
 ## 🚨 SWARM EXECUTION RULES
 
 ### Spawn and Wait Pattern
@@ -297,3 +389,64 @@ mcp__agentic-qe__memory_share({
 3. **SPAWN IN BACKGROUND** - Use `run_in_background: true`
 4. **NO POLLING** - Trust agents to return results
 5. **VERIFY BEFORE CLAIMING** - Run tests, check results
+
+
+## Agentic QE v3
+
+This project uses **Agentic QE v3** - a Domain-Driven Quality Engineering platform with 12 bounded contexts, ReasoningBank learning, and HNSW vector search.
+
+---
+
+### Quick Reference
+
+```bash
+# Run tests
+npm test -- --run
+
+# Check quality
+aqe quality assess
+
+# Generate tests
+aqe test generate <file>
+
+# Coverage analysis
+aqe coverage <path>
+```
+
+### MCP Server Tools
+
+| Tool | Description |
+|------|-------------|
+| `fleet_init` | Initialize QE fleet with topology |
+| `agent_spawn` | Spawn specialized QE agent |
+| `test_generate_enhanced` | AI-powered test generation |
+| `test_execute_parallel` | Parallel test execution with retry |
+| `task_orchestrate` | Orchestrate multi-agent QE tasks |
+| `coverage_analyze_sublinear` | O(log n) coverage analysis |
+| `quality_assess` | Quality gate evaluation |
+| `memory_store` / `memory_query` | Pattern storage with namespacing |
+
+### Configuration
+
+- **Enabled Domains**: test-generation, test-execution, coverage-analysis, learning-optimization, quality-assessment, security-compliance (+4 more)
+- **Learning**: Enabled (transformer embeddings)
+- **Max Concurrent Agents**: 15
+- **Background Workers**: pattern-consolidator, routing-accuracy-monitor, coverage-gap-scanner, flaky-test-detector
+
+### V3 QE Agents
+
+V3 QE agents are in `.claude/agents/v3/`. Use with Task tool:
+
+```javascript
+Task({ prompt: "Generate tests", subagent_type: "qe-test-architect", run_in_background: true })
+Task({ prompt: "Find coverage gaps", subagent_type: "qe-coverage-specialist", run_in_background: true })
+Task({ prompt: "Security audit", subagent_type: "qe-security-scanner", run_in_background: true })
+```
+
+### Data Storage
+
+- **Memory Backend**: `.agentic-qe/memory.db` (SQLite)
+- **Configuration**: `.agentic-qe/config.yaml`
+
+---
+*Generated by AQE v3 init - 2026-01-25T14:23:40.907Z*
