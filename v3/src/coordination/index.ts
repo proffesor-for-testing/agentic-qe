@@ -315,3 +315,9 @@ export {
   StrangeLoopDreamIntegration,
   createStrangeLoopDreamIntegration,
 } from './mincut';
+
+// ============================================================================
+// Coordination Mixins (CONSENSUS-MIXIN-001)
+// ============================================================================
+
+export * from './mixins';

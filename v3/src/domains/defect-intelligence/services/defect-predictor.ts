@@ -2,6 +2,8 @@
  * Agentic QE v3 - Defect Prediction Service
  * ML-based defect prediction using code metrics and historical data
  * Uses GitAnalyzer for real git history analysis
+ *
+ * ADR-051: LLM enhancement for AI-powered defect risk analysis
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -15,10 +17,14 @@ import {
   RegressionRequest,
   RegressionRisk,
   ImpactedArea,
+  LLMDefectAnalysis,
 } from '../interfaces';
 import { GitAnalyzer } from '../../../shared/git';
 import { FileReader } from '../../../shared/io';
 import { TypeScriptParser } from '../../../shared/parsers';
+
+// ADR-051: LLM Router for AI-enhanced defect prediction
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 
 /**
  * Interface for the defect prediction service
@@ -62,7 +68,28 @@ export interface DefectPredictorConfig {
   enableHistoricalAnalysis: boolean;
   modelNamespace: string;
   featureWeights: Record<string, number>;
+  /** ADR-051: Enable LLM-powered defect prediction */
+  enableLLMPrediction?: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier?: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens?: number;
 }
+
+/**
+ * Dependencies for DefectPredictorService
+ * Enables dependency injection and testing
+ */
+export interface DefectPredictorDependencies {
+  memory: MemoryBackend;
+  gitAnalyzer?: GitAnalyzer;
+  fileReader?: FileReader;
+  tsParser?: TypeScriptParser;
+  /** ADR-051: Optional LLM router for AI-enhanced defect prediction */
+  llmRouter?: HybridRouter;
+}
+
+// LLMDefectAnalysis is imported from ../interfaces
 
 const DEFAULT_CONFIG: DefectPredictorConfig = {
   defaultThreshold: 0.5,
@@ -77,6 +104,10 @@ const DEFAULT_CONFIG: DefectPredictorConfig = {
     codeAge: 0.10,
     bugHistory: 0.10,
   },
+  // ADR-051: LLM enhancement - on by default (opt-out)
+  enableLLMPrediction: true,
+  llmModelTier: 2, // Sonnet by default
+  llmMaxTokens: 2048,
 };
 
 /**
@@ -94,12 +125,16 @@ const DEFAULT_FEATURES: PredictionFeature[] = [
 /**
  * Defect Prediction Service Implementation
  * Uses ML-based heuristics to predict defect probability in code files
+ *
+ * ADR-051: Added LLM enhancement for AI-powered defect risk analysis
  */
 export class DefectPredictorService implements IDefectPredictorService {
   private readonly config: DefectPredictorConfig;
+  private readonly memory: MemoryBackend;
   private readonly gitAnalyzer: GitAnalyzer;
   private readonly fileReader: FileReader;
   private readonly tsParser: TypeScriptParser;
+  private readonly llmRouter?: HybridRouter;
   private modelMetrics: ModelMetrics = {
     accuracy: 0.75,
     precision: 0.72,
@@ -109,21 +144,232 @@ export class DefectPredictorService implements IDefectPredictorService {
     lastUpdated: new Date(),
   };
 
+  /**
+   * Constructor with dependency injection support
+   * Supports both old signature (memory, config, ...) and new signature (dependencies, config)
+   */
   constructor(
-    private readonly memory: MemoryBackend,
+    memoryOrDeps: MemoryBackend | DefectPredictorDependencies,
     config: Partial<DefectPredictorConfig> = {},
     gitAnalyzer?: GitAnalyzer,
     fileReader?: FileReader,
     tsParser?: TypeScriptParser
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.gitAnalyzer = gitAnalyzer ?? new GitAnalyzer({ enableCache: true });
-    this.fileReader = fileReader ?? new FileReader();
-    this.tsParser = tsParser ?? new TypeScriptParser();
+
+    // Support both constructor signatures for backward compatibility
+    if (this.isDependenciesObject(memoryOrDeps)) {
+      // New signature: DefectPredictorDependencies
+      this.memory = memoryOrDeps.memory;
+      this.gitAnalyzer = memoryOrDeps.gitAnalyzer ?? new GitAnalyzer({ enableCache: true });
+      this.fileReader = memoryOrDeps.fileReader ?? new FileReader();
+      this.tsParser = memoryOrDeps.tsParser ?? new TypeScriptParser();
+      this.llmRouter = memoryOrDeps.llmRouter;
+    } else {
+      // Old signature: memory, config, gitAnalyzer, fileReader, tsParser
+      this.memory = memoryOrDeps;
+      this.gitAnalyzer = gitAnalyzer ?? new GitAnalyzer({ enableCache: true });
+      this.fileReader = fileReader ?? new FileReader();
+      this.tsParser = tsParser ?? new TypeScriptParser();
+      this.llmRouter = undefined;
+    }
+  }
+
+  /**
+   * Type guard to detect if input is DefectPredictorDependencies
+   */
+  private isDependenciesObject(obj: unknown): obj is DefectPredictorDependencies {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      'memory' in obj &&
+      typeof (obj as DefectPredictorDependencies).memory === 'object'
+    );
+  }
+
+  // ============================================================================
+  // ADR-051: LLM Enhancement Methods
+  // ============================================================================
+
+  /**
+   * Check if LLM prediction is available and enabled
+   */
+  private isLLMPredictionAvailable(): boolean {
+    return this.config.enableLLMPrediction === true && this.llmRouter !== undefined;
+  }
+
+  /**
+   * Get model ID for the configured tier
+   */
+  private getModelForTier(tier: number): string {
+    switch (tier) {
+      case 1:
+        return 'claude-3-5-haiku-20241022';
+      case 2:
+        return 'claude-sonnet-4-20250514';
+      case 3:
+        return 'claude-sonnet-4-20250514';
+      case 4:
+        return 'claude-opus-4-5-20251101';
+      default:
+        return 'claude-sonnet-4-20250514';
+    }
+  }
+
+  /**
+   * Analyze defect risk using LLM for enhanced insights
+   * Provides explanation of risk factors, review focus areas, and similar historical defects
+   */
+  private async analyzeDefectRiskWithLLM(
+    codeChanges: string,
+    filePredictions: FilePrediction[],
+    historicalDefects: string[] = []
+  ): Promise<LLMDefectAnalysis | null> {
+    if (!this.llmRouter) return null;
+
+    try {
+      const prompt = this.buildDefectAnalysisPrompt(codeChanges, filePredictions, historicalDefects);
+      const modelId = this.getModelForTier(this.config.llmModelTier ?? 2);
+
+      const response: ChatResponse = await this.llmRouter.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert software quality engineer specializing in defect prediction and code analysis.
+Your task is to analyze code changes and provide actionable insights about potential defects.
+
+Respond in JSON format with the following structure:
+{
+  "riskFactors": ["array of specific risk factors identified"],
+  "reviewFocusAreas": ["array of code areas/patterns requiring focused review"],
+  "similarHistoricalDefects": ["array of similar defect patterns to watch for"],
+  "confidenceLevel": 0.0-1.0,
+  "explanation": "detailed explanation of the defect risk assessment"
+}
+
+Be specific and actionable. Focus on concrete issues, not generic advice.`,
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        model: modelId,
+        maxTokens: this.config.llmMaxTokens ?? 2048,
+        temperature: 0.3, // Low temperature for consistent analysis
+      });
+
+      if (response.content && response.content.length > 0) {
+        return this.parseLLMDefectAnalysis(response.content);
+      }
+
+      return null;
+    } catch (error) {
+      console.warn('[DefectPredictor] LLM analysis failed, using heuristics only:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Build prompt for LLM defect analysis
+   */
+  private buildDefectAnalysisPrompt(
+    codeChanges: string,
+    filePredictions: FilePrediction[],
+    historicalDefects: string[]
+  ): string {
+    let prompt = `## Code Changes to Analyze:\n\`\`\`\n${codeChanges.slice(0, 4000)}\n\`\`\`\n\n`;
+
+    if (filePredictions.length > 0) {
+      prompt += `## ML-Based Risk Assessment:\n`;
+      for (const pred of filePredictions.slice(0, 10)) {
+        prompt += `- **${pred.file}**: Probability ${(pred.probability * 100).toFixed(1)}%, Risk Level: ${pred.riskLevel}\n`;
+        if (pred.factors.length > 0) {
+          prompt += `  Contributing factors: ${pred.factors.map((f) => `${f.name}(${f.contribution})`).join(', ')}\n`;
+        }
+      }
+      prompt += '\n';
+    }
+
+    if (historicalDefects.length > 0) {
+      prompt += `## Historical Defect Patterns:\n`;
+      for (const defect of historicalDefects.slice(0, 5)) {
+        prompt += `- ${defect}\n`;
+      }
+      prompt += '\n';
+    }
+
+    prompt += `## Analysis Request:\n`;
+    prompt += `1. Identify specific risk factors in the code changes\n`;
+    prompt += `2. Suggest code review focus areas based on defect likelihood\n`;
+    prompt += `3. Note any patterns similar to historical defects\n`;
+    prompt += `4. Provide confidence level and detailed explanation\n`;
+
+    return prompt;
+  }
+
+  /**
+   * Parse LLM response into structured defect analysis
+   */
+  private parseLLMDefectAnalysis(content: string): LLMDefectAnalysis | null {
+    try {
+      // Try to extract JSON from response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          riskFactors: Array.isArray(parsed.riskFactors) ? parsed.riskFactors : [],
+          reviewFocusAreas: Array.isArray(parsed.reviewFocusAreas) ? parsed.reviewFocusAreas : [],
+          similarHistoricalDefects: Array.isArray(parsed.similarHistoricalDefects)
+            ? parsed.similarHistoricalDefects
+            : [],
+          confidenceLevel:
+            typeof parsed.confidenceLevel === 'number'
+              ? Math.max(0, Math.min(1, parsed.confidenceLevel))
+              : 0.5,
+          explanation: typeof parsed.explanation === 'string' ? parsed.explanation : '',
+        };
+      }
+    } catch {
+      // JSON parse failure - return null
+    }
+    return null;
+  }
+
+  /**
+   * Enhance recommendations with LLM insights
+   */
+  private mergeRecommendationsWithLLM(
+    baseRecommendations: string[],
+    llmAnalysis: LLMDefectAnalysis | null
+  ): string[] {
+    if (!llmAnalysis) return baseRecommendations;
+
+    const enhanced = [...baseRecommendations];
+
+    // Add LLM-identified risk factors as recommendations
+    for (const factor of llmAnalysis.riskFactors.slice(0, 3)) {
+      if (!enhanced.some((r) => r.toLowerCase().includes(factor.toLowerCase().slice(0, 20)))) {
+        enhanced.push(`[AI] Risk factor: ${factor}`);
+      }
+    }
+
+    // Add review focus areas
+    for (const area of llmAnalysis.reviewFocusAreas.slice(0, 2)) {
+      enhanced.push(`[AI] Focus review on: ${area}`);
+    }
+
+    // Add warnings about similar historical defects
+    for (const defect of llmAnalysis.similarHistoricalDefects.slice(0, 2)) {
+      enhanced.push(`[AI] Watch for: ${defect}`);
+    }
+
+    return enhanced;
   }
 
   /**
    * Predict defect probability for given files
+   * ADR-051: When LLM prediction is enabled, enhances results with AI-powered insights
    */
   async predictDefects(request: PredictRequest): Promise<Result<PredictionResult, Error>> {
     try {
@@ -143,15 +389,50 @@ export class DefectPredictorService implements IDefectPredictorService {
 
       const predictions: FilePrediction[] = [];
       const factors: Set<string> = new Set();
+      let combinedCodeChanges = '';
 
       for (const file of files) {
         const prediction = await this.predictForFile(file, features, threshold);
         predictions.push(prediction);
         prediction.factors.forEach((f) => factors.add(f.name));
+
+        // ADR-051: Collect code for LLM analysis
+        if (this.isLLMPredictionAvailable()) {
+          const fileResult = await this.fileReader.readFile(file);
+          if (fileResult.success) {
+            combinedCodeChanges += `\n// File: ${file}\n${fileResult.value.slice(0, 2000)}\n`;
+          }
+        }
       }
 
       // Calculate model confidence based on historical accuracy
-      const modelConfidence = this.calculateModelConfidence(predictions);
+      let modelConfidence = this.calculateModelConfidence(predictions);
+
+      // ADR-051: Enhance predictions with LLM if enabled
+      let llmAnalysis: LLMDefectAnalysis | null = null;
+      if (this.isLLMPredictionAvailable() && combinedCodeChanges.length > 0) {
+        const historicalDefects = await this.getHistoricalDefectPatterns(files);
+        llmAnalysis = await this.analyzeDefectRiskWithLLM(
+          combinedCodeChanges,
+          predictions,
+          historicalDefects
+        );
+
+        // Enhance each prediction's recommendations with LLM insights
+        if (llmAnalysis) {
+          for (const prediction of predictions) {
+            prediction.recommendations = this.mergeRecommendationsWithLLM(
+              prediction.recommendations,
+              llmAnalysis
+            );
+          }
+
+          // Boost confidence if LLM analysis succeeded with high confidence
+          if (llmAnalysis.confidenceLevel > 0.7) {
+            modelConfidence = Math.min(1, modelConfidence * 1.1);
+          }
+        }
+      }
 
       // Store prediction for potential feedback
       await this.storePrediction(predictions);
@@ -164,10 +445,38 @@ export class DefectPredictorService implements IDefectPredictorService {
         predictions,
         modelConfidence,
         factors: Array.from(factors),
+        // ADR-051: Include LLM analysis in result if available
+        llmAnalysis: llmAnalysis ?? undefined,
       });
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }
+  }
+
+  /**
+   * ADR-051: Retrieve historical defect patterns for context
+   */
+  private async getHistoricalDefectPatterns(files: string[]): Promise<string[]> {
+    const patterns: string[] = [];
+
+    for (const file of files.slice(0, 5)) {
+      const bugHistory = await this.memory.get<{ patterns: string[] }>(
+        `${this.config.modelNamespace}:defect-patterns:${file}`
+      );
+      if (bugHistory?.patterns) {
+        patterns.push(...bugHistory.patterns);
+      }
+    }
+
+    // Also get general patterns
+    const generalPatterns = await this.memory.get<string[]>(
+      `${this.config.modelNamespace}:common-defect-patterns`
+    );
+    if (generalPatterns) {
+      patterns.push(...generalPatterns);
+    }
+
+    return [...new Set(patterns)].slice(0, 10);
   }
 
   /**
@@ -852,4 +1161,47 @@ export class DefectPredictorService implements IDefectPredictorService {
       { namespace: 'defect-intelligence', persist: true }
     );
   }
+}
+
+// ============================================================================
+// Factory Functions
+// ============================================================================
+
+/**
+ * Create a DefectPredictorService instance with default dependencies
+ * Maintains backward compatibility with existing code
+ *
+ * @param memory - Memory backend for data storage
+ * @param config - Optional configuration overrides
+ * @returns Configured DefectPredictorService instance
+ */
+export function createDefectPredictorService(
+  memory: MemoryBackend,
+  config: Partial<DefectPredictorConfig> = {}
+): DefectPredictorService {
+  return new DefectPredictorService(memory, config);
+}
+
+/**
+ * Create a DefectPredictorService instance with custom dependencies
+ * Used for testing or when custom implementations are needed (e.g., with LLM router)
+ *
+ * @param dependencies - All service dependencies including optional LLM router
+ * @param config - Optional configuration overrides
+ * @returns Configured DefectPredictorService instance
+ *
+ * @example
+ * ```typescript
+ * // Create with LLM enhancement enabled
+ * const service = createDefectPredictorServiceWithDependencies(
+ *   { memory, llmRouter: myRouter },
+ *   { enableLLMPrediction: true, llmModelTier: 2 }
+ * );
+ * ```
+ */
+export function createDefectPredictorServiceWithDependencies(
+  dependencies: DefectPredictorDependencies,
+  config: Partial<DefectPredictorConfig> = {}
+): DefectPredictorService {
+  return new DefectPredictorService(dependencies, config);
 }

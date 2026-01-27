@@ -1,6 +1,8 @@
 /**
  * Agentic QE v3 - Requirements Validation Service
  * Validates requirement quality and completeness
+ *
+ * ADR-051: Added LLM-powered requirements analysis for enhanced validation
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -18,6 +20,9 @@ import {
   DependencyEdge,
 } from '../interfaces.js';
 
+// ADR-051: LLM Router for AI-enhanced requirements analysis
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+
 /**
  * Configuration for the requirements validator
  */
@@ -26,6 +31,22 @@ export interface RequirementsValidatorConfig {
   minAcceptanceCriteria: number;
   strictMode: boolean;
   forbiddenTermsDefault: string[];
+  /** ADR-051: Enable LLM-powered requirements analysis */
+  enableLLMAnalysis?: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier?: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens?: number;
+}
+
+/**
+ * Dependencies for RequirementsValidatorService
+ * ADR-051: Added LLM router for AI-enhanced analysis
+ */
+export interface RequirementsValidatorDependencies {
+  memory: MemoryBackend;
+  /** ADR-051: Optional LLM router for AI-enhanced requirements analysis */
+  llmRouter?: HybridRouter;
 }
 
 const DEFAULT_CONFIG: RequirementsValidatorConfig = {
@@ -33,6 +54,9 @@ const DEFAULT_CONFIG: RequirementsValidatorConfig = {
   minAcceptanceCriteria: 1,
   strictMode: false,
   forbiddenTermsDefault: [],
+  enableLLMAnalysis: true, // On by default - opt-out (ADR-051)
+  llmModelTier: 2, // Sonnet by default for requirements analysis
+  llmMaxTokens: 2048,
 };
 
 /**
@@ -67,17 +91,287 @@ const AMBIGUOUS_TERMS: Record<string, string[]> = {
 };
 
 /**
+ * LLM-enhanced requirements analysis result
+ * ADR-051: Provides AI-powered insights into requirements quality
+ */
+export interface LLMRequirementsAnalysis {
+  /** Overall completeness score (0-100) */
+  completenessScore: number;
+  /** Testability score (0-100) */
+  testabilityScore: number;
+  /** Detected ambiguities with clarification suggestions */
+  ambiguities: Array<{
+    text: string;
+    issue: string;
+    suggestion: string;
+  }>;
+  /** Missing acceptance criteria suggestions */
+  missingCriteria: string[];
+  /** Improvement recommendations */
+  recommendations: string[];
+  /** Whether analysis was enhanced by LLM */
+  llmEnhanced: boolean;
+}
+
+/**
  * Requirements Validation Service Implementation
  * Validates requirement quality, detects ambiguity, and analyzes dependencies
+ *
+ * ADR-051: Added LLM-powered requirements analysis for enhanced validation
  */
 export class RequirementsValidatorService implements IRequirementsValidationService {
   private readonly config: RequirementsValidatorConfig;
+  private readonly memory: MemoryBackend;
+  private readonly llmRouter?: HybridRouter;
 
   constructor(
-    private readonly memory: MemoryBackend,
+    dependencies: RequirementsValidatorDependencies | MemoryBackend,
     config: Partial<RequirementsValidatorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Support both old and new constructor signatures for backward compatibility
+    if ('memory' in dependencies && typeof dependencies.memory === 'object') {
+      this.memory = dependencies.memory;
+      this.llmRouter = dependencies.llmRouter;
+    } else {
+      this.memory = dependencies as MemoryBackend;
+    }
+  }
+
+  // ============================================================================
+  // ADR-051: LLM Enhancement Methods
+  // ============================================================================
+
+  /**
+   * Check if LLM analysis is available and enabled
+   */
+  private isLLMAnalysisAvailable(): boolean {
+    return this.config.enableLLMAnalysis === true && this.llmRouter !== undefined;
+  }
+
+  /**
+   * Get model ID for the configured tier
+   */
+  private getModelForTier(tier: number): string {
+    switch (tier) {
+      case 1: return 'claude-3-5-haiku-20241022';
+      case 2: return 'claude-sonnet-4-20250514';
+      case 3: return 'claude-sonnet-4-20250514';
+      case 4: return 'claude-opus-4-5-20251101';
+      default: return 'claude-sonnet-4-20250514';
+    }
+  }
+
+  /**
+   * Analyze requirements with LLM for deeper insights
+   * ADR-051: Provides completeness assessment, ambiguity detection, and testability scoring
+   *
+   * @param requirements - Requirements to analyze
+   * @param codebaseContext - Optional context about the codebase (file structure, existing tests)
+   * @returns Enhanced analysis with LLM insights
+   */
+  async analyzeRequirementsWithLLM(
+    requirements: Requirement[],
+    codebaseContext?: string
+  ): Promise<Result<LLMRequirementsAnalysis>> {
+    // Return basic analysis if LLM is not available
+    if (!this.isLLMAnalysisAvailable()) {
+      return ok(this.getBasicAnalysis(requirements));
+    }
+
+    try {
+      const modelId = this.getModelForTier(this.config.llmModelTier ?? 2);
+      const prompt = this.buildRequirementsAnalysisPrompt(requirements, codebaseContext);
+
+      const response: ChatResponse = await this.llmRouter!.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are a senior requirements engineer and QA specialist. Analyze requirements for:
+1. Completeness - Are all necessary details present?
+2. Testability - Can acceptance criteria be converted to test cases?
+3. Ambiguity - Are there vague terms that need clarification?
+4. Missing criteria - What acceptance criteria should be added?
+
+Return JSON with:
+{
+  "completenessScore": <0-100>,
+  "testabilityScore": <0-100>,
+  "ambiguities": [{ "text": "", "issue": "", "suggestion": "" }],
+  "missingCriteria": ["suggested criterion 1", ...],
+  "recommendations": ["recommendation 1", ...]
+}
+
+Be specific and actionable in your suggestions.`,
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        model: modelId,
+        maxTokens: this.config.llmMaxTokens ?? 2048,
+        temperature: 0.3, // Low temperature for consistent analysis
+      });
+
+      if (response.content) {
+        try {
+          const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const analysis = JSON.parse(jsonMatch[0]);
+            const result: LLMRequirementsAnalysis = {
+              completenessScore: analysis.completenessScore ?? 50,
+              testabilityScore: analysis.testabilityScore ?? 50,
+              ambiguities: analysis.ambiguities ?? [],
+              missingCriteria: analysis.missingCriteria ?? [],
+              recommendations: analysis.recommendations ?? [],
+              llmEnhanced: true,
+            };
+
+            // Store analysis in memory for future reference
+            await this.storeAnalysisResult(requirements, result);
+
+            return ok(result);
+          }
+        } catch {
+          // JSON parse failed - use basic analysis
+          console.warn('[RequirementsValidator] LLM response parsing failed');
+        }
+      }
+
+      return ok(this.getBasicAnalysis(requirements));
+    } catch (error) {
+      console.warn('[RequirementsValidator] LLM analysis failed:', error);
+      return ok(this.getBasicAnalysis(requirements));
+    }
+  }
+
+  /**
+   * Build the prompt for requirements analysis
+   */
+  private buildRequirementsAnalysisPrompt(
+    requirements: Requirement[],
+    codebaseContext?: string
+  ): string {
+    let prompt = '## Requirements to Analyze\n\n';
+
+    for (const req of requirements) {
+      prompt += `### ${req.id}: ${req.title}\n`;
+      prompt += `**Type:** ${req.type}\n`;
+      prompt += `**Description:** ${req.description}\n`;
+
+      if (req.acceptanceCriteria.length > 0) {
+        prompt += `**Acceptance Criteria:**\n`;
+        for (const ac of req.acceptanceCriteria) {
+          prompt += `- ${ac}\n`;
+        }
+      } else {
+        prompt += `**Acceptance Criteria:** None provided\n`;
+      }
+      prompt += '\n';
+    }
+
+    if (codebaseContext) {
+      prompt += `## Codebase Context\n${codebaseContext}\n\n`;
+    }
+
+    prompt += `## Analysis Request
+Please analyze these requirements for:
+1. Completeness - score 0-100
+2. Testability - score 0-100
+3. Ambiguous terms that need clarification
+4. Missing acceptance criteria
+5. General recommendations for improvement`;
+
+    return prompt;
+  }
+
+  /**
+   * Get basic analysis without LLM (fallback)
+   */
+  private getBasicAnalysis(requirements: Requirement[]): LLMRequirementsAnalysis {
+    // Calculate basic scores based on heuristics
+    let totalCompleteness = 0;
+    let totalTestability = 0;
+    const ambiguities: LLMRequirementsAnalysis['ambiguities'] = [];
+    const missingCriteria: string[] = [];
+
+    for (const req of requirements) {
+      // Completeness: check for title, description, AC
+      let completeness = 0;
+      if (req.title && req.title.length >= 5) completeness += 30;
+      if (req.description && req.description.length >= 20) completeness += 30;
+      if (req.acceptanceCriteria.length >= 1) completeness += 40;
+      totalCompleteness += completeness;
+
+      // Testability: based on AC quality
+      let testability = req.acceptanceCriteria.length > 0 ? 50 : 0;
+      for (const ac of req.acceptanceCriteria) {
+        const hasGWT = ac.toLowerCase().includes('given') ||
+                      ac.toLowerCase().includes('when') ||
+                      ac.toLowerCase().includes('then');
+        if (hasGWT) testability += 10;
+      }
+      testability = Math.min(100, testability);
+      totalTestability += testability;
+
+      // Check for ambiguous terms
+      const textToCheck = `${req.title} ${req.description}`;
+      for (const term of Object.keys(AMBIGUOUS_TERMS)) {
+        if (textToCheck.toLowerCase().includes(term)) {
+          ambiguities.push({
+            text: term,
+            issue: `Term "${term}" is ambiguous`,
+            suggestion: `Replace with specific criteria like: ${AMBIGUOUS_TERMS[term].slice(0, 2).join(' or ')}`,
+          });
+        }
+      }
+
+      // Suggest missing criteria
+      if (req.acceptanceCriteria.length === 0) {
+        missingCriteria.push(`Add acceptance criteria for "${req.title}" using Given-When-Then format`);
+      }
+    }
+
+    const avgCompleteness = requirements.length > 0
+      ? Math.round(totalCompleteness / requirements.length)
+      : 0;
+    const avgTestability = requirements.length > 0
+      ? Math.round(totalTestability / requirements.length)
+      : 0;
+
+    return {
+      completenessScore: avgCompleteness,
+      testabilityScore: avgTestability,
+      ambiguities: ambiguities.slice(0, 5), // Limit to top 5
+      missingCriteria: missingCriteria.slice(0, 5),
+      recommendations: [
+        'Use Given-When-Then format for acceptance criteria',
+        'Replace ambiguous terms with measurable criteria',
+        'Include both positive and negative test scenarios',
+      ],
+      llmEnhanced: false,
+    };
+  }
+
+  /**
+   * Store LLM analysis result in memory
+   */
+  private async storeAnalysisResult(
+    requirements: Requirement[],
+    analysis: LLMRequirementsAnalysis
+  ): Promise<void> {
+    const analysisId = uuidv4();
+    await this.memory.set(
+      `requirements-validation:llm-analysis:${analysisId}`,
+      {
+        requirementIds: requirements.map(r => r.id),
+        analysis,
+        analyzedAt: new Date().toISOString(),
+      },
+      { namespace: 'requirements-validation', ttl: 86400 * 7 } // 7 days
+    );
   }
 
   /**
@@ -556,4 +850,52 @@ export class RequirementsValidatorService implements IRequirementsValidationServ
       { namespace: 'requirements-validation', ttl: 86400 * 7 }
     );
   }
+}
+
+// ============================================================================
+// Factory Functions
+// ============================================================================
+
+/**
+ * Create a RequirementsValidatorService instance with default dependencies
+ * Maintains backward compatibility with existing code
+ *
+ * @param memory - Memory backend for storing validation results
+ * @param config - Optional configuration overrides
+ * @returns Configured RequirementsValidatorService instance
+ */
+export function createRequirementsValidatorService(
+  memory: MemoryBackend,
+  config: Partial<RequirementsValidatorConfig> = {}
+): RequirementsValidatorService {
+  return new RequirementsValidatorService({ memory }, config);
+}
+
+/**
+ * Create a RequirementsValidatorService instance with custom dependencies
+ * Used for testing or when custom implementations are needed (e.g., LLM router)
+ *
+ * ADR-051: This factory enables LLM-powered requirements analysis
+ *
+ * @param dependencies - All service dependencies including optional LLM router
+ * @param config - Optional configuration overrides
+ * @returns Configured RequirementsValidatorService instance
+ *
+ * @example
+ * ```typescript
+ * // Create with LLM support enabled
+ * const validator = createRequirementsValidatorServiceWithDependencies(
+ *   { memory, llmRouter },
+ *   { enableLLMAnalysis: true, llmModelTier: 2 }
+ * );
+ *
+ * // Analyze requirements with LLM
+ * const analysis = await validator.analyzeRequirementsWithLLM(requirements);
+ * ```
+ */
+export function createRequirementsValidatorServiceWithDependencies(
+  dependencies: RequirementsValidatorDependencies,
+  config: Partial<RequirementsValidatorConfig> = {}
+): RequirementsValidatorService {
+  return new RequirementsValidatorService(dependencies, config);
 }

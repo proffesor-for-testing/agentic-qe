@@ -434,7 +434,7 @@ export async function handleTestGenerate(
 // Test Execution Handler
 // ============================================================================
 
-interface TestExecuteResult {
+export interface TestExecuteResult {
   taskId: string;
   status: string;
   total: number;
@@ -737,7 +737,7 @@ export async function handleCoverageAnalyze(
 // Quality Assessment Handler
 // ============================================================================
 
-interface QualityAssessResult {
+export interface QualityAssessResult {
   taskId: string;
   status: string;
   qualityScore: number;
@@ -840,7 +840,7 @@ export async function handleQualityAssess(
 // Security Scan Handler
 // ============================================================================
 
-interface SecurityScanResult {
+export interface SecurityScanResult {
   taskId: string;
   status: string;
   vulnerabilities: number;
@@ -957,7 +957,7 @@ export async function handleSecurityScan(
 // Contract Validation Handler
 // ============================================================================
 
-interface ContractValidateResult {
+export interface ContractValidateResult {
   taskId: string;
   status: string;
   valid: boolean;
@@ -1056,7 +1056,7 @@ export async function handleContractValidate(
 // Accessibility Test Handler
 // ============================================================================
 
-interface AccessibilityTestResult {
+export interface AccessibilityTestResult {
   taskId: string;
   status: string;
   passed: boolean;
@@ -1157,7 +1157,7 @@ export async function handleAccessibilityTest(
 // Chaos Test Handler
 // ============================================================================
 
-interface ChaosTestResult {
+export interface ChaosTestResult {
   taskId: string;
   status: string;
   faultType: string;
@@ -1262,13 +1262,13 @@ export async function handleChaosTest(
 // Defect Prediction Handler
 // ============================================================================
 
-interface DefectPredictParams {
+export interface DefectPredictParams {
   target?: string;
   lookback?: number;
   minConfidence?: number;
 }
 
-interface DefectPredictResult {
+export interface DefectPredictResult {
   taskId: string;
   status: string;
   predictedDefects: Array<{
@@ -1370,13 +1370,13 @@ export async function handleDefectPredict(
 // Requirements Validation Handler
 // ============================================================================
 
-interface RequirementsValidateParams {
+export interface RequirementsValidateParams {
   requirementsPath?: string;
   testPath?: string;
   generateBDD?: boolean;
 }
 
-interface RequirementsValidateResult {
+export interface RequirementsValidateResult {
   taskId: string;
   status: string;
   requirementsAnalyzed: number;
@@ -1477,13 +1477,13 @@ export async function handleRequirementsValidate(
 // Code Index Handler
 // ============================================================================
 
-interface CodeIndexParams {
+export interface CodeIndexParams {
   target?: string;
   incremental?: boolean;
   gitSince?: string;
 }
 
-interface CodeIndexResult {
+export interface CodeIndexResult {
   taskId: string;
   status: string;
   filesIndexed: number;

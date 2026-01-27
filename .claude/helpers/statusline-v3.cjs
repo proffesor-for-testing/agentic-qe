@@ -31,11 +31,18 @@ const CONFIG = {
   flashAttentionTarget: '2.49x-7.47x',
   intelligenceTargetExp: 1000, // 1000 experiences = 100%
 
-  // Paths
-  memoryDb: '.agentic-qe/memory.db',
+  // Paths (V3 database takes priority - actively used)
+  memoryDbPaths: [
+    'v3/.agentic-qe/memory.db',    // V3 primary location (new schema)
+    '.agentic-qe/memory.db',        // Root fallback (old schema)
+  ],
   cveCache: '.agentic-qe/.cve-cache',
   cveCacheAge: 3600, // 1 hour
-  learningConfig: '.agentic-qe/learning-config.json',
+  learningConfigPaths: [
+    'v3/.agentic-qe/learning-config.json',      // V3 config
+    '.agentic-qe/data/learning-config.json',    // Root data dir
+    '.agentic-qe/learning-config.json',         // Root fallback
+  ],
   coverageFile: 'coverage/coverage-summary.json',
 
   // Domain list
@@ -207,25 +214,77 @@ function getTestCounts(projectDir) {
 }
 
 function getLearningMetrics(projectDir) {
-  const dbPath = path.join(projectDir, CONFIG.memoryDb);
+  // Find active database (V3 takes priority)
+  let dbPath = null;
+  let isV3Schema = false;
 
-  // Direct sqlite3 queries for accuracy
-  const patterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM patterns')) || 0;
-  const synthesized = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM synthesized_patterns')) || 0;
-  const experiences = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM learning_experiences')) || 0;
-  const transfers = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM transfer_registry')) || 0;
-  const successRate = parseFloat(sqlite3Query(dbPath,
-    'SELECT ROUND(AVG(success_rate)*100) FROM patterns WHERE success_rate > 0', '0')) || 0;
+  for (const relPath of CONFIG.memoryDbPaths) {
+    const candidate = path.join(projectDir, relPath);
+    if (fileExists(candidate)) {
+      // Check which schema this database uses
+      const hasV3Tables = sqlite3Query(candidate,
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='qe_patterns'", '') !== '';
+      const hasOldTables = sqlite3Query(candidate,
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='patterns'", '') !== '';
+
+      if (hasV3Tables || hasOldTables) {
+        dbPath = candidate;
+        isV3Schema = hasV3Tables;
+        break;
+      }
+    }
+  }
+
+  if (!dbPath) {
+    return {
+      patterns: 0, synthesized: 0, totalPatterns: 0, experiences: 0,
+      transfers: 0, successRate: 0, intelligencePct: 0, mode: 'off',
+      dbSource: 'none'
+    };
+  }
+
+  let patterns = 0, synthesized = 0, experiences = 0, transfers = 0, successRate = 0;
+
+  if (isV3Schema) {
+    // V3 Schema: qe_patterns, qe_trajectories, sona_patterns
+    patterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM qe_patterns')) || 0;
+    synthesized = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM sona_patterns')) || 0;
+
+    // Experiences: trajectories + claude-flow imported sessions
+    const trajectories = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM qe_trajectories')) || 0;
+    const cfExperiences = parseInt(sqlite3Query(dbPath,
+      "SELECT COUNT(*) FROM kv_store WHERE key LIKE 'cf:%'")) || 0;
+    experiences = trajectories + cfExperiences;
+
+    // V3 uses rl_q_values for transfer learning
+    transfers = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM rl_q_values')) || 0;
+
+    // Success rate from sona_patterns (claude-flow imports have outcome_success)
+    successRate = parseFloat(sqlite3Query(dbPath,
+      'SELECT ROUND(AVG(outcome_success)*100) FROM sona_patterns WHERE outcome_success > 0', '0')) || 0;
+  } else {
+    // Old Schema: patterns, learning_experiences, synthesized_patterns
+    patterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM patterns')) || 0;
+    synthesized = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM synthesized_patterns')) || 0;
+    experiences = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM learning_experiences')) || 0;
+    transfers = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM transfer_registry')) || 0;
+    successRate = parseFloat(sqlite3Query(dbPath,
+      'SELECT ROUND(AVG(success_rate)*100) FROM patterns WHERE success_rate > 0', '0')) || 0;
+  }
 
   // Intelligence % based on experiences (target: 1000 = 100%)
-  const intelligencePct = Math.min(100, Math.floor((experiences / CONFIG.intelligenceTargetExp) * 100));
+  const totalLearningData = patterns + synthesized + experiences;
+  const intelligencePct = Math.min(100, Math.floor((totalLearningData / CONFIG.intelligenceTargetExp) * 100));
 
-  // Get learning mode from config
+  // Get learning mode from config (check multiple paths)
   let mode = 'off';
-  const configPath = path.join(projectDir, CONFIG.learningConfig);
-  const config = readJsonFile(configPath);
-  if (config.enabled && config.scheduler?.mode) {
-    mode = config.scheduler.mode;
+  for (const relPath of CONFIG.learningConfigPaths) {
+    const configPath = path.join(projectDir, relPath);
+    const config = readJsonFile(configPath);
+    if (config.enabled && config.scheduler?.mode) {
+      mode = config.scheduler.mode;
+      break;
+    }
   }
 
   return {
@@ -237,6 +296,7 @@ function getLearningMetrics(projectDir) {
     successRate,
     intelligencePct,
     mode,
+    dbSource: isV3Schema ? 'v3' : 'root',
   };
 }
 
@@ -375,16 +435,19 @@ function getArchitectureMetrics(projectDir) {
     }
   }
 
-  // AgentDB size
+  // AgentDB size - check both V3 and root databases
   let agentDbSize = '';
-  const dbPath = path.join(projectDir, CONFIG.memoryDb);
-  if (fileExists(dbPath)) {
-    try {
-      const stats = fs.statSync(dbPath);
-      const sizeKB = Math.floor(stats.size / 1024);
-      agentDbSize = sizeKB > 1024 ? `${Math.floor(sizeKB / 1024)}M` : `${sizeKB}K`;
-    } catch {
-      // Ignore
+  for (const relPath of CONFIG.memoryDbPaths) {
+    const dbPath = path.join(projectDir, relPath);
+    if (fileExists(dbPath)) {
+      try {
+        const stats = fs.statSync(dbPath);
+        const sizeKB = Math.floor(stats.size / 1024);
+        agentDbSize = sizeKB > 1024 ? `${Math.floor(sizeKB / 1024)}M` : `${sizeKB}K`;
+        break; // Use first found database
+      } catch {
+        // Ignore
+      }
     }
   }
 
@@ -474,11 +537,14 @@ function generateStatusline(data) {
                         data.learning.mode === 'scheduled' ? `${c.yellow}◐` : `${c.dim}○`;
   const transferIndicator = data.learning.transfers > 10 ? `${c.brightGreen}●` :
                             data.learning.transfers > 0 ? `${c.yellow}◐` : `${c.dim}○`;
+  const dbSourceIndicator = data.learning.dbSource === 'v3' ? `${c.brightCyan}v3` :
+                            data.learning.dbSource === 'root' ? `${c.yellow}root` : `${c.dim}none`;
 
   let line3 = `${c.brightPurple}🎓 Learning${c.reset}     ${c.cyan}Patterns${c.reset} ${c.white}${padLeft(data.learning.totalPatterns, 4)}${c.reset}`;
   line3 += `  ${c.dim}│${c.reset}  ${c.cyan}Exp${c.reset} ${c.white}${padLeft(data.learning.experiences, 4)}${c.reset}`;
   line3 += `  ${c.dim}│${c.reset}  ${c.cyan}Mode${c.reset} ${modeIndicator}${data.learning.mode}${c.reset}`;
   line3 += `  ${c.dim}│${c.reset}  ${c.cyan}Transfer${c.reset} ${transferIndicator}${data.learning.transfers}${c.reset}`;
+  line3 += `  ${c.dim}│${c.reset}  ${c.cyan}DB${c.reset} ${dbSourceIndicator}${c.reset}`;
   lines.push(line3);
 
   // Line 4: Architecture Status
@@ -508,7 +574,10 @@ function generateJSON(data) {
     user: data.user,
     domains: data.domains,
     agents: data.agents,
-    learning: data.learning,
+    learning: {
+      ...data.learning,
+      dbSource: data.learning.dbSource,
+    },
     security: data.cve,
     context: data.context,
     architecture: data.arch,

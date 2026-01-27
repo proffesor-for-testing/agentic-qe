@@ -1,6 +1,8 @@
 /**
  * Agentic QE v3 - Gap Detection Service
  * Implements IGapDetectionService with risk-based prioritization
+ *
+ * ADR-051: Added LLM-powered gap analysis for intelligent prioritization
  */
 
 import { Result, ok, err, Severity } from '../../../shared/types';
@@ -11,6 +13,9 @@ import {
   CoverageGap,
   FileCoverage,
 } from '../interfaces';
+
+// ADR-051: LLM Router for AI-enhanced gap analysis
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 
 // ============================================================================
 // Service Interface
@@ -40,6 +45,70 @@ export interface TestSuggestion {
 }
 
 // ============================================================================
+// Configuration and Dependencies
+// ============================================================================
+
+/**
+ * Configuration for GapDetectorService
+ */
+export interface GapDetectorConfig {
+  /** Minimum coverage threshold (default: 80) */
+  minCoverage?: number;
+  /** ADR-051: Enable LLM-powered gap analysis */
+  enableLLMAnalysis?: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier?: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens?: number;
+}
+
+/**
+ * Dependencies for GapDetectorService
+ * ADR-051: Added LLM router for AI-enhanced analysis
+ */
+export interface GapDetectorDependencies {
+  memory: MemoryBackend;
+  /** ADR-051: Optional LLM router for AI-enhanced gap analysis */
+  llmRouter?: HybridRouter;
+}
+
+/**
+ * LLM-enhanced gap analysis result
+ * Provides intelligent prioritization and suggestions
+ */
+export interface LLMGapAnalysis {
+  /** Risk-weighted prioritization of gaps */
+  prioritizedGaps: Array<{
+    gapId: string;
+    riskWeight: number;
+    explanation: string;
+    businessImpact: 'critical' | 'high' | 'medium' | 'low';
+  }>;
+  /** Suggested test cases to fill gaps */
+  suggestedTests: Array<{
+    gapId: string;
+    testDescription: string;
+    testType: 'unit' | 'integration' | 'e2e';
+    estimatedEffort: number; // hours
+  }>;
+  /** Estimated effort to achieve target coverage */
+  effortEstimate: {
+    totalHours: number;
+    confidence: number; // 0-1
+    breakdown: Record<string, number>; // by file
+  };
+  /** Overall analysis summary */
+  summary: string;
+}
+
+const DEFAULT_CONFIG: GapDetectorConfig = {
+  minCoverage: 80,
+  enableLLMAnalysis: true, // On by default - opt-out
+  llmModelTier: 2, // Sonnet by default for balanced cost/quality
+  llmMaxTokens: 2048,
+};
+
+// ============================================================================
 // Service Implementation
 // ============================================================================
 
@@ -47,7 +116,224 @@ export class GapDetectorService implements IGapDetectionService {
   private static readonly DEFAULT_MIN_COVERAGE = 80;
   private static readonly VECTOR_DIMENSION = 128;
 
-  constructor(private readonly memory: MemoryBackend) {}
+  private readonly memory: MemoryBackend;
+  private readonly config: GapDetectorConfig;
+  private readonly llmRouter?: HybridRouter;
+
+  /**
+   * Create a GapDetectorService instance
+   * Supports both old (MemoryBackend only) and new (dependencies + config) signatures
+   *
+   * @param dependenciesOrMemory - Either a GapDetectorDependencies object or a MemoryBackend
+   * @param config - Optional configuration (only used with new signature)
+   */
+  constructor(dependenciesOrMemory: GapDetectorDependencies | MemoryBackend, config?: GapDetectorConfig) {
+    // Support both old and new constructor signatures for backward compatibility
+    if ('memory' in dependenciesOrMemory) {
+      // New signature: dependencies object
+      this.memory = dependenciesOrMemory.memory;
+      this.llmRouter = dependenciesOrMemory.llmRouter;
+      this.config = { ...DEFAULT_CONFIG, ...config };
+    } else {
+      // Old signature: just memory backend (backward compatible)
+      this.memory = dependenciesOrMemory;
+      this.llmRouter = undefined;
+      this.config = { ...DEFAULT_CONFIG };
+    }
+  }
+
+  // ============================================================================
+  // ADR-051: LLM Enhancement Methods
+  // ============================================================================
+
+  /**
+   * Check if LLM analysis is available and enabled
+   */
+  private isLLMAnalysisAvailable(): boolean {
+    return this.config.enableLLMAnalysis === true && this.llmRouter !== undefined;
+  }
+
+  /**
+   * Get model ID for the configured tier
+   */
+  private getModelForTier(tier: number): string {
+    switch (tier) {
+      case 1: return 'claude-3-5-haiku-20241022';
+      case 2: return 'claude-sonnet-4-20250514';
+      case 3: return 'claude-sonnet-4-20250514';
+      case 4: return 'claude-opus-4-5-20251101';
+      default: return 'claude-sonnet-4-20250514';
+    }
+  }
+
+  /**
+   * Analyze coverage gaps using LLM for intelligent prioritization
+   * Provides risk-weighted analysis, test suggestions, and effort estimates
+   */
+  async analyzeGapsWithLLM(
+    gaps: CoverageGap[],
+    codeContext?: string
+  ): Promise<Result<LLMGapAnalysis, Error>> {
+    if (!this.llmRouter) {
+      return err(new Error('LLM router not available'));
+    }
+
+    if (gaps.length === 0) {
+      return ok({
+        prioritizedGaps: [],
+        suggestedTests: [],
+        effortEstimate: {
+          totalHours: 0,
+          confidence: 1,
+          breakdown: {},
+        },
+        summary: 'No coverage gaps to analyze.',
+      });
+    }
+
+    try {
+      const prompt = this.buildGapAnalysisPrompt(gaps, codeContext);
+      const modelId = this.getModelForTier(this.config.llmModelTier ?? 2);
+
+      const response: ChatResponse = await this.llmRouter.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are a senior QE engineer analyzing coverage gaps. Provide:
+1. Risk-weighted prioritization (which gaps are most dangerous)
+2. Business impact assessment for each gap
+3. Specific test cases to fill each gap
+4. Effort estimates (in hours) to achieve target coverage
+
+Return JSON in this exact format:
+{
+  "prioritizedGaps": [{ "gapId": "...", "riskWeight": 0.8, "explanation": "...", "businessImpact": "high" }],
+  "suggestedTests": [{ "gapId": "...", "testDescription": "...", "testType": "unit", "estimatedEffort": 2 }],
+  "effortEstimate": { "totalHours": 10, "confidence": 0.8, "breakdown": { "file.ts": 5 } },
+  "summary": "Brief analysis summary..."
+}`,
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        model: modelId,
+        maxTokens: this.config.llmMaxTokens ?? 2048,
+        temperature: 0.3, // Low temperature for consistent analysis
+      });
+
+      if (response.content) {
+        const analysis = this.parseGapAnalysisResponse(response.content, gaps);
+        return ok(analysis);
+      }
+
+      return err(new Error('Empty response from LLM'));
+    } catch (error) {
+      console.warn('[GapDetector] LLM analysis failed:', error);
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Build prompt for gap analysis
+   */
+  private buildGapAnalysisPrompt(gaps: CoverageGap[], codeContext?: string): string {
+    let prompt = `## Coverage Gaps to Analyze\n\n`;
+
+    for (const gap of gaps) {
+      prompt += `### Gap: ${gap.id}\n`;
+      prompt += `- File: ${gap.file}\n`;
+      prompt += `- Lines: ${gap.lines.length > 10 ? `${gap.lines.slice(0, 5).join(', ')}... (${gap.lines.length} total)` : gap.lines.join(', ')}\n`;
+      prompt += `- Branches: ${gap.branches.length}\n`;
+      prompt += `- Current Risk Score: ${gap.riskScore.toFixed(2)}\n`;
+      prompt += `- Severity: ${gap.severity}\n`;
+      prompt += `- Recommendation: ${gap.recommendation}\n\n`;
+    }
+
+    if (codeContext) {
+      prompt += `## Code Context\n\`\`\`typescript\n${codeContext.slice(0, 2000)}\n\`\`\`\n\n`;
+    }
+
+    prompt += `## Analysis Request\n`;
+    prompt += `1. Prioritize these gaps by actual risk (not just line count)\n`;
+    prompt += `2. Explain why each gap matters from a business perspective\n`;
+    prompt += `3. Suggest specific test cases to fill each gap\n`;
+    prompt += `4. Estimate effort to achieve 80% coverage\n`;
+
+    return prompt;
+  }
+
+  /**
+   * Parse LLM response into structured gap analysis
+   */
+  private parseGapAnalysisResponse(content: string, gaps: CoverageGap[]): LLMGapAnalysis {
+    try {
+      // Try to extract JSON from response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          prioritizedGaps: parsed.prioritizedGaps || [],
+          suggestedTests: parsed.suggestedTests || [],
+          effortEstimate: parsed.effortEstimate || {
+            totalHours: this.calculateTotalEffort(gaps),
+            confidence: 0.5,
+            breakdown: {},
+          },
+          summary: parsed.summary || 'Analysis complete.',
+        };
+      }
+    } catch {
+      // JSON parsing failed - return fallback analysis
+    }
+
+    // Fallback: create basic analysis from existing data
+    return {
+      prioritizedGaps: gaps.map((gap) => ({
+        gapId: gap.id,
+        riskWeight: gap.riskScore,
+        explanation: gap.recommendation,
+        businessImpact: this.severityToBusinessImpact(gap.severity),
+      })),
+      suggestedTests: gaps.slice(0, 5).map((gap) => ({
+        gapId: gap.id,
+        testDescription: `Test coverage for ${gap.file} lines ${gap.lines[0]}-${gap.lines[gap.lines.length - 1] || gap.lines[0]}`,
+        testType: 'unit' as const,
+        estimatedEffort: Math.ceil(gap.lines.length / 15),
+      })),
+      effortEstimate: {
+        totalHours: this.calculateTotalEffort(gaps),
+        confidence: 0.5,
+        breakdown: this.calculateEffortBreakdown(gaps),
+      },
+      summary: `Analyzed ${gaps.length} coverage gaps. LLM response parsing failed, using heuristic analysis.`,
+    };
+  }
+
+  /**
+   * Convert severity to business impact
+   */
+  private severityToBusinessImpact(severity: Severity): 'critical' | 'high' | 'medium' | 'low' {
+    switch (severity) {
+      case 'critical': return 'critical';
+      case 'high': return 'high';
+      case 'medium': return 'medium';
+      default: return 'low';
+    }
+  }
+
+  /**
+   * Calculate effort breakdown by file
+   */
+  private calculateEffortBreakdown(gaps: CoverageGap[]): Record<string, number> {
+    const breakdown: Record<string, number> = {};
+    for (const gap of gaps) {
+      const effort = Math.ceil(gap.lines.length / 15);
+      breakdown[gap.file] = (breakdown[gap.file] || 0) + effort;
+    }
+    return breakdown;
+  }
 
   /**
    * Detect uncovered code regions using vector similarity for O(log n) analysis
@@ -589,4 +875,38 @@ interface UncoveredRegion {
   end: number;
   lines: number[];
   size: number;
+}
+
+// ============================================================================
+// Factory Functions
+// ============================================================================
+
+/**
+ * Create a GapDetectorService instance with default dependencies
+ * Maintains backward compatibility with existing code
+ *
+ * @param memory - Memory backend for pattern storage
+ * @param config - Optional configuration overrides
+ * @returns Configured GapDetectorService instance
+ */
+export function createGapDetectorService(
+  memory: MemoryBackend,
+  config?: GapDetectorConfig
+): GapDetectorService {
+  return new GapDetectorService(memory, config);
+}
+
+/**
+ * Create a GapDetectorService instance with custom dependencies
+ * Used when LLM router or other custom implementations are needed
+ *
+ * @param dependencies - All service dependencies (memory + optional llmRouter)
+ * @param config - Optional configuration overrides
+ * @returns Configured GapDetectorService instance
+ */
+export function createGapDetectorServiceWithDependencies(
+  dependencies: GapDetectorDependencies,
+  config?: GapDetectorConfig
+): GapDetectorService {
+  return new GapDetectorService(dependencies, config);
 }

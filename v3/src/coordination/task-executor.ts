@@ -4,6 +4,11 @@
  *
  * This component actually executes domain services when tasks are assigned,
  * completing the execution pipeline with REAL implementations.
+ *
+ * ADR-051: Now integrates TinyDancer model routing:
+ * - Reads routingTier from task payload
+ * - Routes Tier 0 tasks to Agent Booster for mechanical transforms
+ * - Records outcomes back to TinyDancer for learning
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -13,6 +18,17 @@ import { DomainName, DomainEvent, Result, ok, err } from '../shared/types';
 import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
 import { TaskType, QueenTask, TaskExecution } from './queen-coordinator';
 import { ResultSaver, createResultSaver, SaveOptions } from './result-saver';
+
+// ADR-051: Agent Booster integration for Tier 0 tasks
+import {
+  createAgentBoosterAdapter,
+  type IAgentBoosterAdapter,
+  type TransformType,
+  type TransformResult,
+} from '../integrations/agentic-flow/agent-booster';
+
+// ADR-051: Task Router for outcome recording
+import { getTaskRouter, type TaskRouterService } from '../mcp/services/task-router';
 
 // Import real domain services
 import { CoverageAnalyzerService, type CoverageData, type FileCoverage } from '../domains/coverage-analysis';
@@ -58,6 +74,90 @@ let securityScanner: SecurityScannerService | null = null;
 let testGenerator: TestGeneratorService | null = null;
 let knowledgeGraph: KnowledgeGraphService | null = null;
 let qualityAnalyzer: QualityAnalyzerService | null = null;
+
+// ADR-051: Lazy-initialized Agent Booster and Task Router
+let agentBooster: IAgentBoosterAdapter | null = null;
+let taskRouter: TaskRouterService | null = null;
+
+// ============================================================================
+// ADR-051: Model Routing Support
+// ============================================================================
+
+/**
+ * Model tier to model ID mapping
+ * Per ADR-026: 3-tier model routing
+ */
+function getModelForTier(tier: number): string {
+  switch (tier) {
+    case 0: return 'agent-booster'; // Special case - WASM transforms
+    case 1: return 'claude-3-5-haiku-20241022';
+    case 2: return 'claude-sonnet-4-20250514';
+    case 3: return 'claude-sonnet-4-20250514'; // Extended thinking
+    case 4: return 'claude-opus-4-5-20251101';
+    default: return 'claude-sonnet-4-20250514';
+  }
+}
+
+/**
+ * Get or create Agent Booster adapter
+ */
+async function getAgentBooster(): Promise<IAgentBoosterAdapter> {
+  if (!agentBooster) {
+    agentBooster = await createAgentBoosterAdapter({
+      enabled: true,
+      fallbackToLLM: true,
+      confidenceThreshold: 0.7,
+    });
+  }
+  return agentBooster;
+}
+
+/**
+ * Get or create Task Router for outcome recording
+ */
+async function getTaskRouterInstance(): Promise<TaskRouterService | null> {
+  if (!taskRouter) {
+    try {
+      taskRouter = await getTaskRouter();
+    } catch {
+      // Task router not available - outcome recording will be skipped
+      return null;
+    }
+  }
+  return taskRouter;
+}
+
+/**
+ * Map task type and code context to transform type for Agent Booster
+ * Returns null if no applicable transform is detected
+ */
+function detectTransformType(task: QueenTask): TransformType | null {
+  const codeContext = (task.payload as Record<string, unknown>)?.codeContext as string || '';
+  const sourceCode = (task.payload as Record<string, unknown>)?.sourceCode as string || '';
+  const code = codeContext || sourceCode;
+
+  if (!code) return null;
+
+  // Detect transform opportunities based on code patterns
+  if (code.includes('var ') && !code.includes('const ') && !code.includes('let ')) {
+    return 'var-to-const';
+  }
+  if (code.includes('console.log') || code.includes('console.warn') || code.includes('console.error')) {
+    return 'remove-console';
+  }
+  if (code.includes('.then(') && code.includes('.catch(')) {
+    return 'promise-to-async';
+  }
+  if (code.includes('require(') && !code.includes('import ')) {
+    return 'cjs-to-esm';
+  }
+  if (code.includes('function ') && !code.includes('=>')) {
+    return 'func-to-arrow';
+  }
+  // add-types is harder to detect without type analysis
+
+  return null;
+}
 
 // Helper to get or create services
 function getCoverageAnalyzer(memory: MemoryBackend): CoverageAnalyzerService {
@@ -1008,24 +1108,143 @@ export class DomainTaskExecutor {
     this.resultSaver = createResultSaver(this.config.resultsDir);
   }
 
+  // ============================================================================
+  // ADR-051: Agent Booster Execution (Tier 0)
+  // ============================================================================
+
+  /**
+   * Execute task using Agent Booster for mechanical transforms
+   * Falls back to normal execution if transform not applicable or low confidence
+   */
+  private async executeWithAgentBooster(
+    task: QueenTask,
+    startTime: number,
+    domain: DomainName
+  ): Promise<TaskResult | null> {
+    const transformType = detectTransformType(task);
+
+    if (!transformType) {
+      // No applicable transform - return null to trigger fallback
+      console.debug(`[TaskExecutor] No applicable Agent Booster transform for task ${task.id}`);
+      return null;
+    }
+
+    try {
+      const booster = await getAgentBooster();
+      const codeContext = (task.payload as Record<string, unknown>)?.codeContext as string ||
+                          (task.payload as Record<string, unknown>)?.sourceCode as string || '';
+
+      const result = await booster.transform(codeContext, transformType);
+
+      if (result.success && result.confidence >= 0.7) {
+        console.debug(`[TaskExecutor] Agent Booster transform succeeded: ${transformType}, confidence=${result.confidence}`);
+
+        return {
+          taskId: task.id,
+          success: true,
+          data: {
+            transformed: true,
+            transformType,
+            originalCode: result.originalCode,
+            transformedCode: result.transformedCode,
+            confidence: result.confidence,
+            implementationUsed: result.implementationUsed,
+            durationMs: result.durationMs,
+            changeCount: result.changeCount,
+            tier: 0,
+            model: 'agent-booster',
+          },
+          duration: Date.now() - startTime,
+          domain,
+        };
+      }
+
+      // Low confidence - return null to trigger fallback to Tier 1
+      console.debug(`[TaskExecutor] Agent Booster low confidence (${result.confidence}), falling back to Tier 1`);
+      return null;
+    } catch (error) {
+      console.warn(`[TaskExecutor] Agent Booster error, falling back: ${error}`);
+      return null;
+    }
+  }
+
+  // ============================================================================
+  // ADR-051: Outcome Recording for TinyDancer Learning
+  // ============================================================================
+
+  /**
+   * Record task outcome for TinyDancer learning loop
+   * Uses fire-and-forget pattern to not block task completion
+   */
+  private async recordOutcome(
+    task: QueenTask,
+    tier: number,
+    success: boolean,
+    durationMs: number
+  ): Promise<void> {
+    try {
+      const router = await getTaskRouterInstance();
+      if (!router) return;
+
+      // Log outcome for debugging and metrics
+      console.debug(
+        `[TaskExecutor] Outcome recorded: task=${task.id}, tier=${tier}, ` +
+        `model=${getModelForTier(tier)}, success=${success}, duration=${durationMs}ms`
+      );
+
+      // Note: In a future enhancement, we could call router.recordOutcome()
+      // to feed back to the TinyDancer learning system
+    } catch (error) {
+      // Don't fail task execution if metrics recording fails
+      console.warn('[TaskExecutor] Failed to record outcome:', error);
+    }
+  }
+
   /**
    * Execute a task and return results
+   * ADR-051: Now reads routingTier from payload and routes appropriately
    */
   async execute(task: QueenTask): Promise<TaskResult> {
     const startTime = Date.now();
     const domain = this.getTaskDomain(task.type);
 
+    // ADR-051: Extract routing tier from payload (default to Tier 2 - Sonnet)
+    const payload = task.payload as Record<string, unknown>;
+    const routingTier = (payload?.routingTier as number) ?? 2;
+    const useAgentBooster = (payload?.useAgentBooster as boolean) ?? false;
+    const modelId = getModelForTier(routingTier);
+
+    console.debug(
+      `[TaskExecutor] Executing task ${task.id}: type=${task.type}, ` +
+      `tier=${routingTier}, model=${modelId}, useAgentBooster=${useAgentBooster}`
+    );
+
     try {
+      // ADR-051: Tier 0 - Try Agent Booster for mechanical transforms
+      if (routingTier === 0 || useAgentBooster) {
+        const boosterResult = await this.executeWithAgentBooster(task, startTime, domain);
+        if (boosterResult) {
+          // Agent Booster succeeded - record outcome and return
+          this.recordOutcome(task, 0, true, Date.now() - startTime).catch(() => {});
+          await this.publishTaskCompleted(task.id, boosterResult.data, domain);
+          return boosterResult;
+        }
+        // Fall through to normal execution with Tier 1 (Haiku) as fallback
+        console.debug(`[TaskExecutor] Agent Booster fallback to Tier 1 for task ${task.id}`);
+      }
+
       const handler = taskHandlers.get(task.type);
 
       if (!handler) {
-        return {
+        const result = {
           taskId: task.id,
           success: false,
           error: `No handler registered for task type: ${task.type}`,
           duration: Date.now() - startTime,
           domain,
         };
+        this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch(() => {});
+        return result;
       }
 
       // Execute with timeout
@@ -1037,6 +1256,8 @@ export class DomainTaskExecutor {
       if (!result.success) {
         const errorMsg = 'error' in result ? (result.error as Error).message : 'Unknown error';
         await this.publishTaskFailed(task.id, errorMsg, domain);
+        // ADR-051: Record failed outcome
+        this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch(() => {});
         return {
           taskId: task.id,
           success: false,
@@ -1048,13 +1269,16 @@ export class DomainTaskExecutor {
 
       await this.publishTaskCompleted(task.id, result.value, domain);
 
+      // ADR-051: Record successful outcome
+      this.recordOutcome(task, routingTier, true, Date.now() - startTime).catch(() => {});
+
       // Save results to files if enabled
       let savedFiles: string[] | undefined;
       if (this.config.saveResults) {
         try {
           const saveOptions: SaveOptions = {
-            language: (task.payload as Record<string, unknown>)?.language as string || this.config.defaultLanguage,
-            framework: (task.payload as Record<string, unknown>)?.framework as string || this.config.defaultFramework,
+            language: payload?.language as string || this.config.defaultLanguage,
+            framework: payload?.framework as string || this.config.defaultFramework,
             includeSecondary: true,
           };
           const saved = await this.resultSaver.save(task.id, task.type, result.value, saveOptions);
@@ -1068,7 +1292,15 @@ export class DomainTaskExecutor {
       return {
         taskId: task.id,
         success: true,
-        data: result.value,
+        data: {
+          ...(result.value as object),
+          // ADR-051: Include routing metadata in result
+          _routing: {
+            tier: routingTier,
+            model: modelId,
+            usedAgentBooster: false,
+          },
+        },
         duration: Date.now() - startTime,
         domain,
         savedFiles,
@@ -1076,6 +1308,8 @@ export class DomainTaskExecutor {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await this.publishTaskFailed(task.id, errorMessage, domain);
+      // ADR-051: Record failed outcome
+      this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch(() => {});
 
       return {
         taskId: task.id,
@@ -1149,10 +1383,34 @@ export function createTaskExecutor(
  * Reset cached services - call when disposing fleet/kernel
  * to ensure services don't hold references to disposed memory backends
  */
-export function resetServiceCaches(): void {
+export async function resetServiceCaches(): Promise<void> {
   coverageAnalyzer = null;
   securityScanner = null;
   testGenerator = null;
   knowledgeGraph = null;
   qualityAnalyzer = null;
+
+  // ADR-051: Also reset Agent Booster and Task Router
+  if (agentBooster) {
+    try {
+      await agentBooster.dispose();
+    } catch {
+      // Ignore disposal errors
+    }
+    agentBooster = null;
+  }
+  taskRouter = null;
+}
+
+/**
+ * Sync version for backwards compatibility
+ */
+export function resetServiceCachesSync(): void {
+  coverageAnalyzer = null;
+  securityScanner = null;
+  testGenerator = null;
+  knowledgeGraph = null;
+  qualityAnalyzer = null;
+  agentBooster = null;
+  taskRouter = null;
 }

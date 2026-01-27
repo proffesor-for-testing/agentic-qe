@@ -36,8 +36,9 @@ import {
   PrioritizedVisualTest,
 } from './interfaces.js';
 import {
-  VisualTesterService,
+  createVisualTesterService,
   VisualTesterConfig,
+  VisualTesterService,
 } from './services/visual-tester.js';
 import {
   AccessibilityTesterService,
@@ -50,6 +51,31 @@ import {
 import { A2CAlgorithm } from '../../integrations/rl-suite/algorithms/a2c.js';
 import { QEFlashAttention, createQEFlashAttention } from '../../integrations/ruvector/wrappers.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
+
+// ============================================================================
+// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
+// ============================================================================
+
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type IMinCutAwareDomain,
+  type MinCutAwareConfig,
+} from '../../coordination/mixins/mincut-aware-domain';
+
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type IConsensusEnabledDomain,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain';
+
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
+
+import {
+  type DomainFinding,
+  createDomainFinding,
+} from '../../coordination/consensus/domain-findings';
 
 /**
  * Workflow status tracking
@@ -75,6 +101,15 @@ export interface CoordinatorConfig {
   enableParallelViewportTesting: boolean;
   enableA2C: boolean;
   enableFlashAttention: boolean;
+  // MinCut integration config (ADR-047)
+  enableMinCutAwareness: boolean;
+  topologyHealthThreshold: number;
+  pauseOnCriticalTopology: boolean;
+  // Consensus integration config (MM-001)
+  enableConsensus: boolean;
+  consensusThreshold: number;
+  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
+  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -84,6 +119,15 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   enableParallelViewportTesting: true,
   enableA2C: true,
   enableFlashAttention: true,
+  // MinCut integration defaults (ADR-047)
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
+  // Consensus integration defaults (MM-001)
+  enableConsensus: true,
+  consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
+  consensusMinModels: 2,
 };
 
 /**
@@ -93,6 +137,11 @@ export interface IVisualAccessibilityCoordinatorExtended extends IVisualAccessib
   initialize(): Promise<void>;
   dispose(): Promise<void>;
   getActiveWorkflows(): WorkflowStatus[];
+  // MinCut integration methods (ADR-047)
+  setMinCutBridge(bridge: QueenMinCutBridge): void;
+  isTopologyHealthy(): boolean;
+  // Consensus integration methods (MM-001)
+  isConsensusAvailable(): boolean;
 }
 
 /**
@@ -113,6 +162,15 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
   // Flash Attention Integration: QEFlashAttention for image similarity
   private flashAttention?: QEFlashAttention;
 
+  // MinCut topology awareness mixin (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // Consensus verification mixin (MM-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
+
+  // Domain identifier for mixin initialization
+  private readonly domainName = 'visual-accessibility';
+
   private initialized = false;
 
   constructor(
@@ -125,7 +183,32 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
     responsiveConfig: Partial<ResponsiveTestConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.visualTester = new VisualTesterService(memory, visualConfig);
+
+    // Initialize MinCut-aware mixin (ADR-047)
+    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
+    });
+
+    // Initialize Consensus-enabled mixin (MM-001)
+    // Verifies accessibility violations, visual regressions, and WCAG non-compliance
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      verifyFindingTypes: [
+        'accessibility-violation',
+        'visual-regression',
+        'wcag-non-compliance',
+      ],
+      strategy: this.config.consensusStrategy,
+      minModels: this.config.consensusMinModels,
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+    });
+
+    this.visualTester = createVisualTesterService(memory, visualConfig);
     this.accessibilityTester = new AccessibilityTesterService(memory, accessibilityConfig);
     this.responsiveTester = new ResponsiveTesterService(memory, responsiveConfig);
   }
@@ -168,6 +251,17 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
     this.subscribeToEvents();
     await this.loadWorkflowState();
 
+    // Initialize Consensus engine if enabled (MM-001)
+    if (this.config.enableConsensus) {
+      try {
+        await (this.consensusMixin as any).initializeConsensus();
+        console.log(`[${this.domainName}] Consensus engine initialized`);
+      } catch (error) {
+        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
+        console.warn(`[${this.domainName}] Continuing without consensus verification`);
+      }
+    }
+
     this.initialized = true;
   }
 
@@ -176,6 +270,16 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
    */
   async dispose(): Promise<void> {
     await this.saveWorkflowState();
+
+    // Dispose Consensus engine (MM-001)
+    try {
+      await (this.consensusMixin as any).disposeConsensus();
+    } catch (error) {
+      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
+    }
+
+    // Dispose MinCut mixin (ADR-047)
+    this.minCutMixin.dispose();
 
     // Dispose Flash Attention
     if (this.flashAttention) {
@@ -214,6 +318,16 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
     try {
       this.startWorkflow(workflowId, 'visual');
+
+      // V3: Check topology health before proceeding (ADR-047)
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn('[VisualAccessibility] Topology degraded, using conservative strategy');
+      }
+
+      // V3: Pause operations if topology is critical and configured to pause
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Operation paused: topology is in critical state'));
+      }
 
       // Check if we can spawn agents
       if (!this.agentCoordinator.canSpawn()) {
@@ -382,6 +496,16 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
     try {
       this.startWorkflow(workflowId, 'accessibility');
+
+      // V3: Check topology health before proceeding (ADR-047)
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn('[VisualAccessibility] Topology degraded, using conservative strategy');
+      }
+
+      // V3: Pause operations if topology is critical and configured to pause
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Operation paused: topology is in critical state'));
+      }
 
       // Spawn accessibility testing agent
       const agentResult = await this.spawnAccessibilityTestingAgent(workflowId, level);
@@ -1299,5 +1423,157 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
       workflows,
       { namespace: 'visual-accessibility', persist: true }
     );
+  }
+
+  // ============================================================================
+  // MinCut Integration Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
+  }
+
+  /**
+   * Check if topology is healthy
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  // ============================================================================
+  // Consensus Integration Methods (MM-001)
+  // ============================================================================
+
+  /**
+   * Check if consensus engine is available
+   */
+  isConsensusAvailable(): boolean {
+    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+  }
+
+  /**
+   * Check if a finding requires consensus verification
+   */
+  requiresConsensus<T>(finding: DomainFinding<T>): boolean {
+    return this.consensusMixin.requiresConsensus(finding);
+  }
+
+  /**
+   * Verify a finding using multi-model consensus
+   */
+  async verifyFinding<T>(finding: DomainFinding<T>): Promise<Result<import('../../coordination/consensus').ConsensusResult, Error>> {
+    return this.consensusMixin.verifyFinding(finding);
+  }
+
+  /**
+   * Get consensus statistics
+   */
+  getConsensusStats() {
+    return this.consensusMixin.getConsensusStats();
+  }
+
+  /**
+   * Verify an accessibility violation with consensus
+   * @param violation - The accessibility violation data
+   * @param confidence - Confidence level in the violation detection (0-1)
+   * @returns true if verified or doesn't require consensus, false if rejected/disputed
+   */
+  async verifyAccessibilityViolation(
+    violation: AccessibilityViolation,
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<AccessibilityViolation> = createDomainFinding({
+      id: uuidv4(),
+      type: 'accessibility-violation',
+      confidence,
+      description: `Accessibility violation: ${violation.description} (${violation.impact} impact)`,
+      payload: violation,
+      detectedBy: 'visual-accessibility-coordinator',
+      severity: violation.impact === 'critical' ? 'critical'
+        : violation.impact === 'serious' ? 'high'
+        : violation.impact === 'moderate' ? 'medium'
+        : 'low',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Verify a visual regression with consensus
+   * @param regression - The visual regression data
+   * @param confidence - Confidence level in the regression detection (0-1)
+   * @returns true if verified or doesn't require consensus, false if rejected/disputed
+   */
+  async verifyVisualRegression(
+    regression: { url: string; viewport: Viewport; diffPercentage: number; diffImagePath?: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof regression> = createDomainFinding({
+      id: uuidv4(),
+      type: 'visual-regression',
+      confidence,
+      description: `Visual regression detected at ${regression.url} (${regression.viewport.width}x${regression.viewport.height}): ${regression.diffPercentage.toFixed(2)}% difference`,
+      payload: regression,
+      detectedBy: 'visual-accessibility-coordinator',
+      severity: regression.diffPercentage > 20 ? 'critical'
+        : regression.diffPercentage > 10 ? 'high'
+        : regression.diffPercentage > 5 ? 'medium'
+        : 'low',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  // ============================================================================
+  // Extended MinCut Integration Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Get topology-based routing excluding weak domains
+   * @param targetDomains - List of potential target domains
+   * @returns Filtered list of healthy domains for routing
+   */
+  getTopologyBasedRouting(targetDomains: import('../../shared/types').DomainName[]): import('../../shared/types').DomainName[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
+  }
+
+  /**
+   * Get weak vertices in this domain (for diagnostics)
+   */
+  getDomainWeakVertices() {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Check if this domain is a weak point in the topology
+   * Returns true if any weak vertex belongs to visual-accessibility
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  /**
+   * Subscribe to topology health changes
+   */
+  onTopologyHealthChange(callback: (health: import('../../coordination/mincut/interfaces').MinCutHealth) => void): () => void {
+    return this.minCutMixin.onTopologyHealthChange(callback);
   }
 }

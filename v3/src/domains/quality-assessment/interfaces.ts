@@ -80,6 +80,29 @@ export interface QualityReport {
   metrics: QualityMetricDetail[];
   trends: QualityTrend[];
   recommendations: Recommendation[];
+  /** ADR-051: Optional LLM-generated insights (when enableLLMInsights is true) */
+  llmInsights?: LLMQualityInsights;
+}
+
+/**
+ * ADR-051: LLM-generated quality insights
+ * Provides AI-powered explanation and recommendations for quality issues
+ */
+export interface LLMQualityInsights {
+  /** Natural language explanation of quality issues */
+  explanation: string;
+  /** Prioritized list of improvement recommendations */
+  prioritizedRecommendations: Array<{
+    priority: number;
+    title: string;
+    description: string;
+    estimatedImpact: 'high' | 'medium' | 'low';
+    estimatedEffort: 'high' | 'medium' | 'low';
+  }>;
+  /** Estimated impact of improvements on overall quality score */
+  estimatedImpactOnScore: number;
+  /** Summary of key findings */
+  keySummary: string;
 }
 
 export interface QualityMetricDetail {

@@ -60,6 +60,8 @@ export interface RemediationAdvice {
   readonly fixExample?: string;
   readonly estimatedEffort: 'trivial' | 'minor' | 'moderate' | 'major';
   readonly automatable: boolean;
+  /** ADR-051: Whether advice was enhanced by LLM analysis */
+  readonly llmEnhanced?: boolean;
 }
 
 /**
