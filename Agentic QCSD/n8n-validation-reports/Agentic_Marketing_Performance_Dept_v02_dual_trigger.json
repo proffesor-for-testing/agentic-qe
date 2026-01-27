@@ -1,0 +1,1064 @@
+{
+  "name": "Agentic_Marketing_Performance_Dept_v02_dual_trigger",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -528,
+        -48
+      ],
+      "id": "7e9ed3fd-40bd-49dd-8bc0-abb7171430ec",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "marketing-report",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        -248
+      ],
+      "id": "webhook-trigger-001",
+      "name": "Webhook Trigger (API)",
+      "webhookId": "marketing-report-api",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CREATE_NEW_CREDENTIAL",
+          "name": "Marketing Report API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"accepted\", \"message\": \"Marketing report workflow triggered\", \"timestamp\": $now.toISO() } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -160,
+        -248
+      ],
+      "id": "respond-webhook-001",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        256,
+        48
+      ],
+      "id": "8df92fb6-ddbd-46a2-af51-b0c80080ddb8",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "projectId": {
+          "__rl": true,
+          "value": "bmsg-analytics-agents",
+          "mode": "list",
+          "cachedResultName": "BMSG Analytics Agents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleVertex",
+      "typeVersion": 1,
+      "position": [
+        448,
+        256
+      ],
+      "id": "dad678e8-7e26-4fb1-8d76-5397867ea494",
+      "name": "Google Vertex Chat Model",
+      "credentials": {
+        "googleApi": {
+          "id": "l48ebvDqv9DgY1ti",
+          "name": "Google BigQuery account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the raw text\nconst rawText = $input.all()[0].json.output;\n\n// 2. Smart Extraction: Find the JSON block (ignoring \"Here is the report...\" text)\n// We look for the content between ```json and ``` OR the first/last curly braces.\nconst markdownMatch = rawText.match(/```json([\\s\\S]*?)```/);\nlet cleanText = markdownMatch ? markdownMatch[1] : rawText;\n\n// Fallback: If no markdown tags, just grab everything from first { to last }\nif (!markdownMatch) {\n    const firstBrace = rawText.indexOf('{');\n    const lastBrace = rawText.lastIndexOf('}');\n    if (firstBrace !== -1 && lastBrace !== -1) {\n        cleanText = rawText.substring(firstBrace, lastBrace + 1);\n    }\n}\n\n// 3. THE FIX: Sanitize HTML attributes to prevent JSON breaks\n// This converts <div class=\"box\"> to <div class='box'> so the double quotes don't break the JSON.\ncleanText = cleanText.replace(/class=\"([^\"]*)\"/g, \"class='$1'\"); \n\ntry {\n    // 4. Parse\n    const actualData = JSON.parse(cleanText);\n    return { json: actualData };\n} catch (e) {\n    // If it still fails, output the error so we can see it instead of crashing\n    return { \n        json: { \n            error: \"JSON Parse Failed\", \n            message: e.message, \n            debug_text: cleanText \n        } \n    };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        48
+      ],
+      "id": "e1786037-eb8e-4c03-9631-c83ec0788f87",
+      "name": "Cleanup Output to JSON"
+    },
+    {
+      "parameters": {
+        "promptType": "=define",
+        "text": "={{ $json[\"system_instruction\"] }}\n\nTASK: Analyze the following Meta Ads performance data.\n\nTOTAL SPEND: €{{ $json[\"total_spend\"] }}\n\nDATA TABLE:\n{{ $json[\"table_text\"] }}\n\nOutput JSON ONLY: {\"email_body\": \"HTML\", \"key_insight\": \"text\", \"action_required\": bool}\n\nCRITICAL JSON RULE: When writing the HTML for email_body, you MUST use SINGLE QUOTES for all HTML attributes (e.g., write <div class='summary-box'>, NOT <div class=\"summary-box\">). Do not use double quotes inside the HTML string.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        464,
+        48
+      ],
+      "id": "ab62f5e8-881f-4e33-ba3d-af518e95d52f",
+      "name": "Meta Ads Agent"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.account_id }}/insights",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "level",
+              "value": "ad"
+            },
+            {
+              "name": "fields",
+              "value": "ad_name,spend,cpm,cpc,ctr,impressions,clicks,actions,date_start,date_stop"
+            },
+            {
+              "name": "date_preset",
+              "value": "last_30d"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -160,
+        176
+      ],
+      "id": "105bfbe0-01ce-4d89-ad94-9262481a61df",
+      "name": "Get Meta Ads Data",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "RoQ4vgbA6WNcYca9",
+          "name": "Query Auth account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the 'data' array from the HTTP response\nconst adsData = $input.all()[0].json.data;\n\n// Create a header row\nlet markdownTable = \"| Ad Name | Spend | Impressions | CPM | CTR | Clicks |\\n\";\nmarkdownTable += \"|---|---|---|---|---|---|\\n\";\n\n// Loop through rows and format them\nfor (const ad of adsData) {\n  markdownTable += `| ${ad.ad_name} | ${ad.spend} | ${ad.impressions} | ${ad.cpm} | ${ad.ctr} | ${ad.clicks} |\\n`;\n}\n\n// Calculate Total Spend\nconst totalSpend = adsData.reduce((acc, curr) => acc + parseFloat(curr.spend || 0), 0);\n\nreturn {\n  json: {\n    table_text: markdownTable,\n    total_spend: totalSpend.toFixed(2)\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        176
+      ],
+      "id": "4d2b91cc-9fa3-4a8e-8d98-1b3363dad3af",
+      "name": "Format Output"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": {
+          "__rl": true,
+          "value": "bmsg-analytics-agents",
+          "mode": "list",
+          "cachedResultName": "BMSG Analytics Agents",
+          "cachedResultUrl": "https://console.cloud.google.com/bigquery?project=bmsg-analytics-agents"
+        },
+        "sqlQuery": "SELECT system_instruction\nFROM `bmsg-analytics-agents.marketing_data.agent_instructions`\nWHERE agent_name = 'ads_analyst'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleBigQuery",
+      "typeVersion": 2.1,
+      "position": [
+        -160,
+        -32
+      ],
+      "id": "ad25becd-caf5-4f2b-b994-e24f3f6e6bda",
+      "name": "Get Meta Ads Analyst Instructions",
+      "credentials": {
+        "googleApi": {
+          "id": "l48ebvDqv9DgY1ti",
+          "name": "Google BigQuery account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "dominic.veit@accenture.com",
+        "subject": "=Meta Ads Strategy Report: {{ $now.toFormat('yyyy-MM-dd') }}",
+        "message": "={{ $json[\"email_body\"] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1120,
+        48
+      ],
+      "id": "2887762c-4cc5-463f-9055-fc68306e2c83",
+      "name": "Send Meta Ads Report",
+      "webhookId": "37ea4d9f-376e-44ac-ab17-3eab430d880b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "8MDLDMIukkjltkOW",
+          "name": "Gmail account 30"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": {
+          "__rl": true,
+          "value": "bmsg-analytics-agents",
+          "mode": "list",
+          "cachedResultName": "BMSG Analytics Agents",
+          "cachedResultUrl": "https://console.cloud.google.com/bigquery?project=bmsg-analytics-agents"
+        },
+        "sqlQuery": "SELECT system_instruction\nFROM `bmsg-analytics-agents.marketing_data.agent_instructions`\nWHERE agent_name = 'spotify_analyst'",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleBigQuery",
+      "typeVersion": 2.1,
+      "position": [
+        -160,
+        -704
+      ],
+      "id": "1f509cec-6513-4016-9ed3-4a5c460957b5",
+      "name": "Get Spotify Analyst Instructions",
+      "credentials": {
+        "googleApi": {
+          "id": "l48ebvDqv9DgY1ti",
+          "name": "Google BigQuery account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": {
+          "__rl": true,
+          "value": "bmsg-analytics-agents",
+          "mode": "list",
+          "cachedResultName": "BMSG Analytics Agents",
+          "cachedResultUrl": "https://console.cloud.google.com/bigquery?project=bmsg-analytics-agents"
+        },
+        "sqlQuery": "SELECT\n  *\nFROM\n  `bmsg-analytics-agents.marketing_data.spotify_overall_daily`\nWHERE\n  report_date = (\n    SELECT\n      MAX(report_date)\n    FROM\n      `bmsg-analytics-agents.marketing_data.spotify_overall_daily`\n  )",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleBigQuery",
+      "typeVersion": 2.1,
+      "position": [
+        -160,
+        -480
+      ],
+      "id": "de334d8c-d952-44b8-a30b-18d07389e2ff",
+      "name": "Get Spotify Overall Stats",
+      "credentials": {
+        "googleApi": {
+          "id": "l48ebvDqv9DgY1ti",
+          "name": "Google BigQuery account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "projectId": {
+          "__rl": true,
+          "value": "bmsg-analytics-agents",
+          "mode": "list",
+          "cachedResultName": "BMSG Analytics Agents",
+          "cachedResultUrl": "https://console.cloud.google.com/bigquery?project=bmsg-analytics-agents"
+        },
+        "sqlQuery": "SELECT\n    t.track_name,\n    t.streams,\n    t.listeners,\n    t.popularity_score,\n    t.report_date\nFROM\n    `bmsg-analytics-agents.marketing_data.spotify_tracks_daily` AS t\nINNER JOIN (\n    SELECT\n        track_name,\n        MAX(report_date) as max_report_date\n    FROM\n        `bmsg-analytics-agents.marketing_data.spotify_tracks_daily`\n    GROUP BY\n        track_name\n) AS latest_dates\nON t.track_name = latest_dates.track_name AND t.report_date = latest_dates.max_report_date\nORDER BY\n    t.streams DESC\nLIMIT 15",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleBigQuery",
+      "typeVersion": 2.1,
+      "position": [
+        -160,
+        -272
+      ],
+      "id": "7486fcba-1ca5-4286-b7cb-0bf74739599c",
+      "name": "Get Spotify Track Data",
+      "credentials": {
+        "googleApi": {
+          "id": "l48ebvDqv9DgY1ti",
+          "name": "Google BigQuery account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        208,
+        -384
+      ],
+      "id": "d983c526-eaf6-4dd2-a824-72e54b669423",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        704,
+        -576
+      ],
+      "id": "e12b0beb-7563-4d33-bf40-1952bae22cc8",
+      "name": "Merge2"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json[\"system_instruction\"] }}\n\nTASK: Analyze the provided Spotify data, which consists of two distinct datasets:\n1. **Top 15 Tracks:** Granular performance of specific songs.\n2. **Overall Catalog Stats:** Aggregated total streams, listeners, and followers for the artist.\n\n### 🛑 STRICT REPORTING RULES:\n1. **REPORT, DON'T APOLOGIZE:** Do not write a \"Placeholder Report\" or \"Action Plan.\" Analyze the numbers exactly as they appear.\n2. **STRUCTURE:**\n   - **Part 1 (The Data):** Present the \"Top Tracks\" table immediately in HTML. Below it, add a small summary bullet list for \"Overall Catalog Stats\" (Total Streams, Listeners, Followers).\n   - **Part 2 (Insights):** detailed trends. (e.g., \"Frantic is driving 60% of total volume,\" or \"Catalog listeners are up despite no new releases\").\n   - **Part 3 (Data Health - CRITICAL):** Explicitly check the dates. \n     - Does the 'Track Data' date match the 'Overall Stats' date? \n     - If they differ (e.g., Tracks are from Jan 21, Overall is Jan 20), explicitly state: \"⚠️ Data Synchronization Note: Track data is newer than overall stats.\"\n3. **HANDLING ZEROS:** If a metric is 0 or N/A, simply state \"No data available for this metric\" and focus on the metrics that *do* have numbers.\n\nREPORT DATE: {{ $json[\"report_date\"] }}\n\nDATA CONTEXT:\n{{ $json[\"table_text\"] }}\n\nOutput JSON ONLY:\n{\n  \"email_body\": \"HTML code. Start with <h2>Spotify Daily Snapshot</h2>. Use SINGLE QUOTES for HTML attributes.\", \n  \"key_insight\": \"One concise sentence summarizing the top performing track and its impact on the catalog\", \n  \"action_required\": false\n}\n\n*** CRITICAL FORMATTING RULES ***\n1. **NO MARKDOWN:** Do not wrap the output in ```json ... ``` code blocks. Output raw JSON text only.\n2. **HTML ATTRIBUTES:** In the 'email_body' HTML, strictly use SINGLE QUOTES for all attributes (e.g., <div style='color: blue'>). DO NOT use double quotes inside the HTML tags.\n3. **TEXT ESCAPING:** Do NOT escape single quotes in normal text (e.g., write \"it's\", NOT \"it\\'s\").\n4. **NEWLINES:** All newlines must be escaped as \\n.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        944,
+        -576
+      ],
+      "id": "6dffb8f0-13b0-4355-8a42-1f15c94f0566",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "projectId": {
+          "__rl": true,
+          "value": "bmsg-analytics-agents",
+          "mode": "list",
+          "cachedResultName": "BMSG Analytics Agents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleVertex",
+      "typeVersion": 1,
+      "position": [
+        912,
+        -368
+      ],
+      "id": "6126dc0d-1990-4d99-9ae3-47701bc70292",
+      "name": "Google Vertex Chat Model1",
+      "credentials": {
+        "googleApi": {
+          "id": "l48ebvDqv9DgY1ti",
+          "name": "Google BigQuery account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "dominic.veit@accenture.com",
+        "subject": "=Spotify Strategy Report: {{ $now.toFormat('yyyy-MM-dd') }}",
+        "message": "={{ $json[\"email_body\"] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1504,
+        -576
+      ],
+      "id": "2d1665ac-45b5-435e-9aa4-8b8a2871f6a2",
+      "name": "Send Spotify Report",
+      "webhookId": "37ea4d9f-376e-44ac-ab17-3eab430d880b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "8MDLDMIukkjltkOW",
+          "name": "Gmail account 30"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the raw text from the AI\nconst rawText = $input.all()[0].json.output;\n\n// 2. Clean up the Markdown wrappers (```json and ```)\nconst cleanText = rawText.replace(/```json/g, \"\").replace(/```/g, \"\").trim();\n\n// 3. Convert text into a real JSON object\nconst actualData = JSON.parse(cleanText);\n\nreturn { json: actualData };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        -576
+      ],
+      "id": "83cc260c-9048-4a26-b5ab-131e7e960b6c",
+      "name": "Cleanup Output to JSON1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are the Marketing Director for Dom. It is time for the daily strategy review.\n\nCONTEXT:\n{{ $json[\"director_context\"] }}\n\nMISSION:\n1. **SYNTHESIZE (The Consolidated Report):**\n   - Ignore the silos. Look at the Meta Ads data and Spotify data together.\n   - **Correlation Check:** Does the Ad Spend/CTR in the Meta report align with the Stream/Follower growth in the Spotify report?\n   - **Lag Awareness:** Remember Spotify data is often 48h old while Ads are 24h old. Note if today's ad spend hasn't hit the stream charts yet.\n   - **Verdict:** Are we growing profitably, or just burning cash?\n\n2. **AUDIT (The Agent Review):**\n   - Read the sub-agent reports. Did they miss obvious insights? Did the Spotify agent complain about dates? Did the Meta agent ignore high CPC?\n\n3. **OPTIMIZE (POC Mode):**\n   - Based on the audit, do the agents need new instructions? (e.g., \"Tell Spotify Agent to stop calculating conversion rates on mismatched dates\").\n   - **Do NOT execute SQL.** Just list the specific text changes you *would* make to their prompts.\n\nOutput JSON ONLY:\n{\n  \"email_subject\": \"👔 Strategy & Performance: [One Short Verdict]\",\n  \"email_body\": \"HTML code. Structure: <h2>1. Consolidated Performance</h2> (The cross-platform analysis) <br> <h2>2. Agent Health & Optimizations</h2> (The proposed prompt updates).\",\n  \"key_insight\": \"One sentence summary of the correlation between Spend and Streams\"\n}\n\n*** CRITICAL FORMATTING RULES ***\n1. **NO MARKDOWN:** Do not wrap the output in ```json ... ``` code blocks. Output raw JSON text only.\n2. **HTML ATTRIBUTES:** In the 'email_body' HTML, strictly use SINGLE QUOTES for all attributes (e.g., <div style='color: blue'>). DO NOT use double quotes inside the HTML tags, as this breaks the JSON structure.\n3. **TEXT ESCAPING:** Do NOT escape single quotes in normal text (e.g., write \"it's\", NOT \"it\\'s\").\n4. **NEWLINES:** All newlines must be escaped as \\n.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2048,
+        -176
+      ],
+      "id": "2869cdb3-7897-42e7-a122-4df76ce7beda",
+      "name": "Marketing Director"
+    },
+    {
+      "parameters": {
+        "projectId": {
+          "__rl": true,
+          "value": "bmsg-analytics-agents",
+          "mode": "list",
+          "cachedResultName": "BMSG Analytics Agents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleVertex",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        -16
+      ],
+      "id": "19264019-3d53-499f-8e50-a6b6d8dae297",
+      "name": "Google Vertex Chat Model2",
+      "credentials": {
+        "googleApi": {
+          "id": "l48ebvDqv9DgY1ti",
+          "name": "Google BigQuery account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const raw = item.json.output || \"\";\n  \n  // 1. Basic Extraction\n  const firstOpen = raw.indexOf('{');\n  const lastClose = raw.lastIndexOf('}');\n  if (firstOpen === -1 || lastClose === -1) {\n      return { json: { error: \"No JSON brackets found\", raw_output: raw } };\n  }\n  \n  let jsonString = raw.substring(firstOpen, lastClose + 1);\n\n  // 2. NEWLINE CLEANUP\n  // Remove real line breaks which are invalid in JSON strings\n  jsonString = jsonString.replace(/\\n/g, \" \").replace(/\\r/g, \"\");\n\n  // 3. SMART QUOTE SANITIZATION (The Fix)\n  // We locate the \"email_body\" value by finding its start and the start of the next key (\"key_insight\")\n  // Then we escape any unescaped quotes strictly inside that block.\n  \n  // Regex Explanation:\n  // Group 1: \"email_body\": \"\n  // Group 2: The content (non-greedy match until the suffix)\n  // Group 3: \", \"key_insight\" (The delimiter marking the end of the body)\n  const bodyPattern = /(\"email_body\"\\s*:\\s*\")(.*?)(\"\\s*,\\s*\"key_insight\")/s;\n  const match = jsonString.match(bodyPattern);\n  \n  if (match) {\n      const prefix = match[1]; \n      let content = match[2]; \n      const suffix = match[3];\n      \n      // Escape any double quote that is NOT already escaped\n      // (?<!\\\\)\" looks for a \" not preceded by \\\n      content = content.replace(/(?<!\\\\)\"/g, '\\\\\"');\n      \n      // Reconstruct the valid JSON string\n      jsonString = jsonString.replace(match[0], prefix + content + suffix);\n  }\n\n  try {\n    // 4. Parse\n    const data = JSON.parse(jsonString);\n    return { json: data };\n  } catch (e) {\n    // Debugging Output\n    return { \n        json: { \n            parse_error: e.message, \n            debug_tip: \"Check the 'sanitized_string' below to see where the quotes broke.\",\n            sanitized_string: jsonString\n        } \n    };\n  }\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        -176
+      ],
+      "id": "688897e8-049d-4594-9b26-df48394082c7",
+      "name": "Cleanup Output to JSON2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1280,
+        -304
+      ],
+      "id": "5efd57ee-41ce-4dcf-a602-ef1dea1b36ef",
+      "name": "Merge Reports"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(item => item.json);\n\n// Initialize containers\nlet metaReport = {};\nlet spotifyReport = {};\n\n// LOGIC: Identify which report is which based on unique keys\n// Meta usually has \"total_spend\" or specific ad text.\n// Spotify has \"total_streams\" or track lists.\n\nfor (const item of items) {\n    // Check if the item has the HTML body stored in 'email_body' or just 'output'\n    // We check the content string to identify the source\n    const content = JSON.stringify(item);\n    \n    if (content.includes(\"Spotify\") || content.includes(\"Streams\") || content.includes(\"Tracks\")) {\n        spotifyReport = item;\n    } else {\n        // Default to Meta if it's not Spotify (or check for \"Ads\", \"Spend\", \"CPC\")\n        metaReport = item;\n    }\n}\n\n// Format the Text for the Director\nlet contextText = \"### 🟢 DIRECT INPUT: META ADS REPORT\\n\";\ncontextText += `INSIGHT: ${metaReport.key_insight || \"No Insight Generated\"}\\n`;\ncontextText += `FULL DETAILS:\\n${metaReport.email_body || metaReport.analysis_text || \"No Data\"}\\n\\n`;\n\ncontextText += \"### 🟢 DIRECT INPUT: SPOTIFY REPORT\\n\";\ncontextText += `INSIGHT: ${spotifyReport.key_insight || \"No Insight Generated\"}\\n`;\ncontextText += `FULL DETAILS:\\n${spotifyReport.email_body || spotifyReport.analysis_text || \"No Data\"}\\n`;\n\nreturn {\n    json: {\n        director_context: contextText,\n        meta_insight: metaReport.key_insight,\n        spotify_insight: spotifyReport.key_insight\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        -256
+      ],
+      "id": "6b6cef78-a658-4e3d-ac32-40d94fa383c0",
+      "name": "Cleanup Code"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2656,
+        -528
+      ],
+      "id": "ddf712bd-d535-437f-bdcd-94ae7c733770",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(item => item.json);\n\n// Containers\nlet metaData = \"No Data\";\nlet spotifyData = \"No Data\";\nlet directorStrategy = \"No Strategy Generated\";\n\n// LOGIC: Sort the pile based on content keywords\nfor (const item of items) {\n    const text = JSON.stringify(item);\n\n    if (text.includes(\"Meta Ads Report\") || (item.director_context && item.director_context.includes(\"Meta\"))) {\n        // This is likely the raw Analyst input passed through\n        // Note: Depending on your previous code node, the raw data might be inside 'director_context' or separate items.\n        // We look for the formatted context from the previous step.\n        if (item.director_context) {\n             // Extracting raw data if it was bundled\n             metaData = \"See Analyst Section Below\";\n             spotifyData = \"See Analyst Section Below\"; \n             // Better: If your previous node outputted \"meta_insight\" and \"spotify_insight\", grab them:\n             if (item.meta_insight) metaData = item.meta_insight + \"\\n\" + (item.meta_body || \"\");\n             if (item.spotify_insight) spotifyData = item.spotify_insight + \"\\n\" + (item.spotify_body || \"\");\n        }\n    } \n    \n    // Check for Director's Output (Look for the subject line we defined earlier)\n    if (item.email_subject && item.email_subject.includes(\"Strategy\")) {\n        directorStrategy = `SUBJECT: ${item.email_subject}\\nINSIGHT: ${item.key_insight}\\nBODY:\\n${item.email_body}`;\n    }\n    \n    // Fallback: If raw items are passed directly from Merge A\n    if (item.email_body && item.email_body.includes(\"Spotify\") && !item.email_subject.includes(\"Strategy\")) {\n        spotifyData = item.key_insight + \"\\n\" + item.email_body;\n    }\n    if (item.email_body && item.email_body.includes(\"Meta\") && !item.email_subject.includes(\"Strategy\")) {\n        metaData = item.key_insight + \"\\n\" + item.email_body;\n    }\n}\n\n// Build Final Context\nlet context = \"### 🏛️ LEVEL 1: ANALYST RAW DATA\\n\";\ncontext += `--- META ADS ---\\n${metaData.substring(0, 1000)}...\\n\\n`; // Truncate to save tokens\ncontext += `--- SPOTIFY ---\\n${spotifyData.substring(0, 1000)}...\\n\\n`;\n\ncontext += \"### 👔 LEVEL 2: DIRECTOR'S STRATEGY\\n\";\ncontext += `${directorStrategy}\\n`;\n\nreturn {\n    json: {\n        cmo_context: context\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        -528
+      ],
+      "id": "903c68ec-9021-47d1-943d-dc35559287b8",
+      "name": "CMO Full Context"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are the Chief Marketing Officer (CMO) for Dom.\n\n### HIERARCHY CONTEXT:\n{{ $json[\"cmo_context\"] }}\n\n### MISSION:\n1. **Audit the Director:**\n   - Compare \"Level 1 (Data)\" vs \"Level 2 (Director's Strategy)\".\n   - **Critical Check:** Did the Director notice if the Spotify Overall Stats were broken (0)? If they missed it, mark them down.\n   - **Grading:** Give the Director a PASS or FAIL grade.\n\n2. **Executive Decision:**\n   - **Scenario:** We have cheap clicks (Meta) but broken tracking (No Conversions + Broken Spotify Totals).\n   - **Command:** Issue a clear directive. (e.g., \"Pause spend immediately\" OR \"Continue spending for brand awareness\").\n\n3. **System Optimizations (POC Mode):**\n   - Review the Director's proposed prompt changes.\n   - If they are valid, stamp them \"APPROVED\".\n\n### OUTPUT FORMAT (JSON ONLY):\n**CRITICAL RULE:** When writing HTML in the `email_body`, use **SINGLE QUOTES** for attributes (e.g., `<div class='box'>`, NOT `<div class=\"box\">`) to avoid breaking the JSON.\n\n{\n  \"email_subject\": \"👑 CMO Audit: [Grade] & [Final Verdict]\",\n  \"email_body\": \"HTML code. Sections: <h2>1. Strategy Audit</h2>, <h2>2. Executive Orders</h2>, <h3>3. System Optimizations</h3>.\",\n  \"key_insight\": \"One sentence summary of the entire marketing health.\"\n}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        3120,
+        -528
+      ],
+      "id": "31a4f19e-2c06-4d8b-afdd-75da77a50fe6",
+      "name": "Marketing Director1"
+    },
+    {
+      "parameters": {
+        "projectId": {
+          "__rl": true,
+          "value": "bmsg-analytics-agents",
+          "mode": "list",
+          "cachedResultName": "BMSG Analytics Agents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleVertex",
+      "typeVersion": 1,
+      "position": [
+        2992,
+        -320
+      ],
+      "id": "a05cd6b3-e5be-4e5f-9bcf-f193cfac3cbc",
+      "name": "Google Vertex Chat Model3",
+      "credentials": {
+        "googleApi": {
+          "id": "l48ebvDqv9DgY1ti",
+          "name": "Google BigQuery account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get raw text from Agent\nconst rawText = $input.first().json.output;\n\n// 2. Smart Extraction (Finds text between ```json and ```)\nconst markdownMatch = rawText.match(/```json([\\s\\S]*?)```/);\nlet cleanText = markdownMatch ? markdownMatch[1] : rawText;\n\n// 3. Fallback: If no markdown, find first { and last }\nif (!markdownMatch) {\n    const firstBrace = rawText.indexOf('{');\n    const lastBrace = rawText.lastIndexOf('}');\n    if (firstBrace !== -1 && lastBrace !== -1) {\n        cleanText = rawText.substring(firstBrace, lastBrace + 1);\n    }\n}\n\n// 4. Sanitize HTML attributes (Double quote -> Single quote)\ncleanText = cleanText.replace(/class=\"([^\"]*)\"/g, \"class='$1'\");\ncleanText = cleanText.replace(/style=\"([^\"]*)\"/g, \"style='$1'\");\n\n// 5. Parse\ntry {\n    return { json: JSON.parse(cleanText) };\n} catch (e) {\n    return {\n        json: {\n            email_subject: \"⚠️ CMO JSON Error\",\n            email_body: \"The CMO generated invalid JSON. Raw output:<br>\" + rawText,\n            key_insight: \"JSON Parsing Failed\"\n        }\n    };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3472,
+        -528
+      ],
+      "id": "97314cf2-2de7-41b1-98fb-43edc94a7a75",
+      "name": "Code Cleanup CMO"
+    },
+    {
+      "parameters": {
+        "sendTo": "dominic.veit@accenture.com",
+        "subject": "={{ $json.email_subject }}",
+        "message": "={{ $json[\"email_body\"] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3696,
+        -528
+      ],
+      "id": "6884bb68-0a0a-4bc6-b478-2866c318da54",
+      "name": "Send Spotify Report2",
+      "webhookId": "37ea4d9f-376e-44ac-ab17-3eab430d880b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "8MDLDMIukkjltkOW",
+          "name": "Gmail account 30"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Initialize containers for our merged data\nlet overallStats = {\n  report_date: \"N/A\",\n  listeners: 0,\n  streams: 0,\n  saves: 0,\n  playlist_adds: 0,\n  followers: 0,\n  popularity_score: \"N/A\"\n};\n\nlet trackMap = {}; // Will hold merged track data by name\n\n// Loop through every item in the input\nfor (const item of items) {\n  const data = item.json;\n\n  // CASE 1: INDIVIDUAL TRACK DATA\n  if (data.track_name) {\n    const name = data.track_name;\n    \n    // Initialize track if not seen yet\n    if (!trackMap[name]) {\n      trackMap[name] = {\n        name: name,\n        streams: 0,\n        listeners: 0,\n        popularity: \"N/A\",\n        date: data.report_date\n      };\n    }\n\n    // Merge Metrics (if this row has streams/listeners)\n    // We check if value > 0 to avoid overwriting good data with \"0\"\n    if (parseInt(data.streams) > 0) {\n      trackMap[name].streams = data.streams;\n      trackMap[name].listeners = data.listeners;\n      trackMap[name].date = data.report_date; // Prioritize date from metric row\n    }\n\n    // Merge Popularity (if this row has popularity)\n    if (data.popularity_score !== null && data.popularity_score !== undefined) {\n      trackMap[name].popularity = data.popularity_score;\n    }\n  } \n  \n  // CASE 2: OVERALL STATS (No track name)\n  else {\n    // Merge Metrics\n    if (parseInt(data.streams) > 0) {\n      overallStats.streams = data.streams;\n      overallStats.listeners = data.listeners;\n      overallStats.saves = data.saves;\n      overallStats.playlist_adds = data.playlist_adds;\n      overallStats.followers = data.followers;\n      overallStats.report_date = data.report_date;\n    }\n    \n    // Merge Popularity\n    if (data.popularity_score !== null) {\n      overallStats.popularity_score = data.popularity_score;\n    }\n  }\n}\n\n// --- BUILD THE REPORT TEXT ---\n\n// 1. Format Overall Stats Section\nlet reportText = `### 📊 SPOTIFY CATALOG REPORT\\n`;\nreportText += `**Report Date:** ${overallStats.report_date}\\n`;\nreportText += `**Total Streams:** ${overallStats.streams}\\n`;\nreportText += `**Total Listeners:** ${overallStats.listeners}\\n`;\nreportText += `**Followers:** ${overallStats.followers}\\n`;\nreportText += `**Global Popularity:** ${overallStats.popularity_score}\\n\\n`;\n\n// 2. Format Tracks Table\nreportText += `### 🎵 TOP TRACKS (Consolidated)\\n`;\nreportText += `| Track | Streams | Listeners | Popularity | Date |\\n`;\nreportText += `|---|---|---|---|---|\\n`;\n\n// Convert map to array and sort by Streams (descending)\nconst sortedTracks = Object.values(trackMap).sort((a, b) => b.streams - a.streams);\n\nfor (const t of sortedTracks) {\n  reportText += `| ${t.name} | ${t.streams} | ${t.listeners} | ${t.popularity} | ${t.date} |\\n`;\n}\n\n// Return the single text object for the Agent\nreturn [{\n  json: {\n    report_date: overallStats.report_date,\n    table_text: reportText\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        -384
+      ],
+      "id": "e1aa12fb-4b29-44eb-987f-ec92871fa31b",
+      "name": "Merge Spotify Data"
+    },
+    {
+      "parameters": {
+        "sendTo": "dominic.veit@accenture.com",
+        "subject": "=Marketing Director Report: {{ $now.toFormat('yyyy-MM-dd') }}",
+        "message": "={{ $json[\"email_body\"] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2624,
+        -176
+      ],
+      "id": "c9453415-46e7-4d28-b4a9-866770595551",
+      "name": "Send Marketing Director Email",
+      "webhookId": "37ea4d9f-376e-44ac-ab17-3eab430d880b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "8MDLDMIukkjltkOW",
+          "name": "Gmail account 30"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "47eb64a3-3a7b-4612-8bb6-946c35cd962a",
+              "name": "account_id",
+              "value": "act_2144618699332578",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -352,
+        96
+      ],
+      "id": "92ab4c4b-2727-41ec-9f72-ac27956cb840",
+      "name": "Set Env"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Get Meta Ads Analyst Instructions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Spotify Track Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Spotify Overall Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Spotify Analyst Instructions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set Env",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger (API)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Meta Ads Analyst Instructions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Spotify Track Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Spotify Overall Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Spotify Analyst Instructions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set Env",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Meta Ads Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Vertex Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Meta Ads Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cleanup Output to JSON": {
+      "main": [
+        [
+          {
+            "node": "Send Meta Ads Report",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Reports",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Meta Ads Agent": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Output to JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Meta Ads Data": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Meta Ads Analyst Instructions": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Spotify Overall Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Spotify Track Data": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Merge Spotify Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Spotify Analyst Instructions": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Vertex Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Output to JSON1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cleanup Output to JSON1": {
+      "main": [
+        [
+          {
+            "node": "Send Spotify Report",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Vertex Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Marketing Director",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marketing Director": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Output to JSON2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cleanup Output to JSON2": {
+      "main": [
+        [
+          {
+            "node": "Send Marketing Director Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Send Spotify Report": {
+      "main": [
+        []
+      ]
+    },
+    "Send Meta Ads Report": {
+      "main": [
+        []
+      ]
+    },
+    "Merge Reports": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cleanup Code": {
+      "main": [
+        [
+          {
+            "node": "Marketing Director",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "CMO Full Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CMO Full Context": {
+      "main": [
+        [
+          {
+            "node": "Marketing Director1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Vertex Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Marketing Director1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marketing Director1": {
+      "main": [
+        [
+          {
+            "node": "Code Cleanup CMO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Cleanup CMO": {
+      "main": [
+        [
+          {
+            "node": "Send Spotify Report2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Spotify Data": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Send Marketing Director Email": {
+      "main": [
+        []
+      ]
+    },
+    "Set Env": {
+      "main": [
+        [
+          {
+            "node": "Get Meta Ads Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "dual-trigger-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "362d0ae9bb7b73cd3dfea8a295e99696cbc5d8b53ef5b687c5671bee8a1b31fb"
+  },
+  "tags": []
+}
