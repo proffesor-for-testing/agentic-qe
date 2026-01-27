@@ -486,7 +486,7 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Memory | SQLite only | HNSW + SQLite hybrid |
 | Learning | Basic patterns | ReasoningBank + SONA + Dream Cycles |
 | Agents | 32 | 51 QE agents (44 main + 7 subagents) |
-| Skills | 35 | 60 QE skills (v2 + v3 domain skills) |
+| Skills | 35 | 61 QE skills (v2 + v3 domain skills) |
 | Coverage | O(n) | O(log n) |
 | Pattern Search | Linear | O(log n) HNSW indexing |
 | Coordination | Sequential | Queen + Work Stealing + Consensus |
@@ -600,11 +600,11 @@ Agentic QE includes 51 specialized quality engineering agents (44 main + 7 subag
 `qe-queen-coordinator`, `qe-fleet-commander`, `qe-integration-tester`, `qe-data-generator`, `qe-code-reviewer`
 
 ### Additional Agents (New in v3)
-`qe-product-factors-assessor` (SFDIPOT analysis), `qe-test-idea-rewriter` (passive→active test transforms)
+`qe-product-factors-assessor` (SFDIPOT analysis), `qe-quality-criteria-recommender` (HTSM v6.3 Quality Criteria), `qe-test-idea-rewriter` (passive→active test transforms)
 
 ## 61 QE Skills
 
-Agentic QE includes 60 domain-specific quality engineering skills that agents automatically apply:
+Agentic QE includes 61 domain-specific quality engineering skills that agents automatically apply:
 
 <details>
 <summary><b>View All 61 QE Skills</b></summary>
