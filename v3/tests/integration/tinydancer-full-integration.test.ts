@@ -217,7 +217,7 @@ describe('TinyDancer Full Integration (ADR-051)', () => {
 
       // Outcome recording is fire-and-forget, so we just verify task completes
       expect(result.taskId).toBe('test-outcome-success-1');
-      expect(result.duration).toBeGreaterThan(0);
+      expect(result.duration).toBeGreaterThanOrEqual(0); // Duration may be 0 in fast mocked execution
     });
 
     it('should record failed outcomes', async () => {
