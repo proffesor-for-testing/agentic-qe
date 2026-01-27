@@ -8,6 +8,7 @@ import { QEKernel } from '../../kernel/interfaces';
 import { QEKernelImpl } from '../../kernel/kernel';
 import { ALL_DOMAINS, DomainName } from '../../shared/types';
 import { QueenCoordinator, createQueenCoordinator } from '../../coordination/queen-coordinator';
+import { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator';
 
 /**
  * User-facing QE domains (excludes internal 'coordination' domain)
@@ -32,6 +33,10 @@ import {
   DomainStatusResult,
 } from '../types';
 
+// Import domain plugins that register workflow actions
+import type { RequirementsValidationExtendedAPI } from '../../domains/requirements-validation/index.js';
+import type { VisualAccessibilityAPI } from '../../domains/visual-accessibility/index.js';
+
 // ============================================================================
 // Fleet State
 // ============================================================================
@@ -41,6 +46,7 @@ interface FleetState {
   kernel: QEKernel | null;
   queen: QueenCoordinator | null;
   router: CrossDomainEventRouter | null;
+  workflowOrchestrator: WorkflowOrchestrator | null;
   initialized: boolean;
   initTime: Date | null;
 }
@@ -50,6 +56,7 @@ const state: FleetState = {
   kernel: null,
   queen: null,
   router: null,
+  workflowOrchestrator: null,
   initialized: false,
   initTime: null,
 };
@@ -133,6 +140,18 @@ export async function handleFleetInit(
       undefined
     );
     await state.queen.initialize();
+
+    // Create Workflow Orchestrator for workflow execution
+    state.workflowOrchestrator = new WorkflowOrchestrator(
+      state.kernel.eventBus,
+      state.kernel.memory,
+      state.kernel.coordinator
+    );
+    await state.workflowOrchestrator.initialize();
+
+    // Register domain workflow actions (Issue #206)
+    // This enables workflows like qcsd-ideation-swarm to execute their actions
+    registerDomainWorkflowActions(state.kernel, state.workflowOrchestrator);
 
     state.initialized = true;
     state.initTime = new Date();
@@ -321,6 +340,10 @@ export async function disposeFleet(): Promise<void> {
   resetTaskExecutor();
   resetAllToolCaches();
 
+  if (state.workflowOrchestrator) {
+    await state.workflowOrchestrator.dispose();
+    state.workflowOrchestrator = null;
+  }
   if (state.queen) {
     await state.queen.dispose();
     state.queen = null;
@@ -336,4 +359,31 @@ export async function disposeFleet(): Promise<void> {
   state.initialized = false;
   state.fleetId = null;
   state.initTime = null;
+}
+
+// ============================================================================
+// Domain Workflow Action Registration (Issue #206)
+// ============================================================================
+
+/**
+ * Register domain-specific workflow actions with the WorkflowOrchestrator.
+ * This enables workflows like qcsd-ideation-swarm to execute their actions.
+ */
+function registerDomainWorkflowActions(
+  kernel: QEKernel,
+  orchestrator: WorkflowOrchestrator
+): void {
+  // Register requirements-validation domain actions (including QCSD Ideation)
+  const reqValAPI = kernel.getDomainAPI<RequirementsValidationExtendedAPI>('requirements-validation');
+  if (reqValAPI?.registerWorkflowActions) {
+    reqValAPI.registerWorkflowActions(orchestrator);
+    console.log('[Fleet] Registered requirements-validation workflow actions (includes QCSD Ideation)');
+  }
+
+  // Register visual-accessibility domain actions
+  const visA11yAPI = kernel.getDomainAPI<VisualAccessibilityAPI>('visual-accessibility');
+  if (visA11yAPI?.registerWorkflowActions) {
+    visA11yAPI.registerWorkflowActions(orchestrator);
+    console.log('[Fleet] Registered visual-accessibility workflow actions');
+  }
 }

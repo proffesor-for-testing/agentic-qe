@@ -3,6 +3,7 @@
  * Task submission, status, and management handlers
  *
  * ADR-051: Integrated with Model Router for intelligent tier selection
+ * Issue #206: Workflow auto-execution for task types with associated workflows
  */
 
 import { getFleetState, isFleetInitialized } from './core-handlers';
@@ -27,6 +28,18 @@ import {
   type TaskOutcome,
 } from '../services/reasoning-bank-service';
 import type { ModelTier } from '../../integrations/agentic-flow';
+
+// ============================================================================
+// Task Type to Workflow Mapping (Issue #206)
+// Maps TaskTypes to their associated workflow IDs for auto-execution
+// ============================================================================
+
+const TASK_WORKFLOW_MAP: Partial<Record<TaskType, string>> = {
+  'ideation-assessment': 'qcsd-ideation-swarm',
+  // Add more mappings as workflows are created:
+  // 'generate-tests': 'comprehensive-testing',
+  // 'test-accessibility': 'visual-accessibility-workflow',
+};
 
 // ============================================================================
 // Task Submit Handler
@@ -287,7 +300,7 @@ export async function handleTaskOrchestrate(
     };
   }
 
-  const { queen } = getFleetState();
+  const { queen, workflowOrchestrator } = getFleetState();
 
   try {
     // ADR-051: Route task to optimal model tier BEFORE execution
@@ -305,7 +318,63 @@ export async function handleTaskOrchestrate(
     const taskType = inferTaskType(params.task);
     const priority = mapPriority(params.priority || 'medium');
 
-    // Submit the task with routing decision included in payload
+    // Issue #206: Check if this task type has an associated workflow
+    const workflowId = TASK_WORKFLOW_MAP[taskType];
+
+    if (workflowId && workflowOrchestrator) {
+      // Execute the associated workflow directly
+      console.log(`[TaskOrchestrate] Task type '${taskType}' has workflow '${workflowId}' - executing workflow`);
+
+      // Build workflow input from task params and context
+      const workflowInput: Record<string, unknown> = {
+        // Pass through context fields as workflow input
+        targetId: params.context?.project || `task-${Date.now()}`,
+        targetType: 'epic', // Default for QCSD ideation
+        description: params.task,
+        acceptanceCriteria: params.context?.requirements || [],
+        // Include routing info for downstream processing
+        routing: {
+          tier: routingResult.decision.tier,
+          modelId: routingResult.modelId,
+          executionStrategy: routingResult.executionStrategy,
+          complexity: routingResult.decision.complexityAnalysis.overall,
+        },
+      };
+
+      const workflowResult = await workflowOrchestrator.executeWorkflow(workflowId, workflowInput);
+
+      if (!workflowResult.success) {
+        return {
+          success: false,
+          error: `Workflow execution failed: ${workflowResult.error.message}`,
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          taskId: workflowResult.value, // This is the workflow execution ID
+          type: taskType,
+          priority,
+          strategy: params.strategy || 'adaptive',
+          status: 'workflow-started',
+          message: `Workflow '${workflowId}' started for task: ${params.task}`,
+          routing: {
+            tier: routingResult.decision.tier,
+            tierName: routingResult.tierInfo.name,
+            modelId: routingResult.modelId,
+            executionStrategy: routingResult.executionStrategy,
+            complexity: routingResult.decision.complexityAnalysis.overall,
+            confidence: routingResult.decision.confidence,
+            useAgentBooster: routingResult.useAgentBooster,
+            rationale: routingResult.decision.rationale,
+            decisionTimeMs: routingResult.decision.metadata.decisionTimeMs,
+          },
+        },
+      };
+    }
+
+    // No workflow - submit as a regular task
     const result = await queen!.submitTask({
       type: taskType,
       priority,
