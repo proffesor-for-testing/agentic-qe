@@ -4,8 +4,9 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { QEKernel } from '../../kernel/interfaces';
+import { QEKernel, DomainPlugin } from '../../kernel/interfaces';
 import { QEKernelImpl } from '../../kernel/kernel';
+import { DefaultPluginLoader } from '../../kernel/plugin-loader';
 import { ALL_DOMAINS, DomainName } from '../../shared/types';
 import { QueenCoordinator, createQueenCoordinator } from '../../coordination/queen-coordinator';
 import { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator';
@@ -132,12 +133,27 @@ export async function handleFleetInit(
       getDomainAPI
     );
 
-    // Create Queen Coordinator
+    // INTEGRATION FIX: Build domain plugins map for direct task execution
+    // Load all enabled domains to ensure plugins are available
+    const pluginLoader = state.kernel.plugins as DefaultPluginLoader;
+    await pluginLoader.loadAll();
+
+    // Build domain plugins map from loaded plugins
+    const domainPlugins = new Map<DomainName, DomainPlugin>();
+    for (const domain of pluginLoader.getLoaded()) {
+      const plugin = pluginLoader.getPlugin(domain);
+      if (plugin) {
+        domainPlugins.set(domain, plugin);
+      }
+    }
+
+    // Create Queen Coordinator with domain plugins for direct task execution
     state.queen = createQueenCoordinator(
       state.kernel,
       state.router,
       protocolExecutor,
-      undefined
+      undefined, // workflowExecutor
+      domainPlugins // INTEGRATION FIX: Pass domain plugins
     );
     await state.queen.initialize();
 

@@ -25,9 +25,12 @@ import {
 } from '../services/task-router';
 import {
   getReasoningBankService,
+  startTaskTrajectory,
+  endTaskTrajectory,
   type TaskOutcome,
 } from '../services/reasoning-bank-service';
 import type { ModelTier } from '../../integrations/agentic-flow';
+import type { QEDomain } from '../../learning/qe-patterns.js';
 
 // ============================================================================
 // Task Type to Workflow Mapping (Issue #206)
@@ -314,6 +317,13 @@ export async function handleTaskOrchestrate(
       domain: params.context?.project,
     });
 
+    // INTEGRATION FIX: Get ReasoningBank guidance for the task
+    const reasoningBankService = await getReasoningBankService();
+    const experienceGuidance = await reasoningBankService.getExperienceGuidance(
+      params.task,
+      params.context?.project as QEDomain | undefined
+    );
+
     // Parse task description to determine task type
     const taskType = inferTaskType(params.task);
     const priority = mapPriority(params.priority || 'medium');
@@ -394,6 +404,13 @@ export async function handleTaskOrchestrate(
           complexity: routingResult.decision.complexityAnalysis.overall,
           confidence: routingResult.decision.confidence,
         },
+        // INTEGRATION FIX: Include experience guidance if available
+        experienceGuidance: experienceGuidance ? {
+          strategy: experienceGuidance.recommendedStrategy,
+          actions: experienceGuidance.suggestedActions,
+          confidence: experienceGuidance.confidence,
+          tokenSavings: experienceGuidance.estimatedTokenSavings,
+        } : undefined,
       },
       timeout: 600000, // 10 minutes for orchestrated tasks
     });
@@ -405,15 +422,22 @@ export async function handleTaskOrchestrate(
       };
     }
 
+    // INTEGRATION FIX: Start trajectory tracking for learning
+    const taskId = result.value;
+    await startTaskTrajectory(taskId, params.task, {
+      agent: 'queen-coordinator',
+      domain: params.context?.project as QEDomain | undefined,
+    });
+
     return {
       success: true,
       data: {
-        taskId: result.value,
+        taskId,
         type: taskType,
         priority,
         strategy: params.strategy || 'adaptive',
         status: 'submitted',
-        message: `Task orchestrated: ${params.task}`,
+        message: `Task orchestrated: ${params.task}${experienceGuidance ? ' (with experience guidance)' : ''}`,
         // ADR-051: Include routing info in response
         routing: {
           tier: routingResult.decision.tier,
@@ -850,6 +874,7 @@ const recordedTasks = new Set<string>();
 /**
  * Enhanced task status that records outcomes for learning
  * ADR-051: Automatically records completed task outcomes
+ * INTEGRATION FIX: Now synchronous to ensure learning occurs
  */
 export async function handleTaskStatusWithLearning(
   params: TaskStatusParams
@@ -890,42 +915,67 @@ export async function handleTaskStatusWithLearning(
         : undefined,
     };
 
-    // ADR-051: Record outcome for completed tasks (only once)
+    // INTEGRATION FIX: Record outcome for completed tasks synchronously (only once)
     if (
       (execution.status === 'completed' || execution.status === 'failed') &&
       !recordedTasks.has(params.taskId)
     ) {
       recordedTasks.add(params.taskId);
 
-      // Record asynchronously (don't block the response)
-      getReasoningBankService()
-        .then((service) => {
-          const duration = result.duration || 0;
-          const success = execution.status === 'completed';
+      try {
+        const service = await getReasoningBankService();
+        const duration = result.duration || 0;
+        const success = execution.status === 'completed';
 
-          // Safely extract payload properties (typed as Record<string, unknown>)
-          const payload = execution.task.payload || {};
-          const taskDescription = typeof payload.description === 'string'
-            ? payload.description
-            : execution.task.type;
-          const routing = payload.routing as { tier?: number } | undefined;
+        // Safely extract payload properties (typed as Record<string, unknown>)
+        const payload = execution.task.payload || {};
+        const taskDescription = typeof payload.description === 'string'
+          ? payload.description
+          : execution.task.type;
+        const routing = payload.routing as { tier?: number } | undefined;
 
-          service.recordTaskOutcome({
-            taskId: params.taskId,
-            task: taskDescription,
-            taskType: execution.task.type,
-            success,
-            executionTimeMs: duration,
-            agentId: execution.assignedAgents?.[0],
-            domain: execution.assignedDomain,
-            modelTier: routing?.tier,
-            qualityScore: success ? 0.7 : 0.3, // Default scores
-            error: execution.error,
-          });
-        })
-        .catch((err) => {
-          console.error('[TaskHandler] Failed to record outcome:', err);
+        // INTEGRATION FIX: End trajectory tracking first
+        const trajectory = await endTaskTrajectory(
+          params.taskId,
+          success,
+          execution.error
+        );
+
+        // Calculate quality score from trajectory if available
+        const qualityScore = trajectory?.metrics.averageQuality ?? (success ? 0.7 : 0.3);
+
+        // INTEGRATION FIX: Record outcome synchronously (await to ensure learning)
+        await service.recordTaskOutcome({
+          taskId: params.taskId,
+          task: taskDescription,
+          taskType: execution.task.type,
+          success,
+          executionTimeMs: duration,
+          agentId: execution.assignedAgents?.[0],
+          domain: execution.assignedDomain,
+          modelTier: routing?.tier,
+          qualityScore,
+          error: execution.error,
+          metrics: {
+            // Extract any metrics from result if available
+            testsGenerated: typeof execution.result === 'object' && execution.result
+              ? (execution.result as Record<string, unknown>).testsGenerated as number | undefined
+              : undefined,
+            testsPassed: typeof execution.result === 'object' && execution.result
+              ? (execution.result as Record<string, unknown>).testsPassed as number | undefined
+              : undefined,
+          },
         });
+
+        console.error(
+          `[TaskHandler] Recorded learning outcome: task=${params.taskId} ` +
+          `success=${success} quality=${qualityScore.toFixed(2)} ` +
+          `trajectorySteps=${trajectory?.steps.length ?? 0}`
+        );
+      } catch (err) {
+        // Log but don't fail the response - learning is important but not blocking
+        console.error('[TaskHandler] Failed to record outcome:', err);
+      }
     }
 
     return {

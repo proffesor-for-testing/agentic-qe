@@ -24,6 +24,8 @@ import {
   TestGenerationEvents,
   TestGeneratedPayload,
   TestSuiteCreatedPayload,
+  LearningOptimizationEvents,
+  DreamCycleCompletedPayload,
   createEvent,
 } from '../../shared/events/domain-events';
 import {
@@ -181,6 +183,22 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   private flashAttention: QEFlashAttention | null = null;
   private decisionTransformer: DecisionTransformerAlgorithm | null = null;
   private testEmbeddings: Map<string, Float32Array> = new Map();
+
+  // Domain identifier for dream insight filtering
+  private readonly domainName = 'test-generation';
+
+  // Cache of recent dream insights for test enhancement
+  private recentDreamInsights: Array<{
+    id: string;
+    type: string;
+    description: string;
+    suggestedAction?: string;
+    confidenceScore: number;
+    noveltyScore: number;
+    actionable: boolean;
+    sourceConcepts: string[];
+    receivedAt: Date;
+  }> = [];
 
   // Coherence gate (ADR-052)
   private coherenceGate: TestGenerationCoherenceGate | null = null;
@@ -783,6 +801,260 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
       'test-execution.TestRunCompleted',
       this.handleTestRunCompleted.bind(this)
     );
+
+    // Subscribe to dream cycle events from learning-optimization domain
+    this.subscribeToDreamEvents();
+  }
+
+  // ============================================================================
+  // Dream Event Handling (ADR-021 Integration)
+  // ============================================================================
+
+  /**
+   * Subscribe to dream cycle completion events from learning-optimization domain.
+   * Dream insights can suggest edge cases, novel test patterns, and optimization opportunities.
+   */
+  private subscribeToDreamEvents(): void {
+    this.eventBus.subscribe(
+      LearningOptimizationEvents.DreamCycleCompleted,
+      this.handleDreamCycleCompleted.bind(this)
+    );
+  }
+
+  /**
+   * Handle dream cycle completion event.
+   * Filters insights relevant to test generation and applies actionable ones.
+   */
+  private async handleDreamCycleCompleted(
+    event: DomainEvent<DreamCycleCompletedPayload>
+  ): Promise<void> {
+    const { insights, cycleId } = event.payload;
+
+    if (!insights || insights.length === 0) {
+      return;
+    }
+
+    // Filter insights relevant to this domain
+    const relevantInsights = insights.filter((insight) => {
+      // Check if suggested action mentions this domain
+      const actionRelevant = insight.suggestedAction?.toLowerCase().includes(this.domainName) ||
+        insight.suggestedAction?.toLowerCase().includes('test') ||
+        insight.suggestedAction?.toLowerCase().includes('coverage');
+
+      // Check if source concepts include test-related terms
+      const conceptsRelevant = insight.sourceConcepts.some((c) =>
+        c.toLowerCase().includes('test') ||
+        c.toLowerCase().includes(this.domainName) ||
+        c.toLowerCase().includes('coverage') ||
+        c.toLowerCase().includes('edge-case')
+      );
+
+      // Check for test-generation related insight types
+      const typeRelevant = insight.type === 'optimization' ||
+        insight.type === 'gap_detection' ||
+        insight.type === 'novel_association';
+
+      return actionRelevant || conceptsRelevant || (typeRelevant && insight.actionable);
+    });
+
+    if (relevantInsights.length === 0) {
+      return;
+    }
+
+    console.log(
+      `[${this.domainName}] Received ${relevantInsights.length} relevant dream insights from cycle ${cycleId}`
+    );
+
+    // Apply high-confidence actionable insights
+    for (const insight of relevantInsights) {
+      if (insight.confidenceScore > 0.7 && insight.actionable) {
+        await this.applyDreamInsight(insight, cycleId);
+      }
+
+      // Cache all relevant insights for test enhancement
+      this.recentDreamInsights.push({
+        ...insight,
+        receivedAt: new Date(),
+      });
+    }
+
+    // Prune old insights (keep last 50)
+    if (this.recentDreamInsights.length > 50) {
+      this.recentDreamInsights = this.recentDreamInsights.slice(-50);
+    }
+  }
+
+  /**
+   * Apply a dream insight by storing it as a learned pattern via SONA.
+   * This allows the insight to influence future test generation decisions.
+   *
+   * @param insight - The dream insight to apply
+   * @param cycleId - The dream cycle ID for tracking
+   */
+  private async applyDreamInsight(
+    insight: DreamCycleCompletedPayload['insights'][0],
+    cycleId: string
+  ): Promise<void> {
+    console.log(
+      `[${this.domainName}] Applying dream insight: ${insight.description.slice(0, 100)}...`
+    );
+
+    // Store as a learned pattern via SONA if available
+    if (this.qesona) {
+      try {
+        // Create state representation from insight
+        const state: RLState = {
+          id: `dream-insight-${insight.id}`,
+          features: this.encodeInsightAsFeatures(insight),
+          metadata: {
+            insightType: insight.type,
+            cycleId,
+            sourceConcepts: insight.sourceConcepts,
+          },
+        };
+
+        // Create action representing the suggested action
+        const action: RLAction = {
+          type: 'dream-insight',
+          value: insight.suggestedAction || insight.description,
+        };
+
+        // Create pattern in QESONA with dream-derived marker
+        const pattern = this.qesona.createPattern(
+          state,
+          action,
+          {
+            reward: insight.confidenceScore,
+            success: true,
+            quality: insight.noveltyScore,
+          },
+          'dream-derived' as QEPatternType,
+          this.domainName,
+          {
+            insightId: insight.id,
+            cycleId,
+            description: insight.description,
+            suggestedAction: insight.suggestedAction,
+          }
+        );
+
+        console.log(
+          `[${this.domainName}] Created SONA pattern ${pattern.id} from dream insight`
+        );
+      } catch (error) {
+        console.error(
+          `[${this.domainName}] Failed to store dream insight pattern:`,
+          error
+        );
+      }
+    }
+
+    // Store insight in memory for downstream usage
+    await this.memory.set(
+      `${this.domainName}:dream-insight:${insight.id}`,
+      {
+        insight,
+        cycleId,
+        appliedAt: new Date().toISOString(),
+      },
+      { namespace: this.domainName, ttl: 86400 * 7 } // 7 days
+    );
+  }
+
+  /**
+   * Get recent dream insights filtered by type.
+   * Used by test generation methods to enhance test case discovery.
+   *
+   * @param insightType - Optional type filter (e.g., 'novel_association', 'gap_detection')
+   * @returns Array of recent dream insights
+   */
+  private getRecentDreamInsights(
+    insightType?: string
+  ): Array<typeof this.recentDreamInsights[0]> {
+    const cutoffTime = Date.now() - 24 * 60 * 60 * 1000; // Last 24 hours
+
+    return this.recentDreamInsights.filter((insight) => {
+      const isRecent = insight.receivedAt.getTime() > cutoffTime;
+      const matchesType = !insightType || insight.type === insightType;
+      return isRecent && matchesType;
+    });
+  }
+
+  /**
+   * Enhance test generation request with dream insights for edge case discovery.
+   * Queries recent dream insights to suggest additional test scenarios.
+   *
+   * @param request - The original test generation request
+   * @returns Array of suggested edge case descriptions from dream insights
+   */
+  private async enhanceWithDreamInsights(
+    request: GenerateTestsRequest
+  ): Promise<string[]> {
+    const suggestions: string[] = [];
+
+    // Query recent dream insights for edge case suggestions
+    const insights = this.getRecentDreamInsights();
+
+    // Filter for novel paths and cross-domain insights that suggest edge cases
+    const edgeCaseInsights = insights.filter(
+      (i) =>
+        (i.type === 'novel_association' || i.type === 'gap_detection') &&
+        i.actionable &&
+        i.confidenceScore > 0.6
+    );
+
+    for (const insight of edgeCaseInsights) {
+      if (insight.suggestedAction) {
+        // Check if the insight is relevant to the current request
+        const isRelevant =
+          request.sourceFiles.some((f) =>
+            insight.sourceConcepts.some((c) => f.toLowerCase().includes(c.toLowerCase()))
+          ) ||
+          insight.suggestedAction.toLowerCase().includes(request.testType);
+
+        if (isRelevant) {
+          suggestions.push(insight.suggestedAction);
+        }
+      }
+    }
+
+    // Limit suggestions
+    return suggestions.slice(0, 5);
+  }
+
+  /**
+   * Encode a dream insight as feature vector for SONA pattern creation.
+   */
+  private encodeInsightAsFeatures(
+    insight: DreamCycleCompletedPayload['insights'][0]
+  ): number[] {
+    const features: number[] = [];
+
+    // Encode insight type
+    const typeMap: Record<string, number> = {
+      pattern_merge: 0.2,
+      novel_association: 0.4,
+      optimization: 0.6,
+      gap_detection: 0.8,
+    };
+    features.push(typeMap[insight.type] || 0.5);
+
+    // Encode confidence and novelty
+    features.push(insight.confidenceScore);
+    features.push(insight.noveltyScore);
+
+    // Encode actionability
+    features.push(insight.actionable ? 1.0 : 0.0);
+
+    // Encode source concept count (normalized)
+    features.push(Math.min(1, insight.sourceConcepts.length / 10));
+
+    // Pad to consistent size
+    while (features.length < 384) {
+      features.push(0);
+    }
+
+    return features.slice(0, 384);
   }
 
   private async handleCoverageGapDetected(event: DomainEvent): Promise<void> {

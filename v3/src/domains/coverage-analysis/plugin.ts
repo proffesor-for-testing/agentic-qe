@@ -3,9 +3,9 @@
  * Plugin implementation for the microkernel architecture
  */
 
-import { DomainName, DomainEvent } from '../../shared/types';
+import { DomainName, DomainEvent, Result, ok, err } from '../../shared/types';
 import { EventBus, MemoryBackend, DomainHealth } from '../../kernel/interfaces';
-import { BaseDomainPlugin } from '../domain-interface';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import { TestExecutionEvents } from '../../shared/events';
 import { CoverageAnalysisAPI } from './interfaces';
 import { CoverageAnalysisCoordinator } from './coordinator';
@@ -53,6 +53,88 @@ export class CoverageAnalysisPlugin extends BaseDomainPlugin {
    */
   getCoverageAPI(): CoverageAnalysisAPI {
     return this.coordinator;
+  }
+
+  // ============================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ============================================================================
+
+  /**
+   * Get task handlers for direct Queen-Domain integration
+   * Maps task types to coordinator methods
+   */
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      // Analyze coverage task - main task type for this domain
+      ['analyze-coverage', async (payload): Promise<Result<unknown, Error>> => {
+        const coverageData = payload.coverageData as Parameters<CoverageAnalysisAPI['analyze']>[0]['coverageData'] | undefined;
+
+        if (!coverageData) {
+          return err(new Error('Invalid analyze-coverage payload: missing coverageData'));
+        }
+
+        this._activeAnalyses++;
+        this.updateAgentMetrics();
+
+        try {
+          return await this.coordinator.analyze({
+            coverageData,
+            threshold: payload.threshold as number | undefined,
+            includeFileDetails: payload.includeFileDetails as boolean | undefined,
+          });
+        } finally {
+          this._activeAnalyses--;
+          this.updateAgentMetrics();
+        }
+      }],
+
+      // Detect gaps task
+      ['detect-gaps', async (payload): Promise<Result<unknown, Error>> => {
+        const coverageData = payload.coverageData as Parameters<CoverageAnalysisAPI['detectGaps']>[0]['coverageData'] | undefined;
+
+        if (!coverageData) {
+          return err(new Error('Invalid detect-gaps payload: missing coverageData'));
+        }
+
+        this._activeAnalyses++;
+        this.updateAgentMetrics();
+
+        try {
+          return await this.coordinator.detectGaps({
+            coverageData,
+            minCoverage: payload.minCoverage as number | undefined,
+            prioritize: payload.prioritize as 'risk' | 'size' | 'recent-changes' | undefined,
+          });
+        } finally {
+          this._activeAnalyses--;
+          this.updateAgentMetrics();
+        }
+      }],
+
+      // Calculate risk task
+      ['calculate-risk', async (payload): Promise<Result<unknown, Error>> => {
+        const file = payload.file as string | undefined;
+        const uncoveredLines = payload.uncoveredLines as number[] | undefined;
+
+        if (!file || !uncoveredLines) {
+          return err(new Error('Invalid calculate-risk payload: missing file or uncoveredLines'));
+        }
+
+        this._activeAnalyses++;
+        this.updateAgentMetrics();
+
+        try {
+          return await this.coordinator.calculateRisk({
+            file,
+            uncoveredLines,
+            factors: payload.factors as Parameters<CoverageAnalysisAPI['calculateRisk']>[0]['factors'] | undefined,
+          });
+        } finally {
+          this._activeAnalyses--;
+          this.updateAgentMetrics();
+        }
+      }],
+    ]);
   }
 
   // ============================================================================

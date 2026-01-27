@@ -31,6 +31,8 @@ import {
   DomainHealth,
   MemoryBackend,
   QEKernel,
+  DomainTaskRequest,
+  DomainTaskResult,
 } from '../kernel/interfaces';
 import {
   CrossDomainRouter,
@@ -1153,6 +1155,62 @@ export class QueenCoordinator implements IQueenCoordinator {
     }
   }
 
+  /**
+   * Handle task completion callback from domain plugin
+   * Queen-Domain Integration Fix: Direct task execution callback handler
+   */
+  private async handleTaskCompletion(result: DomainTaskResult): Promise<void> {
+    const execution = this.tasks.get(result.taskId);
+    if (!execution) {
+      console.warn(`[Queen] Received completion for unknown task: ${result.taskId}`);
+      return;
+    }
+
+    // Update task status
+    const updated: TaskExecution = {
+      ...execution,
+      status: result.success ? 'completed' : 'failed',
+      completedAt: new Date(),
+      result: result.data,
+      error: result.error,
+    };
+    this.tasks.set(result.taskId, updated);
+
+    // Update counters
+    if (result.success) {
+      this.tasksCompleted++;
+      this.taskDurations.push(result.duration);
+
+      // SEC-003: Log task completion
+      this.auditLogger.logComplete(result.taskId, execution.assignedAgents[0]);
+    } else {
+      this.tasksFailed++;
+
+      // SEC-003: Log task failure
+      this.auditLogger.logFail(result.taskId, execution.assignedAgents[0], result.error || 'Unknown error');
+    }
+
+    // CC-002: Decrement running task counter
+    this.runningTaskCounter = Math.max(0, this.runningTaskCounter - 1);
+
+    // Stop assigned agents
+    for (const agentId of execution.assignedAgents) {
+      await this.agentCoordinator.stop(agentId);
+    }
+
+    // Publish event
+    await this.publishEvent(result.success ? 'TaskCompleted' : 'TaskFailed', {
+      taskId: result.taskId,
+      domain: execution.assignedDomain,
+      result: result.data,
+      error: result.error,
+      duration: result.duration,
+    });
+
+    // Process queue for next task
+    await this.processQueue();
+  }
+
   private async assignTask(task: QueenTask): Promise<Result<string, Error>> {
     const targetDomains = task.targetDomains.length > 0
       ? task.targetDomains
@@ -1246,9 +1304,50 @@ export class QueenCoordinator implements IQueenCoordinator {
       agentIds,
     });
 
-    // Invoke domain API if available
+    // INTEGRATION FIX: Invoke domain plugin directly for task execution
     if (this.domainPlugins) {
       const plugin = this.domainPlugins.get(domain);
+
+      // Check if plugin supports direct task execution
+      if (plugin?.executeTask && plugin.canHandleTask?.(task.type)) {
+        // Build task request
+        const request: DomainTaskRequest = {
+          taskId: task.id,
+          taskType: task.type,
+          payload: task.payload,
+          priority: task.priority,
+          timeout: task.timeout,
+          correlationId: task.correlationId,
+        };
+
+        // Execute task with callback to handleTaskCompletion
+        const execResult = await plugin.executeTask(
+          request,
+          (result) => this.handleTaskCompletion(result)
+        );
+
+        if (!execResult.success) {
+          // Domain rejected task - update status and decrement counter
+          this.tasks.set(task.id, {
+            ...execution,
+            status: 'failed',
+            error: execResult.error.message,
+            completedAt: new Date(),
+          });
+          this.runningTaskCounter = Math.max(0, this.runningTaskCounter - 1);
+          this.tasksFailed++;
+
+          // SEC-003: Log rejection
+          this.auditLogger.logFail(task.id, agentIds[0], execResult.error.message);
+
+          return err(execResult.error);
+        }
+
+        // Task accepted and running - will complete via callback
+        return ok(task.id);
+      }
+
+      // Fallback: Send event to plugin (for domains not yet updated)
       if (plugin) {
         try {
           await plugin.handleEvent({
@@ -1259,8 +1358,10 @@ export class QueenCoordinator implements IQueenCoordinator {
             correlationId: task.correlationId,
             payload: { task },
           });
+          console.warn(`[Queen] Domain ${domain} has no executeTask handler, using event fallback`);
         } catch (error) {
           // Log but don't fail - domain will handle via event bus
+          console.warn(`[Queen] Failed to invoke domain ${domain} event handler:`, error);
         }
       }
     }
@@ -1481,12 +1582,20 @@ export class QueenCoordinator implements IQueenCoordinator {
 
 /**
  * Create a Queen Coordinator from a QE Kernel
+ *
+ * @param kernel - The QE Kernel instance
+ * @param router - Cross-domain event router
+ * @param protocolExecutor - Optional protocol executor for cross-domain protocols
+ * @param workflowExecutor - Optional workflow executor
+ * @param domainPlugins - Map of domain plugins for direct task execution (Integration Fix)
+ * @param config - Optional configuration overrides
  */
 export function createQueenCoordinator(
   kernel: QEKernel,
   router: CrossDomainRouter,
   protocolExecutor?: ProtocolExecutor,
   workflowExecutor?: WorkflowExecutor,
+  domainPlugins?: Map<DomainName, DomainPlugin>,
   config?: Partial<QueenConfig>
 ): QueenCoordinator {
   return new QueenCoordinator(
@@ -1496,7 +1605,7 @@ export function createQueenCoordinator(
     router,
     protocolExecutor,
     workflowExecutor,
-    undefined,
+    domainPlugins,
     config
   );
 }
