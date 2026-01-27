@@ -335,13 +335,23 @@ export async function handleTaskOrchestrate(
       // Execute the associated workflow directly
       console.log(`[TaskOrchestrate] Task type '${taskType}' has workflow '${workflowId}' - executing workflow`);
 
+      // Detect URL in task description for live website analysis
+      const urlMatch = params.task.match(/https?:\/\/[^\s]+/i);
+      const detectedUrl = urlMatch ? urlMatch[0] : undefined;
+
+      if (detectedUrl) {
+        console.log(`[TaskOrchestrate] Detected URL for analysis: ${detectedUrl}`);
+      }
+
       // Build workflow input from task params and context
       const workflowInput: Record<string, unknown> = {
         // Pass through context fields as workflow input
-        targetId: params.context?.project || `task-${Date.now()}`,
-        targetType: 'epic', // Default for QCSD ideation
+        targetId: params.context?.project || detectedUrl || `task-${Date.now()}`,
+        targetType: detectedUrl ? 'website' : 'epic',
         description: params.task,
         acceptanceCriteria: params.context?.requirements || [],
+        // Pass URL if detected (enables website content extraction)
+        url: detectedUrl,
         // Include routing info for downstream processing
         routing: {
           tier: routingResult.decision.tier,

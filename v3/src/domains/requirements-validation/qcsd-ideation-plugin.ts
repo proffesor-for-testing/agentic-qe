@@ -172,6 +172,44 @@ export interface IdeationReport {
   blockers: string[];
 }
 
+/**
+ * Website extraction result for live URL analysis
+ */
+export interface WebsiteExtractionResult {
+  url: string;
+  isWebsite: boolean;
+  extractedDescription: string;
+  extractedFeatures: string[];
+  extractedAcceptanceCriteria: string[];
+  detectedFlags: {
+    hasUI: boolean;
+    hasSecurity: boolean;
+    hasUX: boolean;
+  };
+  metadata?: {
+    title: string;
+    pageCount: number;
+    extractedAt: string;
+  };
+}
+
+/**
+ * Internal website extraction data
+ */
+interface WebsiteExtraction {
+  title: string;
+  features: string[];
+  uiComponents: string[];
+  securityFeatures: string[];
+  metrics: {
+    formCount: number;
+    buttonCount: number;
+    inputCount: number;
+    linkCount: number;
+    imageCount: number;
+  };
+}
+
 // ============================================================================
 // QCSD Ideation Plugin
 // ============================================================================
@@ -249,11 +287,313 @@ export class QCSDIdeationPlugin {
       'storeIdeationLearnings',
       this.storeIdeationLearnings.bind(this)
     );
+
+    // Register extractWebsiteContent action for live URL analysis
+    orchestrator.registerAction(
+      'requirements-validation',
+      'extractWebsiteContent',
+      this.extractWebsiteContent.bind(this)
+    );
   }
 
   // ============================================================================
   // Workflow Actions
   // ============================================================================
+
+  /**
+   * Extract content from a live website URL for QCSD analysis
+   * Converts website features into epic-like content for quality assessment
+   */
+  private async extractWebsiteContent(
+    input: Record<string, unknown>,
+    context: WorkflowContext
+  ): Promise<Result<WebsiteExtractionResult, Error>> {
+    try {
+      const url = input.url as string || context.input.url as string;
+
+      if (!url) {
+        // No URL provided - pass through existing content
+        return ok({
+          url: '',
+          isWebsite: false,
+          extractedDescription: context.input.description as string || '',
+          extractedFeatures: [],
+          extractedAcceptanceCriteria: context.input.acceptanceCriteria as string[] || [],
+          detectedFlags: {
+            hasUI: false,
+            hasSecurity: false,
+            hasUX: false,
+          },
+        });
+      }
+
+      // Validate URL
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        return err(new Error(`Invalid URL: ${url}`));
+      }
+
+      // Fetch website content
+      const fetchResult = await this.fetchWebsiteContent(parsedUrl.toString());
+      if (!fetchResult.success) {
+        return err(fetchResult.error);
+      }
+
+      const htmlContent = fetchResult.value;
+
+      // Extract features and structure from HTML
+      const extraction = this.parseWebsiteContent(htmlContent, parsedUrl);
+
+      // Build epic-like description from extracted content
+      const description = this.buildEpicDescription(extraction, parsedUrl);
+
+      // Generate acceptance criteria from detected features
+      const acceptanceCriteria = this.generateAcceptanceCriteria(extraction);
+
+      // Detect content flags for conditional agents
+      const detectedFlags = this.detectContentFlags(htmlContent, extraction);
+
+      return ok({
+        url: parsedUrl.toString(),
+        isWebsite: true,
+        extractedDescription: description,
+        extractedFeatures: extraction.features,
+        extractedAcceptanceCriteria: acceptanceCriteria,
+        detectedFlags,
+        metadata: {
+          title: extraction.title,
+          pageCount: 1,
+          extractedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      return err(new Error(`Website extraction failed: ${error instanceof Error ? error.message : String(error)}`));
+    }
+  }
+
+  /**
+   * Fetch website content via HTTP
+   */
+  private async fetchWebsiteContent(url: string): Promise<Result<string, Error>> {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'AQE-QCSD-Ideation-Swarm/1.0 (Quality Assessment Bot)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+        },
+        signal: AbortSignal.timeout(30000), // 30 second timeout
+      });
+
+      if (!response.ok) {
+        return err(new Error(`HTTP ${response.status}: ${response.statusText}`));
+      }
+
+      const html = await response.text();
+      return ok(html);
+    } catch (error) {
+      return err(new Error(`Fetch failed: ${error instanceof Error ? error.message : String(error)}`));
+    }
+  }
+
+  /**
+   * Parse HTML content to extract website features
+   */
+  private parseWebsiteContent(html: string, url: URL): WebsiteExtraction {
+    const features: string[] = [];
+    const uiComponents: string[] = [];
+    const securityFeatures: string[] = [];
+
+    // Extract title
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : url.hostname;
+
+    // Detect common e-commerce/web app features
+    const featurePatterns: Array<{ pattern: RegExp; feature: string; ui?: string }> = [
+      { pattern: /type\s*=\s*["']search["']/i, feature: 'Search functionality', ui: 'Search input' },
+      { pattern: /shopping[-_]?cart|cart[-_]?icon|add[-_]?to[-_]?cart/i, feature: 'Shopping cart', ui: 'Cart component' },
+      { pattern: /login|sign[-_]?in|log[-_]?in/i, feature: 'User authentication', ui: 'Login form' },
+      { pattern: /register|sign[-_]?up|create[-_]?account/i, feature: 'User registration', ui: 'Registration form' },
+      { pattern: /checkout|payment|pay[-_]?now/i, feature: 'Checkout process', ui: 'Checkout flow' },
+      { pattern: /product[-_]?list|product[-_]?grid|catalog/i, feature: 'Product catalog', ui: 'Product grid' },
+      { pattern: /filter|sort[-_]?by|refine/i, feature: 'Filtering and sorting', ui: 'Filter controls' },
+      { pattern: /wishlist|favorites|save[-_]?for[-_]?later/i, feature: 'Wishlist functionality', ui: 'Wishlist button' },
+      { pattern: /review|rating|stars/i, feature: 'Reviews and ratings', ui: 'Rating component' },
+      { pattern: /newsletter|subscribe|email[-_]?signup/i, feature: 'Newsletter subscription', ui: 'Subscription form' },
+      { pattern: /navigation|nav[-_]?menu|main[-_]?menu/i, feature: 'Site navigation', ui: 'Navigation menu' },
+      { pattern: /footer|site[-_]?map/i, feature: 'Footer navigation', ui: 'Footer component' },
+      { pattern: /modal|popup|dialog/i, feature: 'Modal dialogs', ui: 'Modal component' },
+      { pattern: /carousel|slider|slideshow/i, feature: 'Image carousel', ui: 'Carousel component' },
+      { pattern: /accordion|collapsible|expandable/i, feature: 'Accordion sections', ui: 'Accordion component' },
+      { pattern: /tab|tabbed[-_]?content/i, feature: 'Tabbed content', ui: 'Tab component' },
+      { pattern: /form|input|textarea|select/i, feature: 'Form interactions', ui: 'Form elements' },
+      { pattern: /video|player|embed/i, feature: 'Video content', ui: 'Video player' },
+      { pattern: /chat|support|help[-_]?desk/i, feature: 'Customer support', ui: 'Chat widget' },
+      { pattern: /cookie|consent|gdpr|privacy/i, feature: 'Privacy compliance', ui: 'Consent banner' },
+    ];
+
+    for (const { pattern, feature, ui } of featurePatterns) {
+      if (pattern.test(html)) {
+        features.push(feature);
+        if (ui) uiComponents.push(ui);
+      }
+    }
+
+    // Detect security-related features
+    const securityPatterns: Array<{ pattern: RegExp; feature: string }> = [
+      { pattern: /password|passwd/i, feature: 'Password handling' },
+      { pattern: /https|ssl|secure/i, feature: 'Secure connection' },
+      { pattern: /oauth|sso|single[-_]?sign[-_]?on/i, feature: 'OAuth/SSO authentication' },
+      { pattern: /2fa|two[-_]?factor|mfa/i, feature: 'Multi-factor authentication' },
+      { pattern: /captcha|recaptcha/i, feature: 'Bot protection' },
+      { pattern: /csrf|token/i, feature: 'CSRF protection' },
+      { pattern: /encrypt|crypto/i, feature: 'Data encryption' },
+    ];
+
+    for (const { pattern, feature } of securityPatterns) {
+      if (pattern.test(html)) {
+        securityFeatures.push(feature);
+      }
+    }
+
+    // Count interactive elements
+    const formCount = (html.match(/<form/gi) || []).length;
+    const buttonCount = (html.match(/<button/gi) || []).length;
+    const inputCount = (html.match(/<input/gi) || []).length;
+    const linkCount = (html.match(/<a\s+[^>]*href/gi) || []).length;
+    const imageCount = (html.match(/<img/gi) || []).length;
+
+    return {
+      title,
+      features: [...new Set(features)], // Dedupe
+      uiComponents: [...new Set(uiComponents)],
+      securityFeatures: [...new Set(securityFeatures)],
+      metrics: {
+        formCount,
+        buttonCount,
+        inputCount,
+        linkCount,
+        imageCount,
+      },
+    };
+  }
+
+  /**
+   * Build epic-like description from extracted content
+   */
+  private buildEpicDescription(extraction: WebsiteExtraction, url: URL): string {
+    const lines: string[] = [
+      `## Website Analysis: ${extraction.title}`,
+      `**URL**: ${url.toString()}`,
+      `**Domain**: ${url.hostname}`,
+      '',
+      '### Detected Features',
+    ];
+
+    if (extraction.features.length > 0) {
+      for (const feature of extraction.features) {
+        lines.push(`- ${feature}`);
+      }
+    } else {
+      lines.push('- Basic web content');
+    }
+
+    lines.push('', '### UI Components');
+    if (extraction.uiComponents.length > 0) {
+      for (const component of extraction.uiComponents) {
+        lines.push(`- ${component}`);
+      }
+    } else {
+      lines.push('- Standard HTML elements');
+    }
+
+    if (extraction.securityFeatures.length > 0) {
+      lines.push('', '### Security Features');
+      for (const feature of extraction.securityFeatures) {
+        lines.push(`- ${feature}`);
+      }
+    }
+
+    lines.push('', '### Page Metrics');
+    lines.push(`- Forms: ${extraction.metrics.formCount}`);
+    lines.push(`- Buttons: ${extraction.metrics.buttonCount}`);
+    lines.push(`- Input fields: ${extraction.metrics.inputCount}`);
+    lines.push(`- Links: ${extraction.metrics.linkCount}`);
+    lines.push(`- Images: ${extraction.metrics.imageCount}`);
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Generate acceptance criteria from detected features
+   */
+  private generateAcceptanceCriteria(extraction: WebsiteExtraction): string[] {
+    const criteria: string[] = [];
+
+    // Map features to acceptance criteria
+    const featureToCriteria: Record<string, string> = {
+      'Search functionality': 'User can search for content and receive relevant results',
+      'Shopping cart': 'User can add items to cart and view cart contents',
+      'User authentication': 'User can log in with valid credentials',
+      'User registration': 'New user can create an account',
+      'Checkout process': 'User can complete purchase with valid payment',
+      'Product catalog': 'User can browse and view product listings',
+      'Filtering and sorting': 'User can filter and sort content by various criteria',
+      'Wishlist functionality': 'User can save items for later',
+      'Reviews and ratings': 'User can view and submit reviews',
+      'Newsletter subscription': 'User can subscribe to email updates',
+      'Site navigation': 'User can navigate between all main sections',
+      'Modal dialogs': 'Modal dialogs are accessible and dismissible',
+      'Form interactions': 'All forms validate input and show clear error messages',
+      'Video content': 'Video content is playable and accessible',
+      'Customer support': 'User can access help and support resources',
+      'Privacy compliance': 'Cookie consent is properly implemented',
+    };
+
+    for (const feature of extraction.features) {
+      if (featureToCriteria[feature]) {
+        criteria.push(featureToCriteria[feature]);
+      }
+    }
+
+    // Add default criteria if none detected
+    if (criteria.length === 0) {
+      criteria.push(
+        'Page loads within acceptable time',
+        'Content is readable and well-structured',
+        'Navigation is intuitive'
+      );
+    }
+
+    return criteria;
+  }
+
+  /**
+   * Detect content flags for conditional agent spawning
+   */
+  private detectContentFlags(
+    html: string,
+    extraction: WebsiteExtraction
+  ): { hasUI: boolean; hasSecurity: boolean; hasUX: boolean } {
+    // HAS_UI: Any UI components or visual elements
+    const hasUI = extraction.uiComponents.length > 0 ||
+      extraction.metrics.formCount > 0 ||
+      extraction.metrics.buttonCount > 0 ||
+      /<(button|input|select|form|img|video|canvas)/i.test(html);
+
+    // HAS_SECURITY: Security-related features detected
+    const hasSecurity = extraction.securityFeatures.length > 0 ||
+      /login|password|auth|token|session|credential/i.test(html);
+
+    // HAS_UX: Interactive elements suggesting user experience concerns
+    const hasUX = extraction.features.length >= 3 ||
+      extraction.metrics.formCount >= 2 ||
+      /user[-_]?experience|ux|journey|onboarding|tutorial/i.test(html);
+
+    return { hasUI, hasSecurity, hasUX };
+  }
 
   /**
    * Analyze quality criteria using HTSM v6.3 framework

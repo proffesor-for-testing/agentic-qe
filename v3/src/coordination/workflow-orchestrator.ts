@@ -1852,25 +1852,47 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     // Per QCSD framework: Quality Criteria sessions during PI/Sprint Planning
     // Primary: qe-quality-criteria-recommender (HTSM v6.3 analysis)
     // Supporting: testability-scoring, qe-risk-assessor, qe-requirements-validator
+    // Enhanced: Supports live URL input - extracts website content for analysis
     this.registerWorkflow({
       id: 'qcsd-ideation-swarm',
       name: 'QCSD Ideation Swarm',
       description:
-        'Quality Conscious Software Delivery ideation phase: quality-criteria (HTSM) -> [testability, risk, requirements] in parallel -> aggregated report',
-      version: '1.0.0',
-      tags: ['qcsd', 'ideation', 'quality-criteria', 'htsm', 'shift-left'],
+        'Quality Conscious Software Delivery ideation phase: [url-extraction] -> quality-criteria (HTSM) -> [testability, risk, requirements] in parallel -> aggregated report. Supports live website URLs.',
+      version: '2.0.0',
+      tags: ['qcsd', 'ideation', 'quality-criteria', 'htsm', 'shift-left', 'url-analysis'],
       steps: [
+        // Step 0: Optional - Website Content Extraction (for URL input)
+        {
+          id: 'website-content-extraction',
+          name: 'Website Content Extraction',
+          domain: 'requirements-validation',
+          action: 'extractWebsiteContent',
+          inputMapping: {
+            url: 'input.url',
+          },
+          outputMapping: {
+            extractedDescription: 'extraction.description',
+            extractedFeatures: 'extraction.features',
+            extractedAcceptanceCriteria: 'extraction.acceptanceCriteria',
+            detectedFlags: 'extraction.flags',
+            isWebsite: 'extraction.isWebsite',
+          },
+          timeout: 60000, // 1 minute for URL fetch
+          continueOnFailure: true, // Continue even if URL fetch fails
+        },
         // Step 1: Primary - Quality Criteria Analysis (HTSM v6.3)
         {
           id: 'quality-criteria-analysis',
           name: 'HTSM Quality Criteria Analysis',
           domain: 'requirements-validation',
           action: 'analyzeQualityCriteria',
+          dependsOn: ['website-content-extraction'],
           inputMapping: {
             targetId: 'input.targetId',
             targetType: 'input.targetType',
-            description: 'input.description',
-            acceptanceCriteria: 'input.acceptanceCriteria',
+            // Use extracted description if available, otherwise use input
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            acceptanceCriteria: 'results.website-content-extraction.extractedAcceptanceCriteria || input.acceptanceCriteria',
           },
           outputMapping: {
             qualityCriteria: 'qualityCriteria.criteria',
@@ -1888,8 +1910,8 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
           dependsOn: ['quality-criteria-analysis'],
           inputMapping: {
             targetId: 'input.targetId',
-            description: 'input.description',
-            acceptanceCriteria: 'input.acceptanceCriteria',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            acceptanceCriteria: 'results.website-content-extraction.extractedAcceptanceCriteria || input.acceptanceCriteria',
           },
           outputMapping: {
             overallScore: 'testability.overallScore',
@@ -1910,7 +1932,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
           inputMapping: {
             targetId: 'input.targetId',
             targetType: 'input.targetType',
-            description: 'input.description',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
           },
           outputMapping: {
             overallRisk: 'risks.overallRisk',
@@ -1930,8 +1952,8 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
           dependsOn: ['quality-criteria-analysis'],
           inputMapping: {
             targetId: 'input.targetId',
-            description: 'input.description',
-            acceptanceCriteria: 'input.acceptanceCriteria',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            acceptanceCriteria: 'results.website-content-extraction.extractedAcceptanceCriteria || input.acceptanceCriteria',
           },
           outputMapping: {
             valid: 'requirements.valid',
@@ -1941,22 +1963,23 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
           timeout: 90000,
           continueOnFailure: true,
         },
-        // Step 3: Optional - Security Threat Modeling (if security concerns detected)
+        // Step 3: Optional - Security Threat Modeling (if security concerns or URL with security features)
         {
           id: 'security-threat-modeling',
           name: 'Early Security Threat Modeling',
           domain: 'security-compliance',
           action: 'modelSecurityThreats',
           dependsOn: ['quality-criteria-analysis'],
+          // Trigger if explicitly requested OR if website extraction detected security features
           condition: {
-            path: 'input.securityCritical',
+            path: 'results.website-content-extraction.detectedFlags.hasSecurity || input.securityCritical',
             operator: 'eq',
             value: true,
           },
           inputMapping: {
             targetId: 'input.targetId',
-            description: 'input.description',
-            securityCritical: 'input.securityCritical',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            securityCritical: 'results.website-content-extraction.detectedFlags.hasSecurity || input.securityCritical',
           },
           outputMapping: {
             threats: 'security.threats',
