@@ -11,7 +11,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Full MinCut/Consensus Integration** - All 12 QE domains now have active MinCut topology awareness, multi-model consensus verification, and self-healing triggers. This completes the ADR-047 implementation with production-ready distributed coordination.
 
+**LLM Integration Across All Domains** - ADR-051 enables intelligent LLM-powered analysis in all 12 QE domains with TinyDancer model routing for cost optimization.
+
 ### Added
+
+#### LLM Integration for All 12 QE Domains (ADR-051)
+- **test-generation** - AI-powered test synthesis with pattern learning
+- **test-execution** - Intelligent flaky test analysis and retry recommendations
+- **coverage-analysis** - LLM-assisted gap prioritization and risk scoring
+- **quality-assessment** - AI-driven quality gate decisions with explanations
+- **defect-intelligence** - ML-powered defect prediction and root cause analysis
+- **requirements-validation** - LLM testability analysis and BDD generation
+- **code-intelligence** - Semantic code search with natural language queries
+- **security-compliance** - AI vulnerability analysis with remediation guidance
+- **contract-testing** - LLM contract validation and breaking change detection
+- **visual-accessibility** - AI visual regression analysis and WCAG recommendations
+- **chaos-resilience** - Intelligent resilience assessment and failure prediction
+- **learning-optimization** - Pattern consolidation with LLM synthesis
+
+#### QE Agent Registry Fixes
+- Added missing agents to registry: `qe-product-factors-assessor`, `qe-quality-criteria-recommender`, `qe-test-idea-rewriter`
+- Fixed skill counts: 61 QE skills properly registered
+- Updated agent-to-domain mappings
+
+#### Documentation
+- **TinyDancer Integration Plan** - Detailed plan for model routing across domains
+- **Contract Validator LLM Docs** - LLM integration documentation for contract testing
 
 #### MinCut/Consensus Full Domain Integration (ADR-047, MM-001)
 - **All 12 domains** now actively use consensus verification (not just initialized)
