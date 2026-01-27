@@ -26,7 +26,7 @@ curl -s -o /dev/null -w "%{http_code}" https://sauce-demo.myshopify.com/
 
 **[EXECUTE in Claude Code]**:
 ```
-Use qe-queen-coordinator to orchestrate a full QE assessment of https://sauce-demo.myshopify.com/:
+Use qe-queen-coordinator to orchestrate a full QE assessment of https://sauce-demo.myshopify.com/collections/all only:
 
 1. Coverage Analysis - Identify critical user journeys and edge cases to test
 2. Security Scan - Check for e-commerce vulnerabilities (XSS, CSRF, PII exposure)

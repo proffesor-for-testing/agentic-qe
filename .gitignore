@@ -194,3 +194,13 @@ v3/.test-tmp/*
 
 # Accessibility scan outputs (generated, may contain site-specific data)
 docs/accessibility-scans/
+
+# QCSD Analysis Reports (site-specific, may contain sensitive findings)
+Agentic QCSD/
+L2C/
+
+# n8n instance-specific files (contain internal URLs/credentials)
+.env.n8n
+scripts/n8n-predeploy-check.sh
+**/n8n-*-config.*
+**/*acngva*
