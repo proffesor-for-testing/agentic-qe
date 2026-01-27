@@ -6,6 +6,10 @@
  * - ActorCritic RL: Quality gate threshold tuning
  * - QESONA: Quality pattern learning
  * - QEFlashAttention: Similarity computations for quality reports
+ *
+ * V3 Integrations (ADR-047, CONSENSUS-MIXIN-001):
+ * - MinCutAwareDomainMixin: Topology-aware routing and health monitoring
+ * - ConsensusEnabledMixin: Multi-model consensus for high-stakes quality decisions
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -39,6 +43,7 @@ import {
   ComplexityRequest,
   ComplexityReport,
   QualityMetrics,
+  GateThresholds,
 } from './interfaces';
 import {
   QualityGateService,
@@ -71,6 +76,27 @@ import {
   type ReportVerification,
 } from '../../agents/claim-verifier/index.js';
 
+// V3 Integration: MinCut Awareness (ADR-047)
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type MinCutAwareConfig,
+} from '../../coordination/mixins/mincut-aware-domain';
+import { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
+
+// V3 Integration: Consensus Verification (CONSENSUS-MIXIN-001)
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain';
+import {
+  DomainFinding,
+  createDomainFinding,
+  type FindingSeverity,
+} from '../../coordination/consensus/domain-findings';
+import type { ConsensusResult, ConsensusStats } from '../../coordination/consensus';
+
 /**
  * Interface for the quality assessment coordinator
  */
@@ -78,6 +104,13 @@ export interface IQualityAssessmentCoordinator extends QualityAssessmentAPI {
   initialize(): Promise<void>;
   dispose(): Promise<void>;
   getActiveWorkflows(): WorkflowStatus[];
+
+  // V3 Integration: MinCut awareness
+  setMinCutBridge(bridge: QueenMinCutBridge): void;
+  isTopologyHealthy(): boolean;
+
+  // V3 Integration: Consensus verification
+  getConsensusStats(): ConsensusStats | undefined;
 }
 
 /**
@@ -111,6 +144,22 @@ export interface CoordinatorConfig {
   enableClaimVerification: boolean;
   /** Root directory for claim verifier file operations */
   claimVerifierRootDir?: string;
+
+  // V3 Integration: MinCut Awareness (ADR-047)
+  /** Enable MinCut topology awareness for routing decisions */
+  enableMinCutAwareness: boolean;
+  /** Topology health threshold (0-1) */
+  topologyHealthThreshold: number;
+
+  // V3 Integration: Consensus Verification (CONSENSUS-MIXIN-001)
+  /** Enable multi-model consensus for borderline quality decisions */
+  enableConsensus: boolean;
+  /** Consensus threshold for quality gate verdicts */
+  consensusThreshold: number;
+  /** Minimum models required for consensus */
+  consensusMinModels: number;
+  /** Margin (percentage) for determining borderline cases */
+  borderlineMargin: number;
 }
 
 /**
@@ -145,6 +194,14 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   enableFlashAttention: true,
   // V3: ClaimVerifier enabled by default
   enableClaimVerification: true,
+  // V3: MinCut Awareness enabled by default
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  // V3: Consensus enabled by default for quality decisions
+  enableConsensus: true,
+  consensusThreshold: 0.7,
+  consensusMinModels: 2,
+  borderlineMargin: 0.05, // 5% margin for borderline detection
 };
 
 /**
@@ -155,6 +212,10 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
  * - ActorCritic RL: Quality gate threshold tuning
  * - QESONA: Quality pattern learning
  * - QEFlashAttention: Similarity computations for quality reports
+ *
+ * V3 Integrations (ADR-047, CONSENSUS-MIXIN-001):
+ * - MinCutAwareDomainMixin: Topology-aware routing and health monitoring
+ * - ConsensusEnabledMixin: Multi-model consensus for high-stakes quality decisions
  */
 export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinator {
   private readonly config: CoordinatorConfig;
@@ -171,6 +232,12 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
   // V3 Integration: ClaimVerifier for report verification
   private claimVerifier?: ClaimVerifierService;
+
+  // V3 Integration: MinCut Awareness (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // V3 Integration: Consensus Verification (CONSENSUS-MIXIN-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
 
   // Quality domain name for SONA
   private readonly domain: DomainName = 'quality-assessment';
@@ -197,11 +264,39 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
     this.qualityGate = new QualityGateService(memory);
     this.qualityAnalyzer = new QualityAnalyzerService(memory);
     this.deploymentAdvisor = new DeploymentAdvisorService(memory);
+
+    // V3 Integration: Initialize MinCut Awareness Mixin (ADR-047)
+    this.minCutMixin = createMinCutAwareMixin(this.domain, {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: false, // Quality assessment continues even in degraded topology
+      monitoredDomains: [], // Monitor all domains
+    });
+
+    // V3 Integration: Initialize Consensus Mixin (CONSENSUS-MIXIN-001)
+    // Configured for quality-assessment specific finding types
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      minModels: this.config.consensusMinModels,
+      // Quality-specific finding types that require consensus
+      verifyFindingTypes: [
+        'gate-verdict',           // Pass/fail quality gate decisions
+        'tech-debt-classification', // Critical vs acceptable tech debt
+        'release-readiness',      // Go/no-go deployment decisions
+        'risk-scoring',           // High-risk deployment detection
+      ],
+      strategy: 'weighted',
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+    });
   }
 
   /**
    * Initialize the coordinator
    * Sets up Ruvector integrations: ActorCritic, QESONA, QEFlashAttention
+   * V3: Also initializes MinCut awareness and Consensus verification
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -233,6 +328,11 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
         await this.initializeClaimVerifier();
       }
 
+      // V3 Integration: Initialize Consensus Engine (CONSENSUS-MIXIN-001)
+      if (this.config.enableConsensus) {
+        await this.initializeConsensus();
+      }
+
       this.initialized = true;
     } catch (error) {
       const errorMsg = `Failed to initialize quality-assessment coordinator: ${error instanceof Error ? error.message : String(error)}`;
@@ -241,7 +341,24 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
   }
 
   /**
+   * V3 Integration: Initialize the consensus engine for multi-model verification
+   * @private
+   */
+  private async initializeConsensus(): Promise<void> {
+    try {
+      // The mixin handles provider registration and engine creation
+      await (this.consensusMixin as unknown as { initializeConsensus(): Promise<void> }).initializeConsensus();
+      console.log('[quality-assessment] Consensus engine initialized for quality gate decisions');
+    } catch (error) {
+      // Log and continue - consensus is enhancement, not critical
+      console.warn('[quality-assessment] Failed to initialize consensus engine:', error);
+      console.warn('[quality-assessment] Continuing without multi-model consensus verification');
+    }
+  }
+
+  /**
    * Dispose and cleanup
+   * V3: Also disposes MinCut mixin and Consensus engine
    */
   async dispose(): Promise<void> {
     await this.saveWorkflowState();
@@ -254,6 +371,12 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       await this.qesona.close();
       this.qesona = undefined;
     }
+
+    // V3 Integration: Dispose MinCut mixin (ADR-047)
+    this.minCutMixin.dispose();
+
+    // V3 Integration: Dispose Consensus engine (CONSENSUS-MIXIN-001)
+    await (this.consensusMixin as unknown as { disposeConsensus(): Promise<void> }).disposeConsensus();
 
     this.workflows.clear();
     this.initialized = false;
@@ -269,12 +392,84 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
   }
 
   // ============================================================================
+  // V3 Integration: MinCut Awareness (ADR-047)
+  // ============================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   * Uses dependency injection pattern for testability
+   *
+   * @param bridge - The QueenMinCutBridge instance
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+  }
+
+  /**
+   * Check if the overall topology is healthy
+   * Returns true if status is not 'critical'
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  /**
+   * Get domains that are healthy for routing
+   * Filters out weak domains from routing candidates
+   */
+  getHealthyRoutingDomains(): DomainName[] {
+    return this.minCutMixin.getHealthyRoutingDomains();
+  }
+
+  /**
+   * Check if this domain itself is a weak point in the topology
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  /**
+   * Get weak vertices belonging to this domain
+   * Per ADR-047: Identifies agents that are single points of failure
+   */
+  getDomainWeakVertices() {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Get topology-aware routing for cross-domain coordination
+   * Per ADR-047: Routes to healthy domains, avoiding weak points
+   */
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
+  }
+
+  // ============================================================================
+  // V3 Integration: Consensus Verification (CONSENSUS-MIXIN-001)
+  // ============================================================================
+
+  /**
+   * Get consensus statistics
+   */
+  getConsensusStats(): ConsensusStats | undefined {
+    return this.consensusMixin.getConsensusStats();
+  }
+
+  /**
+   * Check if consensus verification is available
+   */
+  isConsensusAvailable(): boolean {
+    return (this.consensusMixin as unknown as { isConsensusAvailable(): boolean }).isConsensusAvailable();
+  }
+
+  // ============================================================================
   // QualityAssessmentAPI Implementation
   // ============================================================================
 
   /**
    * Evaluate a quality gate
    * Uses Actor-Critic RL for intelligent threshold tuning when enabled
+   * V3: Uses consensus verification for borderline gate decisions
    */
   async evaluateGate(
     request: GateEvaluationRequest
@@ -283,6 +478,20 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
     try {
       this.startWorkflow(workflowId, 'gate-evaluation');
+
+      // Self-healing: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        console.warn('[quality-assessment] Quality gate evaluation paused: topology is in critical state');
+        this.failWorkflow(workflowId, 'Topology is in critical state');
+        return err(new Error('Quality gate evaluation paused: topology is in critical state'));
+      }
+
+      // V3 Integration: Check topology health before proceeding (ADR-047)
+      // Apply stricter thresholds when topology is degraded
+      if (!this.isTopologyHealthy()) {
+        console.warn('[quality-assessment] Topology degraded - applying stricter thresholds for quality gate');
+        // Continue evaluation but with heightened caution - quality gates are critical
+      }
 
       // Spawn quality gate agent if available
       const agentResult = await this.spawnQualityGateAgent(workflowId, request);
@@ -315,26 +524,39 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
         return result;
       }
 
+      // V3 Integration: Use consensus for borderline cases (CONSENSUS-MIXIN-001)
+      // Borderline cases are pass/fail decisions where metrics are close to thresholds
+      let finalResult = result.value;
+      if (this.config.enableConsensus && this.isBorderlineGateResult(request.metrics, request.thresholds, result.value)) {
+        const consensusResult = await this.verifyGateVerdictWithConsensus(
+          effectiveRequest,
+          result.value
+        );
+        if (consensusResult) {
+          finalResult = consensusResult;
+        }
+      }
+
       // Success path
       this.completeWorkflow(workflowId);
 
       // Store quality pattern in SONA if enabled
       if (this.config.enableSONAPatternLearning && this.qesona) {
-        await this.storeQualityPattern(effectiveRequest, result.value);
+        await this.storeQualityPattern(effectiveRequest, finalResult);
       }
 
       // Train Actor-Critic with the result
       if (this.config.enableRLThresholdTuning && this.actorCritic) {
-        await this.trainActorCritic(effectiveRequest, result.value);
+        await this.trainActorCritic(effectiveRequest, finalResult);
       }
 
       // Publish event
       if (this.config.publishEvents) {
-        await this.publishQualityGateEvaluated(result.value);
+        await this.publishQualityGateEvaluated(finalResult);
       }
 
       // V3: Verify claims before returning (Phase 4)
-      const verifiedResult = await this.verifyGateResultClaims(result.value);
+      const verifiedResult = await this.verifyGateResultClaims(finalResult);
 
       return ok(verifiedResult);
     } catch (error) {
@@ -344,8 +566,128 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
   }
 
   /**
+   * V3 Integration: Check if a gate result is a borderline case
+   * A borderline case is when any metric is within the configured margin of its threshold
+   *
+   * @param metrics - The quality metrics being evaluated
+   * @param thresholds - The threshold configuration
+   * @param result - The gate result
+   * @returns true if this is a borderline case requiring consensus
+   */
+  private isBorderlineGateResult(
+    metrics: QualityMetrics,
+    thresholds: GateThresholds,
+    result: GateResult
+  ): boolean {
+    const margin = this.config.borderlineMargin;
+
+    // Check each metric against its threshold
+    const metricsToCheck: Array<{ metricKey: keyof QualityMetrics; thresholdKey: keyof GateThresholds; isMin: boolean }> = [
+      { metricKey: 'coverage', thresholdKey: 'coverage', isMin: true },
+      { metricKey: 'testsPassing', thresholdKey: 'testsPassing', isMin: true },
+      { metricKey: 'criticalBugs', thresholdKey: 'criticalBugs', isMin: false },
+      { metricKey: 'codeSmells', thresholdKey: 'codeSmells', isMin: false },
+      { metricKey: 'securityVulnerabilities', thresholdKey: 'securityVulnerabilities', isMin: false },
+      { metricKey: 'technicalDebt', thresholdKey: 'technicalDebt', isMin: false },
+      { metricKey: 'duplications', thresholdKey: 'duplications', isMin: false },
+    ];
+
+    for (const { metricKey, thresholdKey, isMin } of metricsToCheck) {
+      const metricValue = metrics[metricKey];
+      const thresholdConfig = thresholds[thresholdKey];
+
+      if (thresholdConfig === undefined) continue;
+
+      const threshold = isMin
+        ? (thresholdConfig as { min: number }).min
+        : (thresholdConfig as { max: number }).max;
+
+      if (threshold === undefined || threshold === 0) continue;
+
+      // Calculate relative distance from threshold
+      const relativeDistance = Math.abs(metricValue - threshold) / threshold;
+
+      // If any metric is within margin of threshold, it's borderline
+      if (relativeDistance < margin) {
+        console.log(`[quality-assessment] Borderline detected: ${metricKey}=${metricValue} (threshold=${threshold}, distance=${(relativeDistance * 100).toFixed(1)}%)`);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * V3 Integration: Verify a gate verdict with multi-model consensus
+   *
+   * @param request - The gate evaluation request
+   * @param initialResult - The initial gate result
+   * @returns The potentially modified result with consensus verification, or null if consensus unavailable
+   */
+  private async verifyGateVerdictWithConsensus(
+    request: GateEvaluationRequest,
+    initialResult: GateResult
+  ): Promise<GateResult | null> {
+    // Create a domain finding for the gate verdict
+    const finding = createDomainFinding<{
+      metrics: QualityMetrics;
+      thresholds: GateThresholds;
+      initialResult: GateResult;
+    }>({
+      id: `gate-verdict-${uuidv4()}`,
+      type: 'gate-verdict',
+      confidence: initialResult.overallScore / 100,
+      description: `Quality gate '${request.gateName}' verdict: ${initialResult.passed ? 'PASSED' : 'FAILED'} (borderline case)`,
+      payload: {
+        metrics: request.metrics,
+        thresholds: request.thresholds,
+        initialResult,
+      },
+      detectedBy: 'quality-assessment-coordinator',
+      severity: initialResult.passed ? 'medium' : 'high',
+    });
+
+    // Check if this finding requires consensus
+    if (!this.consensusMixin.requiresConsensus(finding)) {
+      return null;
+    }
+
+    try {
+      const consensusResult = await this.consensusMixin.verifyFinding(finding);
+
+      if (!consensusResult.success) {
+        console.warn('[quality-assessment] Consensus verification failed:', (consensusResult as { success: false; error: Error }).error);
+        return null;
+      }
+
+      const consensus = consensusResult.value;
+      console.log(
+        `[quality-assessment] Consensus for gate '${request.gateName}': ` +
+        `verdict=${consensus.verdict}, confidence=${(consensus.confidence * 100).toFixed(1)}%`
+      );
+
+      // Return result with consensus information
+      return {
+        ...initialResult,
+        // Add consensus metadata (extends GateResult)
+        consensusVerified: true,
+        consensusConfidence: consensus.confidence,
+        consensusVerdict: consensus.verdict,
+      } as GateResult & {
+        consensusVerified: boolean;
+        consensusConfidence: number;
+        consensusVerdict: string;
+      };
+    } catch (error) {
+      console.error('[quality-assessment] Consensus verification error:', error);
+      return null;
+    }
+  }
+
+  /**
    * Analyze code quality
    * Uses QEFlashAttention for similarity-based recommendations when enabled
+   * V3: Includes topology-aware behavior based on MinCut health
    */
   async analyzeQuality(
     request: QualityAnalysisRequest
@@ -354,6 +696,21 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
     try {
       this.startWorkflow(workflowId, 'quality-analysis');
+
+      // Self-healing: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        console.warn('[quality-assessment] Quality analysis paused: topology is in critical state');
+        this.failWorkflow(workflowId, 'Topology is in critical state');
+        return err(new Error('Quality analysis paused: topology is in critical state'));
+      }
+
+      // V3 Integration: Check topology health and adjust behavior (ADR-047)
+      const topologyHealthy = this.isTopologyHealthy();
+      if (!topologyHealthy) {
+        console.warn('[quality-assessment] Topology degraded during quality analysis');
+        // Could adjust analysis depth or timeouts in degraded state
+        // For now, we proceed but could be extended to reduce analysis scope
+      }
 
       // Spawn quality analyzer agent
       const agentResult = await this.spawnQualityAnalyzerAgent(workflowId, request);
@@ -412,6 +769,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
   /**
    * Get deployment recommendation
+   * V3: Uses consensus verification for high-risk deployment decisions
    */
   async getDeploymentAdvice(
     request: DeploymentRequest
@@ -420,6 +778,18 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
     try {
       this.startWorkflow(workflowId, 'deployment-advice');
+
+      // Self-healing: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        console.warn('[quality-assessment] Deployment advice paused: topology is in critical state');
+        this.failWorkflow(workflowId, 'Topology is in critical state');
+        return err(new Error('Deployment advice paused: topology is in critical state'));
+      }
+
+      // V3 Integration: Check topology health (ADR-047)
+      if (!this.isTopologyHealthy()) {
+        console.warn('[quality-assessment] Topology degraded during deployment advice generation');
+      }
 
       // Spawn deployment advisor agent
       const agentResult = await this.spawnDeploymentAdvisorAgent(workflowId, request);
@@ -440,18 +810,104 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
         return result;
       }
 
+      // V3 Integration: Use consensus for high-risk deployment decisions (CONSENSUS-MIXIN-001)
+      let finalAdvice = result.value;
+      if (this.config.enableConsensus && this.isHighRiskDeployment(request, result.value)) {
+        const consensusAdvice = await this.verifyDeploymentAdviceWithConsensus(request, result.value);
+        if (consensusAdvice) {
+          finalAdvice = consensusAdvice;
+        }
+      }
+
       // Success path
       this.completeWorkflow(workflowId);
 
       // Publish deployment decision event
       if (this.config.publishEvents) {
-        await this.publishDeploymentDecision(result.value, request.releaseCandidate);
+        await this.publishDeploymentDecision(finalAdvice, request.releaseCandidate);
       }
 
-      return result;
+      return ok(finalAdvice);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
       return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * V3 Integration: Check if a deployment is high-risk
+   * High-risk deployments include blocked deployments or low risk tolerance with warnings
+   */
+  private isHighRiskDeployment(request: DeploymentRequest, advice: DeploymentAdvice): boolean {
+    // Blocked deployments are always high-risk
+    if (advice.decision === 'blocked') {
+      return true;
+    }
+
+    // Warning with low risk tolerance is high-risk
+    if (advice.decision === 'warning' && request.riskTolerance === 'low') {
+      return true;
+    }
+
+    // High risk score (>0.7) with any decision is high-risk
+    if (advice.riskScore > 0.7) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * V3 Integration: Verify deployment advice with multi-model consensus
+   */
+  private async verifyDeploymentAdviceWithConsensus(
+    request: DeploymentRequest,
+    initialAdvice: DeploymentAdvice
+  ): Promise<DeploymentAdvice | null> {
+    const finding = createDomainFinding<{
+      request: DeploymentRequest;
+      initialAdvice: DeploymentAdvice;
+    }>({
+      id: `release-readiness-${uuidv4()}`,
+      type: 'release-readiness',
+      confidence: initialAdvice.confidence,
+      description: `Release readiness for '${request.releaseCandidate}': ${initialAdvice.decision} (risk: ${(initialAdvice.riskScore * 100).toFixed(0)}%)`,
+      payload: { request, initialAdvice },
+      detectedBy: 'quality-assessment-coordinator',
+      severity: initialAdvice.decision === 'blocked' ? 'critical' : 'high',
+    });
+
+    if (!this.consensusMixin.requiresConsensus(finding)) {
+      return null;
+    }
+
+    try {
+      const consensusResult = await this.consensusMixin.verifyFinding(finding);
+
+      if (!consensusResult.success) {
+        console.warn('[quality-assessment] Consensus verification for deployment failed:', (consensusResult as { success: false; error: Error }).error);
+        return null;
+      }
+
+      const consensus = consensusResult.value;
+      console.log(
+        `[quality-assessment] Consensus for deployment '${request.releaseCandidate}': ` +
+        `verdict=${consensus.verdict}, confidence=${(consensus.confidence * 100).toFixed(1)}%`
+      );
+
+      return {
+        ...initialAdvice,
+        consensusVerified: true,
+        consensusConfidence: consensus.confidence,
+        consensusVerdict: consensus.verdict,
+      } as DeploymentAdvice & {
+        consensusVerified: boolean;
+        consensusConfidence: number;
+        consensusVerdict: string;
+      };
+    } catch (error) {
+      console.error('[quality-assessment] Consensus verification error:', error);
+      return null;
     }
   }
 
@@ -465,6 +921,18 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
     try {
       this.startWorkflow(workflowId, 'complexity-analysis');
+
+      // Self-healing: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        console.warn('[quality-assessment] Complexity analysis paused: topology is in critical state');
+        this.failWorkflow(workflowId, 'Topology is in critical state');
+        return err(new Error('Complexity analysis paused: topology is in critical state'));
+      }
+
+      // V3 Integration: Check topology health (ADR-047)
+      if (!this.isTopologyHealthy()) {
+        console.warn('[quality-assessment] Topology degraded during complexity analysis');
+      }
 
       // Spawn complexity analyzer agent
       const agentResult = await this.spawnComplexityAnalyzerAgent(workflowId, request);

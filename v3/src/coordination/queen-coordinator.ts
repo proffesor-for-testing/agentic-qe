@@ -220,6 +220,10 @@ export interface IQueenCoordinator {
   // Protocol & Workflow
   executeProtocol(protocolId: string, params?: Record<string, unknown>): Promise<Result<string, Error>>;
   executeWorkflow(workflowId: string, params?: Record<string, unknown>): Promise<Result<string, Error>>;
+
+  // ADR-047: MinCut Integration
+  getMinCutBridge(): QueenMinCutBridge | null;
+  injectMinCutBridgeIntoDomain(domainName: DomainName): boolean;
 }
 
 export interface TaskFilter {
@@ -427,6 +431,18 @@ export class QueenCoordinator implements IQueenCoordinator {
       sharedGraph: getSharedMinCutGraph(), // Share graph with MCP tools
     });
     await this.minCutBridge.initialize();
+
+    // ADR-047: Inject MinCut bridge into all domain plugins for topology awareness
+    // This enables domains to access topology health and participate in self-healing
+    if (this.domainPlugins) {
+      for (const [domainName, plugin] of this.domainPlugins) {
+        // Check if plugin supports MinCut integration (has setMinCutBridge method)
+        if (typeof (plugin as any).setMinCutBridge === 'function') {
+          (plugin as any).setMinCutBridge(this.minCutBridge);
+          console.log(`[QueenCoordinator] MinCut bridge injected into ${domainName}`);
+        }
+      }
+    }
 
     // Publish initialization event
     await this.publishEvent('QueenInitialized', {
@@ -920,6 +936,40 @@ export class QueenCoordinator implements IQueenCoordinator {
    */
   getMinCutBridge(): QueenMinCutBridge | null {
     return this.minCutBridge;
+  }
+
+  /**
+   * Inject MinCut bridge into a specific domain plugin
+   * ADR-047: Enables late-binding for domains registered after Queen initialization
+   *
+   * @param domainName - The domain to inject the bridge into
+   * @returns true if bridge was injected, false if domain not found or bridge unavailable
+   */
+  injectMinCutBridgeIntoDomain(domainName: DomainName): boolean {
+    if (!this.minCutBridge) {
+      console.warn(`[QueenCoordinator] Cannot inject MinCut bridge: bridge not initialized`);
+      return false;
+    }
+
+    if (!this.domainPlugins) {
+      console.warn(`[QueenCoordinator] Cannot inject MinCut bridge: no domain plugins registered`);
+      return false;
+    }
+
+    const plugin = this.domainPlugins.get(domainName);
+    if (!plugin) {
+      console.warn(`[QueenCoordinator] Cannot inject MinCut bridge: domain ${domainName} not found`);
+      return false;
+    }
+
+    if (typeof (plugin as any).setMinCutBridge === 'function') {
+      (plugin as any).setMinCutBridge(this.minCutBridge);
+      console.log(`[QueenCoordinator] MinCut bridge injected into ${domainName} (late binding)`);
+      return true;
+    }
+
+    console.warn(`[QueenCoordinator] Domain ${domainName} does not support MinCut integration`);
+    return false;
   }
 
   /**

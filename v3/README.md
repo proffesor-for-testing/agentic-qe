@@ -47,6 +47,7 @@ npx aqe test generate src/
 - **Queen-led Coordination** - 3-5x throughput with work stealing and consensus
 - **MinCut Topology** - Graph-based self-healing agent coordination
 - **Coherence Verification** (v3.3.0) - Mathematical proof of belief consistency using WASM engines
+- **MinCut/Consensus Integration** (v3.3.3) - Full 12/12 domain integration with self-healing
 - **Zero-Breaking-Changes Migration** - Full v2 backward compatibility
 - **Browser Automation** (v3.1.0) - @claude-flow/browser integration with 9 workflow templates
 
@@ -73,14 +74,17 @@ Background neural consolidation for continuous improvement:
 - **EWC++ Protection**: Elastic Weight Consolidation prevents catastrophic forgetting
 - **Novelty Scoring**: Prioritize learning from novel patterns
 
-### Consensus & MinCut Coordination
+### Consensus & MinCut Coordination (v3.3.3)
 
-Advanced coordination for reliable multi-agent decisions:
+Advanced coordination for reliable multi-agent decisions with **full 12/12 domain integration**:
 
 - **Byzantine Consensus**: Fault-tolerant voting for critical quality decisions
 - **MinCut Topology**: Graph-based self-healing agent coordination
 - **Multi-Model Voting**: Aggregate decisions from multiple model tiers
 - **Claim Verification**: Cryptographic verification of agent work claims
+- **12/12 Domain Coverage**: All domains actively use `verifyFinding()` for consensus
+- **Topology-Aware Routing**: `getTopologyBasedRouting()` avoids weak vertices
+- **Self-Healing Triggers**: `shouldPauseOperations()` enables automatic recovery
 
 ### Coherence-Gated Quality Engineering (v3.3.0)
 

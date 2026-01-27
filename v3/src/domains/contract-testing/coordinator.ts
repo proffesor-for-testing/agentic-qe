@@ -4,7 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { Result, ok, err, DomainEvent } from '../../shared/types/index.js';
+import { Result, ok, err, DomainEvent, type DomainName } from '../../shared/types/index.js';
 import { FilePath, Version } from '../../shared/value-objects/index.js';
 import { HttpClient, createHttpClient } from '../../shared/http/index.js';
 import { FileReader } from '../../shared/io/index.js';
@@ -36,6 +36,31 @@ import { ApiCompatibilityService } from './services/api-compatibility.js';
 import { SARSAAlgorithm } from '../../integrations/rl-suite/algorithms/sarsa.js';
 import { PersistentSONAEngine, createPersistentSONAEngine } from '../../integrations/ruvector/sona-persistence.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
+
+// ============================================================================
+// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
+// ============================================================================
+
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type IMinCutAwareDomain,
+  type MinCutAwareConfig,
+} from '../../coordination/mixins/mincut-aware-domain.js';
+
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type IConsensusEnabledDomain,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain.js';
+
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
+
+import {
+  type DomainFinding,
+  createDomainFinding,
+} from '../../coordination/consensus/domain-findings.js';
 
 /**
  * Contract Testing Events
@@ -72,6 +97,15 @@ export interface CoordinatorConfig {
   publishEvents: boolean;
   enableSARSA: boolean;
   enableQESONA: boolean;
+  // MinCut integration config (ADR-047)
+  enableMinCutAwareness: boolean;
+  topologyHealthThreshold: number;
+  pauseOnCriticalTopology: boolean;
+  // Consensus integration config (MM-001)
+  enableConsensus: boolean;
+  consensusThreshold: number;
+  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
+  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -81,6 +115,15 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   publishEvents: true,
   enableSARSA: true,
   enableQESONA: true,
+  // MinCut integration defaults (ADR-047)
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
+  // Consensus integration defaults (MM-001)
+  enableConsensus: true,
+  consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
+  consensusMinModels: 2,
 };
 
 /**
@@ -105,6 +148,15 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
 
   private initialized = false;
 
+  // MinCut topology awareness mixin (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // Consensus verification mixin (MM-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
+
+  // Domain identifier for mixin initialization
+  private readonly domainName = 'contract-testing';
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -112,6 +164,26 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     config: Partial<CoordinatorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Initialize MinCut-aware mixin (ADR-047)
+    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
+    });
+
+    // Initialize Consensus-enabled mixin (MM-001)
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      verifyFindingTypes: ['contract-violation', 'breaking-change', 'schema-incompatibility'],
+      strategy: this.config.consensusStrategy,
+      minModels: this.config.consensusMinModels,
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+    });
+
     this.contractValidator = new ContractValidatorService({ memory });
     this.apiCompatibility = new ApiCompatibilityService(memory);
     this.httpClient = createHttpClient();
@@ -166,6 +238,17 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     // Load any persisted contracts
     await this.loadContracts();
 
+    // Initialize Consensus engine if enabled (MM-001)
+    if (this.config.enableConsensus) {
+      try {
+        await (this.consensusMixin as any).initializeConsensus();
+        console.log(`[${this.domainName}] Consensus engine initialized`);
+      } catch (error) {
+        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
+        console.warn(`[${this.domainName}] Continuing without consensus verification`);
+      }
+    }
+
     this.initialized = true;
   }
 
@@ -173,6 +256,16 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
    * Dispose and cleanup
    */
   async dispose(): Promise<void> {
+    // Dispose Consensus engine (MM-001)
+    try {
+      await (this.consensusMixin as any).disposeConsensus();
+    } catch (error) {
+      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
+    }
+
+    // Dispose MinCut mixin (ADR-047)
+    this.minCutMixin.dispose();
+
     // Save workflow state
     await this.saveContracts();
 
@@ -252,6 +345,17 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
 
     try {
       this.startWorkflow(workflowId, 'verify');
+
+      // ADR-047: Check topology health before expensive operations
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, using conservative verification strategy`);
+        // Continue with reduced parallelism when topology is unhealthy
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Contract verification paused: topology is in critical state'));
+      }
 
       // Find all contracts for this provider
       let contracts = await this.findContractsByProvider(providerName);
@@ -356,6 +460,16 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
 
     try {
       this.startWorkflow(workflowId, 'compare');
+
+      // ADR-047: Check topology health before expensive operations
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, using conservative pre-release check`);
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Pre-release check paused: topology is in critical state'));
+      }
 
       // Load new contract from path using FileReader
       const newContract = await this.loadContractFromPath(newContractPath);
@@ -1390,5 +1504,176 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
         persist: true,
       });
     }
+  }
+
+  // ============================================================================
+  // MinCut Integration Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
+  }
+
+  /**
+   * Check if topology is healthy
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  // ============================================================================
+  // Consensus Integration Methods (MM-001)
+  // ============================================================================
+
+  /**
+   * Check if consensus engine is available
+   */
+  isConsensusAvailable(): boolean {
+    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+  }
+
+  /**
+   * Get consensus statistics
+   * Per MM-001: Returns metrics about consensus verification
+   */
+  getConsensusStats() {
+    return this.consensusMixin.getConsensusStats();
+  }
+
+  /**
+   * Verify a contract violation using multi-model consensus
+   * Per MM-001: High-stakes contract decisions require verification
+   *
+   * @param violation - The contract violation to verify
+   * @param confidence - Initial confidence in the violation detection
+   * @returns true if the violation is verified or doesn't require consensus
+   */
+  async verifyContractViolation(
+    violation: { consumer: string; provider: string; endpoint: string; type: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof violation> = createDomainFinding({
+      id: uuidv4(),
+      type: 'contract-violation',
+      confidence,
+      description: `Verify contract violation: ${violation.consumer} -> ${violation.provider} (${violation.endpoint}, ${violation.type})`,
+      payload: violation,
+      detectedBy: 'contract-testing-coordinator',
+      severity: confidence > 0.9 ? 'critical' : 'high',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Contract violation verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Contract violation NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify a breaking change detection using multi-model consensus
+   * Per MM-001: Breaking changes have significant deployment impact
+   *
+   * @param change - The breaking change to verify
+   * @param confidence - Initial confidence in the detection
+   * @returns true if the change is verified or doesn't require consensus
+   */
+  async verifyBreakingChange(
+    change: { path: string; type: string; affectedConsumers: string[]; description: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof change> = createDomainFinding({
+      id: uuidv4(),
+      type: 'breaking-change',
+      confidence,
+      description: `Verify breaking change: ${change.path} (${change.type}) affecting ${change.affectedConsumers.length} consumers`,
+      payload: change,
+      detectedBy: 'contract-testing-coordinator',
+      severity: 'critical', // Breaking changes are always critical
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Breaking change at '${change.path}' verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Breaking change NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify a schema incompatibility using multi-model consensus
+   * Per MM-001: Schema incompatibilities can cause integration failures
+   *
+   * @param incompatibility - The schema incompatibility to verify
+   * @param confidence - Initial confidence in the detection
+   * @returns true if the incompatibility is verified or doesn't require consensus
+   */
+  async verifySchemaIncompatibility(
+    incompatibility: { schema: string; field: string; expected: string; actual: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof incompatibility> = createDomainFinding({
+      id: uuidv4(),
+      type: 'schema-incompatibility',
+      confidence,
+      description: `Verify schema incompatibility: ${incompatibility.schema}.${incompatibility.field} (expected ${incompatibility.expected}, got ${incompatibility.actual})`,
+      payload: incompatibility,
+      detectedBy: 'contract-testing-coordinator',
+      severity: confidence > 0.85 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Schema incompatibility verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Schema incompatibility NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  // ============================================================================
+  // Topology Routing Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Get weak vertices belonging to this domain
+   * Per ADR-047: Identifies agents that are single points of failure
+   */
+  getDomainWeakVertices() {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Check if this domain is a weak point in the topology
+   * Per ADR-047: Returns true if any weak vertex belongs to contract-testing domain
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  /**
+   * Get topology-based routing excluding weak domains
+   * Per ADR-047: Filters out domains that are currently weak points
+   *
+   * @param targetDomains - List of potential target domains
+   * @returns Filtered list of healthy domains for routing
+   */
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
   }
 }

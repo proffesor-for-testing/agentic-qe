@@ -7,6 +7,7 @@
 
 import type { DomainEvent, Result, AgentId, DomainName } from '../../shared/types/index.js';
 import type { TimeRange } from '../../shared/value-objects/index.js';
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
 
 // ============================================================================
 // Value Objects
@@ -506,6 +507,13 @@ export interface ILearningOptimizationCoordinator {
     }>,
     patternsCreated: number
   ): Promise<void>;
+
+  // MinCut integration methods (ADR-047)
+  setMinCutBridge(bridge: QueenMinCutBridge): void;
+  isTopologyHealthy(): boolean;
+
+  // Consensus integration methods (MM-001)
+  isConsensusAvailable(): boolean;
 }
 
 export interface LearningCycleReport {

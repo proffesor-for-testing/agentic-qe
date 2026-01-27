@@ -1,6 +1,10 @@
 /**
  * Agentic QE v3 - Base Domain Interface
  * Template for all domain implementations
+ *
+ * Extended with optional integration support for:
+ * - MinCut topology awareness (ADR-047)
+ * - Multi-model consensus verification (MM-006)
  */
 
 import { DomainName, DomainEvent, Result, ok, err } from '../shared/types';
@@ -13,6 +17,8 @@ import {
   DomainTaskResult,
   TaskCompletionCallback,
 } from '../kernel/interfaces';
+import type { QueenMinCutBridge } from '../coordination/mincut';
+import type { ConsensusEngineConfig } from '../coordination/consensus';
 
 /**
  * Task handler function type
@@ -22,8 +28,72 @@ export type TaskHandler = (
   payload: Record<string, unknown>
 ) => Promise<Result<unknown, Error>>;
 
+// ============================================================================
+// Integration Configuration Types (ADR-047, MM-006)
+// ============================================================================
+
+/**
+ * Simplified consensus configuration for domain plugin injection
+ * This provides a lightweight way to enable consensus verification via DI
+ * without requiring the full ConsensusEnabledConfig from mixins
+ *
+ * For full mixin-based consensus support, use ConsensusEnabledDomain from
+ * coordination/mixins/consensus-enabled-domain.ts
+ *
+ * @see MM-006: Multi-Model Consensus Integration
+ */
+export interface DomainConsensusConfig {
+  /** Whether consensus verification is enabled for this domain */
+  readonly enabled: boolean;
+
+  /** Consensus engine configuration overrides */
+  readonly engineConfig?: Partial<ConsensusEngineConfig>;
+
+  /** Severity levels that require consensus verification */
+  readonly verifySeverities?: Array<'critical' | 'high' | 'medium' | 'low'>;
+
+  /** Minimum confidence threshold for auto-approval (0-1) */
+  readonly autoApprovalThreshold?: number;
+}
+
+/**
+ * Extended domain plugin configuration with integration support
+ * All properties are optional to maintain backward compatibility
+ *
+ * @example
+ * ```typescript
+ * const config: DomainPluginIntegrationConfig = {
+ *   minCutBridge: existingBridge,
+ *   consensusConfig: { enabled: true, verifySeverities: ['critical', 'high'] }
+ * };
+ * plugin.setIntegrationConfig(config);
+ * ```
+ */
+export interface DomainPluginIntegrationConfig {
+  /**
+   * Optional MinCut bridge for topology awareness (ADR-047)
+   * When provided, the domain can report its topology health and participate
+   * in self-healing coordination with other domains
+   */
+  minCutBridge?: QueenMinCutBridge;
+
+  /**
+   * Optional consensus configuration for multi-model verification (MM-006)
+   * When provided, the domain can use consensus-based verification for
+   * critical findings and operations
+   */
+  consensusConfig?: DomainConsensusConfig;
+}
+
 /**
  * Abstract base class for domain plugins
+ *
+ * Provides common functionality for all domain implementations including:
+ * - Lifecycle management (initialize/dispose)
+ * - Health tracking
+ * - Event handling
+ * - Task execution (Queen-Domain integration)
+ * - Optional MinCut and Consensus integration (ADR-047, MM-006)
  */
 export abstract class BaseDomainPlugin implements DomainPlugin {
   protected _initialized = false;
@@ -34,6 +104,22 @@ export abstract class BaseDomainPlugin implements DomainPlugin {
     agents: { total: 0, active: 0, idle: 0, failed: 0 },
     errors: [],
   };
+
+  // ============================================================================
+  // Optional Integration Support (ADR-047, MM-006)
+  // ============================================================================
+
+  /**
+   * MinCut bridge for topology awareness
+   * @internal Set via setMinCutBridge() or setIntegrationConfig()
+   */
+  protected _minCutBridge?: QueenMinCutBridge;
+
+  /**
+   * Consensus configuration for multi-model verification
+   * @internal Set via setConsensusConfig() or setIntegrationConfig()
+   */
+  protected _consensusConfig?: DomainConsensusConfig;
 
   constructor(
     protected readonly eventBus: EventBus,
@@ -91,6 +177,133 @@ export abstract class BaseDomainPlugin implements DomainPlugin {
 
   protected updateHealth(updates: Partial<DomainHealth>): void {
     this._health = { ...this._health, ...updates };
+  }
+
+  // ============================================================================
+  // Integration Configuration (ADR-047, MM-006)
+  // ============================================================================
+
+  /**
+   * Set MinCut bridge for topology awareness after construction
+   * Alternative to constructor injection for domains that need late binding
+   *
+   * @param bridge - The QueenMinCutBridge instance to use
+   *
+   * @example
+   * ```typescript
+   * const plugin = new MyDomainPlugin(eventBus, memory, coordinator);
+   * await plugin.initialize();
+   *
+   * // Later, when MinCut bridge is available:
+   * plugin.setMinCutBridge(minCutBridge);
+   * ```
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this._minCutBridge = bridge;
+    this.onMinCutBridgeSet(bridge);
+  }
+
+  /**
+   * Get the current MinCut bridge (if set)
+   * @returns The MinCut bridge or undefined if not configured
+   */
+  getMinCutBridge(): QueenMinCutBridge | undefined {
+    return this._minCutBridge;
+  }
+
+  /**
+   * Set consensus configuration for multi-model verification after construction
+   * Alternative to constructor injection for domains that need late binding
+   *
+   * @param config - The consensus configuration to use
+   *
+   * @example
+   * ```typescript
+   * const plugin = new SecurityCompliancePlugin(eventBus, memory, coordinator);
+   * plugin.setConsensusConfig({
+   *   enabled: true,
+   *   verifySeverities: ['critical', 'high'],
+   *   autoApprovalThreshold: 0.9,
+   * });
+   * ```
+   */
+  setConsensusConfig(config: DomainConsensusConfig): void {
+    this._consensusConfig = config;
+    this.onConsensusConfigSet(config);
+  }
+
+  /**
+   * Get the current consensus configuration (if set)
+   * @returns The consensus configuration or undefined if not configured
+   */
+  getConsensusConfig(): DomainConsensusConfig | undefined {
+    return this._consensusConfig;
+  }
+
+  /**
+   * Set both MinCut and Consensus configuration at once
+   * Convenience method for full integration setup
+   *
+   * @param config - Integration configuration containing optional MinCut and Consensus settings
+   *
+   * @example
+   * ```typescript
+   * plugin.setIntegrationConfig({
+   *   minCutBridge: queenMinCutBridge,
+   *   consensusConfig: {
+   *     enabled: true,
+   *     verifySeverities: ['critical', 'high'],
+   *   },
+   * });
+   * ```
+   */
+  setIntegrationConfig(config: DomainPluginIntegrationConfig): void {
+    if (config.minCutBridge) {
+      this.setMinCutBridge(config.minCutBridge);
+    }
+    if (config.consensusConfig) {
+      this.setConsensusConfig(config.consensusConfig);
+    }
+  }
+
+  /**
+   * Check if MinCut integration is configured and active
+   * @returns true if MinCut bridge is set
+   */
+  hasMinCutIntegration(): boolean {
+    return this._minCutBridge !== undefined;
+  }
+
+  /**
+   * Check if consensus verification is enabled
+   * @returns true if consensus is configured and enabled
+   */
+  hasConsensusEnabled(): boolean {
+    return this._consensusConfig?.enabled === true;
+  }
+
+  // ============================================================================
+  // Integration Hooks (Override in subclasses for custom behavior)
+  // ============================================================================
+
+  /**
+   * Called when MinCut bridge is set
+   * Override in subclasses to perform domain-specific setup
+   *
+   * @param _bridge - The MinCut bridge that was set
+   */
+  protected onMinCutBridgeSet(_bridge: QueenMinCutBridge): void {
+    // Default: no-op - subclasses can override to register with the bridge
+  }
+
+  /**
+   * Called when consensus configuration is set
+   * Override in subclasses to perform domain-specific setup
+   *
+   * @param _config - The consensus configuration that was set
+   */
+  protected onConsensusConfigSet(_config: DomainConsensusConfig): void {
+    // Default: no-op - subclasses can override to configure consensus verification
   }
 
   // ============================================================================

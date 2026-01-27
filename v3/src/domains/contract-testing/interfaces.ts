@@ -5,8 +5,11 @@
  * Responsibility: API contracts, consumer-driven contracts, schema validation
  */
 
-import type { DomainEvent, Result } from '../../shared/types/index.js';
+import type { DomainEvent, Result, DomainName } from '../../shared/types/index.js';
 import type { FilePath, Version } from '../../shared/value-objects/index.js';
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
+import type { WeakVertex } from '../../coordination/mincut/interfaces.js';
+import type { ConsensusStats } from '../../coordination/mixins/consensus-enabled-domain';
 
 // ============================================================================
 // Value Objects
@@ -459,6 +462,29 @@ export interface IContractTestingCoordinator {
     contracts: ApiContract[],
     context: ContractPrioritizationContext
   ): Promise<Result<ContractPrioritizationResult>>;
+
+  // MinCut integration methods (ADR-047)
+  setMinCutBridge(bridge: QueenMinCutBridge): void;
+  isTopologyHealthy(): boolean;
+  getDomainWeakVertices(): WeakVertex[];
+  isDomainWeakPoint(): boolean;
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[];
+
+  // Consensus integration methods (MM-001)
+  isConsensusAvailable(): boolean;
+  getConsensusStats(): ConsensusStats | undefined;
+  verifyContractViolation(
+    violation: { consumer: string; provider: string; endpoint: string; type: string },
+    confidence: number
+  ): Promise<boolean>;
+  verifyBreakingChange(
+    change: { path: string; type: string; affectedConsumers: string[]; description: string },
+    confidence: number
+  ): Promise<boolean>;
+  verifySchemaIncompatibility(
+    incompatibility: { schema: string; field: string; expected: string; actual: string },
+    confidence: number
+  ): Promise<boolean>;
 }
 
 export interface ProviderVerificationReport {

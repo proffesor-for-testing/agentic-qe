@@ -13,6 +13,7 @@ import {
   ok,
   err,
   DomainEvent,
+  DomainName,
 } from '../../shared/types/index.js';
 import type {
   EventBus,
@@ -73,6 +74,31 @@ import {
 } from '../../coordination/consensus/index.js';
 
 // ============================================================================
+// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
+// ============================================================================
+
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type IMinCutAwareDomain,
+  type MinCutAwareConfig,
+} from '../../coordination/mixins/mincut-aware-domain';
+
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type IConsensusEnabledDomain,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain';
+
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
+
+import {
+  type DomainFinding,
+  createDomainFinding,
+} from '../../coordination/consensus/domain-findings';
+
+// ============================================================================
 // Coordinator Interface Extension
 // ============================================================================
 
@@ -101,6 +127,11 @@ export interface IExtendedSecurityComplianceCoordinator
   // ISecurityComplianceCoordinator implementation
   runComplianceCheck(standardId: string): Promise<Result<ComplianceReport>>;
   getSecurityPosture(): Promise<Result<SecurityPosture>>;
+  // MinCut integration methods (ADR-047)
+  setMinCutBridge(bridge: QueenMinCutBridge): void;
+  isTopologyHealthy(): boolean;
+  // Consensus integration methods (MM-001)
+  isConsensusAvailable(): boolean;
 }
 
 // ============================================================================
@@ -134,6 +165,14 @@ export interface CoordinatorConfig {
   // V3: Multi-Model Consensus for security finding verification (MM-006)
   enableConsensus: boolean;
   consensusConfig?: Partial<ConsensusEngineConfig>;
+  // MinCut integration config (ADR-047)
+  enableMinCutAwareness: boolean;
+  topologyHealthThreshold: number;
+  pauseOnCriticalTopology: boolean;
+  // Consensus mixin config (MM-001)
+  consensusThreshold: number;
+  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
+  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -146,6 +185,14 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   enableFlashAttention: true,
   // V3: Multi-Model Consensus enabled by default for CRITICAL/HIGH findings
   enableConsensus: true,
+  // MinCut integration defaults (ADR-047)
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
+  // Consensus mixin defaults (MM-001)
+  consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
+  consensusMinModels: 2,
 };
 
 // ============================================================================
@@ -170,6 +217,15 @@ export class SecurityComplianceCoordinator
   // V3: Multi-Model Consensus for security finding verification (MM-006)
   private consensusEngine?: ConsensusEngine;
 
+  // MinCut topology awareness mixin (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // Consensus verification mixin (MM-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
+
+  // Domain identifier for mixin initialization
+  private readonly domainName = 'security-compliance';
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -177,6 +233,31 @@ export class SecurityComplianceCoordinator
     config: Partial<CoordinatorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Initialize MinCut-aware mixin (ADR-047)
+    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
+    });
+
+    // Initialize Consensus-enabled mixin (MM-001)
+    // Verifies security vulnerabilities, compliance violations, and credential exposures
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      verifyFindingTypes: [
+        'security-vulnerability',
+        'compliance-violation',
+        'credential-exposure',
+      ],
+      strategy: this.config.consensusStrategy,
+      minModels: this.config.consensusMinModels,
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+    });
+
     this.securityScanner = new SecurityScannerService(memory);
     this.securityAuditor = new SecurityAuditorService(memory);
     this.complianceValidator = new ComplianceValidatorService(memory);
@@ -195,6 +276,17 @@ export class SecurityComplianceCoordinator
     // V3: Initialize DQN, Flash Attention, and/or Multi-Model Consensus
     if (this.config.enableDQN || this.config.enableFlashAttention || this.config.enableConsensus) {
       await this.initializeRLIntegrations();
+    }
+
+    // Initialize Consensus mixin engine if enabled (MM-001)
+    if (this.config.enableConsensus) {
+      try {
+        await (this.consensusMixin as any).initializeConsensus();
+        console.log(`[${this.domainName}] Consensus mixin engine initialized`);
+      } catch (error) {
+        console.error(`[${this.domainName}] Failed to initialize consensus mixin engine:`, error);
+        console.warn(`[${this.domainName}] Continuing without consensus mixin verification`);
+      }
     }
 
     this.initialized = true;
@@ -259,6 +351,17 @@ export class SecurityComplianceCoordinator
 
   async dispose(): Promise<void> {
     await this.saveWorkflowState();
+
+    // Dispose Consensus mixin engine (MM-001)
+    try {
+      await (this.consensusMixin as any).disposeConsensus();
+    } catch (error) {
+      console.error(`[${this.domainName}] Error disposing consensus mixin engine:`, error);
+    }
+
+    // Dispose MinCut mixin (ADR-047)
+    this.minCutMixin.dispose();
+
     this.workflows.clear();
     this.initialized = false;
   }
@@ -283,6 +386,19 @@ export class SecurityComplianceCoordinator
 
     try {
       this.startWorkflow(workflowId, 'audit');
+
+      // Self-healing: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        console.warn(`[${this.domainName}] Security audit paused: topology is in critical state`);
+        this.failWorkflow(workflowId, 'Topology is in critical state');
+        return err(new Error('Security audit paused: topology is in critical state'));
+      }
+
+      // Self-healing: Log warning and potentially reduce scope when topology is degraded
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, using conservative audit strategy`);
+        // Could reduce parallel operations, prioritize critical checks, etc.
+      }
 
       // Check agent availability
       if (!this.agentCoordinator.canSpawn()) {
@@ -356,6 +472,18 @@ export class SecurityComplianceCoordinator
     try {
       this.startWorkflow(workflowId, 'scan');
 
+      // Self-healing: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        console.warn(`[${this.domainName}] Security scan paused: topology is in critical state`);
+        this.failWorkflow(workflowId, 'Topology is in critical state');
+        return err(new Error('Security scan paused: topology is in critical state'));
+      }
+
+      // Self-healing: Log warning when topology is degraded
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, proceeding with conservative scan strategy`);
+      }
+
       // Run scan based on type
       let result: Result<SASTResult | DASTResult>;
       if (scanType === 'sast') {
@@ -393,6 +521,18 @@ export class SecurityComplianceCoordinator
     try {
       this.startWorkflow(workflowId, 'compliance');
 
+      // Self-healing: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        console.warn(`[${this.domainName}] Compliance validation paused: topology is in critical state`);
+        this.failWorkflow(workflowId, 'Topology is in critical state');
+        return err(new Error('Compliance validation paused: topology is in critical state'));
+      }
+
+      // Self-healing: Log warning when topology is degraded
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, proceeding with compliance validation`);
+      }
+
       // Get standard by ID and validate
       const standards = await this.complianceValidator.getAvailableStandards();
       const standard = standards.find(s => s.id === standardId);
@@ -428,6 +568,18 @@ export class SecurityComplianceCoordinator
 
     try {
       this.startWorkflow(workflowId, 'posture');
+
+      // Self-healing: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        console.warn(`[${this.domainName}] Security posture assessment paused: topology is in critical state`);
+        this.failWorkflow(workflowId, 'Topology is in critical state');
+        return err(new Error('Security posture assessment paused: topology is in critical state'));
+      }
+
+      // Self-healing: Log warning when topology is degraded
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, proceeding with security posture assessment`);
+      }
 
       const result = await this.securityAuditor.getSecurityPosture();
 
@@ -792,10 +944,21 @@ export class SecurityComplianceCoordinator
   /**
    * V3 Integration: Verify CRITICAL/HIGH findings with multi-model consensus
    * Improves detection accuracy from 27% to 75%+ by requiring model agreement (MM-006)
+   *
+   * Uses the consensusMixin.verifyFinding() for consistent pattern across domains.
    */
   private async verifyHighSeverityFindings(vulnerabilities: Vulnerability[]): Promise<Vulnerability[]> {
-    // If consensus is disabled or no engine, return all vulnerabilities
-    if (!this.config.enableConsensus || !this.consensusEngine) {
+    // If consensus is disabled, return all vulnerabilities
+    if (!this.config.enableConsensus) {
+      return vulnerabilities;
+    }
+
+    // Check if consensus mixin is available (uses mixin pattern)
+    if (!this.isConsensusAvailable()) {
+      // Fallback to legacy consensusEngine if available
+      if (this.consensusEngine) {
+        return this.verifyHighSeverityFindingsLegacy(vulnerabilities);
+      }
       return vulnerabilities;
     }
 
@@ -806,7 +969,83 @@ export class SecurityComplianceCoordinator
     // Low/medium severity findings pass through without consensus
     verified.push(...lowSeverity);
 
-    // Verify CRITICAL/HIGH findings with multi-model consensus
+    // Verify CRITICAL/HIGH findings with multi-model consensus using mixin
+    for (const vuln of highSeverity) {
+      try {
+        // Create DomainFinding for mixin verification
+        const domainFinding = createDomainFinding<{
+          vulnerability: Vulnerability;
+          location: Vulnerability['location'];
+        }>({
+          id: vuln.id,
+          type: 'security-vulnerability',
+          confidence: 0.8, // Default high confidence from scanner
+          description: `${vuln.title}: ${vuln.description}`,
+          payload: {
+            vulnerability: vuln,
+            location: vuln.location,
+          },
+          detectedBy: 'security-scanner',
+          severity: vuln.severity as 'critical' | 'high' | 'medium' | 'low' | 'info',
+          context: {
+            domain: this.domainName,
+            cveId: vuln.cveId,
+            category: vuln.category,
+          },
+        });
+
+        // Check if this finding requires consensus
+        if (!this.consensusMixin.requiresConsensus(domainFinding)) {
+          // Low-risk findings pass through
+          verified.push(vuln);
+          continue;
+        }
+
+        // Verify using consensus mixin
+        const result = await this.consensusMixin.verifyFinding(domainFinding);
+
+        if (result.success && result.value.verdict === 'verified') {
+          // Finding confirmed by multiple models
+          console.log(`[${this.domainName}] Consensus VERIFIED: ${vuln.title} (confidence: ${(result.value.confidence * 100).toFixed(1)}%)`);
+          verified.push(vuln);
+        } else if (result.success && result.value.verdict === 'disputed') {
+          // Disputed findings still included but logged
+          console.log(`[${this.domainName}] Consensus DISPUTED: ${vuln.title} - including with lower confidence`);
+          verified.push(vuln);
+        } else {
+          // Rejected by consensus - likely false positive
+          console.log(`[${this.domainName}] Consensus REJECTED: ${vuln.title} - likely false positive`);
+        }
+      } catch (error) {
+        // On consensus error, include the finding but log warning
+        console.warn(`[${this.domainName}] Consensus error verifying ${vuln.title}, including by default:`, error);
+        verified.push(vuln);
+      }
+    }
+
+    const rejectedCount = highSeverity.length - verified.filter(v => v.severity === 'critical' || v.severity === 'high').length;
+    if (rejectedCount > 0) {
+      console.log(`[${this.domainName}] Consensus filtered out ${rejectedCount} likely false positive(s)`);
+    }
+
+    return verified;
+  }
+
+  /**
+   * Legacy verification using direct consensusEngine (kept for backwards compatibility)
+   * @deprecated Use verifyHighSeverityFindings with consensusMixin instead
+   */
+  private async verifyHighSeverityFindingsLegacy(vulnerabilities: Vulnerability[]): Promise<Vulnerability[]> {
+    if (!this.consensusEngine) {
+      return vulnerabilities;
+    }
+
+    const verified: Vulnerability[] = [];
+    const highSeverity = vulnerabilities.filter(v => v.severity === 'critical' || v.severity === 'high');
+    const lowSeverity = vulnerabilities.filter(v => v.severity !== 'critical' && v.severity !== 'high');
+
+    verified.push(...lowSeverity);
+
     for (const vuln of highSeverity) {
       try {
         const finding: SecurityFinding = {
@@ -833,27 +1072,13 @@ export class SecurityComplianceCoordinator
         const result = await this.consensusEngine.verify(finding);
 
         if (result.success && result.value.verdict === 'verified') {
-          // Finding confirmed by multiple models
-          console.log(`[Consensus] VERIFIED: ${vuln.title} (confidence: ${(result.value.confidence * 100).toFixed(1)}%)`);
           verified.push(vuln);
         } else if (result.success && result.value.verdict === 'disputed') {
-          // Disputed findings still included but logged
-          console.log(`[Consensus] DISPUTED: ${vuln.title} - including with lower confidence`);
           verified.push(vuln);
-        } else {
-          // Rejected by consensus - likely false positive
-          console.log(`[Consensus] REJECTED: ${vuln.title} - likely false positive`);
         }
       } catch (error) {
-        // On consensus error, include the finding but log warning
-        console.warn(`[Consensus] Error verifying ${vuln.title}, including by default:`, error);
         verified.push(vuln);
       }
-    }
-
-    const rejectedCount = highSeverity.length - verified.filter(v => v.severity === 'critical' || v.severity === 'high').length;
-    if (rejectedCount > 0) {
-      console.log(`[Consensus] Filtered out ${rejectedCount} likely false positive(s)`);
     }
 
     return verified;
@@ -975,5 +1200,73 @@ export class SecurityComplianceCoordinator
       workflows,
       { namespace: 'security-compliance', persist: true }
     );
+  }
+
+  // ==========================================================================
+  // MinCut Integration Methods (ADR-047)
+  // ==========================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
+  }
+
+  /**
+   * Check if topology is healthy
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  /**
+   * Get topology-based routing excluding weak domains
+   * @param targetDomains - List of potential target domains
+   * @returns Filtered list of healthy domains for routing
+   */
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
+  }
+
+  /**
+   * Get weak vertices belonging to this domain
+   */
+  getDomainWeakVertices() {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Check if this domain is a weak point in the topology
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  /**
+   * Get domains that are healthy for routing
+   * Convenience method that considers monitored domains
+   */
+  getHealthyRoutingDomains(): DomainName[] {
+    return this.minCutMixin.getHealthyRoutingDomains();
+  }
+
+  // ==========================================================================
+  // Consensus Integration Methods (MM-001)
+  // ==========================================================================
+
+  /**
+   * Check if consensus engine is available
+   */
+  isConsensusAvailable(): boolean {
+    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+  }
+
+  /**
+   * Get consensus statistics
+   */
+  getConsensusStats() {
+    return this.consensusMixin.getConsensusStats();
   }
 }
