@@ -1847,6 +1847,189 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
         },
       ],
     });
+
+    // 6. QCSD Ideation Swarm Workflow
+    // Per QCSD framework: Quality Criteria sessions during PI/Sprint Planning
+    // Primary: qe-quality-criteria-recommender (HTSM v6.3 analysis)
+    // Supporting: testability-scoring, qe-risk-assessor, qe-requirements-validator
+    this.registerWorkflow({
+      id: 'qcsd-ideation-swarm',
+      name: 'QCSD Ideation Swarm',
+      description:
+        'Quality Conscious Software Delivery ideation phase: quality-criteria (HTSM) -> [testability, risk, requirements] in parallel -> aggregated report',
+      version: '1.0.0',
+      tags: ['qcsd', 'ideation', 'quality-criteria', 'htsm', 'shift-left'],
+      steps: [
+        // Step 1: Primary - Quality Criteria Analysis (HTSM v6.3)
+        {
+          id: 'quality-criteria-analysis',
+          name: 'HTSM Quality Criteria Analysis',
+          domain: 'requirements-validation',
+          action: 'analyzeQualityCriteria',
+          inputMapping: {
+            targetId: 'input.targetId',
+            targetType: 'input.targetType',
+            description: 'input.description',
+            acceptanceCriteria: 'input.acceptanceCriteria',
+          },
+          outputMapping: {
+            qualityCriteria: 'qualityCriteria.criteria',
+            qualityScore: 'qualityCriteria.score',
+          },
+          timeout: 180000, // 3 minutes for deep analysis
+          retry: { maxAttempts: 2, backoffMs: 2000 },
+        },
+        // Step 2a: Parallel - Testability Scoring
+        {
+          id: 'testability-assessment',
+          name: 'Testability Scoring (10 Principles)',
+          domain: 'requirements-validation',
+          action: 'assessTestability',
+          dependsOn: ['quality-criteria-analysis'],
+          inputMapping: {
+            targetId: 'input.targetId',
+            description: 'input.description',
+            acceptanceCriteria: 'input.acceptanceCriteria',
+          },
+          outputMapping: {
+            overallScore: 'testability.overallScore',
+            principles: 'testability.principles',
+            blockers: 'testability.blockers',
+            recommendations: 'testability.recommendations',
+          },
+          timeout: 120000,
+          continueOnFailure: true, // Don't block other assessments
+        },
+        // Step 2b: Parallel - Risk Assessment
+        {
+          id: 'risk-assessment',
+          name: 'Quality Risk Assessment',
+          domain: 'requirements-validation',
+          action: 'assessRisks',
+          dependsOn: ['quality-criteria-analysis'],
+          inputMapping: {
+            targetId: 'input.targetId',
+            targetType: 'input.targetType',
+            description: 'input.description',
+          },
+          outputMapping: {
+            overallRisk: 'risks.overallRisk',
+            riskScore: 'risks.riskScore',
+            factors: 'risks.factors',
+            mitigations: 'risks.mitigations',
+          },
+          timeout: 90000,
+          continueOnFailure: true,
+        },
+        // Step 2c: Parallel - Requirements Validation
+        {
+          id: 'requirements-validation',
+          name: 'Requirements & Acceptance Criteria Validation',
+          domain: 'requirements-validation',
+          action: 'validateRequirements',
+          dependsOn: ['quality-criteria-analysis'],
+          inputMapping: {
+            targetId: 'input.targetId',
+            description: 'input.description',
+            acceptanceCriteria: 'input.acceptanceCriteria',
+          },
+          outputMapping: {
+            valid: 'requirements.valid',
+            issues: 'requirements.issues',
+            suggestions: 'requirements.suggestions',
+          },
+          timeout: 90000,
+          continueOnFailure: true,
+        },
+        // Step 3: Optional - Security Threat Modeling (if security concerns detected)
+        {
+          id: 'security-threat-modeling',
+          name: 'Early Security Threat Modeling',
+          domain: 'security-compliance',
+          action: 'modelSecurityThreats',
+          dependsOn: ['quality-criteria-analysis'],
+          condition: {
+            path: 'input.securityCritical',
+            operator: 'eq',
+            value: true,
+          },
+          inputMapping: {
+            targetId: 'input.targetId',
+            description: 'input.description',
+            securityCritical: 'input.securityCritical',
+          },
+          outputMapping: {
+            threats: 'security.threats',
+            overallRisk: 'security.overallRisk',
+            recommendations: 'security.recommendations',
+          },
+          timeout: 120000,
+          continueOnFailure: true,
+        },
+        // Step 4: Aggregate Ideation Report
+        {
+          id: 'aggregate-ideation-report',
+          name: 'Generate Ideation Report',
+          domain: 'requirements-validation',
+          action: 'generateIdeationReport',
+          dependsOn: [
+            'quality-criteria-analysis',
+            'testability-assessment',
+            'risk-assessment',
+            'requirements-validation',
+          ],
+          inputMapping: {
+            targetId: 'input.targetId',
+            targetType: 'input.targetType',
+          },
+          outputMapping: {
+            report: 'ideation.report',
+            readyForDevelopment: 'ideation.readyForDevelopment',
+            blockers: 'ideation.blockers',
+            recommendations: 'ideation.recommendations',
+            testStrategy: 'ideation.testStrategy',
+          },
+          timeout: 60000,
+        },
+        // Step 5: Store learnings for cross-phase feedback
+        {
+          id: 'store-ideation-learnings',
+          name: 'Store Ideation Learnings',
+          domain: 'learning-optimization',
+          action: 'storeIdeationLearnings',
+          dependsOn: ['aggregate-ideation-report'],
+          inputMapping: {
+            targetId: 'input.targetId',
+            report: 'results.ideation.report',
+          },
+          outputMapping: {
+            stored: 'learning.stored',
+            patternId: 'learning.patternId',
+          },
+          continueOnFailure: true,
+        },
+      ],
+      triggers: [
+        {
+          eventType: 'requirements-validation.EpicCreated',
+          inputMapping: {
+            targetId: 'event.epicId',
+            targetType: 'event.type',
+            description: 'event.description',
+            acceptanceCriteria: 'event.acceptanceCriteria',
+          },
+        },
+        {
+          eventType: 'requirements-validation.SprintPlanningStarted',
+          inputMapping: {
+            targetId: 'event.sprintId',
+            targetType: 'event.type',
+            description: 'event.description',
+            acceptanceCriteria: 'event.acceptanceCriteria',
+          },
+        },
+      ],
+    });
   }
 
   // ============================================================================

@@ -90,7 +90,8 @@ export type TaskType =
   | 'run-chaos'
   | 'optimize-learning'
   | 'cross-domain-workflow'
-  | 'protocol-execution';
+  | 'protocol-execution'
+  | 'ideation-assessment';
 
 /**
  * Task execution status
@@ -273,6 +274,8 @@ const TASK_DOMAIN_MAP: Record<TaskType, DomainName[]> = {
   'optimize-learning': ['learning-optimization'],
   'cross-domain-workflow': ALL_DOMAINS as unknown as DomainName[],
   'protocol-execution': ALL_DOMAINS as unknown as DomainName[],
+  // QCSD Ideation Swarm: requirements-validation is primary, with support from coverage-analysis and security-compliance
+  'ideation-assessment': ['requirements-validation', 'coverage-analysis', 'security-compliance'],
 };
 
 // ============================================================================

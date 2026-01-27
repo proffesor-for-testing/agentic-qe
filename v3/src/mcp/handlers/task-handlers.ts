@@ -578,6 +578,18 @@ function inferTaskType(description: string): TaskType {
   if (lower.includes('learn') || lower.includes('optimize') || lower.includes('improve')) {
     return 'optimize-learning';
   }
+  // QCSD Ideation phase - quality criteria, testability, risk assessment
+  if (
+    lower.includes('ideation') ||
+    lower.includes('quality criteria') ||
+    lower.includes('htsm') ||
+    lower.includes('qcsd') ||
+    lower.includes('testability') ||
+    lower.includes('pi planning') ||
+    lower.includes('sprint planning')
+  ) {
+    return 'ideation-assessment';
+  }
 
   // Default to test generation
   return 'generate-tests';
