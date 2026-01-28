@@ -143,6 +143,19 @@ test-learning-persistence
 junit.xml
 docs/qx-reports/*
 
+# Generated reports and client-specific analysis (should not be committed)
+*-qx-analysis-report.md
+*-a11y-audit.md
+*-qe-assessment.md
+*-threat-model.md
+*-security-threat-model.md
+qx-*.md
+QX-*.md
+**/coherence-comparison-*.json
+**/coherence-comparison-*.md
+**/success-rate-benchmark-*.json
+**/success-rate-benchmark-*.md
+
 # Claude Flow generated files
 .claude/settings.local.json
 .claude/memory/
