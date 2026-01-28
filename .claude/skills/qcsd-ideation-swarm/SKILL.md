@@ -3,7 +3,7 @@ name: qcsd-ideation-swarm
 description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins. Uses 5-tier browser cascade: Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch-fallback."
 category: qcsd-phases
 priority: critical
-version: 7.3.0
+version: 7.4.0
 tokenEstimate: 3500
 # DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
 domains:
@@ -33,6 +33,7 @@ execution:
 swarm_pattern: true
 parallel_batches: 2
 last_updated: 2026-01-28
+# v7.4.0 Changelog: Automated browser cascade via scripts/fetch-content.js with 30s per-tier timeouts
 # v7.2.0 Changelog: Added 5-tier browser cascade (Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch)
 html_output: true
 enforcement_level: strict
@@ -60,114 +61,55 @@ When analyzing a live website URL, use this specialized execution pattern.
 
 **You MUST follow ALL phases in order. Skipping phases is a FAILURE.**
 
-### PHASE URL-1: Setup and Content Fetch (5-TIER BROWSER CASCADE)
+### PHASE URL-1: Setup and Content Fetch (AUTOMATED CASCADE)
 
-**You MUST try browsers in order. Do NOT skip to WebSearch without trying all tiers.**
+**The browser cascade is now FULLY AUTOMATED via `scripts/fetch-content.js`.**
 
-**V3 Implementation:** `v3/src/integrations/browser/web-content-fetcher.ts`
+**Single command - automatic tier fallback with 30s timeout per tier:**
 
-The browser cascade is implemented in V3 as `WebContentFetcher`. Use this implementation pattern:
+```bash
+# SINGLE COMMAND - handles all tiers automatically:
+node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+```
+
+**What the script does automatically:**
+1. Creates output folder
+2. Tries Playwright+Stealth (30s timeout)
+3. Falls back to HTTP Fetch (30s timeout)
+4. Falls back to WebSearch placeholder (30s timeout)
+5. Saves `content.html`, `screenshot.png`, and `fetch-result.json`
+
+**Execution:**
 
 ```javascript
-// 1. Create output folder
+// 1. Run the automated fetch cascade
+const fetchResult = Bash({
+  command: `node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000`,
+  timeout: 120000  // 2 min total max
+})
+
+// 2. Parse the JSON result from stdout
+const result = JSON.parse(fetchResult.stdout)
+
+// 3. Read the content
+const content = Read({ file_path: `${OUTPUT_FOLDER}/content.html` })
+const fetchMethod = result.tier
+const contentSize = result.contentSize
+```
+
+**If script is not available, fall back to inline Playwright:**
+
+```javascript
+// FALLBACK: Only if scripts/fetch-content.js doesn't exist
 Bash({ command: `mkdir -p "${OUTPUT_FOLDER}"` })
 
-// 2. USE V3 WebContentFetcher CASCADE
-// The cascade tries these tiers in order:
-//   TIER 1: Vibium MCP Browser (best for bot-protected sites)
-//   TIER 2: Agent Browser (CLI-based with refs)
-//   TIER 3: Playwright + Stealth (headless with anti-detection)
-//   TIER 4: HTTP Fetch / WebFetch (for simple sites)
-//   TIER 5: WebSearch Fallback (research-based, last resort)
+// Quick Playwright fetch (single tier, no cascade)
+Bash({
+  command: `cd /tmp && rm -rf qcsd-fetch && mkdir qcsd-fetch && cd qcsd-fetch && npm init -y && npm install playwright-extra puppeteer-extra-plugin-stealth playwright 2>/dev/null`,
+  timeout: 60000
+})
 
-let content = null;
-let fetchMethod = null;
-
-// TIER 1: Vibium MCP Browser (Primary - best for bot-protected sites)
-try {
-  mcp__vibium__browser_launch({ headless: true })
-  mcp__vibium__browser_navigate({ url: URL })
-  const screenshot = mcp__vibium__browser_screenshot({ filename: `${OUTPUT_FOLDER}/screenshot.png` })
-  content = await mcp__vibium__browser_find({ selector: "html" })
-  fetchMethod = "vibium"
-  mcp__vibium__browser_quit()
-} catch (e) {
-  console.log("Vibium failed, trying Playwright+Stealth...")
-}
-
-// TIER 2: Playwright + Stealth (Main fallback for bot-protected sites)
-if (!content) {
-  try {
-    // Install playwright-extra with stealth plugin
-    Bash({ command: `cd /tmp && rm -rf qcsd-fetch && mkdir -p qcsd-fetch && cd qcsd-fetch && npm init -y && npm install playwright-extra puppeteer-extra-plugin-stealth playwright` })
-
-    // Create stealth fetch script (full implementation in V3)
-    const script = `
-const { chromium } = require('playwright-extra');
-const stealth = require('puppeteer-extra-plugin-stealth')();
-chromium.use(stealth);
-
-(async () => {
-  const browser = await chromium.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-  });
-
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-    viewport: { width: 1920, height: 1080 }
-  });
-
-  const page = await context.newPage();
-  await page.goto('${URL}', { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.waitForTimeout(3000);
-
-  // Try to dismiss cookie banners
-  try {
-    const btn = await page.$('[data-testid="consent-accept-all"], #onetrust-accept-btn-handler, [class*="cookie"] button');
-    if (btn) { await btn.click(); await page.waitForTimeout(1000); }
-  } catch (e) {}
-
-  const content = await page.content();
-  require('fs').writeFileSync('/tmp/qcsd-fetch/content.html', content);
-  await page.screenshot({ path: '${OUTPUT_FOLDER}/screenshot.png' });
-  console.log(JSON.stringify({ success: true, size: content.length }));
-  await browser.close();
-})();`
-
-    Write({ file_path: "/tmp/qcsd-fetch/fetch.js", content: script })
-    const result = Bash({ command: "cd /tmp/qcsd-fetch && node fetch.js" })
-    content = Read({ file_path: "/tmp/qcsd-fetch/content.html" })
-    fetchMethod = "playwright-stealth"
-  } catch (e) {
-    console.log("Playwright+Stealth failed, trying WebFetch...")
-  }
-}
-
-// TIER 3: WebFetch (Simple HTTP - may fail on bot-protected sites)
-if (!content) {
-  try {
-    content = await WebFetch({ url: URL, prompt: "Return the complete HTML content" })
-    fetchMethod = "webfetch"
-  } catch (e) {
-    console.log("WebFetch failed, falling back to WebSearch research...")
-  }
-}
-
-// TIER 5: WebSearch Research (FINAL FALLBACK - creates epic from search)
-if (!content) {
-  console.log("⚠️ ALL BROWSER METHODS FAILED - Using WebSearch research fallback")
-  const searchResults = await WebSearch({ query: `${URL} site features functionality` })
-  // Create epic document from search research
-  content = `# Epic: ${URL} Analysis\n\n## Research-Based Content\n${searchResults}`
-  fetchMethod = "websearch-fallback"
-
-  // Save the epic for transparency
-  Write({ file_path: `${OUTPUT_FOLDER}/epic-research-based.md`, content: content })
-}
-
-// 3. Log which method succeeded
-console.log(`✅ Content fetched via: ${fetchMethod}`)
+// ... minimal inline script as last resort
 ```
 
 **MANDATORY: Output fetch method used:**
