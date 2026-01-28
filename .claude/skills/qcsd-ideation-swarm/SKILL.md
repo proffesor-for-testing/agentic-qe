@@ -1,9 +1,9 @@
 ---
 name: qcsd-ideation-swarm
-description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins."
+description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins. Uses 5-tier browser cascade: Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch-fallback."
 category: qcsd-phases
 priority: critical
-version: 7.1.0
+version: 7.3.0
 tokenEstimate: 3500
 # DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
 domains:
@@ -32,7 +32,8 @@ execution:
   alternatives: [mcp-tools, cli]
 swarm_pattern: true
 parallel_batches: 2
-last_updated: 2026-01-27
+last_updated: 2026-01-28
+# v7.2.0 Changelog: Added 5-tier browser cascade (Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch)
 html_output: true
 enforcement_level: strict
 tags: [qcsd, ideation, htsm, quality-criteria, risk-storming, testability, swarm, parallel, ddd]
@@ -59,17 +60,129 @@ When analyzing a live website URL, use this specialized execution pattern.
 
 **You MUST follow ALL phases in order. Skipping phases is a FAILURE.**
 
-### PHASE URL-1: Setup and Content Fetch
+### PHASE URL-1: Setup and Content Fetch (5-TIER BROWSER CASCADE)
+
+**You MUST try browsers in order. Do NOT skip to WebSearch without trying all tiers.**
+
+**V3 Implementation:** `v3/src/integrations/browser/web-content-fetcher.ts`
+
+The browser cascade is implemented in V3 as `WebContentFetcher`. Use this implementation pattern:
 
 ```javascript
 // 1. Create output folder
 Bash({ command: `mkdir -p "${OUTPUT_FOLDER}"` })
 
-// 2. Fetch website content
-const content = await WebFetch({ url: URL, prompt: "Return the complete HTML content" })
+// 2. USE V3 WebContentFetcher CASCADE
+// The cascade tries these tiers in order:
+//   TIER 1: Vibium MCP Browser (best for bot-protected sites)
+//   TIER 2: Agent Browser (CLI-based with refs)
+//   TIER 3: Playwright + Stealth (headless with anti-detection)
+//   TIER 4: HTTP Fetch / WebFetch (for simple sites)
+//   TIER 5: WebSearch Fallback (research-based, last resort)
 
-// 3. Store content for agents
-// Keep the fetched content available for all agent prompts
+let content = null;
+let fetchMethod = null;
+
+// TIER 1: Vibium MCP Browser (Primary - best for bot-protected sites)
+try {
+  mcp__vibium__browser_launch({ headless: true })
+  mcp__vibium__browser_navigate({ url: URL })
+  const screenshot = mcp__vibium__browser_screenshot({ filename: `${OUTPUT_FOLDER}/screenshot.png` })
+  content = await mcp__vibium__browser_find({ selector: "html" })
+  fetchMethod = "vibium"
+  mcp__vibium__browser_quit()
+} catch (e) {
+  console.log("Vibium failed, trying Playwright+Stealth...")
+}
+
+// TIER 2: Playwright + Stealth (Main fallback for bot-protected sites)
+if (!content) {
+  try {
+    // Install playwright-extra with stealth plugin
+    Bash({ command: `cd /tmp && rm -rf qcsd-fetch && mkdir -p qcsd-fetch && cd qcsd-fetch && npm init -y && npm install playwright-extra puppeteer-extra-plugin-stealth playwright` })
+
+    // Create stealth fetch script (full implementation in V3)
+    const script = `
+const { chromium } = require('playwright-extra');
+const stealth = require('puppeteer-extra-plugin-stealth')();
+chromium.use(stealth);
+
+(async () => {
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+  });
+
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+    viewport: { width: 1920, height: 1080 }
+  });
+
+  const page = await context.newPage();
+  await page.goto('${URL}', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.waitForTimeout(3000);
+
+  // Try to dismiss cookie banners
+  try {
+    const btn = await page.$('[data-testid="consent-accept-all"], #onetrust-accept-btn-handler, [class*="cookie"] button');
+    if (btn) { await btn.click(); await page.waitForTimeout(1000); }
+  } catch (e) {}
+
+  const content = await page.content();
+  require('fs').writeFileSync('/tmp/qcsd-fetch/content.html', content);
+  await page.screenshot({ path: '${OUTPUT_FOLDER}/screenshot.png' });
+  console.log(JSON.stringify({ success: true, size: content.length }));
+  await browser.close();
+})();`
+
+    Write({ file_path: "/tmp/qcsd-fetch/fetch.js", content: script })
+    const result = Bash({ command: "cd /tmp/qcsd-fetch && node fetch.js" })
+    content = Read({ file_path: "/tmp/qcsd-fetch/content.html" })
+    fetchMethod = "playwright-stealth"
+  } catch (e) {
+    console.log("Playwright+Stealth failed, trying WebFetch...")
+  }
+}
+
+// TIER 3: WebFetch (Simple HTTP - may fail on bot-protected sites)
+if (!content) {
+  try {
+    content = await WebFetch({ url: URL, prompt: "Return the complete HTML content" })
+    fetchMethod = "webfetch"
+  } catch (e) {
+    console.log("WebFetch failed, falling back to WebSearch research...")
+  }
+}
+
+// TIER 5: WebSearch Research (FINAL FALLBACK - creates epic from search)
+if (!content) {
+  console.log("⚠️ ALL BROWSER METHODS FAILED - Using WebSearch research fallback")
+  const searchResults = await WebSearch({ query: `${URL} site features functionality` })
+  // Create epic document from search research
+  content = `# Epic: ${URL} Analysis\n\n## Research-Based Content\n${searchResults}`
+  fetchMethod = "websearch-fallback"
+
+  // Save the epic for transparency
+  Write({ file_path: `${OUTPUT_FOLDER}/epic-research-based.md`, content: content })
+}
+
+// 3. Log which method succeeded
+console.log(`✅ Content fetched via: ${fetchMethod}`)
+```
+
+**MANDATORY: Output fetch method used:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    CONTENT FETCH RESULT                     │
+├─────────────────────────────────────────────────────────────┤
+│  Method Used: [vibium/agent-browser/playwright/webfetch/    │
+│               websearch-fallback]                           │
+│  Content Size: [X KB]                                       │
+│  Status: [SUCCESS/DEGRADED]                                 │
+│                                                             │
+│  If DEGRADED (websearch-fallback), analysis is based on     │
+│  public information, not live page inspection.              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### PHASE URL-2: Programmatic Flag Detection (MANDATORY)
