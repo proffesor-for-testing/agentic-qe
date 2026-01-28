@@ -45,6 +45,24 @@ export interface PredictionResult {
   predictions: FilePrediction[];
   modelConfidence: number;
   factors: string[];
+  /** ADR-051: LLM-enhanced analysis when enabled */
+  llmAnalysis?: LLMDefectAnalysis;
+}
+
+/**
+ * ADR-051: LLM-enhanced defect analysis result
+ */
+export interface LLMDefectAnalysis {
+  /** Specific risk factors identified by AI */
+  riskFactors: string[];
+  /** Code areas requiring focused review */
+  reviewFocusAreas: string[];
+  /** Similar historical defect patterns to watch for */
+  similarHistoricalDefects: string[];
+  /** AI confidence level (0-1) */
+  confidenceLevel: number;
+  /** Detailed explanation of the risk assessment */
+  explanation: string;
 }
 
 export interface FilePrediction {

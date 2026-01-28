@@ -11,7 +11,7 @@
 
 **V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 51 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification (v3.3.0), and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
+> **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 51 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 12 domains, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
 🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **61 QE Skills** | 🧬 **Coherence Verification** 
 
@@ -240,9 +240,9 @@ aqe hooks model-stats
 
 ---
 
-### 🔐 Consensus & MinCut Coordination
+### 🔐 Consensus & MinCut Coordination (v3.3.3)
 
-V3 includes advanced coordination mechanisms for reliable multi-agent decisions:
+V3.3.3 achieves **full MinCut/Consensus integration across all 12 domains**:
 
 | Feature | Description |
 |---------|-------------|
@@ -250,6 +250,9 @@ V3 includes advanced coordination mechanisms for reliable multi-agent decisions:
 | **MinCut Topology** | Graph-based self-healing agent coordination |
 | **Multi-Model Voting** | Aggregate decisions from multiple model tiers |
 | **Claim Verification** | Cryptographic verification of agent work claims |
+| **12/12 Domain Integration** | All domains use `verifyFinding()` for consensus |
+| **Topology-Aware Routing** | Routes tasks avoiding weak network vertices |
+| **Self-Healing Triggers** | `shouldPauseOperations()` for automatic recovery |
 
 ```bash
 # View consensus status

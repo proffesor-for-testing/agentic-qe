@@ -68,6 +68,31 @@ import {
   type EngineResult as DreamCycleResult,
 } from '../../learning/dream/index.js';
 
+// ============================================================================
+// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
+// ============================================================================
+
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type IMinCutAwareDomain,
+  type MinCutAwareConfig,
+} from '../../coordination/mixins/mincut-aware-domain.js';
+
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type IConsensusEnabledDomain,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain.js';
+
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
+
+import {
+  type DomainFinding,
+  createDomainFinding,
+} from '../../coordination/consensus/domain-findings.js';
+
 /**
  * Workflow status tracking
  */
@@ -107,6 +132,16 @@ export interface LearningCoordinatorConfig {
   autoApplyHighConfidenceInsights: boolean;
   /** Minimum confidence threshold for auto-applying insights (0-1) */
   autoApplyConfidenceThreshold: number;
+
+  // MinCut integration config (ADR-047)
+  enableMinCutAwareness: boolean;
+  topologyHealthThreshold: number;
+  pauseOnCriticalTopology: boolean;
+  // Consensus integration config (MM-001)
+  enableConsensus: boolean;
+  consensusThreshold: number;
+  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
+  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: LearningCoordinatorConfig = {
@@ -124,6 +159,16 @@ const DEFAULT_CONFIG: LearningCoordinatorConfig = {
   enableQualityGateFailureTrigger: true,
   autoApplyHighConfidenceInsights: false,
   autoApplyConfidenceThreshold: 0.8,
+
+  // MinCut integration defaults (ADR-047)
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
+  // Consensus integration defaults (MM-001)
+  enableConsensus: true,
+  consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
+  consensusMinModels: 2,
 };
 
 /**
@@ -154,6 +199,15 @@ export class LearningOptimizationCoordinator
    */
   private dreamScheduler: DreamScheduler | null = null;
 
+  // MinCut topology awareness mixin (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // Consensus verification mixin (MM-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
+
+  // Domain identifier for mixin initialization
+  private readonly domainName = 'learning-optimization';
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -161,7 +215,27 @@ export class LearningOptimizationCoordinator
     config: Partial<LearningCoordinatorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.learningService = new LearningCoordinatorService(memory);
+
+    // Initialize MinCut-aware mixin (ADR-047)
+    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
+    });
+
+    // Initialize Consensus-enabled mixin (MM-001)
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      verifyFindingTypes: ['pattern-recommendation', 'optimization-suggestion', 'cross-domain-insight'],
+      strategy: this.config.consensusStrategy,
+      minModels: this.config.consensusMinModels,
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+    });
+
+    this.learningService = new LearningCoordinatorService({ memory });
     this.transferService = new TransferSpecialistService(memory);
     this.optimizerService = new MetricsOptimizerService(memory);
     this.productionIntel = new ProductionIntelService(memory);
@@ -226,6 +300,17 @@ export class LearningOptimizationCoordinator
     // Load any persisted workflow state
     await this.loadWorkflowState();
 
+    // Initialize Consensus engine if enabled (MM-001)
+    if (this.config.enableConsensus) {
+      try {
+        await (this.consensusMixin as any).initializeConsensus();
+        console.log(`[${this.domainName}] Consensus engine initialized`);
+      } catch (error) {
+        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
+        console.warn(`[${this.domainName}] Continuing without consensus verification`);
+      }
+    }
+
     this.initialized = true;
   }
 
@@ -233,6 +318,16 @@ export class LearningOptimizationCoordinator
    * Dispose and cleanup
    */
   async dispose(): Promise<void> {
+    // Dispose Consensus engine (MM-001)
+    try {
+      await (this.consensusMixin as any).disposeConsensus();
+    } catch (error) {
+      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
+    }
+
+    // Dispose MinCut mixin (ADR-047)
+    this.minCutMixin.dispose();
+
     // Save workflow state
     await this.saveWorkflowState();
 
@@ -283,6 +378,17 @@ export class LearningOptimizationCoordinator
 
     try {
       this.startWorkflow(workflowId, 'learning-cycle');
+
+      // ADR-047: Check topology health before expensive operations
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, using conservative strategy for learning cycle`);
+        // Continue with reduced scope when topology is unhealthy
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Learning cycle paused: topology is in critical state'));
+      }
 
       // Spawn learning agent
       const agentResult = await this.spawnLearningAgent(workflowId, domain);
@@ -398,6 +504,16 @@ export class LearningOptimizationCoordinator
     try {
       this.startWorkflow(workflowId, 'optimization');
 
+      // ADR-047: Check topology health before expensive operations
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, using conservative optimization strategy`);
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Optimization paused: topology is in critical state'));
+      }
+
       const byDomain: Record<DomainName, DomainOptimizationResult> = {} as Record<
         DomainName,
         DomainOptimizationResult
@@ -486,6 +602,16 @@ export class LearningOptimizationCoordinator
 
     try {
       this.startWorkflow(workflowId, 'transfer');
+
+      // ADR-047: Check topology health before cross-domain operations
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, limiting cross-domain transfer scope`);
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Cross-domain sharing paused: topology is in critical state'));
+      }
 
       let knowledgeShared = 0;
       const domainsUpdated: DomainName[] = [];
@@ -1784,5 +1910,172 @@ export class LearningOptimizationCoordinator
     }
 
     return Math.abs(hash).toString(16);
+  }
+
+  // ============================================================================
+  // MinCut Integration Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
+  }
+
+  /**
+   * Check if topology is healthy
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  /**
+   * Get topology-based routing excluding weak domains
+   * Per ADR-047: Filters out domains that are currently weak points
+   *
+   * @param targetDomains - List of potential target domains
+   * @returns Filtered list of healthy domains for routing
+   */
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
+  }
+
+  /**
+   * Get weak vertices belonging to this domain
+   * Per ADR-047: Identifies agents that are single points of failure
+   */
+  getDomainWeakVertices() {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Check if this domain is a weak point in the topology
+   * Per ADR-047: Returns true if any weak vertex belongs to learning-optimization domain
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  // ============================================================================
+  // Consensus Integration Methods (MM-001)
+  // ============================================================================
+
+  /**
+   * Check if consensus engine is available
+   */
+  isConsensusAvailable(): boolean {
+    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+  }
+
+  /**
+   * Get consensus statistics
+   * Per MM-001: Returns metrics about consensus verification
+   */
+  getConsensusStats() {
+    return this.consensusMixin.getConsensusStats();
+  }
+
+  /**
+   * Verify a pattern recommendation using multi-model consensus
+   * Per MM-001: High-stakes pattern recommendations require verification
+   *
+   * @param pattern - The pattern being recommended
+   * @param confidence - Initial confidence in the recommendation
+   * @returns true if the recommendation is verified or doesn't require consensus
+   */
+  async verifyPatternRecommendation(
+    pattern: { id: string; name: string; type: string; domain: DomainName },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof pattern> = createDomainFinding({
+      id: uuidv4(),
+      type: 'pattern-recommendation',
+      confidence,
+      description: `Verify pattern recommendation: ${pattern.name} (${pattern.type}) for domain ${pattern.domain}`,
+      payload: pattern,
+      detectedBy: 'learning-optimization-coordinator',
+      severity: confidence > 0.9 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Pattern recommendation '${pattern.name}' verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Pattern recommendation '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify an optimization suggestion using multi-model consensus
+   * Per MM-001: Optimization suggestions can have significant impact
+   *
+   * @param suggestion - The optimization suggestion to verify
+   * @param confidence - Initial confidence in the suggestion
+   * @returns true if the suggestion is verified or doesn't require consensus
+   */
+  async verifyOptimizationSuggestion(
+    suggestion: { metric: string; currentValue: number; targetValue: number; strategy: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof suggestion> = createDomainFinding({
+      id: uuidv4(),
+      type: 'optimization-suggestion',
+      confidence,
+      description: `Verify optimization: ${suggestion.metric} from ${suggestion.currentValue} to ${suggestion.targetValue} via ${suggestion.strategy}`,
+      payload: suggestion,
+      detectedBy: 'learning-optimization-coordinator',
+      severity: confidence > 0.85 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Optimization suggestion for '${suggestion.metric}' verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Optimization suggestion for '${suggestion.metric}' NOT verified`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify a cross-domain insight using multi-model consensus
+   * Per MM-001: Cross-domain insights require verification before propagation
+   *
+   * @param insight - The cross-domain insight to verify
+   * @param confidence - Initial confidence in the insight
+   * @returns true if the insight is verified or doesn't require consensus
+   */
+  async verifyCrossDomainInsight(
+    insight: { sourceDomain: DomainName; targetDomains: DomainName[]; description: string; impact: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof insight> = createDomainFinding({
+      id: uuidv4(),
+      type: 'cross-domain-insight',
+      confidence,
+      description: `Verify cross-domain insight: ${insight.description}`,
+      payload: insight,
+      detectedBy: 'learning-optimization-coordinator',
+      severity: 'high', // Cross-domain insights always have high impact
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Cross-domain insight verified by consensus for ${insight.targetDomains.length} target domains`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Cross-domain insight NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
   }
 }

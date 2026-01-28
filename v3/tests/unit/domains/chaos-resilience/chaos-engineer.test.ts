@@ -119,7 +119,7 @@ describe('ChaosEngineerService', () => {
 
   beforeEach(() => {
     mockMemory = createMockMemory();
-    service = new ChaosEngineerService(mockMemory);
+    service = new ChaosEngineerService({ memory: mockMemory });
   });
 
   describe('createExperiment', () => {
@@ -388,7 +388,7 @@ describe('ChaosEngineerService', () => {
 
     it('should respect maximum concurrent faults limit', async () => {
       // Create service with low limit
-      const limitedService = new ChaosEngineerService(mockMemory, { maxConcurrentFaults: 1 });
+      const limitedService = new ChaosEngineerService({ memory: mockMemory }, { maxConcurrentFaults: 1 });
 
       const fault1 = createValidFault({ id: 'fault-1', duration: 0 });
       const fault2 = createValidFault({ id: 'fault-2', duration: 0 });
@@ -466,14 +466,14 @@ describe('ChaosEngineerService', () => {
 
   describe('configuration', () => {
     it('should use default configuration when none provided', () => {
-      const defaultService = new ChaosEngineerService(mockMemory);
+      const defaultService = new ChaosEngineerService({ memory: mockMemory });
 
       // Service should be created successfully with defaults
       expect(defaultService).toBeDefined();
     });
 
     it('should merge provided configuration with defaults', () => {
-      const customService = new ChaosEngineerService(mockMemory, {
+      const customService = new ChaosEngineerService({ memory: mockMemory }, {
         defaultTimeout: 30000,
         enableDryRun: false,
       });

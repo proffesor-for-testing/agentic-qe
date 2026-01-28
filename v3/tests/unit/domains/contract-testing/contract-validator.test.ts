@@ -70,7 +70,7 @@ describe('ContractValidatorService', () => {
 
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
-    service = new ContractValidatorService(mockMemory);
+    service = new ContractValidatorService({ memory: mockMemory });
   });
 
   describe('validateContract', () => {
@@ -111,7 +111,7 @@ describe('ContractValidatorService', () => {
     });
 
     it('should return errors for empty endpoints in strict mode', async () => {
-      const strictService = new ContractValidatorService(mockMemory, { strictMode: true });
+      const strictService = new ContractValidatorService({ memory: mockMemory }, { strictMode: true });
       const contract = createTestContract({ endpoints: [] });
 
       const result = await strictService.validateContract(contract);
@@ -124,7 +124,7 @@ describe('ContractValidatorService', () => {
     });
 
     it('should return warning for empty endpoints in non-strict mode', async () => {
-      const nonStrictService = new ContractValidatorService(mockMemory, { strictMode: false });
+      const nonStrictService = new ContractValidatorService({ memory: mockMemory }, { strictMode: false });
       const contract = createTestContract({ endpoints: [] });
 
       const result = await nonStrictService.validateContract(contract);
@@ -158,7 +158,7 @@ describe('ContractValidatorService', () => {
     });
 
     it('should cache validation results when caching is enabled', async () => {
-      const cachingService = new ContractValidatorService(mockMemory, { cacheValidations: true });
+      const cachingService = new ContractValidatorService({ memory: mockMemory }, { cacheValidations: true });
       const contract = createTestContract();
 
       const result1 = await cachingService.validateContract(contract);

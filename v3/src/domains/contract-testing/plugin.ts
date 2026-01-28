@@ -192,7 +192,7 @@ export class ContractTestingPlugin extends BaseDomainPlugin {
   protected async onInitialize(): Promise<void> {
     // Create services
     this.contractValidator = new ContractValidatorService(
-      this.memory,
+      { memory: this.memory },
       this.pluginConfig.contractValidator
     );
 

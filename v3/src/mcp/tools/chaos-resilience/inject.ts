@@ -95,7 +95,7 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
   private async getService(context: MCPToolContext): Promise<ChaosEngineerService> {
     if (!this.chaosEngineer) {
       const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || await getSharedMemoryBackend();
-      this.chaosEngineer = new ChaosEngineerService(memory, {
+      this.chaosEngineer = new ChaosEngineerService({ memory }, {
         enableDryRun: true,
         autoRollbackOnFailure: true,
       });

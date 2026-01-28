@@ -32,6 +32,7 @@ import {
   CoordinatorConfig,
 } from './coordinator.js';
 import {
+  createVisualTesterService,
   VisualTesterService,
   VisualTesterConfig,
 } from './services/visual-tester.js';
@@ -173,8 +174,8 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
   // ============================================================================
 
   protected async onInitialize(): Promise<void> {
-    // Create services
-    this.visualTester = new VisualTesterService(
+    // Create services using factory function for proper DI
+    this.visualTester = createVisualTesterService(
       this.memory,
       this.pluginConfig.visualTester
     );

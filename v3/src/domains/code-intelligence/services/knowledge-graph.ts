@@ -8,6 +8,8 @@ import { TypeScriptParser } from '../../../shared/parsers';
 import { FileReader } from '../../../shared/io';
 import { NomicEmbedder } from '../../../shared/embeddings';
 import { MemoryBackend } from '../../../kernel/interfaces';
+// ADR-051: LLM Router for AI-enhanced knowledge extraction
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import {
   IndexRequest,
   IndexResult,
@@ -58,6 +60,22 @@ export interface KnowledgeGraphConfig {
   namespace: string;
   enableVectorEmbeddings: boolean;
   embeddingDimension: number;
+  /** ADR-051: Enable LLM-powered knowledge extraction */
+  enableLLMExtraction?: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier?: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens?: number;
+}
+
+/**
+ * Dependencies for KnowledgeGraphService
+ * ADR-051: Added LLM router for AI-enhanced knowledge extraction
+ */
+export interface KnowledgeGraphDependencies {
+  memory: MemoryBackend;
+  /** ADR-051: Optional LLM router for AI-enhanced extraction */
+  llmRouter?: HybridRouter;
 }
 
 const DEFAULT_CONFIG: KnowledgeGraphConfig = {
@@ -66,30 +84,64 @@ const DEFAULT_CONFIG: KnowledgeGraphConfig = {
   namespace: 'code-intelligence:kg',
   enableVectorEmbeddings: true,
   embeddingDimension: 384,
+  enableLLMExtraction: true, // On by default - opt-out (ADR-051)
+  llmModelTier: 2, // Sonnet for balanced cost/quality
+  llmMaxTokens: 2048,
 };
 
 /**
  * Knowledge Graph Service Implementation
  * Builds and manages the code knowledge graph with relationships
+ *
+ * ADR-051: Added LLM enhancement for AI-powered knowledge extraction
  */
 export class KnowledgeGraphService implements IKnowledgeGraphService {
   private readonly config: KnowledgeGraphConfig;
+  private readonly memory: MemoryBackend;
   private readonly nodeCache: Map<string, KGNode> = new Map();
   private readonly edgeIndex: Map<string, KGEdge[]> = new Map();
   private readonly tsParser: TypeScriptParser;
   private readonly fileReader: FileReader;
   private readonly embedder: NomicEmbedder;
+  /** ADR-051: Optional LLM router for AI-enhanced extraction */
+  private readonly llmRouter?: HybridRouter;
 
+  /**
+   * Constructor supporting both legacy and dependency-injection signatures
+   * @param dependenciesOrMemory - Either a KnowledgeGraphDependencies object or a MemoryBackend (legacy)
+   * @param config - Optional configuration overrides
+   */
   constructor(
-    private readonly memory: MemoryBackend,
+    dependenciesOrMemory: KnowledgeGraphDependencies | MemoryBackend,
     config: Partial<KnowledgeGraphConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Support both constructor signatures for backward compatibility
+    if (this.isKnowledgeGraphDependencies(dependenciesOrMemory)) {
+      // New dependency injection style
+      this.memory = dependenciesOrMemory.memory;
+      this.llmRouter = dependenciesOrMemory.llmRouter;
+    } else {
+      // Legacy style: direct MemoryBackend
+      this.memory = dependenciesOrMemory;
+      this.llmRouter = undefined;
+    }
+
     this.tsParser = new TypeScriptParser();
     this.fileReader = new FileReader();
     this.embedder = new NomicEmbedder({
       enableFallback: true,
     });
+  }
+
+  /**
+   * Type guard to check if the argument is KnowledgeGraphDependencies
+   */
+  private isKnowledgeGraphDependencies(
+    arg: KnowledgeGraphDependencies | MemoryBackend
+  ): arg is KnowledgeGraphDependencies {
+    return (arg as KnowledgeGraphDependencies).memory !== undefined;
   }
 
   /**
@@ -291,6 +343,221 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
   }
 
   // ============================================================================
+  // ADR-051: LLM Enhancement Methods
+  // ============================================================================
+
+  /**
+   * Check if LLM extraction is available and enabled
+   */
+  private isLLMExtractionAvailable(): boolean {
+    return this.config.enableLLMExtraction === true && this.llmRouter !== undefined;
+  }
+
+  /**
+   * Get model ID for the configured tier
+   * @param tier - Model tier (1=Haiku, 2=Sonnet, 3=Sonnet, 4=Opus)
+   */
+  private getModelForTier(tier: number): string {
+    switch (tier) {
+      case 1: return 'claude-3-5-haiku-20241022';
+      case 2: return 'claude-sonnet-4-20250514';
+      case 3: return 'claude-sonnet-4-20250514';
+      case 4: return 'claude-opus-4-5-20251101';
+      default: return 'claude-sonnet-4-20250514';
+    }
+  }
+
+  /**
+   * Extract semantic relationships from code using LLM
+   * Provides deeper insights than AST-based extraction:
+   * - Design pattern detection
+   * - Architectural boundary identification
+   * - Dependency impact analysis
+   * - Semantic relationships between entities
+   */
+  private async extractRelationshipsWithLLM(
+    code: string,
+    existingEntities: ExtractedEntity[]
+  ): Promise<LLMExtractedRelationships> {
+    if (!this.llmRouter) {
+      return { semanticRelationships: [], designPatterns: [], architecturalBoundaries: [], dependencyImpacts: [] };
+    }
+
+    try {
+      const prompt = this.buildRelationshipExtractionPrompt(code, existingEntities);
+      const modelId = this.getModelForTier(this.config.llmModelTier ?? 2);
+
+      const response: ChatResponse = await this.llmRouter.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert software architect analyzing code structure. Extract:
+1. Semantic relationships between code entities (inheritance, composition, dependency, collaboration)
+2. Design patterns used (Factory, Singleton, Observer, Strategy, etc.)
+3. Architectural boundaries (layers, modules, domains)
+4. Dependency impact analysis (which changes would affect which components)
+
+Return a JSON object with:
+{
+  "semanticRelationships": [{"source": "...", "target": "...", "type": "...", "description": "..."}],
+  "designPatterns": [{"pattern": "...", "participants": ["..."], "location": "...", "confidence": 0.0-1.0}],
+  "architecturalBoundaries": [{"name": "...", "type": "layer|module|domain", "entities": ["..."]}],
+  "dependencyImpacts": [{"entity": "...", "impactedBy": ["..."], "impacts": ["..."], "severity": "low|medium|high"}]
+}
+
+Be precise and only report high-confidence findings.`,
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        model: modelId,
+        maxTokens: this.config.llmMaxTokens ?? 2048,
+        temperature: 0.2, // Low temperature for consistent analysis
+      });
+
+      if (response.content) {
+        return this.parseLLMRelationshipResponse(response.content);
+      }
+
+      return { semanticRelationships: [], designPatterns: [], architecturalBoundaries: [], dependencyImpacts: [] };
+    } catch (error) {
+      console.warn('[KnowledgeGraph] LLM relationship extraction failed:', error);
+      return { semanticRelationships: [], designPatterns: [], architecturalBoundaries: [], dependencyImpacts: [] };
+    }
+  }
+
+  /**
+   * Build prompt for LLM relationship extraction
+   */
+  private buildRelationshipExtractionPrompt(
+    code: string,
+    existingEntities: ExtractedEntity[]
+  ): string {
+    let prompt = `## Code to Analyze:\n\`\`\`typescript\n${code}\n\`\`\`\n\n`;
+
+    if (existingEntities.length > 0) {
+      prompt += `## Already Identified Entities:\n`;
+      for (const entity of existingEntities) {
+        prompt += `- ${entity.type}: ${entity.name} (line ${entity.line}, ${entity.visibility})\n`;
+      }
+      prompt += '\n';
+    }
+
+    prompt += `## Analysis Requirements:\n`;
+    prompt += `1. Identify semantic relationships between the entities above\n`;
+    prompt += `2. Detect any design patterns in use\n`;
+    prompt += `3. Identify architectural boundaries or layers\n`;
+    prompt += `4. Analyze which entities would be impacted by changes to others\n`;
+
+    return prompt;
+  }
+
+  /**
+   * Parse LLM response for relationship extraction
+   */
+  private parseLLMRelationshipResponse(content: string): LLMExtractedRelationships {
+    try {
+      // Try to extract JSON from response (may be wrapped in markdown)
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          semanticRelationships: Array.isArray(parsed.semanticRelationships)
+            ? parsed.semanticRelationships
+            : [],
+          designPatterns: Array.isArray(parsed.designPatterns)
+            ? parsed.designPatterns
+            : [],
+          architecturalBoundaries: Array.isArray(parsed.architecturalBoundaries)
+            ? parsed.architecturalBoundaries
+            : [],
+          dependencyImpacts: Array.isArray(parsed.dependencyImpacts)
+            ? parsed.dependencyImpacts
+            : [],
+        };
+      }
+    } catch {
+      // JSON parsing failed
+    }
+
+    return { semanticRelationships: [], designPatterns: [], architecturalBoundaries: [], dependencyImpacts: [] };
+  }
+
+  /**
+   * Enhance query results with LLM-powered semantic understanding
+   */
+  private async enhanceQueryWithLLM(
+    query: string,
+    results: KGNode[]
+  ): Promise<{ enhancedResults: KGNode[]; insights: string[] }> {
+    if (!this.llmRouter || results.length === 0) {
+      return { enhancedResults: results, insights: [] };
+    }
+
+    try {
+      const modelId = this.getModelForTier(this.config.llmModelTier ?? 2);
+
+      const response: ChatResponse = await this.llmRouter.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are a code intelligence assistant. Given a query and search results from a knowledge graph, provide:
+1. Ranking of results by relevance to the query
+2. Key insights about how the results relate to the query
+3. Suggestions for related code to explore
+
+Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insight2", ...] }`,
+          },
+          {
+            role: 'user',
+            content: `Query: "${query}"\n\nResults:\n${JSON.stringify(results.map(n => ({ id: n.id, label: n.label, properties: n.properties })), null, 2)}`,
+          },
+        ],
+        model: modelId,
+        maxTokens: 1024,
+        temperature: 0.3,
+      });
+
+      if (response.content) {
+        try {
+          const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            const rankedIds: string[] = parsed.rankedIds || [];
+            const insights: string[] = parsed.insights || [];
+
+            // Re-order results based on LLM ranking
+            const idToNode = new Map(results.map(n => [n.id, n]));
+            const rankedResults: KGNode[] = [];
+
+            for (const id of rankedIds) {
+              const node = idToNode.get(id);
+              if (node) {
+                rankedResults.push(node);
+                idToNode.delete(id);
+              }
+            }
+
+            // Add any unranked nodes at the end
+            rankedResults.push(...Array.from(idToNode.values()));
+
+            return { enhancedResults: rankedResults, insights };
+          }
+        } catch {
+          // Parse failed, return original
+        }
+      }
+
+      return { enhancedResults: results, insights: [] };
+    } catch (error) {
+      console.warn('[KnowledgeGraph] LLM query enhancement failed:', error);
+      return { enhancedResults: results, insights: [] };
+    }
+  }
+
+  // ============================================================================
   // Private Helper Methods
   // ============================================================================
 
@@ -327,7 +594,64 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
       edgesCreated++;
     }
 
+    // ADR-051: LLM-enhanced relationship extraction (opt-in)
+    if (this.isLLMExtractionAvailable()) {
+      const fileContent = await this.fileReader.readFile(filePath);
+      if (fileContent.success) {
+        const llmRelationships = await this.extractRelationshipsWithLLM(fileContent.value, entities);
+        edgesCreated += await this.storeLLMRelationships(fileNode.id, llmRelationships);
+      }
+    }
+
     return { nodes: nodesCreated, edges: edgesCreated };
+  }
+
+  /**
+   * Store LLM-extracted relationships in the knowledge graph
+   * ADR-051: Converts LLM insights into graph edges
+   */
+  private async storeLLMRelationships(
+    fileNodeId: string,
+    relationships: LLMExtractedRelationships
+  ): Promise<number> {
+    let edgesCreated = 0;
+
+    // Store semantic relationships as edges
+    for (const rel of relationships.semanticRelationships) {
+      const sourceId = `${fileNodeId}:*:${rel.source}`;
+      const targetId = `${fileNodeId}:*:${rel.target}`;
+      await this.createEdge(sourceId, targetId, rel.type as DependencyEdge['type']);
+      edgesCreated++;
+    }
+
+    // Store design patterns as metadata on file node
+    if (relationships.designPatterns.length > 0) {
+      await this.memory.set(
+        `${this.config.namespace}:patterns:${fileNodeId}`,
+        relationships.designPatterns,
+        { namespace: this.config.namespace }
+      );
+    }
+
+    // Store architectural boundaries
+    if (relationships.architecturalBoundaries.length > 0) {
+      await this.memory.set(
+        `${this.config.namespace}:boundaries:${fileNodeId}`,
+        relationships.architecturalBoundaries,
+        { namespace: this.config.namespace }
+      );
+    }
+
+    // Store dependency impacts
+    if (relationships.dependencyImpacts.length > 0) {
+      await this.memory.set(
+        `${this.config.namespace}:impacts:${fileNodeId}`,
+        relationships.dependencyImpacts,
+        { namespace: this.config.namespace }
+      );
+    }
+
+    return edgesCreated;
   }
 
   private async createFileNode(filePath: string): Promise<KGNode> {
@@ -1089,4 +1413,57 @@ interface ExtractedEntity {
   line: number;
   visibility: 'public' | 'private' | 'protected';
   isAsync: boolean;
+}
+
+// ============================================================================
+// ADR-051: LLM-Extracted Relationship Types
+// ============================================================================
+
+/**
+ * Semantic relationship between code entities
+ */
+interface SemanticRelationship {
+  source: string;
+  target: string;
+  type: 'inherits' | 'implements' | 'composes' | 'depends-on' | 'collaborates' | 'uses' | 'creates';
+  description: string;
+}
+
+/**
+ * Detected design pattern
+ */
+interface DetectedDesignPattern {
+  pattern: string;
+  participants: string[];
+  location: string;
+  confidence: number;
+}
+
+/**
+ * Architectural boundary or layer
+ */
+interface ArchitecturalBoundary {
+  name: string;
+  type: 'layer' | 'module' | 'domain';
+  entities: string[];
+}
+
+/**
+ * Dependency impact analysis result
+ */
+interface DependencyImpact {
+  entity: string;
+  impactedBy: string[];
+  impacts: string[];
+  severity: 'low' | 'medium' | 'high';
+}
+
+/**
+ * Complete LLM-extracted relationships result
+ */
+interface LLMExtractedRelationships {
+  semanticRelationships: SemanticRelationship[];
+  designPatterns: DetectedDesignPattern[];
+  architecturalBoundaries: ArchitecturalBoundary[];
+  dependencyImpacts: DependencyImpact[];
 }

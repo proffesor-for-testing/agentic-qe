@@ -48,8 +48,63 @@ import type {
 import { COVERAGE_REWARDS } from '../../integrations/rl-suite/interfaces';
 
 // ============================================================================
+// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
+// ============================================================================
+
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type IMinCutAwareDomain,
+  type MinCutAwareConfig,
+} from '../../coordination/mixins/mincut-aware-domain';
+
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type IConsensusEnabledDomain,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain';
+
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
+
+import {
+  type DomainFinding,
+  createDomainFinding,
+} from '../../coordination/consensus/domain-findings';
+
+import { v4 as uuidv4 } from 'uuid';
+import type { WeakVertex } from '../../coordination/mincut/interfaces';
+
+// ============================================================================
 // Coordinator Interface
 // ============================================================================
+
+/**
+ * Configuration for the coverage analysis coordinator
+ */
+export interface CoverageAnalysisCoordinatorConfig {
+  // MinCut integration config (ADR-047)
+  enableMinCutAwareness: boolean;
+  topologyHealthThreshold: number;
+  pauseOnCriticalTopology: boolean;
+  // Consensus integration config (MM-001)
+  enableConsensus: boolean;
+  consensusThreshold: number;
+  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
+  consensusMinModels: number;
+}
+
+const DEFAULT_CONFIG: CoverageAnalysisCoordinatorConfig = {
+  // MinCut integration defaults (ADR-047)
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
+  // Consensus integration defaults (MM-001)
+  enableConsensus: true,
+  consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
+  consensusMinModels: 2,
+};
 
 export interface ICoverageAnalysisCoordinator extends CoverageAnalysisAPI {
   /** Initialize the coordinator */
@@ -69,6 +124,18 @@ export interface ICoverageAnalysisCoordinator extends CoverageAnalysisAPI {
 
   /** Get Q-Learning prediction for specific coverage gap */
   predictQL(gap: CoverageGap): Promise<CoverageQLPrediction>;
+
+  // MinCut integration methods (ADR-047)
+  setMinCutBridge(bridge: QueenMinCutBridge): void;
+  isTopologyHealthy(): boolean;
+  /** Get topology-based routing for target domains */
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[];
+  /** Get weak vertices in this domain */
+  getDomainWeakVertices(): WeakVertex[];
+  /** Check if this domain is a weak point in topology */
+  isDomainWeakPoint(): boolean;
+  // Consensus integration methods (MM-001)
+  isConsensusAvailable(): boolean;
 }
 
 // ============================================================================
@@ -81,6 +148,19 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
   private readonly riskScorer: RiskScorerService;
   private readonly qLearning: QLearningAlgorithm;
   private _initialized = false;
+
+  // MinCut topology awareness mixin (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // Consensus verification mixin (MM-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
+
+  // Domain identifier for mixin initialization
+  private readonly domainName = 'coverage-analysis';
+
+  // Coordinator configuration
+  private readonly config: CoverageAnalysisCoordinatorConfig;
+
   private readonly qlConfig = {
     stateSize: 12,
     actionSize: 4,
@@ -92,8 +172,30 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
   constructor(
     private readonly eventBus: EventBus,
-    private readonly memory: MemoryBackend
+    private readonly memory: MemoryBackend,
+    config: Partial<CoverageAnalysisCoordinatorConfig> = {}
   ) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Initialize MinCut-aware mixin (ADR-047)
+    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
+    });
+
+    // Initialize Consensus-enabled mixin (MM-001)
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      verifyFindingTypes: ['coverage-gap', 'risk-zone', 'quality-regression'],
+      strategy: this.config.consensusStrategy,
+      minModels: this.config.consensusMinModels,
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+    });
+
     this.coverageAnalyzer = new CoverageAnalyzerService(memory);
     this.gapDetector = new GapDetectorService(memory);
     this.riskScorer = new RiskScorerService(memory);
@@ -109,6 +211,18 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
     if (this._initialized) return;
 
     // Services are stateless, no initialization needed
+
+    // Initialize Consensus engine if enabled (MM-001)
+    if (this.config.enableConsensus) {
+      try {
+        await (this.consensusMixin as any).initializeConsensus();
+        console.log(`[${this.domainName}] Consensus engine initialized`);
+      } catch (error) {
+        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
+        console.warn(`[${this.domainName}] Continuing without consensus verification`);
+      }
+    }
+
     this._initialized = true;
   }
 
@@ -116,6 +230,16 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
    * Dispose resources
    */
   async dispose(): Promise<void> {
+    // Dispose Consensus engine (MM-001)
+    try {
+      await (this.consensusMixin as any).disposeConsensus();
+    } catch (error) {
+      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
+    }
+
+    // Dispose MinCut mixin (ADR-047)
+    this.minCutMixin.dispose();
+
     this._initialized = false;
   }
 
@@ -432,9 +556,20 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
   /**
    * Analyze coverage report and publish results
+   * Enhanced with topology awareness per ADR-047
    */
   async analyze(request: AnalyzeCoverageRequest): Promise<Result<CoverageReport, Error>> {
     try {
+      // ADR-047: Check topology health before expensive analysis
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, using conservative analysis mode`);
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Coverage analysis paused: topology is in critical state'));
+      }
+
       const result = await this.coverageAnalyzer.analyze(request);
 
       if (result.success) {
@@ -450,14 +585,49 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
   /**
    * Detect coverage gaps using O(log n) vector search
+   * Enhanced with topology awareness per ADR-047
+   * Enhanced with consensus verification per MM-001
    */
   async detectGaps(request: GapDetectionRequest): Promise<Result<CoverageGaps, Error>> {
     try {
+      // ADR-047: Check topology health before gap detection
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, using conservative gap detection`);
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Gap detection paused: topology is in critical state'));
+      }
+
       const result = await this.gapDetector.detectGaps(request);
 
       if (result.success) {
-        // Publish gap detection events for high-risk gaps
-        await this.publishGapEvents(result.value.gaps);
+        // MM-001: Verify high-risk gaps using consensus
+        const verifiedGaps: CoverageGap[] = [];
+
+        for (const gap of result.value.gaps) {
+          // Only verify high-severity gaps with consensus
+          if (this.config.enableConsensus && (gap.severity === 'critical' || gap.severity === 'high')) {
+            const confidence = Math.min(0.95, gap.riskScore / 10 + 0.3);
+            const isVerified = await this.verifyCoverageGap(gap, confidence);
+
+            if (!isVerified) {
+              console.log(`[${this.domainName}] Coverage gap in '${gap.file}' not verified, skipping publication`);
+              continue;
+            }
+          }
+          verifiedGaps.push(gap);
+        }
+
+        // Publish gap detection events for verified high-risk gaps
+        await this.publishGapEvents(verifiedGaps);
+
+        // Return result with verified gaps
+        return ok({
+          ...result.value,
+          gaps: verifiedGaps,
+        });
       }
 
       return result;
@@ -468,14 +638,43 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
   /**
    * Calculate risk score for uncovered code
+   * Enhanced with consensus verification per MM-001 for high-risk zones
    */
   async calculateRisk(request: RiskCalculationRequest): Promise<Result<RiskReport, Error>> {
     try {
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Risk calculation paused: topology is in critical state'));
+      }
+
       const result = await this.riskScorer.calculateRisk(request);
 
-      if (result.success && result.value.riskLevel === 'critical') {
-        // Publish risk zone identified event for critical risks
-        await this.publishRiskZoneEvent(result.value);
+      if (result.success) {
+        // MM-001: Verify critical risk zones using consensus
+        if (this.config.enableConsensus && (result.value.riskLevel === 'critical' || result.value.riskLevel === 'high')) {
+          const isVerified = await this.verifyRiskZone(
+            {
+              file: result.value.file,
+              riskScore: result.value.overallRisk,
+              factors: result.value.factors.map(f => ({ name: f.name, weight: f.contribution })),
+            },
+            Math.min(0.95, result.value.overallRisk / 10 + 0.5)
+          );
+
+          if (!isVerified) {
+            console.warn(`[${this.domainName}] Risk zone '${result.value.file}' not verified, downgrading severity`);
+            // Downgrade the risk level if not verified
+            return ok({
+              ...result.value,
+              riskLevel: result.value.riskLevel === 'critical' ? 'high' : 'medium',
+            } as RiskReport);
+          }
+        }
+
+        if (result.value.riskLevel === 'critical') {
+          // Publish risk zone identified event for verified critical risks
+          await this.publishRiskZoneEvent(result.value);
+        }
       }
 
       return result;
@@ -817,5 +1016,172 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
       default:
         return 0;
     }
+  }
+
+  // ============================================================================
+  // MinCut Integration Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
+  }
+
+  /**
+   * Check if topology is healthy
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  /**
+   * Get topology-based routing excluding weak domains
+   * Per ADR-047: Filters out domains that are currently weak points
+   *
+   * @param targetDomains - List of potential target domains
+   * @returns Filtered list of healthy domains for routing
+   */
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
+  }
+
+  /**
+   * Get weak vertices belonging to this domain
+   * Per ADR-047: Identifies agents that are single points of failure
+   */
+  getDomainWeakVertices(): WeakVertex[] {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Check if this domain is a weak point in the topology
+   * Per ADR-047: Returns true if any weak vertex belongs to coverage-analysis domain
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  // ============================================================================
+  // Consensus Integration Methods (MM-001)
+  // ============================================================================
+
+  /**
+   * Check if consensus engine is available
+   */
+  isConsensusAvailable(): boolean {
+    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+  }
+
+  /**
+   * Get consensus statistics
+   * Per MM-001: Returns metrics about consensus verification
+   */
+  getConsensusStats() {
+    return this.consensusMixin.getConsensusStats();
+  }
+
+  /**
+   * Verify coverage gap detection using multi-model consensus
+   * Per MM-001: Coverage gap detection is a high-stakes decision affecting test priorities
+   *
+   * @param gap - The coverage gap to verify
+   * @param confidence - Initial confidence in the gap detection
+   * @returns true if the gap is verified or doesn't require consensus
+   */
+  private async verifyCoverageGap(
+    gap: CoverageGap,
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<CoverageGap> = createDomainFinding({
+      id: uuidv4(),
+      type: 'coverage-gap',
+      confidence,
+      description: `Verify coverage gap in ${gap.file}: ${gap.lines.length} uncovered lines, ${gap.branches.length} uncovered branches`,
+      payload: gap,
+      detectedBy: 'coverage-analysis-coordinator',
+      severity: gap.severity,
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Coverage gap in '${gap.file}' verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Coverage gap in '${gap.file}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify risk zone classification using multi-model consensus
+   * Per MM-001: Risk zone classification affects deployment and testing decisions
+   *
+   * @param zone - The risk zone to verify
+   * @param confidence - Initial confidence in the classification
+   * @returns true if the classification is verified or doesn't require consensus
+   */
+  private async verifyRiskZone(
+    zone: { file: string; riskScore: number; factors: Array<{ name: string; weight: number }> },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof zone> = createDomainFinding({
+      id: uuidv4(),
+      type: 'risk-zone',
+      confidence,
+      description: `Verify risk zone: ${zone.file} with risk score ${zone.riskScore.toFixed(2)}`,
+      payload: zone,
+      detectedBy: 'coverage-analysis-coordinator',
+      severity: zone.riskScore >= 0.8 ? 'critical' : zone.riskScore >= 0.5 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Risk zone '${zone.file}' classification verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Risk zone '${zone.file}' classification NOT verified`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify quality regression detection using multi-model consensus
+   * Per MM-001: Quality regressions trigger alerts and may block deployments
+   *
+   * @param regression - The quality regression to verify
+   * @param confidence - Initial confidence in the regression detection
+   * @returns true if the regression is verified or doesn't require consensus
+   */
+  private async verifyQualityRegression(
+    regression: { metric: string; previousValue: number; currentValue: number; threshold: number },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof regression> = createDomainFinding({
+      id: uuidv4(),
+      type: 'quality-regression',
+      confidence,
+      description: `Verify quality regression: ${regression.metric} dropped from ${regression.previousValue.toFixed(1)}% to ${regression.currentValue.toFixed(1)}% (threshold: ${regression.threshold}%)`,
+      payload: regression,
+      detectedBy: 'coverage-analysis-coordinator',
+      severity: 'critical', // Quality regressions are always critical
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Quality regression verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Quality regression NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
   }
 }

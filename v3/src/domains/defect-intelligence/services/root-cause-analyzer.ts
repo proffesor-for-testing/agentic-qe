@@ -1,6 +1,8 @@
 /**
  * Agentic QE v3 - Root Cause Analyzer Service
  * Analyzes defects to identify root causes and contributing factors
+ *
+ * ADR-051: LLM-enhanced root cause analysis for deeper insights
  */
 
 import { Result, ok, err } from '../../../shared/types';
@@ -11,6 +13,9 @@ import {
   ContributingFactor,
   TimelineEvent,
 } from '../interfaces';
+
+// ADR-051: LLM Router for AI-enhanced root cause analysis
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 
 /**
  * Interface for the root cause analyzer service
@@ -31,6 +36,22 @@ export interface RootCauseAnalyzerConfig {
   minConfidenceThreshold: number;
   analyzerNamespace: string;
   enableDeepAnalysis: boolean;
+  /** ADR-051: Enable LLM-powered root cause analysis */
+  enableLLMAnalysis?: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier?: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens?: number;
+}
+
+/**
+ * Dependencies for RootCauseAnalyzerService
+ * Enables dependency injection and testing
+ */
+export interface RootCauseAnalyzerDependencies {
+  memory: MemoryBackend;
+  /** ADR-051: Optional LLM router for AI-enhanced root cause analysis */
+  llmRouter?: HybridRouter;
 }
 
 const DEFAULT_CONFIG: RootCauseAnalyzerConfig = {
@@ -39,6 +60,9 @@ const DEFAULT_CONFIG: RootCauseAnalyzerConfig = {
   minConfidenceThreshold: 0.3,
   analyzerNamespace: 'defect-intelligence:root-cause',
   enableDeepAnalysis: true,
+  enableLLMAnalysis: true, // On by default - opt-out (ADR-051)
+  llmModelTier: 2, // Sonnet by default
+  llmMaxTokens: 2048,
 };
 
 /**
@@ -178,19 +202,259 @@ const ROOT_CAUSE_CATEGORIES: Record<
 /**
  * Root Cause Analyzer Service Implementation
  * Uses symptom analysis and heuristics to identify root causes
+ *
+ * ADR-051: Added LLM enhancement for AI-powered root cause analysis
  */
 export class RootCauseAnalyzerService implements IRootCauseAnalyzerService {
   private readonly config: RootCauseAnalyzerConfig;
+  private readonly memory: MemoryBackend;
+  private readonly llmRouter?: HybridRouter;
 
+  /**
+   * Constructor with backward compatibility
+   * Supports both old signature (memory, config) and new signature (dependencies, config)
+   */
   constructor(
-    private readonly memory: MemoryBackend,
+    memoryOrDeps: MemoryBackend | RootCauseAnalyzerDependencies,
     config: Partial<RootCauseAnalyzerConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Support both old and new constructor signatures for backward compatibility
+    if (this.isMemoryBackend(memoryOrDeps)) {
+      // Old signature: (memory, config)
+      this.memory = memoryOrDeps;
+      this.llmRouter = undefined;
+    } else {
+      // New signature: (dependencies, config)
+      this.memory = memoryOrDeps.memory;
+      this.llmRouter = memoryOrDeps.llmRouter;
+    }
+  }
+
+  /**
+   * Type guard to check if argument is MemoryBackend (old signature) or Dependencies (new signature)
+   */
+  private isMemoryBackend(arg: MemoryBackend | RootCauseAnalyzerDependencies): arg is MemoryBackend {
+    return typeof (arg as MemoryBackend).get === 'function' &&
+           typeof (arg as MemoryBackend).set === 'function' &&
+           !('memory' in arg);
+  }
+
+  // ============================================================================
+  // ADR-051: LLM Enhancement Methods
+  // ============================================================================
+
+  /**
+   * Check if LLM analysis is available and enabled
+   */
+  private isLLMAnalysisAvailable(): boolean {
+    return this.config.enableLLMAnalysis === true && this.llmRouter !== undefined;
+  }
+
+  /**
+   * Get model ID for the configured tier
+   */
+  private getModelForTier(tier: number): string {
+    switch (tier) {
+      case 1: return 'claude-3-5-haiku-20241022';
+      case 2: return 'claude-sonnet-4-20250514';
+      case 3: return 'claude-sonnet-4-20250514';
+      case 4: return 'claude-opus-4-5-20251101';
+      default: return 'claude-sonnet-4-20250514';
+    }
+  }
+
+  /**
+   * Analyze root cause using LLM for deeper insights
+   * Provides detailed explanations, contributing factors, and fixes
+   */
+  private async analyzeRootCauseWithLLM(
+    failure: { defectId: string; symptoms: string[]; context?: Record<string, unknown> },
+    stackTrace?: string,
+    codeContext?: string
+  ): Promise<{
+    rootCause: string;
+    explanation: string;
+    contributingFactors: ContributingFactor[];
+    recommendedFixes: Array<{ description: string; codeExample?: string }>;
+    preventionStrategies: string[];
+  } | null> {
+    if (!this.llmRouter) return null;
+
+    try {
+      const prompt = this.buildLLMAnalysisPrompt(failure, stackTrace, codeContext);
+      const modelId = this.getModelForTier(this.config.llmModelTier ?? 2);
+
+      const response: ChatResponse = await this.llmRouter.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert software engineer specialized in debugging and root cause analysis.
+Analyze the provided defect information and provide:
+1. Root cause identification with clear explanation
+2. Contributing factors ranked by impact
+3. Recommended fixes with code examples where applicable
+4. Prevention strategies to avoid similar issues
+
+Return your analysis as JSON with this structure:
+{
+  "rootCause": "Brief root cause description",
+  "explanation": "Detailed explanation of why this happened",
+  "contributingFactors": [
+    { "factor": "Factor name", "impact": "high|medium|low", "evidence": ["evidence1", "evidence2"] }
+  ],
+  "recommendedFixes": [
+    { "description": "Fix description", "codeExample": "optional code snippet" }
+  ],
+  "preventionStrategies": ["Strategy 1", "Strategy 2"]
+}`,
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        model: modelId,
+        maxTokens: this.config.llmMaxTokens ?? 2048,
+        temperature: 0.3, // Low temperature for consistent analysis
+      });
+
+      if (response.content && response.content.length > 0) {
+        return this.parseLLMAnalysisResponse(response.content);
+      }
+
+      return null;
+    } catch (error) {
+      console.warn('[RootCauseAnalyzer] LLM analysis failed, falling back to heuristics:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Build prompt for LLM root cause analysis
+   */
+  private buildLLMAnalysisPrompt(
+    failure: { defectId: string; symptoms: string[]; context?: Record<string, unknown> },
+    stackTrace?: string,
+    codeContext?: string
+  ): string {
+    let prompt = `## Defect Analysis Request\n\n`;
+    prompt += `**Defect ID:** ${failure.defectId}\n\n`;
+
+    prompt += `## Symptoms\n`;
+    for (const symptom of failure.symptoms) {
+      prompt += `- ${symptom}\n`;
+    }
+    prompt += '\n';
+
+    if (failure.context && Object.keys(failure.context).length > 0) {
+      prompt += `## Context\n`;
+      prompt += `\`\`\`json\n${JSON.stringify(failure.context, null, 2)}\n\`\`\`\n\n`;
+    }
+
+    if (stackTrace) {
+      prompt += `## Stack Trace\n`;
+      prompt += `\`\`\`\n${stackTrace}\n\`\`\`\n\n`;
+    }
+
+    if (codeContext) {
+      prompt += `## Related Code\n`;
+      prompt += `\`\`\`typescript\n${codeContext}\n\`\`\`\n\n`;
+    }
+
+    prompt += `## Analysis Required\n`;
+    prompt += `1. Identify the most likely root cause\n`;
+    prompt += `2. Explain the chain of events that led to this defect\n`;
+    prompt += `3. List contributing factors with their impact level\n`;
+    prompt += `4. Provide specific fix recommendations with code examples\n`;
+    prompt += `5. Suggest prevention strategies\n`;
+
+    return prompt;
+  }
+
+  /**
+   * Parse LLM analysis response into structured format
+   */
+  private parseLLMAnalysisResponse(content: string): {
+    rootCause: string;
+    explanation: string;
+    contributingFactors: ContributingFactor[];
+    recommendedFixes: Array<{ description: string; codeExample?: string }>;
+    preventionStrategies: string[];
+  } | null {
+    try {
+      // Extract JSON from response, handling potential markdown fences
+      let jsonContent = content;
+      const jsonMatch = content.match(/```(?:json)?\n?([\s\S]*?)```/);
+      if (jsonMatch) {
+        jsonContent = jsonMatch[1].trim();
+      }
+
+      const parsed = JSON.parse(jsonContent);
+
+      // Validate and transform the response
+      return {
+        rootCause: parsed.rootCause || 'Unknown root cause',
+        explanation: parsed.explanation || '',
+        contributingFactors: (parsed.contributingFactors || []).map((cf: {
+          factor: string;
+          impact: string;
+          evidence?: string[];
+        }) => ({
+          factor: cf.factor,
+          impact: this.normalizeImpact(cf.impact),
+          evidence: cf.evidence || [],
+        })),
+        recommendedFixes: parsed.recommendedFixes || [],
+        preventionStrategies: parsed.preventionStrategies || [],
+      };
+    } catch {
+      // JSON parse failed, try to extract structured info from text
+      return this.parseUnstructuredLLMResponse(content);
+    }
+  }
+
+  /**
+   * Normalize impact string to valid impact level
+   */
+  private normalizeImpact(impact: string): 'high' | 'medium' | 'low' {
+    const normalized = (impact || '').toLowerCase();
+    if (normalized === 'high' || normalized === 'critical' || normalized === 'severe') {
+      return 'high';
+    }
+    if (normalized === 'medium' || normalized === 'moderate' || normalized === 'normal') {
+      return 'medium';
+    }
+    return 'low';
+  }
+
+  /**
+   * Parse unstructured LLM response as fallback
+   */
+  private parseUnstructuredLLMResponse(content: string): {
+    rootCause: string;
+    explanation: string;
+    contributingFactors: ContributingFactor[];
+    recommendedFixes: Array<{ description: string; codeExample?: string }>;
+    preventionStrategies: string[];
+  } | null {
+    // Extract root cause from first paragraph or line
+    const lines = content.split('\n').filter(line => line.trim());
+    const rootCause = lines[0]?.replace(/^(root cause:|the root cause is|caused by)/i, '').trim() || 'Unable to parse root cause';
+
+    return {
+      rootCause,
+      explanation: content,
+      contributingFactors: [],
+      recommendedFixes: [],
+      preventionStrategies: [],
+    };
   }
 
   /**
    * Analyze root cause of a defect
+   * ADR-051: Enhanced with optional LLM analysis for deeper insights
    */
   async analyzeRootCause(
     request: RootCauseRequest
@@ -202,6 +466,55 @@ export class RootCauseAnalyzerService implements IRootCauseAnalyzerService {
         return err(new Error('No symptoms provided for analysis'));
       }
 
+      // ADR-051: Try LLM-enhanced analysis first if available
+      if (this.isLLMAnalysisAvailable()) {
+        const llmAnalysis = await this.analyzeRootCauseWithLLM(
+          { defectId, symptoms, context },
+          context.stackTrace as string | undefined,
+          context.codeContext as string | undefined
+        );
+
+        if (llmAnalysis) {
+          // Find related files
+          const relatedFiles = await this.findRelatedFiles(defectId, symptoms);
+
+          // Build timeline
+          const timeline = await this.generateTimeline(defectId);
+
+          // Merge LLM recommendations with prevention strategies
+          const recommendations = [
+            ...llmAnalysis.recommendedFixes.map(fix =>
+              fix.codeExample
+                ? `${fix.description}\n\`\`\`\n${fix.codeExample}\n\`\`\``
+                : fix.description
+            ),
+            ...llmAnalysis.preventionStrategies,
+          ];
+
+          // Store analysis for future reference
+          await this.storeAnalysis({
+            defectId,
+            rootCause: llmAnalysis.rootCause,
+            category: 'llm-analyzed',
+            confidence: 0.85, // High confidence for LLM analysis
+            symptoms,
+            timestamp: new Date(),
+          });
+
+          return ok({
+            defectId,
+            rootCause: llmAnalysis.rootCause,
+            confidence: 0.85,
+            contributingFactors: llmAnalysis.contributingFactors,
+            relatedFiles,
+            recommendations,
+            timeline: timeline.success ? timeline.value : [],
+          });
+        }
+        // LLM analysis failed, fall through to heuristic analysis
+      }
+
+      // Heuristic-based analysis (original implementation)
       // Identify the root cause category
       const categoryAnalysis = this.identifyRootCauseCategory(symptoms);
 
@@ -634,4 +947,38 @@ export class RootCauseAnalyzerService implements IRootCauseAnalyzerService {
       persist: true,
     });
   }
+}
+
+// ============================================================================
+// Factory Functions
+// ============================================================================
+
+/**
+ * Create a RootCauseAnalyzerService instance with default dependencies
+ * Maintains backward compatibility with existing code
+ *
+ * @param memory - Memory backend for storing analysis results
+ * @param config - Optional configuration overrides
+ * @returns Configured RootCauseAnalyzerService instance
+ */
+export function createRootCauseAnalyzerService(
+  memory: MemoryBackend,
+  config: Partial<RootCauseAnalyzerConfig> = {}
+): RootCauseAnalyzerService {
+  return new RootCauseAnalyzerService(memory, config);
+}
+
+/**
+ * Create a RootCauseAnalyzerService instance with custom dependencies
+ * Used for testing or when LLM integration is needed
+ *
+ * @param dependencies - All service dependencies including optional LLM router
+ * @param config - Optional configuration overrides
+ * @returns Configured RootCauseAnalyzerService instance
+ */
+export function createRootCauseAnalyzerServiceWithDependencies(
+  dependencies: RootCauseAnalyzerDependencies,
+  config: Partial<RootCauseAnalyzerConfig> = {}
+): RootCauseAnalyzerService {
+  return new RootCauseAnalyzerService(dependencies, config);
 }

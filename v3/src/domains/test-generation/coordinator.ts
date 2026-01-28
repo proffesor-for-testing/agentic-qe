@@ -52,6 +52,31 @@ import {
 } from './services/pattern-matcher';
 
 // ============================================================================
+// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
+// ============================================================================
+
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type IMinCutAwareDomain,
+  type MinCutAwareConfig,
+} from '../../coordination/mixins/mincut-aware-domain';
+
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type IConsensusEnabledDomain,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain';
+
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
+
+import {
+  type DomainFinding,
+  createDomainFinding,
+} from '../../coordination/consensus/domain-findings';
+
+// ============================================================================
 // @ruvector Wrapper Imports (ADR-040)
 // ============================================================================
 
@@ -109,6 +134,11 @@ export interface ITestGenerationCoordinator extends TestGenerationAPI {
   // Coherence gate methods (ADR-052)
   checkRequirementCoherence(requirements: Requirement[]): Promise<RequirementCoherenceResult>;
   isCoherenceGateAvailable(): boolean;
+  // MinCut integration methods (ADR-047)
+  setMinCutBridge(bridge: QueenMinCutBridge): void;
+  isTopologyHealthy(): boolean;
+  // Consensus integration methods (MM-001)
+  isConsensusAvailable(): boolean;
 }
 
 /**
@@ -143,6 +173,15 @@ export interface CoordinatorConfig {
   enableCoherenceGate: boolean;
   blockOnIncoherentRequirements: boolean;
   enrichOnRetrievalLane: boolean;
+  // MinCut integration config (ADR-047)
+  enableMinCutAwareness: boolean;
+  topologyHealthThreshold: number;
+  pauseOnCriticalTopology: boolean;
+  // Consensus integration config (MM-001)
+  enableConsensus: boolean;
+  consensusThreshold: number;
+  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
+  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -160,6 +199,15 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   enableCoherenceGate: true,
   blockOnIncoherentRequirements: true,
   enrichOnRetrievalLane: true,
+  // MinCut integration defaults (ADR-047)
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
+  // Consensus integration defaults (MM-001)
+  enableConsensus: true,
+  consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
+  consensusMinModels: 2,
 };
 
 /**
@@ -170,6 +218,14 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
  * - QESONA for pattern learning (test generation patterns)
  * - QEFlashAttention for test similarity detection
  * - DecisionTransformer for test case selection
+ *
+ * Enhanced with MinCut topology awareness per ADR-047:
+ * - Topology-based routing decisions
+ * - Health monitoring for test generation workflows
+ *
+ * Enhanced with Multi-Model Consensus per MM-001:
+ * - Consensus verification for high-stakes test design decisions
+ * - Verifies test patterns, mock strategies, and edge cases
  */
 export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   private readonly config: CoordinatorConfig;
@@ -183,6 +239,12 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   private flashAttention: QEFlashAttention | null = null;
   private decisionTransformer: DecisionTransformerAlgorithm | null = null;
   private testEmbeddings: Map<string, Float32Array> = new Map();
+
+  // MinCut topology awareness mixin (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // Consensus verification mixin (MM-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
 
   // Domain identifier for dream insight filtering
   private readonly domainName = 'test-generation';
@@ -226,6 +288,31 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
         }
       );
     }
+
+    // Initialize MinCut-aware mixin (ADR-047)
+    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
+    });
+
+    // Initialize Consensus-enabled mixin (MM-001)
+    // Verifies test patterns, mock strategies, and edge case generation
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      verifyFindingTypes: [
+        'test-pattern-selection',
+        'mock-strategy',
+        'edge-case-generation',
+        'assertion-strategy',
+      ],
+      strategy: this.config.consensusStrategy,
+      minModels: this.config.consensusMinModels,
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+    });
   }
 
   /**
@@ -288,6 +375,18 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
     // Load any persisted workflow state
     await this.loadWorkflowState();
 
+    // Initialize Consensus engine if enabled (MM-001)
+    if (this.config.enableConsensus) {
+      try {
+        await (this.consensusMixin as any).initializeConsensus();
+        console.log('[TestGenerationCoordinator] Consensus engine initialized for test design verification');
+      } catch (error) {
+        // Log and continue - consensus is enhancement, not critical
+        console.error('[TestGenerationCoordinator] Failed to initialize consensus engine:', error);
+        console.warn('[TestGenerationCoordinator] Continuing without consensus verification');
+      }
+    }
+
     this.initialized = true;
   }
 
@@ -297,6 +396,16 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   async dispose(): Promise<void> {
     // Save workflow state
     await this.saveWorkflowState();
+
+    // Dispose Consensus engine (MM-001)
+    try {
+      await (this.consensusMixin as any).disposeConsensus();
+    } catch (error) {
+      console.error('[TestGenerationCoordinator] Error disposing consensus engine:', error);
+    }
+
+    // Dispose MinCut mixin (ADR-047)
+    this.minCutMixin.dispose();
 
     // Dispose @ruvector integrations
     if (this.flashAttention) {
@@ -343,6 +452,13 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
    * - Uses QESONA to adapt test generation patterns based on context
    * - Uses QEFlashAttention to detect similar existing tests
    * - Uses DecisionTransformer to prioritize test cases
+   *
+   * Enhanced with topology awareness per ADR-047:
+   * - Checks topology health before expensive operations
+   * - Uses conservative strategy when topology is degraded
+   *
+   * Enhanced with consensus verification per MM-001:
+   * - Verifies test pattern selections for high-stakes decisions
    */
   async generateTests(
     request: GenerateTestsRequest
@@ -352,6 +468,17 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
     try {
       // Create workflow tracking
       this.startWorkflow(workflowId, 'generate');
+
+      // ADR-047: Check topology health before expensive operations
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn('[TestGenerationCoordinator] Topology degraded, using conservative strategy');
+        // Continue with reduced parallelism when topology is unhealthy
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Test generation paused: topology is in critical state'));
+      }
 
       // Check if we can spawn agents
       if (!this.agentCoordinator.canSpawn()) {
@@ -1390,6 +1517,180 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
     }
 
     throw result.error;
+  }
+
+  // ============================================================================
+  // MinCut Topology Awareness Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   * Per ADR-047: Enables topology-based routing and health monitoring
+   *
+   * @param bridge - QueenMinCutBridge instance for topology awareness
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+    console.log('[TestGenerationCoordinator] MinCut bridge connected for topology awareness');
+  }
+
+  /**
+   * Check if the overall topology is healthy
+   * Per ADR-047: Returns true if topology status is not 'critical'
+   *
+   * @returns true if topology is healthy for test generation operations
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  /**
+   * Get weak vertices belonging to this domain
+   * Per ADR-047: Identifies agents that are single points of failure
+   */
+  getDomainWeakVertices() {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Check if this domain is a weak point in the topology
+   * Per ADR-047: Returns true if any weak vertex belongs to test-generation domain
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  /**
+   * Get topology-based routing excluding weak domains
+   * Per ADR-047: Filters out domains that are currently weak points
+   *
+   * @param targetDomains - List of potential target domains
+   * @returns Filtered list of healthy domains for routing
+   */
+  getTopologyBasedRouting(targetDomains: string[]): string[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains as any);
+  }
+
+  // ============================================================================
+  // Consensus Verification Methods (MM-001)
+  // ============================================================================
+
+  /**
+   * Check if consensus verification is available
+   * Per MM-001: Returns true if consensus engine is initialized
+   */
+  isConsensusAvailable(): boolean {
+    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+  }
+
+  /**
+   * Get consensus statistics
+   * Per MM-001: Returns metrics about consensus verification
+   */
+  getConsensusStats() {
+    return this.consensusMixin.getConsensusStats();
+  }
+
+  /**
+   * Verify a test pattern selection using multi-model consensus
+   * Per MM-001: High-stakes test design decisions require verification
+   *
+   * @param pattern - The test pattern to verify
+   * @param confidence - Initial confidence in the pattern selection
+   * @returns true if the pattern is verified or doesn't require consensus
+   */
+  private async verifyTestPatternSelection(
+    pattern: { id: string; name: string; type: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof pattern> = createDomainFinding({
+      id: uuidv4(),
+      type: 'test-pattern-selection',
+      confidence,
+      description: `Verify test pattern: ${pattern.name} (${pattern.type})`,
+      payload: pattern,
+      detectedBy: 'test-generation-coordinator',
+      severity: confidence > 0.9 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[TestGenerationCoordinator] Test pattern '${pattern.name}' verified by consensus`);
+        return true;
+      }
+      console.warn(`[TestGenerationCoordinator] Test pattern '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify a mock strategy using multi-model consensus
+   * Per MM-001: Mock strategy decisions can have significant impact
+   *
+   * @param strategy - The mock strategy to verify
+   * @param confidence - Initial confidence in the strategy
+   * @returns true if the strategy is verified or doesn't require consensus
+   */
+  private async verifyMockStrategy(
+    strategy: { target: string; mockType: string; reason: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof strategy> = createDomainFinding({
+      id: uuidv4(),
+      type: 'mock-strategy',
+      confidence,
+      description: `Verify mock strategy for ${strategy.target}: ${strategy.mockType}`,
+      payload: strategy,
+      detectedBy: 'test-generation-coordinator',
+      severity: confidence > 0.85 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[TestGenerationCoordinator] Mock strategy for '${strategy.target}' verified by consensus`);
+        return true;
+      }
+      console.warn(`[TestGenerationCoordinator] Mock strategy for '${strategy.target}' NOT verified`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify edge case generation using multi-model consensus
+   * Per MM-001: Edge cases are critical for comprehensive testing
+   *
+   * @param edgeCase - The edge case to verify
+   * @param confidence - Initial confidence in the edge case
+   * @returns true if the edge case is verified or doesn't require consensus
+   */
+  private async verifyEdgeCaseGeneration(
+    edgeCase: { description: string; inputConditions: string[]; expectedBehavior: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof edgeCase> = createDomainFinding({
+      id: uuidv4(),
+      type: 'edge-case-generation',
+      confidence,
+      description: `Verify edge case: ${edgeCase.description}`,
+      payload: edgeCase,
+      detectedBy: 'test-generation-coordinator',
+      severity: 'high', // Edge cases are always important
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[TestGenerationCoordinator] Edge case '${edgeCase.description.slice(0, 50)}...' verified by consensus`);
+        return true;
+      }
+      console.warn(`[TestGenerationCoordinator] Edge case NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
   }
 
   // ============================================================================

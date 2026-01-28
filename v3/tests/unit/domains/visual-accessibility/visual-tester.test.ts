@@ -67,7 +67,7 @@ describe('VisualTesterService', () => {
 
   beforeEach(() => {
     mockMemory = new MockMemoryBackend();
-    service = new VisualTesterService(mockMemory);
+    service = new VisualTesterService({ memory: mockMemory });
   });
 
   describe('captureScreenshot', () => {
@@ -382,7 +382,7 @@ describe('VisualTesterService', () => {
         diffDirectory: 'custom/diffs',
       };
 
-      const customService = new VisualTesterService(mockMemory, customConfig);
+      const customService = new VisualTesterService({ memory: mockMemory }, customConfig);
 
       // Service should be created with custom config
       expect(customService).toBeDefined();
@@ -399,7 +399,7 @@ describe('VisualTesterService', () => {
         },
       };
 
-      const customService = new VisualTesterService(mockMemory, customConfig);
+      const customService = new VisualTesterService({ memory: mockMemory }, customConfig);
       const result = await customService.captureScreenshot('https://example.com');
 
       expect(result.success).toBe(true);

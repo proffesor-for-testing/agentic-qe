@@ -75,7 +75,7 @@ describe('LearningCoordinatorService', () => {
 
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
-    service = new LearningCoordinatorService(mockMemory);
+    service = new LearningCoordinatorService({ memory: mockMemory });
   });
 
   afterEach(() => {

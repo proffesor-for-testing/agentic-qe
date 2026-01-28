@@ -34,6 +34,7 @@ export {
 export {
   LearningCoordinatorService,
   type LearningCoordinatorConfig as LearningServiceConfig,
+  type LearningCoordinatorDependencies,
 } from './services/learning-coordinator.js';
 
 export {

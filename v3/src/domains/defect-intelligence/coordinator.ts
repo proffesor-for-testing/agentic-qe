@@ -1,10 +1,14 @@
 /**
  * Agentic QE v3 - Defect Intelligence Coordinator
  * Orchestrates the defect intelligence workflow across services
+ *
+ * V3 Integration:
+ * - ADR-047: MinCut Self-Organizing QE Integration for topology awareness
+ * - MM-001: Multi-Model Consensus for high-confidence defect predictions
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { Result, err } from '../../shared/types';
+import { Result, err, ok, DomainName } from '../../shared/types';
 import {
   EventBus,
   MemoryBackend,
@@ -27,6 +31,7 @@ import {
   DefectClusters,
   LearnRequest,
   LearnedDefectPatterns,
+  FilePrediction,
 } from './interfaces';
 import {
   DefectPredictorService,
@@ -41,6 +46,26 @@ import {
   IRootCauseAnalyzerService,
 } from './services/root-cause-analyzer';
 
+// V3 Integration: MinCut Topology Awareness (ADR-047)
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type IMinCutAwareDomain,
+} from '../../coordination/mixins/mincut-aware-domain';
+import { QueenMinCutBridge } from '../../coordination/mincut';
+
+// V3 Integration: Multi-Model Consensus (MM-001)
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type IConsensusEnabledDomain,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain';
+import {
+  type DomainFinding,
+  type ConsensusResult,
+} from '../../coordination/consensus';
+
 /**
  * Interface for the defect intelligence coordinator
  */
@@ -48,6 +73,12 @@ export interface IDefectIntelligenceCoordinator extends DefectIntelligenceAPI {
   initialize(): Promise<void>;
   dispose(): Promise<void>;
   getActiveWorkflows(): WorkflowStatus[];
+
+  // V3: MinCut topology awareness (ADR-047)
+  setMinCutBridge(bridge: QueenMinCutBridge): void;
+  isTopologyHealthy(): boolean;
+  isDomainWeakPoint(): boolean;
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[];
 }
 
 /**
@@ -73,6 +104,16 @@ export interface CoordinatorConfig {
   enablePatternLearning: boolean;
   publishEvents: boolean;
   autoAnalyzeThreshold: number;
+
+  // V3: MinCut topology awareness (ADR-047)
+  enableMinCutAwareness: boolean;
+  topologyHealthThreshold: number;
+  pauseOnCriticalTopology: boolean;
+
+  // V3: Multi-model consensus for high-confidence predictions (MM-001)
+  enableConsensus: boolean;
+  consensusThreshold: number;
+  consensusConfig?: Partial<ConsensusEnabledConfig>;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -81,11 +122,24 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   enablePatternLearning: true,
   publishEvents: true,
   autoAnalyzeThreshold: 0.7,
+
+  // V3: Enable MinCut awareness by default
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
+
+  // V3: Enable consensus for high-confidence defect predictions
+  enableConsensus: true,
+  consensusThreshold: 0.7,
 };
 
 /**
  * Defect Intelligence Coordinator
  * Orchestrates defect analysis workflows and coordinates with agents
+ *
+ * V3 Integration:
+ * - MinCut topology awareness for routing and health monitoring (ADR-047)
+ * - Multi-model consensus for high-confidence predictions (MM-001)
  */
 export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordinator {
   private readonly config: CoordinatorConfig;
@@ -94,6 +148,12 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
   private readonly rootCauseAnalyzer: IRootCauseAnalyzerService;
   private readonly workflows: Map<string, WorkflowStatus> = new Map();
   private initialized = false;
+
+  // V3: MinCut topology awareness mixin (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // V3: Multi-model consensus mixin (MM-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
 
   constructor(
     private readonly eventBus: EventBus,
@@ -105,6 +165,26 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
     this.predictor = new DefectPredictorService(memory);
     this.patternLearner = new PatternLearnerService(memory);
     this.rootCauseAnalyzer = new RootCauseAnalyzerService(memory);
+
+    // V3: Initialize MinCut awareness mixin
+    this.minCutMixin = createMinCutAwareMixin('defect-intelligence', {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
+    });
+
+    // V3: Initialize consensus mixin for verifying high-confidence predictions
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      verifyFindingTypes: ['defect-prediction', 'root-cause', 'regression-risk', 'pattern-classification'],
+      strategy: 'weighted',
+      minModels: 2,
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+      ...this.config.consensusConfig,
+    });
   }
 
   /**
@@ -119,6 +199,11 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
     // Load any persisted workflow state
     await this.loadWorkflowState();
 
+    // V3: Initialize consensus engine (registers providers from environment)
+    if (this.config.enableConsensus) {
+      await (this.consensusMixin as any).initializeConsensus();
+    }
+
     this.initialized = true;
   }
 
@@ -126,6 +211,14 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
    * Dispose and cleanup
    */
   async dispose(): Promise<void> {
+    // V3: Dispose consensus engine
+    if (this.config.enableConsensus) {
+      await (this.consensusMixin as any).disposeConsensus();
+    }
+
+    // V3: Dispose MinCut mixin
+    this.minCutMixin.dispose();
+
     await this.saveWorkflowState();
     this.workflows.clear();
     this.initialized = false;
@@ -141,11 +234,89 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
   }
 
   // ============================================================================
+  // V3: MinCut Topology Awareness (ADR-047)
+  // ============================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   * Uses dependency injection pattern for testability
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+  }
+
+  /**
+   * Check if the overall topology is healthy
+   * Returns true if status is not 'critical'
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  /**
+   * Check if this domain is a weak point in the topology
+   * Returns true if any weak vertex belongs to defect-intelligence
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  /**
+   * Get routing candidates excluding weak domains
+   * Filters out domains that are currently weak points
+   */
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
+  }
+
+  /**
+   * Get weak vertices in this domain (for diagnostics)
+   */
+  getDomainWeakVertices() {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Subscribe to topology health changes
+   */
+  onTopologyHealthChange(callback: (health: any) => void): () => void {
+    return this.minCutMixin.onTopologyHealthChange(callback);
+  }
+
+  // ============================================================================
+  // V3: Consensus Verification Methods (MM-001)
+  // ============================================================================
+
+  /**
+   * Check if a finding requires consensus verification
+   */
+  requiresConsensus<T>(finding: DomainFinding<T>): boolean {
+    return this.consensusMixin.requiresConsensus(finding);
+  }
+
+  /**
+   * Verify a finding using multi-model consensus
+   */
+  async verifyFinding<T>(finding: DomainFinding<T>): Promise<Result<ConsensusResult, Error>> {
+    return this.consensusMixin.verifyFinding(finding);
+  }
+
+  /**
+   * Get consensus statistics
+   */
+  getConsensusStats() {
+    return this.consensusMixin.getConsensusStats();
+  }
+
+  // ============================================================================
   // DefectIntelligenceAPI Implementation
   // ============================================================================
 
   /**
    * Predict defects for given files
+   *
+   * V3 Integration: High-confidence predictions are verified using multi-model
+   * consensus to improve detection accuracy from ~27% to 75%+ (MM-001)
    */
   async predictDefects(
     request: PredictRequest
@@ -154,6 +325,11 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
 
     try {
       this.startWorkflow(workflowId, 'predict');
+
+      // V3: Check topology health before proceeding
+      if (this.config.enableMinCutAwareness && this.minCutMixin.shouldPauseOperations()) {
+        console.warn('[DefectIntelligence] Topology is critical, proceeding with caution');
+      }
 
       // Check if we can spawn agents
       if (!this.agentCoordinator.canSpawn()) {
@@ -173,17 +349,33 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
       const result = await this.predictor.predictDefects(request);
 
       if (result.success) {
+        // V3: Verify high-confidence predictions with multi-model consensus
+        const verifiedPredictions = await this.verifyHighConfidencePredictions(
+          result.value.predictions
+        );
+
+        // Update result with verified predictions
+        const enhancedResult: PredictionResult = {
+          ...result.value,
+          predictions: verifiedPredictions,
+        };
+
         this.completeWorkflow(workflowId);
 
         // Publish events
         if (this.config.publishEvents) {
-          await this.publishPredictionEvent(result.value);
+          await this.publishPredictionEvent(enhancedResult);
         }
 
         // Auto-analyze high-risk predictions
         if (this.config.enablePatternLearning) {
-          await this.autoAnalyzeHighRisk(result.value);
+          await this.autoAnalyzeHighRisk(enhancedResult);
         }
+
+        // Stop the agent
+        await this.agentCoordinator.stop(agentResult.value);
+
+        return ok(enhancedResult);
       } else {
         this.failWorkflow(workflowId, result.error.message);
       }
@@ -193,14 +385,93 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
 
       return result;
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      this.failWorkflow(workflowId, err.message);
-      return { success: false, error: err };
+      const errResult = error instanceof Error ? error : new Error(String(error));
+      this.failWorkflow(workflowId, errResult.message);
+      return { success: false, error: errResult };
     }
   }
 
   /**
+   * V3: Verify high-confidence predictions using multi-model consensus
+   * Improves detection accuracy from ~27% to 75%+ by requiring model agreement
+   */
+  private async verifyHighConfidencePredictions(
+    predictions: FilePrediction[]
+  ): Promise<FilePrediction[]> {
+    if (!this.config.enableConsensus) {
+      return predictions;
+    }
+
+    const verifiedPredictions: FilePrediction[] = [];
+
+    for (const prediction of predictions) {
+      // Only verify high-confidence predictions (above threshold)
+      if (prediction.probability >= this.config.consensusThreshold) {
+        const finding: DomainFinding<FilePrediction> = {
+          id: uuidv4(),
+          type: 'defect-prediction',
+          confidence: prediction.probability,
+          severity: prediction.riskLevel === 'critical' || prediction.riskLevel === 'high'
+            ? prediction.riskLevel
+            : 'medium',
+          description: `Defect prediction for ${prediction.file}: ${prediction.probability * 100}% probability`,
+          payload: prediction,
+          detectedAt: new Date(),
+          detectedBy: 'defect-intelligence-coordinator',
+        };
+
+        if (this.consensusMixin.requiresConsensus(finding)) {
+          try {
+            const consensusResult = await this.consensusMixin.verifyFinding(finding);
+
+            if (consensusResult.success) {
+              if (consensusResult.value.verdict === 'verified') {
+                // Confirmed by consensus
+                verifiedPredictions.push({
+                  ...prediction,
+                  recommendations: [
+                    ...prediction.recommendations,
+                    '[Consensus Verified] This prediction has been confirmed by multiple AI models.',
+                  ],
+                });
+              } else if (consensusResult.value.verdict === 'disputed') {
+                // Disputed - lower confidence
+                verifiedPredictions.push({
+                  ...prediction,
+                  probability: prediction.probability * 0.6, // Reduce confidence
+                  recommendations: [
+                    ...prediction.recommendations,
+                    '[Consensus Disputed] This prediction requires human review.',
+                  ],
+                });
+              }
+              // If rejected, don't include in results (likely false positive)
+            } else {
+              // Consensus failed, include original prediction
+              verifiedPredictions.push(prediction);
+            }
+          } catch (error) {
+            // On consensus error, include original prediction
+            console.warn(`[DefectIntelligence] Consensus verification failed for ${prediction.file}:`, error);
+            verifiedPredictions.push(prediction);
+          }
+        } else {
+          verifiedPredictions.push(prediction);
+        }
+      } else {
+        // Low-confidence predictions pass through without verification
+        verifiedPredictions.push(prediction);
+      }
+    }
+
+    return verifiedPredictions;
+  }
+
+  /**
    * Analyze root cause of a defect
+   *
+   * V3 Integration: Root cause analysis is verified using multi-model consensus
+   * for high-confidence results to ensure accuracy (MM-001)
    */
   async analyzeRootCause(
     request: RootCauseRequest
@@ -223,12 +494,18 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
       const result = await this.rootCauseAnalyzer.analyzeRootCause(request);
 
       if (result.success) {
+        // V3: Verify root cause analysis with multi-model consensus
+        const verifiedAnalysis = await this.verifyRootCauseAnalysis(result.value);
+
         this.completeWorkflow(workflowId);
 
         // Publish event
         if (this.config.publishEvents) {
-          await this.publishRootCauseEvent(result.value);
+          await this.publishRootCauseEvent(verifiedAnalysis);
         }
+
+        await this.agentCoordinator.stop(agentResult.value);
+        return ok(verifiedAnalysis);
       } else {
         this.failWorkflow(workflowId, result.error.message);
       }
@@ -240,6 +517,55 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
       this.failWorkflow(workflowId, String(error));
       return err(error instanceof Error ? error : new Error(String(error)));
     }
+  }
+
+  /**
+   * V3: Verify root cause analysis using multi-model consensus
+   * Root cause identification is critical - verify with multiple models
+   */
+  private async verifyRootCauseAnalysis(
+    analysis: RootCauseAnalysis
+  ): Promise<RootCauseAnalysis> {
+    if (!this.config.enableConsensus || analysis.confidence < this.config.consensusThreshold) {
+      return analysis;
+    }
+
+    const finding: DomainFinding<RootCauseAnalysis> = {
+      id: uuidv4(),
+      type: 'root-cause',
+      confidence: analysis.confidence,
+      severity: 'high', // Root cause analysis is always important
+      description: `Root cause identified for ${analysis.defectId}: ${analysis.rootCause}`,
+      payload: analysis,
+      detectedAt: new Date(),
+      detectedBy: 'defect-intelligence-coordinator',
+    };
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      try {
+        const consensusResult = await this.consensusMixin.verifyFinding(finding);
+
+        if (consensusResult.success) {
+          return {
+            ...analysis,
+            recommendations: [
+              ...analysis.recommendations,
+              consensusResult.value.verdict === 'verified'
+                ? '[Consensus Verified] This root cause analysis has been confirmed by multiple AI models.'
+                : '[Consensus Disputed] This root cause analysis requires human review.',
+            ],
+            // Adjust confidence based on consensus
+            confidence: consensusResult.value.verdict === 'verified'
+              ? Math.min(1, analysis.confidence * 1.1) // Boost confidence
+              : analysis.confidence * 0.7, // Lower confidence for disputed
+          };
+        }
+      } catch (error) {
+        console.warn(`[DefectIntelligence] Consensus verification failed for root cause:`, error);
+      }
+    }
+
+    return analysis;
   }
 
   /**

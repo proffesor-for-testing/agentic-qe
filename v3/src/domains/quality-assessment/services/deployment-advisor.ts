@@ -1,6 +1,8 @@
 /**
  * Agentic QE v3 - Deployment Advisor Service
  * ML-based deployment readiness and risk scoring
+ *
+ * ADR-051: Added LLM integration for AI-powered deployment advice
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -11,6 +13,9 @@ import {
   DeploymentAdvice,
   QualityMetrics,
 } from '../interfaces';
+
+// ADR-051: LLM Router for AI-enhanced deployment advice
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 
 /**
  * Interface for the deployment advisor service
@@ -40,6 +45,19 @@ export interface DeploymentAdvisorConfig {
   decisionThresholds: DecisionThresholds;
   enableMLPrediction: boolean;
   learningRate: number;
+  /** ADR-051: Enable LLM-powered deployment advice */
+  enableLLMAdvice: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier: number;
+}
+
+/**
+ * Dependencies for DeploymentAdvisorService
+ * ADR-051: Added LLM router for AI-enhanced deployment advice
+ */
+export interface DeploymentAdvisorDependencies {
+  memory: MemoryBackend;
+  llmRouter?: HybridRouter;
 }
 
 interface RiskWeights {
@@ -75,6 +93,8 @@ const DEFAULT_CONFIG: DeploymentAdvisorConfig = {
   },
   enableMLPrediction: true,
   learningRate: 0.1,
+  enableLLMAdvice: true, // ADR-051: On by default - opt-out
+  llmModelTier: 2, // ADR-051: Sonnet by default for deployment advice
 };
 
 /**
@@ -92,15 +112,216 @@ interface DeploymentRecord {
 /**
  * Deployment Advisor Service Implementation
  * Uses ML-based risk scoring to provide deployment recommendations
+ *
+ * ADR-051: Added LLM integration for AI-powered deployment advice including:
+ * - Go/no-go recommendations with reasoning
+ * - Risk mitigation strategies
+ * - Rollback plan suggestions
+ * - Post-deployment monitoring recommendations
  */
 export class DeploymentAdvisorService implements IDeploymentAdvisorService {
   private config: DeploymentAdvisorConfig;
+  private readonly memory: MemoryBackend;
+  private readonly llmRouter?: HybridRouter;
 
   constructor(
-    private readonly memory: MemoryBackend,
+    dependencies: DeploymentAdvisorDependencies | MemoryBackend,
     config: Partial<DeploymentAdvisorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Support both old and new constructor signatures for backward compatibility
+    if ('memory' in dependencies) {
+      this.memory = dependencies.memory;
+      this.llmRouter = dependencies.llmRouter;
+    } else {
+      this.memory = dependencies;
+    }
+  }
+
+  // ============================================================================
+  // ADR-051: LLM Enhancement Methods
+  // ============================================================================
+
+  /**
+   * Check if LLM advice is available and enabled
+   */
+  private isLLMAdviceAvailable(): boolean {
+    return this.config.enableLLMAdvice && this.llmRouter !== undefined;
+  }
+
+  /**
+   * Get model ID for the configured tier
+   */
+  private getModelForTier(tier: number): string {
+    switch (tier) {
+      case 1: return 'claude-3-5-haiku-20241022';
+      case 2: return 'claude-sonnet-4-20250514';
+      case 3: return 'claude-sonnet-4-20250514';
+      case 4: return 'claude-opus-4-5-20251101';
+      default: return 'claude-sonnet-4-20250514';
+    }
+  }
+
+  /**
+   * Generate deployment advice using LLM for deeper insights
+   * Provides go/no-go recommendation, risk mitigation, rollback plans, and monitoring advice
+   */
+  private async generateDeploymentAdviceWithLLM(
+    metrics: QualityMetrics,
+    riskScore: number,
+    baseDecision: DeploymentAdvice['decision'],
+    releaseCandidate: string
+  ): Promise<Partial<DeploymentAdvice>> {
+    if (!this.llmRouter) {
+      return {};
+    }
+
+    try {
+      const modelId = this.getModelForTier(this.config.llmModelTier);
+
+      const response: ChatResponse = await this.llmRouter.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are a senior DevOps/SRE engineer providing deployment advice.
+Analyze the deployment metrics and provide comprehensive advice. Be specific and actionable.
+Return JSON with the following structure:
+{
+  "goNoGo": {
+    "recommendation": "GO" | "NO-GO" | "CONDITIONAL",
+    "reasoning": "detailed explanation"
+  },
+  "riskMitigation": [
+    { "risk": "description", "mitigation": "action to take", "priority": "high" | "medium" | "low" }
+  ],
+  "rollbackPlan": {
+    "triggers": ["list of conditions that should trigger rollback"],
+    "steps": ["ordered list of rollback steps"],
+    "estimatedTime": "estimated rollback duration"
+  },
+  "monitoring": {
+    "keyMetrics": ["metrics to monitor post-deploy"],
+    "alertThresholds": { "metric": "threshold" },
+    "observationPeriod": "recommended monitoring duration"
+  }
+}`,
+          },
+          {
+            role: 'user',
+            content: `Release Candidate: ${releaseCandidate}
+Risk Score: ${Math.round(riskScore * 100)}%
+Current Decision: ${baseDecision.toUpperCase()}
+
+Quality Metrics:
+- Test Coverage: ${metrics.coverage}%
+- Tests Passing: ${metrics.testsPassing}%
+- Critical Bugs: ${metrics.criticalBugs}
+- Code Smells: ${metrics.codeSmells}
+- Security Vulnerabilities: ${metrics.securityVulnerabilities}
+- Technical Debt: ${metrics.technicalDebt}h
+- Code Duplications: ${metrics.duplications}%
+
+Provide deployment advice specific to these metrics.`,
+          },
+        ],
+        model: modelId,
+        maxTokens: 2048,
+        temperature: 0.3, // Low temperature for consistent advice
+      });
+
+      if (response.content) {
+        try {
+          const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const analysis = JSON.parse(jsonMatch[0]);
+            return this.formatLLMAdvice(analysis, metrics, riskScore);
+          }
+        } catch {
+          // JSON parse failed - return empty enhancement
+          console.warn('[DeploymentAdvisor] Failed to parse LLM response JSON');
+        }
+      }
+    } catch (error) {
+      console.warn('[DeploymentAdvisor] LLM advice generation failed:', error);
+    }
+
+    return {};
+  }
+
+  /**
+   * Format LLM analysis into DeploymentAdvice enhancements
+   */
+  private formatLLMAdvice(
+    analysis: {
+      goNoGo?: { recommendation?: string; reasoning?: string };
+      riskMitigation?: Array<{ risk?: string; mitigation?: string; priority?: string }>;
+      rollbackPlan?: { triggers?: string[]; steps?: string[]; estimatedTime?: string };
+      monitoring?: { keyMetrics?: string[]; alertThresholds?: Record<string, string>; observationPeriod?: string };
+    },
+    metrics: QualityMetrics,
+    riskScore: number
+  ): Partial<DeploymentAdvice> {
+    const enhancedReasons: string[] = [];
+    const enhancedConditions: string[] = [];
+
+    // Add go/no-go reasoning
+    if (analysis.goNoGo?.reasoning) {
+      enhancedReasons.push(`[LLM Analysis] ${analysis.goNoGo.reasoning}`);
+    }
+
+    // Add risk mitigation as conditions
+    if (analysis.riskMitigation && analysis.riskMitigation.length > 0) {
+      for (const risk of analysis.riskMitigation) {
+        if (risk.mitigation) {
+          enhancedConditions.push(
+            `[${(risk.priority || 'medium').toUpperCase()}] ${risk.mitigation}`
+          );
+        }
+      }
+    }
+
+    // Add monitoring recommendations as conditions
+    if (analysis.monitoring) {
+      if (analysis.monitoring.observationPeriod) {
+        enhancedConditions.push(
+          `Monitor deployment for ${analysis.monitoring.observationPeriod} post-deploy`
+        );
+      }
+      if (analysis.monitoring.keyMetrics && analysis.monitoring.keyMetrics.length > 0) {
+        enhancedConditions.push(
+          `Key metrics to watch: ${analysis.monitoring.keyMetrics.join(', ')}`
+        );
+      }
+    }
+
+    // Generate enhanced rollback plan
+    let enhancedRollbackPlan: string | undefined;
+    if (analysis.rollbackPlan) {
+      const parts: string[] = [];
+
+      if (analysis.rollbackPlan.triggers && analysis.rollbackPlan.triggers.length > 0) {
+        parts.push(`Rollback Triggers:\n${analysis.rollbackPlan.triggers.map((t, i) => `  ${i + 1}. ${t}`).join('\n')}`);
+      }
+
+      if (analysis.rollbackPlan.steps && analysis.rollbackPlan.steps.length > 0) {
+        parts.push(`\nRollback Steps:\n${analysis.rollbackPlan.steps.map((s, i) => `  ${i + 1}. ${s}`).join('\n')}`);
+      }
+
+      if (analysis.rollbackPlan.estimatedTime) {
+        parts.push(`\nEstimated Rollback Time: ${analysis.rollbackPlan.estimatedTime}`);
+      }
+
+      if (parts.length > 0) {
+        enhancedRollbackPlan = parts.join('\n');
+      }
+    }
+
+    return {
+      reasons: enhancedReasons,
+      conditions: enhancedConditions,
+      rollbackPlan: enhancedRollbackPlan,
+    };
   }
 
   /**
@@ -130,17 +351,40 @@ export class DeploymentAdvisorService implements IDeploymentAdvisorService {
       const reasons = this.generateReasons(metrics, adjustedRiskScore);
 
       // Generate conditions for conditional approval
-      const conditions = decision === 'warning'
+      let conditions = decision === 'warning'
         ? this.generateConditions(metrics)
         : undefined;
 
       // Generate rollback plan for non-blocked deployments
-      const rollbackPlan = decision !== 'blocked'
+      let rollbackPlan = decision !== 'blocked'
         ? this.generateRollbackPlan(releaseCandidate)
         : undefined;
 
       // Calculate confidence based on historical accuracy
       const confidence = await this.calculateConfidence(metrics);
+
+      // ADR-051: Enhance advice with LLM if enabled
+      if (this.isLLMAdviceAvailable()) {
+        const llmAdvice = await this.generateDeploymentAdviceWithLLM(
+          metrics,
+          adjustedRiskScore,
+          decision,
+          releaseCandidate
+        );
+
+        // Merge LLM-generated advice with base advice
+        if (llmAdvice.reasons && llmAdvice.reasons.length > 0) {
+          reasons.push(...llmAdvice.reasons);
+        }
+
+        if (llmAdvice.conditions && llmAdvice.conditions.length > 0) {
+          conditions = [...(conditions || []), ...llmAdvice.conditions];
+        }
+
+        if (llmAdvice.rollbackPlan) {
+          rollbackPlan = llmAdvice.rollbackPlan;
+        }
+      }
 
       const advice: DeploymentAdvice = {
         decision,
@@ -568,4 +812,40 @@ export class DeploymentAdvisorService implements IDeploymentAdvisorService {
       { namespace: 'quality-assessment', persist: true }
     );
   }
+}
+
+// ============================================================================
+// Factory Functions
+// ============================================================================
+
+/**
+ * Create a DeploymentAdvisorService instance with default dependencies
+ * Maintains backward compatibility with existing code
+ *
+ * @param memory - Memory backend for pattern storage
+ * @param config - Optional configuration overrides
+ * @returns Configured DeploymentAdvisorService instance
+ */
+export function createDeploymentAdvisorService(
+  memory: MemoryBackend,
+  config: Partial<DeploymentAdvisorConfig> = {}
+): DeploymentAdvisorService {
+  return new DeploymentAdvisorService({ memory }, config);
+}
+
+/**
+ * Create a DeploymentAdvisorService instance with custom dependencies
+ * Used for testing or when custom implementations are needed
+ *
+ * ADR-051: Includes LLM router for AI-enhanced deployment advice
+ *
+ * @param dependencies - All service dependencies including optional LLM router
+ * @param config - Optional configuration overrides
+ * @returns Configured DeploymentAdvisorService instance
+ */
+export function createDeploymentAdvisorServiceWithDependencies(
+  dependencies: DeploymentAdvisorDependencies,
+  config: Partial<DeploymentAdvisorConfig> = {}
+): DeploymentAdvisorService {
+  return new DeploymentAdvisorService(dependencies, config);
 }

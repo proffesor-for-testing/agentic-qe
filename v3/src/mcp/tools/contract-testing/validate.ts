@@ -164,7 +164,7 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
   }> {
     if (!this.contractValidator || !this.apiCompatibility) {
       const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || await getSharedMemoryBackend();
-      this.contractValidator = new ContractValidatorService(memory);
+      this.contractValidator = new ContractValidatorService({ memory });
       this.apiCompatibility = new ApiCompatibilityService(memory);
     }
     return {

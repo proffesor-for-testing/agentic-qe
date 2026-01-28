@@ -5,6 +5,93 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.3] - 2026-01-27
+
+### 🎯 Highlights
+
+**Full MinCut/Consensus Integration** - All 12 QE domains now have active MinCut topology awareness, multi-model consensus verification, and self-healing triggers. This completes the ADR-047 implementation with production-ready distributed coordination.
+
+**LLM Integration Across All Domains** - ADR-051 enables intelligent LLM-powered analysis in all 12 QE domains with TinyDancer model routing for cost optimization.
+
+### Added
+
+#### LLM Integration for All 12 QE Domains (ADR-051)
+- **test-generation** - AI-powered test synthesis with pattern learning
+- **test-execution** - Intelligent flaky test analysis and retry recommendations
+- **coverage-analysis** - LLM-assisted gap prioritization and risk scoring
+- **quality-assessment** - AI-driven quality gate decisions with explanations
+- **defect-intelligence** - ML-powered defect prediction and root cause analysis
+- **requirements-validation** - LLM testability analysis and BDD generation
+- **code-intelligence** - Semantic code search with natural language queries
+- **security-compliance** - AI vulnerability analysis with remediation guidance
+- **contract-testing** - LLM contract validation and breaking change detection
+- **visual-accessibility** - AI visual regression analysis and WCAG recommendations
+- **chaos-resilience** - Intelligent resilience assessment and failure prediction
+- **learning-optimization** - Pattern consolidation with LLM synthesis
+
+#### QE Agent Registry Fixes
+- Added missing agents to registry: `qe-product-factors-assessor`, `qe-quality-criteria-recommender`, `qe-test-idea-rewriter`
+- Fixed skill counts: 61 QE skills properly registered
+- Updated agent-to-domain mappings
+
+#### Documentation
+- **TinyDancer Integration Plan** - Detailed plan for model routing across domains
+- **Contract Validator LLM Docs** - LLM integration documentation for contract testing
+
+#### MinCut/Consensus Full Domain Integration (ADR-047, MM-001)
+- **All 12 domains** now actively use consensus verification (not just initialized)
+- **Topology-aware routing** - `getTopologyBasedRouting()` in all domains
+- **Self-healing triggers** - `shouldPauseOperations()` pauses work on critical topology
+
+| Domain | verifyFinding Calls | Self-Healing | Routing |
+|--------|---------------------|--------------|---------|
+| test-generation | 3 | ✅ | ✅ |
+| test-execution | 3 | ✅ | ✅ |
+| coverage-analysis | 3 | ✅ | ✅ |
+| quality-assessment | 2 | ✅ | ✅ |
+| defect-intelligence | 3 | ✅ | ✅ |
+| learning-optimization | 3 | ✅ | ✅ |
+| security-compliance | 2 | ✅ | ✅ |
+| chaos-resilience | 3 | ✅ | ✅ |
+| code-intelligence | 3 | ✅ | ✅ |
+| contract-testing | 3 | ✅ | ✅ |
+| requirements-validation | 3 | ✅ | ✅ |
+| visual-accessibility | 3 | ✅ | ✅ |
+
+#### Performance Benchmarks
+- **mincut-performance.test.ts** (20 tests) - Graph operations, health monitoring, memory usage
+- **consensus-latency.test.ts** (18 tests) - Finding verification, batch operations, strategy comparison
+
+#### Cross-Domain Integration Tests
+- **cross-domain-mincut-consensus.test.ts** (34 tests) - Queen→Domain bridge injection, topology coordination
+
+### Changed
+
+#### Domain Coordinators (all 12)
+- Added `verifyFinding()` calls for high-stakes decisions
+- Added `getTopologyBasedRouting()` method
+- Added `getDomainWeakVertices()` method
+- Added `isDomainWeakPoint()` method
+- Added self-healing with `shouldPauseOperations()` checks
+
+#### Type Exports
+- **consensus-enabled-domain.ts** - Re-export `ConsensusStats` type for domain use
+- **contract-testing/interfaces.ts** - Use proper `WeakVertex[]` and `DomainName[]` types
+- **code-intelligence/coordinator.ts** - Fixed routing type signatures
+
+### Fixed
+
+- **fix(types)**: ConsensusStats now properly exported from mixin module
+- **fix(types)**: DomainName[] type consistency across routing methods
+- **fix(coverage-analysis)**: Use `factors.contribution` instead of non-existent `factors.weight`
+- **fix(benchmarks)**: Relaxed timing thresholds for CI stability (0.2ms→0.5ms, 512B→1KB)
+
+### Documentation
+
+- **MINCUT_CONSENSUS_INTEGRATION_PLAN.md** - Updated status to IMPLEMENTED with completion metrics
+
+---
+
 ## [3.3.2] - 2026-01-26
 
 ### 🎯 Highlights

@@ -100,6 +100,34 @@ import {
 } from '../../integrations/ruvector/hypergraph-engine.js';
 import { type HypergraphNode } from '../../integrations/ruvector/hypergraph-schema.js';
 
+// ============================================================================
+// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
+// ============================================================================
+
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type IMinCutAwareDomain,
+  type MinCutAwareConfig,
+} from '../../coordination/mixins/mincut-aware-domain';
+
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type IConsensusEnabledDomain,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain';
+
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
+import type { WeakVertex } from '../../coordination/mincut/interfaces';
+import type { ConsensusStats } from '../../coordination/mixins/consensus-enabled-domain';
+import type { DomainName } from '../../shared/types';
+
+import {
+  type DomainFinding,
+  createDomainFinding,
+} from '../../coordination/consensus/domain-findings';
+
 /**
  * Interface for the code intelligence coordinator
  */
@@ -161,6 +189,28 @@ export interface ICodeIntelligenceCoordinator extends CodeIntelligenceAPI {
    * V3: Check if hypergraph is enabled and initialized
    */
   isHypergraphEnabled(): boolean;
+
+  // MinCut integration methods (ADR-047)
+  setMinCutBridge(bridge: QueenMinCutBridge): void;
+  isTopologyHealthy(): boolean;
+  getDomainWeakVertices(): WeakVertex[];
+  isDomainWeakPoint(): boolean;
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[];
+  // Consensus integration methods (MM-001)
+  isConsensusAvailable(): boolean;
+  getConsensusStats(): ConsensusStats | undefined;
+  verifyCodePatternDetection(
+    pattern: { id: string; name: string; type: string; location: string },
+    confidence: number
+  ): Promise<boolean>;
+  verifyImpactAnalysis(
+    impact: { changedFiles: string[]; riskLevel: string; impactedTests: string[] },
+    confidence: number
+  ): Promise<boolean>;
+  verifyDependencyMapping(
+    dependency: { source: string; targets: string[]; type: string },
+    confidence: number
+  ): Promise<boolean>;
 }
 
 /**
@@ -194,6 +244,15 @@ export interface CoordinatorConfig {
   enableHypergraph: boolean;
   // V3: Optional database path for hypergraph persistence
   hypergraphDbPath?: string;
+  // MinCut integration config (ADR-047)
+  enableMinCutAwareness: boolean;
+  topologyHealthThreshold: number;
+  pauseOnCriticalTopology: boolean;
+  // Consensus integration config (MM-001)
+  enableConsensus: boolean;
+  consensusThreshold: number;
+  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
+  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -207,6 +266,15 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   enableMetricCollector: true,
   // V3: Hypergraph enabled by default for intelligent code analysis (GOAP Action 7)
   enableHypergraph: true,
+  // MinCut integration defaults (ADR-047)
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
+  // Consensus integration defaults (MM-001)
+  enableConsensus: true,
+  consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
+  consensusMinModels: 2,
 };
 
 /**
@@ -237,6 +305,15 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
   // V3: Product Factors Bridge for cross-domain C4 access
   private productFactorsBridge: ProductFactorsBridgeService;
 
+  // MinCut topology awareness mixin (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // Consensus verification mixin (MM-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
+
+  // Domain identifier for mixin initialization
+  private readonly domainName = 'code-intelligence';
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -244,6 +321,26 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     config: Partial<CoordinatorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Initialize MinCut-aware mixin (ADR-047)
+    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
+    });
+
+    // Initialize Consensus-enabled mixin (MM-001)
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      verifyFindingTypes: ['code-pattern-detection', 'impact-analysis', 'dependency-mapping'],
+      strategy: this.config.consensusStrategy,
+      minModels: this.config.consensusMinModels,
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+    });
+
     this.knowledgeGraph = new KnowledgeGraphService(memory);
     this.semanticAnalyzer = new SemanticAnalyzerService(memory);
     this.impactAnalyzer = new ImpactAnalyzerService(memory, this.knowledgeGraph);
@@ -288,6 +385,17 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
     // V3: Initialize Product Factors Bridge
     await this.productFactorsBridge.initialize();
+
+    // Initialize Consensus engine if enabled (MM-001)
+    if (this.config.enableConsensus) {
+      try {
+        await (this.consensusMixin as any).initializeConsensus();
+        console.log(`[${this.domainName}] Consensus engine initialized`);
+      } catch (error) {
+        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
+        console.warn(`[${this.domainName}] Continuing without consensus verification`);
+      }
+    }
 
     this.initialized = true;
   }
@@ -379,6 +487,16 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
    * Dispose and cleanup
    */
   async dispose(): Promise<void> {
+    // Dispose Consensus engine (MM-001)
+    try {
+      await (this.consensusMixin as any).disposeConsensus();
+    } catch (error) {
+      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
+    }
+
+    // Dispose MinCut mixin (ADR-047)
+    this.minCutMixin.dispose();
+
     // Save workflow state
     await this.saveWorkflowState();
 
@@ -438,6 +556,17 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
     try {
       this.startWorkflow(workflowId, 'index');
+
+      // ADR-047: Check topology health before expensive operations
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, using conservative strategy`);
+        // Continue with reduced parallelism when topology is unhealthy
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Indexing paused: topology is in critical state'));
+      }
 
       // Check if we can spawn agents
       if (!this.agentCoordinator.canSpawn()) {
@@ -577,6 +706,16 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
     try {
       this.startWorkflow(workflowId, 'impact');
+
+      // ADR-047: Check topology health before expensive operations
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, using conservative impact analysis`);
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Impact analysis paused: topology is in critical state'));
+      }
 
       // Spawn impact analyzer agent
       const agentResult = await this.spawnImpactAnalyzerAgent(workflowId, request);
@@ -1830,5 +1969,176 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
       console.error('[CodeIntelligence] Failed to enhance impact with hypergraph:', error);
       return baseAnalysis;
     }
+  }
+
+  // ============================================================================
+  // MinCut Integration Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
+  }
+
+  /**
+   * Check if topology is healthy
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  // ============================================================================
+  // Consensus Integration Methods (MM-001)
+  // ============================================================================
+
+  /**
+   * Check if consensus engine is available
+   */
+  isConsensusAvailable(): boolean {
+    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+  }
+
+  /**
+   * Get consensus statistics
+   * Per MM-001: Returns metrics about consensus verification
+   */
+  getConsensusStats() {
+    return this.consensusMixin.getConsensusStats();
+  }
+
+  /**
+   * Verify a code pattern detection using multi-model consensus
+   * Per MM-001: High-stakes code intelligence decisions require verification
+   *
+   * @param pattern - The code pattern to verify
+   * @param confidence - Initial confidence in the pattern detection
+   * @returns true if the pattern is verified or doesn't require consensus
+   */
+  async verifyCodePatternDetection(
+    pattern: { id: string; name: string; type: string; location: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof pattern> = createDomainFinding({
+      id: uuidv4(),
+      type: 'code-pattern-detection',
+      confidence,
+      description: `Verify code pattern: ${pattern.name} (${pattern.type}) at ${pattern.location}`,
+      payload: pattern,
+      detectedBy: 'code-intelligence-coordinator',
+      severity: confidence > 0.9 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Code pattern '${pattern.name}' verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Code pattern '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify an impact analysis using multi-model consensus
+   * Per MM-001: Impact analysis decisions can have significant deployment impact
+   *
+   * @param impact - The impact analysis to verify
+   * @param confidence - Initial confidence in the analysis
+   * @returns true if the analysis is verified or doesn't require consensus
+   */
+  async verifyImpactAnalysis(
+    impact: { changedFiles: string[]; riskLevel: string; impactedTests: string[] },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof impact> = createDomainFinding({
+      id: uuidv4(),
+      type: 'impact-analysis',
+      confidence,
+      description: `Verify impact analysis: ${impact.changedFiles.length} files, risk=${impact.riskLevel}, ${impact.impactedTests.length} tests`,
+      payload: impact,
+      detectedBy: 'code-intelligence-coordinator',
+      severity: impact.riskLevel === 'critical' || impact.riskLevel === 'high' ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Impact analysis verified by consensus (risk=${impact.riskLevel})`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Impact analysis NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify a dependency mapping using multi-model consensus
+   * Per MM-001: Dependency analysis can affect downstream decisions
+   *
+   * @param dependency - The dependency mapping to verify
+   * @param confidence - Initial confidence in the mapping
+   * @returns true if the mapping is verified or doesn't require consensus
+   */
+  async verifyDependencyMapping(
+    dependency: { source: string; targets: string[]; type: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof dependency> = createDomainFinding({
+      id: uuidv4(),
+      type: 'dependency-mapping',
+      confidence,
+      description: `Verify dependency: ${dependency.source} -> ${dependency.targets.length} targets (${dependency.type})`,
+      payload: dependency,
+      detectedBy: 'code-intelligence-coordinator',
+      severity: confidence > 0.85 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Dependency mapping verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Dependency mapping NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  // ============================================================================
+  // Topology Routing Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Get weak vertices belonging to this domain
+   * Per ADR-047: Identifies agents that are single points of failure
+   */
+  getDomainWeakVertices() {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Check if this domain is a weak point in the topology
+   * Per ADR-047: Returns true if any weak vertex belongs to code-intelligence domain
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  /**
+   * Get topology-based routing excluding weak domains
+   * Per ADR-047: Filters out domains that are currently weak points
+   *
+   * @param targetDomains - List of potential target domains
+   * @returns Filtered list of healthy domains for routing
+   */
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
   }
 }

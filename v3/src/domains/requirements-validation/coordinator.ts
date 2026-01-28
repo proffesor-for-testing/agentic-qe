@@ -49,6 +49,31 @@ import {
 } from '../../integrations/ruvector/wrappers.js';
 
 // ============================================================================
+// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
+// ============================================================================
+
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type IMinCutAwareDomain,
+  type MinCutAwareConfig,
+} from '../../coordination/mixins/mincut-aware-domain.js';
+
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type IConsensusEnabledDomain,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain.js';
+
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
+
+import {
+  type DomainFinding,
+  createDomainFinding,
+} from '../../coordination/consensus/domain-findings.js';
+
+// ============================================================================
 // Domain Events
 // ============================================================================
 
@@ -72,6 +97,15 @@ export interface CoordinatorConfig {
   // V3: Enable RL and SONA integrations
   enablePPO: boolean;
   enableSONA: boolean;
+  // MinCut integration config (ADR-047)
+  enableMinCutAwareness: boolean;
+  topologyHealthThreshold: number;
+  pauseOnCriticalTopology: boolean;
+  // Consensus integration config (MM-001)
+  enableConsensus: boolean;
+  consensusThreshold: number;
+  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
+  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -81,6 +115,15 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   minTestabilityThreshold: 60,
   enablePPO: true,
   enableSONA: true,
+  // MinCut integration defaults (ADR-047)
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
+  // Consensus integration defaults (MM-001)
+  enableConsensus: true,
+  consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
+  consensusMinModels: 2,
 };
 
 // ============================================================================
@@ -163,6 +206,15 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
   private sonaEngine?: PersistentSONAEngine;
   private rlInitialized = false;
 
+  // MinCut topology awareness mixin (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // Consensus verification mixin (MM-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
+
+  // Domain identifier for mixin initialization
+  private readonly domainName = 'requirements-validation';
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -170,6 +222,26 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
     config: Partial<CoordinatorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Initialize MinCut-aware mixin (ADR-047)
+    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
+    });
+
+    // Initialize Consensus-enabled mixin (MM-001)
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      verifyFindingTypes: ['requirement-conflict', 'testability-assessment', 'ambiguous-requirement'],
+      strategy: this.config.consensusStrategy,
+      minModels: this.config.consensusMinModels,
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+    });
+
     this.validator = new RequirementsValidatorService(memory);
     this.bddWriter = new BDDScenarioWriterService(memory);
     this.testabilityScorer = new TestabilityScorerService(memory);
@@ -188,6 +260,17 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
     // V3: Initialize RL and SONA integrations
     if (this.config.enablePPO || this.config.enableSONA) {
       await this.initializeRLIntegrations();
+    }
+
+    // Initialize Consensus engine if enabled (MM-001)
+    if (this.config.enableConsensus) {
+      try {
+        await (this.consensusMixin as any).initializeConsensus();
+        console.log(`[${this.domainName}] Consensus engine initialized`);
+      } catch (error) {
+        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
+        console.warn(`[${this.domainName}] Continuing without consensus verification`);
+      }
     }
 
     this.initialized = true;
@@ -243,6 +326,16 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
    * Dispose and cleanup
    */
   async dispose(): Promise<void> {
+    // Dispose Consensus engine (MM-001)
+    try {
+      await (this.consensusMixin as any).disposeConsensus();
+    } catch (error) {
+      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
+    }
+
+    // Dispose MinCut mixin (ADR-047)
+    this.minCutMixin.dispose();
+
     await this.saveWorkflowState();
     this.workflows.clear();
 
@@ -280,6 +373,16 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
 
     try {
       this.startWorkflow(workflowId, 'analyze');
+
+      // V3: Check topology health before proceeding (ADR-047)
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn('[RequirementsValidation] Topology degraded, using conservative strategy');
+      }
+
+      // V3: Pause operations if topology is critical and configured to pause
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Operation paused: topology is in critical state'));
+      }
 
       // Fetch requirement
       const requirement = await this.repository.findById(requirementId);
@@ -1187,5 +1290,151 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
       workflows,
       { namespace: 'requirements-validation', persist: true }
     );
+  }
+
+  // ============================================================================
+  // MinCut Integration Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
+  }
+
+  /**
+   * Check if topology is healthy
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  // ============================================================================
+  // Consensus Integration Methods (MM-001)
+  // ============================================================================
+
+  /**
+   * Check if consensus engine is available
+   */
+  isConsensusAvailable(): boolean {
+    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+  }
+
+  /**
+   * Check if a finding requires consensus verification
+   */
+  requiresConsensus<T>(finding: DomainFinding<T>): boolean {
+    return this.consensusMixin.requiresConsensus(finding);
+  }
+
+  /**
+   * Verify a finding using multi-model consensus
+   */
+  async verifyFinding<T>(finding: DomainFinding<T>): Promise<Result<import('../../coordination/consensus').ConsensusResult, Error>> {
+    return this.consensusMixin.verifyFinding(finding);
+  }
+
+  /**
+   * Get consensus statistics
+   */
+  getConsensusStats() {
+    return this.consensusMixin.getConsensusStats();
+  }
+
+  /**
+   * Verify a requirement conflict with consensus
+   * @param conflict - The conflict data to verify
+   * @param confidence - Confidence level in the conflict detection (0-1)
+   * @returns true if verified or doesn't require consensus, false if rejected/disputed
+   */
+  async verifyRequirementConflict(
+    conflict: { requirements: string[]; description: string; severity: 'high' | 'medium' | 'low' },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof conflict> = createDomainFinding({
+      id: uuidv4(),
+      type: 'requirement-conflict',
+      confidence,
+      description: `Requirement conflict detected: ${conflict.description}`,
+      payload: conflict,
+      detectedBy: 'requirements-validation-coordinator',
+      severity: conflict.severity === 'high' ? 'high' : conflict.severity === 'medium' ? 'medium' : 'low',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Verify a testability assessment with consensus
+   * @param assessment - The testability assessment data
+   * @param confidence - Confidence level in the assessment (0-1)
+   * @returns true if verified or doesn't require consensus, false if rejected/disputed
+   */
+  async verifyTestabilityAssessment(
+    assessment: { requirementId: string; score: number; factors: string[]; category: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof assessment> = createDomainFinding({
+      id: uuidv4(),
+      type: 'testability-assessment',
+      confidence,
+      description: `Testability assessment for ${assessment.requirementId}: score ${assessment.score} (${assessment.category})`,
+      payload: assessment,
+      detectedBy: 'requirements-validation-coordinator',
+      severity: assessment.score < 30 ? 'critical' : assessment.score < 60 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  // ============================================================================
+  // Extended MinCut Integration Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Get topology-based routing excluding weak domains
+   * @param targetDomains - List of potential target domains
+   * @returns Filtered list of healthy domains for routing
+   */
+  getTopologyBasedRouting(targetDomains: import('../../shared/types').DomainName[]): import('../../shared/types').DomainName[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
+  }
+
+  /**
+   * Get weak vertices in this domain (for diagnostics)
+   */
+  getDomainWeakVertices() {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Check if this domain is a weak point in the topology
+   * Returns true if any weak vertex belongs to requirements-validation
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  /**
+   * Subscribe to topology health changes
+   */
+  onTopologyHealthChange(callback: (health: import('../../coordination/mincut/interfaces').MinCutHealth) => void): () => void {
+    return this.minCutMixin.onTopologyHealthChange(callback);
   }
 }

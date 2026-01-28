@@ -5,6 +5,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
+import type { HybridRouter, ChatResponse } from '../../../shared/llm/index.js';
 import type {
   IContractValidationService,
   ApiContract,
@@ -25,6 +26,12 @@ export interface ContractValidatorConfig {
   validateExamples: boolean;
   maxSchemaDepth: number;
   cacheValidations: boolean;
+  /** ADR-051: Enable LLM-powered contract analysis */
+  enableLLMAnalysis: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens: number;
 }
 
 const DEFAULT_CONFIG: ContractValidatorConfig = {
@@ -32,7 +39,18 @@ const DEFAULT_CONFIG: ContractValidatorConfig = {
   validateExamples: true,
   maxSchemaDepth: 20,
   cacheValidations: true,
+  enableLLMAnalysis: true, // On by default - opt-out (ADR-051)
+  llmModelTier: 2, // Sonnet for balanced analysis
+  llmMaxTokens: 2048,
 };
+
+/**
+ * Dependencies for ContractValidatorService
+ */
+export interface ContractValidatorDependencies {
+  memory: MemoryBackend;
+  llmRouter?: HybridRouter;
+}
 
 /**
  * GraphQL schema parsing types
@@ -82,6 +100,8 @@ interface CachedValidationReport extends ValidationReport {
  */
 export class ContractValidatorService implements IContractValidationService {
   private readonly config: ContractValidatorConfig;
+  private readonly memory: MemoryBackend;
+  private readonly llmRouter?: HybridRouter;
   private readonly validationCache: Map<string, CachedValidationReport> = new Map();
 
   /** Maximum number of validations to cache */
@@ -90,10 +110,64 @@ export class ContractValidatorService implements IContractValidationService {
   private readonly CACHE_TTL_MS = 3600000;
 
   constructor(
-    private readonly memory: MemoryBackend,
+    dependencies: ContractValidatorDependencies,
     config: Partial<ContractValidatorConfig> = {}
   ) {
+    this.memory = dependencies.memory;
+    this.llmRouter = dependencies.llmRouter;
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * ADR-051: Check if LLM analysis is available
+   */
+  private isLLMAnalysisAvailable(): boolean {
+    return this.config.enableLLMAnalysis && this.llmRouter !== undefined;
+  }
+
+  /**
+   * ADR-051: Get model name for tier
+   */
+  private getModelForTier(tier: number): string {
+    const models: Record<number, string> = {
+      1: 'claude-3-haiku-20240307',
+      2: 'claude-sonnet-4-20250514',
+      3: 'claude-sonnet-4-20250514',
+      4: 'claude-opus-4-20250514',
+    };
+    return models[tier] || models[2];
+  }
+
+  /**
+   * ADR-051: LLM-powered contract analysis
+   */
+  private async analyzeContractWithLLM(contract: ApiContract): Promise<string | null> {
+    if (!this.isLLMAnalysisAvailable()) return null;
+
+    try {
+      const consumerNames = contract.consumers.map(c => c.name).join(', ');
+      const response = await this.llmRouter!.chat({
+        model: this.getModelForTier(this.config.llmModelTier),
+        messages: [{
+          role: 'user',
+          content: `Analyze this API contract for potential issues:
+Provider: ${contract.provider.name}
+Consumers: ${consumerNames}
+Version: ${contract.version.toString()}
+Endpoints: ${contract.endpoints?.length || 0}
+
+Provide:
+1. Potential compatibility issues
+2. Missing or unclear specifications
+3. Recommendations for improvement`
+        }],
+        maxTokens: this.config.llmMaxTokens,
+      });
+      return response.content;
+    } catch (error) {
+      console.warn('[ContractValidatorService] LLM analysis failed:', error);
+      return null;
+    }
   }
 
   /**

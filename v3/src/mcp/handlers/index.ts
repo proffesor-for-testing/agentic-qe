@@ -38,7 +38,7 @@ export {
   handleAgentStatus,
 } from './agent-handlers';
 
-// Domain handlers
+// Domain handlers (wrapped with experience capture - ADR-051)
 export {
   handleTestGenerate,
   handleTestExecute,
@@ -52,7 +52,7 @@ export {
   handleRequirementsValidate,
   handleCodeIndex,
   resetTaskExecutor,
-} from './domain-handlers';
+} from './wrapped-domain-handlers.js';
 
 // Memory handlers
 export {

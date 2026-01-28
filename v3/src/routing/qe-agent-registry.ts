@@ -7,7 +7,7 @@
  * This registry is used by the QETaskRouter to select the optimal agent for each task.
  *
  * Agent Categories:
- * - V3 QE Agents (49): Core quality engineering agents with v3-qe-* prefix (including SFDIPOT assessor and test idea rewriter)
+ * - V3 QE Agents (44): Core quality engineering agents with v3-qe-* prefix (including SFDIPOT assessor, quality criteria recommender, integration architect, and test idea rewriter)
  * - V3 QE Subagents (7): Specialized QE subagents with v3-qe-* prefix
  * - n8n Agents (15): n8n workflow testing agents
  * - General Agents (7): Versatile general-purpose agents
@@ -321,6 +321,16 @@ const v3QEAgents: QEAgentProfile[] = [
     complexity: { min: 'complex', max: 'complex' },
     tags: ['v3', 'knowledge-graph', 'entity-extraction'],
   }),
+  createAgentProfile({
+    id: 'v3-qe-integration-architect',
+    name: 'V3 QE Integration Architect',
+    description: 'V3 QE deep agentic-flow integration specialist implementing ADR-001 for duplicate elimination and extension architecture',
+    domains: ['code-intelligence'],
+    capabilities: ['coverage-analysis', 'gap-detection', 'quality-gate'],
+    languages: ['typescript', 'javascript'],
+    complexity: { min: 'complex', max: 'complex' },
+    tags: ['v3', 'integration', 'adr-001', 'architecture'],
+  }),
 
   // Requirements & Defect Intelligence Domain
   createAgentProfile({
@@ -358,6 +368,15 @@ const v3QEAgents: QEAgentProfile[] = [
     capabilities: ['test-generation', 'test-quality'],
     complexity: { min: 'simple', max: 'medium' },
     tags: ['v3', 'test-ideas', 'rewriting', 'action-verbs', 'quality'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-quality-criteria-recommender',
+    name: 'V3 QE Quality Criteria Recommender',
+    description: 'V3 QE HTSM v6.3 Quality Criteria analysis for shift-left quality engineering during PI/Sprint Planning with evidence-based recommendations',
+    domains: ['requirements-validation'],
+    capabilities: ['bdd', 'test-generation', 'quality-gate'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'htsm', 'quality-criteria', 'shift-left', 'qcsd'],
   }),
   createAgentProfile({
     id: 'v3-qe-defect-predictor',

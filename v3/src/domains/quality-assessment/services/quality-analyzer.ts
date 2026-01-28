@@ -18,7 +18,11 @@ import {
   FileComplexity,
   ComplexitySummary,
   ComplexityHotspot,
+  LLMQualityInsights,
 } from '../interfaces';
+
+// ADR-051: LLM Router for AI-enhanced quality insights
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 
 /**
  * Interface for the quality analyzer service
@@ -40,6 +44,22 @@ export interface QualityAnalyzerConfig {
     cognitive: { warning: number; critical: number };
     maintainability: { warning: number; critical: number };
   };
+  /** ADR-051: Enable LLM-powered quality insights */
+  enableLLMInsights?: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier?: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens?: number;
+}
+
+/**
+ * Dependencies for QualityAnalyzerService
+ * Enables dependency injection and testing
+ */
+export interface QualityAnalyzerDependencies {
+  memory: MemoryBackend;
+  /** ADR-051: Optional LLM router for AI-enhanced quality insights */
+  llmRouter?: HybridRouter;
 }
 
 const DEFAULT_CONFIG: QualityAnalyzerConfig = {
@@ -50,6 +70,9 @@ const DEFAULT_CONFIG: QualityAnalyzerConfig = {
     cognitive: { warning: 15, critical: 30 },
     maintainability: { warning: 50, critical: 30 }, // Lower is worse
   },
+  enableLLMInsights: true, // On by default - opt-out
+  llmModelTier: 2, // Sonnet by default
+  llmMaxTokens: 2048,
 };
 
 /**
@@ -66,17 +89,232 @@ const RATING_THRESHOLDS = {
 /**
  * Quality Analyzer Service Implementation
  * Analyzes code quality metrics and provides actionable insights
+ *
+ * ADR-051: Added LLM enhancement for AI-powered quality insights
  */
 export class QualityAnalyzerService implements IQualityAnalyzerService {
   private readonly config: QualityAnalyzerConfig;
   private readonly metricsAnalyzer: CodeMetricsAnalyzer;
+  private readonly memory: MemoryBackend;
+  private readonly llmRouter?: HybridRouter;
 
+  /**
+   * Creates a QualityAnalyzerService instance
+   *
+   * Supports two constructor signatures for backward compatibility:
+   * 1. Old: (memory: MemoryBackend, config?: Partial<QualityAnalyzerConfig>)
+   * 2. New: (dependencies: QualityAnalyzerDependencies, config?: Partial<QualityAnalyzerConfig>)
+   */
   constructor(
-    private readonly memory: MemoryBackend,
+    memoryOrDependencies: MemoryBackend | QualityAnalyzerDependencies,
     config: Partial<QualityAnalyzerConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.metricsAnalyzer = getCodeMetricsAnalyzer();
+
+    // Support both old and new constructor signatures
+    if ('memory' in memoryOrDependencies) {
+      // New signature: dependencies object
+      this.memory = memoryOrDependencies.memory;
+      this.llmRouter = memoryOrDependencies.llmRouter;
+    } else {
+      // Old signature: direct MemoryBackend
+      this.memory = memoryOrDependencies;
+      this.llmRouter = undefined;
+    }
+  }
+
+  // ============================================================================
+  // ADR-051: LLM Enhancement Methods
+  // ============================================================================
+
+  /**
+   * Check if LLM insights are available and enabled
+   */
+  private isLLMInsightsAvailable(): boolean {
+    return this.config.enableLLMInsights === true && this.llmRouter !== undefined;
+  }
+
+  /**
+   * Get model ID for the configured tier
+   */
+  private getModelForTier(tier: number): string {
+    switch (tier) {
+      case 1: return 'claude-3-5-haiku-20241022';
+      case 2: return 'claude-sonnet-4-20250514';
+      case 3: return 'claude-sonnet-4-20250514';
+      case 4: return 'claude-opus-4-5-20251101';
+      default: return 'claude-sonnet-4-20250514';
+    }
+  }
+
+  /**
+   * Generate quality insights using LLM
+   * Provides AI-powered explanation and prioritized recommendations
+   */
+  async generateQualityInsightsWithLLM(
+    metrics: QualityMetricDetail[],
+    score: QualityScore,
+    codeContext?: string
+  ): Promise<LLMQualityInsights | null> {
+    if (!this.llmRouter) return null;
+
+    try {
+      const prompt = this.buildQualityInsightsPrompt(metrics, score, codeContext);
+      const modelId = this.getModelForTier(this.config.llmModelTier ?? 2);
+
+      const response: ChatResponse = await this.llmRouter.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert software quality engineer. Analyze quality metrics and provide actionable insights.
+
+Your response MUST be valid JSON with this exact structure:
+{
+  "explanation": "string - natural language explanation of quality issues",
+  "prioritizedRecommendations": [
+    {
+      "priority": number (1 is highest),
+      "title": "string",
+      "description": "string",
+      "estimatedImpact": "high" | "medium" | "low",
+      "estimatedEffort": "high" | "medium" | "low"
+    }
+  ],
+  "estimatedImpactOnScore": number (points improvement if recommendations followed),
+  "keySummary": "string - brief summary of key findings"
+}
+
+Focus on:
+1. Root cause analysis of quality issues
+2. Prioritized, actionable recommendations
+3. Realistic impact estimates
+4. Practical effort assessments`,
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        model: modelId,
+        maxTokens: this.config.llmMaxTokens ?? 2048,
+        temperature: 0.3, // Low temperature for consistent analysis
+      });
+
+      if (response.content && response.content.length > 0) {
+        return this.parseQualityInsightsResponse(response.content);
+      }
+
+      return null;
+    } catch (error) {
+      console.warn('[QualityAnalyzer] LLM insights generation failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Build prompt for quality insights generation
+   */
+  private buildQualityInsightsPrompt(
+    metrics: QualityMetricDetail[],
+    score: QualityScore,
+    codeContext?: string
+  ): string {
+    let prompt = `## Quality Analysis Results\n\n`;
+    prompt += `### Overall Score: ${score.overall}/100\n\n`;
+
+    prompt += `### Detailed Metrics:\n`;
+    for (const metric of metrics) {
+      prompt += `- **${metric.name}**: ${metric.value} (Rating: ${metric.rating}, Trend: ${metric.trend})\n`;
+    }
+    prompt += `\n`;
+
+    prompt += `### Score Breakdown:\n`;
+    prompt += `- Coverage: ${score.coverage}%\n`;
+    prompt += `- Complexity: ${score.complexity}\n`;
+    prompt += `- Maintainability: ${score.maintainability}\n`;
+    prompt += `- Security: ${score.security}\n\n`;
+
+    if (codeContext) {
+      prompt += `### Code Context:\n\`\`\`\n${codeContext.slice(0, 2000)}\n\`\`\`\n\n`;
+    }
+
+    prompt += `## Task\n`;
+    prompt += `Analyze these quality metrics and provide:\n`;
+    prompt += `1. A clear explanation of the quality issues identified\n`;
+    prompt += `2. Prioritized recommendations for improvement (most impactful first)\n`;
+    prompt += `3. Estimated impact on quality score if recommendations are followed\n`;
+    prompt += `4. A brief summary of key findings\n`;
+
+    return prompt;
+  }
+
+  /**
+   * Parse LLM response into structured insights
+   */
+  private parseQualityInsightsResponse(content: string): LLMQualityInsights | null {
+    try {
+      // Try to extract JSON from response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+
+        // Validate required fields
+        if (
+          typeof parsed.explanation === 'string' &&
+          Array.isArray(parsed.prioritizedRecommendations) &&
+          typeof parsed.estimatedImpactOnScore === 'number' &&
+          typeof parsed.keySummary === 'string'
+        ) {
+          return {
+            explanation: parsed.explanation,
+            prioritizedRecommendations: parsed.prioritizedRecommendations.map(
+              (rec: {
+                priority?: number;
+                title?: string;
+                description?: string;
+                estimatedImpact?: string;
+                estimatedEffort?: string;
+              }, index: number) => ({
+                priority: rec.priority ?? index + 1,
+                title: rec.title ?? 'Recommendation',
+                description: rec.description ?? '',
+                estimatedImpact: this.normalizeImpact(rec.estimatedImpact),
+                estimatedEffort: this.normalizeEffort(rec.estimatedEffort),
+              })
+            ),
+            estimatedImpactOnScore: parsed.estimatedImpactOnScore,
+            keySummary: parsed.keySummary,
+          };
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn('[QualityAnalyzer] Failed to parse LLM insights response:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Normalize impact value to valid type
+   */
+  private normalizeImpact(value?: string): 'high' | 'medium' | 'low' {
+    const normalized = value?.toLowerCase();
+    if (normalized === 'high' || normalized === 'medium' || normalized === 'low') {
+      return normalized;
+    }
+    return 'medium';
+  }
+
+  /**
+   * Normalize effort value to valid type
+   */
+  private normalizeEffort(value?: string): 'high' | 'medium' | 'low' {
+    const normalized = value?.toLowerCase();
+    if (normalized === 'high' || normalized === 'medium' || normalized === 'low') {
+      return normalized;
+    }
+    return 'medium';
   }
 
   /**
@@ -109,11 +347,21 @@ export class QualityAnalyzerService implements IQualityAnalyzerService {
       // Generate recommendations based on metrics
       const recommendations = this.generateRecommendations(metricDetails, score);
 
+      // ADR-051: Generate LLM insights if enabled
+      let llmInsights: LLMQualityInsights | undefined;
+      if (this.isLLMInsightsAvailable()) {
+        const insights = await this.generateQualityInsightsWithLLM(metricDetails, score);
+        if (insights) {
+          llmInsights = insights;
+        }
+      }
+
       const report: QualityReport = {
         score,
         metrics: metricDetails,
         trends,
         recommendations,
+        llmInsights,
       };
 
       // Store the report
