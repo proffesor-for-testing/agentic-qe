@@ -3,7 +3,7 @@ name: qcsd-ideation-swarm
 description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins. Uses 5-tier browser cascade: Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch-fallback."
 category: qcsd-phases
 priority: critical
-version: 7.4.0
+version: 7.5.0
 tokenEstimate: 3500
 # DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
 domains:
@@ -33,6 +33,7 @@ execution:
 swarm_pattern: true
 parallel_batches: 2
 last_updated: 2026-01-28
+# v7.5.0 Changelog: Added HAS_VIDEO flag detection with /a11y-ally follow-up recommendation for video caption generation
 # v7.4.0 Changelog: Automated browser cascade via scripts/fetch-content.js with 30s per-tier timeouts
 # v7.2.0 Changelog: Added 5-tier browser cascade (Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch)
 html_output: true
@@ -154,6 +155,14 @@ const HAS_UX = (
   /onboarding|wizard|step.*step|progress/i.test(content) ||
   /feedback|rating|review|comment/i.test(content)
 );
+
+// Detect HAS_VIDEO (for a11y-ally follow-up recommendation)
+const HAS_VIDEO = (
+  /<video/i.test(content) ||
+  /youtube\.com\/embed|vimeo\.com|wistia\.com/i.test(content) ||
+  /\.mp4|\.webm|\.m3u8/i.test(content) ||
+  /data-video-url|data-mobile-url|data-desktop-url/i.test(content)
+);
 ```
 
 **You MUST output flag detection results before proceeding:**
@@ -172,10 +181,16 @@ const HAS_UX = (
 │  HAS_UX:       [TRUE/FALSE]                                 │
 │  Evidence:     [what triggered it - specific patterns]      │
 │                                                             │
+│  HAS_VIDEO:    [TRUE/FALSE]                                 │
+│  Evidence:     [video URLs found - for a11y follow-up]      │
+│                                                             │
 │  EXPECTED AGENTS:                                           │
 │  - Core: 3 (always)                                         │
 │  - Conditional: [count based on TRUE flags]                 │
 │  - TOTAL: [3 + conditional count]                           │
+│                                                             │
+│  FOLLOW-UP RECOMMENDED:                                     │
+│  - /a11y-ally: [YES if HAS_VIDEO=TRUE, else NO]            │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -398,13 +413,23 @@ After all agents complete and skills are invoked:
 1. **Read all agent reports**
 2. **Generate Executive Summary** → `${OUTPUT_FOLDER}/01-executive-summary.md`
 3. **Generate Consolidated Test Ideas** → `${OUTPUT_FOLDER}/06-test-ideas.md`
-4. **Store learnings in memory**:
+4. **Add Follow-up Recommendations** (if HAS_VIDEO=TRUE):
+   ```markdown
+   ## Recommended Follow-up Actions
+
+   | Action | Skill/Command | Reason |
+   |--------|---------------|--------|
+   | Generate Video Captions | `/a11y-ally ${URL}` | Video detected without captions - WCAG 1.2.2 compliance |
+   ```
+5. **Store learnings in memory**:
    ```bash
    npx @claude-flow/cli@latest memory store \
      --key "qcsd-${domain}-pattern" \
      --value "[key learnings from this analysis]" \
      --namespace patterns
    ```
+
+**IMPORTANT:** If HAS_VIDEO=TRUE, the Executive Summary MUST include a "Recommended Follow-up Actions" section recommending `/a11y-ally` for video caption generation. This is NOT automatic - it's a recommendation for the user to run separately.
 
 ### Report Filename Mapping
 
