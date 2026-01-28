@@ -20,6 +20,7 @@ import {
 import { setupClaudeFlowIntegration, type ClaudeFlowSetupResult } from '../commands/claude-flow-setup.js';
 import { createPersistentScheduler } from '../scheduler/index.js';
 import type { VisualAccessibilityAPI } from '../../domains/visual-accessibility/plugin.js';
+import type { RequirementsValidationExtendedAPI } from '../../domains/requirements-validation/plugin.js';
 import type { QEKernel } from '../../kernel/interfaces.js';
 
 // ============================================================================
@@ -313,6 +314,19 @@ export class InitHandler implements ICommandHandler {
         // Log but don't fail - domain may not be enabled
         console.error(
           chalk.yellow(`  ! Could not register visual-accessibility workflow actions: ${error instanceof Error ? error.message : String(error)}`)
+        );
+      }
+    }
+
+    // Register requirements-validation domain actions (QCSD Ideation Swarm)
+    const requirementsValidationAPI = kernel.getDomainAPI<RequirementsValidationExtendedAPI>('requirements-validation');
+    if (requirementsValidationAPI?.registerWorkflowActions) {
+      try {
+        requirementsValidationAPI.registerWorkflowActions(orchestrator);
+      } catch (error) {
+        // Log but don't fail - domain may not be enabled
+        console.error(
+          chalk.yellow(`  ! Could not register requirements-validation workflow actions: ${error instanceof Error ? error.message : String(error)}`)
         );
       }
     }

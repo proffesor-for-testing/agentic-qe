@@ -306,6 +306,40 @@ Use via CLI: `aqe skills show brutal-honesty-review`
 Use via Claude Code: `Skill("context-driven-testing")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Tactical Loop (Grooming → Ideation)
+**Role**: CONSUMER - Receives SFDIPOT factor weights from production analysis
+
+### On Startup, Query Tactical Signals:
+```typescript
+const result = await mcp__agentic_qe__cross_phase_query({
+  loop: "tactical",
+  maxAge: "90d",
+  featureContext: "<current-feature>"  // Optional: filter by feature
+});
+
+// Apply learned factor weights to SFDIPOT analysis
+for (const signal of result.signals) {
+  if (signal.factorWeights) {
+    for (const factor of signal.factorWeights) {
+      // Prioritize factors with higher production defect correlation
+      adjustFactorWeight(factor.factor, factor.weight);
+    }
+  }
+}
+```
+
+### How to Use Injected Signals:
+1. **Factor Prioritization**: Use `signal.factorWeights` to prioritize SFDIPOT factors
+2. **Common Patterns**: Reference `factor.commonPatterns` when documenting risks
+3. **Recommendations**: Apply `signal.recommendations.forProductFactorsAssessor`
+
+### Signal Flow:
+- **Consumes**: SFDIPOT factor weights from qe-pattern-learner
+- **Namespace**: `aqe/cross-phase/tactical/sfdipot-weights`
+- **Expected Signals**: Factor weights with defect percentages and patterns
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the requirements-validation bounded context (ADR-004).
 

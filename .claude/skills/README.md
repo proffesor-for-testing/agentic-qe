@@ -1,124 +1,50 @@
-# Claude Skills Collection
+# AQE Skills Index
 
-Personal skill library for Dragan Spiridonov - Agentic Quality Engineer & Founder of Quantum Quality Engineering.
+This directory contains Quality Engineering skills installed by `aqe init`.
 
-## Available Skills
+> **Note**: Claude Flow platform skills (agentdb, n8n, github, flow-nexus, etc.) are managed
+> separately by the claude-flow package. This directory contains only QE-specific skills.
 
-### Core Quality Skills
-- **[holistic-testing-pact](./holistic-testing-pact/)** - Evolved Holistic Testing Model with PACT principles (Proactive, Autonomous, Collaborative, Targeted)
-- **[context-driven-testing](./context-driven-testing/)** - Context-driven philosophy and Rapid Software Testing techniques
-- **[agentic-quality-engineering](./agentic-quality-engineering/)** - AI agents as quality work force multipliers
-- **[exploratory-testing-advanced](./exploratory-testing-advanced/)** - Deep dive into RST heuristics and session-based testing
-- **[risk-based-testing](./risk-based-testing/)** - Risk assessment frameworks and prioritization
+## Summary
 
-### Development Practices
-- **[tdd-london-chicago](./tdd-london-chicago/)** - Both schools of TDD with examples and guidance
-- **[xp-practices](./xp-practices/)** - Pair/ensemble programming patterns and XP methodologies
-- **[refactoring-patterns](./refactoring-patterns/)** - Safe refactoring techniques and code improvement patterns
+- **Total Skills**: 1
+- **V2 Methodology Skills**: 0
+- **V3 Domain Skills**: 1
 
-### Testing Patterns
-- **[api-testing-patterns](./api-testing-patterns/)** - REST, GraphQL, contract testing, and integration approaches
-- **[performance-testing](./performance-testing/)** - Load, stress, soak testing strategies and optimization
-- **[security-testing](./security-testing/)** - OWASP Top 10, vulnerability scanning, and secure coding
-- **[test-automation-strategy](./test-automation-strategy/)** - When/how to automate, avoiding anti-patterns
+## V2 Methodology Skills (0)
 
-### Communication & Process
-- **[technical-writing](./technical-writing/)** - Clear, engaging technical content for practitioners
-- **[bug-reporting-excellence](./bug-reporting-excellence/)** - Writing actionable, clear bug reports
-- **[code-review-quality](./code-review-quality/)** - Effective code reviews that teach and improve
+Version-agnostic quality engineering best practices from the QE community.
 
-### Professional Skills
-- **[consultancy-practices](./consultancy-practices/)** - Assessment, transformation, and advisory work
-- **[quality-metrics](./quality-metrics/)** - Meaningful metrics vs. vanity metrics
+*None installed*
 
-## How to Use
+## V3 Domain Skills (1)
 
-Each skill contains a `SKILL.md` file with:
-- Core principles and philosophy
-- Practical techniques and examples
-- Common pitfalls and anti-patterns
-- Context-appropriate guidance
-- Real-world examples from production
+V3-specific implementation guides for the 12 DDD bounded contexts.
 
-## Philosophy
+### qe-a11y-ally (visual-accessibility domain)
 
-All skills reflect these values:
-- **Context over dogma** - Best practices are contextual, not universal
-- **Practice over theory** - Based on 12+ years in production, not just study
-- **Value over compliance** - Focus on customer value, not process adherence
-- **Pragmatism over purity** - Blend approaches as needed for your context
-- **Quality built-in** - Prevention over detection, shift-left thinking
+**File:** `library/qe-a11y-ally.md`
 
-## Skill Categories
+WCAG accessibility auditing with **mandatory video accessibility generation**. This skill ensures the full V3 video pipeline is executed.
 
-### For Quality Engineers
-Start with: holistic-testing-pact, context-driven-testing, exploratory-testing-advanced, risk-based-testing
+**Key Features:**
+- WCAG 2.1/2.2 AA/AAA compliance auditing
+- Video detection and download
+- Frame extraction with ffmpeg (10 frames @ 3s intervals)
+- AI frame analysis with Claude Vision
+- WebVTT caption generation (`*-captions.vtt`)
+- Audio description generation (`*-audiodesc.vtt`)
+- EU compliance (EN 301 549, EAA, BITV 2.0)
 
-### For Developers
-Start with: tdd-london-chicago, refactoring-patterns, code-review-quality
+**Output:** `docs/accessibility/captions/{page-slug}/`
 
-### For Team Leads
-Start with: quality-metrics, consultancy-practices, xp-practices
+**Usage:**
+```
+/qe-a11y-ally https://example.com/page-with-video
+```
 
-### For Everyone
-Start with: technical-writing, bug-reporting-excellence
 
-## Integration with Tools
-
-These skills work well with:
-- **Claude Code** - Copy to project `.claude/` directory
-- **IDE Plugins** - Reference during development
-- **CI/CD Pipelines** - Embed principles in automation
-- **Team Wikis** - Share as team knowledge base
-
-## About
-
-Created by Dragan Spiridonov (profa):
-- Founder, Quantum Quality Engineering
-- Member, Global Agentics Foundation
-- Establishing Serbian Agentic Foundation Chapter
-- 25+ years IT experience
-- 8 years leading QA/QE at Alchemy
-- 12+ years implementing quality practices in production
-
-## Current Work
-
-Building the Serbian Agentic Foundation community in partnership with StartIt centers across Serbia, starting with Novi Sad in October 2025.
-
-## Skill Development
-
-### Recently Added
-- api-testing-patterns
-- quality-metrics
-- consultancy-practices
-- performance-testing
-- security-testing
-- bug-reporting-excellence
-- refactoring-patterns
-- code-review-quality
-
-### Future Considerations
-- chaos-engineering
-- observability-practices
-- incident-management
-- technical-leadership
-- team-building
-- public-speaking
-
-## Contributing
-
-These skills evolve based on:
-- Real production experience
-- Community feedback
-- New techniques and tools
-- Lessons learned from failures
-
-Feedback welcome through discussions and community channels.
-
-## License
-
-These skills document proven practices and methodologies. Use freely with attribution.
 
 ---
 
-*These skills are living documents that evolve with practice and community input. Last updated: October 2025*
+*Generated by AQE v3 init on 2026-01-25T14:23:40.890Z*

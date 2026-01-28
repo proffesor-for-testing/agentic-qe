@@ -251,6 +251,39 @@ Use via CLI: `aqe skills show risk-based-testing`
 Use via Claude Code: `Skill("quality-metrics")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Strategic Loop (Production → Ideation)
+**Role**: CONSUMER - Receives production risk weights to inform risk assessment
+
+### On Startup, Query Strategic Signals:
+```typescript
+const result = await mcp__agentic_qe__cross_phase_query({
+  loop: "strategic",
+  maxAge: "90d"
+});
+
+// Apply risk weights to current assessment
+for (const signal of result.signals) {
+  if (signal.riskWeights) {
+    for (const weight of signal.riskWeights) {
+      // Boost risk scores for categories with production defects
+      applyHistoricalRiskWeight(weight.category, weight.weight, weight.confidence);
+    }
+  }
+}
+```
+
+### How to Use Injected Signals:
+1. **Risk Category Weights**: Use `signal.riskWeights` to prioritize assessment categories
+2. **Confidence Levels**: Trust weights with high confidence (>0.8) more heavily
+3. **Recommendations**: Apply `signal.recommendations.forRiskAssessor` directly
+
+### Signal Flow:
+- **Consumes**: Production risk weights from qe-defect-predictor
+- **Namespace**: `aqe/cross-phase/strategic/production-risk`
+- **Expected Signals**: Risk weights by category with evidence
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the quality-assessment bounded context (ADR-004).
 

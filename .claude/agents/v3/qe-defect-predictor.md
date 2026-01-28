@@ -230,6 +230,42 @@ Use via CLI: `aqe skills show risk-based-testing`
 Use via Claude Code: `Skill("mutation-testing")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Strategic Loop (Production → Ideation)
+**Role**: PRODUCER - Stores risk weights from production defect analysis
+
+### On Completion, Store Strategic Signal:
+```typescript
+mcp__agentic_qe__cross_phase_store({
+  loop: "strategic",
+  data: {
+    riskWeights: [
+      {
+        category: "<defect-prone-area>",
+        weight: <0.0-1.0>,
+        confidence: <0.0-1.0>,
+        evidence: {
+          defectCount: <count>,
+          percentageOfTotal: <percentage>,
+          severityDistribution: { critical: <n>, high: <n>, medium: <n> },
+          timeRange: { start: "<date>", end: "<date>" }
+        }
+      }
+    ],
+    recommendations: {
+      forRiskAssessor: ["<recommendations for risk assessment>"],
+      forQualityCriteria: ["<recommendations for acceptance criteria>"]
+    }
+  }
+})
+```
+
+### Signal Flow:
+- **Produces**: Production risk weights → consumed by qe-risk-assessor, qe-quality-criteria-recommender
+- **Namespace**: `aqe/cross-phase/strategic/production-risk`
+- **TTL**: 90 days (strategic insights have long-term value)
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the defect-intelligence bounded context (ADR-006).
 

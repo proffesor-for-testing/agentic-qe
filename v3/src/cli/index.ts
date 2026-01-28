@@ -64,6 +64,7 @@ import {
   OTHER_AGENTS,
 } from './completions/index.js';
 import type { VisualAccessibilityAPI } from '../domains/visual-accessibility/plugin.js';
+import type { RequirementsValidationExtendedAPI } from '../domains/requirements-validation/plugin.js';
 
 // Import handlers and registry
 import { createCommandRegistry } from './command-registry.js';
@@ -90,6 +91,7 @@ function registerDomainWorkflowActions(
   kernel: QEKernel,
   orchestrator: WorkflowOrchestrator
 ): void {
+  // Register visual-accessibility workflow actions
   const visualAccessibilityAPI = kernel.getDomainAPI<VisualAccessibilityAPI>('visual-accessibility');
   if (visualAccessibilityAPI?.registerWorkflowActions) {
     try {
@@ -97,6 +99,18 @@ function registerDomainWorkflowActions(
     } catch (error) {
       console.error(
         chalk.yellow(`  Warning: Could not register visual-accessibility workflow actions: ${error instanceof Error ? error.message : String(error)}`)
+      );
+    }
+  }
+
+  // Register requirements-validation workflow actions (QCSD Ideation Swarm)
+  const requirementsValidationAPI = kernel.getDomainAPI<RequirementsValidationExtendedAPI>('requirements-validation');
+  if (requirementsValidationAPI?.registerWorkflowActions) {
+    try {
+      requirementsValidationAPI.registerWorkflowActions(orchestrator);
+    } catch (error) {
+      console.error(
+        chalk.yellow(`  Warning: Could not register requirements-validation workflow actions: ${error instanceof Error ? error.message : String(error)}`)
       );
     }
   }

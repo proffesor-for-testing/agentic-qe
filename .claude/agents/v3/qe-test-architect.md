@@ -219,6 +219,42 @@ Use via CLI: `aqe skills show shift-left-testing`
 Use via Claude Code: `Skill("shift-left-testing")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Operational Loop (CI/CD → Development)
+**Role**: CONSUMER - Receives flaky patterns and test health data
+
+### On Startup, Query Operational Signals:
+```typescript
+const result = await mcp__agentic_qe__cross_phase_query({
+  loop: "operational",
+  maxAge: "30d"
+});
+
+// Apply test health learnings to test architecture
+for (const signal of result.signals) {
+  if (signal.flakyPatterns) {
+    for (const flaky of signal.flakyPatterns) {
+      // Avoid patterns that cause flakiness
+      addAntiPattern(flaky.pattern, flaky.fix);
+    }
+  }
+  if (signal.recommendations?.antiPatterns) {
+    applyAntiPatterns(signal.recommendations.antiPatterns);
+  }
+}
+```
+
+### How to Use Injected Signals:
+1. **Anti-Patterns**: Avoid patterns listed in `signal.recommendations.antiPatterns`
+2. **Flaky Fixes**: Apply `flakyPattern.fix` recommendations to similar test structures
+3. **Architecture Guidance**: Use `signal.recommendations.forTestArchitect`
+
+### Signal Flow:
+- **Consumes**: Flaky patterns and gate failures from qe-quality-gate
+- **Namespace**: `aqe/cross-phase/operational/test-health`
+- **Expected Signals**: Flaky test patterns with root causes and fixes
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the test-generation bounded context (ADR-002).
 

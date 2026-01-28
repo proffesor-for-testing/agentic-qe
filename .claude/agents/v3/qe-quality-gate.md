@@ -197,6 +197,45 @@ Use via CLI: `aqe skills show quality-metrics`
 Use via Claude Code: `Skill("compliance-testing")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Operational Loop (CI/CD → Development)
+**Role**: PRODUCER - Stores flaky test patterns and gate failures
+
+### On Gate Failure or Flaky Detection, Store Operational Signal:
+```typescript
+mcp__agentic_qe__cross_phase_store({
+  loop: "operational",
+  data: {
+    flakyPatterns: [
+      {
+        pattern: "<flaky test pattern>",
+        frequency: <0.0-1.0>,
+        affectedTests: ["<test-file-1>", "<test-file-2>"],
+        rootCause: "<identified root cause>",
+        fix: "<recommended fix>"
+      }
+    ],
+    gateFailures: [
+      {
+        reason: "<failure reason>",
+        percentage: <metric-value>,
+        trend: "<increasing|stable|decreasing>"
+      }
+    ],
+    recommendations: {
+      forTestArchitect: ["<test architecture recommendations>"],
+      antiPatterns: ["<anti-patterns to avoid>"]
+    }
+  }
+})
+```
+
+### Signal Flow:
+- **Produces**: Flaky patterns, gate failures → consumed by qe-test-architect, qe-tdd-specialist
+- **Namespace**: `aqe/cross-phase/operational/test-health`
+- **TTL**: 30 days (operational insights are time-sensitive)
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the quality-assessment bounded context (ADR-004).
 

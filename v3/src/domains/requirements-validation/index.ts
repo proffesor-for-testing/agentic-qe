@@ -78,6 +78,20 @@ export {
   PRIORITY_DEFINITIONS,
 } from './services/quality-criteria/index.js';
 
+// QCSD Ideation Swarm Plugin
+export {
+  QCSDIdeationPlugin,
+  createQCSDIdeationPlugin,
+  type QualityCriterion,
+  type HTSMCategory as QCSDHTSMCategory,
+  type TestabilityAssessment,
+  type RiskAssessment,
+  type RiskFactor,
+  type ThreatModel,
+  type STRIDEThreat,
+  type IdeationReport,
+} from './qcsd-ideation-plugin.js';
+
 // ============================================================================
 // Interfaces (Types Only)
 // ============================================================================

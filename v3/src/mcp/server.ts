@@ -41,6 +41,15 @@ import {
   handleMemoryDelete,
   handleMemoryUsage,
   handleMemoryShare,
+  // Cross-phase handlers
+  handleCrossPhaseStore,
+  handleCrossPhaseQuery,
+  handleAgentComplete,
+  handlePhaseStart,
+  handlePhaseEnd,
+  handleCrossPhaseStats,
+  handleFormatSignals,
+  handleCrossPhaseCleanup,
 } from './handlers';
 
 // ============================================================================
@@ -535,6 +544,114 @@ const MEMORY_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
   },
 ];
 
+const CROSS_PHASE_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
+  // Cross-Phase Store
+  {
+    definition: {
+      name: 'mcp__agentic_qe__cross_phase_store',
+      description: 'Store a cross-phase signal for QCSD feedback loops (strategic, tactical, operational, quality-criteria)',
+      category: 'cross-phase',
+      parameters: [
+        { name: 'loop', type: 'string', description: 'Feedback loop type', required: true, enum: ['strategic', 'tactical', 'operational', 'quality-criteria'] },
+        { name: 'data', type: 'object', description: 'Signal data (riskWeights, factorWeights, flakyPatterns, etc.)', required: true },
+      ],
+    },
+    handler: handleCrossPhaseStore,
+  },
+
+  // Cross-Phase Query
+  {
+    definition: {
+      name: 'mcp__agentic_qe__cross_phase_query',
+      description: 'Query cross-phase signals by loop type with optional filters',
+      category: 'cross-phase',
+      parameters: [
+        { name: 'loop', type: 'string', description: 'Feedback loop type', required: true, enum: ['strategic', 'tactical', 'operational', 'quality-criteria'] },
+        { name: 'maxAge', type: 'string', description: 'Maximum signal age (e.g., "30d", "24h")', required: false },
+        { name: 'filter', type: 'object', description: 'Additional filters', required: false },
+      ],
+    },
+    handler: handleCrossPhaseQuery,
+  },
+
+  // Agent Complete Hook
+  {
+    definition: {
+      name: 'mcp__agentic_qe__agent_complete',
+      description: 'Trigger cross-phase hooks when an agent completes (auto-stores relevant signals)',
+      category: 'cross-phase',
+      parameters: [
+        { name: 'agentName', type: 'string', description: 'Name of the completed agent', required: true },
+        { name: 'result', type: 'object', description: 'Agent result data', required: true },
+      ],
+    },
+    handler: handleAgentComplete,
+  },
+
+  // Phase Start Hook
+  {
+    definition: {
+      name: 'mcp__agentic_qe__phase_start',
+      description: 'Trigger phase start hooks to get injected cross-phase signals for agents',
+      category: 'cross-phase',
+      parameters: [
+        { name: 'phase', type: 'string', description: 'QCSD phase name', required: true, enum: ['ideation', 'grooming', 'development', 'cicd', 'production'] },
+        { name: 'context', type: 'object', description: 'Phase context data', required: false },
+      ],
+    },
+    handler: handlePhaseStart,
+  },
+
+  // Phase End Hook
+  {
+    definition: {
+      name: 'mcp__agentic_qe__phase_end',
+      description: 'Trigger phase end hooks to store accumulated signals',
+      category: 'cross-phase',
+      parameters: [
+        { name: 'phase', type: 'string', description: 'QCSD phase name', required: true, enum: ['ideation', 'grooming', 'development', 'cicd', 'production'] },
+        { name: 'context', type: 'object', description: 'Phase result data', required: false },
+      ],
+    },
+    handler: handlePhaseEnd,
+  },
+
+  // Cross-Phase Stats
+  {
+    definition: {
+      name: 'mcp__agentic_qe__cross_phase_stats',
+      description: 'Get cross-phase memory statistics (total signals, by loop, by namespace)',
+      category: 'cross-phase',
+      parameters: [],
+    },
+    handler: handleCrossPhaseStats,
+  },
+
+  // Format Signals
+  {
+    definition: {
+      name: 'mcp__agentic_qe__format_signals',
+      description: 'Format cross-phase signals for injection into agent prompts',
+      category: 'cross-phase',
+      parameters: [
+        { name: 'signals', type: 'array', description: 'Signals to format', required: true },
+      ],
+    },
+    handler: handleFormatSignals,
+  },
+
+  // Cross-Phase Cleanup
+  {
+    definition: {
+      name: 'mcp__agentic_qe__cross_phase_cleanup',
+      description: 'Clean up expired cross-phase signals',
+      category: 'cross-phase',
+      parameters: [],
+    },
+    handler: handleCrossPhaseCleanup,
+  },
+];
+
 // ============================================================================
 // MCP Server Class
 // ============================================================================
@@ -577,6 +694,11 @@ export class MCPServer {
 
     // Register memory tools
     for (const tool of MEMORY_TOOLS) {
+      this.registry.register(tool.definition, tool.handler as any);
+    }
+
+    // Register cross-phase tools
+    for (const tool of CROSS_PHASE_TOOLS) {
       this.registry.register(tool.definition, tool.handler as any);
     }
 

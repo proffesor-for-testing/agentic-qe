@@ -88,3 +88,17 @@ export {
 
 // Re-export AgentBrowserClient for direct instantiation if needed
 export { AgentBrowserClient } from './agent-browser/client';
+
+// Web Content Fetcher - 5-tier browser cascade
+export {
+  // Main class
+  WebContentFetcher,
+  // Factory functions
+  createWebContentFetcher,
+  fetchWebContent,
+  // Types
+  type FetchTier,
+  type FetchStatus,
+  type WebContentFetchResult,
+  type WebContentFetchOptions,
+} from './web-content-fetcher';

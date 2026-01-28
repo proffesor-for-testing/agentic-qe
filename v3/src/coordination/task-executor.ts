@@ -1337,6 +1337,7 @@ export class DomainTaskExecutor {
       'optimize-learning': 'learning-optimization',
       'cross-domain-workflow': 'learning-optimization',
       'protocol-execution': 'learning-optimization',
+      'ideation-assessment': 'requirements-validation',
     };
     return domainMap[taskType] || 'learning-optimization';
   }

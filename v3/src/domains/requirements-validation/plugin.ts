@@ -42,6 +42,12 @@ import {
   TestabilityScorerService,
   TestabilityScorerConfig,
 } from './services/testability-scorer.js';
+import {
+  QCSDIdeationPlugin,
+  createQCSDIdeationPlugin,
+  type IdeationReport,
+} from './qcsd-ideation-plugin.js';
+import type { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator.js';
 
 // ============================================================================
 // Plugin Configuration
@@ -113,6 +119,12 @@ export interface RequirementsValidationExtendedAPI extends RequirementsValidatio
 
   /** Get active workflows */
   getActiveWorkflows(): WorkflowStatus[];
+
+  /**
+   * Register QCSD Ideation workflow actions with the orchestrator
+   * This enables the qcsd-ideation-swarm workflow to execute
+   */
+  registerWorkflowActions(orchestrator: WorkflowOrchestrator): void;
 }
 
 // ============================================================================
@@ -128,6 +140,7 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
   private validator: RequirementsValidatorService | null = null;
   private bddWriter: BDDScenarioWriterService | null = null;
   private testabilityScorer: TestabilityScorerService | null = null;
+  private qcsdIdeationPlugin: QCSDIdeationPlugin | null = null;
   private readonly pluginConfig: RequirementsValidationPluginConfig;
 
   constructor(
@@ -191,9 +204,25 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
       getBDDWriter: () => this.bddWriter!,
       getTestabilityScorer: () => this.testabilityScorer!,
       getActiveWorkflows: () => this.coordinator?.getActiveWorkflows() || [],
+
+      // QCSD Ideation workflow registration
+      registerWorkflowActions: this.registerWorkflowActions.bind(this),
     };
 
     return api as T;
+  }
+
+  /**
+   * Register QCSD Ideation workflow actions with the orchestrator
+   */
+  private registerWorkflowActions(orchestrator: WorkflowOrchestrator): void {
+    this.ensureInitialized();
+
+    if (!this.qcsdIdeationPlugin) {
+      throw new Error('QCSD Ideation Plugin not initialized');
+    }
+
+    this.qcsdIdeationPlugin.registerWorkflowActions(orchestrator);
   }
 
   // ============================================================================
@@ -227,6 +256,10 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
 
     await this.coordinator.initialize();
 
+    // Create and initialize QCSD Ideation Plugin
+    this.qcsdIdeationPlugin = createQCSDIdeationPlugin(this.memory);
+    await this.qcsdIdeationPlugin.initialize();
+
     // Issue #205 fix: Start with 'idle' status (0 agents)
     this.updateHealth({
       status: 'idle',
@@ -241,10 +274,15 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
       await this.coordinator.dispose();
     }
 
+    if (this.qcsdIdeationPlugin) {
+      await this.qcsdIdeationPlugin.dispose();
+    }
+
     this.coordinator = null;
     this.validator = null;
     this.bddWriter = null;
     this.testabilityScorer = null;
+    this.qcsdIdeationPlugin = null;
   }
 
   protected subscribeToEvents(): void {

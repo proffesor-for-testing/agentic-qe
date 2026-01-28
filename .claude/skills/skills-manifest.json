@@ -1,9 +1,15 @@
 {
-  "version": "1.1.0",
-  "generated": "2025-12-02T00:00:00.000Z",
-  "totalSkills": 41,
+  "version": "1.2.0",
+  "generated": "2026-01-27T00:00:00.000Z",
+  "totalSkills": 43,
   "description": "Agentic QE Fleet skills manifest - Quality Engineering focused skills only. Claude Flow platform skills are managed separately.",
   "categories": {
+    "qcsd-phases": {
+      "description": "QCSD (Quality Conscious Software Delivery) phase swarms for shift-left quality",
+      "priority": "critical",
+      "autoInvoke": true,
+      "skills": ["qcsd-ideation-swarm"]
+    },
     "qe-core": {
       "description": "Foundational quality engineering philosophy and agentic principles",
       "priority": "critical",
@@ -27,6 +33,7 @@
         "security-testing",
         "performance-testing",
         "accessibility-testing",
+        "a11y-ally",
         "mobile-testing",
         "visual-testing-advanced",
         "localization-testing",
@@ -81,6 +88,48 @@
     }
   },
   "skills": {
+    "qcsd-ideation-swarm": {
+      "id": "qcsd-ideation-swarm",
+      "name": "QCSD Ideation Swarm",
+      "description": "QCSD Ideation phase swarm using HTSM v6.3, Risk Storming, and Testability analysis. Supports epic/story analysis and live URL quality assessment.",
+      "category": "qcsd-phases",
+      "priority": "critical",
+      "file": "qcsd-ideation-swarm/SKILL.md",
+      "tokenEstimate": 3500,
+      "optimizationStatus": "active",
+      "optimizationVersion": "7.1",
+      "lastOptimized": "2026-01-27",
+      "tags": ["qcsd", "ideation", "htsm", "quality-criteria", "risk-storming", "testability", "swarm", "url-analysis"],
+      "dependencies": ["agentic-quality-engineering", "holistic-testing-pact"],
+      "agents": ["qe-quality-criteria-recommender", "qe-risk-assessor", "qe-requirements-validator", "qe-accessibility-auditor", "qe-security-auditor", "qe-qx-partner"],
+      "relatedSkills": ["testability-scoring", "risk-based-testing", "context-driven-testing", "holistic-testing-pact"],
+      "triggers": {
+        "patterns": [
+          "qcsd analysis",
+          "qcsd ideation",
+          "quality criteria analysis",
+          "htsm analysis",
+          "evaluate with qcsd",
+          "run qcsd",
+          "shift-left quality",
+          "quality criteria session",
+          "risk storming"
+        ],
+        "autoInvoke": true,
+        "enforcementLevel": "strict"
+      },
+      "execution": {
+        "primary": "task-tool",
+        "parallel_batches": 2,
+        "requiresFlagDetection": true,
+        "requiresDirectWrite": true,
+        "conditionalAgents": {
+          "qe-accessibility-auditor": "HAS_UI",
+          "qe-security-auditor": "HAS_SECURITY",
+          "qe-qx-partner": "HAS_UX"
+        }
+      }
+    },
     "agentic-quality-engineering": {
       "id": "agentic-quality-engineering",
       "name": "Agentic Quality Engineering",
@@ -261,6 +310,22 @@
       "tags": ["accessibility", "wcag", "a11y", "compliance"],
       "dependencies": ["agentic-quality-engineering"],
       "agents": ["qe-quality-analyzer"]
+    },
+    "a11y-ally": {
+      "id": "a11y-ally",
+      "name": "A11y Ally - Video Accessibility Generator",
+      "description": "WCAG accessibility auditing with MANDATORY video accessibility generation. HYBRID approach: WebFetch for static sites, MCP Browser automation for dynamic/SPA sites. Downloads videos, extracts frames with ffmpeg, analyzes with Claude Vision, generates WebVTT captions and audio descriptions.",
+      "category": "specialized-testing",
+      "priority": "critical",
+      "file": "a11y-ally/SKILL.md",
+      "tokenEstimate": 3200,
+      "optimizationStatus": "active",
+      "optimizationVersion": "3.1",
+      "lastOptimized": "2026-01-26",
+      "tags": ["accessibility", "wcag", "a11y", "video", "captions", "audiodesc", "vtt", "blind", "deaf", "eu-compliance", "dynamic-video", "spa", "browser-automation"],
+      "dependencies": ["accessibility-testing"],
+      "agents": ["qe-accessibility-auditor", "qe-visual-tester"],
+      "mcpTools": ["mcp__claude-flow_alpha__browser_open", "mcp__claude-flow_alpha__browser_eval", "mcp__claude-flow_alpha__browser_screenshot"]
     },
     "mobile-testing": {
       "id": "mobile-testing",
@@ -622,9 +687,12 @@
       "qe-api-contract-validator": ["api-testing-patterns", "contract-testing"],
       "qe-flaky-test-hunter": ["exploratory-testing-advanced", "sherlock-review", "bug-reporting-excellence"],
       "qe-visual-tester": ["visual-testing-advanced"],
-      "qe-chaos-engineer": ["chaos-engineering-resilience"]
+      "qe-chaos-engineer": ["chaos-engineering-resilience"],
+      "qe-accessibility-auditor": ["a11y-ally", "accessibility-testing", "compliance-testing"]
     },
     "byTask": {
+      "qcsd-analysis": ["qcsd-ideation-swarm", "testability-scoring", "risk-based-testing", "context-driven-testing", "holistic-testing-pact"],
+      "url-quality-analysis": ["qcsd-ideation-swarm", "a11y-ally", "security-testing", "performance-testing"],
       "test-generation": ["tdd-london-chicago", "api-testing-patterns", "test-design-techniques"],
       "coverage-analysis": ["holistic-testing-pact", "quality-metrics", "testability-scoring"],
       "security-testing": ["security-testing", "compliance-testing"],
@@ -632,13 +700,14 @@
       "code-review": ["code-review-quality", "brutal-honesty-review", "sherlock-review"],
       "ci-cd-setup": ["cicd-pipeline-qe-orchestrator", "shift-left-testing", "shift-right-testing"],
       "mobile-testing": ["mobile-testing", "accessibility-testing", "visual-testing-advanced"],
-      "api-testing": ["api-testing-patterns", "contract-testing"]
+      "api-testing": ["api-testing-patterns", "contract-testing"],
+      "accessibility-audit": ["a11y-ally", "accessibility-testing", "compliance-testing"]
     }
   },
   "optimizationTracking": {
     "targetReduction": "40-50%",
-    "optimizedSkills": 6,
-    "totalSkills": 41,
+    "optimizedSkills": 7,
+    "totalSkills": 42,
     "progress": "14.6%",
     "tokensSaved": 10200,
     "optimizedList": [
@@ -647,7 +716,8 @@
       "api-testing-patterns",
       "security-testing",
       "performance-testing",
-      "cicd-pipeline-qe-orchestrator"
+      "cicd-pipeline-qe-orchestrator",
+      "a11y-ally"
     ],
     "nextPhase": [
       "holistic-testing-pact",
