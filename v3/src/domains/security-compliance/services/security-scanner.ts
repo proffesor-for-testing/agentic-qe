@@ -26,6 +26,9 @@ import type {
 } from '../interfaces.js';
 import { OSVClient, ParsedVulnerability } from '../../../shared/security/index.js';
 
+// ADR-051: LLM Router for AI-enhanced security analysis
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+
 // ============================================================================
 // Service Interfaces
 // ============================================================================
@@ -91,6 +94,19 @@ export interface SecurityScannerConfig {
   enableFalsePositiveDetection: boolean;
   dastMaxDepth: number;
   dastActiveScanning: boolean;
+  /** ADR-051: Enable LLM-powered vulnerability analysis */
+  enableLLMAnalysis: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier: number;
+}
+
+/**
+ * Dependencies for SecurityScannerService
+ * ADR-051: Added LLM router for AI-enhanced analysis
+ */
+export interface SecurityScannerDependencies {
+  memory: MemoryBackend;
+  llmRouter?: HybridRouter;
 }
 
 const DEFAULT_CONFIG: SecurityScannerConfig = {
@@ -100,6 +116,8 @@ const DEFAULT_CONFIG: SecurityScannerConfig = {
   enableFalsePositiveDetection: true,
   dastMaxDepth: 5,
   dastActiveScanning: false,
+  enableLLMAnalysis: true, // On by default - opt-out (ADR-051)
+  llmModelTier: 4, // Opus for security analysis (needs expert reasoning)
 };
 
 // ============================================================================
@@ -657,13 +675,127 @@ export class SecurityScannerService implements ISecurityScannerService {
   private readonly config: SecurityScannerConfig;
   private readonly activeScans: Map<string, ScanStatus> = new Map();
   private readonly osvClient: OSVClient;
+  private readonly memory: MemoryBackend;
+  private readonly llmRouter?: HybridRouter;
 
   constructor(
-    private readonly memory: MemoryBackend,
+    dependencies: SecurityScannerDependencies | MemoryBackend,
     config: Partial<SecurityScannerConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.osvClient = new OSVClient({ enableCache: true });
+
+    // Support both old and new constructor signatures
+    if ('memory' in dependencies) {
+      this.memory = dependencies.memory;
+      this.llmRouter = dependencies.llmRouter;
+    } else {
+      this.memory = dependencies;
+    }
+  }
+
+  // ============================================================================
+  // ADR-051: LLM Enhancement Methods
+  // ============================================================================
+
+  /**
+   * Check if LLM analysis is available and enabled
+   */
+  private isLLMAnalysisAvailable(): boolean {
+    return this.config.enableLLMAnalysis && this.llmRouter !== undefined;
+  }
+
+  /**
+   * Get model ID for the configured tier
+   */
+  private getModelForTier(tier: number): string {
+    switch (tier) {
+      case 1: return 'claude-3-5-haiku-20241022';
+      case 2: return 'claude-sonnet-4-20250514';
+      case 3: return 'claude-sonnet-4-20250514';
+      case 4: return 'claude-opus-4-5-20251101';
+      default: return 'claude-opus-4-5-20251101'; // Default to Opus for security
+    }
+  }
+
+  /**
+   * Analyze vulnerability with LLM for deeper insights
+   * Provides context-aware remediation advice
+   */
+  private async analyzeVulnerabilityWithLLM(
+    vuln: Vulnerability,
+    codeContext: string
+  ): Promise<RemediationAdvice> {
+    if (!this.llmRouter) {
+      return this.getDefaultRemediation(vuln);
+    }
+
+    try {
+      const modelId = this.getModelForTier(this.config.llmModelTier);
+
+      const response: ChatResponse = await this.llmRouter.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are a senior security engineer. Analyze the vulnerability and provide:
+1. Detailed explanation of the risk
+2. Code example showing the fix
+3. Effort estimate (trivial/minor/moderate/major)
+4. Whether it's automatable
+Be specific to the code context provided. Return JSON with: { "description": "", "fixExample": "", "estimatedEffort": "minor", "automatable": false }`,
+          },
+          {
+            role: 'user',
+            content: `Vulnerability: ${vuln.title} (${vuln.category})
+Severity: ${vuln.severity}
+Description: ${vuln.description}
+
+Code context:
+\`\`\`
+${codeContext}
+\`\`\`
+
+Provide detailed remediation advice specific to this code.`,
+          },
+        ],
+        model: modelId,
+        maxTokens: 1500,
+        temperature: 0.2, // Low temperature for accurate security advice
+      });
+
+      if (response.content) {
+        try {
+          const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const analysis = JSON.parse(jsonMatch[0]);
+            return {
+              description: analysis.description || vuln.remediation?.description || 'Review and fix the vulnerability',
+              fixExample: analysis.fixExample || vuln.remediation?.fixExample,
+              estimatedEffort: analysis.estimatedEffort || vuln.remediation?.estimatedEffort || 'moderate',
+              automatable: analysis.automatable ?? vuln.remediation?.automatable ?? false,
+              llmEnhanced: true,
+            };
+          }
+        } catch {
+          // JSON parse failed - use default
+        }
+      }
+    } catch (error) {
+      console.warn('[SecurityScanner] LLM analysis failed:', error);
+    }
+
+    return this.getDefaultRemediation(vuln);
+  }
+
+  /**
+   * Get default remediation advice without LLM
+   */
+  private getDefaultRemediation(vuln: Vulnerability): RemediationAdvice {
+    return vuln.remediation || {
+      description: 'Review and fix the vulnerability following security best practices',
+      estimatedEffort: 'moderate',
+      automatable: false,
+    };
   }
 
   // ==========================================================================

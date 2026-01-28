@@ -224,3 +224,24 @@ export {
   createHighAccuracyEngine,
   type CreateConsensusEngineConfig,
 } from './factory';
+
+// ============================================================================
+// Domain Finding Types (for cross-domain consensus)
+// ============================================================================
+
+export {
+  createDomainFinding,
+  isHighStakesFinding,
+  generateFindingId,
+} from './domain-findings';
+
+export type {
+  DomainFinding,
+  FindingSeverity,
+  FindingLocation as DomainFindingLocation,
+  FindingEvidence as DomainFindingEvidence,
+  SecurityFindingPayload,
+  // CoverageGapPayload - already exported from shared/events
+  DefectPredictionPayload,
+  ContractViolationPayload,
+} from './domain-findings';

@@ -28,8 +28,8 @@ describe('QE Task Router', () => {
     it('should initialize successfully', () => {
       const stats = router.getStats();
       expect(stats.initialized).toBe(true);
-      // Agent count updated to match current QE_AGENT_REGISTRY size
-      expect(stats.agentCount).toBe(94);
+      // Agent count updated to match current QE_AGENT_REGISTRY size (includes new agents)
+      expect(stats.agentCount).toBe(96);
     });
 
     it('should be idempotent', async () => {

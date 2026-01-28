@@ -11,7 +11,7 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base';
 import { ToolResult } from '../../types';
-import { VisualTesterService } from '../../../domains/visual-accessibility/services/visual-tester';
+import { createVisualTesterService, VisualTesterService } from '../../../domains/visual-accessibility/services/visual-tester';
 import { AccessibilityTesterService } from '../../../domains/visual-accessibility/services/accessibility-tester';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 
@@ -173,7 +173,7 @@ export class VisualCompareTool extends MCPToolBase<VisualCompareParams, VisualCo
   private async getService(context: MCPToolContext): Promise<VisualTesterService> {
     if (!this.visualTester) {
       const memory = (context as any).memory as MemoryBackend | undefined;
-      this.visualTester = new VisualTesterService(
+      this.visualTester = createVisualTesterService(
         memory || await getSharedMemoryBackend()
       );
     }

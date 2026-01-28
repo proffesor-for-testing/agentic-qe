@@ -44,6 +44,34 @@ import type {
 import type { VibiumClient } from '../../integrations/vibium';
 
 // ============================================================================
+// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
+// ============================================================================
+
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type IMinCutAwareDomain,
+  type MinCutAwareConfig,
+} from '../../coordination/mixins/mincut-aware-domain';
+
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type IConsensusEnabledDomain,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain';
+
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
+
+import {
+  type DomainFinding,
+  createDomainFinding,
+} from '../../coordination/consensus/domain-findings';
+
+import type { DomainName } from '../../shared/types';
+import type { WeakVertex } from '../../coordination/mincut/interfaces';
+
+// ============================================================================
 // Coordinator Configuration
 // ============================================================================
 
@@ -85,11 +113,29 @@ export interface TestExecutionCoordinatorConfig {
    * Vibium client for E2E testing (dependency injection)
    */
   vibiumClient?: VibiumClient;
+  // MinCut integration config (ADR-047)
+  enableMinCutAwareness: boolean;
+  topologyHealthThreshold: number;
+  pauseOnCriticalTopology: boolean;
+  // Consensus integration config (MM-001)
+  enableConsensus: boolean;
+  consensusThreshold: number;
+  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
+  consensusMinModels: number;
 }
 
 const DEFAULT_COORDINATOR_CONFIG: TestExecutionCoordinatorConfig = {
   simulateForTesting: false,
   enablePrioritization: true,
+  // MinCut integration defaults (ADR-047)
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
+  // Consensus integration defaults (MM-001)
+  enableConsensus: true,
+  consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
+  consensusMinModels: 2,
 };
 
 // ============================================================================
@@ -108,6 +154,18 @@ export interface ITestExecutionCoordinator extends TestExecutionAPI {
 
   /** Cancel a running test */
   cancelRun(runId: string): Promise<Result<void, Error>>;
+
+  // MinCut integration methods (ADR-047)
+  setMinCutBridge(bridge: QueenMinCutBridge): void;
+  isTopologyHealthy(): boolean;
+  /** Get topology-based routing for target domains */
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[];
+  /** Get weak vertices in this domain */
+  getDomainWeakVertices(): WeakVertex[];
+  /** Check if this domain is a weak point in topology */
+  isDomainWeakPoint(): boolean;
+  // Consensus integration methods (MM-001)
+  isConsensusAvailable(): boolean;
 }
 
 // ============================================================================
@@ -124,6 +182,15 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
   private readonly config: TestExecutionCoordinatorConfig;
   private initialized = false;
 
+  // MinCut topology awareness mixin (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // Consensus verification mixin (MM-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
+
+  // Domain identifier for mixin initialization
+  private readonly domainName = 'test-execution';
+
   constructor(
     private readonly eventBus: EventBus,
     memory: MemoryBackend,
@@ -135,8 +202,27 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
     };
     this.config = fullConfig;
 
+    // Initialize MinCut-aware mixin (ADR-047)
+    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
+    });
+
+    // Initialize Consensus-enabled mixin (MM-001)
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      verifyFindingTypes: ['flaky-test-detection', 'test-failure-analysis', 'retry-strategy'],
+      strategy: this.config.consensusStrategy,
+      minModels: this.config.consensusMinModels,
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+    });
+
     // Create services with appropriate configuration
-    this.executor = new TestExecutorService(memory, {
+    this.executor = new TestExecutorService({ memory }, {
       simulateForTesting: fullConfig.simulateForTesting,
       ...fullConfig.executorConfig,
     });
@@ -175,6 +261,17 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
     // Subscribe to relevant events from other domains
     this.subscribeToEvents();
 
+    // Initialize Consensus engine if enabled (MM-001)
+    if (this.config.enableConsensus) {
+      try {
+        await (this.consensusMixin as any).initializeConsensus();
+        console.log(`[${this.domainName}] Consensus engine initialized`);
+      } catch (error) {
+        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
+        console.warn(`[${this.domainName}] Continuing without consensus verification`);
+      }
+    }
+
     this.initialized = true;
   }
 
@@ -182,6 +279,16 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
    * Dispose resources
    */
   async dispose(): Promise<void> {
+    // Dispose Consensus engine (MM-001)
+    try {
+      await (this.consensusMixin as any).disposeConsensus();
+    } catch (error) {
+      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
+    }
+
+    // Dispose MinCut mixin (ADR-047)
+    this.minCutMixin.dispose();
+
     // Cancel all active runs
     for (const runId of this.activeRuns) {
       await this.cancelRun(runId);
@@ -377,12 +484,27 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
 
   /**
    * Execute tests in parallel
+   * Enhanced with topology awareness per ADR-047
+   * Enhanced with consensus verification per MM-001
    */
   async executeParallel(request: ParallelExecutionRequest): Promise<Result<TestRunResult, Error>> {
     const runId = uuidv4();
     this.activeRuns.add(runId);
 
     try {
+      // ADR-047: Check topology health before expensive parallel operations
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, reducing parallel workers`);
+        // Reduce workers when topology is unhealthy
+        request = { ...request, workers: Math.max(1, Math.floor(request.workers / 2)) };
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        this.activeRuns.delete(runId);
+        return err(new Error('Parallel test execution paused: topology is in critical state'));
+      }
+
       // Prioritize tests if enabled
       let orderedTestFiles = request.testFiles;
       let prioritizationResult = null;
@@ -467,13 +589,37 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
 
   /**
    * Detect flaky tests
+   * Enhanced with consensus verification per MM-001 for high-confidence detections
    */
   async detectFlaky(request: FlakyDetectionRequest): Promise<Result<FlakyTestReport, Error>> {
     const result = await this.flakyDetector.detectFlaky(request);
 
     if (result.success) {
-      // Publish events for detected flaky tests
+      // Process each detected flaky test
+      const verifiedFlakyTests: typeof result.value.flakyTests = [];
+
       for (const flaky of result.value.flakyTests) {
+        // MM-001: Verify high-confidence flaky test detections using consensus
+        if (this.config.enableConsensus && flaky.failureRate > 0.3) {
+          const isVerified = await this.verifyFlakyTestDetection(
+            {
+              testId: flaky.testId,
+              testFile: flaky.file,
+              failureRate: flaky.failureRate,
+              pattern: flaky.pattern,
+            },
+            Math.min(0.9, flaky.failureRate + 0.3) // Confidence based on failure rate
+          );
+
+          if (!isVerified) {
+            console.log(`[${this.domainName}] Flaky test '${flaky.testId}' not verified, skipping publication`);
+            continue; // Skip unverified flaky detections
+          }
+        }
+
+        verifiedFlakyTests.push(flaky);
+
+        // Publish events for verified flaky tests
         await this.publishEvent<FlakyTestDetectedPayload>(
           TestExecutionEvents.FlakyTestDetected,
           {
@@ -484,6 +630,12 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
           }
         );
       }
+
+      // Return result with only verified flaky tests
+      return ok({
+        ...result.value,
+        flakyTests: verifiedFlakyTests,
+      });
     }
 
     return result;
@@ -491,8 +643,15 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
 
   /**
    * Retry failed tests
+   * Enhanced with consensus verification per MM-001 for retry strategies
+   * Enhanced with topology awareness per ADR-047
    */
   async retry(request: RetryRequest): Promise<Result<RetryResult, Error>> {
+    // ADR-047: Check if operations should be paused due to critical topology
+    if (this.minCutMixin.shouldPauseOperations()) {
+      return err(new Error('Retry operation paused: topology is in critical state'));
+    }
+
     // Get original run results to get failed test details
     const runResult = await this.executor.getResults(request.runId);
 
@@ -513,6 +672,24 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
         stillFailing: 0,
         flakyDetected: [],
       });
+    }
+
+    // MM-001: Verify retry strategy using consensus for large retry batches
+    if (this.config.enableConsensus && testsToRetry.length > 5) {
+      const isStrategyVerified = await this.verifyRetryStrategy(
+        {
+          runId: request.runId,
+          testCount: testsToRetry.length,
+          maxRetries: request.maxRetries,
+          backoffType: request.backoff ?? 'exponential',
+        },
+        0.7 + (testsToRetry.length / 100) // Higher confidence for larger batches
+      );
+
+      if (!isStrategyVerified) {
+        console.warn(`[${this.domainName}] Retry strategy not verified, proceeding with reduced retries`);
+        request = { ...request, maxRetries: Math.max(1, Math.floor(request.maxRetries / 2)) };
+      }
     }
 
     // Publish retry triggered event
@@ -821,6 +998,173 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }
+  }
+
+  // ============================================================================
+  // MinCut Integration Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
+  }
+
+  /**
+   * Check if topology is healthy
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  /**
+   * Get topology-based routing excluding weak domains
+   * Per ADR-047: Filters out domains that are currently weak points
+   *
+   * @param targetDomains - List of potential target domains
+   * @returns Filtered list of healthy domains for routing
+   */
+  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
+  }
+
+  /**
+   * Get weak vertices belonging to this domain
+   * Per ADR-047: Identifies agents that are single points of failure
+   */
+  getDomainWeakVertices(): WeakVertex[] {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Check if this domain is a weak point in the topology
+   * Per ADR-047: Returns true if any weak vertex belongs to test-execution domain
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  // ============================================================================
+  // Consensus Integration Methods (MM-001)
+  // ============================================================================
+
+  /**
+   * Check if consensus engine is available
+   */
+  isConsensusAvailable(): boolean {
+    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+  }
+
+  /**
+   * Get consensus statistics
+   * Per MM-001: Returns metrics about consensus verification
+   */
+  getConsensusStats() {
+    return this.consensusMixin.getConsensusStats();
+  }
+
+  /**
+   * Verify flaky test detection using multi-model consensus
+   * Per MM-001: Flaky test classification is a high-stakes decision
+   *
+   * @param test - The test suspected to be flaky
+   * @param confidence - Initial confidence in the flaky classification
+   * @returns true if the flaky classification is verified or doesn't require consensus
+   */
+  private async verifyFlakyTestDetection(
+    test: { testId: string; testFile: string; failureRate: number; pattern: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof test> = createDomainFinding({
+      id: uuidv4(),
+      type: 'flaky-test-detection',
+      confidence,
+      description: `Verify flaky test classification: ${test.testId} (failure rate: ${(test.failureRate * 100).toFixed(1)}%)`,
+      payload: test,
+      detectedBy: 'test-execution-coordinator',
+      severity: test.failureRate > 0.5 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Flaky test '${test.testId}' classification verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Flaky test '${test.testId}' classification NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify retry strategy using multi-model consensus
+   * Per MM-001: Retry strategies affect test execution outcomes
+   *
+   * @param strategy - The retry strategy to verify
+   * @param confidence - Initial confidence in the strategy
+   * @returns true if the strategy is verified or doesn't require consensus
+   */
+  private async verifyRetryStrategy(
+    strategy: { runId: string; testCount: number; maxRetries: number; backoffType: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof strategy> = createDomainFinding({
+      id: uuidv4(),
+      type: 'retry-strategy',
+      confidence,
+      description: `Verify retry strategy: ${strategy.testCount} tests with ${strategy.maxRetries} max retries (${strategy.backoffType})`,
+      payload: strategy,
+      detectedBy: 'test-execution-coordinator',
+      severity: strategy.testCount > 10 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Retry strategy verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Retry strategy NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify test failure analysis using multi-model consensus
+   * Per MM-001: Failure analysis impacts debugging and fix prioritization
+   *
+   * @param analysis - The failure analysis to verify
+   * @param confidence - Initial confidence in the analysis
+   * @returns true if the analysis is verified or doesn't require consensus
+   */
+  private async verifyTestFailureAnalysis(
+    analysis: { testId: string; failureType: string; rootCause: string; suggestedFix: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof analysis> = createDomainFinding({
+      id: uuidv4(),
+      type: 'test-failure-analysis',
+      confidence,
+      description: `Verify failure analysis for ${analysis.testId}: ${analysis.failureType} - ${analysis.rootCause}`,
+      payload: analysis,
+      detectedBy: 'test-execution-coordinator',
+      severity: 'high', // Failure analysis is always important
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Failure analysis for '${analysis.testId}' verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Failure analysis NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
   }
 }
 

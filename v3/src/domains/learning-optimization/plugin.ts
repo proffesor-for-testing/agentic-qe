@@ -220,7 +220,7 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
   protected async onInitialize(): Promise<void> {
     // Create services
     this.learningService = new LearningCoordinatorService(
-      this.memory,
+      { memory: this.memory },
       this.pluginConfig.learningService
     );
 

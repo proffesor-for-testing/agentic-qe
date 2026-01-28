@@ -15,6 +15,7 @@ import {
   ExecutionStats,
 } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 
 // ============================================================================
 // Configuration
@@ -45,6 +46,12 @@ export interface TestExecutorConfig {
    * Defaults to 0.1 (10% chance of skip per file).
    */
   simulatedSkipRate: number;
+  /** ADR-051: Enable LLM-powered failure analysis */
+  enableLLMAnalysis: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens: number;
 }
 
 const DEFAULT_CONFIG: TestExecutorConfig = {
@@ -52,11 +59,19 @@ const DEFAULT_CONFIG: TestExecutorConfig = {
   simulatedTestsPerFile: 5,
   simulatedFailureRate: 0.2,
   simulatedSkipRate: 0.1,
+  enableLLMAnalysis: true, // On by default - opt-out (ADR-051)
+  llmModelTier: 2, // Sonnet for balanced analysis
+  llmMaxTokens: 2048,
 };
 
 // ============================================================================
 // Interfaces
 // ============================================================================
+
+export interface TestExecutorDependencies {
+  memory: MemoryBackend;
+  llmRouter?: HybridRouter;
+}
 
 export interface ITestExecutionService {
   /** Execute test suite */
@@ -80,6 +95,8 @@ export class TestExecutorService implements ITestExecutionService {
   private readonly runResults = new Map<string, TestRunResult>();
   private readonly runStats = new Map<string, ExecutionStats>();
   private readonly config: TestExecutorConfig;
+  private readonly memory: MemoryBackend;
+  private readonly llmRouter?: HybridRouter;
 
   /** Maximum number of results to retain in memory */
   private readonly MAX_RESULTS = 1000;
@@ -87,9 +104,11 @@ export class TestExecutorService implements ITestExecutionService {
   private readonly RESULT_RETENTION_MS = 86400000;
 
   constructor(
-    private readonly memory: MemoryBackend,
+    dependencies: TestExecutorDependencies,
     config: Partial<TestExecutorConfig> = {}
   ) {
+    this.memory = dependencies.memory;
+    this.llmRouter = dependencies.llmRouter;
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
@@ -309,6 +328,58 @@ export class TestExecutorService implements ITestExecutionService {
   // ============================================================================
   // Private Methods
   // ============================================================================
+
+  /**
+   * ADR-051: Check if LLM analysis is available
+   */
+  private isLLMAnalysisAvailable(): boolean {
+    return this.config.enableLLMAnalysis && this.llmRouter !== undefined;
+  }
+
+  /**
+   * ADR-051: Get model name for tier
+   */
+  private getModelForTier(tier: number): string {
+    const models: Record<number, string> = {
+      1: 'claude-3-haiku-20240307',
+      2: 'claude-sonnet-4-20250514',
+      3: 'claude-sonnet-4-20250514',
+      4: 'claude-opus-4-20250514',
+    };
+    return models[tier] || models[2];
+  }
+
+  /**
+   * ADR-051: LLM-powered test failure analysis
+   */
+  private async analyzeFailuresWithLLM(failures: FailedTest[]): Promise<string | null> {
+    if (!this.isLLMAnalysisAvailable() || failures.length === 0) return null;
+
+    try {
+      const failureSummary = failures.slice(0, 5).map(f =>
+        `- ${f.testName}: ${f.error?.substring(0, 200) || 'Unknown error'}`
+      ).join('\n');
+
+      const response = await this.llmRouter!.chat({
+        model: this.getModelForTier(this.config.llmModelTier),
+        messages: [{
+          role: 'user',
+          content: `Analyze these test failures and provide insights:
+${failureSummary}
+
+Provide:
+1. Common failure patterns
+2. Potential root causes
+3. Recommended fixes`
+        }],
+        maxTokens: this.config.llmMaxTokens,
+      });
+      return response.content;
+    } catch (error) {
+      console.warn('[TestExecutorService] LLM analysis failed:', error);
+      return null;
+    }
+  }
 
   private validateRequest(request: ExecuteTestsRequest): Result<void, Error> {
     if (!request.testFiles || request.testFiles.length === 0) {
@@ -915,6 +986,20 @@ export class TestExecutorService implements ITestExecutionService {
       persist: true,
     });
   }
+}
+
+// ============================================================================
+// Factory
+// ============================================================================
+
+/**
+ * Create a TestExecutorService instance
+ */
+export function createTestExecutorService(
+  dependencies: TestExecutorDependencies,
+  config?: Partial<TestExecutorConfig>
+): TestExecutorService {
+  return new TestExecutorService(dependencies, config);
 }
 
 // ============================================================================

@@ -8,6 +8,7 @@ import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 import { TimeRange } from '../../../shared/value-objects/index.js';
+import type { HybridRouter, ChatResponse } from '../../../shared/llm/index.js';
 import {
   LearnedPattern,
   PatternType,
@@ -41,6 +42,12 @@ export interface LearningCoordinatorConfig {
   maxPatternsPerDomain: number;
   anomalyDeviationThreshold: number;
   clusterSimilarityThreshold: number;
+  /** ADR-051: Enable LLM-powered pattern synthesis */
+  enableLLMSynthesis: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens: number;
 }
 
 const DEFAULT_CONFIG: LearningCoordinatorConfig = {
@@ -49,7 +56,18 @@ const DEFAULT_CONFIG: LearningCoordinatorConfig = {
   maxPatternsPerDomain: 100,
   anomalyDeviationThreshold: 2.0,
   clusterSimilarityThreshold: 0.8,
+  enableLLMSynthesis: true, // On by default - opt-out (ADR-051)
+  llmModelTier: 2, // Sonnet for balanced synthesis
+  llmMaxTokens: 2048,
 };
+
+/**
+ * Dependencies for the learning coordinator
+ */
+export interface LearningCoordinatorDependencies {
+  memory: MemoryBackend;
+  llmRouter?: HybridRouter;
+}
 
 /**
  * Learning Coordinator Service
@@ -59,6 +77,8 @@ export class LearningCoordinatorService
   implements IPatternLearningService, IExperienceMiningService
 {
   private readonly config: LearningCoordinatorConfig;
+  private readonly memory: MemoryBackend;
+  private readonly llmRouter?: HybridRouter;
 
   /**
    * QEFlashAttention for high-performance similarity computations
@@ -67,9 +87,11 @@ export class LearningCoordinatorService
   private flashAttention: QEFlashAttention | null = null;
 
   constructor(
-    private readonly memory: MemoryBackend,
+    dependencies: LearningCoordinatorDependencies,
     config: Partial<LearningCoordinatorConfig> = {}
   ) {
+    this.memory = dependencies.memory;
+    this.llmRouter = dependencies.llmRouter;
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
@@ -198,6 +220,69 @@ export class LearningCoordinatorService
     if (this.flashAttention) {
       this.flashAttention.dispose();
       this.flashAttention = null;
+    }
+  }
+
+  // ============================================================================
+  // LLM Integration Methods (ADR-051)
+  // ============================================================================
+
+  /**
+   * Check if LLM synthesis is available
+   * @returns True if LLM synthesis is enabled and router is available
+   */
+  private isLLMSynthesisAvailable(): boolean {
+    return this.config.enableLLMSynthesis && this.llmRouter !== undefined;
+  }
+
+  /**
+   * Get model ID for a given tier
+   * @param tier - Model tier (1=Haiku, 2=Sonnet, 4=Opus)
+   * @returns Model ID string
+   */
+  private getModelForTier(tier: number): string {
+    const models: Record<number, string> = {
+      1: 'claude-3-haiku-20240307',
+      2: 'claude-sonnet-4-20250514',
+      3: 'claude-sonnet-4-20250514',
+      4: 'claude-opus-4-20250514',
+    };
+    return models[tier] || models[2];
+  }
+
+  /**
+   * ADR-051: LLM-powered pattern synthesis
+   * Analyzes learned patterns and synthesizes high-level insights
+   *
+   * @param patterns - Learned patterns to analyze
+   * @returns Synthesized insights or null if LLM unavailable
+   */
+  private async synthesizePatternsWithLLM(patterns: LearnedPattern[]): Promise<string | null> {
+    if (!this.isLLMSynthesisAvailable()) return null;
+
+    try {
+      const patternSummary = patterns.slice(0, 10).map(p =>
+        `- ${p.name}: ${p.type} (confidence: ${p.confidence.toFixed(2)})`
+      ).join('\n');
+
+      const response = await this.llmRouter!.chat({
+        model: this.getModelForTier(this.config.llmModelTier),
+        messages: [{
+          role: 'user',
+          content: `Analyze these learned QE patterns and synthesize insights:
+${patternSummary}
+
+Provide:
+1. Common themes across patterns
+2. Potential pattern combinations
+3. Recommendations for pattern application`
+        }],
+        maxTokens: this.config.llmMaxTokens,
+      });
+      return response.content;
+    } catch (error) {
+      console.warn('[LearningCoordinatorService] LLM synthesis failed:', error);
+      return null;
     }
   }
 
@@ -1111,4 +1196,38 @@ export class LearningCoordinatorService
         return false;
     }
   }
+}
+
+// ============================================================================
+// Factory Functions (ADR-051 Compatibility)
+// ============================================================================
+
+/**
+ * Create a LearningCoordinatorService instance (backward compatible)
+ * Maintains backward compatibility with existing code
+ *
+ * @param memory - Memory backend for pattern storage
+ * @param config - Optional configuration overrides
+ * @returns Configured LearningCoordinatorService instance
+ */
+export function createLearningCoordinatorService(
+  memory: MemoryBackend,
+  config: Partial<LearningCoordinatorConfig> = {}
+): LearningCoordinatorService {
+  return new LearningCoordinatorService({ memory }, config);
+}
+
+/**
+ * Create a LearningCoordinatorService instance with custom dependencies
+ * Used for testing or when custom implementations are needed
+ *
+ * @param dependencies - All service dependencies
+ * @param config - Optional configuration overrides
+ * @returns Configured LearningCoordinatorService instance
+ */
+export function createLearningCoordinatorServiceWithDependencies(
+  dependencies: LearningCoordinatorDependencies,
+  config: Partial<LearningCoordinatorConfig> = {}
+): LearningCoordinatorService {
+  return new LearningCoordinatorService(dependencies, config);
 }

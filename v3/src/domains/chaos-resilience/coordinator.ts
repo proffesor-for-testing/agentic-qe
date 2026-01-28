@@ -38,6 +38,31 @@ import { PolicyGradientAlgorithm } from '../../integrations/rl-suite/algorithms/
 import { PersistentSONAEngine, createPersistentSONAEngine } from '../../integrations/ruvector/sona-persistence.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 
+// ============================================================================
+// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
+// ============================================================================
+
+import {
+  MinCutAwareDomainMixin,
+  createMinCutAwareMixin,
+  type IMinCutAwareDomain,
+  type MinCutAwareConfig,
+} from '../../coordination/mixins/mincut-aware-domain';
+
+import {
+  ConsensusEnabledMixin,
+  createConsensusEnabledMixin,
+  type IConsensusEnabledDomain,
+  type ConsensusEnabledConfig,
+} from '../../coordination/mixins/consensus-enabled-domain';
+
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
+
+import {
+  type DomainFinding,
+  createDomainFinding,
+} from '../../coordination/consensus/domain-findings';
+
 /**
  * Interface for the chaos resilience coordinator
  */
@@ -45,6 +70,11 @@ export interface IChaosResilienceCoordinatorExtended extends IChaosResilienceCoo
   initialize(): Promise<void>;
   dispose(): Promise<void>;
   getActiveWorkflows(): WorkflowStatus[];
+  // MinCut integration methods (ADR-047)
+  setMinCutBridge(bridge: QueenMinCutBridge): void;
+  isTopologyHealthy(): boolean;
+  // Consensus integration methods (MM-001)
+  isConsensusAvailable(): boolean;
 }
 
 /**
@@ -71,6 +101,15 @@ export interface CoordinatorConfig {
   publishEvents: boolean;
   enablePolicyGradient: boolean;
   enableQESONA: boolean;
+  // MinCut integration config (ADR-047)
+  enableMinCutAwareness: boolean;
+  topologyHealthThreshold: number;
+  pauseOnCriticalTopology: boolean;
+  // Consensus integration config (MM-001)
+  enableConsensus: boolean;
+  consensusThreshold: number;
+  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
+  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -80,6 +119,15 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   publishEvents: true,
   enablePolicyGradient: true,
   enableQESONA: true,
+  // MinCut integration defaults (ADR-047)
+  enableMinCutAwareness: true,
+  topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
+  // Consensus integration defaults (MM-001)
+  enableConsensus: true,
+  consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
+  consensusMinModels: 2,
 };
 
 /**
@@ -99,6 +147,15 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
   // SONA Integration: PersistentSONAEngine for resilience pattern learning (patterns survive restarts)
   private qesona?: PersistentSONAEngine;
 
+  // MinCut topology awareness mixin (ADR-047)
+  private readonly minCutMixin: MinCutAwareDomainMixin;
+
+  // Consensus verification mixin (MM-001)
+  private readonly consensusMixin: ConsensusEnabledMixin;
+
+  // Domain identifier for mixin initialization
+  private readonly domainName = 'chaos-resilience';
+
   private initialized = false;
 
   constructor(
@@ -108,7 +165,32 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
     config: Partial<CoordinatorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.chaosEngineer = new ChaosEngineerService(memory);
+
+    // Initialize MinCut-aware mixin (ADR-047)
+    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
+      enableMinCutAwareness: this.config.enableMinCutAwareness,
+      topologyHealthThreshold: this.config.topologyHealthThreshold,
+      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
+    });
+
+    // Initialize Consensus-enabled mixin (MM-001)
+    // Verifies chaos experiments, resilience assessments, and failure injections
+    this.consensusMixin = createConsensusEnabledMixin({
+      enableConsensus: this.config.enableConsensus,
+      consensusThreshold: this.config.consensusThreshold,
+      verifyFindingTypes: [
+        'chaos-experiment',
+        'resilience-assessment',
+        'failure-injection',
+      ],
+      strategy: this.config.consensusStrategy,
+      minModels: this.config.consensusMinModels,
+      modelTimeout: 60000,
+      verifySeverities: ['critical', 'high'],
+      enableLogging: false,
+    });
+
+    this.chaosEngineer = new ChaosEngineerService({ memory });
     this.loadTester = new LoadTesterService(memory);
     this.performanceProfiler = new PerformanceProfilerService(memory);
   }
@@ -160,6 +242,17 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
     // Load any persisted workflow state
     await this.loadWorkflowState();
 
+    // Initialize Consensus engine if enabled (MM-001)
+    if (this.config.enableConsensus) {
+      try {
+        await (this.consensusMixin as any).initializeConsensus();
+        console.log(`[${this.domainName}] Consensus engine initialized`);
+      } catch (error) {
+        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
+        console.warn(`[${this.domainName}] Continuing without consensus verification`);
+      }
+    }
+
     this.initialized = true;
   }
 
@@ -168,6 +261,16 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
    */
   async dispose(): Promise<void> {
     await this.saveWorkflowState();
+
+    // Dispose Consensus engine (MM-001)
+    try {
+      await (this.consensusMixin as any).disposeConsensus();
+    } catch (error) {
+      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
+    }
+
+    // Dispose MinCut mixin (ADR-047)
+    this.minCutMixin.dispose();
 
     // Dispose PersistentSONAEngine (flushes pending saves)
     if (this.qesona) {
@@ -203,6 +306,17 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
 
     try {
       this.startWorkflow(workflowId, 'chaos-suite');
+
+      // ADR-047: Check topology health before running chaos experiments
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, using conservative chaos strategy`);
+        // Continue with reduced blast radius when topology is unhealthy
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Chaos suite paused: topology is in critical state'));
+      }
 
       if (!this.agentCoordinator.canSpawn()) {
         return err(new Error('Agent limit reached, cannot spawn chaos agents'));
@@ -290,6 +404,16 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
     try {
       this.startWorkflow(workflowId, 'load-suite');
 
+      // ADR-047: Check topology health before running load tests
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, using conservative load test parameters`);
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Load test suite paused: topology is in critical state'));
+      }
+
       // Spawn load test agent
       const agentResult = await this.spawnLoadTestAgent(workflowId, 'orchestrator');
       if (!agentResult.success) {
@@ -365,6 +489,16 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
 
     try {
       this.startWorkflow(workflowId, 'assessment');
+
+      // ADR-047: Check topology health before assessment
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, assessment may be limited`);
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Resilience assessment paused: topology is in critical state'));
+      }
 
       const serviceScores = new Map<string, number>();
       const strengths: string[] = [];
@@ -546,6 +680,17 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
 
     try {
       this.startWorkflow(workflowId, 'chaos-suite');
+
+      // ADR-047: Check topology health before running strategic chaos
+      if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
+        console.warn(`[${this.domainName}] Topology degraded, adjusting strategic chaos parameters`);
+        // Continue but may need to reduce experiment scope
+      }
+
+      // ADR-047: Check if operations should be paused due to critical topology
+      if (this.minCutMixin.shouldPauseOperations()) {
+        return err(new Error('Strategic chaos suite paused: topology is in critical state'));
+      }
 
       if (!this.agentCoordinator.canSpawn()) {
         return err(new Error('Agent limit reached, cannot spawn chaos agents'));
@@ -1560,5 +1705,172 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
       workflows,
       { namespace: 'chaos-resilience', persist: true }
     );
+  }
+
+  // ============================================================================
+  // MinCut Integration Methods (ADR-047)
+  // ============================================================================
+
+  /**
+   * Set the MinCut bridge for topology awareness
+   */
+  setMinCutBridge(bridge: QueenMinCutBridge): void {
+    this.minCutMixin.setMinCutBridge(bridge);
+    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
+  }
+
+  /**
+   * Check if topology is healthy
+   */
+  isTopologyHealthy(): boolean {
+    return this.minCutMixin.isTopologyHealthy();
+  }
+
+  /**
+   * Get topology-based routing excluding weak domains
+   * Per ADR-047: Filters out domains that are currently weak points
+   *
+   * @param targetDomains - List of potential target domains
+   * @returns Filtered list of healthy domains for routing
+   */
+  getTopologyBasedRouting(targetDomains: string[]): string[] {
+    return this.minCutMixin.getTopologyBasedRouting(targetDomains as any);
+  }
+
+  /**
+   * Get weak vertices belonging to this domain
+   * Per ADR-047: Identifies agents that are single points of failure
+   */
+  getDomainWeakVertices() {
+    return this.minCutMixin.getDomainWeakVertices();
+  }
+
+  /**
+   * Check if this domain is a weak point in the topology
+   * Per ADR-047: Returns true if any weak vertex belongs to chaos-resilience domain
+   */
+  isDomainWeakPoint(): boolean {
+    return this.minCutMixin.isDomainWeakPoint();
+  }
+
+  // ============================================================================
+  // Consensus Integration Methods (MM-001)
+  // ============================================================================
+
+  /**
+   * Check if consensus engine is available
+   */
+  isConsensusAvailable(): boolean {
+    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+  }
+
+  /**
+   * Get consensus statistics
+   * Per MM-001: Returns metrics about consensus verification
+   */
+  getConsensusStats() {
+    return this.consensusMixin.getConsensusStats();
+  }
+
+  /**
+   * Verify a chaos experiment using multi-model consensus
+   * Per MM-001: High-stakes chaos experiments require safety verification
+   *
+   * @param experiment - The chaos experiment to verify
+   * @param confidence - Initial confidence in the experiment safety
+   * @returns true if the experiment is verified safe or doesn't require consensus
+   */
+  async verifyChaosExperiment(
+    experiment: { id: string; name: string; faultType: FaultType; target: string; blastRadius: string },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof experiment> = createDomainFinding({
+      id: uuidv4(),
+      type: 'chaos-experiment',
+      confidence,
+      description: `Verify chaos experiment safety: ${experiment.name} (${experiment.faultType}) on ${experiment.target}`,
+      payload: experiment,
+      detectedBy: 'chaos-resilience-coordinator',
+      severity: experiment.blastRadius === 'full' ? 'critical' : confidence > 0.9 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Chaos experiment '${experiment.name}' verified safe by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Chaos experiment '${experiment.name}' NOT verified safe: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify a resilience assessment using multi-model consensus
+   * Per MM-001: Resilience scoring can influence deployment decisions
+   *
+   * @param assessment - The resilience assessment to verify
+   * @param confidence - Initial confidence in the assessment
+   * @returns true if the assessment is verified or doesn't require consensus
+   */
+  async verifyResilienceAssessment(
+    assessment: { service: string; overallScore: number; strengths: string[]; weaknessCount: number },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof assessment> = createDomainFinding({
+      id: uuidv4(),
+      type: 'resilience-assessment',
+      confidence,
+      description: `Verify resilience assessment for ${assessment.service}: score ${assessment.overallScore}, ${assessment.weaknessCount} weaknesses`,
+      payload: assessment,
+      detectedBy: 'chaos-resilience-coordinator',
+      severity: assessment.overallScore < 50 ? 'critical' : assessment.overallScore < 70 ? 'high' : 'medium',
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Resilience assessment for '${assessment.service}' verified by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Resilience assessment for '${assessment.service}' NOT verified`);
+      return false;
+    }
+    return true; // No consensus needed
+  }
+
+  /**
+   * Verify a failure injection decision using multi-model consensus
+   * Per MM-001: Failure injections are high-risk operations requiring verification
+   *
+   * @param injection - The failure injection details to verify
+   * @param confidence - Initial confidence in the injection safety
+   * @returns true if the injection is verified safe or doesn't require consensus
+   */
+  async verifyFailureInjection(
+    injection: { faultType: FaultType; target: string; duration: number; parameters: Record<string, unknown> },
+    confidence: number
+  ): Promise<boolean> {
+    const finding: DomainFinding<typeof injection> = createDomainFinding({
+      id: uuidv4(),
+      type: 'failure-injection',
+      confidence,
+      description: `Verify failure injection: ${injection.faultType} on ${injection.target} for ${injection.duration}ms`,
+      payload: injection,
+      detectedBy: 'chaos-resilience-coordinator',
+      severity: 'critical', // All failure injections are critical operations
+    });
+
+    if (this.consensusMixin.requiresConsensus(finding)) {
+      const result = await this.consensusMixin.verifyFinding(finding);
+      if (result.success && result.value.verdict === 'verified') {
+        console.log(`[${this.domainName}] Failure injection '${injection.faultType}' on '${injection.target}' verified safe by consensus`);
+        return true;
+      }
+      console.warn(`[${this.domainName}] Failure injection '${injection.faultType}' NOT verified safe: ${result.success ? result.value.verdict : result.error.message}`);
+      return false;
+    }
+    return true; // No consensus needed
   }
 }

@@ -41,6 +41,9 @@ import { TDDGeneratorService, type ITDDGeneratorService } from './tdd-generator'
 import { PropertyTestGeneratorService, type IPropertyTestGeneratorService } from './property-test-generator';
 import { TestDataGeneratorService, type ITestDataGeneratorService } from './test-data-generator';
 
+// ADR-051: LLM Router for AI-enhanced test generation
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+
 /**
  * Interface for the test generation service
  */
@@ -64,6 +67,12 @@ export interface TestGeneratorConfig {
   maxTestsPerFile: number;
   coverageTargetDefault: number;
   enableAIGeneration: boolean;
+  /** ADR-051: Enable LLM enhancement for better test suggestions */
+  enableLLMEnhancement: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens: number;
 }
 
 const DEFAULT_CONFIG: TestGeneratorConfig = {
@@ -71,6 +80,9 @@ const DEFAULT_CONFIG: TestGeneratorConfig = {
   maxTestsPerFile: 50,
   coverageTargetDefault: 80,
   enableAIGeneration: true,
+  enableLLMEnhancement: true, // On by default - opt-out
+  llmModelTier: 2, // Sonnet by default
+  llmMaxTokens: 2048,
 };
 
 /**
@@ -83,6 +95,8 @@ export interface TestGeneratorDependencies {
   tddGenerator?: ITDDGeneratorService;
   propertyTestGenerator?: IPropertyTestGeneratorService;
   testDataGenerator?: ITestDataGeneratorService;
+  /** ADR-051: Optional LLM router for AI-enhanced test generation */
+  llmRouter?: HybridRouter;
 }
 
 /**
@@ -91,6 +105,7 @@ export interface TestGeneratorDependencies {
  * Delegates TDD, property testing, and test data to specialized services
  *
  * ADR-XXX: Refactored to use Dependency Injection for better testability and flexibility
+ * ADR-051: Added LLM enhancement for AI-powered test suggestions
  */
 export class TestGeneratorService implements ITestGenerationService {
   private readonly config: TestGeneratorConfig;
@@ -99,6 +114,7 @@ export class TestGeneratorService implements ITestGenerationService {
   private readonly tddGenerator: ITDDGeneratorService;
   private readonly propertyTestGenerator: IPropertyTestGeneratorService;
   private readonly testDataGenerator: ITestDataGeneratorService;
+  private readonly llmRouter?: HybridRouter;
 
   constructor(
     dependencies: TestGeneratorDependencies,
@@ -110,6 +126,173 @@ export class TestGeneratorService implements ITestGenerationService {
     this.tddGenerator = dependencies.tddGenerator || new TDDGeneratorService();
     this.propertyTestGenerator = dependencies.propertyTestGenerator || new PropertyTestGeneratorService();
     this.testDataGenerator = dependencies.testDataGenerator || new TestDataGeneratorService();
+    this.llmRouter = dependencies.llmRouter;
+  }
+
+  // ============================================================================
+  // ADR-051: LLM Enhancement Methods
+  // ============================================================================
+
+  /**
+   * Check if LLM enhancement is available and enabled
+   */
+  private isLLMEnhancementAvailable(): boolean {
+    return this.config.enableLLMEnhancement && this.llmRouter !== undefined;
+  }
+
+  /**
+   * Get model ID for the configured tier
+   */
+  private getModelForTier(tier: number): string {
+    switch (tier) {
+      case 1: return 'claude-3-5-haiku-20241022';
+      case 2: return 'claude-sonnet-4-20250514';
+      case 3: return 'claude-sonnet-4-20250514';
+      case 4: return 'claude-opus-4-5-20251101';
+      default: return 'claude-sonnet-4-20250514';
+    }
+  }
+
+  /**
+   * Enhance generated test code using LLM
+   * Adds edge cases, improves assertions, and adds documentation
+   */
+  private async enhanceTestWithLLM(
+    testCode: string,
+    sourceCode: string,
+    analysis: CodeAnalysis | null
+  ): Promise<string> {
+    if (!this.llmRouter) return testCode;
+
+    try {
+      const prompt = this.buildTestEnhancementPrompt(testCode, sourceCode, analysis);
+      const modelId = this.getModelForTier(this.config.llmModelTier);
+
+      const response: ChatResponse = await this.llmRouter.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert test engineer. Enhance the provided test code by:
+1. Adding edge case tests (null, undefined, empty, boundary values)
+2. Improving assertion specificity
+3. Adding descriptive test names
+4. Adding JSDoc comments explaining test purpose
+Return ONLY the enhanced test code, no explanations.`,
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        model: modelId,
+        maxTokens: this.config.llmMaxTokens,
+        temperature: 0.3, // Low temperature for consistent code generation
+      });
+
+      if (response.content && response.content.length > 0) {
+        // Extract code from response, handling potential markdown fences
+        let enhancedCode = response.content;
+        const codeMatch = enhancedCode.match(/```(?:typescript|javascript|ts|js)?\n?([\s\S]*?)```/);
+        if (codeMatch) {
+          enhancedCode = codeMatch[1].trim();
+        }
+        return enhancedCode || testCode;
+      }
+
+      return testCode;
+    } catch (error) {
+      console.warn('[TestGenerator] LLM enhancement failed, using original:', error);
+      return testCode;
+    }
+  }
+
+  /**
+   * Build prompt for test enhancement
+   */
+  private buildTestEnhancementPrompt(
+    testCode: string,
+    sourceCode: string,
+    analysis: CodeAnalysis | null
+  ): string {
+    let prompt = `## Source Code to Test:\n\`\`\`typescript\n${sourceCode}\n\`\`\`\n\n`;
+    prompt += `## Current Test Code:\n\`\`\`typescript\n${testCode}\n\`\`\`\n\n`;
+
+    if (analysis) {
+      if (analysis.functions.length > 0) {
+        prompt += `## Functions to cover:\n`;
+        for (const fn of analysis.functions) {
+          prompt += `- ${fn.name}(${fn.parameters.map(p => `${p.name}: ${p.type || 'unknown'}`).join(', ')})`;
+          if (fn.returnType) prompt += ` => ${fn.returnType}`;
+          prompt += ` (complexity: ${fn.complexity})\n`;
+        }
+      }
+
+      if (analysis.classes.length > 0) {
+        prompt += `## Classes to cover:\n`;
+        for (const cls of analysis.classes) {
+          prompt += `- ${cls.name} with methods: ${cls.methods.map(m => m.name).join(', ')}\n`;
+        }
+      }
+    }
+
+    prompt += `\n## Requirements:\n`;
+    prompt += `1. Add tests for edge cases (null, undefined, empty inputs, boundary values)\n`;
+    prompt += `2. Improve assertion specificity (use toEqual, toContain, etc. appropriately)\n`;
+    prompt += `3. Add descriptive test names that explain what is being tested\n`;
+    prompt += `4. Add error handling tests if applicable\n`;
+    prompt += `5. Keep the test framework style consistent\n`;
+
+    return prompt;
+  }
+
+  /**
+   * Generate test suggestions using LLM based on code analysis
+   */
+  private async generateLLMTestSuggestions(
+    sourceCode: string,
+    analysis: CodeAnalysis | null,
+    framework: TestFramework
+  ): Promise<string[]> {
+    if (!this.llmRouter) return [];
+
+    try {
+      const modelId = this.getModelForTier(this.config.llmModelTier);
+
+      const response: ChatResponse = await this.llmRouter.chat({
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert test engineer. Analyze the code and suggest specific test cases.
+Return a JSON array of test suggestions, each with: { "name": "test name", "description": "what to test", "type": "unit|integration|edge" }`,
+          },
+          {
+            role: 'user',
+            content: `Analyze this ${framework} code and suggest test cases:\n\`\`\`typescript\n${sourceCode}\n\`\`\``,
+          },
+        ],
+        model: modelId,
+        maxTokens: 1024,
+        temperature: 0.5,
+      });
+
+      if (response.content) {
+        try {
+          // Try to parse JSON from response
+          const jsonMatch = response.content.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            const suggestions = JSON.parse(jsonMatch[0]);
+            return suggestions.map((s: { name: string }) => s.name);
+          }
+        } catch {
+          // Parse failure - return empty suggestions
+        }
+      }
+
+      return [];
+    } catch (error) {
+      console.warn('[TestGenerator] LLM suggestion generation failed:', error);
+      return [];
+    }
   }
 
   /**
@@ -244,9 +427,10 @@ export class TestGeneratorService implements ITestGenerationService {
     patternsUsed.push(...applicablePatterns.map((p) => p.name));
 
     let codeAnalysis: CodeAnalysis | null = null;
+    let sourceContent = '';
     try {
-      const content = fs.readFileSync(sourceFile, 'utf-8');
-      codeAnalysis = this.analyzeSourceCode(content, sourceFile);
+      sourceContent = fs.readFileSync(sourceFile, 'utf-8');
+      codeAnalysis = this.analyzeSourceCode(sourceContent, sourceFile);
     } catch {
       // File doesn't exist or can't be read - use stub generation
     }
@@ -263,7 +447,12 @@ export class TestGeneratorService implements ITestGenerationService {
       analysis: codeAnalysis ?? undefined,
     };
 
-    const testCode = generator.generateTests(context);
+    let testCode = generator.generateTests(context);
+
+    // ADR-051: Enhance with LLM if enabled and available
+    if (this.isLLMEnhancementAvailable() && sourceContent) {
+      testCode = await this.enhanceTestWithLLM(testCode, sourceContent, codeAnalysis);
+    }
 
     const test: GeneratedTest = {
       id: uuidv4(),
@@ -273,6 +462,8 @@ export class TestGeneratorService implements ITestGenerationService {
       testCode,
       type: testType,
       assertions: this.countAssertions(testCode),
+      // ADR-051: Mark if LLM-enhanced
+      llmEnhanced: this.isLLMEnhancementAvailable(),
     };
 
     return ok({ tests: [test], patternsUsed });

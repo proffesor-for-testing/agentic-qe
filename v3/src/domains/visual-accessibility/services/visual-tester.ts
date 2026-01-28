@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import { FilePath } from '../../../shared/value-objects/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
+import type { HybridRouter } from '../../../shared/llm/index.js';
 import {
   IVisualTestingService,
   Screenshot,
@@ -32,6 +33,12 @@ export interface VisualTesterConfig {
   diffThreshold: number; // 0-100, percentage of difference allowed
   antialiasDetection: boolean;
   captureTimeout: number;
+  /** ADR-051: Enable LLM-powered visual diff analysis */
+  enableLLMAnalysis: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens: number;
 }
 
 const DEFAULT_CONFIG: VisualTesterConfig = {
@@ -47,7 +54,18 @@ const DEFAULT_CONFIG: VisualTesterConfig = {
   diffThreshold: 0.1,
   antialiasDetection: true,
   captureTimeout: 30000,
+  enableLLMAnalysis: true, // On by default - opt-out (ADR-051)
+  llmModelTier: 2, // Sonnet for balanced analysis
+  llmMaxTokens: 2048,
 };
+
+/**
+ * Dependencies for VisualTesterService
+ */
+export interface VisualTesterDependencies {
+  memory: MemoryBackend;
+  llmRouter?: HybridRouter;
+}
 
 /**
  * Visual Testing Service Implementation
@@ -55,13 +73,17 @@ const DEFAULT_CONFIG: VisualTesterConfig = {
  */
 export class VisualTesterService implements IVisualTestingService {
   private readonly config: VisualTesterConfig;
+  private readonly memory: MemoryBackend;
+  private readonly llmRouter?: HybridRouter;
   private vibiumClient: VibiumClient | null = null;
   private browserAvailable: boolean | null = null;
 
   constructor(
-    private readonly memory: MemoryBackend,
+    dependencies: VisualTesterDependencies,
     config: Partial<VisualTesterConfig> = {}
   ) {
+    this.memory = dependencies.memory;
+    this.llmRouter = dependencies.llmRouter;
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
@@ -105,6 +127,26 @@ export class VisualTesterService implements IVisualTestingService {
       this.browserAvailable = false;
       return false;
     }
+  }
+
+  /**
+   * ADR-051: Check if LLM analysis is available
+   */
+  private isLLMAnalysisAvailable(): boolean {
+    return this.config.enableLLMAnalysis && this.llmRouter !== undefined;
+  }
+
+  /**
+   * ADR-051: Get model name for specified tier
+   */
+  private getModelForTier(tier: number): string {
+    const models: Record<number, string> = {
+      1: 'claude-3-haiku-20240307',
+      2: 'claude-sonnet-4-20250514',
+      3: 'claude-sonnet-4-20250514',
+      4: 'claude-opus-4-20250514',
+    };
+    return models[tier] || models[2];
   }
 
   /**
@@ -428,6 +470,43 @@ export class VisualTesterService implements IVisualTestingService {
   // Private Helper Methods
   // ============================================================================
 
+  /**
+   * ADR-051: LLM-powered visual diff analysis
+   */
+  private async analyzeDiffWithLLM(diff: VisualDiff): Promise<string | null> {
+    if (!this.isLLMAnalysisAvailable()) return null;
+
+    try {
+      const regionSummary = diff.regions.slice(0, 5).map(r => {
+        const pixelCount = r.width * r.height;
+        return `- Region at (${r.x}, ${r.y}): ${r.width}x${r.height}, ${pixelCount} pixels changed, ${r.changeType} (${r.significance} significance)`;
+      }).join('\n');
+
+      const response = await this.llmRouter!.chat({
+        model: this.getModelForTier(this.config.llmModelTier),
+        messages: [{
+          role: 'user',
+          content: `Analyze this visual regression diff:
+Screenshot: ${diff.comparisonId}
+Total difference: ${diff.diffPercentage}%
+Status: ${diff.status}
+Regions:
+${regionSummary}
+
+Provide:
+1. Likely cause of visual changes
+2. Impact assessment
+3. Recommendations (approve/reject/investigate)`
+        }],
+        maxTokens: this.config.llmMaxTokens,
+      });
+      return response.content;
+    } catch (error) {
+      console.warn('[VisualTesterService] LLM analysis failed:', error);
+      return null;
+    }
+  }
+
   private async storeScreenshotMetadata(screenshot: Screenshot): Promise<void> {
     await this.memory.set(
       `visual-accessibility:screenshot:${screenshot.id}`,
@@ -663,4 +742,38 @@ export class VisualTesterService implements IVisualTestingService {
     // Ensure reasonable bounds
     return Math.max(300, Math.min(loadTime, 5000));
   }
+}
+
+// ============================================================================
+// Factory Functions
+// ============================================================================
+
+/**
+ * Create a VisualTesterService instance with default dependencies
+ * Uses only memory backend, no LLM integration
+ *
+ * @param memory - Memory backend for persistence
+ * @param config - Optional configuration overrides
+ * @returns Configured VisualTesterService instance
+ */
+export function createVisualTesterService(
+  memory: MemoryBackend,
+  config: Partial<VisualTesterConfig> = {}
+): VisualTesterService {
+  return new VisualTesterService({ memory }, config);
+}
+
+/**
+ * Create a VisualTesterService instance with custom dependencies
+ * Used for testing or when LLM integration is needed
+ *
+ * @param dependencies - All service dependencies including optional llmRouter
+ * @param config - Optional configuration overrides
+ * @returns Configured VisualTesterService instance
+ */
+export function createVisualTesterServiceWithDependencies(
+  dependencies: VisualTesterDependencies,
+  config: Partial<VisualTesterConfig> = {}
+): VisualTesterService {
+  return new VisualTesterService(dependencies, config);
 }

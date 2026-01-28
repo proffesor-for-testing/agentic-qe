@@ -10,6 +10,7 @@ import {
   getSystemMetricsCollector,
 } from '../../../shared/metrics';
 import { MemoryBackend } from '../../../kernel/interfaces';
+import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import {
   ChaosExperiment,
   ExperimentResult,
@@ -36,6 +37,12 @@ export interface ChaosEngineerConfig {
   enableDryRun: boolean;
   safetyCheckInterval: number;
   autoRollbackOnFailure: boolean;
+  /** ADR-051: Enable LLM-powered experiment analysis */
+  enableLLMAnalysis: boolean;
+  /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
+  llmModelTier: number;
+  /** ADR-051: Max tokens for LLM responses */
+  llmMaxTokens: number;
 }
 
 const DEFAULT_CONFIG: ChaosEngineerConfig = {
@@ -44,7 +51,18 @@ const DEFAULT_CONFIG: ChaosEngineerConfig = {
   enableDryRun: true,
   safetyCheckInterval: 5000, // 5 seconds
   autoRollbackOnFailure: true,
+  enableLLMAnalysis: true, // On by default - opt-out (ADR-051)
+  llmModelTier: 2, // Sonnet for balanced analysis
+  llmMaxTokens: 2048,
 };
+
+/**
+ * Dependencies for ChaosEngineerService
+ */
+export interface ChaosEngineerDependencies {
+  memory: MemoryBackend;
+  llmRouter?: HybridRouter;
+}
 
 /**
  * Mutable version of ExperimentResult for internal tracking
@@ -81,11 +99,15 @@ export class ChaosEngineerService implements IChaosEngineeringService {
   private readonly httpClient: HttpClient;
   private readonly metricsCollector: SystemMetricsCollector;
   private readonly stressWorkers: Map<string, NodeJS.Timeout | number[]> = new Map();
+  private readonly memory: MemoryBackend;
+  private readonly llmRouter?: HybridRouter;
 
   constructor(
-    private readonly memory: MemoryBackend,
+    dependencies: ChaosEngineerDependencies,
     config: Partial<ChaosEngineerConfig> = {}
   ) {
+    this.memory = dependencies.memory;
+    this.llmRouter = dependencies.llmRouter;
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.httpClient = new HttpClient();
     this.metricsCollector = getSystemMetricsCollector();
@@ -100,6 +122,12 @@ export class ChaosEngineerService implements IChaosEngineeringService {
       const validationResult = this.validateExperiment(experiment);
       if (!validationResult.success) {
         return err(validationResult.error);
+      }
+
+      // ADR-051: Get LLM analysis of experiment hypothesis if available
+      const llmAnalysis = await this.analyzeExperimentWithLLM(experiment);
+      if (llmAnalysis) {
+        console.log(`[ChaosEngineerService] LLM Analysis:\n${llmAnalysis}`);
       }
 
       // Store experiment
@@ -364,6 +392,57 @@ export class ChaosEngineerService implements IChaosEngineeringService {
   // ============================================================================
   // Private Helper Methods
   // ============================================================================
+
+  /**
+   * ADR-051: Check if LLM analysis is available
+   */
+  private isLLMAnalysisAvailable(): boolean {
+    return this.config.enableLLMAnalysis && this.llmRouter !== undefined;
+  }
+
+  /**
+   * ADR-051: Get model name for tier
+   */
+  private getModelForTier(tier: number): string {
+    const models: Record<number, string> = {
+      1: 'claude-3-haiku-20240307',
+      2: 'claude-sonnet-4-20250514',
+      3: 'claude-sonnet-4-20250514',
+      4: 'claude-opus-4-20250514',
+    };
+    return models[tier] || models[2];
+  }
+
+  /**
+   * ADR-051: LLM-powered experiment hypothesis analysis
+   */
+  private async analyzeExperimentWithLLM(experiment: ChaosExperiment): Promise<string | null> {
+    if (!this.isLLMAnalysisAvailable()) return null;
+
+    try {
+      const response = await this.llmRouter!.chat({
+        model: this.getModelForTier(this.config.llmModelTier),
+        messages: [{
+          role: 'user',
+          content: `Analyze this chaos experiment hypothesis and provide recommendations:
+Experiment: ${experiment.name}
+Hypothesis: ${experiment.hypothesis.statement}
+Blast Radius: ${experiment.blastRadius.scope}${experiment.blastRadius.percentage ? ` (${experiment.blastRadius.percentage}%)` : ''}
+Fault Types: ${experiment.faults.map(f => `${f.type} targeting ${f.target.type}:${f.target.selector}`).join(', ')}
+
+Provide:
+1. Hypothesis validation likelihood
+2. Potential risks
+3. Recommended safety measures`
+        }],
+        maxTokens: this.config.llmMaxTokens,
+      });
+      return response.content;
+    } catch (error) {
+      console.warn('[ChaosEngineerService] LLM analysis failed:', error);
+      return null;
+    }
+  }
 
   private validateExperiment(experiment: ChaosExperiment): Result<void> {
     if (!experiment.id) {
