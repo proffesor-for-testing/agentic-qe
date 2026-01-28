@@ -2020,7 +2020,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
         {
           id: 'quality-experience-analysis',
           name: 'Quality Experience Analysis (QX Partner)',
-          domain: 'cross-domain',
+          domain: 'coordination',
           action: 'analyzeQualityExperience',
           dependsOn: ['quality-criteria-analysis'],
           // Trigger if website has UX concerns

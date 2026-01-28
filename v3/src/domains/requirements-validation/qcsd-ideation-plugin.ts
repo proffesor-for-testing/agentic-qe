@@ -304,7 +304,7 @@ export class QCSDIdeationPlugin {
 
     // Register analyzeQualityExperience action for HAS_UX conditional
     orchestrator.registerAction(
-      'cross-domain',
+      'coordination',
       'analyzeQualityExperience',
       this.analyzeQualityExperience.bind(this)
     );
