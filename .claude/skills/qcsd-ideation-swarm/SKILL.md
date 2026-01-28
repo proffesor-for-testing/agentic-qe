@@ -3,7 +3,7 @@ name: qcsd-ideation-swarm
 description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins. Uses 5-tier browser cascade: Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch-fallback."
 category: qcsd-phases
 priority: critical
-version: 7.5.0
+version: 7.5.1
 tokenEstimate: 3500
 # DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
 domains:
@@ -33,6 +33,7 @@ execution:
 swarm_pattern: true
 parallel_batches: 2
 last_updated: 2026-01-28
+# v7.5.1 Changelog: Added prominent follow-up recommendation box at end of swarm execution (Phase URL-9)
 # v7.5.0 Changelog: Added HAS_VIDEO flag detection with /a11y-ally follow-up recommendation for video caption generation
 # v7.4.0 Changelog: Automated browser cascade via scripts/fetch-content.js with 30s per-tier timeouts
 # v7.2.0 Changelog: Added 5-tier browser cascade (Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch)
@@ -443,6 +444,54 @@ After all agents complete and skills are invoked:
 | qe-qx-partner | `08-quality-experience.md` |
 | Synthesis | `01-executive-summary.md` |
 | Synthesis | `06-test-ideas.md` |
+
+### PHASE URL-9: Final Output with Follow-up Recommendations (MANDATORY)
+
+**At the very end of swarm execution, ALWAYS output this completion summary:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    QCSD IDEATION SWARM COMPLETE                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  URL Analyzed: ${URL}                                               │
+│  Reports Generated: 8                                               │
+│  Output Folder: ${OUTPUT_FOLDER}                                    │
+│                                                                     │
+│  QUALITY SCORES:                                                    │
+│  ├─ Risk Assessment:    [score]                                     │
+│  ├─ Security Posture:   [score]                                     │
+│  ├─ Quality Experience: [score]                                     │
+│  ├─ Testability:        [score]                                     │
+│  └─ Accessibility:      [score]                                     │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**IF HAS_VIDEO=TRUE, ALSO output this prominent recommendation box:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  ⚠️  FOLLOW-UP ACTION RECOMMENDED                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  VIDEO DETECTED WITHOUT CAPTIONS                                    │
+│                                                                     │
+│  To generate WCAG 1.2.2 compliant captions, run:                    │
+│                                                                     │
+│    /a11y-ally ${URL}                                                │
+│                                                                     │
+│  This will:                                                         │
+│  • Download video and extract frames                                │
+│  • Analyze each frame with Claude Vision                            │
+│  • Generate captions.vtt and audiodesc.vtt                          │
+│  • Save to docs/accessibility-scans/{page-slug}/                    │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**❌ DO NOT end the swarm without displaying the completion summary.**
+**❌ DO NOT skip the follow-up recommendation box if HAS_VIDEO=TRUE.**
 
 ---
 
