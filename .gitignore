@@ -190,4 +190,4 @@ v3/agentdb.*
 .agentic-qe/*-scans/
 v3/.agentic-qe/
 *.db-shm
-v3/.test-tmp/*
+v3/.test-tmp/*superplane-analysis/
