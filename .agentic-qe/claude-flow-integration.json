@@ -1,0 +1,37 @@
+{
+  "version": "1.0",
+  "projectRoot": "/home/user/agentic-qe",
+  "integration": {
+    "enabled": true,
+    "features": {
+      "trajectories": true,
+      "modelRouting": true,
+      "pretrain": true,
+      "workers": true
+    }
+  },
+  "learning": {
+    "trajectoryStorage": "claude-flow",
+    "patternSearch": "local"
+  },
+  "routing": {
+    "modelRouting": "claude-flow",
+    "preferences": {
+      "simple": "haiku",
+      "standard": "sonnet",
+      "complex": "opus"
+    }
+  },
+  "pretrain": {
+    "enabled": true,
+    "depth": "medium",
+    "autoRun": true
+  },
+  "workers": {
+    "enabled": true,
+    "autoDispatch": [
+      "optimize",
+      "consolidate"
+    ]
+  }
+}

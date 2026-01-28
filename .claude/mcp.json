@@ -55,6 +55,14 @@
         "NODE_NO_WARNINGS": "1",
         "VIBIUM_HEADLESS": "false"
       }
+    },
+    "aqe": {
+      "command": "aqe-mcp",
+      "args": [],
+      "env": {
+        "AQE_PROJECT_ROOT": "/home/user/agentic-qe",
+        "NODE_ENV": "production"
+      }
     }
   }
 }

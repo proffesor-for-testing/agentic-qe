@@ -1,0 +1,36 @@
+{
+  "version": "3.0.0",
+  "maxConcurrent": 6,
+  "workers": {
+    "pattern-consolidator": {
+      "name": "pattern-consolidator",
+      "enabled": true,
+      "interval": 1800000,
+      "lastRun": null,
+      "status": "pending"
+    },
+    "routing-accuracy-monitor": {
+      "name": "routing-accuracy-monitor",
+      "enabled": true,
+      "interval": 900000,
+      "lastRun": null,
+      "status": "pending"
+    },
+    "coverage-gap-scanner": {
+      "name": "coverage-gap-scanner",
+      "enabled": true,
+      "interval": 3600000,
+      "lastRun": null,
+      "status": "pending"
+    },
+    "flaky-test-detector": {
+      "name": "flaky-test-detector",
+      "enabled": true,
+      "interval": 7200000,
+      "lastRun": null,
+      "status": "pending"
+    }
+  },
+  "createdAt": "2026-01-28T14:42:07.426Z",
+  "daemonPid": null
+}
