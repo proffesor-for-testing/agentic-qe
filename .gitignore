@@ -204,3 +204,6 @@ L2C/
 scripts/n8n-predeploy-check.sh
 **/n8n-*-config.*
 **/*acngva*
+
+# L2C Documents (user-specific, not for git)
+L2C Documents/
