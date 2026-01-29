@@ -13,7 +13,7 @@
 
 > **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 51 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 12 domains, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
-🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **61 QE Skills** | 🧬 **Coherence Verification** 
+🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **63 QE Skills** | 🧬 **Coherence Verification** 
 
 </div>
 
@@ -70,7 +70,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
-- ✅ **61 QE Skills**: Domain-specific skills for testing, security, accessibility, and more
+- ✅ **63 QE Skills**: Domain-specific skills for testing, security, accessibility, QCSD, and more
 
 ---
 
@@ -478,12 +478,12 @@ claude "Coordinate security audit across the monorepo:
 
 ---
 
-## 🎓 61 QE Skills
+## 🎓 63 QE Skills
 
 V3 agents automatically apply relevant skills from the comprehensive skill library:
 
 <details>
-<summary><b>View All 61 QE Skills</b></summary>
+<summary><b>View All 63 QE Skills</b></summary>
 
 **Core Testing & Methodologies (12)**
 - agentic-quality-engineering - Core PACT principles for AI-powered QE
@@ -557,6 +557,10 @@ V3 agents automatically apply relevant skills from the comprehensive skill libra
 - n8n-security-testing - Workflow security scanning
 - n8n-trigger-testing-strategies - Webhook and event testing
 - n8n-integration-testing-patterns - API contract testing for n8n
+
+**QCSD & Accessibility (2)**
+- qcsd-ideation-swarm - QCSD Ideation phase swarm using HTSM v6.3, Risk Storming, Testability analysis
+- a11y-ally - Comprehensive WCAG auditing with multi-tool testing, video captions, and EU compliance
 
 </details>
 

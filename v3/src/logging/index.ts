@@ -35,28 +35,13 @@
  */
 
 // Core types and interfaces
-export {
-  Logger,
-  LogLevel,
-  LogContext,
-  LOG_LEVEL_NAMES,
-  parseLogLevel,
-  isLogger,
-} from './logger.js';
+export type { Logger, LogContext } from './logger.js';
+export { LogLevel, LOG_LEVEL_NAMES, parseLogLevel, isLogger } from './logger.js';
 
 // Console logger implementation
-export {
-  ConsoleLogger,
-  NullLogger,
-  ConsoleLoggerConfig,
-  DEFAULT_CONSOLE_LOGGER_CONFIG,
-} from './console-logger.js';
+export type { ConsoleLoggerConfig } from './console-logger.js';
+export { ConsoleLogger, NullLogger, DEFAULT_CONSOLE_LOGGER_CONFIG } from './console-logger.js';
 
 // Factory for creating loggers
-export {
-  LoggerFactory,
-  LoggerFactoryConfig,
-  LoggerProvider,
-  createLogger,
-  getLogger,
-} from './logger-factory.js';
+export type { LoggerFactoryConfig, LoggerProvider } from './logger-factory.js';
+export { LoggerFactory, createLogger, getLogger } from './logger-factory.js';

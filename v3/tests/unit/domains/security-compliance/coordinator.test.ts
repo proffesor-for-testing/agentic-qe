@@ -29,6 +29,107 @@ import {
 import { SecurityComplianceEvents } from '../../../../src/shared/events/domain-events';
 import { FilePath } from '../../../../src/shared/value-objects';
 
+// Mock the security services to prevent real file/network operations
+vi.mock('../../../../src/domains/security-compliance/services/security-scanner', () => {
+  return {
+    SecurityScannerService: class MockSecurityScannerService {
+      async initialize() { return undefined; }
+      async scanFiles() {
+        return {
+          success: true,
+          value: {
+            scanId: 'mock-sast-scan-1',
+            vulnerabilities: [],
+            scannedFiles: 1,
+            duration: 100,
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }
+      async scanUrl() {
+        return {
+          success: true,
+          value: {
+            scanId: 'mock-dast-scan-1',
+            vulnerabilities: [],
+            scannedEndpoints: 1,
+            duration: 100,
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }
+      async dispose() { return undefined; }
+    },
+  };
+});
+
+vi.mock('../../../../src/domains/security-compliance/services/security-auditor', () => {
+  return {
+    SecurityAuditorService: class MockSecurityAuditorService {
+      async initialize() { return undefined; }
+      async runAudit() {
+        return {
+          success: true,
+          value: {
+            auditId: 'mock-audit-1',
+            findings: [],
+            score: 85,
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }
+      async getSecurityPosture() {
+        return {
+          success: true,
+          value: {
+            overallScore: 85,
+            trend: 'stable',
+            categories: {},
+            lastAssessment: new Date().toISOString(),
+          },
+        };
+      }
+      async dispose() { return undefined; }
+    },
+  };
+});
+
+vi.mock('../../../../src/domains/security-compliance/services/compliance-validator', () => {
+  return {
+    ComplianceValidatorService: class MockComplianceValidatorService {
+      async initialize() { return undefined; }
+      async validate(standard: unknown) {
+        const standardObj = standard as { id?: string } | undefined;
+        const standardId = standardObj?.id ?? 'unknown';
+        if (standardId === 'unknown-standard') {
+          return {
+            success: false,
+            error: new Error('Unknown compliance standard: unknown-standard'),
+          };
+        }
+        return {
+          success: true,
+          value: {
+            standardId,
+            compliant: true,
+            score: 90,
+            violations: [],
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }
+      async getAvailableStandards() {
+        return [
+          { id: 'owasp-top-10', name: 'OWASP Top 10' },
+          { id: 'pci-dss', name: 'PCI-DSS' },
+          { id: 'gdpr', name: 'GDPR' },
+        ];
+      }
+      async dispose() { return undefined; }
+    },
+  };
+});
+
 describe('SecurityComplianceCoordinator', () => {
   let ctx: CoordinatorTestContext;
   let coordinator: SecurityComplianceCoordinator;

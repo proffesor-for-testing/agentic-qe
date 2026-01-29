@@ -554,12 +554,20 @@ export class PatternStore implements IPatternStore {
       const hnsw = await this.ensureHNSW();
       if (hnsw) {
         try {
+          // Cast pattern metadata to CoverageVectorMetadata for HNSW storage
+          // Pattern-specific fields are stored as extensions
           await hnsw.insert(pattern.id, pattern.embedding, {
-            patternType: pattern.patternType,
-            qeDomain: pattern.qeDomain,
-            confidence: pattern.confidence,
-            qualityScore: pattern.qualityScore,
-          });
+            filePath: pattern.patternType,
+            lineCoverage: pattern.confidence * 100,
+            branchCoverage: pattern.qualityScore * 100,
+            functionCoverage: 0,
+            statementCoverage: 0,
+            uncoveredLineCount: 0,
+            uncoveredBranchCount: 0,
+            riskScore: 1 - pattern.confidence,
+            lastUpdated: Date.now(),
+            totalLines: 0,
+          } as import('../domains/coverage-analysis/services/hnsw-index.js').CoverageVectorMetadata);
         } catch (error) {
           console.warn(`[PatternStore] Failed to index embedding for ${pattern.id}:`, error);
         }

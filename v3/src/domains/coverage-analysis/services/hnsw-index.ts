@@ -31,7 +31,8 @@ import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
  */
 type QEGNNEmbeddingIndexType = import('../../../integrations/ruvector/wrappers.js').QEGNNEmbeddingIndex;
 
-let QEGNNEmbeddingIndexClass: (new (config?: HNSWIndexConfig) => QEGNNEmbeddingIndexType) | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let QEGNNEmbeddingIndexClass: (new (config?: any) => QEGNNEmbeddingIndexType) | null = null;
 let ruvectorLoaded = false;
 
 /**

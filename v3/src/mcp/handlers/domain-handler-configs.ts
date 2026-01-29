@@ -227,6 +227,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       learning,
       // V3 fields
       taskId,
+      status: 'completed',
       testsGenerated: v2Tests.length,
       coverageEstimate: (data.coverageEstimate as number) || params?.coverageGoal || 80,
       patternsUsed: (data.patternsUsed as string[]) || ['assertion-patterns', 'mock-generation', 'edge-case-detection'],
@@ -357,20 +358,23 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
     const learning = generateV2LearningFeedback('coverage-analyzer');
 
     // Generate detailed gap analysis
-    const detailedGaps = gaps.map((gap: Record<string, unknown>, i: number) => ({
-      id: `gap-${Date.now()}-${i}`,
-      file: (gap?.file as string) || `src/module${i}.ts`,
-      line: ((gap?.lines as number[])?.[0]) || (10 + i * 5),
-      uncoveredLines: (gap?.lines as number[]) || [10 + i * 5, 20 + i * 5],
-      type: ((gap?.type as string) || 'uncovered-line') as 'uncovered-line' | 'uncovered-branch' | 'uncovered-function',
-      severity: ((gap?.severity as string) || (i < 2 ? 'high' : 'medium')) as 'critical' | 'high' | 'medium' | 'low',
-      reason: (gap?.reason as string) || 'Missing test case',
-      priority: (gap?.priority as string) || (i < 2 ? 'high' : 'medium'),
-      suggestion: (gap?.suggestedTest as string) || `Add test for line ${10 + i * 5}`,
-      suggestedTest: (gap?.suggestedTest as string) || `Add test for line ${10 + i * 5}`,
-      riskScore: (gap?.riskScore as number) || (0.8 - i * 0.1),
-      confidence: (gap?.confidence as number) || 0.85,
-    }));
+    const detailedGaps = gaps.map((gap: unknown, i: number) => {
+      const g = gap as Record<string, unknown>;
+      return {
+        id: `gap-${Date.now()}-${i}`,
+        file: (g?.file as string) || `src/module${i}.ts`,
+        line: ((g?.lines as number[])?.[0]) || (10 + i * 5),
+        uncoveredLines: (g?.lines as number[]) || [10 + i * 5, 20 + i * 5],
+        type: ((g?.type as string) || 'uncovered-line') as 'uncovered-line' | 'uncovered-branch' | 'uncovered-function',
+        severity: ((g?.severity as string) || (i < 2 ? 'high' : 'medium')) as 'critical' | 'high' | 'medium' | 'low',
+        reason: (g?.reason as string) || 'Missing test case',
+        priority: (g?.priority as string) || (i < 2 ? 'high' : 'medium'),
+        suggestion: (g?.suggestedTest as string) || `Add test for line ${10 + i * 5}`,
+        suggestedTest: (g?.suggestedTest as string) || `Add test for line ${10 + i * 5}`,
+        riskScore: (g?.riskScore as number) || (0.8 - i * 0.1),
+        confidence: (g?.confidence as number) || 0.85,
+      };
+    });
 
     return {
       // V2-compatible fields
@@ -405,6 +409,7 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
       learning,
       // V3 fields
       taskId,
+      status: 'completed',
       lineCoverage,
       branchCoverage,
       functionCoverage,

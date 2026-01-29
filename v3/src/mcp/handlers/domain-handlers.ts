@@ -57,7 +57,7 @@ import {
 } from '../types';
 
 // Re-export result types for backwards compatibility
-export {
+export type {
   TestExecuteResult,
   QualityAssessResult,
   SecurityScanResult,

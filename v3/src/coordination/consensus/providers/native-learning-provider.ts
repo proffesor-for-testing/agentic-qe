@@ -518,7 +518,7 @@ export class NativeLearningProvider extends BaseModelProvider {
    */
   private extractPatternFromMatch(match: PatternSearchResult): SecurityVerificationPattern | null {
     try {
-      const context = match.pattern?.context as Record<string, unknown> | undefined;
+      const context = match.pattern?.context as unknown as Record<string, unknown> | undefined;
       const vote = context?.vote as { assessment?: VoteAssessment; confidence?: number; reasoning?: string; agrees?: boolean; suggestedSeverity?: Severity } | undefined;
       const finding = context?.finding as { category?: string; type?: string } | undefined;
       if (!vote) return null;

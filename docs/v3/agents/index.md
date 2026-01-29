@@ -85,6 +85,12 @@ QUEEN COORDINATOR (1)
 │   ├── v3-qe-qx-partner
 │   └── v3-qe-fleet-commander
 │
+├── QCSD IDEATION GROUP (4)
+│   ├── v3-qe-quality-criteria-recommender
+│   ├── v3-qe-product-factors-assessor
+│   ├── v3-qe-risk-assessor
+│   └── v3-qe-test-idea-rewriter
+│
 └── SUBAGENTS (7)
     ├── v3-qe-code-reviewer
     ├── v3-qe-test-writer
@@ -114,6 +120,19 @@ See individual domain pages for detailed agent information.
 | `v3-qe-qx-partner` | Quality Experience analysis |
 | `v3-qe-fleet-commander` | Fleet management, autoscaling |
 
+### QCSD Ideation Agents (4)
+
+Specialized agents for the QCSD Ideation phase using HTSM v6.3 and SFDIPOT frameworks:
+
+| Agent | Purpose |
+|-------|---------|
+| `v3-qe-quality-criteria-recommender` | HTSM v6.3 quality criteria analysis with 10 categories |
+| `v3-qe-product-factors-assessor` | SFDIPOT product factors assessment with 37 subcategories |
+| `v3-qe-risk-assessor` | Multi-factor risk scoring with cross-phase learning |
+| `v3-qe-test-idea-rewriter` | Transform passive "Verify" tests to active action verbs |
+
+These agents integrate with the cross-phase memory system for automated QCSD feedback loops.
+
 ### Subagents (7)
 
 Task-specific workers that can be spawned by domain agents:
@@ -135,10 +154,11 @@ Task-specific workers that can be spawned by domain agents:
 | Coordinator | 1 |
 | Domain Agents | 46 |
 | Cross-Domain | 2 |
+| QCSD Ideation | 4 |
 | Subagents | 7 |
-| **Total** | **56** |
+| **Total** | **60** |
 
-*Note: Agent definitions in `.claude/agents/v3/` exceed this count (71) due to additional specialized variants.*
+*Note: Agent definitions in `.claude/agents/v3/` exceed this count due to additional specialized variants.*
 
 ## Using Agents
 

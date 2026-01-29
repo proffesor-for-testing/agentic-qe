@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 12 Bounded Contexts, 51 Specialized QE Agents, 61 QE Skills, and ReasoningBank Learning
+> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 12 Bounded Contexts, 51 Specialized QE Agents, 63 QE Skills, and ReasoningBank Learning
 
 ## Quick Start
 
@@ -38,7 +38,7 @@ npx aqe test generate src/
 ## Why Agentic QE?
 
 - **51 Specialized QE Agents** - Domain-focused quality engineering agents (44 main + 7 subagents)
-- **61 QE Skills** - Domain-specific skills for testing, security, accessibility, and more
+- **63 QE Skills** - Domain-specific skills for testing, security, accessibility, QCSD, and more
 - **12 DDD Bounded Contexts** - Modular, extensible architecture
 - **TinyDancer Model Routing** - 3-tier intelligent routing for cost optimization
 - **O(log n) Coverage Analysis** - Sublinear performance with HNSW indexing
@@ -490,7 +490,7 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Memory | SQLite only | HNSW + SQLite hybrid |
 | Learning | Basic patterns | ReasoningBank + SONA + Dream Cycles |
 | Agents | 32 | 51 QE agents (44 main + 7 subagents) |
-| Skills | 35 | 61 QE skills (v2 + v3 domain skills) |
+| Skills | 35 | 63 QE skills (v2 + v3 domain skills) |
 | Coverage | O(n) | O(log n) |
 | Pattern Search | Linear | O(log n) HNSW indexing |
 | Coordination | Sequential | Queen + Work Stealing + Consensus |
@@ -606,12 +606,12 @@ Agentic QE includes 51 specialized quality engineering agents (44 main + 7 subag
 ### Additional Agents (New in v3)
 `qe-product-factors-assessor` (SFDIPOT analysis), `qe-quality-criteria-recommender` (HTSM v6.3 Quality Criteria), `qe-test-idea-rewriter` (passive→active test transforms)
 
-## 61 QE Skills
+## 63 QE Skills
 
-Agentic QE includes 61 domain-specific quality engineering skills that agents automatically apply:
+Agentic QE includes 63 domain-specific quality engineering skills that agents automatically apply:
 
 <details>
-<summary><b>View All 61 QE Skills</b></summary>
+<summary><b>View All 63 QE Skills</b></summary>
 
 ### Core Testing & Methodologies (12)
 - `agentic-quality-engineering` - Core PACT principles for AI-powered QE
@@ -684,6 +684,10 @@ Agentic QE includes 61 domain-specific quality engineering skills that agents au
 - `n8n-security-testing` - Workflow security scanning
 - `n8n-trigger-testing-strategies` - Webhook and event testing
 - `n8n-integration-testing-patterns` - API contract testing for n8n
+
+### QCSD & Accessibility (2)
+- `qcsd-ideation-swarm` - QCSD Ideation phase swarm using HTSM v6.3, Risk Storming, Testability analysis
+- `a11y-ally` - Comprehensive WCAG auditing with multi-tool testing, video captions, and EU compliance
 
 </details>
 

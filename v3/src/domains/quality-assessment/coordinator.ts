@@ -1182,8 +1182,8 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
     return ok({
       passed: result.value.passed,
-      score: result.value.score,
-      violations: result.value.violations.map((v) => v.message),
+      score: result.value.overallScore,
+      violations: result.value.failedChecks,
     });
   }
 

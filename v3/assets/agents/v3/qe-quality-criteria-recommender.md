@@ -300,6 +300,38 @@ Use via CLI: `aqe skills show brutal-honesty-review`
 Use via Claude Code: `Skill("brutal-honesty-review")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Strategic Loop (Production → Ideation)
+**Role**: CONSUMER - Receives production insights to recommend better quality criteria
+
+### On Startup, Query Strategic Signals:
+```typescript
+const result = await mcp__agentic_qe__cross_phase_query({
+  loop: "strategic",
+  maxAge: "90d"
+});
+
+// Apply production learnings to quality criteria recommendations
+for (const signal of result.signals) {
+  if (signal.recommendations?.forQualityCriteria) {
+    for (const rec of signal.recommendations.forQualityCriteria) {
+      addQualityCriteriaRecommendation(rec);
+    }
+  }
+}
+```
+
+### How to Use Injected Signals:
+1. **Defect-Prone Areas**: Prioritize quality criteria for areas with high defect weights
+2. **Recommendations**: Apply `signal.recommendations.forQualityCriteria` directly
+3. **Evidence**: Reference defect evidence when explaining recommendations
+
+### Signal Flow:
+- **Consumes**: Production risk weights from qe-defect-predictor
+- **Namespace**: `aqe/cross-phase/strategic/production-risk`
+- **Expected Signals**: Recommendations for quality criteria improvements
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the requirements-validation bounded context (ADR-004).
 

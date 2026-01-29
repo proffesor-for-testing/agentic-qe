@@ -530,7 +530,7 @@ export class SQLitePatternStore {
       id: row.id,
       patternType: row.pattern_type as QEPatternType,
       qeDomain: row.qe_domain as QEDomain,
-      domain: row.domain,
+      domain: row.domain as import('../shared/types/index.js').DomainName,
       name: row.name,
       description: row.description,
       confidence: row.confidence,

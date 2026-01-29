@@ -89,6 +89,8 @@ interface IDreamEngine {
   initialize(): Promise<void>;
   dream(durationMs?: number): Promise<DreamCycleResult>;
   importPatterns(patterns: PatternImportData[]): Promise<number>;
+  loadPatternsAsConcepts(patterns: unknown[]): Promise<void>;
+  getPendingInsights(): Promise<DreamInsight[]>;
   dispose(): void;
 }
 
@@ -1137,9 +1139,10 @@ export class DreamMinCutController {
     if (!this.dreamEngine) {
       try {
         const dreamModule = await import('../../learning/dream/index.js');
-        this.dreamEngine = dreamModule.createDreamEngine({
+        const engine = dreamModule.createDreamEngine({
           maxDurationMs: durationMs ?? 30000,
         });
+        this.dreamEngine = engine as unknown as IDreamEngine;
         await this.dreamEngine.initialize();
       } catch (error) {
         console.warn('[DreamMinCutController] Dream module not available:', error);
@@ -1154,6 +1157,10 @@ export class DreamMinCutController {
       if (patterns.length < 3) {
         console.log('[DreamMinCutController] Not enough patterns for dream cycle');
         return null;
+      }
+
+      if (!this.dreamEngine) {
+        return this.fallbackDream();
       }
 
       // Load patterns into dream engine

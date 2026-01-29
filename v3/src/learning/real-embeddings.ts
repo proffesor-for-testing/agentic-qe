@@ -11,22 +11,28 @@ export { cosineSimilarity } from '../shared/utils/vector-math.js';
 
 /**
  * Type for the @xenova/transformers pipeline function
- * Using unknown since the actual type depends on the task parameter
+ * Using any since the actual transformers.js types are complex and vary by task
  */
-type PipelineFunction = (
-  task: string,
-  model: string,
-  options?: { quantized?: boolean }
-) => Promise<FeatureExtractionPipeline>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PipelineFunction = any;
+
+/**
+ * Type for the feature extraction pipeline output
+ */
+interface EmbeddingOutput {
+  data: Float32Array;
+  dims?: number[];
+}
 
 /**
  * Type for the feature extraction pipeline
+ * Supports both single string and batch string[] inputs
  */
 interface FeatureExtractionPipeline {
   (
-    input: string,
+    input: string | string[],
     options?: { pooling?: string; normalize?: boolean }
-  ): Promise<{ data: Float32Array }>;
+  ): Promise<EmbeddingOutput>;
 }
 
 // Lazy-loaded transformer pipeline
@@ -130,6 +136,10 @@ export async function computeRealEmbedding(
     await initializeModel(config);
   }
 
+  if (!embeddingModel) {
+    throw new Error('Embedding model failed to initialize');
+  }
+
   // Compute embedding
   const startTime = performance.now();
   const output = await embeddingModel(text, { pooling: 'mean', normalize: true });
@@ -192,6 +202,10 @@ export async function computeBatchEmbeddings(
       await initializeModel(config);
     }
 
+    if (!embeddingModel) {
+      throw new Error('Embedding model failed to initialize');
+    }
+
     const startTime = performance.now();
 
     // Process in batches of 32 for memory efficiency
@@ -203,7 +217,7 @@ export async function computeBatchEmbeddings(
       const outputs = await embeddingModel(batchTexts, { pooling: 'mean', normalize: true });
 
       // Extract embeddings from batch output
-      const dims = outputs.dims;
+      const dims = outputs.dims || [batchTexts.length, 384]; // Default to MiniLM dimensions
       const batchSize = dims[0];
       const embeddingDim = dims[1];
 
