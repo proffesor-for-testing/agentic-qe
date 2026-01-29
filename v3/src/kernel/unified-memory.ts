@@ -25,6 +25,46 @@ import { HYPERGRAPH_SCHEMA } from '../migrations/20260120_add_hypergraph_tables.
 import { MEMORY_CONSTANTS, HNSW_CONSTANTS } from './constants.js';
 
 // ============================================================================
+// Project Root Detection
+// ============================================================================
+
+/**
+ * Find the project root by walking up the directory tree.
+ * Looks for package.json or .git directory as project markers.
+ * Falls back to current working directory if no markers found.
+ *
+ * This ensures ALL V3 systems persist to the same database regardless
+ * of which subdirectory they are run from.
+ */
+export function findProjectRoot(startDir: string = process.cwd()): string {
+  let dir = startDir;
+  const root = path.parse(dir).root;
+
+  while (dir !== root) {
+    // Check for project markers
+    if (
+      fs.existsSync(path.join(dir, 'package.json')) ||
+      fs.existsSync(path.join(dir, '.git'))
+    ) {
+      return dir;
+    }
+    dir = path.dirname(dir);
+  }
+
+  // Fallback to current working directory
+  return process.cwd();
+}
+
+/**
+ * Get the default database path using project root detection.
+ * Always resolves to {project_root}/.agentic-qe/memory.db
+ */
+export function getDefaultDbPath(): string {
+  const projectRoot = findProjectRoot();
+  return path.join(projectRoot, '.agentic-qe', 'memory.db');
+}
+
+// ============================================================================
 // Configuration
 // ============================================================================
 
@@ -43,14 +83,32 @@ export interface UnifiedMemoryConfig {
   vectorDimensions: number;
 }
 
+/**
+ * Default config uses project root detection for the database path.
+ * This ensures all V3 systems (MCP, CLI, hooks) use the same database.
+ *
+ * NOTE: dbPath is resolved lazily via getDefaultDbPath() when config
+ * is first used. The static value here is a fallback for edge cases.
+ */
 export const DEFAULT_UNIFIED_MEMORY_CONFIG: UnifiedMemoryConfig = {
-  dbPath: '.agentic-qe/memory.db',  // <-- THE SINGLE SOURCE OF TRUTH
+  dbPath: '.agentic-qe/memory.db',  // Resolved to project root at runtime
   walMode: true,
   mmapSize: MEMORY_CONSTANTS.MMAP_SIZE_BYTES,
   cacheSize: MEMORY_CONSTANTS.CACHE_SIZE_KB,
   busyTimeout: MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
   vectorDimensions: MEMORY_CONSTANTS.DEFAULT_VECTOR_DIMENSIONS,
 };
+
+/**
+ * Get the resolved default config with project root detection applied.
+ * Call this instead of using DEFAULT_UNIFIED_MEMORY_CONFIG directly.
+ */
+export function getResolvedDefaultConfig(): UnifiedMemoryConfig {
+  return {
+    ...DEFAULT_UNIFIED_MEMORY_CONFIG,
+    dbPath: getDefaultDbPath(),
+  };
+}
 
 // ============================================================================
 // Schema Version for Migrations
@@ -642,7 +700,9 @@ export class UnifiedMemoryManager {
   private vectorIndex: InMemoryHNSWIndex = new InMemoryHNSWIndex();
 
   private constructor(config?: Partial<UnifiedMemoryConfig>) {
-    this.config = { ...DEFAULT_UNIFIED_MEMORY_CONFIG, ...config };
+    // Use resolved config with project root detection for the dbPath
+    const resolvedDefaults = getResolvedDefaultConfig();
+    this.config = { ...resolvedDefaults, ...config };
   }
 
   /**
