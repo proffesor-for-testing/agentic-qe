@@ -1188,7 +1188,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_INPUT_file_path" ] && npx agentic-qe hooks pre-edit --file "$TOOL_INPUT_file_path" 2>/dev/null || true',
+              command: '[ -n "$TOOL_INPUT_file_path" ] && aqe hooks pre-edit --file "$TOOL_INPUT_file_path" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1199,7 +1199,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_INPUT_command" ] && npx agentic-qe hooks pre-command --command "$TOOL_INPUT_command" 2>/dev/null || true',
+              command: '[ -n "$TOOL_INPUT_command" ] && aqe hooks pre-command --command "$TOOL_INPUT_command" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1210,7 +1210,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_INPUT_prompt" ] && npx agentic-qe hooks pre-task --task-id "task-$(date +%s)" --description "$TOOL_INPUT_prompt" 2>/dev/null || true',
+              command: '[ -n "$TOOL_INPUT_prompt" ] && aqe hooks pre-task --task-id "task-$(date +%s)" --description "$TOOL_INPUT_prompt" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1225,7 +1225,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_INPUT_file_path" ] && npx agentic-qe hooks post-edit --file "$TOOL_INPUT_file_path" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
+              command: '[ -n "$TOOL_INPUT_file_path" ] && aqe hooks post-edit --file "$TOOL_INPUT_file_path" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1236,7 +1236,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_INPUT_command" ] && npx agentic-qe hooks post-command --command "$TOOL_INPUT_command" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
+              command: '[ -n "$TOOL_INPUT_command" ] && aqe hooks post-command --command "$TOOL_INPUT_command" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1247,7 +1247,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_RESULT_agent_id" ] && npx agentic-qe hooks post-task --task-id "$TOOL_RESULT_agent_id" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
+              command: '[ -n "$TOOL_RESULT_agent_id" ] && aqe hooks post-task --task-id "$TOOL_RESULT_agent_id" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1261,7 +1261,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$PROMPT" ] && npx agentic-qe hooks route --task "$PROMPT" 2>/dev/null || true',
+              command: '[ -n "$PROMPT" ] && aqe hooks route --task "$PROMPT" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1275,7 +1275,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$SESSION_ID" ] && npx agentic-qe hooks session-start --session-id "$SESSION_ID" 2>/dev/null || true',
+              command: '[ -n "$SESSION_ID" ] && aqe hooks session-start --session-id "$SESSION_ID" 2>/dev/null || true',
               timeout: 10000,
               continueOnError: true,
             },
@@ -1288,7 +1288,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: 'npx agentic-qe hooks session-end --save-state 2>/dev/null || true',
+              command: 'aqe hooks session-end --save-state 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },

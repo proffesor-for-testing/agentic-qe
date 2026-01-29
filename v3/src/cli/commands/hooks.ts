@@ -284,9 +284,26 @@ export function createHooksCommand(): Command {
     .description('Self-learning QE hooks for pattern recognition and guidance')
     .addHelpText('after', `
 Examples:
+  # File editing hooks (learning from edits)
   aqe hooks pre-edit --file src/utils.ts --operation create
   aqe hooks post-edit --file src/utils.ts --success
+
+  # Task routing and guidance
   aqe hooks route --task "Generate tests for UserService"
+  aqe hooks pre-task --description "Generate tests" --json
+  aqe hooks post-task --task-id "task-123" --success true
+
+  # Bash command hooks
+  aqe hooks pre-command --command "npm test" --json
+  aqe hooks post-command --command "npm test" --success true
+
+  # Session lifecycle (Stop hook)
+  aqe hooks session-start --session-id "session-123"
+  aqe hooks session-end --save-state --json
+
+  # Pattern management
+  aqe hooks learn --name "test-pattern" --description "A test pattern"
+  aqe hooks search --query "authentication"
   aqe hooks stats
   aqe hooks list
     `);
