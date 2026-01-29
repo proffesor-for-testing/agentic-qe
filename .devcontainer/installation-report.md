@@ -1,6 +1,6 @@
 # 📦 DevContainer Installation Report
 
-**Generated on:** Sun Dec 14 10:39:49 UTC 2025
+**Generated on:** Sun Jan 25 14:15:43 UTC 2026
 
 ## 📊 Installation Summary
 
@@ -15,7 +15,7 @@
 | Tool | Status | Notes |
 |------|--------|-------|
 | tmux | ❌ Failed | Installation failed - see manual instructions below |
-| GitHub CLI | ✅ Success | Installed via apt-get with sudo |
+| GitHub CLI | ❌ Failed | Installation failed - see manual instructions below |
 | Claude Code | ❌ Failed | Installation failed - see manual instructions below |
 | UV | ✅ Success | Installed via official installer |
 | Claude Monitor | ✅ Success | Installed via UV tool |
@@ -44,6 +44,24 @@ sudo yum install -y tmux
 ```bash
 brew install tmux
 ```
+
+### 🐙 Installing GitHub CLI manually
+
+**For Debian/Ubuntu:**
+```bash
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+sudo apt update
+sudo apt install gh -y
+```
+
+**For macOS:**
+```bash
+brew install gh
+```
+
+**For other systems, visit:** https://github.com/cli/cli#installation
 
 ### 🤖 Installing Claude Code manually
 
@@ -109,4 +127,4 @@ sudo npm install -g ccusage
 
 ---
 
-*Report generated at: Sun Dec 14 10:39:56 UTC 2025*
+*Report generated at: Sun Jan 25 14:15:52 UTC 2026*

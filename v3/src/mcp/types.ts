@@ -45,7 +45,8 @@ export type ToolCategory =
   | 'coordination'   // Protocols, workflows
   | 'memory'         // Memory operations
   | 'learning'       // Learning and optimization
-  | 'routing';       // ADR-051: Model routing
+  | 'routing'        // ADR-051: Model routing
+  | 'cross-phase';   // QCSD: Cross-phase memory feedback loops
 
 /**
  * Tool handler function type

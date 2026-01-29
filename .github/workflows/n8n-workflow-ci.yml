@@ -1,0 +1,565 @@
+name: N8n Workflow CI/CD
+
+# Triggers for n8n workflow testing
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'n8n/workflows/**'
+      - 'L2C Documents/n8n-validation-reports/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'n8n/workflows/**'
+  schedule:
+    # Daily regression at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      workflow_id:
+        description: 'n8n Workflow ID to test'
+        required: false
+        default: 'XZh6fRWwt0KdHz2Q'
+      skip_security:
+        description: 'Skip security checks (emergency only)'
+        type: boolean
+        default: false
+
+# Environment variables
+env:
+  N8N_BASE_URL: ${{ secrets.N8N_BASE_URL }}
+  N8N_WORKFLOW_ID: ${{ github.event.inputs.workflow_id || 'XZh6fRWwt0KdHz2Q' }}
+  NODE_VERSION: '20'
+
+# Permissions
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  actions: read
+
+jobs:
+  #############################################################################
+  # JOB 1: Validate Workflow Structure
+  #############################################################################
+  validate:
+    name: Validate Workflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      validation_passed: ${{ steps.validate.outputs.passed }}
+      node_count: ${{ steps.validate.outputs.node_count }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch workflow from n8n
+        id: fetch
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "X-N8N-API-KEY: ${{ secrets.N8N_API_KEY }}" \
+            "${{ env.N8N_BASE_URL }}/api/v1/workflows/${{ env.N8N_WORKFLOW_ID }}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Failed to fetch workflow. HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "$BODY" > workflow.json
+          echo "Workflow fetched successfully"
+
+      - name: Validate workflow structure
+        id: validate
+        run: |
+          # Validate JSON structure
+          if ! jq empty workflow.json 2>/dev/null; then
+            echo "::error::Invalid JSON structure"
+            echo "passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          # Extract metrics
+          NODE_COUNT=$(jq '.nodes | length' workflow.json)
+          CONNECTIONS=$(jq '.connections | keys | length' workflow.json)
+          ACTIVE=$(jq '.active' workflow.json)
+
+          echo "node_count=$NODE_COUNT" >> $GITHUB_OUTPUT
+          echo "connections=$CONNECTIONS" >> $GITHUB_OUTPUT
+
+          # Validation rules
+          ERRORS=0
+
+          # Rule 1: Must have at least one trigger
+          TRIGGER_COUNT=$(jq '[.nodes[] | select(.type | test("trigger|webhook|schedule"; "i"))] | length' workflow.json)
+          if [ "$TRIGGER_COUNT" -eq 0 ]; then
+            echo "::error::No trigger node found"
+            ERRORS=$((ERRORS + 1))
+          fi
+
+          # Rule 2: All required credentials present
+          MISSING_CREDS=$(jq '[.nodes[] | select(.credentials != null) | .credentials | to_entries[] | select(.value.id == null or .value.id == "CREATE_NEW_CREDENTIAL")] | length' workflow.json)
+          if [ "$MISSING_CREDS" -gt 0 ]; then
+            echo "::warning::$MISSING_CREDS nodes have missing credentials"
+          fi
+
+          if [ "$ERRORS" -eq 0 ]; then
+            echo "passed=true" >> $GITHUB_OUTPUT
+            echo "Validation passed: $NODE_COUNT nodes, $CONNECTIONS connections"
+          else
+            echo "passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-json
+          path: workflow.json
+          retention-days: 7
+
+  #############################################################################
+  # JOB 2: Security Scan
+  #############################################################################
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ !inputs.skip_security }}
+    timeout-minutes: 10
+    outputs:
+      security_score: ${{ steps.scan.outputs.score }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: workflow-json
+
+      - name: Run security scan
+        id: scan
+        run: |
+          SCORE=100
+          ISSUES=""
+
+          # Check 1: Hardcoded secrets (Facebook/Meta tokens)
+          HARDCODED_TOKENS=$(jq -r '[.. | strings | select(test("EAA[A-Za-z0-9]+"; "i"))] | length' workflow.json 2>/dev/null || echo "0")
+          if [ "$HARDCODED_TOKENS" -gt 0 ]; then
+            SCORE=$((SCORE - 40))
+            ISSUES="$ISSUES\n- CRITICAL: $HARDCODED_TOKENS hardcoded API tokens found"
+            echo "::error::Hardcoded tokens detected in workflow"
+          fi
+
+          # Check 2: Exposed credentials in parameters
+          EXPOSED_CREDS=$(jq -r '[.nodes[].parameters | .. | strings | select(test("password|secret|api_key|token"; "i"))] | length' workflow.json 2>/dev/null || echo "0")
+          if [ "$EXPOSED_CREDS" -gt 0 ]; then
+            SCORE=$((SCORE - 20))
+            ISSUES="$ISSUES\n- HIGH: Potential credential exposure in $EXPOSED_CREDS locations"
+          fi
+
+          # Check 3: Unsafe code execution patterns
+          UNSAFE_CODE=$(jq -r '[.nodes[] | select(.type | test("code|function"; "i")) | .parameters.jsCode // "" | select(test("eval|Function\\(|exec"; "i"))] | length' workflow.json 2>/dev/null || echo "0")
+          if [ "$UNSAFE_CODE" -gt 0 ]; then
+            SCORE=$((SCORE - 15))
+            ISSUES="$ISSUES\n- HIGH: Unsafe code execution patterns found"
+          fi
+
+          # Check 4: HTTP nodes without HTTPS
+          INSECURE_HTTP=$(jq '[.nodes[] | select(.type | test("http"; "i")) | .parameters.url // "" | select(startswith("http://"))] | length' workflow.json 2>/dev/null || echo "0")
+          if [ "$INSECURE_HTTP" -gt 0 ]; then
+            SCORE=$((SCORE - 10))
+            ISSUES="$ISSUES\n- MEDIUM: $INSECURE_HTTP insecure HTTP connections"
+          fi
+
+          # Check 5: Missing authentication on webhooks
+          UNAUTH_WEBHOOKS=$(jq '[.nodes[] | select(.type | test("webhook"; "i")) | select(.parameters.authentication == null or .parameters.authentication == "none")] | length' workflow.json 2>/dev/null || echo "0")
+          if [ "$UNAUTH_WEBHOOKS" -gt 0 ]; then
+            SCORE=$((SCORE - 15))
+            ISSUES="$ISSUES\n- HIGH: $UNAUTH_WEBHOOKS unauthenticated webhooks"
+          fi
+
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+
+          # Generate report
+          cat << EOF > security-report.md
+          # Security Scan Report
+
+          **Workflow ID:** ${{ env.N8N_WORKFLOW_ID }}
+          **Score:** $SCORE/100
+          **Status:** $([ $SCORE -ge 80 ] && echo "PASS" || echo "FAIL")
+
+          ## Issues Found
+          $(echo -e "$ISSUES")
+
+          ## Recommendations
+          - Store all API tokens in n8n credentials
+          - Enable authentication on all webhooks
+          - Use HTTPS for all external connections
+          - Avoid eval() and dynamic code execution
+          EOF
+
+          cat security-report.md
+
+          # Fail if score below threshold
+          if [ "$SCORE" -lt 60 ]; then
+            echo "::error::Security score $SCORE below minimum threshold (60)"
+            exit 1
+          fi
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: security-report.md
+          retention-days: 30
+
+  #############################################################################
+  # JOB 3: Integration Tests
+  #############################################################################
+  test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [validate, security]
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: workflow-json
+
+      - name: Test webhook trigger
+        id: webhook_test
+        run: |
+          # Test webhook endpoint availability
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.N8N_WEBHOOK_AUTH }}" \
+            --connect-timeout 10 \
+            "${{ env.N8N_BASE_URL }}/webhook/marketing-report" \
+            -d '{"test": true, "source": "ci-pipeline"}' || echo "000")
+
+          echo "webhook_status=$RESPONSE" >> $GITHUB_OUTPUT
+
+          if [ "$RESPONSE" = "000" ]; then
+            echo "::warning::Webhook endpoint not reachable"
+          elif [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 300 ]; then
+            echo "Webhook test passed: HTTP $RESPONSE"
+          else
+            echo "::warning::Webhook returned HTTP $RESPONSE"
+          fi
+
+      - name: Test workflow execution history
+        id: execution_test
+        run: |
+          # Get recent executions to verify workflow is functional
+          RESPONSE=$(curl -s \
+            -H "X-N8N-API-KEY: ${{ secrets.N8N_API_KEY }}" \
+            "${{ env.N8N_BASE_URL }}/api/v1/executions?workflowId=${{ env.N8N_WORKFLOW_ID }}&limit=10")
+
+          TOTAL=$(echo "$RESPONSE" | jq '.data | length')
+          SUCCESS=$(echo "$RESPONSE" | jq '[.data[] | select(.status == "success")] | length')
+          FAILED=$(echo "$RESPONSE" | jq '[.data[] | select(.status == "error")] | length')
+
+          SUCCESS_RATE=0
+          if [ "$TOTAL" -gt 0 ]; then
+            SUCCESS_RATE=$((SUCCESS * 100 / TOTAL))
+          fi
+
+          echo "total_executions=$TOTAL" >> $GITHUB_OUTPUT
+          echo "success_count=$SUCCESS" >> $GITHUB_OUTPUT
+          echo "failure_count=$FAILED" >> $GITHUB_OUTPUT
+          echo "success_rate=$SUCCESS_RATE" >> $GITHUB_OUTPUT
+
+          echo "Execution stats: $SUCCESS/$TOTAL successful ($SUCCESS_RATE%)"
+
+          # Warning if success rate below 80%
+          if [ "$SUCCESS_RATE" -lt 80 ] && [ "$TOTAL" -gt 5 ]; then
+            echo "::warning::Success rate $SUCCESS_RATE% below threshold (80%)"
+          fi
+
+      - name: Generate test report
+        run: |
+          cat << EOF > test-report.md
+          # Integration Test Report
+
+          **Workflow ID:** ${{ env.N8N_WORKFLOW_ID }}
+          **Test Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+          ## Webhook Test
+          - **Endpoint:** POST /webhook/marketing-report
+          - **Status:** ${{ steps.webhook_test.outputs.webhook_status }}
+
+          ## Execution History
+          - **Total Executions:** ${{ steps.execution_test.outputs.total_executions }}
+          - **Successful:** ${{ steps.execution_test.outputs.success_count }}
+          - **Failed:** ${{ steps.execution_test.outputs.failure_count }}
+          - **Success Rate:** ${{ steps.execution_test.outputs.success_rate }}%
+
+          ## Test Verdict
+          $([ ${{ steps.execution_test.outputs.success_rate }} -ge 80 ] && echo "PASS" || echo "WARNING - Below threshold")
+          EOF
+
+          cat test-report.md
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: test-report.md
+          retention-days: 30
+
+  #############################################################################
+  # JOB 4: Deploy to Staging
+  #############################################################################
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [validate, security, test]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'staging'
+    environment: staging
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: workflow-json
+
+      - name: Backup current workflow version
+        run: |
+          # Fetch current version for rollback
+          curl -s \
+            -H "X-N8N-API-KEY: ${{ secrets.N8N_API_KEY }}" \
+            "${{ env.N8N_BASE_URL }}/api/v1/workflows/${{ env.N8N_WORKFLOW_ID }}" \
+            > workflow-backup-$(date +%Y%m%d-%H%M%S).json
+
+          echo "Backup created for rollback"
+
+      - name: Activate workflow
+        run: |
+          # Ensure workflow is active
+          RESPONSE=$(curl -s -X PATCH \
+            -H "X-N8N-API-KEY: ${{ secrets.N8N_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            "${{ env.N8N_BASE_URL }}/api/v1/workflows/${{ env.N8N_WORKFLOW_ID }}" \
+            -d '{"active": true}')
+
+          ACTIVE=$(echo "$RESPONSE" | jq '.active')
+
+          if [ "$ACTIVE" = "true" ]; then
+            echo "Workflow activated successfully"
+          else
+            echo "::error::Failed to activate workflow"
+            exit 1
+          fi
+
+      - name: Verify deployment
+        run: |
+          sleep 5  # Wait for activation to propagate
+
+          # Verify workflow status
+          RESPONSE=$(curl -s \
+            -H "X-N8N-API-KEY: ${{ secrets.N8N_API_KEY }}" \
+            "${{ env.N8N_BASE_URL }}/api/v1/workflows/${{ env.N8N_WORKFLOW_ID }}")
+
+          ACTIVE=$(echo "$RESPONSE" | jq '.active')
+          VERSION=$(echo "$RESPONSE" | jq '.versionId')
+
+          echo "Workflow active: $ACTIVE"
+          echo "Version: $VERSION"
+
+      - name: Upload backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-backup-staging
+          path: workflow-backup-*.json
+          retention-days: 30
+
+  #############################################################################
+  # JOB 5: Post-deployment Health Check
+  #############################################################################
+  health-check:
+    name: Post-deployment Health Check
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    timeout-minutes: 10
+
+    steps:
+      - name: Wait for workflow stabilization
+        run: sleep 30
+
+      - name: Health check - Webhook endpoint
+        id: health_webhook
+        run: |
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.N8N_WEBHOOK_AUTH }}" \
+            --connect-timeout 30 \
+            "${{ env.N8N_BASE_URL }}/webhook/marketing-report" \
+            -d '{"health_check": true, "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"}')
+
+          echo "webhook_health=$RESPONSE" >> $GITHUB_OUTPUT
+
+          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 300 ]; then
+            echo "Webhook health check: PASS"
+          else
+            echo "::error::Webhook health check failed: HTTP $RESPONSE"
+            exit 1
+          fi
+
+      - name: Health check - Recent execution
+        id: health_execution
+        run: |
+          # Check if there's a recent successful execution
+          RESPONSE=$(curl -s \
+            -H "X-N8N-API-KEY: ${{ secrets.N8N_API_KEY }}" \
+            "${{ env.N8N_BASE_URL }}/api/v1/executions?workflowId=${{ env.N8N_WORKFLOW_ID }}&limit=1&status=success")
+
+          LAST_SUCCESS=$(echo "$RESPONSE" | jq -r '.data[0].startedAt // "none"')
+
+          echo "last_success=$LAST_SUCCESS" >> $GITHUB_OUTPUT
+          echo "Last successful execution: $LAST_SUCCESS"
+
+      - name: Generate health report
+        run: |
+          cat << EOF > health-report.md
+          # Post-Deployment Health Report
+
+          **Workflow ID:** ${{ env.N8N_WORKFLOW_ID }}
+          **Deployment Time:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Environment:** staging
+
+          ## Health Checks
+
+          | Check | Status | Details |
+          |-------|--------|---------|
+          | Webhook Endpoint | ${{ steps.health_webhook.outputs.webhook_health == '200' && 'PASS' || steps.health_webhook.outputs.webhook_health == '202' && 'PASS' || 'FAIL' }} | HTTP ${{ steps.health_webhook.outputs.webhook_health }} |
+          | Last Execution | INFO | ${{ steps.health_execution.outputs.last_success }} |
+
+          ## Verdict
+
+          **DEPLOYMENT SUCCESSFUL** - Workflow is healthy and responding
+          EOF
+
+          cat health-report.md
+
+      - name: Upload health report
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-report
+          path: health-report.md
+          retention-days: 7
+
+  #############################################################################
+  # JOB 6: Notification
+  #############################################################################
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [validate, security, test, deploy-staging, health-check]
+    if: always()
+
+    steps:
+      - name: Determine overall status
+        id: status
+        run: |
+          if [ "${{ needs.health-check.result }}" = "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=:white_check_mark:" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.security.result }}" = "failure" ]; then
+            echo "status=security_failure" >> $GITHUB_OUTPUT
+            echo "emoji=:rotating_light:" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=:x:" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification
+        if: ${{ vars.SLACK_NOTIFICATIONS_ENABLED == 'true' }}
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "${{ steps.status.outputs.emoji }} N8n Workflow CI/CD: ${{ steps.status.outputs.status }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "N8n Workflow Pipeline Results"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {"type": "mrkdwn", "text": "*Workflow:*\n${{ env.N8N_WORKFLOW_ID }}"},
+                    {"type": "mrkdwn", "text": "*Status:*\n${{ steps.status.outputs.status }}"},
+                    {"type": "mrkdwn", "text": "*Branch:*\n${{ github.ref_name }}"},
+                    {"type": "mrkdwn", "text": "*Triggered by:*\n${{ github.actor }}"}
+                  ]
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {"type": "mrkdwn", "text": "*Validation:*\n${{ needs.validate.result }}"},
+                    {"type": "mrkdwn", "text": "*Security:*\n${{ needs.security.result }}"},
+                    {"type": "mrkdwn", "text": "*Tests:*\n${{ needs.test.result }}"},
+                    {"type": "mrkdwn", "text": "*Deploy:*\n${{ needs.deploy-staging.result }}"}
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {"type": "plain_text", "text": "View Pipeline"},
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

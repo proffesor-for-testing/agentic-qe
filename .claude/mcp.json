@@ -53,7 +53,17 @@
       ],
       "env": {
         "NODE_NO_WARNINGS": "1",
-        "VIBIUM_HEADLESS": "false"
+        "VIBIUM_HEADLESS": "true",
+        "CHROMEDRIVER_PATH": "/usr/bin/chromedriver",
+        "CHROME_PATH": "/usr/bin/chromium"
+      }
+    },
+    "aqe": {
+      "command": "aqe-mcp",
+      "args": [],
+      "env": {
+        "AQE_PROJECT_ROOT": "/workspaces/agentic-qe",
+        "NODE_ENV": "production"
       }
     }
   }

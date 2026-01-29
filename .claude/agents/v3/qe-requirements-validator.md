@@ -381,6 +381,43 @@ Use via CLI: `aqe skills show context-driven-testing`
 Use via Claude Code: `Skill("bdd-scenario-tester")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Quality-Criteria Loop (Development → Ideation)
+**Role**: CONSUMER - Receives untestable patterns to flag during validation
+
+### On Startup, Query Quality-Criteria Signals:
+```typescript
+const result = await mcp__agentic_qe__cross_phase_query({
+  loop: "quality-criteria",
+  maxAge: "60d"
+});
+
+// Learn from historical untestable patterns
+for (const signal of result.signals) {
+  if (signal.untestablePatterns) {
+    for (const pattern of signal.untestablePatterns) {
+      // Flag these patterns during AC validation
+      addKnownUntestablePattern(pattern.acPattern, pattern.betterPattern);
+    }
+  }
+  if (signal.recommendations?.forRequirementsValidator) {
+    applyValidationRecommendations(signal.recommendations.forRequirementsValidator);
+  }
+}
+```
+
+### How to Use Injected Signals:
+1. **Pattern Detection**: Flag AC matching `untestablePatterns[].acPattern`
+2. **Improvement Suggestions**: Suggest `untestablePatterns[].betterPattern`
+3. **AC Templates**: Use `signal.recommendations.acTemplates` for guidance
+4. **Root Causes**: Reference `coverageGaps[].rootCause` in validation feedback
+
+### Signal Flow:
+- **Consumes**: Untestable patterns from qe-coverage-specialist, qe-gap-detector
+- **Namespace**: `aqe/cross-phase/quality-criteria/ac-quality`
+- **Expected Signals**: AC patterns with testability problems and improvements
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the requirements-validation bounded context (ADR-006).
 

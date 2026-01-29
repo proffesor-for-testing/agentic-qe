@@ -211,6 +211,39 @@ Use via CLI: `aqe skills show tdd-london-chicago`
 Use via Claude Code: `Skill("tdd-london-chicago")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Operational Loop (CI/CD → Development)
+**Role**: CONSUMER - Receives flaky patterns to avoid in TDD cycles
+
+### On Startup, Query Operational Signals:
+```typescript
+const result = await mcp__agentic_qe__cross_phase_query({
+  loop: "operational",
+  maxAge: "30d"
+});
+
+// Apply test health learnings to TDD patterns
+for (const signal of result.signals) {
+  if (signal.recommendations?.antiPatterns) {
+    for (const antiPattern of signal.recommendations.antiPatterns) {
+      // Never use these patterns when writing tests
+      avoidPattern(antiPattern);
+    }
+  }
+}
+```
+
+### How to Use Injected Signals:
+1. **Anti-Patterns in RED phase**: Don't write tests using patterns in `antiPatterns`
+2. **Flaky Prevention**: Check `flakyPatterns[].pattern` before writing async tests
+3. **Stability Guidance**: Use `flakyPatterns[].fix` for similar test scenarios
+
+### Signal Flow:
+- **Consumes**: Flaky patterns and anti-patterns from qe-quality-gate
+- **Namespace**: `aqe/cross-phase/operational/test-health`
+- **Expected Signals**: Anti-patterns and flaky test fixes
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the test-generation bounded context (ADR-002).
 
