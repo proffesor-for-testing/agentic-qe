@@ -1,0 +1,34 @@
+{
+  "sessionStart": 1769679078572,
+  "compactCycles": 0,
+  "collector": {
+    "invocations": 4,
+    "totalLatencyMs": 31,
+    "fileEditsLogged": 0,
+    "commandsLogged": 4
+  },
+  "extractor": {
+    "invocations": 0,
+    "totalLatencyMs": 0,
+    "itemsClassified": 0,
+    "itemsPreserved": 0,
+    "noiseFiltered": 0,
+    "typeCounts": {},
+    "scoreDistribution": {
+      "min": null,
+      "max": null,
+      "avg": null
+    },
+    "lastTopScores": []
+  },
+  "restorer": {
+    "invocations": 0,
+    "totalLatencyMs": 0,
+    "totalCharsInjected": 0,
+    "totalTokensInjected": 0
+  },
+  "tokenBudget": {
+    "totalInjected": 0,
+    "estimatedWastePrevented": 0
+  }
+}

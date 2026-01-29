@@ -1,4 +1,4 @@
-import { Page, Locator, expect } from '@playwright/test';
+import { Page, Locator, FrameLocator, expect } from '@playwright/test';
 import { BasePage } from './BasePage';
 
 /**
@@ -30,9 +30,9 @@ export class CheckoutPage extends BasePage {
 
   // Payment
   readonly paymentSection: Locator;
-  readonly cardNumberIframe: Locator;
-  readonly expiryIframe: Locator;
-  readonly cvvIframe: Locator;
+  readonly cardNumberIframe: FrameLocator;
+  readonly expiryIframe: FrameLocator;
+  readonly cvvIframe: FrameLocator;
   readonly cardNameInput: Locator;
 
   // Order summary
