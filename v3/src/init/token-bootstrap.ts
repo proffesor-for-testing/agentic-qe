@@ -179,7 +179,8 @@ export async function shutdownTokenTracking(verbose = false): Promise<void> {
     try {
       await memoryBackend.dispose();
     } catch (error) {
-      // Ignore disposal errors
+      // Non-critical: disposal errors don't affect functionality
+      console.debug('[TokenBootstrap] Memory backend disposal error:', error instanceof Error ? error.message : error);
     }
     memoryBackend = null;
   }

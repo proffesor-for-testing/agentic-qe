@@ -784,8 +784,9 @@ export class VibiumClientImpl implements VibiumClient {
     if (this.vibeInstance) {
       try {
         await this.vibeInstance.quit();
-      } catch {
-        // Ignore errors during disposal
+      } catch (error) {
+        // Non-critical: Vibium disposal errors
+        console.debug('[VibiumClient] Disposal error:', error instanceof Error ? error.message : error);
       }
       this.vibeInstance = null;
     }

@@ -363,8 +363,9 @@ export async function loadFlakyTracker(
     const content = await fs.readFile(historyPath, 'utf-8');
     const records = JSON.parse(content) as FlakyTestRecord[];
     tracker.importHistory(records);
-  } catch {
-    // No history file or invalid - start fresh
+  } catch (error) {
+    // Non-critical: no history file or invalid - start fresh
+    console.debug('[FlakyTracker] History load failed, starting fresh:', error instanceof Error ? error.message : error);
   }
 
   return tracker;

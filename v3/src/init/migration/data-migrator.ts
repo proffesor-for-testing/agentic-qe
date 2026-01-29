@@ -210,8 +210,9 @@ export class V2DataMigrator {
 
           insertStmt.run(id, type, content, domain, null, `v2:${row.namespace}:${row.key}`);
           count++;
-        } catch {
-          // Skip invalid entries
+        } catch (error) {
+          // Non-critical: skip invalid entries during migration
+          console.debug('[DataMigrator] Skipped invalid pattern entry:', error instanceof Error ? error.message : error);
         }
       }
 
@@ -256,8 +257,9 @@ export class V2DataMigrator {
 
           insertStmt.run(id, taskType, taskDescription, agent, outcome, success, qualityScore, `v2:${row.namespace}:${row.key}`);
           count++;
-        } catch {
-          // Skip invalid entries
+        } catch (error) {
+          // Non-critical: skip invalid entries during migration
+          console.debug('[DataMigrator] Skipped invalid experience entry:', error instanceof Error ? error.message : error);
         }
       }
 

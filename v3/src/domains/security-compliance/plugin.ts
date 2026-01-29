@@ -3,13 +3,13 @@
  * Integrates the security-compliance domain into the kernel
  */
 
-import type { DomainName, DomainEvent, Result } from '../../shared/types/index.js';
+import { DomainName, DomainEvent, Result, err } from '../../shared/types/index.js';
 import type {
   EventBus,
   MemoryBackend,
   AgentCoordinator,
 } from '../../kernel/interfaces.js';
-import { BaseDomainPlugin } from '../domain-interface.js';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface.js';
 import { FilePath } from '../../shared/value-objects/index.js';
 import type {
   SecurityAuditOptions,
@@ -153,6 +153,75 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
     };
 
     return api as T;
+  }
+
+  // ==========================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ==========================================================================
+
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      ['security-audit', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const target = (payload.target ?? payload.targetUrl) as string | undefined;
+        if (!target) {
+          return err(new Error('Invalid security-audit payload: missing target'));
+        }
+        return this.coordinator.runSecurityAudit({
+          includeSAST: (payload.includeSAST as boolean | undefined) ?? true,
+          includeDAST: (payload.includeDAST as boolean | undefined) ?? false,
+          includeDependencies: (payload.includeDependencies as boolean | undefined) ?? true,
+          includeSecrets: (payload.includeSecrets as boolean | undefined) ?? true,
+          targetUrl: target,
+        });
+      }],
+
+      ['compliance-check', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const standardId = payload.standardId as string | undefined;
+        if (!standardId) {
+          return err(new Error('Invalid compliance-check payload: missing standardId'));
+        }
+        return this.coordinator.runComplianceCheck(standardId);
+      }],
+
+      ['sast-scan', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.securityScanner) {
+          return err(new Error('Security scanner not initialized'));
+        }
+        const files = payload.files as FilePath[] | undefined;
+        if (!files || files.length === 0) {
+          return err(new Error('Invalid sast-scan payload: missing files'));
+        }
+        return this.securityScanner.scanFiles(files);
+      }],
+
+      ['dast-scan', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.securityScanner) {
+          return err(new Error('Security scanner not initialized'));
+        }
+        const targetUrl = payload.targetUrl as string | undefined;
+        if (!targetUrl) {
+          return err(new Error('Invalid dast-scan payload: missing targetUrl'));
+        }
+        return this.securityScanner.scanUrl(targetUrl);
+      }],
+
+      ['triage-vulnerabilities', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.securityAuditor) {
+          return err(new Error('Security auditor not initialized'));
+        }
+        const vulnerabilities = payload.vulnerabilities as Vulnerability[] | undefined;
+        if (!vulnerabilities || vulnerabilities.length === 0) {
+          return err(new Error('Invalid triage-vulnerabilities payload: missing vulnerabilities'));
+        }
+        return this.securityAuditor.triageVulnerabilities(vulnerabilities);
+      }],
+    ]);
   }
 
   // ==========================================================================

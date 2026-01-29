@@ -341,8 +341,9 @@ export class VisualRegressionService implements IVisualRegressionService {
           this.managedBrowserClient = client;
           return client;
         }
-      } catch {
-        // Fall through to return null
+      } catch (error) {
+        // Non-critical: browser client acquisition failed
+        console.debug('[VisualRegression] Browser client error:', error instanceof Error ? error.message : error);
       }
     }
 

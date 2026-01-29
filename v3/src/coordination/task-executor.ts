@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DomainName, DomainEvent, Result, ok, err } from '../shared/types';
+import { FilePath } from '../shared/value-objects/index.js';
 import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
 import { TaskType, QueenTask, TaskExecution } from './queen-coordinator';
 import { ResultSaver, createResultSaver, SaveOptions } from './result-saver';
@@ -64,6 +65,42 @@ export interface TaskResult {
   domain: DomainName;
   /** Files saved by result saver */
   savedFiles?: string[];
+}
+
+/**
+ * Istanbul/nyc coverage-final.json file data structure
+ * Each file in the coverage report has this structure
+ */
+interface IstanbulFileCoverage {
+  /** Statement map - keyed by statement ID */
+  statementMap: Record<string, {
+    start: { line: number; column: number };
+    end: { line: number; column: number };
+  }>;
+  /** Statement execution counts - keyed by statement ID */
+  s: Record<string, number>;
+  /** Branch map - keyed by branch ID */
+  branchMap: Record<string, {
+    type: string;
+    line: number;
+    locations: Array<{
+      start: { line: number; column: number };
+      end: { line: number; column: number };
+    }>;
+  }>;
+  /** Branch execution counts - array of counts per branch */
+  b: Record<string, number[]>;
+  /** Function map - keyed by function ID */
+  fnMap: Record<string, {
+    name: string;
+    decl: { start: { line: number; column: number }; end: { line: number; column: number } };
+    loc: { start: { line: number; column: number }; end: { line: number; column: number } };
+    line: number;
+  }>;
+  /** Function execution counts - keyed by function ID */
+  f: Record<string, number>;
+  /** Path to the file */
+  path: string;
 }
 
 type TaskHandler = (task: QueenTask, kernel: QEKernel) => Promise<Result<unknown, Error>>;
@@ -381,16 +418,13 @@ taskHandlers.set('scan-security', async (task, kernel) => {
       });
     }
 
-    // Convert string paths to FilePath objects
-    const filePathObjects = filesToScan.map(filePath => ({
-      value: filePath,
-      extension: path.extname(filePath).slice(1),
-    }));
+    // Convert string paths to FilePath value objects
+    const filePathObjects = filesToScan.map(filePath => FilePath.create(filePath));
 
     // Run SAST scan if requested
     let sastResult = null;
     if (payload.sast !== false) {
-      const result = await scanner.scanFiles(filePathObjects as any);
+      const result = await scanner.scanFiles(filePathObjects);
       if (result.success) {
         sastResult = result.value;
       }
@@ -797,7 +831,7 @@ async function loadCoverageData(targetPath: string): Promise<CoverageData | null
  * Parse Istanbul/nyc coverage-final.json format
  */
 function parseCoverageJson(content: string): CoverageData {
-  const data = JSON.parse(content);
+  const data: Record<string, IstanbulFileCoverage> = JSON.parse(content);
   const files: FileCoverage[] = [];
   let totalLines = 0, coveredLines = 0;
   let totalBranches = 0, coveredBranches = 0;
@@ -805,24 +839,23 @@ function parseCoverageJson(content: string): CoverageData {
   let totalStatements = 0, coveredStatements = 0;
 
   for (const [filePath, fileData] of Object.entries(data)) {
-    const fd = fileData as any;
+    const fd = fileData;
 
     // Calculate file-level metrics
     const lineMap = fd.statementMap || {};
     const lineCounts = fd.s || {};
     const branchMap = fd.branchMap || {};
     const branchCounts = fd.b || {};
-    const fnMap = fd.fnMap || {};
     const fnCounts = fd.f || {};
 
     const fileLines = Object.keys(lineCounts).length;
-    const fileCoveredLines = Object.values(lineCounts).filter((v: any) => v > 0).length;
+    const fileCoveredLines = Object.values(lineCounts).filter((v) => v > 0).length;
     const fileBranches = Object.values(branchCounts).flat().length;
-    const fileCoveredBranches = Object.values(branchCounts).flat().filter((v: any) => v > 0).length;
+    const fileCoveredBranches = Object.values(branchCounts).flat().filter((v) => v > 0).length;
     const fileFunctions = Object.keys(fnCounts).length;
-    const fileCoveredFunctions = Object.values(fnCounts).filter((v: any) => v > 0).length;
+    const fileCoveredFunctions = Object.values(fnCounts).filter((v) => v > 0).length;
     const fileStatements = Object.keys(lineMap).length;
-    const fileCoveredStatements = Object.values(lineCounts).filter((v: any) => v > 0).length;
+    const fileCoveredStatements = Object.values(lineCounts).filter((v) => v > 0).length;
 
     // Find uncovered lines
     const uncoveredLines: number[] = [];
@@ -839,7 +872,7 @@ function parseCoverageJson(content: string): CoverageData {
     const uncoveredBranches: number[] = [];
     for (const [branchId, counts] of Object.entries(branchCounts)) {
       const branchInfo = branchMap[branchId];
-      (counts as number[]).forEach((count, idx) => {
+      counts.forEach((count, idx) => {
         if (count === 0 && branchInfo?.locations?.[idx]?.start?.line) {
           uncoveredBranches.push(branchInfo.locations[idx].start.line);
         }
@@ -1337,6 +1370,7 @@ export class DomainTaskExecutor {
       'optimize-learning': 'learning-optimization',
       'cross-domain-workflow': 'learning-optimization',
       'protocol-execution': 'learning-optimization',
+      'ideation-assessment': 'requirements-validation',
     };
     return domainMap[taskType] || 'learning-optimization';
   }
@@ -1394,8 +1428,9 @@ export async function resetServiceCaches(): Promise<void> {
   if (agentBooster) {
     try {
       await agentBooster.dispose();
-    } catch {
-      // Ignore disposal errors
+    } catch (error) {
+      // Non-critical: disposal errors don't affect subsequent operations
+      console.debug('[TaskExecutor] Agent Booster disposal error:', error instanceof Error ? error.message : error);
     }
     agentBooster = null;
   }

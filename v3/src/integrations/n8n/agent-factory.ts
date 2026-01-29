@@ -464,8 +464,9 @@ export class N8nAgentFactory {
     if (instance?.agent?.dispose) {
       try {
         await instance.agent.dispose();
-      } catch {
-        // Ignore dispose errors
+      } catch (error) {
+        // Non-critical: agent dispose errors during removal
+        console.debug('[N8NAgentFactory] Agent dispose error:', error instanceof Error ? error.message : error);
       }
     }
     return this.agentPool.delete(agentId);
@@ -479,8 +480,9 @@ export class N8nAgentFactory {
       if (instance.agent?.dispose) {
         try {
           await instance.agent.dispose();
-        } catch {
-          // Ignore dispose errors
+        } catch (error) {
+          // Non-critical: agent dispose errors during pool clear
+          console.debug('[N8NAgentFactory] Agent dispose error during clear:', error instanceof Error ? error.message : error);
         }
       }
     }

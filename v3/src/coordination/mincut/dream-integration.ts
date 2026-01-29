@@ -81,6 +81,19 @@ interface PatternImportData {
   successRate?: number;
 }
 
+/**
+ * Interface for the lazy-loaded DreamEngine
+ * Matches the public API of the actual DreamEngine class
+ */
+interface IDreamEngine {
+  initialize(): Promise<void>;
+  dream(durationMs?: number): Promise<DreamCycleResult>;
+  importPatterns(patterns: PatternImportData[]): Promise<number>;
+  loadPatternsAsConcepts(patterns: unknown[]): Promise<void>;
+  getPendingInsights(): Promise<DreamInsight[]>;
+  dispose(): void;
+}
+
 // ============================================================================
 // Meta-Learning Types
 // ============================================================================
@@ -1042,7 +1055,7 @@ export class DreamMinCutController {
   private readonly persistence: MinCutPersistence;
   private readonly config: DreamIntegrationConfig;
 
-  private dreamEngine: any = null; // Lazy-loaded DreamEngine
+  private dreamEngine: IDreamEngine | null = null; // Lazy-loaded DreamEngine
   private dreamTimer: NodeJS.Timeout | null = null;
   private running = false;
 
@@ -1126,9 +1139,10 @@ export class DreamMinCutController {
     if (!this.dreamEngine) {
       try {
         const dreamModule = await import('../../learning/dream/index.js');
-        this.dreamEngine = dreamModule.createDreamEngine({
+        const engine = dreamModule.createDreamEngine({
           maxDurationMs: durationMs ?? 30000,
         });
+        this.dreamEngine = engine as unknown as IDreamEngine;
         await this.dreamEngine.initialize();
       } catch (error) {
         console.warn('[DreamMinCutController] Dream module not available:', error);
@@ -1143,6 +1157,10 @@ export class DreamMinCutController {
       if (patterns.length < 3) {
         console.log('[DreamMinCutController] Not enough patterns for dream cycle');
         return null;
+      }
+
+      if (!this.dreamEngine) {
+        return this.fallbackDream();
       }
 
       // Load patterns into dream engine

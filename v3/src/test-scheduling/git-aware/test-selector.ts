@@ -385,8 +385,9 @@ export class GitAwareTestSelector {
         const fullPath = resolve(this.cwd, file);
         await fs.access(fullPath);
         existing.push(file);
-      } catch {
-        // File doesn't exist
+      } catch (error) {
+        // Non-critical: file doesn't exist or inaccessible
+        console.debug('[TestSelector] File access check failed:', error instanceof Error ? error.message : error);
       }
     }
 

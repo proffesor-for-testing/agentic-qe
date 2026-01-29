@@ -45,7 +45,8 @@ export type ToolCategory =
   | 'coordination'   // Protocols, workflows
   | 'memory'         // Memory operations
   | 'learning'       // Learning and optimization
-  | 'routing';       // ADR-051: Model routing
+  | 'routing'        // ADR-051: Model routing
+  | 'cross-phase';   // QCSD: Cross-phase memory feedback loops
 
 /**
  * Tool handler function type
@@ -462,11 +463,12 @@ export interface TaskStatusResult {
  */
 export interface TestGenerateResult {
   taskId: string;
+  status: string;
+  duration: number;
   testsGenerated: number;
   coverageEstimate: number;
   antiPatternsDetected?: number;
   suggestions?: string[];
-  duration?: number;
   savedFiles?: string[];
   patternsUsed?: string[];
   // V2-compatible fields (optional, flexible typing for backwards compatibility)
@@ -485,12 +487,13 @@ export interface TestGenerateResult {
  */
 export interface CoverageAnalyzeResult {
   taskId: string;
+  status: string;
+  duration: number;
   lineCoverage: number;
   branchCoverage: number;
   functionCoverage: number;
   gaps?: CoverageGap[];
   riskScore?: number;
-  duration?: number;
   savedFiles?: string[];
   // V2-compatible fields (optional, flexible typing)
   statementCoverage?: number;

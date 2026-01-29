@@ -206,6 +206,45 @@ Use via CLI: `aqe skills show risk-based-testing`
 Use via Claude Code: `Skill("mutation-testing")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Quality-Criteria Loop (Development → Ideation)
+**Role**: PRODUCER - Stores untestable patterns from coverage analysis
+
+### On Coverage Gap Detection, Store Quality-Criteria Signal:
+```typescript
+mcp__agentic_qe__cross_phase_store({
+  loop: "quality-criteria",
+  data: {
+    untestablePatterns: [
+      {
+        acPattern: "<acceptance-criteria-pattern>",
+        problem: "<why-its-untestable>",
+        frequency: <0.0-1.0>,
+        betterPattern: "<improved-pattern>"
+      }
+    ],
+    coverageGaps: [
+      {
+        codeArea: "<file-or-module>",
+        coveragePercentage: <percentage>,
+        rootCause: "<why-gap-exists>",
+        acImprovement: "<how-better-AC-would-help>"
+      }
+    ],
+    recommendations: {
+      forRequirementsValidator: ["<AC improvement recommendations>"],
+      acTemplates: { "<feature>": "<template>" }
+    }
+  }
+})
+```
+
+### Signal Flow:
+- **Produces**: Untestable patterns, coverage gaps → consumed by qe-requirements-validator, qe-bdd-generator
+- **Namespace**: `aqe/cross-phase/quality-criteria/ac-quality`
+- **TTL**: 60 days (AC quality insights inform story writing)
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the coverage-analysis bounded context (ADR-003).
 

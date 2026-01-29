@@ -22,7 +22,7 @@ import {
   AgentStatus,
   Severity,
 } from '../shared/types';
-import { CircularBuffer } from '../shared/utils/circular-buffer.js';
+import { CircularBuffer, binaryInsert, createdAtComparator } from '../shared/utils/index.js';
 import {
   EventBus,
   AgentCoordinator,
@@ -47,6 +47,7 @@ import {
 } from './mincut/queen-integration';
 import { MinCutHealth } from './mincut/interfaces';
 import { getSharedMinCutGraph } from './mincut/shared-singleton';
+import type { IMinCutAwareDomain } from './mixins/mincut-aware-domain.js';
 
 // V3 Integration: TinyDancer intelligent model routing (TD-004, TD-005, TD-006)
 import {
@@ -55,6 +56,9 @@ import {
   type QueenRouterConfig,
 } from '../routing/queen-integration.js';
 import type { ClassifiableTask } from '../routing/task-classifier.js';
+
+// V3 Integration: Cross-Phase Memory Hooks (QCSD feedback loops)
+import { getCrossPhaseHookExecutor } from '../hooks/cross-phase-hooks.js';
 
 // ============================================================================
 // Types
@@ -89,7 +93,8 @@ export type TaskType =
   | 'run-chaos'
   | 'optimize-learning'
   | 'cross-domain-workflow'
-  | 'protocol-execution';
+  | 'protocol-execution'
+  | 'ideation-assessment';
 
 /**
  * Task execution status
@@ -235,6 +240,14 @@ export interface TaskFilter {
   toDate?: Date;
 }
 
+/**
+ * Type guard to check if a plugin supports MinCut integration
+ * ADR-047: Uses proper typing instead of `as any`
+ */
+function isMinCutAwarePlugin(plugin: DomainPlugin): plugin is DomainPlugin & IMinCutAwareDomain {
+  return typeof (plugin as DomainPlugin & Partial<IMinCutAwareDomain>).setMinCutBridge === 'function';
+}
+
 // ============================================================================
 // Domain Groups (per Master Plan Section 4.1)
 // ============================================================================
@@ -276,6 +289,8 @@ const TASK_DOMAIN_MAP: Record<TaskType, DomainName[]> = {
   'optimize-learning': ['learning-optimization'],
   'cross-domain-workflow': ALL_DOMAINS as unknown as DomainName[],
   'protocol-execution': ALL_DOMAINS as unknown as DomainName[],
+  // QCSD Ideation Swarm: requirements-validation is primary, with support from coverage-analysis and security-compliance
+  'ideation-assessment': ['requirements-validation', 'coverage-analysis', 'security-compliance'],
 };
 
 // ============================================================================
@@ -437,8 +452,8 @@ export class QueenCoordinator implements IQueenCoordinator {
     if (this.domainPlugins) {
       for (const [domainName, plugin] of this.domainPlugins) {
         // Check if plugin supports MinCut integration (has setMinCutBridge method)
-        if (typeof (plugin as any).setMinCutBridge === 'function') {
-          (plugin as any).setMinCutBridge(this.minCutBridge);
+        if (isMinCutAwarePlugin(plugin)) {
+          plugin.setMinCutBridge(this.minCutBridge);
           console.log(`[QueenCoordinator] MinCut bridge injected into ${domainName}`);
         }
       }
@@ -962,8 +977,8 @@ export class QueenCoordinator implements IQueenCoordinator {
       return false;
     }
 
-    if (typeof (plugin as any).setMinCutBridge === 'function') {
-      (plugin as any).setMinCutBridge(this.minCutBridge);
+    if (isMinCutAwarePlugin(plugin)) {
+      plugin.setMinCutBridge(this.minCutBridge);
       console.log(`[QueenCoordinator] MinCut bridge injected into ${domainName} (late binding)`);
       return true;
     }
@@ -1110,6 +1125,25 @@ export class QueenCoordinator implements IQueenCoordinator {
 
       // SEC-003 Simplified: Log task completion
       this.auditLogger.logComplete(taskId, execution.assignedAgents[0]);
+
+      // QCSD: Invoke cross-phase hooks on agent completion
+      // This enables feedback loops: Production→Ideation, CI/CD→Development, etc.
+      try {
+        const hookExecutor = getCrossPhaseHookExecutor();
+        const agentName = execution.assignedAgents[0];
+        if (agentName) {
+          await hookExecutor.onAgentComplete(agentName, {
+            taskId,
+            taskType: execution.task.type,
+            domain: execution.assignedDomain,
+            result,
+            duration,
+          });
+        }
+      } catch (hookError) {
+        // Non-fatal: log but don't fail the task completion
+        console.warn('[QueenCoordinator] Cross-phase hook error:', hookError);
+      }
     }
 
     // Process queue for next task
@@ -1394,15 +1428,25 @@ export class QueenCoordinator implements IQueenCoordinator {
     return ok(task.id);
   }
 
+  /**
+   * PERF-001 FIX: Use binary insertion O(log n) instead of sort O(n log n)
+   * Binary search finds the correct insertion point, then splice inserts at that position.
+   * This is much more efficient for maintaining sorted order with frequent insertions.
+   *
+   * Comparator for tasks: sorted by createdAt ascending (oldest first / FIFO within priority)
+   */
+  private static readonly taskComparator = createdAtComparator<QueenTask>();
+
   private enqueueTask(task: QueenTask): void {
     const priorityQueue = this.taskQueue.get(task.priority);
     if (priorityQueue) {
-      priorityQueue.push(task);
-      // Sort by creation time within priority
-      priorityQueue.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      // PERF-001 FIX: O(log n) binary insertion instead of O(n log n) sort
+      // Binary search finds insertion point in O(log n), splice is O(n) but with better
+      // cache locality and lower constant factor than full sort
+      binaryInsert(priorityQueue, task, QueenCoordinator.taskComparator);
     }
 
-    // Also add to domain-specific queues
+    // Also add to domain-specific queues (unsorted - just for load tracking)
     for (const domain of task.targetDomains) {
       const domainQueue = this.domainQueues.get(domain);
       if (domainQueue) {
@@ -1536,8 +1580,9 @@ export class QueenCoordinator implements IQueenCoordinator {
           }
         }
       }
-    } catch {
-      // Ignore errors loading state
+    } catch (error) {
+      // Non-critical: state loading errors - coordinator will start fresh
+      console.debug('[QueenCoordinator] State loading failed:', error instanceof Error ? error.message : error);
     }
   }
 

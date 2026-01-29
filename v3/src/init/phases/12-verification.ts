@@ -235,7 +235,8 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
         }
 
         // Third-level key (4-space indent)
-        const thirdMatch = line.match(/^    (\w+):\s*(.*)$/);
+        // Use [\w-]+ to match hyphenated keys like "pattern-consolidator"
+        const thirdMatch = line.match(/^    ([\w-]+):\s*(.*)$/);
         if (thirdMatch && currentSection && currentSubSection) {
           const key = thirdMatch[1];
           const value = thirdMatch[2].trim();

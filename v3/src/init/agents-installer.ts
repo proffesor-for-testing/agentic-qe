@@ -204,8 +204,9 @@ export class AgentsInstaller {
         join(npmPrefix, 'node_modules/@agentic-qe/v3/assets/agents/v3'),
         join(npmPrefix, 'node_modules/agentic-qe/v3/assets/agents/v3'),
       );
-    } catch {
-      // Ignore errors getting npm prefix
+    } catch (error) {
+      // Non-critical: npm prefix unavailable, using other paths
+      console.debug('[AgentsInstaller] npm prefix lookup failed:', error instanceof Error ? error.message : error);
     }
 
     for (const agentsPath of possiblePaths) {
@@ -468,8 +469,9 @@ export class AgentsInstaller {
           return trimmed.slice(0, 100) + (trimmed.length > 100 ? '...' : '');
         }
       }
-    } catch {
-      // Ignore read errors
+    } catch (error) {
+      // Non-critical: agent description extraction is optional
+      console.debug('[AgentsInstaller] Failed to read agent description:', error instanceof Error ? error.message : error);
     }
 
     return undefined;

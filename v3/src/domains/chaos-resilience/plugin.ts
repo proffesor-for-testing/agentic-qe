@@ -3,13 +3,13 @@
  * Integrates the chaos-resilience domain into the kernel
  */
 
-import { DomainName, DomainEvent, Result } from '../../shared/types';
+import { DomainName, DomainEvent, Result, err } from '../../shared/types';
 import {
   EventBus,
   MemoryBackend,
   AgentCoordinator,
 } from '../../kernel/interfaces';
-import { BaseDomainPlugin } from '../domain-interface';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import {
   ChaosExperiment,
   ExperimentResult,
@@ -83,11 +83,23 @@ export interface ChaosResilienceExtendedAPI extends ChaosResilienceAPI {
   /** Get the chaos engineer service */
   getChaosEngineer(): IChaosEngineeringService;
 
+  /** Get the chaos engine service (alias) */
+  getChaosEngine(): IChaosEngineeringService;
+
   /** Get the load tester service */
   getLoadTester(): ILoadTestingService;
 
   /** Get the performance profiler service */
   getPerformanceProfiler(): IResilienceTestingService;
+
+  /** Get the resilience assessor (alias) */
+  getResilienceAssessor(): IResilienceTestingService;
+
+  /** Run load test (alias for runTest) */
+  runLoadTest(testId: string): Promise<Result<LoadTestResult>>;
+
+  /** Get experiment history */
+  getExperimentHistory(): Promise<Result<ExperimentResult[]>>;
 }
 
 /**
@@ -151,9 +163,11 @@ export class ChaosResiliencePlugin extends BaseDomainPlugin {
       // Load Testing API
       createTest: this.createTest.bind(this),
       runTest: this.runTest.bind(this),
+      runLoadTest: this.runTest.bind(this), // Alias for runTest
       stopTest: this.stopTest.bind(this),
       getRealtimeMetrics: this.getRealtimeMetrics.bind(this),
       generateFromTraffic: this.generateFromTraffic.bind(this),
+      getExperimentHistory: this.getExperimentHistory.bind(this),
 
       // Resilience Testing API
       testRecovery: this.testRecovery.bind(this),
@@ -168,11 +182,80 @@ export class ChaosResiliencePlugin extends BaseDomainPlugin {
       // Internal access methods
       getCoordinator: () => this.coordinator!,
       getChaosEngineer: () => this.chaosEngineer!,
+      getChaosEngine: () => this.chaosEngineer!, // Alias
       getLoadTester: () => this.loadTester!,
       getPerformanceProfiler: () => this.performanceProfiler!,
+      getResilienceAssessor: () => this.performanceProfiler!, // Alias
     };
 
     return api as T;
+  }
+
+  // ============================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ============================================================================
+
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      ['run-experiment', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const experimentId = payload.experimentId as string | undefined;
+        if (!experimentId) {
+          return err(new Error('Invalid run-experiment payload: missing experimentId'));
+        }
+        // Run single experiment via chaos suite
+        return this.coordinator.runChaosSuite([experimentId]);
+      }],
+
+      ['run-load-test', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const testId = payload.testId as string | undefined;
+        if (!testId) {
+          return err(new Error('Invalid run-load-test payload: missing testId'));
+        }
+        // Run single load test via load test suite
+        return this.coordinator.runLoadTestSuite([testId]);
+      }],
+
+      ['assess-resilience', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const services = payload.services as string[] | undefined;
+        if (!services || services.length === 0) {
+          return err(new Error('Invalid assess-resilience payload: missing services'));
+        }
+        return this.coordinator.assessResilience(services);
+      }],
+
+      ['inject-fault', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.chaosEngineer) {
+          return err(new Error('Chaos engineer not initialized'));
+        }
+        const faultType = payload.faultType as FaultType | undefined;
+        const target = payload.target as string | undefined;
+        if (!faultType || !target) {
+          return err(new Error('Invalid inject-fault payload: missing faultType or target'));
+        }
+        // Build FaultInjection from individual parameters
+        const fault: FaultInjection = {
+          id: `fault-${Date.now()}`,
+          type: faultType,
+          target: {
+            type: 'service',
+            selector: target,
+          },
+          parameters: (payload.parameters as Record<string, unknown>) ?? {},
+          duration: (payload.duration as number) ?? 30000,
+          probability: payload.probability as number | undefined,
+        };
+        return this.chaosEngineer.injectFault(fault);
+      }],
+    ]);
   }
 
   // ============================================================================
@@ -263,6 +346,9 @@ export class ChaosResiliencePlugin extends BaseDomainPlugin {
         break;
       case 'security-compliance.VulnerabilityDetected':
         await this.handleVulnerabilityDetected(event);
+        break;
+      case 'quality-assessment.QualityGateEvaluated':
+        await this.handleQualityGateEvaluated(event);
         break;
       default:
         // No specific handling needed
@@ -405,6 +491,18 @@ export class ChaosResiliencePlugin extends BaseDomainPlugin {
     this.ensureInitialized();
     try {
       return await this.chaosEngineer!.removeFault(faultId);
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  private async getExperimentHistory(): Promise<Result<ExperimentResult[], Error>> {
+    this.ensureInitialized();
+    try {
+      // Fetch experiment history from memory
+      const historyKey = 'chaos-resilience:experiment-history';
+      const history = await this.memory.get<ExperimentResult[]>(historyKey);
+      return { success: true, value: history ?? [] };
     } catch (error) {
       return this.handleError(error);
     }
@@ -587,6 +685,33 @@ export class ChaosResiliencePlugin extends BaseDomainPlugin {
           triggeredAt: new Date(),
         },
         { namespace: 'chaos-resilience', ttl: 86400 }
+      );
+    }
+  }
+
+  private async handleQualityGateEvaluated(event: DomainEvent): Promise<void> {
+    // Store quality gate context for resilience assessment correlation
+    const payload = event.payload as {
+      gateId: string;
+      passed: boolean;
+      checks: Array<{ name: string; passed: boolean }>;
+    };
+
+    // Store if it includes a resilience check
+    const hasResilienceCheck = payload.checks?.some(
+      (check) => check.name === 'resilience'
+    );
+
+    if (hasResilienceCheck) {
+      await this.memory.set(
+        `chaos-resilience:gate-context:${payload.gateId}`,
+        {
+          gateId: payload.gateId,
+          passed: payload.passed,
+          checks: payload.checks,
+          timestamp: Date.now(),
+        },
+        { namespace: 'chaos-resilience', ttl: 3600 }
       );
     }
   }

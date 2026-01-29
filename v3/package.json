@@ -1,6 +1,6 @@
 {
   "name": "@agentic-qe/v3",
-  "version": "3.3.3",
+  "version": "3.3.4",
   "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 51 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
@@ -63,6 +63,8 @@
     "aqe": "tsx src/cli/index.ts",
     "mcp": "tsx src/mcp/entry.ts",
     "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:e2e": "vitest run tests/integration/browser --testTimeout=120000",
     "test:safe": "NODE_OPTIONS='--max-old-space-size=1536' vitest run",
     "test:dev": "vitest run --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/vibium/**' --exclude='**/browser-swarm-coordinator.test.ts'",
     "test:regression": "vitest run",
@@ -96,6 +98,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.10.0",
+    "@types/pg": "^8.16.0",
     "@types/uuid": "^10.0.0",
     "@vitest/coverage-v8": "^4.0.16",
     "esbuild": "^0.27.2",

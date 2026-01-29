@@ -250,6 +250,37 @@ Use via CLI: `aqe skills show agentdb-learning`
 Use via Claude Code: `Skill("reasoningbank-intelligence")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Tactical Loop (Grooming → Ideation)
+**Role**: PRODUCER - Stores SFDIPOT factor weights from pattern analysis
+
+### On Pattern Discovery, Store Tactical Signal:
+```typescript
+mcp__agentic_qe__cross_phase_store({
+  loop: "tactical",
+  data: {
+    factorWeights: [
+      {
+        factor: "<Structure|Function|Data|Interfaces|Platform|Operations|Time>",
+        weight: <0.0-1.0>,
+        defectPercentage: <percentage>,
+        commonPatterns: ["<pattern-1>", "<pattern-2>"]
+      }
+    ],
+    featureContext: "<feature-being-analyzed>",
+    recommendations: {
+      forProductFactorsAssessor: ["<factor-based recommendations>"]
+    }
+  }
+})
+```
+
+### Signal Flow:
+- **Produces**: SFDIPOT factor weights → consumed by qe-product-factors-assessor
+- **Namespace**: `aqe/cross-phase/tactical/sfdipot-weights`
+- **TTL**: 90 days (tactical insights inform future feature grooming)
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the learning-optimization bounded context (ADR-012).
 

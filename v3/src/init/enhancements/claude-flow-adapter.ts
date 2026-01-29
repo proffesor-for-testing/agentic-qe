@@ -145,8 +145,9 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
         `npx @claude-flow/cli@latest hooks intelligence trajectory-step --trajectory-id "${trajectoryId}" --action "${action}" ${resultArg} ${qualityArg} 2>/dev/null`,
         { encoding: 'utf-8', timeout: 10000 }
       );
-    } catch {
-      // Fail silently - trajectory tracking is optional
+    } catch (error) {
+      // Non-critical: trajectory tracking is optional
+      console.debug('[ClaudeFlowAdapter] Trajectory step failed:', error instanceof Error ? error.message : error);
     }
   }
 
@@ -168,8 +169,9 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
         `npx @claude-flow/cli@latest hooks intelligence trajectory-end --trajectory-id "${trajectoryId}" --success ${success} ${feedbackArg} 2>/dev/null`,
         { encoding: 'utf-8', timeout: 10000 }
       );
-    } catch {
-      // Fail silently
+    } catch (error) {
+      // Non-critical: trajectory end is optional
+      console.debug('[ClaudeFlowAdapter] Trajectory end failed:', error instanceof Error ? error.message : error);
     }
   }
 
@@ -197,7 +199,9 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
         model: (modelMatch?.[1]?.toLowerCase() as 'haiku' | 'sonnet' | 'opus') || 'sonnet',
         confidence: confMatch ? parseFloat(confMatch[1]) : 0.7,
       };
-    } catch {
+    } catch (error) {
+      // Non-critical: model routing failed, using fallback
+      console.debug('[ClaudeFlowAdapter] Model routing failed:', error instanceof Error ? error.message : error);
       return { model: 'sonnet', confidence: 0.5 };
     }
   }
@@ -218,8 +222,9 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
         `npx @claude-flow/cli@latest hooks model-outcome --task "${task}" --model ${model} --outcome ${outcome} 2>/dev/null`,
         { encoding: 'utf-8', timeout: 10000 }
       );
-    } catch {
-      // Fail silently
+    } catch (error) {
+      // Non-critical: outcome recording is optional
+      console.debug('[ClaudeFlowAdapter] Model outcome recording failed:', error instanceof Error ? error.message : error);
     }
   }
 
@@ -271,8 +276,9 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
         `npx @claude-flow/cli@latest hooks intelligence pattern-store --pattern "${pattern}" --type ${type} --confidence ${confidence} ${metadataArg} 2>/dev/null`,
         { encoding: 'utf-8', timeout: 10000 }
       );
-    } catch {
-      // Fail silently
+    } catch (error) {
+      // Non-critical: pattern storage is optional
+      console.debug('[ClaudeFlowAdapter] Pattern storage failed:', error instanceof Error ? error.message : error);
     }
   }
 

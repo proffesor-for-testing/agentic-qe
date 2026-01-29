@@ -106,6 +106,10 @@ export {
   type ActivationConfig,
   type ActivationResult,
   DEFAULT_ACTIVATION_CONFIG,
+  // History bounds constants (Milestone 3.3)
+  MAX_ACTIVATION_HISTORY_ENTRIES,
+  MAX_COACTIVATION_ENTRIES,
+  HISTORY_TRIM_TARGET_RATIO,
 } from './spreading-activation.js';
 
 // ============================================================================

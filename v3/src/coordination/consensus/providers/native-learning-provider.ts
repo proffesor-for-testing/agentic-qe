@@ -516,21 +516,23 @@ export class NativeLearningProvider extends BaseModelProvider {
   /**
    * Extract pattern from search match
    */
-  private extractPatternFromMatch(match: any): SecurityVerificationPattern | null {
+  private extractPatternFromMatch(match: PatternSearchResult): SecurityVerificationPattern | null {
     try {
-      const context = match.pattern?.context;
-      if (!context?.vote) return null;
+      const context = match.pattern?.context as unknown as Record<string, unknown> | undefined;
+      const vote = context?.vote as { assessment?: VoteAssessment; confidence?: number; reasoning?: string; agrees?: boolean; suggestedSeverity?: Severity } | undefined;
+      const finding = context?.finding as { category?: string; type?: string } | undefined;
+      if (!vote) return null;
 
       return {
-        category: context.finding?.category || 'unknown',
-        findingType: context.finding?.type || 'unknown',
+        category: finding?.category || 'unknown',
+        findingType: finding?.type || 'unknown',
         codePatterns: [],
-        verdict: context.vote.assessment,
-        confidence: context.vote.confidence,
-        reasoning: context.vote.reasoning,
+        verdict: vote.assessment as VoteAssessment,
+        confidence: vote.confidence ?? 0,
+        reasoning: vote.reasoning ?? '',
         verificationCount: 1,
-        successRate: context.vote.agrees ? 1.0 : 0.5,
-        suggestedSeverity: context.vote.suggestedSeverity,
+        successRate: vote.agrees ? 1.0 : 0.5,
+        suggestedSeverity: vote.suggestedSeverity,
       };
     } catch {
       return null;

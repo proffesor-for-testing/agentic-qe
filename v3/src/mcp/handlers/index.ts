@@ -63,3 +63,28 @@ export {
   handleMemoryUsage,
   handleMemoryShare,
 } from './memory-handlers';
+
+// Cross-phase handlers
+export {
+  handleCrossPhaseStore,
+  handleCrossPhaseQuery,
+  handleAgentComplete,
+  handlePhaseStart,
+  handlePhaseEnd,
+  handleCrossPhaseStats,
+  handleFormatSignals,
+  handleCrossPhaseCleanup,
+  resetCrossPhaseHandlers,
+  type StoreSignalParams,
+  type StoreSignalResult,
+  type QuerySignalsParams,
+  type QuerySignalsResult,
+  type AgentCompleteParams,
+  type AgentCompleteResult,
+  type PhaseEventParams,
+  type PhaseStartResult,
+  type PhaseEndResult,
+  type CrossPhaseStatsResult,
+  type FormatSignalsParams,
+  type FormatSignalsResult,
+} from './cross-phase-handlers';

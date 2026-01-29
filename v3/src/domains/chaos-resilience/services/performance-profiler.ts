@@ -525,8 +525,9 @@ export class PerformanceProfilerService implements IResilienceTestingService {
         const faultEndpoint = `${service}/_chaos/inject`;
         await this.httpClient.post(faultEndpoint, { faultType }, { timeout: 5000, retries: 0 });
         return;
-      } catch {
-        // Fall through to simulation
+      } catch (error) {
+        // Non-critical: real chaos API unavailable, using simulation
+        console.debug('[PerformanceProfiler] Fault injection API failed:', error instanceof Error ? error.message : error);
       }
     }
     // Simulation mode
@@ -541,8 +542,9 @@ export class PerformanceProfilerService implements IResilienceTestingService {
         const faultEndpoint = `${service}/_chaos/remove`;
         await this.httpClient.post(faultEndpoint, { faultType }, { timeout: 5000, retries: 0 });
         return;
-      } catch {
-        // Fall through to simulation
+      } catch (error) {
+        // Non-critical: real chaos API unavailable, using simulation
+        console.debug('[PerformanceProfiler] Fault removal API failed:', error instanceof Error ? error.message : error);
       }
     }
     // Simulation mode
@@ -573,8 +575,9 @@ export class PerformanceProfilerService implements IResilienceTestingService {
             records,
           };
         }
-      } catch {
-        // Fall through to default state capture
+      } catch (error) {
+        // Non-critical: real state capture unavailable, using memory snapshot
+        console.debug('[PerformanceProfiler] State capture API failed:', error instanceof Error ? error.message : error);
       }
     }
 
@@ -677,8 +680,9 @@ export class PerformanceProfilerService implements IResilienceTestingService {
         const errorEndpoint = `${service}/_chaos/error`;
         await this.httpClient.post(errorEndpoint, {}, { timeout: 5000, retries: 0 });
         return;
-      } catch {
-        // Fall through to simulation
+      } catch (error) {
+        // Non-critical: real chaos API unavailable, using simulation
+        console.debug('[PerformanceProfiler] Error generation API failed:', error instanceof Error ? error.message : error);
       }
     }
     console.log(`Generating error for: ${service}`);

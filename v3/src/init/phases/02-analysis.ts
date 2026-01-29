@@ -28,8 +28,8 @@ export class AnalysisPhase extends BasePhase<ProjectAnalysis> {
     context.analysis = analysis;
 
     context.services.log(`  Project: ${analysis.projectName}`);
-    context.services.log(`  Languages: ${analysis.languages.join(', ')}`);
-    context.services.log(`  Frameworks: ${analysis.frameworks.join(', ')}`);
+    context.services.log(`  Languages: ${analysis.languages.map(l => l.name).join(', ')}`);
+    context.services.log(`  Frameworks: ${analysis.frameworks.map(f => f.name).join(', ')}`);
 
     return analysis;
   }

@@ -3,6 +3,7 @@
  * Task submission, status, and management handlers
  *
  * ADR-051: Integrated with Model Router for intelligent tier selection
+ * Issue #206: Workflow auto-execution for task types with associated workflows
  */
 
 import { getFleetState, isFleetInitialized } from './core-handlers';
@@ -30,6 +31,18 @@ import {
 } from '../services/reasoning-bank-service';
 import type { ModelTier } from '../../integrations/agentic-flow';
 import type { QEDomain } from '../../learning/qe-patterns.js';
+
+// ============================================================================
+// Task Type to Workflow Mapping (Issue #206)
+// Maps TaskTypes to their associated workflow IDs for auto-execution
+// ============================================================================
+
+const TASK_WORKFLOW_MAP: Partial<Record<TaskType, string>> = {
+  'ideation-assessment': 'qcsd-ideation-swarm',
+  // Add more mappings as workflows are created:
+  // 'generate-tests': 'comprehensive-testing',
+  // 'test-accessibility': 'visual-accessibility-workflow',
+};
 
 // ============================================================================
 // Task Submit Handler
@@ -107,8 +120,8 @@ export async function handleTaskList(
       domain: params.domain,
     });
 
-    // Apply limit if specified
-    const limitedTasks = params.limit ? tasks.slice(0, params.limit) : tasks;
+    // Apply limit if specified (use typeof check to handle limit: 0)
+    const limitedTasks = typeof params.limit === 'number' ? tasks.slice(0, params.limit) : tasks;
 
     const results: TaskStatusResult[] = limitedTasks.map((execution) => ({
       taskId: execution.taskId,
@@ -290,7 +303,7 @@ export async function handleTaskOrchestrate(
     };
   }
 
-  const { queen } = getFleetState();
+  const { queen, workflowOrchestrator } = getFleetState();
 
   try {
     // ADR-051: Route task to optimal model tier BEFORE execution
@@ -315,7 +328,73 @@ export async function handleTaskOrchestrate(
     const taskType = inferTaskType(params.task);
     const priority = mapPriority(params.priority || 'medium');
 
-    // Submit the task with routing decision included in payload
+    // Issue #206: Check if this task type has an associated workflow
+    const workflowId = TASK_WORKFLOW_MAP[taskType];
+
+    if (workflowId && workflowOrchestrator) {
+      // Execute the associated workflow directly
+      console.log(`[TaskOrchestrate] Task type '${taskType}' has workflow '${workflowId}' - executing workflow`);
+
+      // Detect URL in task description for live website analysis
+      const urlMatch = params.task.match(/https?:\/\/[^\s]+/i);
+      const detectedUrl = urlMatch ? urlMatch[0] : undefined;
+
+      if (detectedUrl) {
+        console.log(`[TaskOrchestrate] Detected URL for analysis: ${detectedUrl}`);
+      }
+
+      // Build workflow input from task params and context
+      const workflowInput: Record<string, unknown> = {
+        // Pass through context fields as workflow input
+        targetId: params.context?.project || detectedUrl || `task-${Date.now()}`,
+        targetType: detectedUrl ? 'website' : 'epic',
+        description: params.task,
+        acceptanceCriteria: params.context?.requirements || [],
+        // Pass URL if detected (enables website content extraction)
+        url: detectedUrl,
+        // Include routing info for downstream processing
+        routing: {
+          tier: routingResult.decision.tier,
+          modelId: routingResult.modelId,
+          executionStrategy: routingResult.executionStrategy,
+          complexity: routingResult.decision.complexityAnalysis.overall,
+        },
+      };
+
+      const workflowResult = await workflowOrchestrator.executeWorkflow(workflowId, workflowInput);
+
+      if (!workflowResult.success) {
+        return {
+          success: false,
+          error: `Workflow execution failed: ${workflowResult.error.message}`,
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          taskId: workflowResult.value, // This is the workflow execution ID
+          type: taskType,
+          priority,
+          strategy: params.strategy || 'adaptive',
+          status: 'workflow-started',
+          message: `Workflow '${workflowId}' started for task: ${params.task}`,
+          routing: {
+            tier: routingResult.decision.tier,
+            tierName: routingResult.tierInfo.name,
+            modelId: routingResult.modelId,
+            executionStrategy: routingResult.executionStrategy,
+            complexity: routingResult.decision.complexityAnalysis.overall,
+            confidence: routingResult.decision.confidence,
+            useAgentBooster: routingResult.useAgentBooster,
+            rationale: routingResult.decision.rationale,
+            decisionTimeMs: routingResult.decision.metadata.decisionTimeMs,
+          },
+        },
+      };
+    }
+
+    // No workflow - submit as a regular task
     const result = await queen!.submitTask({
       type: taskType,
       priority,
@@ -566,11 +645,18 @@ export async function handleRoutingMetrics(
 function inferTaskType(description: string): TaskType {
   const lower = description.toLowerCase();
 
+  // Check execution first (more specific patterns)
+  if (
+    /run\s+(?:\w+\s+)*tests?/.test(lower) ||
+    /execute\s+(?:\w+\s+)*tests?/.test(lower) ||
+    lower.includes('run tests') ||
+    lower.includes('execute tests')
+  ) {
+    return 'execute-tests';
+  }
+  // Then check generation
   if (lower.includes('generate test') || lower.includes('create test') || lower.includes('write test')) {
     return 'generate-tests';
-  }
-  if (lower.includes('run test') || lower.includes('execute test')) {
-    return 'execute-tests';
   }
   if (lower.includes('coverage') || lower.includes('uncovered')) {
     return 'analyze-coverage';
@@ -601,6 +687,18 @@ function inferTaskType(description: string): TaskType {
   }
   if (lower.includes('learn') || lower.includes('optimize') || lower.includes('improve')) {
     return 'optimize-learning';
+  }
+  // QCSD Ideation phase - quality criteria, testability, risk assessment
+  if (
+    lower.includes('ideation') ||
+    lower.includes('quality criteria') ||
+    lower.includes('htsm') ||
+    lower.includes('qcsd') ||
+    lower.includes('testability') ||
+    lower.includes('pi planning') ||
+    lower.includes('sprint planning')
+  ) {
+    return 'ideation-assessment';
   }
 
   // Default to test generation

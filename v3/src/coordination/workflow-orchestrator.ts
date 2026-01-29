@@ -1847,6 +1847,269 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
         },
       ],
     });
+
+    // 6. QCSD Ideation Swarm Workflow
+    // Per QCSD framework: Quality Criteria sessions during PI/Sprint Planning
+    // Primary: qe-quality-criteria-recommender (HTSM v6.3 analysis)
+    // Supporting: testability-scoring, qe-risk-assessor, qe-requirements-validator
+    // Enhanced: Supports live URL input - extracts website content for analysis
+    this.registerWorkflow({
+      id: 'qcsd-ideation-swarm',
+      name: 'QCSD Ideation Swarm',
+      description:
+        'Quality Conscious Software Delivery ideation phase: [url-extraction] -> [flag-detection] -> quality-criteria (HTSM) -> [testability, risk, requirements, security*, accessibility*, qx*] in parallel -> aggregated report. Supports live website URLs with conditional agent spawning based on HAS_UI, HAS_SECURITY, HAS_UX flags.',
+      version: '3.0.0',
+      tags: ['qcsd', 'ideation', 'quality-criteria', 'htsm', 'shift-left', 'url-analysis'],
+      steps: [
+        // Step 0: Optional - Website Content Extraction (for URL input)
+        {
+          id: 'website-content-extraction',
+          name: 'Website Content Extraction',
+          domain: 'requirements-validation',
+          action: 'extractWebsiteContent',
+          inputMapping: {
+            url: 'input.url',
+          },
+          outputMapping: {
+            extractedDescription: 'extraction.description',
+            extractedFeatures: 'extraction.features',
+            extractedAcceptanceCriteria: 'extraction.acceptanceCriteria',
+            detectedFlags: 'extraction.flags',
+            isWebsite: 'extraction.isWebsite',
+          },
+          timeout: 60000, // 1 minute for URL fetch
+          continueOnFailure: true, // Continue even if URL fetch fails
+        },
+        // Step 1: Primary - Quality Criteria Analysis (HTSM v6.3)
+        {
+          id: 'quality-criteria-analysis',
+          name: 'HTSM Quality Criteria Analysis',
+          domain: 'requirements-validation',
+          action: 'analyzeQualityCriteria',
+          dependsOn: ['website-content-extraction'],
+          inputMapping: {
+            targetId: 'input.targetId',
+            targetType: 'input.targetType',
+            // Use extracted description if available, otherwise use input
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            acceptanceCriteria: 'results.website-content-extraction.extractedAcceptanceCriteria || input.acceptanceCriteria',
+          },
+          outputMapping: {
+            qualityCriteria: 'qualityCriteria.criteria',
+            qualityScore: 'qualityCriteria.score',
+          },
+          timeout: 180000, // 3 minutes for deep analysis
+          retry: { maxAttempts: 2, backoffMs: 2000 },
+        },
+        // Step 2a: Parallel - Testability Scoring
+        {
+          id: 'testability-assessment',
+          name: 'Testability Scoring (10 Principles)',
+          domain: 'requirements-validation',
+          action: 'assessTestability',
+          dependsOn: ['quality-criteria-analysis'],
+          inputMapping: {
+            targetId: 'input.targetId',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            acceptanceCriteria: 'results.website-content-extraction.extractedAcceptanceCriteria || input.acceptanceCriteria',
+          },
+          outputMapping: {
+            overallScore: 'testability.overallScore',
+            principles: 'testability.principles',
+            blockers: 'testability.blockers',
+            recommendations: 'testability.recommendations',
+          },
+          timeout: 120000,
+          continueOnFailure: true, // Don't block other assessments
+        },
+        // Step 2b: Parallel - Risk Assessment
+        {
+          id: 'risk-assessment',
+          name: 'Quality Risk Assessment',
+          domain: 'requirements-validation',
+          action: 'assessRisks',
+          dependsOn: ['quality-criteria-analysis'],
+          inputMapping: {
+            targetId: 'input.targetId',
+            targetType: 'input.targetType',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+          },
+          outputMapping: {
+            overallRisk: 'risks.overallRisk',
+            riskScore: 'risks.riskScore',
+            factors: 'risks.factors',
+            mitigations: 'risks.mitigations',
+          },
+          timeout: 90000,
+          continueOnFailure: true,
+        },
+        // Step 2c: Parallel - Requirements Validation
+        {
+          id: 'requirements-validation',
+          name: 'Requirements & Acceptance Criteria Validation',
+          domain: 'requirements-validation',
+          action: 'validateRequirements',
+          dependsOn: ['quality-criteria-analysis'],
+          inputMapping: {
+            targetId: 'input.targetId',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            acceptanceCriteria: 'results.website-content-extraction.extractedAcceptanceCriteria || input.acceptanceCriteria',
+          },
+          outputMapping: {
+            valid: 'requirements.valid',
+            issues: 'requirements.issues',
+            suggestions: 'requirements.suggestions',
+          },
+          timeout: 90000,
+          continueOnFailure: true,
+        },
+        // Step 3a: Optional - Security Threat Modeling (if HAS_SECURITY flag is true)
+        {
+          id: 'security-threat-modeling',
+          name: 'Early Security Threat Modeling (STRIDE)',
+          domain: 'security-compliance',
+          action: 'modelSecurityThreats',
+          dependsOn: ['quality-criteria-analysis'],
+          // Trigger if explicitly requested OR if website extraction detected security features
+          condition: {
+            path: 'results.website-content-extraction.detectedFlags.hasSecurity || input.securityCritical',
+            operator: 'eq',
+            value: true,
+          },
+          inputMapping: {
+            targetId: 'input.targetId',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            securityCritical: 'results.website-content-extraction.detectedFlags.hasSecurity || input.securityCritical',
+          },
+          outputMapping: {
+            threats: 'security.threats',
+            overallRisk: 'security.overallRisk',
+            recommendations: 'security.recommendations',
+          },
+          timeout: 120000,
+          continueOnFailure: true,
+        },
+        // Step 3b: Optional - Accessibility Audit (if HAS_UI flag is true)
+        {
+          id: 'accessibility-audit',
+          name: 'Accessibility Audit (WCAG 2.2)',
+          domain: 'visual-accessibility',
+          action: 'auditAccessibility',
+          dependsOn: ['quality-criteria-analysis'],
+          // Trigger if website has UI components
+          condition: {
+            path: 'results.website-content-extraction.detectedFlags.hasUI || input.hasUI',
+            operator: 'eq',
+            value: true,
+          },
+          inputMapping: {
+            targetId: 'input.targetId',
+            url: 'input.url',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            features: 'results.website-content-extraction.extractedFeatures',
+          },
+          outputMapping: {
+            wcagLevel: 'accessibility.wcagLevel',
+            violations: 'accessibility.violations',
+            recommendations: 'accessibility.recommendations',
+          },
+          timeout: 180000, // 3 minutes for comprehensive audit
+          continueOnFailure: true,
+        },
+        // Step 3c: Optional - Quality Experience Analysis (if HAS_UX flag is true)
+        {
+          id: 'quality-experience-analysis',
+          name: 'Quality Experience Analysis (QX Partner)',
+          domain: 'coordination',
+          action: 'analyzeQualityExperience',
+          dependsOn: ['quality-criteria-analysis'],
+          // Trigger if website has UX concerns
+          condition: {
+            path: 'results.website-content-extraction.detectedFlags.hasUX || input.hasUX',
+            operator: 'eq',
+            value: true,
+          },
+          inputMapping: {
+            targetId: 'input.targetId',
+            url: 'input.url',
+            description: 'results.website-content-extraction.extractedDescription || input.description',
+            features: 'results.website-content-extraction.extractedFeatures',
+          },
+          outputMapping: {
+            journeys: 'qx.journeys',
+            frictionPoints: 'qx.frictionPoints',
+            recommendations: 'qx.recommendations',
+          },
+          timeout: 150000,
+          continueOnFailure: true,
+        },
+        // Step 4: Aggregate Ideation Report (waits for all parallel assessments)
+        {
+          id: 'aggregate-ideation-report',
+          name: 'Generate Ideation Report',
+          domain: 'requirements-validation',
+          action: 'generateIdeationReport',
+          dependsOn: [
+            'quality-criteria-analysis',
+            'testability-assessment',
+            'risk-assessment',
+            'requirements-validation',
+            'security-threat-modeling', // Optional - may be skipped
+            'accessibility-audit', // Optional - may be skipped
+            'quality-experience-analysis', // Optional - may be skipped
+          ],
+          inputMapping: {
+            targetId: 'input.targetId',
+            targetType: 'input.targetType',
+          },
+          outputMapping: {
+            report: 'ideation.report',
+            readyForDevelopment: 'ideation.readyForDevelopment',
+            blockers: 'ideation.blockers',
+            recommendations: 'ideation.recommendations',
+            testStrategy: 'ideation.testStrategy',
+          },
+          timeout: 60000,
+        },
+        // Step 5: Store learnings for cross-phase feedback
+        {
+          id: 'store-ideation-learnings',
+          name: 'Store Ideation Learnings',
+          domain: 'learning-optimization',
+          action: 'storeIdeationLearnings',
+          dependsOn: ['aggregate-ideation-report'],
+          inputMapping: {
+            targetId: 'input.targetId',
+            report: 'results.ideation.report',
+          },
+          outputMapping: {
+            stored: 'learning.stored',
+            patternId: 'learning.patternId',
+          },
+          continueOnFailure: true,
+        },
+      ],
+      triggers: [
+        {
+          eventType: 'requirements-validation.EpicCreated',
+          inputMapping: {
+            targetId: 'event.epicId',
+            targetType: 'event.type',
+            description: 'event.description',
+            acceptanceCriteria: 'event.acceptanceCriteria',
+          },
+        },
+        {
+          eventType: 'requirements-validation.SprintPlanningStarted',
+          inputMapping: {
+            targetId: 'event.sprintId',
+            targetType: 'event.type',
+            description: 'event.description',
+            acceptanceCriteria: 'event.acceptanceCriteria',
+          },
+        },
+      ],
+    });
   }
 
   // ============================================================================

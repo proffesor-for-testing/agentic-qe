@@ -5,7 +5,7 @@
  * Kuramoto CPG oscillators with a practical state machine.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   PhaseScheduler,
   createPhaseScheduler,
@@ -138,6 +138,11 @@ describe('PhaseScheduler', () => {
 
   beforeEach(() => {
     executor = new MockExecutor();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   // --------------------------------------------------------------------------
@@ -377,14 +382,15 @@ describe('PhaseScheduler', () => {
 
       const runPromise = scheduler.run();
 
-      // Wait a bit for pause to take effect
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Use fake timer advancement to allow scheduler to process
+      await vi.advanceTimersByTimeAsync(100);
 
       const stats = scheduler.getStats();
       expect(stats.state).toBe('paused');
 
       // Resume
       scheduler.resume();
+      await vi.advanceTimersByTimeAsync(100);
       await runPromise;
 
       expect(executor.executeCalls).toHaveLength(2);
@@ -402,7 +408,10 @@ describe('PhaseScheduler', () => {
       executor.execute = async (phase: TestPhase) => {
         await new Promise<void>((resolve) => {
           resolveExecute = resolve;
-          setTimeout(resolve, 500); // Give time for abort
+          // Use fake timer-compatible setTimeout
+          const timerId = setTimeout(resolve, 500);
+          // Store cleanup reference
+          (resolveExecute as any)._timerId = timerId;
         });
         return {
           phaseId: phase.id,
@@ -425,8 +434,8 @@ describe('PhaseScheduler', () => {
 
       const runPromise = scheduler.run();
 
-      // Wait a tick for run to start
-      await new Promise((r) => setTimeout(r, 10));
+      // Advance fake timer slightly to let run start
+      await vi.advanceTimersByTimeAsync(10);
 
       await scheduler.abort();
       resolveExecute?.(); // Complete any pending execution
@@ -461,7 +470,8 @@ describe('PhaseScheduler', () => {
       // Add slight delay to executor to ensure duration > 0
       const originalExecute = executor.execute.bind(executor);
       executor.execute = async (phase: TestPhase) => {
-        await new Promise((r) => setTimeout(r, 5));
+        // Use process.nextTick for minimal async delay that works with fake timers
+        await new Promise((r) => process.nextTick(r));
         return originalExecute(phase);
       };
 

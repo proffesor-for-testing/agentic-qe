@@ -1,6 +1,10 @@
 /**
  * Agentic QE v3 - Event Bus Implementation
  * Domain event router for cross-domain communication
+ *
+ * Performance Optimizations (Milestone 2.3):
+ * - CircularBuffer for O(1) event history push (replaces O(n) shift)
+ * - Subscription indexes for O(1) lookup (replaces O(n) filter)
  */
 
 import {
@@ -9,6 +13,8 @@ import {
   EventHandler,
 } from '../shared/types';
 import { EventBus, Subscription, EventFilter } from './interfaces';
+import { CircularBuffer } from '../shared/utils/circular-buffer';
+import { EVENT_BUS_CONSTANTS } from './constants.js';
 
 interface SubscriptionEntry {
   id: string;
@@ -20,31 +26,64 @@ interface SubscriptionEntry {
 
 export class InMemoryEventBus implements EventBus {
   private subscriptions: Map<string, SubscriptionEntry> = new Map();
-  private eventHistory: DomainEvent[] = [];
-  private maxHistorySize = 10000;
+
+  // O(1) subscription indexes - avoids O(n) filter on every publish
+  private subscriptionsByEventType: Map<string, Set<string>> = new Map();
+  private subscriptionsByChannel: Map<DomainName, Set<string>> = new Map();
+  private wildcardSubscriptions: Set<string> = new Set();
+
+  // O(1) bounded history using CircularBuffer - avoids O(n) shift
+  private eventHistory: CircularBuffer<DomainEvent>;
+  private maxHistorySize = EVENT_BUS_CONSTANTS.MAX_HISTORY_SIZE;
   private subscriptionCounter = 0;
 
+  constructor(maxHistorySize = EVENT_BUS_CONSTANTS.MAX_HISTORY_SIZE) {
+    this.maxHistorySize = maxHistorySize;
+    this.eventHistory = new CircularBuffer<DomainEvent>(maxHistorySize);
+  }
+
   async publish<T>(event: DomainEvent<T>): Promise<void> {
-    // Store in history
+    // Store in history - O(1) with CircularBuffer (auto-evicts oldest)
     this.eventHistory.push(event);
-    if (this.eventHistory.length > this.maxHistorySize) {
-      this.eventHistory.shift();
+
+    // Collect matching subscriptions using O(1) index lookups
+    const matchingIds = new Set<string>();
+
+    // Add subscriptions for this specific event type - O(1) lookup
+    const typeSubscriptions = this.subscriptionsByEventType.get(event.type);
+    if (typeSubscriptions) {
+      for (const id of typeSubscriptions) {
+        matchingIds.add(id);
+      }
     }
 
-    // Find matching subscriptions
-    const matchingSubscriptions = Array.from(this.subscriptions.values()).filter(
-      (sub) => {
-        if (!sub.active) return false;
-
-        // Check channel match
-        if (sub.channel && sub.channel !== event.source) return false;
-
-        // Check event type match
-        if (sub.eventType !== '*' && sub.eventType !== event.type) return false;
-
-        return true;
+    // Add channel subscriptions for this source - O(1) lookup
+    const channelSubscriptions = this.subscriptionsByChannel.get(event.source);
+    if (channelSubscriptions) {
+      for (const id of channelSubscriptions) {
+        matchingIds.add(id);
       }
-    );
+    }
+
+    // Add wildcard subscriptions (subscribers to all events) - O(w) where w is wildcard count
+    for (const id of this.wildcardSubscriptions) {
+      matchingIds.add(id);
+    }
+
+    // Filter to active subscriptions and verify match conditions
+    const matchingSubscriptions: SubscriptionEntry[] = [];
+    for (const id of matchingIds) {
+      const sub = this.subscriptions.get(id);
+      if (!sub || !sub.active) continue;
+
+      // Verify channel match for channel subscriptions
+      if (sub.channel && sub.channel !== event.source) continue;
+
+      // Verify event type match for type subscriptions
+      if (sub.eventType !== '*' && sub.eventType !== event.type) continue;
+
+      matchingSubscriptions.push(sub);
+    }
 
     // Execute handlers concurrently
     await Promise.allSettled(
@@ -62,10 +101,26 @@ export class InMemoryEventBus implements EventBus {
     };
     this.subscriptions.set(id, entry);
 
+    // Add to appropriate index for O(1) lookup during publish
+    if (eventType === '*') {
+      this.wildcardSubscriptions.add(id);
+    } else {
+      if (!this.subscriptionsByEventType.has(eventType)) {
+        this.subscriptionsByEventType.set(eventType, new Set());
+      }
+      this.subscriptionsByEventType.get(eventType)!.add(id);
+    }
+
     return {
       unsubscribe: () => {
         entry.active = false;
         this.subscriptions.delete(id);
+        // Remove from indexes
+        if (eventType === '*') {
+          this.wildcardSubscriptions.delete(id);
+        } else {
+          this.subscriptionsByEventType.get(eventType)?.delete(id);
+        }
       },
       get active() {
         return entry.active;
@@ -84,10 +139,18 @@ export class InMemoryEventBus implements EventBus {
     };
     this.subscriptions.set(id, entry);
 
+    // Add to channel index for O(1) lookup during publish
+    if (!this.subscriptionsByChannel.has(domain)) {
+      this.subscriptionsByChannel.set(domain, new Set());
+    }
+    this.subscriptionsByChannel.get(domain)!.add(id);
+
     return {
       unsubscribe: () => {
         entry.active = false;
         this.subscriptions.delete(id);
+        // Remove from channel index
+        this.subscriptionsByChannel.get(domain)?.delete(id);
       },
       get active() {
         return entry.active;
@@ -96,7 +159,8 @@ export class InMemoryEventBus implements EventBus {
   }
 
   async getHistory(filter?: EventFilter): Promise<DomainEvent[]> {
-    let events = [...this.eventHistory];
+    // Convert CircularBuffer to array for filtering
+    let events = this.eventHistory.toArray();
 
     if (filter) {
       if (filter.eventTypes?.length) {
@@ -124,6 +188,9 @@ export class InMemoryEventBus implements EventBus {
 
   async dispose(): Promise<void> {
     this.subscriptions.clear();
-    this.eventHistory = [];
+    this.subscriptionsByEventType.clear();
+    this.subscriptionsByChannel.clear();
+    this.wildcardSubscriptions.clear();
+    this.eventHistory.clear();
   }
 }

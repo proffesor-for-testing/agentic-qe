@@ -16,6 +16,7 @@ import {
 } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import { TEST_EXECUTION_CONSTANTS, LLM_ANALYSIS_CONSTANTS } from '../../constants.js';
 
 // ============================================================================
 // Configuration
@@ -61,7 +62,7 @@ const DEFAULT_CONFIG: TestExecutorConfig = {
   simulatedSkipRate: 0.1,
   enableLLMAnalysis: true, // On by default - opt-out (ADR-051)
   llmModelTier: 2, // Sonnet for balanced analysis
-  llmMaxTokens: 2048,
+  llmMaxTokens: LLM_ANALYSIS_CONSTANTS.MAX_TOKENS,
 };
 
 // ============================================================================
@@ -99,9 +100,9 @@ export class TestExecutorService implements ITestExecutionService {
   private readonly llmRouter?: HybridRouter;
 
   /** Maximum number of results to retain in memory */
-  private readonly MAX_RESULTS = 1000;
+  private readonly MAX_RESULTS = TEST_EXECUTION_CONSTANTS.MAX_RESULTS;
   /** Retention period for old results (24 hours) */
-  private readonly RESULT_RETENTION_MS = 86400000;
+  private readonly RESULT_RETENTION_MS = TEST_EXECUTION_CONSTANTS.RESULT_RETENTION_MS;
 
   constructor(
     dependencies: TestExecutorDependencies,

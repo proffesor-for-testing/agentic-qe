@@ -17,6 +17,7 @@ import type {
   OpenAPIValidationResult,
   ContractEndpoint,
 } from '../interfaces.js';
+import { CONTRACT_CONSTANTS, LLM_ANALYSIS_CONSTANTS } from '../../constants.js';
 
 /**
  * Configuration for the contract validator
@@ -37,11 +38,11 @@ export interface ContractValidatorConfig {
 const DEFAULT_CONFIG: ContractValidatorConfig = {
   strictMode: true,
   validateExamples: true,
-  maxSchemaDepth: 20,
+  maxSchemaDepth: CONTRACT_CONSTANTS.MAX_SCHEMA_DEPTH,
   cacheValidations: true,
   enableLLMAnalysis: true, // On by default - opt-out (ADR-051)
   llmModelTier: 2, // Sonnet for balanced analysis
-  llmMaxTokens: 2048,
+  llmMaxTokens: LLM_ANALYSIS_CONSTANTS.MAX_TOKENS,
 };
 
 /**
@@ -105,9 +106,9 @@ export class ContractValidatorService implements IContractValidationService {
   private readonly validationCache: Map<string, CachedValidationReport> = new Map();
 
   /** Maximum number of validations to cache */
-  private readonly MAX_CACHED_VALIDATIONS = 1000;
+  private readonly MAX_CACHED_VALIDATIONS = CONTRACT_CONSTANTS.MAX_CACHED_VALIDATIONS;
   /** Cache TTL in milliseconds (1 hour) */
-  private readonly CACHE_TTL_MS = 3600000;
+  private readonly CACHE_TTL_MS = CONTRACT_CONSTANTS.CACHE_TTL_MS;
 
   constructor(
     dependencies: ContractValidatorDependencies,

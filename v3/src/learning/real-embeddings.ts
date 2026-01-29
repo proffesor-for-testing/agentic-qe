@@ -9,9 +9,35 @@
 // Re-export cosineSimilarity from shared utility for backward compatibility
 export { cosineSimilarity } from '../shared/utils/vector-math.js';
 
+/**
+ * Type for the @xenova/transformers pipeline function
+ * Using any since the actual transformers.js types are complex and vary by task
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PipelineFunction = any;
+
+/**
+ * Type for the feature extraction pipeline output
+ */
+interface EmbeddingOutput {
+  data: Float32Array;
+  dims?: number[];
+}
+
+/**
+ * Type for the feature extraction pipeline
+ * Supports both single string and batch string[] inputs
+ */
+interface FeatureExtractionPipeline {
+  (
+    input: string | string[],
+    options?: { pooling?: string; normalize?: boolean }
+  ): Promise<EmbeddingOutput>;
+}
+
 // Lazy-loaded transformer pipeline
-let pipeline: any = null;
-let embeddingModel: any = null;
+let pipeline: PipelineFunction | null = null;
+let embeddingModel: FeatureExtractionPipeline | null = null;
 let initPromise: Promise<void> | null = null;
 let initializationFailed = false;
 let failureReason = '';
@@ -110,6 +136,10 @@ export async function computeRealEmbedding(
     await initializeModel(config);
   }
 
+  if (!embeddingModel) {
+    throw new Error('Embedding model failed to initialize');
+  }
+
   // Compute embedding
   const startTime = performance.now();
   const output = await embeddingModel(text, { pooling: 'mean', normalize: true });
@@ -172,6 +202,10 @@ export async function computeBatchEmbeddings(
       await initializeModel(config);
     }
 
+    if (!embeddingModel) {
+      throw new Error('Embedding model failed to initialize');
+    }
+
     const startTime = performance.now();
 
     // Process in batches of 32 for memory efficiency
@@ -183,7 +217,7 @@ export async function computeBatchEmbeddings(
       const outputs = await embeddingModel(batchTexts, { pooling: 'mean', normalize: true });
 
       // Extract embeddings from batch output
-      const dims = outputs.dims;
+      const dims = outputs.dims || [batchTexts.length, 384]; // Default to MiniLM dimensions
       const batchSize = dims[0];
       const embeddingDim = dims[1];
 

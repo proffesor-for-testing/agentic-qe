@@ -52,7 +52,7 @@ import {
   createMinCutAwareMixin,
   type IMinCutAwareDomain,
 } from '../../coordination/mixins/mincut-aware-domain';
-import { QueenMinCutBridge } from '../../coordination/mincut';
+import { QueenMinCutBridge, type MinCutHealth } from '../../coordination/mincut';
 
 // V3 Integration: Multi-Model Consensus (MM-001)
 import {
@@ -279,7 +279,7 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
   /**
    * Subscribe to topology health changes
    */
-  onTopologyHealthChange(callback: (health: any) => void): () => void {
+  onTopologyHealthChange(callback: (health: MinCutHealth) => void): () => void {
     return this.minCutMixin.onTopologyHealthChange(callback);
   }
 

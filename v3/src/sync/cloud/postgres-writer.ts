@@ -72,7 +72,6 @@ export class PostgresWriter implements CloudWriter {
 
     // Try to dynamically import pg (optional dependency)
     try {
-      // @ts-expect-error - pg is an optional dependency
       const pg = await import('pg');
       const Client = pg.Client || pg.default?.Client;
 

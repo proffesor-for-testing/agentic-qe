@@ -8,6 +8,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Use fake timers for deterministic async behavior in mock process spawns
 import {
   GitAwareTestSelector,
   createTestSelector,
@@ -63,11 +65,11 @@ vi.mock('child_process', () => ({
     proc.stdout = new EventEmitter();
     proc.stderr = new EventEmitter();
 
-    // Default: emit empty diff
-    setTimeout(() => {
+    // Default: emit empty diff using process.nextTick for fake timer compatibility
+    process.nextTick(() => {
       proc.stdout.emit('data', '');
       proc.emit('close', 0);
-    }, 0);
+    });
 
     return proc;
   }),
@@ -84,9 +86,11 @@ vi.mock('fs/promises', () => ({
 describe('GitAwareTestSelector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -131,13 +135,13 @@ describe('GitAwareTestSelector', () => {
         proc.stdout = new EventEmitter();
         proc.stderr = new EventEmitter();
 
-        setTimeout(() => {
+        process.nextTick(() => {
           proc.stdout.emit(
             'data',
             'M\tsrc/foo.ts\nA\tsrc/bar.ts\nD\tsrc/old.ts\n'
           );
           proc.emit('close', 0);
-        }, 0);
+        });
 
         return proc;
       });
@@ -170,10 +174,10 @@ describe('GitAwareTestSelector', () => {
         proc.stdout = new EventEmitter();
         proc.stderr = new EventEmitter();
 
-        setTimeout(() => {
+        process.nextTick(() => {
           proc.stdout.emit('data', 'R100\told.ts\tnew.ts\n');
           proc.emit('close', 0);
-        }, 0);
+        });
 
         return proc;
       });
@@ -195,10 +199,10 @@ describe('GitAwareTestSelector', () => {
         proc.stdout = new EventEmitter();
         proc.stderr = new EventEmitter();
 
-        setTimeout(() => {
+        process.nextTick(() => {
           proc.stderr.emit('data', 'fatal: not a git repository');
           proc.emit('close', 1);
-        }, 0);
+        });
 
         return proc;
       });
@@ -227,10 +231,10 @@ describe('GitAwareTestSelector', () => {
         proc.stdout = new EventEmitter();
         proc.stderr = new EventEmitter();
 
-        setTimeout(() => {
+        process.nextTick(() => {
           proc.stdout.emit('data', 'M\tsrc/auth/login.ts\n');
           proc.emit('close', 0);
-        }, 0);
+        });
 
         return proc;
       });
@@ -260,10 +264,10 @@ describe('GitAwareTestSelector', () => {
         proc.stdout = new EventEmitter();
         proc.stderr = new EventEmitter();
 
-        setTimeout(() => {
+        process.nextTick(() => {
           proc.stdout.emit('data', 'M\ttests/unit/foo.test.ts\n');
           proc.emit('close', 0);
-        }, 0);
+        });
 
         return proc;
       });
@@ -288,10 +292,10 @@ describe('GitAwareTestSelector', () => {
         proc.stdout = new EventEmitter();
         proc.stderr = new EventEmitter();
 
-        setTimeout(() => {
+        process.nextTick(() => {
           proc.stdout.emit('data', 'M\tvitest.config.ts\n');
           proc.emit('close', 0);
-        }, 0);
+        });
 
         return proc;
       });
@@ -341,10 +345,10 @@ describe('GitAwareTestSelector', () => {
         proc.stdout = new EventEmitter();
         proc.stderr = new EventEmitter();
 
-        setTimeout(() => {
+        process.nextTick(() => {
           proc.stdout.emit('data', '');
           proc.emit('close', 0);
-        }, 0);
+        });
 
         return proc;
       });
@@ -373,10 +377,10 @@ describe('GitAwareTestSelector', () => {
         proc.stdout = new EventEmitter();
         proc.stderr = new EventEmitter();
 
-        setTimeout(() => {
+        process.nextTick(() => {
           proc.stdout.emit('data', 'D\tsrc/deleted.ts\n');
           proc.emit('close', 0);
-        }, 0);
+        });
 
         return proc;
       });
@@ -398,10 +402,10 @@ describe('GitAwareTestSelector', () => {
         proc.stdout = new EventEmitter();
         proc.stderr = new EventEmitter();
 
-        setTimeout(() => {
+        process.nextTick(() => {
           proc.stdout.emit('data', 'D\tsrc/deleted.ts\n');
           proc.emit('close', 0);
-        }, 0);
+        });
 
         return proc;
       });
@@ -436,11 +440,11 @@ describe('GitAwareTestSelector', () => {
         proc.stdout = new EventEmitter();
         proc.stderr = new EventEmitter();
 
-        setTimeout(() => {
+        process.nextTick(() => {
           // Two changes that map to same test
           proc.stdout.emit('data', 'M\tsrc/foo/index.ts\nM\tsrc/foo/utils.ts\n');
           proc.emit('close', 0);
-        }, 0);
+        });
 
         return proc;
       });

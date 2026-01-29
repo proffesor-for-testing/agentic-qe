@@ -51,8 +51,8 @@ export async function handleAgentList(
       agents = agents.filter((a) => a.status === params.status);
     }
 
-    // Apply limit if specified
-    if (params.limit) {
+    // Apply limit if specified (use typeof check to handle limit: 0)
+    if (typeof params.limit === 'number') {
       agents = agents.slice(0, params.limit);
     }
 

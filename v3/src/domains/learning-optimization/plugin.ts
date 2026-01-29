@@ -9,7 +9,7 @@ import {
   MemoryBackend,
   AgentCoordinator,
 } from '../../kernel/interfaces.js';
-import { BaseDomainPlugin } from '../domain-interface.js';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface.js';
 import {
   ILearningOptimizationCoordinator,
   LearningCycleReport,
@@ -211,6 +211,61 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
     };
 
     return api as T;
+  }
+
+  // ============================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ============================================================================
+
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      ['run-learning-cycle', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const domain = payload.domain as DomainName | undefined;
+        if (!domain) {
+          return err(new Error('Invalid run-learning-cycle payload: missing domain'));
+        }
+        return this.coordinator.runLearningCycle(domain);
+      }],
+
+      ['optimize-strategies', async (_payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        return this.coordinator.optimizeAllStrategies();
+      }],
+
+      ['share-learnings', async (_payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        return this.coordinator.shareCrossDomainLearnings();
+      }],
+
+      ['learn-pattern', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.learningService) {
+          return err(new Error('Learning service not initialized'));
+        }
+        const experiences = payload.experiences as Experience[] | undefined;
+        if (!experiences || experiences.length === 0) {
+          return err(new Error('Invalid learn-pattern payload: missing experiences'));
+        }
+        return this.learningService.learnPattern(experiences);
+      }],
+
+      ['query-knowledge', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.transferService) {
+          return err(new Error('Transfer service not initialized'));
+        }
+        const query = payload.query as KnowledgeQuery | undefined;
+        if (!query) {
+          return err(new Error('Invalid query-knowledge payload: missing query'));
+        }
+        return this.transferService.queryKnowledge(query);
+      }],
+    ]);
   }
 
   // ============================================================================

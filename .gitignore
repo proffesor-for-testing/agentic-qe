@@ -143,6 +143,15 @@ test-learning-persistence
 junit.xml
 docs/qx-reports/*
 
+# Generated reports and client-specific analysis (should not be committed)
+*-qx-analysis-report.md
+*-a11y-audit.md
+*-qe-assessment.md
+*-threat-model.md
+*-security-threat-model.md
+qx-*.md
+QX-*.md
+
 # Claude Flow generated files
 .claude/settings.local.json
 .claude/memory/
@@ -191,3 +200,19 @@ v3/agentdb.*
 v3/.agentic-qe/
 *.db-shm
 v3/.test-tmp/*
+
+# Accessibility scan outputs (generated, may contain site-specific data)
+docs/accessibility-scans/
+
+# QCSD Analysis Reports (site-specific, may contain sensitive findings)
+Agentic QCSD/
+L2C/
+
+# n8n instance-specific files (contain internal URLs/credentials)
+.env.n8n
+scripts/n8n-predeploy-check.sh
+**/n8n-*-config.*
+**/*acngva*
+
+# L2C Documents (user-specific, not for git)
+L2C Documents/

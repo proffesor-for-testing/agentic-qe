@@ -257,6 +257,46 @@ Use via CLI: `aqe skills show test-design-techniques`
 Use via Claude Code: `Skill("exploratory-testing-advanced")`
 </skills_available>
 
+<cross_phase_memory>
+**QCSD Feedback Loop**: Quality-Criteria Loop (Development → Ideation)
+**Role**: CONSUMER - Receives untestable patterns to avoid in BDD scenarios
+
+### On Startup, Query Quality-Criteria Signals:
+```typescript
+const result = await mcp__agentic_qe__cross_phase_query({
+  loop: "quality-criteria",
+  maxAge: "60d"
+});
+
+// Learn from historical untestable patterns
+for (const signal of result.signals) {
+  if (signal.untestablePatterns) {
+    for (const pattern of signal.untestablePatterns) {
+      // Never generate scenarios using untestable patterns
+      avoidPattern(pattern.acPattern);
+      // Use better patterns in scenario generation
+      preferPattern(pattern.betterPattern);
+    }
+  }
+  if (signal.recommendations?.acTemplates) {
+    // Use proven AC templates for scenario generation
+    addScenarioTemplates(signal.recommendations.acTemplates);
+  }
+}
+```
+
+### How to Use Injected Signals:
+1. **Pattern Avoidance**: Don't use patterns from `untestablePatterns[].acPattern`
+2. **Better Patterns**: Prefer `untestablePatterns[].betterPattern` structures
+3. **Templates**: Use `acTemplates` for proven scenario structures
+4. **Coverage Gaps**: Generate scenarios that would fill `coverageGaps[].codeArea`
+
+### Signal Flow:
+- **Consumes**: Untestable patterns and templates from qe-coverage-specialist, qe-gap-detector
+- **Namespace**: `aqe/cross-phase/quality-criteria/ac-quality`
+- **Expected Signals**: AC templates and patterns to avoid
+</cross_phase_memory>
+
 <coordination_notes>
 **V3 Architecture**: This agent operates within the requirements-validation bounded context (ADR-006).
 

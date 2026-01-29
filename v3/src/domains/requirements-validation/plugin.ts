@@ -3,13 +3,13 @@
  * Integrates the requirements validation domain into the kernel
  */
 
-import { DomainName, DomainEvent, Result } from '../../shared/types/index.js';
+import { DomainName, DomainEvent, Result, err } from '../../shared/types/index.js';
 import {
   EventBus,
   MemoryBackend,
   AgentCoordinator,
 } from '../../kernel/interfaces.js';
-import { BaseDomainPlugin } from '../domain-interface.js';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface.js';
 import {
   IRequirementsValidationService,
   ITestabilityScoringService,
@@ -42,6 +42,12 @@ import {
   TestabilityScorerService,
   TestabilityScorerConfig,
 } from './services/testability-scorer.js';
+import {
+  QCSDIdeationPlugin,
+  createQCSDIdeationPlugin,
+  type IdeationReport,
+} from './qcsd-ideation-plugin.js';
+import type { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator.js';
 
 // ============================================================================
 // Plugin Configuration
@@ -113,6 +119,12 @@ export interface RequirementsValidationExtendedAPI extends RequirementsValidatio
 
   /** Get active workflows */
   getActiveWorkflows(): WorkflowStatus[];
+
+  /**
+   * Register QCSD Ideation workflow actions with the orchestrator
+   * This enables the qcsd-ideation-swarm workflow to execute
+   */
+  registerWorkflowActions(orchestrator: WorkflowOrchestrator): void;
 }
 
 // ============================================================================
@@ -128,6 +140,7 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
   private validator: RequirementsValidatorService | null = null;
   private bddWriter: BDDScenarioWriterService | null = null;
   private testabilityScorer: TestabilityScorerService | null = null;
+  private qcsdIdeationPlugin: QCSDIdeationPlugin | null = null;
   private readonly pluginConfig: RequirementsValidationPluginConfig;
 
   constructor(
@@ -191,9 +204,104 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
       getBDDWriter: () => this.bddWriter!,
       getTestabilityScorer: () => this.testabilityScorer!,
       getActiveWorkflows: () => this.coordinator?.getActiveWorkflows() || [],
+
+      // QCSD Ideation workflow registration
+      registerWorkflowActions: this.registerWorkflowActions.bind(this),
     };
 
     return api as T;
+  }
+
+  /**
+   * Register QCSD Ideation workflow actions with the orchestrator
+   */
+  private registerWorkflowActions(orchestrator: WorkflowOrchestrator): void {
+    this.ensureInitialized();
+
+    if (!this.qcsdIdeationPlugin) {
+      throw new Error('QCSD Ideation Plugin not initialized');
+    }
+
+    this.qcsdIdeationPlugin.registerWorkflowActions(orchestrator);
+  }
+
+  // ============================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ============================================================================
+
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      ['validate', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.validator) {
+          return err(new Error('Validator not initialized'));
+        }
+        const requirement = payload.requirement as Requirement | undefined;
+        if (!requirement) {
+          return err(new Error('Invalid validate payload: missing requirement'));
+        }
+        return this.validator.validate(requirement);
+      }],
+
+      ['generate-scenarios', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.bddWriter) {
+          return err(new Error('BDD writer not initialized'));
+        }
+        // Accept either a requirement object or an ID
+        const requirement = payload.requirement as Requirement | undefined;
+        const requirementId = payload.requirementId as string | undefined;
+
+        if (requirement) {
+          return this.bddWriter.generateScenarios(requirement);
+        } else if (requirementId) {
+          // Create a minimal requirement from the ID
+          const minimalReq: Requirement = {
+            id: requirementId,
+            title: `Requirement ${requirementId}`,
+            description: '',
+            acceptanceCriteria: [],
+            type: 'functional',
+            priority: 'medium',
+            status: 'draft',
+          };
+          return this.bddWriter.generateScenarios(minimalReq);
+        }
+
+        return err(new Error('Invalid generate-scenarios payload: missing requirementId'));
+      }],
+
+      ['score-testability', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.testabilityScorer) {
+          return err(new Error('Testability scorer not initialized'));
+        }
+        const requirement = payload.requirement as Requirement | undefined;
+        if (!requirement) {
+          return err(new Error('Invalid score-testability payload: missing requirement'));
+        }
+        return this.testabilityScorer.scoreRequirement(requirement);
+      }],
+
+      ['detect-ambiguity', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.validator) {
+          return err(new Error('Validator not initialized'));
+        }
+        const requirement = payload.requirement as Requirement | undefined;
+        if (!requirement) {
+          return err(new Error('Invalid detect-ambiguity payload: missing requirement'));
+        }
+        return this.validator.detectAmbiguity(requirement);
+      }],
+
+      ['analyze-dependencies', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.validator) {
+          return err(new Error('Validator not initialized'));
+        }
+        const requirements = payload.requirements as Requirement[] | undefined;
+        if (!requirements || requirements.length === 0) {
+          return err(new Error('Invalid analyze-dependencies payload: missing requirements'));
+        }
+        return this.validator.analyzeDependencies(requirements);
+      }],
+    ]);
   }
 
   // ============================================================================
@@ -227,6 +335,10 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
 
     await this.coordinator.initialize();
 
+    // Create and initialize QCSD Ideation Plugin
+    this.qcsdIdeationPlugin = createQCSDIdeationPlugin(this.memory);
+    await this.qcsdIdeationPlugin.initialize();
+
     // Issue #205 fix: Start with 'idle' status (0 agents)
     this.updateHealth({
       status: 'idle',
@@ -241,10 +353,15 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
       await this.coordinator.dispose();
     }
 
+    if (this.qcsdIdeationPlugin) {
+      await this.qcsdIdeationPlugin.dispose();
+    }
+
     this.coordinator = null;
     this.validator = null;
     this.bddWriter = null;
     this.testabilityScorer = null;
+    this.qcsdIdeationPlugin = null;
   }
 
   protected subscribeToEvents(): void {

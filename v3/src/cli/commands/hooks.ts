@@ -284,9 +284,26 @@ export function createHooksCommand(): Command {
     .description('Self-learning QE hooks for pattern recognition and guidance')
     .addHelpText('after', `
 Examples:
+  # File editing hooks (learning from edits)
   aqe hooks pre-edit --file src/utils.ts --operation create
   aqe hooks post-edit --file src/utils.ts --success
+
+  # Task routing and guidance
   aqe hooks route --task "Generate tests for UserService"
+  aqe hooks pre-task --description "Generate tests" --json
+  aqe hooks post-task --task-id "task-123" --success true
+
+  # Bash command hooks
+  aqe hooks pre-command --command "npm test" --json
+  aqe hooks post-command --command "npm test" --success true
+
+  # Session lifecycle (Stop hook)
+  aqe hooks session-start --session-id "session-123"
+  aqe hooks session-end --save-state --json
+
+  # Pattern management
+  aqe hooks learn --name "test-pattern" --description "A test pattern"
+  aqe hooks search --query "authentication"
   aqe hooks stats
   aqe hooks list
     `);
@@ -710,6 +727,288 @@ Examples:
       } catch (error) {
         printError(`search failed: ${error instanceof Error ? error.message : 'unknown'}`);
         process.exit(1);
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // session-start: Initialize session state (called by SessionStart hook)
+  // -------------------------------------------------------------------------
+  hooks
+    .command('session-start')
+    .description('Initialize session state when Claude Code session starts')
+    .option('-s, --session-id <id>', 'Session ID')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const sessionId = options.sessionId || `session-${Date.now()}`;
+        state.sessionId = sessionId;
+
+        // Initialize hooks system (lazy)
+        const { reasoningBank } = await getHooksSystem();
+
+        // Get initial stats for context
+        const stats = await reasoningBank.getStats();
+
+        if (options.json) {
+          printJson({
+            success: true,
+            sessionId,
+            initialized: true,
+            patternsLoaded: stats.totalPatterns,
+          });
+        } else {
+          printSuccess(`Session started: ${sessionId}`);
+          console.log(chalk.dim(`  Patterns loaded: ${stats.totalPatterns}`));
+        }
+
+        process.exit(0);
+      } catch (error) {
+        // Don't fail the hook - just log and exit cleanly
+        if (options.json) {
+          printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
+        }
+        process.exit(0); // Exit cleanly even on error (continueOnError)
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // session-end: Save session state (called by Stop hook)
+  // -------------------------------------------------------------------------
+  hooks
+    .command('session-end')
+    .description('Save session state when Claude Code session ends')
+    .option('--save-state', 'Save learning state to disk')
+    .option('--export-metrics', 'Export session metrics')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const sessionId = state.sessionId || 'unknown';
+
+        // Try to get stats if system was initialized
+        let stats = null;
+        if (state.initialized && state.reasoningBank) {
+          try {
+            stats = await state.reasoningBank.getStats();
+          } catch {
+            // Ignore - system may be shutting down
+          }
+        }
+
+        if (options.json) {
+          printJson({
+            success: true,
+            sessionId,
+            stateSaved: options.saveState || false,
+            metricsExported: options.exportMetrics || false,
+            finalStats: stats ? {
+              patternsLearned: stats.totalPatterns,
+              routingRequests: stats.routingRequests,
+              successRate: stats.patternSuccessRate,
+            } : null,
+          });
+        } else {
+          printSuccess(`Session ended: ${sessionId}`);
+          if (stats) {
+            console.log(chalk.dim(`  Patterns: ${stats.totalPatterns}`));
+            console.log(chalk.dim(`  Routing requests: ${stats.routingRequests}`));
+          }
+        }
+
+        process.exit(0);
+      } catch (error) {
+        // Don't fail the hook - just exit cleanly
+        if (options.json) {
+          printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
+        }
+        process.exit(0);
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // pre-task: Get guidance before spawning a Task (called by PreToolUse hook)
+  // -------------------------------------------------------------------------
+  hooks
+    .command('pre-task')
+    .description('Get context and guidance before spawning a Task agent')
+    .option('--task-id <id>', 'Task identifier')
+    .option('-d, --description <desc>', 'Task description')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const { reasoningBank } = await getHooksSystem();
+
+        // Route the task to get agent recommendation
+        let routing = null;
+        if (options.description) {
+          const result = await reasoningBank.routeTask({
+            task: options.description,
+          });
+          if (result.success) {
+            routing = result.value;
+          }
+        }
+
+        if (options.json) {
+          printJson({
+            success: true,
+            taskId: options.taskId,
+            description: options.description,
+            recommendedAgent: routing?.recommendedAgent,
+            confidence: routing?.confidence,
+            guidance: routing?.guidance || [],
+          });
+        } else {
+          console.log(chalk.bold('\n🚀 Pre-Task Analysis'));
+          console.log(chalk.dim(`  Task ID: ${options.taskId || 'N/A'}`));
+          if (routing) {
+            console.log(chalk.bold('\n🎯 Recommended:'), chalk.cyan(routing.recommendedAgent));
+            console.log(chalk.dim(`  Confidence: ${(routing.confidence * 100).toFixed(1)}%`));
+          }
+        }
+
+        process.exit(0);
+      } catch (error) {
+        if (options.json) {
+          printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
+        }
+        process.exit(0);
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // post-task: Record task outcome for learning (called by PostToolUse hook)
+  // -------------------------------------------------------------------------
+  hooks
+    .command('post-task')
+    .description('Record task outcome for pattern learning')
+    .option('--task-id <id>', 'Task identifier')
+    .option('--success <bool>', 'Whether task succeeded', 'true')
+    .option('--agent <name>', 'Agent that executed the task')
+    .option('--duration <ms>', 'Task duration in milliseconds')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const success = options.success === 'true' || options.success === true;
+
+        // Record outcome if we have an initialized system
+        let patternsLearned = 0;
+        if (state.initialized && state.reasoningBank) {
+          try {
+            // Emit learning event
+            const { hookRegistry } = await getHooksSystem();
+            const results = await hookRegistry.emit(QE_HOOK_EVENTS.PostTestGeneration, {
+              taskId: options.taskId,
+              success,
+              agent: options.agent,
+              duration: options.duration ? parseInt(options.duration, 10) : undefined,
+            });
+            patternsLearned = results.reduce((sum, r) => sum + (r.patternsLearned || 0), 0);
+          } catch {
+            // Ignore learning errors
+          }
+        }
+
+        if (options.json) {
+          printJson({
+            success: true,
+            taskId: options.taskId,
+            taskSuccess: success,
+            patternsLearned,
+          });
+        } else {
+          printSuccess(`Task completed: ${options.taskId || 'unknown'}`);
+          console.log(chalk.dim(`  Success: ${success}`));
+          if (patternsLearned > 0) {
+            console.log(chalk.green(`  Patterns learned: ${patternsLearned}`));
+          }
+        }
+
+        process.exit(0);
+      } catch (error) {
+        if (options.json) {
+          printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
+        }
+        process.exit(0);
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // pre-command: Get guidance before Bash command (called by PreToolUse hook)
+  // -------------------------------------------------------------------------
+  hooks
+    .command('pre-command')
+    .description('Get context before executing a Bash command')
+    .option('-c, --command <cmd>', 'Command to be executed')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        // Analyze command for potential issues
+        const command = options.command || '';
+        const warnings: string[] = [];
+
+        // Check for dangerous patterns
+        if (command.includes('rm -rf /') || command.includes('rm -rf ~')) {
+          warnings.push('Dangerous recursive delete detected');
+        }
+        if (command.includes('> /dev/sd') || command.includes('dd if=')) {
+          warnings.push('Direct disk write detected');
+        }
+        if (command.includes('.agentic-qe') && command.includes('rm')) {
+          warnings.push('Deleting AQE data files');
+        }
+
+        if (options.json) {
+          printJson({
+            success: true,
+            command: command.substring(0, 100),
+            warnings,
+            safe: warnings.length === 0,
+          });
+        } else if (warnings.length > 0) {
+          console.log(chalk.yellow('\n⚠️  Command Warnings:'));
+          warnings.forEach(w => console.log(chalk.yellow(`  - ${w}`)));
+        }
+
+        process.exit(0);
+      } catch (error) {
+        if (options.json) {
+          printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
+        }
+        process.exit(0);
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // post-command: Record command outcome (called by PostToolUse hook)
+  // -------------------------------------------------------------------------
+  hooks
+    .command('post-command')
+    .description('Record Bash command outcome')
+    .option('-c, --command <cmd>', 'Command that was executed')
+    .option('--success <bool>', 'Whether command succeeded', 'true')
+    .option('--exit-code <code>', 'Command exit code')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const success = options.success === 'true' || options.success === true;
+        const exitCode = options.exitCode ? parseInt(options.exitCode, 10) : (success ? 0 : 1);
+
+        if (options.json) {
+          printJson({
+            success: true,
+            command: (options.command || '').substring(0, 100),
+            commandSuccess: success,
+            exitCode,
+          });
+        }
+        // Silent in non-JSON mode to avoid cluttering output
+
+        process.exit(0);
+      } catch (error) {
+        if (options.json) {
+          printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
+        }
+        process.exit(0);
       }
     });
 

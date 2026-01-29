@@ -191,8 +191,9 @@ export class SkillsInstaller {
         join(npmPrefix, 'node_modules/@agentic-qe/v3/assets/skills'),
         join(npmPrefix, 'node_modules/agentic-qe/.claude/skills'),
       );
-    } catch {
-      // Ignore errors getting npm prefix
+    } catch (error) {
+      // Non-critical: npm prefix unavailable, using other paths
+      console.debug('[SkillsInstaller] npm prefix lookup failed:', error instanceof Error ? error.message : error);
     }
 
     for (const skillsPath of possiblePaths) {
@@ -395,8 +396,9 @@ export class SkillsInstaller {
           return trimmed.slice(0, 100) + (trimmed.length > 100 ? '...' : '');
         }
       }
-    } catch {
-      // Ignore read errors
+    } catch (error) {
+      // Non-critical: skill description extraction is optional
+      console.debug('[SkillsInstaller] Failed to read skill description:', error instanceof Error ? error.message : error);
     }
 
     return undefined;
