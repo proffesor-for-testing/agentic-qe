@@ -1896,7 +1896,8 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         }
       }
     } catch (error) {
-      // Silently skip directories we can't read
+      // Non-critical: permission errors when reading directories are expected
+      console.debug('[SecurityAuditor] Directory read error:', error instanceof Error ? error.message : error);
     }
 
     return files;

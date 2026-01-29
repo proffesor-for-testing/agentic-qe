@@ -56,6 +56,66 @@ export const DEFAULT_SQLITE_CONFIG: SQLitePersistenceConfig = {
 };
 
 /**
+ * Database row structure for pattern queries
+ */
+interface PatternRow {
+  id: string;
+  pattern_type: string;
+  qe_domain: string;
+  domain: string;
+  name: string;
+  description: string;
+  confidence: number;
+  usage_count: number;
+  success_rate: number;
+  quality_score: number;
+  tier: string;
+  template_json: string;
+  context_json: string;
+  created_at: string;
+  last_used_at: string | null;
+  successful_uses: number;
+  // Embedding fields (from JOIN)
+  embedding?: Buffer;
+  dimension?: number;
+  // Token tracking fields (ADR-042)
+  tokens_used?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  latency_ms?: number;
+  reusable?: number;
+  reuse_count?: number;
+  average_token_savings?: number;
+  total_tokens_saved?: number;
+}
+
+/**
+ * Database row structure for embedding queries
+ */
+interface EmbeddingRow {
+  pattern_id: string;
+  embedding: Buffer;
+  dimension: number;
+}
+
+/**
+ * Database row structure for statistics queries
+ */
+interface CountRow {
+  count: number;
+}
+
+interface DomainCountRow {
+  qe_domain: string;
+  count: number;
+}
+
+interface TierCountRow {
+  tier: string;
+  count: number;
+}
+
+/**
  * SQLite-based pattern persistence
  */
 export class SQLitePatternStore {
@@ -311,7 +371,7 @@ export class SQLitePatternStore {
     const stmt = this.prepared.get('getPatternWithEmbedding');
     if (!stmt) throw new Error('Prepared statement not ready');
 
-    const row = stmt.get(id) as any;
+    const row = stmt.get(id) as PatternRow | undefined;
     if (!row) return null;
 
     return this.rowToPattern(row);
@@ -325,14 +385,14 @@ export class SQLitePatternStore {
 
     const limit = options.limit || 1000;
     let stmt: Statement;
-    let rows: any[];
+    let rows: PatternRow[];
 
     if (options.domain) {
       stmt = this.prepared.get('getPatternsByDomain')!;
-      rows = stmt.all(options.domain, limit) as any[];
+      rows = stmt.all(options.domain, limit) as PatternRow[];
     } else {
       stmt = this.prepared.get('getAllPatterns')!;
-      rows = stmt.all(limit) as any[];
+      rows = stmt.all(limit) as PatternRow[];
     }
 
     return rows.map(row => this.rowToPattern(row));
@@ -347,7 +407,7 @@ export class SQLitePatternStore {
     const stmt = this.prepared.get('getAllEmbeddings');
     if (!stmt) throw new Error('Prepared statement not ready');
 
-    const rows = stmt.all() as any[];
+    const rows = stmt.all() as EmbeddingRow[];
     return rows.map(row => ({
       patternId: row.pattern_id,
       embedding: Array.from(new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.dimension)),
@@ -360,7 +420,7 @@ export class SQLitePatternStore {
   recordUsage(
     patternId: string,
     success: boolean,
-    metrics?: Record<string, any>,
+    metrics?: Record<string, unknown>,
     feedback?: string
   ): void {
     if (!this.db) throw new Error('Database not initialized');
@@ -434,8 +494,8 @@ export class SQLitePatternStore {
       throw new Error('Prepared statements not ready');
     }
 
-    const total = (countStmt.get() as any).count;
-    const domainRows = domainStmt.all() as any[];
+    const total = (countStmt.get() as CountRow).count;
+    const domainRows = domainStmt.all() as DomainCountRow[];
 
     const byDomain: Record<string, number> = {};
     for (const row of domainRows) {
@@ -445,7 +505,7 @@ export class SQLitePatternStore {
     // Get tier counts
     const tierRows = this.db.prepare(`
       SELECT tier, COUNT(*) as count FROM qe_patterns GROUP BY tier
-    `).all() as any[];
+    `).all() as TierCountRow[];
 
     const byTier: Record<string, number> = {};
     for (const row of tierRows) {
@@ -458,7 +518,7 @@ export class SQLitePatternStore {
   /**
    * Convert database row to QEPattern
    */
-  private rowToPattern(row: any): QEPattern {
+  private rowToPattern(row: PatternRow): QEPattern {
     let embedding: number[] | undefined;
     if (row.embedding) {
       embedding = Array.from(
@@ -510,7 +570,7 @@ export class SQLitePatternStore {
     if (!this.db) throw new Error('Database not initialized');
 
     const setClauses: string[] = [];
-    const values: any[] = [];
+    const values: (string | number)[] = [];
 
     if (updates.usageCount !== undefined) {
       setClauses.push('usage_count = ?');

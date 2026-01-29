@@ -9,9 +9,29 @@
 // Re-export cosineSimilarity from shared utility for backward compatibility
 export { cosineSimilarity } from '../shared/utils/vector-math.js';
 
+/**
+ * Type for the @xenova/transformers pipeline function
+ * Using unknown since the actual type depends on the task parameter
+ */
+type PipelineFunction = (
+  task: string,
+  model: string,
+  options?: { quantized?: boolean }
+) => Promise<FeatureExtractionPipeline>;
+
+/**
+ * Type for the feature extraction pipeline
+ */
+interface FeatureExtractionPipeline {
+  (
+    input: string,
+    options?: { pooling?: string; normalize?: boolean }
+  ): Promise<{ data: Float32Array }>;
+}
+
 // Lazy-loaded transformer pipeline
-let pipeline: any = null;
-let embeddingModel: any = null;
+let pipeline: PipelineFunction | null = null;
+let embeddingModel: FeatureExtractionPipeline | null = null;
 let initPromise: Promise<void> | null = null;
 let initializationFailed = false;
 let failureReason = '';

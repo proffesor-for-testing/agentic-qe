@@ -5,6 +5,7 @@
 
 import { MemoryBackend, StoreOptions, VectorSearchResult } from './interfaces';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
+import { MEMORY_CONSTANTS } from './constants.js';
 
 interface StoredEntry {
   value: unknown;
@@ -25,7 +26,7 @@ export class InMemoryBackend implements MemoryBackend {
 
   async initialize(): Promise<void> {
     // Start periodic cleanup of expired entries
-    this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
+    this.cleanupInterval = setInterval(() => this.cleanup(), MEMORY_CONSTANTS.CLEANUP_INTERVAL_MS);
   }
 
   async dispose(): Promise<void> {
@@ -44,7 +45,7 @@ export class InMemoryBackend implements MemoryBackend {
     };
 
     if (options?.ttl) {
-      entry.expiresAt = Date.now() + options.ttl * 1000;
+      entry.expiresAt = Date.now() + options.ttl * MEMORY_CONSTANTS.TTL_MULTIPLIER_MS;
     }
 
     const fullKey = this.buildKey(key, options?.namespace);
@@ -78,7 +79,7 @@ export class InMemoryBackend implements MemoryBackend {
     return value !== undefined;
   }
 
-  async search(pattern: string, limit: number = 100): Promise<string[]> {
+  async search(pattern: string, limit: number = MEMORY_CONSTANTS.DEFAULT_SEARCH_LIMIT): Promise<string[]> {
     const regex = new RegExp(pattern.replace(/\*/g, '.*'));
     const results: string[] = [];
 

@@ -86,8 +86,9 @@ export class ModelRouterBridge {
             reasoning: reasonMatch?.[1]?.trim(),
           };
         }
-      } catch {
-        // Fall through to local routing
+      } catch (error) {
+        // Non-critical: Claude Flow routing failed, using local fallback
+        console.debug('[ModelRouterBridge] Claude Flow routing failed:', error instanceof Error ? error.message : error);
       }
     }
 
@@ -114,8 +115,9 @@ export class ModelRouterBridge {
           `npx @claude-flow/cli@latest hooks model-outcome --task ${this.escapeArg(outcome.task)} --model ${outcome.model} --outcome ${outcome.outcome} 2>/dev/null`,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
-      } catch {
-        // Silently fail - outcome recording is optional
+      } catch (error) {
+        // Non-critical: outcome recording is optional
+        console.debug('[ModelRouterBridge] Outcome recording failed:', error instanceof Error ? error.message : error);
       }
     }
   }

@@ -3,13 +3,13 @@
  * Integrates the requirements validation domain into the kernel
  */
 
-import { DomainName, DomainEvent, Result } from '../../shared/types/index.js';
+import { DomainName, DomainEvent, Result, err } from '../../shared/types/index.js';
 import {
   EventBus,
   MemoryBackend,
   AgentCoordinator,
 } from '../../kernel/interfaces.js';
-import { BaseDomainPlugin } from '../domain-interface.js';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface.js';
 import {
   IRequirementsValidationService,
   ITestabilityScoringService,
@@ -194,6 +194,85 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
     };
 
     return api as T;
+  }
+
+  // ============================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ============================================================================
+
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      ['validate', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.validator) {
+          return err(new Error('Validator not initialized'));
+        }
+        const requirement = payload.requirement as Requirement | undefined;
+        if (!requirement) {
+          return err(new Error('Invalid validate payload: missing requirement'));
+        }
+        return this.validator.validate(requirement);
+      }],
+
+      ['generate-scenarios', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.bddWriter) {
+          return err(new Error('BDD writer not initialized'));
+        }
+        // Accept either a requirement object or an ID
+        const requirement = payload.requirement as Requirement | undefined;
+        const requirementId = payload.requirementId as string | undefined;
+
+        if (requirement) {
+          return this.bddWriter.generateScenarios(requirement);
+        } else if (requirementId) {
+          // Create a minimal requirement from the ID
+          const minimalReq: Requirement = {
+            id: requirementId,
+            title: `Requirement ${requirementId}`,
+            description: '',
+            acceptanceCriteria: [],
+            type: 'functional',
+            priority: 'medium',
+            status: 'draft',
+          };
+          return this.bddWriter.generateScenarios(minimalReq);
+        }
+
+        return err(new Error('Invalid generate-scenarios payload: missing requirementId'));
+      }],
+
+      ['score-testability', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.testabilityScorer) {
+          return err(new Error('Testability scorer not initialized'));
+        }
+        const requirement = payload.requirement as Requirement | undefined;
+        if (!requirement) {
+          return err(new Error('Invalid score-testability payload: missing requirement'));
+        }
+        return this.testabilityScorer.scoreRequirement(requirement);
+      }],
+
+      ['detect-ambiguity', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.validator) {
+          return err(new Error('Validator not initialized'));
+        }
+        const requirement = payload.requirement as Requirement | undefined;
+        if (!requirement) {
+          return err(new Error('Invalid detect-ambiguity payload: missing requirement'));
+        }
+        return this.validator.detectAmbiguity(requirement);
+      }],
+
+      ['analyze-dependencies', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.validator) {
+          return err(new Error('Validator not initialized'));
+        }
+        const requirements = payload.requirements as Requirement[] | undefined;
+        if (!requirements || requirements.length === 0) {
+          return err(new Error('Invalid analyze-dependencies payload: missing requirements'));
+        }
+        return this.validator.analyzeDependencies(requirements);
+      }],
+    ]);
   }
 
   // ============================================================================

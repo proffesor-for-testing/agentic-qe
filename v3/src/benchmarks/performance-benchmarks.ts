@@ -192,9 +192,26 @@ export async function compareImplementations(
 // ============================================================================
 
 /**
+ * Mock memory backend type for benchmarks
+ */
+interface MockMemoryBackend {
+  set(key: string, value: unknown, metadata?: unknown): Promise<void>;
+  get(key: string): Promise<{ value: unknown; metadata?: unknown } | null>;
+  delete(key: string): Promise<boolean>;
+  has(key: string): Promise<boolean>;
+  keys(): Promise<string[]>;
+  clear(): Promise<void>;
+  close(): Promise<void>;
+  vectorSearch(embedding: number[], k: number): Promise<Array<{ key: string; score: number; metadata: unknown }>>;
+  storeVector(key: string, embedding: number[], metadata?: unknown): Promise<void>;
+  getStats(): Promise<{ keyCount: number; vectorCount: number }>;
+  search(): Promise<never[]>;
+}
+
+/**
  * Create a mock memory backend for benchmarks
  */
-function createMockMemoryBackend(): any {
+function createMockMemoryBackend(): MockMemoryBackend {
   const store = new Map<string, { value: unknown; metadata?: unknown }>();
   const vectors = new Map<string, { embedding: number[]; metadata: unknown }>();
 

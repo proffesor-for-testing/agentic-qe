@@ -10,7 +10,7 @@ export interface WorkflowVariable {
   name: string;
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
   required: boolean;
-  default?: any;
+  default?: unknown;
   description?: string;
 }
 
@@ -20,7 +20,7 @@ export interface WorkflowVariable {
 export interface WorkflowStep {
   name: string;
   action: string;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   assertions?: Array<{
     condition: string;
     message: string;
@@ -310,18 +310,18 @@ export const defaultWorkflowLoader = new WorkflowLoader();
  */
 export function interpolateVariables(
   template: string,
-  variables: Record<string, any>
+  variables: Record<string, unknown>
 ): string {
   return template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
     const trimmedKey = key.trim();
 
     // Handle nested object access (e.g., {{currentItem.name}})
     const keys = trimmedKey.split('.');
-    let value: any = variables;
+    let value: unknown = variables;
 
     for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
-        value = value[k];
+      if (value && typeof value === 'object' && k in (value as Record<string, unknown>)) {
+        value = (value as Record<string, unknown>)[k];
       } else {
         return match; // Return original if key not found
       }

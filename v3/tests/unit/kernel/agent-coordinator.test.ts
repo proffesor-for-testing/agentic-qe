@@ -217,4 +217,235 @@ describe('DefaultAgentCoordinator', () => {
       expect(coordinator.getActiveCount()).toBe(1);
     });
   });
+
+  describe('listAgents filtering', () => {
+    it('should filter by type', async () => {
+      await coordinator.spawn({
+        name: 'agent-1',
+        domain: 'test-generation',
+        type: 'generator',
+        capabilities: [],
+      });
+
+      await coordinator.spawn({
+        name: 'agent-2',
+        domain: 'test-generation',
+        type: 'executor',
+        capabilities: [],
+      });
+
+      const generators = coordinator.listAgents({ type: 'generator' });
+      expect(generators).toHaveLength(1);
+      expect(generators[0].type).toBe('generator');
+
+      const executors = coordinator.listAgents({ type: 'executor' });
+      expect(executors).toHaveLength(1);
+      expect(executors[0].type).toBe('executor');
+    });
+  });
+
+  describe('stop edge cases', () => {
+    it('should fail to stop already stopped agent', async () => {
+      const spawnResult = await coordinator.spawn({
+        name: 'test-agent',
+        domain: 'test-generation',
+        type: 'generator',
+        capabilities: [],
+      });
+
+      expect(spawnResult.success).toBe(true);
+      if (spawnResult.success) {
+        // Stop once
+        const firstStop = await coordinator.stop(spawnResult.value);
+        expect(firstStop.success).toBe(true);
+
+        // Try to stop again
+        const secondStop = await coordinator.stop(spawnResult.value);
+        expect(secondStop.success).toBe(false);
+        if (!secondStop.success) {
+          expect(secondStop.error.message).toContain('is not running');
+        }
+      }
+    });
+  });
+
+  describe('markCompleted', () => {
+    it('should mark a running agent as completed', async () => {
+      const spawnResult = await coordinator.spawn({
+        name: 'test-agent',
+        domain: 'test-generation',
+        type: 'generator',
+        capabilities: [],
+      });
+
+      expect(spawnResult.success).toBe(true);
+      if (spawnResult.success) {
+        coordinator.markCompleted(spawnResult.value);
+        const status = coordinator.getStatus(spawnResult.value);
+        expect(status).toBe('completed');
+      }
+    });
+
+    it('should do nothing for non-existent agent', () => {
+      // Should not throw
+      coordinator.markCompleted('nonexistent-id');
+    });
+
+    it('should do nothing for non-running agent', async () => {
+      const spawnResult = await coordinator.spawn({
+        name: 'test-agent',
+        domain: 'test-generation',
+        type: 'generator',
+        capabilities: [],
+      });
+
+      if (spawnResult.success) {
+        // Mark completed first
+        coordinator.markCompleted(spawnResult.value);
+        expect(coordinator.getStatus(spawnResult.value)).toBe('completed');
+
+        // Try to mark completed again (should do nothing)
+        coordinator.markCompleted(spawnResult.value);
+        expect(coordinator.getStatus(spawnResult.value)).toBe('completed');
+      }
+    });
+  });
+
+  describe('markFailed', () => {
+    it('should mark a running agent as failed', async () => {
+      const spawnResult = await coordinator.spawn({
+        name: 'test-agent',
+        domain: 'test-generation',
+        type: 'generator',
+        capabilities: [],
+      });
+
+      expect(spawnResult.success).toBe(true);
+      if (spawnResult.success) {
+        coordinator.markFailed(spawnResult.value);
+        const status = coordinator.getStatus(spawnResult.value);
+        expect(status).toBe('failed');
+      }
+    });
+
+    it('should do nothing for non-existent agent', () => {
+      // Should not throw
+      coordinator.markFailed('nonexistent-id');
+    });
+
+    it('should do nothing for non-running agent', async () => {
+      const spawnResult = await coordinator.spawn({
+        name: 'test-agent',
+        domain: 'test-generation',
+        type: 'generator',
+        capabilities: [],
+      });
+
+      if (spawnResult.success) {
+        // Mark failed first
+        coordinator.markFailed(spawnResult.value);
+        expect(coordinator.getStatus(spawnResult.value)).toBe('failed');
+
+        // Try to mark failed again (should do nothing)
+        coordinator.markFailed(spawnResult.value);
+        expect(coordinator.getStatus(spawnResult.value)).toBe('failed');
+      }
+    });
+  });
+
+  describe('cleanup', () => {
+    it('should remove completed agents older than TTL', async () => {
+      const spawnResult = await coordinator.spawn({
+        name: 'test-agent',
+        domain: 'test-generation',
+        type: 'generator',
+        capabilities: [],
+      });
+
+      if (spawnResult.success) {
+        coordinator.markCompleted(spawnResult.value);
+
+        // Wait a small amount so the completion time is in the past
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        // Cleanup with 5ms TTL (agent completed 10ms ago)
+        const cleaned = coordinator.cleanup(5);
+        expect(cleaned).toBe(1);
+
+        // Agent should be gone
+        const status = coordinator.getStatus(spawnResult.value);
+        expect(status).toBeUndefined();
+      }
+    });
+
+    it('should remove failed agents older than TTL', async () => {
+      const spawnResult = await coordinator.spawn({
+        name: 'test-agent',
+        domain: 'test-generation',
+        type: 'generator',
+        capabilities: [],
+      });
+
+      if (spawnResult.success) {
+        coordinator.markFailed(spawnResult.value);
+
+        // Wait a small amount so the completion time is in the past
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        // Cleanup with 5ms TTL (agent failed 10ms ago)
+        const cleaned = coordinator.cleanup(5);
+        expect(cleaned).toBe(1);
+      }
+    });
+
+    it('should not remove running agents', async () => {
+      await coordinator.spawn({
+        name: 'test-agent',
+        domain: 'test-generation',
+        type: 'generator',
+        capabilities: [],
+      });
+
+      const cleaned = coordinator.cleanup(0);
+      expect(cleaned).toBe(0);
+      expect(coordinator.listAgents()).toHaveLength(1);
+    });
+
+    it('should not remove recently completed agents within TTL', async () => {
+      const spawnResult = await coordinator.spawn({
+        name: 'test-agent',
+        domain: 'test-generation',
+        type: 'generator',
+        capabilities: [],
+      });
+
+      if (spawnResult.success) {
+        coordinator.markCompleted(spawnResult.value);
+
+        // Cleanup with large TTL (1 hour)
+        const cleaned = coordinator.cleanup(3600000);
+        expect(cleaned).toBe(0);
+
+        // Agent should still exist
+        expect(coordinator.getStatus(spawnResult.value)).toBe('completed');
+      }
+    });
+
+    it('should use default TTL of 1 hour', async () => {
+      const spawnResult = await coordinator.spawn({
+        name: 'test-agent',
+        domain: 'test-generation',
+        type: 'generator',
+        capabilities: [],
+      });
+
+      if (spawnResult.success) {
+        coordinator.markCompleted(spawnResult.value);
+
+        // Default TTL - recently completed should not be cleaned
+        const cleaned = coordinator.cleanup();
+        expect(cleaned).toBe(0);
+      }
+    });
+  });
 });

@@ -30,8 +30,9 @@ class InMemoryWorkerEventBus implements WorkerEventBus {
     for (const handler of this.handlers) {
       try {
         handler(event);
-      } catch {
-        // Ignore handler errors
+      } catch (error) {
+        // Non-critical: handler errors should not affect event propagation
+        console.debug('[WorkerManager] Event handler error:', error instanceof Error ? error.message : error);
       }
     }
   }

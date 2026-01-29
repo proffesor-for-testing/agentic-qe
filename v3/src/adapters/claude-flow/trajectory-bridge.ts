@@ -67,8 +67,9 @@ export class TrajectoryBridge {
         if (match?.[1]) {
           return match[1];
         }
-      } catch {
-        // Fall through to local storage
+      } catch (error) {
+        // Non-critical: Claude Flow unavailable, using local storage
+        console.debug('[TrajectoryBridge] Claude Flow trajectory start failed:', error instanceof Error ? error.message : error);
       }
     }
 
@@ -104,8 +105,9 @@ export class TrajectoryBridge {
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
         return;
-      } catch {
-        // Fall through to local storage
+      } catch (error) {
+        // Non-critical: Claude Flow unavailable, using local storage
+        console.debug('[TrajectoryBridge] Claude Flow trajectory step failed:', error instanceof Error ? error.message : error);
       }
     }
 
@@ -227,8 +229,9 @@ export class TrajectoryBridge {
       );
 
       db.close();
-    } catch {
-      // Silently fail - persistence is optional
+    } catch (error) {
+      // Non-critical: persistence is optional
+      console.debug('[TrajectoryBridge] Trajectory persistence failed:', error instanceof Error ? error.message : error);
     }
   }
 

@@ -14,6 +14,7 @@ import {
   FlakyTest,
 } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
+import { TEST_EXECUTION_CONSTANTS, RETRY_CONSTANTS } from '../../constants.js';
 
 // ============================================================================
 // Configuration
@@ -69,12 +70,12 @@ export interface FlakyDetectorConfig {
 
 const DEFAULT_FLAKY_CONFIG: FlakyDetectorConfig = {
   simulateForTesting: false,
-  simulatedFlakinessRate: 0.3,
-  simulatedFlakyPassRate: 0.7,
+  simulatedFlakinessRate: RETRY_CONSTANTS.DEFAULT_FLAKY_RATE,
+  simulatedFlakyPassRate: RETRY_CONSTANTS.DEFAULT_FLAKY_PASS_RATE,
   simulatedTestsPerFile: 2,
   testRunner: 'npx',
   testRunnerArgs: ['vitest', 'run', '--reporter=json'],
-  runTimeout: 60000,
+  runTimeout: TEST_EXECUTION_CONSTANTS.DEFAULT_TEST_TIMEOUT_MS,
 };
 
 // ============================================================================
@@ -188,9 +189,9 @@ export class FlakyDetectorService implements IFlakyTestDetector {
   private readonly config: FlakyDetectorConfig;
 
   /** Maximum number of tests to track in history */
-  private readonly MAX_TESTS_TRACKED = 10000;
+  private readonly MAX_TESTS_TRACKED = TEST_EXECUTION_CONSTANTS.MAX_TESTS_TRACKED;
   /** Cache TTL for analysis results (1 hour) */
-  private readonly ANALYSIS_CACHE_TTL_MS = 3600000;
+  private readonly ANALYSIS_CACHE_TTL_MS = TEST_EXECUTION_CONSTANTS.ANALYSIS_CACHE_TTL_MS;
 
   constructor(
     private readonly memory: MemoryBackend,
@@ -592,8 +593,9 @@ export class FlakyDetectorService implements IFlakyTestDetector {
         const parsed = JSON.parse(jsonOutput);
         return this.parseVitestJson(parsed, file, runId, runIndex);
       }
-    } catch {
-      // Not valid JSON, try other formats
+    } catch (error) {
+      // Non-critical: not valid JSON, try other formats
+      console.debug('[FlakyDetector] Vitest JSON parse failed:', error instanceof Error ? error.message : error);
     }
 
     // Try to parse Jest JSON output
@@ -605,8 +607,9 @@ export class FlakyDetectorService implements IFlakyTestDetector {
           return this.parseJestJson(parsed, file, runId, runIndex);
         }
       }
-    } catch {
-      // Not Jest format
+    } catch (error) {
+      // Non-critical: not Jest format
+      console.debug('[FlakyDetector] Jest JSON parse failed:', error instanceof Error ? error.message : error);
     }
 
     // Try to parse TAP format

@@ -1,6 +1,6 @@
 /**
  * Agentic QE v3 - Agent Coordinator
- * Manages agent lifecycle with max 15 concurrent agents limit
+ * Manages agent lifecycle with max concurrent agents limit
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -11,8 +11,7 @@ import {
   AgentFilter,
   AgentInfo,
 } from './interfaces';
-
-const MAX_CONCURRENT_AGENTS = 15;
+import { AGENT_CONSTANTS } from './constants.js';
 
 interface ManagedAgent {
   id: string;
@@ -30,7 +29,7 @@ export class DefaultAgentCoordinator implements AgentCoordinator {
   private agents: Map<string, ManagedAgent> = new Map();
   private maxAgents: number;
 
-  constructor(maxAgents: number = MAX_CONCURRENT_AGENTS) {
+  constructor(maxAgents: number = AGENT_CONSTANTS.MAX_CONCURRENT_AGENTS) {
     this.maxAgents = maxAgents;
   }
 
@@ -145,7 +144,7 @@ export class DefaultAgentCoordinator implements AgentCoordinator {
   }
 
   // Cleanup completed/failed agents older than TTL
-  cleanup(ttlMs: number = 3600000): number {
+  cleanup(ttlMs: number = AGENT_CONSTANTS.DEFAULT_AGENT_TTL_MS): number {
     const now = Date.now();
     let cleaned = 0;
 

@@ -21,6 +21,29 @@ import type {
 } from './types.js';
 
 // ============================================================================
+// History Bounds Constants (Milestone 3.3)
+// ============================================================================
+
+/**
+ * Maximum number of unique nodes to track in activation history.
+ * When exceeded, oldest entries are trimmed to 80% of this limit.
+ * Prevents unbounded memory growth in long-running sessions.
+ */
+export const MAX_ACTIVATION_HISTORY_ENTRIES = 10000;
+
+/**
+ * Maximum number of co-activation pairs to track.
+ * When exceeded, least-counted pairs are removed to 80% of this limit.
+ * Prevents unbounded memory growth from co-activation tracking.
+ */
+export const MAX_COACTIVATION_ENTRIES = 50000;
+
+/**
+ * Trim percentage - when bounds exceeded, reduce to this fraction of max
+ */
+export const HISTORY_TRIM_TARGET_RATIO = 0.8;
+
+// ============================================================================
 // Configuration
 // ============================================================================
 
@@ -234,6 +257,9 @@ export class SpreadingActivation {
     // Find novel associations
     const novelAssociations = await this.findNovelAssociations(this.config.threshold);
 
+    // Trim history to prevent unbounded growth (Milestone 3.3)
+    this.trimHistory();
+
     return {
       iterations,
       nodesActivated: activatedNodes.length,
@@ -338,6 +364,9 @@ export class SpreadingActivation {
       })
       .filter((n) => n.activation > 0)
       .sort((a, b) => b.activation - a.activation);
+
+    // Trim history after dream cycle to prevent unbounded growth (Milestone 3.3)
+    this.trimHistory();
 
     return {
       iterations: totalIterations,
@@ -455,6 +484,72 @@ export class SpreadingActivation {
    */
   getConfig(): ActivationConfig {
     return { ...this.config };
+  }
+
+  // ==========================================================================
+  // History Bounds Management (Milestone 3.3)
+  // ==========================================================================
+
+  /**
+   * Trim activation history when it exceeds MAX_ACTIVATION_HISTORY_ENTRIES.
+   * Removes oldest entries (based on Map insertion order) to reach 80% of max.
+   * This prevents unbounded memory growth in long-running sessions.
+   */
+  private trimActivationHistory(): void {
+    if (this.activationHistory.size <= MAX_ACTIVATION_HISTORY_ENTRIES) {
+      return;
+    }
+
+    const targetSize = Math.floor(MAX_ACTIVATION_HISTORY_ENTRIES * HISTORY_TRIM_TARGET_RATIO);
+    const entriesToRemove = this.activationHistory.size - targetSize;
+
+    // Maps maintain insertion order, so first entries are oldest
+    const keys = Array.from(this.activationHistory.keys()).slice(0, entriesToRemove);
+    for (const key of keys) {
+      this.activationHistory.delete(key);
+    }
+  }
+
+  /**
+   * Trim co-activation counts when they exceed MAX_COACTIVATION_ENTRIES.
+   * Removes least-frequent pairs to reach 80% of max.
+   * This prevents unbounded memory growth from co-activation tracking.
+   */
+  private trimCoActivationCounts(): void {
+    if (this.coActivationCounts.size <= MAX_COACTIVATION_ENTRIES) {
+      return;
+    }
+
+    const targetSize = Math.floor(MAX_COACTIVATION_ENTRIES * HISTORY_TRIM_TARGET_RATIO);
+    const entriesToRemove = this.coActivationCounts.size - targetSize;
+
+    // Sort by count (ascending) to remove least-frequent pairs first
+    const sortedEntries = Array.from(this.coActivationCounts.entries())
+      .sort((a, b) => a[1] - b[1]);
+
+    for (let i = 0; i < entriesToRemove && i < sortedEntries.length; i++) {
+      this.coActivationCounts.delete(sortedEntries[i][0]);
+    }
+  }
+
+  /**
+   * Trim both history maps if they exceed their bounds.
+   * Should be called after each activation cycle.
+   */
+  private trimHistory(): void {
+    this.trimActivationHistory();
+    this.trimCoActivationCounts();
+  }
+
+  /**
+   * Get current history sizes for monitoring/testing.
+   * @returns Object with activation history and co-activation counts sizes
+   */
+  getHistorySizes(): { activationHistorySize: number; coActivationCountsSize: number } {
+    return {
+      activationHistorySize: this.activationHistory.size,
+      coActivationCountsSize: this.coActivationCounts.size,
+    };
   }
 
   // ==========================================================================

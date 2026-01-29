@@ -310,7 +310,8 @@ export class PatternStore implements IPatternStore {
   private tierIndex: Map<'short-term' | 'long-term', Set<string>> = new Map();
 
   // HNSW index for vector search (lazy loaded - ADR-048)
-  private hnswIndex: any = null;
+  // Using dynamic import type since HNSWIndex is lazily loaded
+  private hnswIndex: import('../domains/coverage-analysis/services/hnsw-index.js').IHNSWIndex | null = null;
   private hnswAvailable = false;
   private hnswInitPromise: Promise<void> | null = null;
 
@@ -366,7 +367,7 @@ export class PatternStore implements IPatternStore {
    *
    * @returns The HNSW index instance, or null if not available
    */
-  private async ensureHNSW(): Promise<any | null> {
+  private async ensureHNSW(): Promise<import('../domains/coverage-analysis/services/hnsw-index.js').IHNSWIndex | null> {
     // Already initialized
     if (this.hnswIndex !== null) {
       return this.hnswIndex;
@@ -1021,8 +1022,9 @@ export class PatternStore implements IPatternStore {
     if (this.hnswIndex !== null) {
       try {
         await this.hnswIndex.delete(id);
-      } catch {
-        // Ignore HNSW deletion errors
+      } catch (error) {
+        // Non-critical: HNSW deletion errors don't affect pattern removal
+        console.debug('[PatternStore] HNSW deletion error:', error instanceof Error ? error.message : error);
       }
     }
 

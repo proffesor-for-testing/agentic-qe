@@ -309,8 +309,9 @@ function registerExitHandlers(): void {
       if (instance) {
         instance.close();
       }
-    } catch {
-      // Ignore errors during cleanup
+    } catch (error) {
+      // Non-critical: cleanup errors during shutdown
+      console.debug('[UnifiedPersistence] Cleanup error:', error instanceof Error ? error.message : error);
     }
   };
 

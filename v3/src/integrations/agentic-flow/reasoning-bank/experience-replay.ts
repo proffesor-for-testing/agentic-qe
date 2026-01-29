@@ -146,6 +146,28 @@ const DEFAULT_CONFIG: ExperienceReplayConfig = {
   pruneThreshold: 0.3,
 };
 
+/**
+ * Database row structure for experience queries
+ */
+interface ExperienceRow {
+  id: string;
+  trajectory_id: string;
+  task: string;
+  domain: string;
+  strategy: string;
+  key_actions: string;
+  quality_score: number;
+  application_count: number;
+  success_rate: number;
+  avg_token_savings: number;
+  embedding?: Buffer;
+  embedding_dimension?: number;
+  created_at: string;
+  last_applied_at?: string;
+  original_metrics: string;
+  tags: string;
+}
+
 // ============================================================================
 // ExperienceReplay Implementation
 // ============================================================================
@@ -788,7 +810,7 @@ export class ExperienceReplay {
     }
   }
 
-  private rowToExperience(row: any): Experience | null {
+  private rowToExperience(row: ExperienceRow | undefined): Experience | null {
     if (!row) return null;
 
     return {

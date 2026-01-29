@@ -22,6 +22,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { HYPERGRAPH_SCHEMA } from '../migrations/20260120_add_hypergraph_tables.js';
+import { MEMORY_CONSTANTS, HNSW_CONSTANTS } from './constants.js';
 
 // ============================================================================
 // Configuration
@@ -45,10 +46,10 @@ export interface UnifiedMemoryConfig {
 export const DEFAULT_UNIFIED_MEMORY_CONFIG: UnifiedMemoryConfig = {
   dbPath: '.agentic-qe/memory.db',  // <-- THE SINGLE SOURCE OF TRUTH
   walMode: true,
-  mmapSize: 64 * 1024 * 1024, // 64MB
-  cacheSize: -32000, // 32MB
-  busyTimeout: 5000,
-  vectorDimensions: 384,
+  mmapSize: MEMORY_CONSTANTS.MMAP_SIZE_BYTES,
+  cacheSize: MEMORY_CONSTANTS.CACHE_SIZE_KB,
+  busyTimeout: MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
+  vectorDimensions: MEMORY_CONSTANTS.DEFAULT_VECTOR_DIMENSIONS,
 };
 
 // ============================================================================
@@ -558,9 +559,9 @@ interface HNSWNode {
  */
 class InMemoryHNSWIndex {
   private nodes: Map<string, HNSWNode> = new Map();
-  private readonly M: number = 16;
-  private readonly efConstruction: number = 200;
-  private readonly efSearch: number = 100;
+  private readonly M: number = HNSW_CONSTANTS.M_CONNECTIONS;
+  private readonly efConstruction: number = HNSW_CONSTANTS.EF_CONSTRUCTION;
+  private readonly efSearch: number = HNSW_CONSTANTS.EF_SEARCH;
 
   /**
    * Add a vector to the index
@@ -1227,8 +1228,9 @@ export class UnifiedMemoryManager {
       if (fs.existsSync(walPath)) {
         walSize = fs.statSync(walPath).size;
       }
-    } catch {
-      // Ignore file stat errors
+    } catch (error) {
+      // Non-critical: file stat errors during storage stats
+      console.debug('[UnifiedMemory] File stat error:', error instanceof Error ? error.message : error);
     }
 
     return {
@@ -1341,8 +1343,9 @@ function registerExitHandlers(): void {
       if (instance) {
         instance.close();
       }
-    } catch {
-      // Ignore errors during cleanup
+    } catch (error) {
+      // Non-critical: cleanup errors during shutdown
+      console.debug('[UnifiedMemory] Cleanup error:', error instanceof Error ? error.message : error);
     }
   };
 

@@ -545,8 +545,9 @@ export class WasmLoader implements IWasmLoader {
         this.engines.category.free();
         this.engines.hott.free();
         this.engines.quantum.free();
-      } catch {
-        // Ignore errors during cleanup
+      } catch (error) {
+        // Non-critical: WASM cleanup errors during unload
+        console.debug('[WASMLoader] Cleanup error during unload:', error instanceof Error ? error.message : error);
       }
     }
 

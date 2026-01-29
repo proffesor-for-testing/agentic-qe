@@ -63,6 +63,23 @@ export const DEFAULT_QVALUE_STORE_CONFIG: QValueStoreConfig = {
   defaultAlgorithm: 'q-learning',
 };
 
+/**
+ * Database row structure for Q-value queries
+ */
+interface QValueRow {
+  id: string;
+  algorithm: string;
+  agent_id: string;
+  state_key: string;
+  action_key: string;
+  q_value: number;
+  visits: number;
+  last_reward: number | null;
+  domain: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================================================
 // Q-Value Store Implementation
 // ============================================================================
@@ -506,7 +523,7 @@ export class QValueStore {
     }
   }
 
-  private rowToEntry(row: any): QValueEntry {
+  private rowToEntry(row: QValueRow): QValueEntry {
     return {
       id: row.id,
       algorithm: row.algorithm as RLAlgorithmType,

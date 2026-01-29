@@ -47,9 +47,30 @@ export interface TransformOptions {
   allowFallback?: boolean;
 }
 
+/**
+ * Interface for the WASM AgentBooster class
+ */
+interface WasmAgentBooster {
+  merge_code(
+    original: string,
+    generated: string,
+    language: Language,
+    strategy: MergeStrategy
+  ): string;
+  validate_syntax(code: string, language: Language): boolean;
+  compute_confidence(original: string, generated: string): number;
+}
+
+/**
+ * Interface for the WASM module exports
+ */
+interface WasmModule {
+  AgentBoosterWasm: new () => WasmAgentBooster;
+}
+
 // WASM module instance (lazy loaded)
-let wasmModule: any = null;
-let wasmBooster: any = null;
+let wasmModule: WasmModule | null = null;
+let wasmBooster: WasmAgentBooster | null = null;
 let loadError: Error | null = null;
 
 /**
@@ -330,8 +351,9 @@ export async function warmup(): Promise<void> {
         'function x() {}',
         wasmModule.WasmLanguage.JavaScript
       );
-    } catch {
-      // Ignore warmup errors
+    } catch (error) {
+      // Non-critical: warmup errors don't affect subsequent operations
+      console.debug('[AgentBoosterWASM] Warmup error:', error instanceof Error ? error.message : error);
     }
   }
 }

@@ -93,7 +93,8 @@ export class PretrainBridge {
           };
         }
       } catch (error) {
-        // Fall through to local analysis
+        // Non-critical: Claude Flow unavailable, using local analysis
+        console.debug('[PretrainBridge] Claude Flow analyze failed, using local:', error instanceof Error ? error.message : error);
       }
     }
 
@@ -117,11 +118,13 @@ export class PretrainBridge {
 
         try {
           return JSON.parse(result);
-        } catch {
+        } catch (error) {
+          console.debug('[PretrainBridge] Agent config parse error:', error instanceof Error ? error.message : error);
           return [];
         }
-      } catch {
-        // Fall through to local generation
+      } catch (error) {
+        // Non-critical: Claude Flow unavailable, using local generation
+        console.debug('[PretrainBridge] Claude Flow generateAgentConfigs failed:', error instanceof Error ? error.message : error);
       }
     }
 
@@ -151,8 +154,9 @@ export class PretrainBridge {
           transferred: transferredMatch ? parseInt(transferredMatch[1]) : 0,
           skipped: skippedMatch ? parseInt(skippedMatch[1]) : 0,
         };
-      } catch {
-        // Fall through
+      } catch (error) {
+        // Non-critical: Claude Flow pattern transfer failed
+        console.debug('[PretrainBridge] Claude Flow transferPatterns failed:', error instanceof Error ? error.message : error);
       }
     }
 
@@ -234,8 +238,9 @@ export class PretrainBridge {
           if (deps.playwright) frameworks.add('playwright');
           if (deps.express) frameworks.add('express');
           if (deps.fastify) frameworks.add('fastify');
-        } catch {
-          // Ignore parse errors
+        } catch (error) {
+          // Non-critical: package.json parse errors during local analysis
+          console.debug('[PretrainBridge] package.json parse error:', error instanceof Error ? error.message : error);
         }
       }
 

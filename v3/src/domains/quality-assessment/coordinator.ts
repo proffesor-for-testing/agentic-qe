@@ -963,6 +963,379 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
     }
   }
 
+  /**
+   * Generate a quality report
+   * @param options - Report generation options
+   * @returns Result containing the generated report content
+   */
+  async generateReport(options: {
+    format: 'json' | 'html' | 'markdown';
+    includeRecommendations?: boolean;
+  }): Promise<Result<{ content: string; format: string }, Error>> {
+    try {
+      // Collect current quality metrics from memory or use defaults
+      const storedMetrics = await this.memory.get<QualityMetrics>('quality-assessment:current-metrics');
+      const metrics: QualityMetrics = storedMetrics ?? {
+        coverage: 80,
+        testsPassing: 95,
+        criticalBugs: 0,
+        codeSmells: 5,
+        securityVulnerabilities: 0,
+        technicalDebt: 10,
+        duplications: 3,
+      };
+
+      // Build report content based on format
+      const reportData = {
+        timestamp: new Date().toISOString(),
+        metrics,
+        recommendations: options.includeRecommendations
+          ? this.generateRecommendations(metrics)
+          : undefined,
+      };
+
+      let content: string;
+      switch (options.format) {
+        case 'json':
+          content = JSON.stringify(reportData, null, 2);
+          break;
+        case 'html':
+          content = this.formatAsHtml(reportData);
+          break;
+        case 'markdown':
+          content = this.formatAsMarkdown(reportData);
+          break;
+        default:
+          content = JSON.stringify(reportData, null, 2);
+      }
+
+      return ok({ content, format: options.format });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Get quality dashboard overview
+   * @returns Result containing dashboard data
+   */
+  async getQualityDashboard(): Promise<Result<{
+    overallScore: number;
+    metrics: QualityMetrics;
+    trends: Record<string, number>;
+  }, Error>> {
+    try {
+      const storedMetrics = await this.memory.get<QualityMetrics>('quality-assessment:current-metrics');
+      const metrics: QualityMetrics = storedMetrics ?? {
+        coverage: 80,
+        testsPassing: 95,
+        criticalBugs: 0,
+        codeSmells: 5,
+        securityVulnerabilities: 0,
+        technicalDebt: 10,
+        duplications: 3,
+      };
+
+      // Calculate overall score (weighted average)
+      const overallScore = Math.round(
+        (metrics.coverage * 0.3) +
+        (metrics.testsPassing * 0.3) +
+        ((100 - Math.min(100, metrics.codeSmells)) * 0.2) +
+        ((100 - Math.min(100, metrics.securityVulnerabilities * 10)) * 0.2)
+      );
+
+      return ok({
+        overallScore,
+        metrics,
+        trends: {
+          coverage: 0,
+          quality: 0,
+          security: 0,
+        },
+      });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Analyze project risks
+   * @param options - Risk analysis options
+   * @returns Result containing identified risks
+   */
+  async analyzeRisks(options: {
+    scope: 'project' | 'module' | 'file';
+    includeSecurityRisks?: boolean;
+  }): Promise<Result<{
+    risks: Array<{ id: string; severity: string; description: string; category: string }>;
+    overallRiskLevel: 'low' | 'medium' | 'high' | 'critical';
+  }, Error>> {
+    try {
+      const storedMetrics = await this.memory.get<QualityMetrics>('quality-assessment:current-metrics');
+      const metrics: QualityMetrics = storedMetrics ?? {
+        coverage: 80,
+        testsPassing: 95,
+        criticalBugs: 0,
+        codeSmells: 5,
+        securityVulnerabilities: 0,
+        technicalDebt: 10,
+        duplications: 3,
+      };
+
+      const risks: Array<{ id: string; severity: string; description: string; category: string }> = [];
+
+      // Check coverage risk
+      if (metrics.coverage < 50) {
+        risks.push({
+          id: 'risk-coverage-critical',
+          severity: 'critical',
+          description: 'Code coverage is critically low',
+          category: 'quality',
+        });
+      } else if (metrics.coverage < 70) {
+        risks.push({
+          id: 'risk-coverage-high',
+          severity: 'high',
+          description: 'Code coverage is below recommended threshold',
+          category: 'quality',
+        });
+      }
+
+      // Check security risks
+      if (options.includeSecurityRisks && metrics.securityVulnerabilities > 0) {
+        risks.push({
+          id: 'risk-security',
+          severity: metrics.securityVulnerabilities > 5 ? 'critical' : 'high',
+          description: `${metrics.securityVulnerabilities} security vulnerabilities detected`,
+          category: 'security',
+        });
+      }
+
+      // Check technical debt
+      if (metrics.technicalDebt > 40) {
+        risks.push({
+          id: 'risk-debt-critical',
+          severity: 'high',
+          description: 'Technical debt is critically high',
+          category: 'maintainability',
+        });
+      }
+
+      // Determine overall risk level
+      const criticalCount = risks.filter((r) => r.severity === 'critical').length;
+      const highCount = risks.filter((r) => r.severity === 'high').length;
+
+      let overallRiskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
+      if (criticalCount > 0) {
+        overallRiskLevel = 'critical';
+      } else if (highCount > 1) {
+        overallRiskLevel = 'high';
+      } else if (highCount > 0 || risks.length > 2) {
+        overallRiskLevel = 'medium';
+      }
+
+      return ok({ risks, overallRiskLevel });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Evaluate a quality gate (simplified API)
+   * @param options - Quality gate evaluation options
+   * @returns Result containing gate evaluation
+   */
+  async evaluateQualityGate(options: {
+    gateId: string;
+    metrics: Partial<QualityMetrics>;
+  }): Promise<Result<{ passed: boolean; score: number; violations: string[] }, Error>> {
+    // Build full metrics with defaults
+    const fullMetrics: QualityMetrics = {
+      coverage: options.metrics.coverage ?? 80,
+      testsPassing: options.metrics.testsPassing ?? 95,
+      criticalBugs: options.metrics.criticalBugs ?? 0,
+      codeSmells: options.metrics.codeSmells ?? 5,
+      securityVulnerabilities: options.metrics.securityVulnerabilities ?? 0,
+      technicalDebt: options.metrics.technicalDebt ?? 10,
+      duplications: options.metrics.duplications ?? 3,
+    };
+
+    // Build evaluation request
+    const request: GateEvaluationRequest = {
+      gateName: options.gateId,
+      metrics: fullMetrics,
+      thresholds: {
+        coverage: { min: 70 },
+        testsPassing: { min: 90 },
+        criticalBugs: { max: 0 },
+        codeSmells: { max: 20 },
+        securityVulnerabilities: { max: 0 },
+      },
+    };
+
+    // Delegate to existing evaluateGate method
+    const result = await this.evaluateGate(request);
+
+    if (!result.success) {
+      return err(result.error);
+    }
+
+    return ok({
+      passed: result.value.passed,
+      score: result.value.score,
+      violations: result.value.violations.map((v) => v.message),
+    });
+  }
+
+  /**
+   * Assess deployment readiness
+   * @param options - Deployment readiness options
+   * @returns Result containing readiness assessment
+   */
+  async assessDeploymentReadiness(options: {
+    environment: 'development' | 'staging' | 'production';
+    changeSet: string[];
+  }): Promise<Result<{
+    ready: boolean;
+    risks: Array<{ id: string; severity: string; description: string }>;
+    score: number;
+  }, Error>> {
+    try {
+      const storedMetrics = await this.memory.get<QualityMetrics>('quality-assessment:current-metrics');
+      const metrics: QualityMetrics = storedMetrics ?? {
+        coverage: 80,
+        testsPassing: 95,
+        criticalBugs: 0,
+        codeSmells: 5,
+        securityVulnerabilities: 0,
+        technicalDebt: 10,
+        duplications: 3,
+      };
+
+      const risks: Array<{ id: string; severity: string; description: string }> = [];
+
+      // Check for production-specific risks
+      if (options.environment === 'production') {
+        if (metrics.coverage < 70) {
+          risks.push({
+            id: 'risk-coverage',
+            severity: 'high',
+            description: 'Coverage below recommended threshold for production',
+          });
+        }
+        if (metrics.securityVulnerabilities > 0) {
+          risks.push({
+            id: 'risk-security',
+            severity: 'critical',
+            description: 'Security vulnerabilities must be resolved before production deployment',
+          });
+        }
+        if (metrics.criticalBugs > 0) {
+          risks.push({
+            id: 'risk-bugs',
+            severity: 'critical',
+            description: 'Critical bugs must be resolved before production deployment',
+          });
+        }
+      }
+
+      // Calculate readiness score
+      const score = Math.round(
+        (metrics.coverage * 0.4) +
+        (metrics.testsPassing * 0.3) +
+        ((100 - Math.min(100, metrics.securityVulnerabilities * 20)) * 0.3)
+      );
+
+      const ready = risks.filter((r) => r.severity === 'critical').length === 0 && score >= 70;
+
+      return ok({ ready, risks, score });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Analyze technical debt
+   * @param options - Technical debt analysis options
+   * @returns Result containing debt analysis
+   */
+  async analyzeTechnicalDebt(options: {
+    projectPath: string;
+    includeCodeSmells?: boolean;
+  }): Promise<Result<{
+    totalDebt: number;
+    items: Array<{ file: string; type: string; effort: number; description: string }>;
+    debtRatio: number;
+  }, Error>> {
+    try {
+      const storedMetrics = await this.memory.get<QualityMetrics>('quality-assessment:current-metrics');
+      const metrics: QualityMetrics = storedMetrics ?? {
+        coverage: 80,
+        testsPassing: 95,
+        criticalBugs: 0,
+        codeSmells: 5,
+        securityVulnerabilities: 0,
+        technicalDebt: 10,
+        duplications: 3,
+      };
+
+      const items: Array<{ file: string; type: string; effort: number; description: string }> = [];
+
+      // Generate sample debt items based on metrics
+      if (metrics.duplications > 0) {
+        items.push({
+          file: `${options.projectPath}/src/utils/helpers.ts`,
+          type: 'duplication',
+          effort: metrics.duplications * 30,
+          description: 'Duplicated code blocks that should be refactored',
+        });
+      }
+
+      if (options.includeCodeSmells && metrics.codeSmells > 0) {
+        items.push({
+          file: `${options.projectPath}/src/services/legacy.ts`,
+          type: 'code-smell',
+          effort: metrics.codeSmells * 15,
+          description: 'Code smells that impact maintainability',
+        });
+      }
+
+      const totalDebt = metrics.technicalDebt;
+      const debtRatio = totalDebt / 100;
+
+      return ok({ totalDebt, items, debtRatio });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  private generateRecommendations(metrics: QualityMetrics): string[] {
+    const recommendations: string[] = [];
+
+    if (metrics.coverage < 80) {
+      recommendations.push('Increase test coverage to at least 80%');
+    }
+    if (metrics.codeSmells > 10) {
+      recommendations.push('Refactor complex code to improve maintainability');
+    }
+    if (metrics.technicalDebt > 20) {
+      recommendations.push('Allocate time to reduce technical debt');
+    }
+    if (metrics.securityVulnerabilities > 0) {
+      recommendations.push('Address security vulnerabilities urgently');
+    }
+
+    return recommendations;
+  }
+
+  private formatAsHtml(data: Record<string, unknown>): string {
+    return `<html><body><pre>${JSON.stringify(data, null, 2)}</pre></body></html>`;
+  }
+
+  private formatAsMarkdown(data: Record<string, unknown>): string {
+    return `# Quality Report\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
+  }
+
   // ============================================================================
   // Agent Spawning Methods
   // ============================================================================

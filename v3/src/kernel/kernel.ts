@@ -19,6 +19,7 @@ import { DefaultAgentCoordinator } from './agent-coordinator';
 import { DefaultPluginLoader } from './plugin-loader';
 import { InMemoryBackend } from './memory-backend';
 import { HybridMemoryBackend } from './hybrid-backend';
+import { AGENT_CONSTANTS, MEMORY_CONSTANTS } from './constants.js';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -77,7 +78,7 @@ function findProjectRoot(): string {
 }
 
 const DEFAULT_CONFIG: KernelConfig = {
-  maxConcurrentAgents: 15,
+  maxConcurrentAgents: AGENT_CONSTANTS.MAX_CONCURRENT_AGENTS,
   memoryBackend: 'hybrid',
   hnswEnabled: true,
   lazyLoading: true,
@@ -119,7 +120,7 @@ export class QEKernelImpl implements QEKernel {
           path: path.join(dataDir, 'memory.db'),
           walMode: true,
           poolSize: 3,
-          busyTimeout: 5000,
+          busyTimeout: MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
         },
         enableFallback: true,
         defaultNamespace: 'qe-kernel',

@@ -1086,8 +1086,9 @@ export class PersistentSONAEngine {
 
     try {
       stmt.run(patternId);
-    } catch {
-      // Ignore errors - pattern may not be persisted yet
+    } catch (error) {
+      // Non-critical: pattern may not be persisted yet
+      console.debug('[SONAPersistence] Pattern usage update error:', error instanceof Error ? error.message : error);
     }
   }
 
@@ -1105,8 +1106,9 @@ export class PersistentSONAEngine {
 
     try {
       stmt.run(confidence, successIncrement, failureIncrement, patternId);
-    } catch {
-      // Ignore errors - pattern may not be persisted yet
+    } catch (error) {
+      // Non-critical: pattern may not be persisted yet
+      console.debug('[SONAPersistence] Pattern confidence update error:', error instanceof Error ? error.message : error);
     }
   }
 

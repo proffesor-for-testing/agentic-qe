@@ -435,8 +435,9 @@ export class AQELearningEngine {
     if (this.claudeFlowBridge?.modelRouter.isClaudeFlowAvailable()) {
       try {
         return await this.claudeFlowBridge.modelRouter.routeTask(task);
-      } catch {
-        // Fall through to local routing
+      } catch (error) {
+        // Non-critical: Claude Flow routing failed, using local fallback
+        console.debug('[AQELearningEngine] Claude Flow model routing failed:', error instanceof Error ? error.message : error);
       }
     }
 
@@ -682,8 +683,9 @@ export class AQELearningEngine {
     if (this.claudeFlowBridge?.pretrain.isClaudeFlowAvailable()) {
       try {
         return await this.claudeFlowBridge.pretrain.analyze(targetPath, depth);
-      } catch {
-        // Fall through to local analysis
+      } catch (error) {
+        // Non-critical: Claude Flow pretrain failed, using local analysis
+        console.debug('[AQELearningEngine] Claude Flow pretrain analyze failed:', error instanceof Error ? error.message : error);
       }
     }
 
@@ -699,8 +701,9 @@ export class AQELearningEngine {
     if (this.claudeFlowBridge?.pretrain.isClaudeFlowAvailable()) {
       try {
         return await this.claudeFlowBridge.pretrain.generateAgentConfigs(format);
-      } catch {
-        // Fall through
+      } catch (error) {
+        // Non-critical: Claude Flow agent config generation failed
+        console.debug('[AQELearningEngine] Claude Flow agent config failed:', error instanceof Error ? error.message : error);
       }
     }
 
@@ -838,8 +841,9 @@ export class AQELearningEngine {
           if (deps.vitest) frameworks.add('vitest');
           if (deps.jest) frameworks.add('jest');
           if (deps.playwright) frameworks.add('playwright');
-        } catch {
-          // Ignore parse errors
+        } catch (error) {
+          // Non-critical: package.json parse errors during analysis
+          console.debug('[AQELearningEngine] package.json parse failed:', error instanceof Error ? error.message : error);
         }
       }
 

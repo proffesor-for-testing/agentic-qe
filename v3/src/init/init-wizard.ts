@@ -989,8 +989,9 @@ ${yaml.stringify(v3Config)}`;
    */
   private async initializePersistenceDatabase(): Promise<boolean> {
     // Check that better-sqlite3 is available (use dynamic import for ESM/test compatibility)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let Database: any = null;
+    // Type for dynamically imported better-sqlite3 constructor
+    type DatabaseConstructor = new (filename: string) => import('better-sqlite3').Database;
+    let Database: DatabaseConstructor | null = null;
     try {
       // Use dynamic import for proper mocking in tests
       const mod = await import('better-sqlite3');

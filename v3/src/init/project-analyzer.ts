@@ -95,8 +95,9 @@ const frameworkDetectors: FrameworkDetector[] = [
             if (content.includes('[pytest]') || content.includes('[tool.pytest]')) {
               return { name: 'pytest', configFile: config, confidence: 1.0 };
             }
-          } catch {
-            // Ignore read errors
+          } catch (error) {
+            // Non-critical: config file read errors during framework detection
+            console.debug('[ProjectAnalyzer] Config read failed:', error instanceof Error ? error.message : error);
           }
         }
       }
@@ -108,8 +109,9 @@ const frameworkDetectors: FrameworkDetector[] = [
           if (content.includes('pytest')) {
             return { name: 'pytest', configFile: 'requirements.txt', confidence: 0.8 };
           }
-        } catch {
-          // Ignore
+        } catch (error) {
+          // Non-critical: requirements.txt read errors during framework detection
+          console.debug('[ProjectAnalyzer] requirements.txt read failed:', error instanceof Error ? error.message : error);
         }
       }
       return null;
@@ -437,8 +439,9 @@ export class ProjectAnalyzer {
         if (result.maxComplexity > 10) {
           complexFiles.push(relative(this.projectRoot, filePath));
         }
-      } catch {
-        // Ignore read errors
+      } catch (error) {
+        // Non-critical: complexity analysis file read errors
+        console.debug('[ProjectAnalyzer] Complexity analysis read failed:', error instanceof Error ? error.message : error);
       }
     });
 
@@ -635,8 +638,9 @@ export class ProjectAnalyzer {
               hasReport: true,
               reportPath: coveragePath,
             };
-          } catch {
-            // Ignore parse errors
+          } catch (error) {
+            // Non-critical: coverage report parse errors
+            console.debug('[ProjectAnalyzer] Coverage report parse failed:', error instanceof Error ? error.message : error);
           }
         }
 

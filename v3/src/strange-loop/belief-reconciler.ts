@@ -1058,8 +1058,9 @@ export class BeliefReconciler implements IBeliefReconciler {
       for (let i = 0; i < listenerArray.length; i++) {
         try {
           listenerArray[i](event);
-        } catch {
-          // Ignore listener errors
+        } catch (error) {
+          // Non-critical: event listener errors should not affect other listeners
+          console.debug('[BeliefReconciler] Event listener error:', error instanceof Error ? error.message : error);
         }
       }
     }

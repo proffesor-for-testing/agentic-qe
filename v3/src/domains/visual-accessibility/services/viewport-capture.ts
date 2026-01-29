@@ -471,8 +471,9 @@ export class ViewportCaptureService implements IViewportCaptureService {
           this.managedBrowserClient = client;
           return client;
         }
-      } catch {
-        // Fall through to return null
+      } catch (error) {
+        // Non-critical: browser client acquisition failed
+        console.debug('[ViewportCapture] Browser client error:', error instanceof Error ? error.message : error);
       }
     }
 

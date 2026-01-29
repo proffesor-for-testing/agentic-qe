@@ -81,6 +81,17 @@ interface PatternImportData {
   successRate?: number;
 }
 
+/**
+ * Interface for the lazy-loaded DreamEngine
+ * Matches the public API of the actual DreamEngine class
+ */
+interface IDreamEngine {
+  initialize(): Promise<void>;
+  dream(durationMs?: number): Promise<DreamCycleResult>;
+  importPatterns(patterns: PatternImportData[]): Promise<number>;
+  dispose(): void;
+}
+
 // ============================================================================
 // Meta-Learning Types
 // ============================================================================
@@ -1042,7 +1053,7 @@ export class DreamMinCutController {
   private readonly persistence: MinCutPersistence;
   private readonly config: DreamIntegrationConfig;
 
-  private dreamEngine: any = null; // Lazy-loaded DreamEngine
+  private dreamEngine: IDreamEngine | null = null; // Lazy-loaded DreamEngine
   private dreamTimer: NodeJS.Timeout | null = null;
   private running = false;
 

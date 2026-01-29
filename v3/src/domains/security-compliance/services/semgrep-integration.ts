@@ -48,6 +48,58 @@ export interface SemgrepResult {
   version?: string;
 }
 
+/**
+ * Raw semgrep JSON output error entry
+ */
+interface SemgrepRawError {
+  message?: string;
+}
+
+/**
+ * Raw semgrep JSON output finding
+ */
+interface SemgrepRawFinding {
+  check_id?: string;
+  rule_id?: string;
+  path: string;
+  start?: { line?: number; col?: number };
+  end?: { line?: number; col?: number };
+  message?: string;
+  severity?: string;
+  extra?: {
+    message?: string;
+    severity?: string;
+    lines?: string;
+    fix?: string;
+    metadata?: {
+      cwe?: string[];
+      owasp?: string[];
+      category?: string;
+      description?: string;
+      fix?: string;
+      references?: string[];
+      confidence?: string;
+    };
+  };
+  metadata?: {
+    cwe?: string[];
+    owasp?: string[];
+    category?: string;
+    description?: string;
+    references?: string[];
+    confidence?: string;
+  };
+}
+
+/**
+ * Raw semgrep JSON output
+ */
+interface SemgrepRawOutput {
+  results?: SemgrepRawFinding[];
+  findings?: SemgrepRawFinding[];
+  errors?: SemgrepRawError[];
+}
+
 export interface SemgrepConfig {
   /** Target directory to scan */
   target: string;
@@ -147,11 +199,12 @@ export async function runSemgrep(config: Partial<SemgrepConfig>): Promise<Semgre
 
     result.version = await getSemgrepVersion() || undefined;
     return result;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Semgrep exits with non-zero if findings exist
-    if (error.stdout) {
+    const execError = error as { stdout?: string; message?: string };
+    if (execError.stdout) {
       try {
-        const result = parseSemgrepOutput(error.stdout);
+        const result = parseSemgrepOutput(execError.stdout);
         result.version = await getSemgrepVersion() || undefined;
         return result;
       } catch {
@@ -162,7 +215,7 @@ export async function runSemgrep(config: Partial<SemgrepConfig>): Promise<Semgre
     return {
       success: false,
       findings: [],
-      errors: [error instanceof Error ? error.message : String(error)],
+      errors: [execError.message ?? String(error)],
     };
   }
 }
@@ -172,22 +225,22 @@ export async function runSemgrep(config: Partial<SemgrepConfig>): Promise<Semgre
  */
 function parseSemgrepOutput(stdout: string): SemgrepResult {
   try {
-    const parsed = JSON.parse(stdout);
+    const parsed = JSON.parse(stdout) as SemgrepRawOutput;
 
     // Handle different output formats
     const results = parsed.results || parsed.findings || [];
-    const errors = parsed.errors?.map((e: any) => e.message || String(e)) || [];
+    const errors = parsed.errors?.map(e => e.message || String(e)) || [];
 
     return {
       success: true,
-      findings: results.map((r: any) => ({
+      findings: results.map(r => ({
         check_id: r.check_id || r.rule_id || 'unknown',
         path: r.path,
         start: { line: r.start?.line || 1, col: r.start?.col || 1 },
         end: { line: r.end?.line || r.start?.line || 1, col: r.end?.col || 1 },
         extra: {
           message: r.extra?.message || r.message || 'Security issue detected',
-          severity: r.extra?.severity || r.severity || 'WARNING',
+          severity: (r.extra?.severity || r.severity || 'WARNING') as 'ERROR' | 'WARNING' | 'INFO',
           lines: r.extra?.lines || '',
           metadata: {
             cwe: r.extra?.metadata?.cwe || r.metadata?.cwe,

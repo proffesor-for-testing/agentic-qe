@@ -31,7 +31,9 @@ export class DatabasePhase extends BasePhase<DatabaseResult> {
     const { projectRoot } = context;
 
     // Dynamic import for better-sqlite3
-    let Database: any;
+    // Type for dynamically imported better-sqlite3 constructor
+    type DatabaseConstructor = new (filename: string) => import('better-sqlite3').Database;
+    let Database: DatabaseConstructor;
     try {
       const mod = await import('better-sqlite3');
       Database = mod.default;

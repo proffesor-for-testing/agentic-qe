@@ -392,15 +392,29 @@ export abstract class BaseDomainPlugin implements DomainPlugin {
       // Report completion via callback
       await onComplete(taskResult);
 
-      // Update health tracking
-      this.updateHealth({
-        lastActivity: new Date(),
-        agents: {
-          ...this._health.agents,
-          active: Math.max(0, this._health.agents.active - 1),
-          idle: this._health.agents.idle + 1,
-        },
-      });
+      // Update health tracking based on result
+      if (result.success) {
+        this.updateHealth({
+          lastActivity: new Date(),
+          agents: {
+            ...this._health.agents,
+            active: Math.max(0, this._health.agents.active - 1),
+            idle: this._health.agents.idle + 1,
+          },
+        });
+      } else {
+        // Handler returned an error result - track it
+        const errorMessage = result.error?.message ?? 'Unknown error';
+        this.updateHealth({
+          lastActivity: new Date(),
+          errors: [...this._health.errors.slice(-9), errorMessage],
+          agents: {
+            ...this._health.agents,
+            active: Math.max(0, this._health.agents.active - 1),
+            failed: this._health.agents.failed + 1,
+          },
+        });
+      }
     } catch (error) {
       // Handler threw an exception
       const duration = Date.now() - startTime;
