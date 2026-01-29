@@ -240,6 +240,16 @@ aqe hooks model-stats
 
 ---
 
+### 🔄 Cross-Phase Memory Unification (v3.3.4)
+
+V3.3.4 unifies cross-phase feedback loops with UnifiedMemoryManager:
+
+- **Single SQLite Backend**: All QCSD signals stored in `.agentic-qe/memory.db`
+- **Namespace-Based Storage**: `qcsd/strategic`, `qcsd/tactical`, `qcsd/operational`, `qcsd/quality-criteria`
+- **Automatic TTL**: 30-90 day expiration per signal type
+- **No File-Based Storage**: Eliminated JSON file storage for cross-phase memory
+- **Full Hook Integration**: Pre/post hooks for cross-phase signal injection
+
 ### 🔐 Consensus & MinCut Coordination (v3.3.3)
 
 V3.3.3 achieves **full MinCut/Consensus integration across all 12 domains**:

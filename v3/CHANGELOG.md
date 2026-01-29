@@ -5,6 +5,107 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.4] - 2026-01-29
+
+### 🎯 Highlights
+
+**QCSD Ideation Phase Complete** - Full Quality Conscious Software Delivery (QCSD) Ideation phase implementation with HTSM v6.3 quality criteria analysis, SFDIPOT product factors assessment, and cross-phase memory feedback loops.
+
+**Cross-Phase Memory System** - New persistent memory architecture enabling automated learning between QCSD phases (Production→Ideation, Production→Grooming, CI/CD→Development, Development→Grooming).
+
+**Comprehensive Test Coverage** - 358 files changed with 83,990+ lines of new tests across all 12 domains, kernel, MCP handlers, routing, and workers.
+
+### Added
+
+#### QCSD Ideation Phase Agents
+- **qe-quality-criteria-recommender** - HTSM v6.3 quality criteria analysis with 10 categories
+- **qe-product-factors-assessor** - SFDIPOT framework with 7 factors, 37 subcategories
+- **qe-risk-assessor** - Multi-factor risk scoring with mitigation recommendations
+- **qe-test-idea-rewriter** - Transform passive "Verify X" patterns to active test actions
+
+#### Cross-Phase Memory System
+- **CrossPhaseMemoryService** - File-based persistence for QCSD feedback loops
+- **Cross-phase MCP handlers** - 8 new tools for signal storage/retrieval
+- **Hook executor** - Automatic trigger of cross-phase hooks on agent completion
+- **4 feedback loops** - Strategic, Tactical, Operational, Quality Criteria
+
+#### New Skills
+- **a11y-ally** - Comprehensive WCAG accessibility audit with video caption generation
+- **qcsd-ideation-swarm** - Multi-agent swarm for QCSD Ideation phase
+- **skills-manifest.json** - Centralized skill registration
+
+#### Comprehensive Test Coverage (83,990+ lines)
+- **Kernel tests** - unified-memory, hybrid-backend, kernel, plugin-loader
+- **MCP handler tests** - All domain handlers, handler-factory, task-handlers
+- **Domain tests** - All 12 domain plugins with coordinator tests
+- **Learning tests** - pattern-store, experience-capture, v2-to-v3-migration
+- **Routing tests** - tiny-dancer-router, task-classifier, routing-config
+- **Sync tests** - claude-flow-bridge, sync-agent, json/sqlite readers
+- **Worker tests** - All 10 background workers
+
+#### E2E Test Framework
+- Moved e2e tests to v3/tests/e2e/
+- Sauce Demo test suite with accessibility, cart, checkout, security specs
+- Page Object Model with BasePage, CartPage, CheckoutPage, etc.
+
+#### Documentation Updates
+- Updated agent catalog with QCSD Ideation agents
+- Added HTSM v6.3 quality categories reference
+- Added SFDIPOT framework documentation
+- Updated skill counts: 61 → 63 QE Skills
+- Updated agent counts with new QCSD agents
+
+### Changed
+
+#### Handler Factory Migration
+- All 11 domain handlers now use centralized handler-factory.ts
+- Experience capture middleware wraps all domain operations
+- Consistent error handling across handlers
+
+#### Security Scanner Refactoring
+- Split monolithic security-scanner.ts into modular components
+- New scanner-orchestrator.ts for coordinating SAST/DAST scans
+- Separate sast-scanner.ts and dast-scanner.ts modules
+- security-patterns.ts for pattern definitions
+
+#### E2E Runner Modularization
+- Split e2e-runner.ts into 9 focused modules
+- browser-orchestrator.ts - Browser session management
+- step-executors.ts - Step execution logic
+- assertion-handlers.ts - Assertion processing
+- result-collector.ts - Test result aggregation
+
+### Fixed
+
+#### Test Timeout Fixes
+- Fixed 6 timeout failures in security-compliance/coordinator.test.ts
+- Added proper class-based mocks for SecurityScannerService
+- Added mocks for SecurityAuditorService and ComplianceValidatorService
+
+#### TypeScript Compilation
+- Fixed all TypeScript errors from PR #215 merge
+- Fixed history.length on unknown type casting
+- Fixed performTask payload access patterns
+- Fixed Map iteration with Array.from()
+
+#### Architecture Cleanup
+- Removed wrong-pattern TypeScript agent classes (QualityCriteriaRecommenderAgent, RiskAssessorAgent)
+- Removed orphaned QCSD agent tests
+- Moved n8n-validator to v3/packages/
+
+### Security
+
+- SSRF protection recommendations for DAST scanner (private IP blocking)
+- Path traversal edge case fix recommendation (startsWith + path.sep)
+- npm audit: 0 vulnerabilities
+
+### Deprecated
+
+- Root-level tests/e2e/ directory (moved to v3/tests/e2e/)
+- Root-level src/agents/ TypeScript classes (use .claude/agents/v3/*.md instead)
+
+---
+
 ## [3.3.3] - 2026-01-27
 
 ### 🎯 Highlights

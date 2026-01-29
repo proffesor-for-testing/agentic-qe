@@ -2,6 +2,7 @@
  * Cross-Phase Memory Integration Tests
  *
  * Verifies the full pipeline: hooks → memory → retrieval → injection
+ * Now using UnifiedMemoryManager (SQLite) for storage.
  *
  * @module cross-phase-integration.test
  */
@@ -13,57 +14,62 @@ import { tmpdir } from 'os';
 
 import {
   CrossPhaseMemoryService,
-  getCrossPhaseMemory,
   resetCrossPhaseMemory,
 } from '../../src/memory/cross-phase-memory.js';
 import {
-  CrossPhaseHookExecutor,
-  getCrossPhaseHookExecutor,
   resetCrossPhaseHookExecutor,
 } from '../../src/hooks/cross-phase-hooks.js';
 import {
   handleCrossPhaseStore,
   handleCrossPhaseQuery,
-  handleAgentComplete,
-  handlePhaseStart,
   handleCrossPhaseStats,
   handleFormatSignals,
-  handleCrossPhaseCleanup,
   resetCrossPhaseHandlers,
 } from '../../src/mcp/handlers/cross-phase-handlers.js';
 import {
   ProductionRiskSignal,
-  SFDIPOTWeightSignal,
   TestHealthSignal,
-  ACQualitySignal,
   RiskWeight,
   FactorWeight,
   FlakyPattern,
 } from '../../src/types/cross-phase-signals.js';
+import {
+  UnifiedMemoryManager,
+  resetUnifiedMemory,
+} from '../../src/kernel/unified-memory.js';
 
 describe('Cross-Phase Memory Integration', () => {
   let tempDir: string;
   let memoryService: CrossPhaseMemoryService;
+  let unifiedMemory: UnifiedMemoryManager;
 
   beforeEach(async () => {
-    // Reset singletons
+    // Reset all singletons
     resetCrossPhaseMemory();
     resetCrossPhaseHookExecutor();
     resetCrossPhaseHandlers();
+    resetUnifiedMemory();
 
-    // Create temp directory for test data
+    // Create temp directory for test database
     tempDir = mkdtempSync(join(tmpdir(), 'cross-phase-test-'));
+    const dbPath = join(tempDir, 'test-memory.db');
 
-    // Initialize memory service with temp path
+    // Create UnifiedMemoryManager with temp database
+    unifiedMemory = UnifiedMemoryManager.getInstance({ dbPath });
+    await unifiedMemory.initialize();
+
+    // Initialize memory service with the test memory manager
     memoryService = new CrossPhaseMemoryService({
-      basePath: tempDir,
-      enablePersistence: true,
-      cleanupOnInit: false,
+      memoryManager: unifiedMemory,
     });
     await memoryService.initialize();
   });
 
   afterEach(() => {
+    // Close and reset memory
+    resetUnifiedMemory();
+    resetCrossPhaseMemory();
+
     // Cleanup temp directory
     if (tempDir && existsSync(tempDir)) {
       rmSync(tempDir, { recursive: true, force: true });
@@ -183,9 +189,42 @@ describe('Cross-Phase Memory Integration', () => {
       expect(stats.oldestSignal).not.toBeNull();
       expect(stats.newestSignal).not.toBeNull();
     });
+
+    it('stores data in SQLite via UnifiedMemoryManager', async () => {
+      // Store a signal with dynamically generated dates
+      const now = new Date();
+      const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+
+      await memoryService.storeRiskSignal(
+        [{
+          category: 'test',
+          weight: 0.5,
+          confidence: 0.8,
+          evidence: {
+            defectCount: 1,
+            percentageOfTotal: 10,
+            severityDistribution: {},
+            timeRange: {
+              start: sixMonthsAgo.toISOString().slice(0, 7),
+              end: now.toISOString().slice(0, 7)
+            }
+          }
+        }],
+        { forRiskAssessor: [], forQualityCriteria: [] }
+      );
+
+      // Verify it's stored in SQLite by checking database stats
+      const dbStats = unifiedMemory.getStats();
+      const kvStoreTable = dbStats.tables.find(t => t.name === 'kv_store');
+      expect(kvStoreTable).toBeDefined();
+      expect(kvStoreTable!.rowCount).toBeGreaterThan(0);
+    });
   });
 
   describe('MCP Handlers', () => {
+    // Note: MCP handlers use the global singleton, so we need to ensure
+    // they're reset properly. For these tests, we use a fresh service.
+
     it('handles cross-phase store via MCP', async () => {
       const result = await handleCrossPhaseStore({
         loop: 'strategic',
@@ -254,7 +293,7 @@ describe('Cross-Phase Memory Integration', () => {
 
     it('formats signals for agent prompt injection', async () => {
       // Store a signal
-      const storeResult = await handleCrossPhaseStore({
+      await handleCrossPhaseStore({
         loop: 'strategic',
         data: {
           riskWeights: [],
