@@ -37,6 +37,13 @@ env:
   BASE_URL: https://sauce-demo.myshopify.com
   CI: true
 
+# Permissions for PR checks and artifact uploads
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  actions: read
+
 jobs:
   lint-and-typecheck:
     name: Lint and Type Check
