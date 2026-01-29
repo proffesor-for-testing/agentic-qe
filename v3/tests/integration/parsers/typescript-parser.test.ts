@@ -337,7 +337,9 @@ describe('TypeScriptParser Integration', () => {
     });
 
     it('should parse security-scanner.ts service', async () => {
-      const filePath = path.join(v3SrcPath, 'domains/security-compliance/services/security-scanner.ts');
+      // Note: SecurityScannerService was refactored into scanners/scanner-orchestrator.ts
+      // The original security-scanner.ts is now a facade that re-exports
+      const filePath = path.join(v3SrcPath, 'domains/security-compliance/services/scanners/scanner-orchestrator.ts');
       const content = await fs.readFile(filePath, 'utf-8');
 
       const ast = parser.parseFile(filePath, content);

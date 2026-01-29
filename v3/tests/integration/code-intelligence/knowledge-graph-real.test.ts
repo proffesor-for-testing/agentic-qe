@@ -287,7 +287,9 @@ describe('Knowledge Graph Real I/O', () => {
     });
 
     it('should extract entities from security-scanner.ts', async () => {
-      const filePath = path.join(v3SrcPath, 'domains/security-compliance/services/security-scanner.ts');
+      // Note: SecurityScannerService was refactored into scanners/scanner-orchestrator.ts
+      // The original security-scanner.ts is now a facade that re-exports
+      const filePath = path.join(v3SrcPath, 'domains/security-compliance/services/scanners/scanner-orchestrator.ts');
       const entities = await extractEntitiesFromFile(filePath);
 
       expect(entities.length).toBeGreaterThan(0);
