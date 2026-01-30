@@ -5,6 +5,71 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.5] - 2026-01-30
+
+### 🎯 Highlights
+
+**QE Queen MCP-Powered Orchestration** - Complete rewrite of `qe-queen-coordinator` to use MCP tools for real fleet coordination. Queen now actually spawns agents via `mcp__agentic-qe__agent_spawn`, monitors task completion, and stores learnings - instead of just describing what agents would do.
+
+**Unified Database Architecture** - All databases consolidated to single `{project-root}/.agentic-qe/memory.db` with automatic project root detection. Eliminates scattered database files and ensures consistent data storage.
+
+**252 New Tests for Coordination Module** - Comprehensive test coverage for previously untested consensus providers, protocols, services, and cross-domain router.
+
+### Added
+
+#### QE Queen MCP-Powered Orchestration (v3.1.0)
+- **Mandatory 10-phase execution protocol** - fleet_init → memory_store
+- **Real agent spawning** via `mcp__agentic-qe__agent_spawn`
+- **Task monitoring loop** - polls `task_list` until completion
+- **Learning persistence** - stores patterns after each orchestration
+- **Task-to-domain routing table** - automatic agent selection by task type
+- **MCP tools reference** - fleet, agent, task, QE, and memory operations
+- **Execution examples** - comprehensive and coverage-specific
+
+#### Unified Database Architecture
+- **Project root detection** - finds nearest package.json/git root
+- **Single memory.db** - all tables in one SQLite database
+- **Automatic migration** - moves data from scattered locations
+- **Cross-phase memory hooks** - auto-installed on `aqe init`
+
+#### New Test Coverage (252 tests, all passing)
+- **consensus/providers/** - 6 provider test files
+  - `claude-provider.test.ts` (366 lines)
+  - `gemini-provider.test.ts` (391 lines)
+  - `native-learning-provider.test.ts` (500 lines)
+  - `ollama-provider.test.ts` (440 lines)
+  - `openai-provider.test.ts` (373 lines)
+  - `openrouter-provider.test.ts` (393 lines)
+- **protocols/** - 4 protocol test files
+  - `defect-investigation.test.ts` (618 lines)
+  - `learning-consolidation.test.ts` (594 lines)
+  - `morning-sync.test.ts` (853 lines)
+  - `quality-gate.test.ts` (727 lines)
+- **services/** - 2 service test files
+  - `task-audit-logger.test.ts` (611 lines)
+  - `index.test.ts` (103 lines)
+- **cross-domain-router.test.ts** (686 lines)
+
+### Changed
+
+#### QE Queen Coordinator
+- Upgraded from v3.0.0 to v3.1.0
+- Now uses MCP tools instead of descriptions
+- Added prohibited behaviors section
+- Added domain topology diagram
+
+#### CLI Hook Commands
+- Updated to use `aqe` binary instead of `npx`
+- Implemented missing CLI hook commands for Claude Code integration
+
+### Fixed
+
+- **CI timeout** - Increased Fast Tests timeout from 5m to 10m
+- **Workflow permissions** - Added permissions block to sauce-demo-e2e workflow
+- **Hook commands** - Fixed CLI hook commands to use correct binary
+
+---
+
 ## [3.3.4] - 2026-01-29
 
 ### 🎯 Highlights

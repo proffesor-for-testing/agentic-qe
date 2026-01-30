@@ -1098,7 +1098,7 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
 
       const result = await migrateV2ToV3(
         sourcePath,
-        '.agentic-qe/qe-patterns.db',
+        '.agentic-qe/memory.db',
         (progress) => {
           console.log(`[QEUnifiedMemory] Migration progress: [${progress.stage}] ${progress.message}`);
           if (progress.table) {

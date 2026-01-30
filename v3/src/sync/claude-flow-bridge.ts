@@ -2,7 +2,7 @@
  * Claude Flow to AQE Memory Bridge
  *
  * Syncs Claude Flow memories (.claude-flow/memory/store.json)
- * to AQE V3 database (v3/.agentic-qe/memory.db)
+ * to AQE consolidated database (.agentic-qe/memory.db)
  *
  * This ensures experiences captured by Claude Code tasks
  * are available to AQE agents for learning.

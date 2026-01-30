@@ -14,7 +14,7 @@
     "AQE_V3_HOOK_BRIDGE": ".claude/hooks/v3-qe-bridge.sh",
     "AQE_V3_DOMAIN_WORKERS": ".claude/hooks/v3-domain-workers.json",
     "AQE_V3_AISP_ENABLED": "true",
-    "AQE_V3_REASONING_BANK": ".agentic-qe/qe-patterns.db",
+    "AQE_V3_REASONING_BANK": ".agentic-qe/memory.db",
     "AQE_V3_PATTERN_PROMOTION_THRESHOLD": "3",
     "AQE_V3_SUCCESS_RATE_THRESHOLD": "0.7"
   },
@@ -852,7 +852,7 @@
   "v3Learning": {
     "enabled": true,
     "reasoningBank": {
-      "dbPath": ".agentic-qe/qe-patterns.db",
+      "dbPath": ".agentic-qe/memory.db",
       "enableHNSW": true,
       "embeddingModel": "Xenova/all-MiniLM-L6-v2",
       "hnswConfig": {

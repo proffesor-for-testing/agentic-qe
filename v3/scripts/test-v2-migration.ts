@@ -9,7 +9,7 @@ async function main() {
 
   const result = await migrateV2ToV3(
     '../.agentic-qe/memory.db',     // V2 database (parent directory)
-    '.agentic-qe/qe-patterns.db', // V3 database
+    '.agentic-qe/memory.db', // V3 database
     (progress) => {
       console.log(`[${progress.stage}] ${progress.message}`);
       if (progress.table) {
@@ -37,7 +37,7 @@ async function main() {
   // Verify the results
   console.log('\n=== Verification ===');
   const Database = await import('better-sqlite3');
-  const db = new Database.default('.agentic-qe/qe-patterns.db');
+  const db = new Database.default('.agentic-qe/memory.db');
 
   const patternCount = db.prepare('SELECT COUNT(*) as count FROM qe_patterns').get() as { count: number };
   const embeddingCount = db.prepare('SELECT COUNT(*) as count FROM qe_pattern_embeddings').get() as { count: number };
