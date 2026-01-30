@@ -1298,9 +1298,6 @@ export class UnifiedMemoryManager {
     } catch (error) {
       // Non-critical: file stat errors during storage stats
       console.debug('[UnifiedMemory] File stat error:', error instanceof Error ? error.message : error);
-    } catch (error) {
-      // Non-critical: file stat errors during storage stats
-      console.debug('[UnifiedMemory] File stat error:', error instanceof Error ? error.message : error);
     }
 
     return {
@@ -1413,9 +1410,6 @@ function registerExitHandlers(): void {
       if (instance) {
         instance.close();
       }
-    } catch (error) {
-      // Non-critical: cleanup errors during shutdown
-      console.debug('[UnifiedMemory] Cleanup error:', error instanceof Error ? error.message : error);
     } catch (error) {
       // Non-critical: cleanup errors during shutdown
       console.debug('[UnifiedMemory] Cleanup error:', error instanceof Error ? error.message : error);

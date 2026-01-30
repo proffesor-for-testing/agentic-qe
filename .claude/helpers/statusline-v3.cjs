@@ -31,12 +31,12 @@ const CONFIG = {
   flashAttentionTarget: '2.49x-7.47x',
   intelligenceTargetExp: 1000, // 1000 experiences = 100%
 
-  // Paths (V3 database is the consolidated source after migration)
-  // Multiple paths to handle different CWD scenarios
+  // Paths - ROOT database is the consolidated source (MCP writes here)
+  // Priority: root > v3 (v3 db is stale, kept only for backup)
   memoryDbPaths: [
-    '.agentic-qe/memory.db',       // When CWD is v3/ directory
-    'v3/.agentic-qe/memory.db',    // When CWD is project root
-    '../v3/.agentic-qe/memory.db', // When CWD is a subdirectory
+    '.agentic-qe/memory.db',       // ROOT: Primary when CWD is project root
+    '../.agentic-qe/memory.db',    // ROOT: When CWD is v3/ or other subdirectory
+    'v3/.agentic-qe/memory.db',    // V3: Fallback only (stale after consolidation)
   ],
   cveCache: '.agentic-qe/.cve-cache',
   cveCacheAge: 3600, // 1 hour
@@ -280,6 +280,9 @@ function getLearningMetrics(projectDir) {
     }
   }
 
+  // Determine dbSource from which path was found
+  const dbSource = dbPath.includes('v3/.agentic-qe') ? 'v3' : 'root';
+
   return {
     patterns,
     synthesized,
@@ -289,7 +292,7 @@ function getLearningMetrics(projectDir) {
     successRate,
     intelligencePct,
     mode,
-    dbSource: 'v3',  // Consolidated V3 database
+    dbSource,  // 'root' = consolidated primary, 'v3' = legacy
   };
 }
 

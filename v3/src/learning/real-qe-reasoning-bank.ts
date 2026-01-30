@@ -96,7 +96,7 @@ export const DEFAULT_REAL_CONFIG: RealQEReasoningBankConfig = {
   sqlite: {
     // ADR-046: Now uses unified storage via UnifiedMemoryManager by default
     // dbPath is ignored when useUnified=true (the default)
-    dbPath: '.agentic-qe/qe-patterns.db', // Legacy fallback path
+    dbPath: '.agentic-qe/memory.db', // Legacy fallback path
     walMode: true,
     useUnified: true, // Uses shared .agentic-qe/memory.db
   },
@@ -822,7 +822,7 @@ export class RealQEReasoningBank {
       embeddingCacheSize: 0, // Would need to track this in real-embeddings
       transformerAvailable: isTransformerAvailable(),
       embeddingDimension: getEmbeddingDimension(),
-      sqliteDbPath: this.qeConfig.sqlite.dbPath || '.agentic-qe/qe-patterns.db',
+      sqliteDbPath: this.qeConfig.sqlite.dbPath || '.agentic-qe/memory.db',
     };
   }
 

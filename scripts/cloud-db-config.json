@@ -10,10 +10,13 @@
     "tunnelLocalPort": 15432
   },
   "local": {
-    "memoryDb": ".agentic-qe/memory.db",
-    "cacheDb": ".agentic-qe/ruvector-cache.db",
-    "telemetryDb": ".agentic-qe/aqe-telemetry.db",
-    "patternsDb": ".agentic-qe/qe-patterns.db"
+    "primaryDb": ".agentic-qe/memory.db",
+    "description": "Consolidated database - all tables unified (2026-01-30)",
+    "deprecated": {
+      "cacheDb": ".agentic-qe/ruvector-cache.db (removed - cache now in memory.db)",
+      "telemetryDb": ".agentic-qe/aqe-telemetry.db (removed - telemetry in events table)",
+      "patternsDb": ".agentic-qe/qe-patterns.db (removed - patterns in memory.db)"
+    }
   },
   "sync": {
     "enabled": false,
@@ -22,10 +25,12 @@
     "tables": [
       "memory_entries",
       "patterns",
+      "sona_patterns",
       "learning_experiences",
       "goap_actions",
       "goap_plans",
-      "qe_patterns",
+      "kv_store",
+      "events",
       "embeddings"
     ]
   },

@@ -66,7 +66,7 @@ export class LearningPhase extends BasePhase<LearningResult> {
       hnswConfig: config.learning.hnswConfig,
       qualityThreshold: config.learning.qualityThreshold,
       promotionThreshold: config.learning.promotionThreshold,
-      databasePath: join(dataDir, 'qe-patterns.db'),
+      databasePath: join(dataDir, 'memory.db'),
       hnswIndexPath: join(hnswDir, 'index.bin'),
       initialized: new Date().toISOString(),
     };

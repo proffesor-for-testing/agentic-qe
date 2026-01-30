@@ -572,7 +572,7 @@ export class InitOrchestrator {
       // Step 1: Run the actual data migration (patterns, experiences, concept graph)
       if (v2Detection.memoryDbPath) {
         console.log('  Migrating V2 data to V3 format...');
-        const v3PatternsDbPath = join(this.projectRoot, '.agentic-qe', 'qe-patterns.db');
+        const v3PatternsDbPath = join(this.projectRoot, '.agentic-qe', 'memory.db');
 
         const migrator = new V2ToV3Migrator({
           v2DbPath: v2Detection.memoryDbPath,
@@ -1094,7 +1094,7 @@ ${yaml.stringify(v3Config)}`;
       hnswConfig: config.learning.hnswConfig,
       qualityThreshold: config.learning.qualityThreshold,
       promotionThreshold: config.learning.promotionThreshold,
-      databasePath: join(dataDir, 'qe-patterns.db'),
+      databasePath: join(dataDir, 'memory.db'),
       hnswIndexPath: join(hnswDir, 'index.bin'),
       initialized: new Date().toISOString(),
     };
@@ -1713,7 +1713,7 @@ Bash("npx @claude-flow/cli@latest memory store --key 'qe-pattern-1' --value '...
 ### Data Storage
 
 - **Memory Backend**: \`.agentic-qe/memory.db\` (SQLite)
-- **Pattern Storage**: \`.agentic-qe/data/qe-patterns.db\` (ReasoningBank)
+- **Pattern Storage**: \`.agentic-qe/data/memory.db\` (ReasoningBank)
 - **HNSW Index**: \`.agentic-qe/data/hnsw/index.bin\`
 - **Configuration**: \`.agentic-qe/config.yaml\`
 

@@ -39,7 +39,7 @@ export interface SQLitePersistenceConfig {
   /**
    * Use UnifiedMemoryManager instead of separate database (ADR-046)
    * When true, uses shared .agentic-qe/memory.db
-   * When false, creates separate .agentic-qe/qe-patterns.db (legacy)
+   * When false, creates separate .agentic-qe/memory.db (legacy)
    * @default true
    */
   useUnified: boolean;
@@ -47,7 +47,7 @@ export interface SQLitePersistenceConfig {
 
 export const DEFAULT_SQLITE_CONFIG: SQLitePersistenceConfig = {
   // LEGACY: Ignored when useUnified=true (the default). All data goes to memory.db
-  dbPath: '.agentic-qe/qe-patterns.db',
+  dbPath: '.agentic-qe/memory.db',
   walMode: true,
   mmapSize: 256 * 1024 * 1024, // 256MB
   cacheSize: -64000, // 64MB

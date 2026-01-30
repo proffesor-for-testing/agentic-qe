@@ -654,7 +654,7 @@ describe('InitOrchestrator', () => {
       const learningConfig = JSON.parse(learningConfigCall![1] as string);
       expect(learningConfig.embeddingModel).toBeDefined();
       expect(learningConfig.hnswConfig).toBeDefined();
-      expect(learningConfig.databasePath).toContain('qe-patterns.db');
+      expect(learningConfig.databasePath).toContain('memory.db');
     });
 
     it('should create worker registry and configs', async () => {
@@ -801,7 +801,7 @@ describe('InitOrchestrator', () => {
       expect(content).toContain('12 DDD Domains');
       expect(content).toContain('V3 QE Agents');
       expect(content).toContain('Data Storage');
-      expect(content).toContain('qe-patterns.db');
+      expect(content).toContain('memory.db');
     });
 
     it('should append to existing CLAUDE.md with backup', async () => {

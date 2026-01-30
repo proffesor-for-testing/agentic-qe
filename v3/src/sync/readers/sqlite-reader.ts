@@ -2,7 +2,7 @@
  * SQLite Data Reader
  *
  * Reads data from local SQLite databases for cloud sync.
- * Handles: memory.db, qe-patterns.db, etc.
+ * Handles: memory.db (consolidated database)
  */
 
 import Database, { type Database as DatabaseType } from 'better-sqlite3';

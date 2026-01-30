@@ -336,12 +336,18 @@ export const TYPE_MAPPING: Record<string, string> = {
 
 /**
  * Default sync configuration
+ *
+ * CONSOLIDATION NOTE (2026-01-30):
+ * All data is now consolidated in ROOT database: .agentic-qe/memory.db
+ * - MCP server writes here via findProjectRoot()
+ * - V3 runtime writes here via kernel.ts findProjectRoot()
+ * - v3/.agentic-qe/memory.db is DEPRECATED (data merged to root)
  */
 export const DEFAULT_SYNC_CONFIG: SyncConfig = {
   local: {
-    // Paths are relative to project root (parent of v3/)
-    v3MemoryDb: '../v3/.agentic-qe/memory.db',
-    rootMemoryDb: '../.agentic-qe/memory.db',
+    // PRIMARY: Root database (consolidated, MCP-active)
+    v3MemoryDb: '../.agentic-qe/memory.db',      // Now points to root (consolidated)
+    rootMemoryDb: '../.agentic-qe/memory.db',    // Same as above
     claudeFlowMemory: '../.claude-flow/memory/store.json',
     claudeFlowDaemon: '../.claude-flow/daemon-state.json',
     claudeFlowMetrics: '../.claude-flow/metrics/',
@@ -363,28 +369,20 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
     batchSize: 1000,
     conflictResolution: 'newer-wins',
     sourcePriority: {
-      v3Memory: 1,
+      rootMemory: 1,        // Root is now PRIMARY (consolidated)
       claudeFlowMemory: 2,
-      rootMemory: 3,
-      intelligenceJson: 4,
-      legacy: 5,
+      intelligenceJson: 3,
+      legacy: 4,
     },
     sources: [
-      // V3 Memory - PRIMARY
+      // ============================================================
+      // ROOT Memory - PRIMARY (Consolidated from V3 + Historical)
+      // All tables now in single database: .agentic-qe/memory.db
+      // ============================================================
       {
-        name: 'v3-qe-patterns',
+        name: 'root-sona-patterns',
         type: 'sqlite',
-        path: '../v3/.agentic-qe/memory.db',
-        targetTable: 'aqe.qe_patterns',
-        priority: 'high',
-        mode: 'incremental',
-        query: 'SELECT * FROM qe_patterns',
-        enabled: true,
-      },
-      {
-        name: 'v3-sona-patterns',
-        type: 'sqlite',
-        path: '../v3/.agentic-qe/memory.db',
+        path: '../.agentic-qe/memory.db',
         targetTable: 'aqe.sona_patterns',
         priority: 'high',
         mode: 'incremental',
@@ -392,32 +390,21 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         enabled: true,
       },
       {
-        name: 'v3-goap-actions',
+        name: 'root-goap-actions',
         type: 'sqlite',
-        path: '../v3/.agentic-qe/memory.db',
+        path: '../.agentic-qe/memory.db',
         targetTable: 'aqe.goap_actions',
         priority: 'high',
         mode: 'incremental',
         query: 'SELECT * FROM goap_actions',
         enabled: true,
       },
-      // Claude-Flow Memory
-      {
-        name: 'claude-flow-memory',
-        type: 'json',
-        path: '../.claude-flow/memory/store.json',
-        targetTable: 'aqe.claude_flow_memory',
-        priority: 'high',
-        mode: 'full',
-        enabled: true,
-      },
-      // Root Memory - HISTORICAL
       {
         name: 'root-memory-entries',
         type: 'sqlite',
         path: '../.agentic-qe/memory.db',
         targetTable: 'aqe.memory_entries',
-        priority: 'medium',
+        priority: 'high',
         mode: 'incremental',
         query: 'SELECT * FROM memory_entries',
         enabled: true,
@@ -427,19 +414,9 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         type: 'sqlite',
         path: '../.agentic-qe/memory.db',
         targetTable: 'aqe.learning_experiences',
-        priority: 'medium',
+        priority: 'high',
         mode: 'append',
         query: 'SELECT * FROM learning_experiences',
-        enabled: true,
-      },
-      {
-        name: 'root-goap-actions',
-        type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
-        targetTable: 'aqe.goap_actions',
-        priority: 'medium',
-        mode: 'incremental',
-        query: 'SELECT * FROM goap_actions',
         enabled: true,
       },
       {
@@ -462,13 +439,23 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         query: 'SELECT * FROM events',
         enabled: true,
       },
-      // Intelligence JSON
+      // Claude-Flow Memory (JSON)
+      {
+        name: 'claude-flow-memory',
+        type: 'json',
+        path: '../.claude-flow/memory/store.json',
+        targetTable: 'aqe.claude_flow_memory',
+        priority: 'medium',
+        mode: 'full',
+        enabled: true,
+      },
+      // Intelligence JSON (Q-Learning)
       {
         name: 'intelligence-qlearning',
         type: 'json',
         path: '../v3/.ruvector/intelligence.json',
         targetTable: 'aqe.qlearning_patterns',
-        priority: 'medium',
+        priority: 'low',
         mode: 'full',
         jsonPath: '$.qvalues',
         enabled: true,
