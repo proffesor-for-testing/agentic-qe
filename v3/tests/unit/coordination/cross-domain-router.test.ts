@@ -34,7 +34,7 @@ function createMockEventBus(): EventBus & {
       publishedEvents.push(event);
       // Trigger subscribers
       for (const [pattern, handlers] of subscribers.entries()) {
-        if (pattern === '*' || event.type.startsWith(pattern.replace('*', ''))) {
+        if (pattern === '*' || event.type.startsWith(pattern.replace(/\*/g, ''))) {
           for (const handler of handlers) {
             await handler(event);
           }
