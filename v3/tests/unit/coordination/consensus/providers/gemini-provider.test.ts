@@ -198,7 +198,8 @@ describe('GeminiModelProvider', () => {
     });
 
     it('should throw error when response has no candidates', async () => {
-      mockFetch.mockResolvedValueOnce(
+      // Use mockResolvedValue (not Once) to handle retries
+      mockFetch.mockResolvedValue(
         createMockResponse({ candidates: [] })
       );
 
@@ -296,7 +297,8 @@ describe('GeminiModelProvider', () => {
     });
 
     it('should return unhealthy when API fails', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      // Use mockRejectedValue (not Once) to handle all retry attempts
+      mockFetch.mockRejectedValue(new Error('Network error'));
 
       const result = await provider.healthCheck();
 

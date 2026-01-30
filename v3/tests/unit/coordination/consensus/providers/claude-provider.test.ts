@@ -284,7 +284,8 @@ describe('ClaudeModelProvider', () => {
     });
 
     it('should return unhealthy when API fails', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      // Use mockRejectedValue (not Once) to handle all retry attempts
+      mockFetch.mockRejectedValue(new Error('Network error'));
 
       const result = await provider.healthCheck();
 
