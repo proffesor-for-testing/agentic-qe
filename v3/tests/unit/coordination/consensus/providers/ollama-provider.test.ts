@@ -75,7 +75,7 @@ function createTagsResponse(models: string[]) {
 
 describe('OllamaModelProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockFetch.mockReset();
   });
 
   describe('constructor', () => {
@@ -325,7 +325,7 @@ describe('OllamaModelProvider', () => {
 
 describe('Helper Functions', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockFetch.mockReset();
   });
 
   describe('getRecommendedOllamaModels()', () => {

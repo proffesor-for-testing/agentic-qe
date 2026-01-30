@@ -63,7 +63,7 @@ describe('GeminiModelProvider', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockFetch.mockReset();
     process.env = { ...originalEnv, GOOGLE_API_KEY: 'test-google-api-key' };
   });
 
@@ -198,12 +198,13 @@ describe('GeminiModelProvider', () => {
     });
 
     it('should throw error when response has no candidates', async () => {
-      // Use mockResolvedValue (not Once) to handle retries
-      mockFetch.mockResolvedValue(
+      // Create provider with no retries to speed up test
+      const noRetryProvider = new GeminiModelProvider({ apiKey: 'test-key', maxRetries: 0 });
+      mockFetch.mockResolvedValueOnce(
         createMockResponse({ candidates: [] })
       );
 
-      await expect(provider.complete('Test')).rejects.toThrow('Gemini returned no candidates');
+      await expect(noRetryProvider.complete('Test')).rejects.toThrow('Gemini returned no candidates');
     });
 
     it('should throw error when response is blocked by safety', async () => {
@@ -297,10 +298,11 @@ describe('GeminiModelProvider', () => {
     });
 
     it('should return unhealthy when API fails', async () => {
-      // Use mockRejectedValue (not Once) to handle all retry attempts
-      mockFetch.mockRejectedValue(new Error('Network error'));
+      // Create provider with no retries to speed up test
+      const noRetryProvider = new GeminiModelProvider({ apiKey: 'test-key', maxRetries: 0 });
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-      const result = await provider.healthCheck();
+      const result = await noRetryProvider.healthCheck();
 
       expect(result.healthy).toBe(false);
       expect(result.error).toContain('Network error');

@@ -72,7 +72,7 @@ describe('OpenAIModelProvider', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockFetch.mockReset();
     process.env = { ...originalEnv, OPENAI_API_KEY: 'test-openai-key' };
   });
 
@@ -214,8 +214,9 @@ describe('OpenAIModelProvider', () => {
     });
 
     it('should throw error when response has no choices', async () => {
-      // Use mockResolvedValue (not Once) to handle retries
-      mockFetch.mockResolvedValue(
+      // Create provider with no retries to speed up test
+      const noRetryProvider = new OpenAIModelProvider({ apiKey: 'test-key', maxRetries: 0 });
+      mockFetch.mockResolvedValueOnce(
         createMockResponse({
           id: 'test',
           object: 'chat.completion',
@@ -226,7 +227,7 @@ describe('OpenAIModelProvider', () => {
         })
       );
 
-      await expect(provider.complete('Test')).rejects.toThrow('OpenAI returned no choices');
+      await expect(noRetryProvider.complete('Test')).rejects.toThrow('OpenAI returned no choices');
     });
 
     it('should retry on transient errors', async () => {
@@ -250,21 +251,23 @@ describe('OpenAIModelProvider', () => {
     });
 
     it('should not retry on invalid request errors', async () => {
-      // Use mockResolvedValue to handle any retries consistently
-      mockFetch.mockResolvedValue(
+      // Create provider with no retries to speed up test
+      const noRetryProvider = new OpenAIModelProvider({ apiKey: 'test-key', maxRetries: 0 });
+      mockFetch.mockResolvedValueOnce(
         createErrorResponse('invalid_request_error', 'Invalid request', 400)
       );
 
-      await expect(provider.complete('Test')).rejects.toThrow('Invalid request');
+      await expect(noRetryProvider.complete('Test')).rejects.toThrow('Invalid request');
     });
 
     it('should not retry on quota errors', async () => {
-      // Use mockResolvedValue to handle any retries consistently
-      mockFetch.mockResolvedValue(
+      // Create provider with no retries to speed up test
+      const noRetryProvider = new OpenAIModelProvider({ apiKey: 'test-key', maxRetries: 0 });
+      mockFetch.mockResolvedValueOnce(
         createErrorResponse('insufficient_quota', 'You have exceeded your quota', 429)
       );
 
-      await expect(provider.complete('Test')).rejects.toThrow('exceeded your quota');
+      await expect(noRetryProvider.complete('Test')).rejects.toThrow('exceeded your quota');
     });
 
     it('should fail after max retries', async () => {
@@ -292,10 +295,11 @@ describe('OpenAIModelProvider', () => {
     });
 
     it('should return unhealthy when API fails', async () => {
-      // Use mockRejectedValue (not Once) to handle all retry attempts
-      mockFetch.mockRejectedValue(new Error('Network error'));
+      // Create provider with no retries to speed up test
+      const noRetryProvider = new OpenAIModelProvider({ apiKey: 'test-key', maxRetries: 0 });
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-      const result = await provider.healthCheck();
+      const result = await noRetryProvider.healthCheck();
 
       expect(result.healthy).toBe(false);
       expect(result.error).toContain('Network error');
