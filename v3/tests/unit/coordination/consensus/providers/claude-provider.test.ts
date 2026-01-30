@@ -61,7 +61,7 @@ describe('ClaudeModelProvider', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockFetch.mockReset();
     process.env = { ...originalEnv, ANTHROPIC_API_KEY: 'test-api-key' };
   });
 
@@ -284,9 +284,11 @@ describe('ClaudeModelProvider', () => {
     });
 
     it('should return unhealthy when API fails', async () => {
+      // Create provider with no retries to speed up test
+      const noRetryProvider = new ClaudeModelProvider({ apiKey: 'test-key', maxRetries: 0 });
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-      const result = await provider.healthCheck();
+      const result = await noRetryProvider.healthCheck();
 
       expect(result.healthy).toBe(false);
       expect(result.error).toContain('Network error');

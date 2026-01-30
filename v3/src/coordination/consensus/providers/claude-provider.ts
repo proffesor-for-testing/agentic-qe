@@ -174,7 +174,7 @@ export class ClaudeModelProvider extends BaseModelProvider {
       defaultModel: config.defaultModel || 'claude-3-5-sonnet-20241022',
       baseUrl: this.baseUrl,
       defaultTimeout: config.defaultTimeout || 30000,
-      maxRetries: config.maxRetries || 3,
+      maxRetries: config.maxRetries ?? 3,
       retryDelayMs: config.retryDelayMs || 1000,
       enableLogging: config.enableLogging || false,
     };

@@ -14,6 +14,19 @@
 - ❌ NEVER auto-commit/push without explicit user request
 - ✅ ALWAYS wait for: "commit this" or "push to main"
 
+### Release Management
+- ❌ NEVER create a new release/version for CI/test fixes
+- ❌ NEVER bump version when npm publish workflow fails due to test assertions
+- ✅ When publish fails: fix the issue, update the EXISTING release (delete old tag, recreate)
+- ✅ Version bumps are ONLY for actual code/feature changes, not CI infrastructure fixes
+
+**When npm publish workflow fails:**
+1. Fix the failing tests/CI issues
+2. Delete the existing tag: `git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z`
+3. Delete the release: `gh release delete vX.Y.Z --yes`
+4. Push fixes to main
+5. Recreate the SAME version release: `gh release create vX.Y.Z ...`
+
 ### Test Execution
 - ❌ NEVER run `npm test` (OOM risk in DevPod/Codespaces)
 - ✅ Use: `npm run test:unit`, `npm run test:integration`

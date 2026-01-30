@@ -190,7 +190,7 @@ export class OpenAIModelProvider extends BaseModelProvider {
       defaultModel: config.defaultModel || 'gpt-4-turbo',
       baseUrl: this.baseUrl,
       defaultTimeout: config.defaultTimeout || CONSENSUS_CONSTANTS.MODEL_TIMEOUT_MS,
-      maxRetries: config.maxRetries || CONSENSUS_CONSTANTS.DEFAULT_RETRY_ATTEMPTS,
+      maxRetries: config.maxRetries ?? CONSENSUS_CONSTANTS.DEFAULT_RETRY_ATTEMPTS,
       retryDelayMs: config.retryDelayMs || CONSENSUS_CONSTANTS.DEFAULT_RETRY_DELAY_MS,
       enableLogging: config.enableLogging || false,
     };

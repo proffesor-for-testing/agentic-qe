@@ -64,7 +64,7 @@ describe('OpenRouterModelProvider', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockFetch.mockReset();
     process.env = { ...originalEnv, OPENROUTER_API_KEY: 'test-openrouter-key' };
   });
 
@@ -187,6 +187,8 @@ describe('OpenRouterModelProvider', () => {
     });
 
     it('should throw error when response is empty', async () => {
+      // Create provider with no retries to speed up test
+      const noRetryProvider = new OpenRouterModelProvider({ apiKey: 'test-key', maxRetries: 0 });
       mockFetch.mockResolvedValueOnce(
         createMockResponse({
           id: 'test',
@@ -195,7 +197,7 @@ describe('OpenRouterModelProvider', () => {
         })
       );
 
-      await expect(provider.complete('Test')).rejects.toThrow('Empty response');
+      await expect(noRetryProvider.complete('Test')).rejects.toThrow('Empty response from OpenRouter');
     });
 
     it('should try fallback models on failure', async () => {
