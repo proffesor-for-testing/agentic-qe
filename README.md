@@ -240,9 +240,9 @@ aqe hooks model-stats
 
 ---
 
-### 🔄 Cross-Phase Memory Unification (v3.3.4)
+### 🔄 Cross-Phase Memory Unification (v3.3.5)
 
-V3.3.4 unifies cross-phase feedback loops with UnifiedMemoryManager:
+V3.3.5 unifies cross-phase feedback loops with UnifiedMemoryManager:
 
 - **Single SQLite Backend**: All QCSD signals stored in `.agentic-qe/memory.db`
 - **Namespace-Based Storage**: `qcsd/strategic`, `qcsd/tactical`, `qcsd/operational`, `qcsd/quality-criteria`

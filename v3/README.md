@@ -48,7 +48,7 @@ npx aqe test generate src/
 - **MinCut Topology** - Graph-based self-healing agent coordination
 - **Coherence Verification** (v3.3.0) - Mathematical proof of belief consistency using WASM engines
 - **MinCut/Consensus Integration** (v3.3.3) - Full 12/12 domain integration with self-healing
-- **Cross-Phase Memory Unification** (v3.3.4) - Unified SQLite storage for QCSD feedback loops
+- **Cross-Phase Memory Unification** (v3.3.5) - Unified SQLite storage for QCSD feedback loops
 - **Zero-Breaking-Changes Migration** - Full v2 backward compatibility
 - **Browser Automation** (v3.1.0) - @claude-flow/browser integration with 9 workflow templates
 

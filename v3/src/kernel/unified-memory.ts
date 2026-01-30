@@ -97,10 +97,6 @@ export const DEFAULT_UNIFIED_MEMORY_CONFIG: UnifiedMemoryConfig = {
   cacheSize: MEMORY_CONSTANTS.CACHE_SIZE_KB,
   busyTimeout: MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
   vectorDimensions: MEMORY_CONSTANTS.DEFAULT_VECTOR_DIMENSIONS,
-  mmapSize: MEMORY_CONSTANTS.MMAP_SIZE_BYTES,
-  cacheSize: MEMORY_CONSTANTS.CACHE_SIZE_KB,
-  busyTimeout: MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
-  vectorDimensions: MEMORY_CONSTANTS.DEFAULT_VECTOR_DIMENSIONS,
 };
 
 /**
@@ -621,9 +617,6 @@ interface HNSWNode {
  */
 class InMemoryHNSWIndex {
   private nodes: Map<string, HNSWNode> = new Map();
-  private readonly M: number = HNSW_CONSTANTS.M_CONNECTIONS;
-  private readonly efConstruction: number = HNSW_CONSTANTS.EF_CONSTRUCTION;
-  private readonly efSearch: number = HNSW_CONSTANTS.EF_SEARCH;
   private readonly M: number = HNSW_CONSTANTS.M_CONNECTIONS;
   private readonly efConstruction: number = HNSW_CONSTANTS.EF_CONSTRUCTION;
   private readonly efSearch: number = HNSW_CONSTANTS.EF_SEARCH;
