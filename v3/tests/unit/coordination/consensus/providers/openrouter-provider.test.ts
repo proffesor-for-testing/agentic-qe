@@ -187,7 +187,8 @@ describe('OpenRouterModelProvider', () => {
     });
 
     it('should throw error when response is empty', async () => {
-      mockFetch.mockResolvedValueOnce(
+      // Use mockResolvedValue (not Once) to handle retries
+      mockFetch.mockResolvedValue(
         createMockResponse({
           id: 'test',
           model: 'test',
@@ -195,7 +196,7 @@ describe('OpenRouterModelProvider', () => {
         })
       );
 
-      await expect(provider.complete('Test')).rejects.toThrow('Empty response');
+      await expect(provider.complete('Test')).rejects.toThrow('Empty response from OpenRouter');
     });
 
     it('should try fallback models on failure', async () => {
