@@ -5,7 +5,7 @@
     "--privileged",
     "--memory=8g",
     "--memory-swap=12g",
-    "--memory-reservation=2g",
+    "--memory-reservation=4g",
     "--cpus=3",
     "--oom-kill-disable=false",
     "--memory-swappiness=60"
@@ -47,7 +47,7 @@
       ]
     }
   },
-  "postCreateCommand": "bash .devcontainer/setup-memory.sh && bash .devcontainer/install-tools.sh",
+  "postCreateCommand": "bash .devcontainer/install-tools.sh",
   "shutdownAction": "none",
   "mounts": [],
   "capAdd": [
