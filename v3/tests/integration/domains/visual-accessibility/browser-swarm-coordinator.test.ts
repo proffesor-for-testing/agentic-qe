@@ -3,9 +3,13 @@
  *
  * Tests multi-session browser coordination for parallel viewport testing.
  * Verifies resource management, graceful degradation, and session lifecycle.
+ *
+ * NOTE: These tests require agent-browser CLI and are automatically SKIPPED
+ * in CI environments where browser automation is not available.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { execSync } from 'child_process';
 import {
   BrowserSwarmCoordinator,
   createBrowserSwarmCoordinator,
@@ -15,7 +19,76 @@ import {
 } from '../../../../src/domains/visual-accessibility/services/browser-swarm-coordinator.js';
 import { InMemoryBackend } from '../../../../src/kernel/memory-backend.js';
 
-describe('BrowserSwarmCoordinator - Integration', () => {
+// Check if agent-browser is available
+let agentBrowserAvailable = false;
+try {
+  const result = execSync('npx agent-browser --version 2>&1 || echo "not-found"', {
+    encoding: 'utf-8',
+    stdio: 'pipe',
+    timeout: 10000,
+  });
+  agentBrowserAvailable = !result.includes('not-found') && !result.includes('ERR!');
+} catch {
+  agentBrowserAvailable = false;
+}
+
+// Skip tests if agent-browser not available OR if running in CI
+const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+const describeIfBrowserAvailable = !isCI && agentBrowserAvailable ? describe : describe.skip;
+
+// Unit-like tests that don't need browser - always run
+describe('BrowserSwarmCoordinator - Unit', () => {
+  let memory: InMemoryBackend;
+  let coordinator: BrowserSwarmCoordinator;
+
+  beforeEach(async () => {
+    memory = new InMemoryBackend();
+    await memory.initialize();
+  });
+
+  afterEach(async () => {
+    if (coordinator) {
+      await coordinator.shutdown().catch(() => {});
+    }
+    if (memory) {
+      await memory.dispose();
+    }
+  });
+
+  it('should create coordinator with default config', () => {
+    coordinator = createBrowserSwarmCoordinator(memory);
+    expect(coordinator).toBeDefined();
+    expect(coordinator.getStatus().totalSessions).toBe(0);
+  });
+
+  it('should create coordinator with custom config', () => {
+    const config: Partial<BrowserSwarmConfig> = {
+      maxConcurrentSessions: 3,
+      memoryThresholdMB: 512,
+      enableGracefulDegradation: true,
+    };
+    coordinator = createBrowserSwarmCoordinator(memory, config);
+    const status = coordinator.getStatus();
+    expect(status.maxConcurrent).toBe(3);
+    expect(status.totalSessions).toBe(0);
+  });
+
+  it('should handle empty session list', () => {
+    coordinator = createBrowserSwarmCoordinator(memory);
+    const status = coordinator.getStatus();
+    expect(status.totalSessions).toBe(0);
+    expect(status.activeSessions).toBe(0);
+  });
+
+  it('should handle shutdown with no sessions', async () => {
+    coordinator = createBrowserSwarmCoordinator(memory);
+    const result = await coordinator.shutdown();
+    expect(result.success).toBe(true);
+  });
+});
+
+// Integration tests that require real browser - skip in CI
+describeIfBrowserAvailable('BrowserSwarmCoordinator - Integration', () => {
   let memory: InMemoryBackend;
   let coordinator: BrowserSwarmCoordinator;
 
@@ -38,26 +111,6 @@ describe('BrowserSwarmCoordinator - Integration', () => {
   }, 15000); // 15s hook timeout
 
   describe('Initialization', () => {
-    it('should create coordinator with default config', () => {
-      coordinator = createBrowserSwarmCoordinator(memory);
-      expect(coordinator).toBeDefined();
-      expect(coordinator.getStatus().totalSessions).toBe(0);
-    });
-
-    it('should create coordinator with custom config', () => {
-      const config: Partial<BrowserSwarmConfig> = {
-        maxConcurrentSessions: 3,
-        memoryThresholdMB: 512,
-        enableGracefulDegradation: true,
-      };
-
-      coordinator = createBrowserSwarmCoordinator(memory, config);
-      const status = coordinator.getStatus();
-
-      expect(status.maxConcurrent).toBe(3);
-      expect(status.totalSessions).toBe(0);
-    });
-
     it('should initialize with standard viewports', async () => {
       coordinator = createBrowserSwarmCoordinator(memory, {
         maxConcurrentSessions: 5,
@@ -360,15 +413,6 @@ describe('BrowserSwarmCoordinator - Integration', () => {
 
       const status = coordinator.getStatus();
       expect(status.totalSessions).toBe(0);
-    });
-
-    it('should handle shutdown with no sessions', async () => {
-      coordinator = createBrowserSwarmCoordinator(memory);
-
-      // Shutdown without initialization
-      const result = await coordinator.shutdown();
-
-      expect(result.success).toBe(true);
     });
 
     it('should reject operations after shutdown', async () => {

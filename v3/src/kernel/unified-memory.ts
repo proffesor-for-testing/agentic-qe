@@ -24,6 +24,14 @@ import { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { HYPERGRAPH_SCHEMA } from '../migrations/20260120_add_hypergraph_tables.js';
 import { MEMORY_CONSTANTS, HNSW_CONSTANTS } from './constants.js';
 
+// CRDT imports for distributed state synchronization
+import {
+  createCRDTStore,
+  type CRDTStore,
+  type CRDTStoreState,
+  type CRDTStoreDelta,
+} from '../memory/crdt/index.js';
+
 // ============================================================================
 // Project Root Detection
 // ============================================================================
@@ -699,6 +707,9 @@ export class UnifiedMemoryManager {
   private preparedStatements: Map<string, Statement> = new Map();
   private vectorIndex: InMemoryHNSWIndex = new InMemoryHNSWIndex();
 
+  // CRDT store for distributed state synchronization
+  private crdtStore: CRDTStore | null = null;
+
   private constructor(config?: Partial<UnifiedMemoryConfig>) {
     // Use resolved config with project root detection for the dbPath
     const resolvedDefaults = getResolvedDefaultConfig();
@@ -1171,6 +1182,240 @@ export class UnifiedMemoryManager {
 
     const row = this.db!.prepare('SELECT COUNT(*) as count FROM vectors').get() as { count: number };
     return row.count;
+  }
+
+  // ============================================================================
+  // CRDT Operations (distributed state synchronization)
+  // ============================================================================
+
+  /**
+   * Initialize CRDT store for distributed state synchronization.
+   * Call this with a unique node ID for each agent/node in the cluster.
+   *
+   * @param nodeId - Unique identifier for this node (e.g., 'agent-001', 'mcp-server-1')
+   */
+  initializeCRDT(nodeId: string): void {
+    if (this.crdtStore) {
+      console.warn('[UnifiedMemory] CRDT store already initialized');
+      return;
+    }
+
+    this.crdtStore = createCRDTStore({ nodeId });
+    console.log(`[UnifiedMemory] CRDT store initialized for node: ${nodeId}`);
+  }
+
+  /**
+   * Get the CRDT store instance.
+   * Returns null if CRDT has not been initialized.
+   */
+  getCRDTStore(): CRDTStore | null {
+    return this.crdtStore;
+  }
+
+  /**
+   * Check if CRDT is initialized
+   */
+  isCRDTInitialized(): boolean {
+    return this.crdtStore !== null;
+  }
+
+  /**
+   * Set a value in both CRDT store and KV store for durability.
+   * The CRDT store provides conflict-free merge semantics,
+   * while the KV store provides persistence.
+   *
+   * @param key - Key to store
+   * @param value - Value to store
+   * @param namespace - Optional namespace (default: 'crdt')
+   */
+  async crdtSet<T>(key: string, value: T, namespace: string = 'crdt'): Promise<void> {
+    this.ensureInitialized();
+
+    // Update CRDT store (in-memory, conflict-free)
+    if (this.crdtStore) {
+      this.crdtStore.setRegister(key, value);
+    }
+
+    // Persist to KV store
+    await this.kvSet(key, value, namespace);
+  }
+
+  /**
+   * Get a value from CRDT store (or fallback to KV store)
+   *
+   * @param key - Key to retrieve
+   * @param namespace - Optional namespace (default: 'crdt')
+   */
+  async crdtGet<T>(key: string, namespace: string = 'crdt'): Promise<T | undefined> {
+    // Try CRDT store first (has latest merged state)
+    if (this.crdtStore) {
+      const register = this.crdtStore.getRegister<T>(key);
+      if (register) {
+        return register.get();
+      }
+    }
+
+    // Fallback to KV store
+    return this.kvGet<T>(key, namespace);
+  }
+
+  /**
+   * Increment a distributed counter (CRDT G-Counter)
+   *
+   * @param key - Counter key
+   * @param amount - Amount to increment (default: 1)
+   */
+  crdtIncrement(key: string, amount: number = 1): void {
+    if (!this.crdtStore) {
+      throw new Error('CRDT store not initialized. Call initializeCRDT first.');
+    }
+
+    // Get or create counter
+    let counter = this.crdtStore.getCounter(key);
+    if (!counter) {
+      this.crdtStore.incrementCounter(key, 0); // Initialize
+      counter = this.crdtStore.getCounter(key);
+    }
+
+    // Increment
+    for (let i = 0; i < amount; i++) {
+      this.crdtStore.incrementCounter(key);
+    }
+  }
+
+  /**
+   * Get distributed counter value
+   *
+   * @param key - Counter key
+   */
+  crdtGetCounter(key: string): number {
+    if (!this.crdtStore) {
+      return 0;
+    }
+
+    const counter = this.crdtStore.getCounter(key);
+    return counter?.get() ?? 0;
+  }
+
+  /**
+   * Add item to distributed set (CRDT OR-Set)
+   *
+   * @param key - Set key
+   * @param item - Item to add
+   */
+  crdtAddToSet<T>(key: string, item: T): void {
+    if (!this.crdtStore) {
+      throw new Error('CRDT store not initialized. Call initializeCRDT first.');
+    }
+
+    this.crdtStore.addToSet(key, item);
+  }
+
+  /**
+   * Remove item from distributed set
+   *
+   * @param key - Set key
+   * @param item - Item to remove
+   */
+  crdtRemoveFromSet<T>(key: string, item: T): void {
+    if (!this.crdtStore) {
+      throw new Error('CRDT store not initialized. Call initializeCRDT first.');
+    }
+
+    this.crdtStore.removeFromSet(key, item);
+  }
+
+  /**
+   * Get all items from distributed set
+   *
+   * @param key - Set key
+   */
+  crdtGetSet<T>(key: string): Set<T> {
+    if (!this.crdtStore) {
+      return new Set();
+    }
+
+    const orSet = this.crdtStore.getSet<T>(key);
+    // ORSet.values() returns T[], convert to Set<T>
+    return new Set(orSet.values());
+  }
+
+  /**
+   * Get the current CRDT state for replication
+   */
+  crdtGetState(): CRDTStoreState | null {
+    if (!this.crdtStore) {
+      return null;
+    }
+
+    return this.crdtStore.getState();
+  }
+
+  /**
+   * Get a delta of changes since a given version
+   */
+  crdtGetDelta(sinceVersion?: number): CRDTStoreDelta | null {
+    if (!this.crdtStore) {
+      return null;
+    }
+
+    return this.crdtStore.getDelta(sinceVersion ?? 0);
+  }
+
+  /**
+   * Merge remote CRDT state into local store.
+   * This operation is commutative, associative, and idempotent.
+   *
+   * @param remoteState - State from another node
+   */
+  crdtMerge(remoteState: CRDTStoreState): void {
+    if (!this.crdtStore) {
+      throw new Error('CRDT store not initialized. Call initializeCRDT first.');
+    }
+
+    this.crdtStore.applyState(remoteState);
+  }
+
+  /**
+   * Apply a delta from another node
+   *
+   * @param delta - Delta changes from another node
+   */
+  crdtApplyDelta(delta: CRDTStoreDelta): void {
+    if (!this.crdtStore) {
+      throw new Error('CRDT store not initialized. Call initializeCRDT first.');
+    }
+
+    this.crdtStore.applyDelta(delta);
+  }
+
+  /**
+   * Persist current CRDT state to KV store for recovery
+   */
+  async crdtPersist(): Promise<void> {
+    if (!this.crdtStore) {
+      return;
+    }
+
+    const state = this.crdtStore.getState();
+    await this.kvSet('__crdt_state__', state, 'crdt-internal');
+  }
+
+  /**
+   * Restore CRDT state from KV store
+   */
+  async crdtRestore(): Promise<boolean> {
+    if (!this.crdtStore) {
+      return false;
+    }
+
+    const state = await this.kvGet<CRDTStoreState>('__crdt_state__', 'crdt-internal');
+    if (state) {
+      this.crdtStore.applyState(state);
+      return true;
+    }
+
+    return false;
   }
 
   // ============================================================================

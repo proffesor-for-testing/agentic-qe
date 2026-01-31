@@ -64,6 +64,9 @@
 | [ADR-050](./ADR-050-ruvector-neural-backbone.md) | RuVector as Primary Neural Backbone | **Implemented** | 2026-01-20 | ✅ ML-first architecture, Q-Learning/SONA persistence, hypergraph code intelligence |
 | [ADR-051](./ADR-051-agentic-flow-integration.md) | Agentic-Flow Deep Integration | **Implemented** | 2026-01-21 | ✅ 100% success rate: Agent Booster, ReasoningBank (HNSW), Model Router, ONNX Embeddings |
 | [ADR-052](./ADR-052-coherence-gated-qe.md) | Coherence-Gated Quality Engineering | **Implemented** | 2026-01-24 | ✅ 382+ tests: CoherenceService + 6 engines + ThresholdTuner + WASM Fallback + CI Badge + Test Gen Gate |
+| [ADR-053](./ADR-053-ag-ui-protocol.md) | AG-UI Protocol Adoption | **Proposed** | 2026-01-30 | SSE transport, 19 event types, 100ms p95 latency target |
+| [ADR-054](./ADR-054-a2a-protocol.md) | A2A Protocol Integration | **Proposed** | 2026-01-30 | Agent Cards for 68 agents, JSON-RPC 2.0, discovery endpoint |
+| [ADR-055](./ADR-055-a2ui-declarative-ui.md) | A2UI Declarative UI Strategy | **Proposed** | 2026-01-30 | 15+ components, QE catalog, WCAG 2.2, AG-UI state sync |
 
 ---
 

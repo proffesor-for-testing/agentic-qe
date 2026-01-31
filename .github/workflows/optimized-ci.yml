@@ -136,6 +136,62 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=512'
         continue-on-error: true
 
+  # V3 Performance gates
+  performance-gates:
+    name: V3 Performance Gates
+    runs-on: ubuntu-latest
+    needs: fast-tests
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run V3 Performance Gates
+        id: perf-gates
+        run: |
+          cd v3
+          npm run performance:gate > perf-report.md 2>&1 || PERF_EXIT=$?
+          echo "PERF_EXIT_CODE=${PERF_EXIT:-0}" >> $GITHUB_OUTPUT
+          cat perf-report.md
+        continue-on-error: true
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-report
+          path: v3/perf-report.md
+          retention-days: 30
+
+      - name: Check performance gate results
+        if: always()
+        run: |
+          EXIT_CODE="${{ steps.perf-gates.outputs.PERF_EXIT_CODE }}"
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "✅ All performance gates passed"
+          elif [ "$EXIT_CODE" -eq 2 ]; then
+            echo "⚠️ Performance gates passed with warnings"
+          else
+            echo "❌ Performance gates failed (exit code: $EXIT_CODE)"
+            # Don't fail the build on performance warnings, only on failures
+            if [ "$EXIT_CODE" -eq 1 ]; then
+              exit 1
+            fi
+          fi
+
   # Coverage analysis (runs after fast tests)
   coverage:
     name: Coverage Analysis

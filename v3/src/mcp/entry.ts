@@ -2,14 +2,20 @@
  * Agentic QE v3 - MCP Server Entry Point
  *
  * Starts the MCP protocol server for stdio communication.
+ * Also starts an HTTP server for AG-UI/A2A/A2UI protocols if AQE_HTTP_PORT is set.
  * Based on claude-flow's MCP pattern.
  *
  * Usage:
  *   npm run mcp
  *   npx tsx src/mcp/entry.ts
+ *
+ * Environment Variables:
+ *   AQE_HTTP_PORT: Port for HTTP server (0 = disabled, default: 0)
+ *   AQE_VERBOSE: Enable verbose logging
  */
 
 import { quickStart, MCPProtocolServer } from './protocol-server';
+import { createHTTPServer, type HTTPServer } from './http-server.js';
 import { createRequire } from 'module';
 import { bootstrapTokenTracking, shutdownTokenTracking } from '../init/token-bootstrap.js';
 
@@ -17,6 +23,7 @@ const require = createRequire(import.meta.url);
 const pkg = require('../../package.json') as { version: string };
 
 let server: MCPProtocolServer | null = null;
+let httpServer: HTTPServer | null = null;
 
 async function main(): Promise<void> {
   // Output startup message BEFORE suppressing stderr (Claude Code health check needs this)
@@ -26,6 +33,9 @@ async function main(): Promise<void> {
   // Handle graceful shutdown
   process.on('SIGINT', async () => {
     await shutdownTokenTracking();
+    if (httpServer) {
+      await httpServer.stop();
+    }
     if (server) {
       await server.stop();
     }
@@ -34,6 +44,9 @@ async function main(): Promise<void> {
 
   process.on('SIGTERM', async () => {
     await shutdownTokenTracking();
+    if (httpServer) {
+      await httpServer.stop();
+    }
     if (server) {
       await server.stop();
     }
@@ -71,6 +84,29 @@ async function main(): Promise<void> {
       version,
     });
     originalStderrWrite('[MCP] Ready\n');
+
+    // Start HTTP server for AG-UI/A2A/A2UI if port is specified
+    const httpPort = parseInt(process.env.AQE_HTTP_PORT || '0', 10);
+    if (httpPort > 0) {
+      try {
+        originalStderrWrite(`[AQE] Starting HTTP server on port ${httpPort}...\n`);
+        httpServer = createHTTPServer({
+          // Share event adapter with MCP server for event streaming
+          eventAdapter: server.getEventAdapter(),
+        });
+        await httpServer.start(httpPort);
+        originalStderrWrite(`[AQE] HTTP server ready on port ${httpPort}\n`);
+        originalStderrWrite(`[AQE] Protocols: AG-UI (SSE), A2A (Discovery), A2UI (Surfaces)\n`);
+        originalStderrWrite(`[AQE] Endpoints:\n`);
+        originalStderrWrite(`[AQE]   GET  /.well-known/agent.json - Platform discovery\n`);
+        originalStderrWrite(`[AQE]   POST /agent/stream          - AG-UI SSE streaming\n`);
+        originalStderrWrite(`[AQE]   POST /a2a/tasks             - Task submission\n`);
+        originalStderrWrite(`[AQE]   GET  /health                - Health check\n`);
+      } catch (httpError) {
+        originalStderrWrite(`[AQE] WARNING: HTTP server failed to start: ${httpError}\n`);
+        // Don't fail startup, MCP server is primary
+      }
+    }
 
     // Keep the process alive - the server listens on stdin
     // The process will exit when stdin closes or SIGINT/SIGTERM is received
