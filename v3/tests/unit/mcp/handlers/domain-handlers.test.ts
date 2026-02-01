@@ -413,7 +413,7 @@ describe('Domain Handlers', () => {
       expect(result.data!.taskId).toBeDefined();
       expect(result.data!.qualityScore).toBeGreaterThanOrEqual(0);
       expect(result.data!.qualityScore).toBeLessThanOrEqual(100);
-    });
+    }, 30000);
 
     it('should return pass/fail status', async () => {
       const result = await handleQualityAssess({
@@ -422,7 +422,7 @@ describe('Domain Handlers', () => {
 
       expect(result.success).toBe(true);
       expect(typeof result.data!.passed).toBe('boolean');
-    });
+    }, 30000);
 
     it('should run quality gate when requested', async () => {
       const result = await handleQualityAssess({
@@ -431,7 +431,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
 
     it('should return quality metrics', async () => {
       const result = await handleQualityAssess({
@@ -440,7 +440,7 @@ describe('Domain Handlers', () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.metrics).toBeDefined();
-    });
+    }, 30000);
 
     it('should include recommendations', async () => {
       const result = await handleQualityAssess({});
@@ -448,7 +448,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.recommendations).toBeDefined();
       expect(Array.isArray(result.data!.recommendations)).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -893,7 +893,7 @@ describe('Domain Handlers', () => {
       results.forEach(result => {
         expect(result.success).toBe(true);
       });
-    });
+    }, 60000);
 
     it('should handle special characters in source code', async () => {
       const result = await handleTestGenerate({

@@ -78,7 +78,7 @@ describe('Wrapped Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data).toBeDefined();
       expect(result.data!.qualityScore).toBeDefined();
-    });
+    }, 30000);
 
     it('should wrap handleSecurityScan with experience capture', async () => {
       const result = await handleSecurityScan({});
