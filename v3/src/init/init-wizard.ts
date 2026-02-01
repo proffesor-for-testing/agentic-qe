@@ -763,7 +763,22 @@ export class InitOrchestrator {
           overwrite: false,
         },
         domains: {
-          enabled: ['test-generation', 'coverage-analysis', 'learning-optimization'],
+          // Enable ALL domains - v3 supports all 12 DDD domains
+          // Limiting to 3 causes "No factory registered" errors in fleet_init
+          enabled: [
+            'test-generation',
+            'test-execution',
+            'coverage-analysis',
+            'quality-assessment',
+            'defect-intelligence',
+            'requirements-validation',
+            'code-intelligence',
+            'security-compliance',
+            'contract-testing',
+            'visual-accessibility',
+            'chaos-resilience',
+            'learning-optimization',
+          ],
           disabled: [],
         },
         agents: {

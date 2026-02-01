@@ -8,7 +8,9 @@ echo "Security-Visual Testing Skill - Verification"
 echo "==================================================================="
 echo ""
 
-SKILL_DIR="/workspaces/agentic-qe/v3/src/skills/security-visual-testing"
+# Use script's directory to find skill location (works regardless of where run from)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_DIR="$SCRIPT_DIR"
 
 # Check files exist
 echo "✓ Checking files..."

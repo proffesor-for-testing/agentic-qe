@@ -3,9 +3,8 @@
     "agentic-qe-v3": {
       "command": "node",
       "args": [
-        "/workspaces/agentic-qe/v3/dist/mcp/bundle.js"
+        "./v3/dist/mcp/bundle.js"
       ],
-      "cwd": "/workspaces/agentic-qe/v3",
       "env": {
         "NODE_ENV": "production",
         "NODE_NO_WARNINGS": "1"
@@ -62,7 +61,6 @@
       "command": "aqe-mcp",
       "args": [],
       "env": {
-        "AQE_PROJECT_ROOT": "/workspaces/agentic-qe",
         "NODE_ENV": "production"
       }
     }
