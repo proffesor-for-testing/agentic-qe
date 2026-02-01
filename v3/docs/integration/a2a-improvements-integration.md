@@ -1,8 +1,9 @@
 # A2A Improvements Integration Plan
 
-**Status:** Draft
+**Status:** Implemented
 **Created:** 2026-01-31
-**Last Updated:** 2026-01-31
+**Last Updated:** 2026-02-01
+**Implemented In:** v3.4.0
 **Related ADR:** ADR-054 A2A Protocol Integration
 
 ## Executive Summary

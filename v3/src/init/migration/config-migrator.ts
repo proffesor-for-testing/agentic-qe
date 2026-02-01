@@ -119,7 +119,21 @@ ${yaml.stringify(v3Config)}`;
         overwrite: false,
       },
       domains: {
-        enabled: ['test-generation', 'coverage-analysis', 'learning-optimization'],
+        // Enable ALL domains - limiting causes "No factory registered" errors
+        enabled: [
+          'test-generation',
+          'test-execution',
+          'coverage-analysis',
+          'quality-assessment',
+          'defect-intelligence',
+          'requirements-validation',
+          'code-intelligence',
+          'security-compliance',
+          'contract-testing',
+          'visual-accessibility',
+          'chaos-resilience',
+          'learning-optimization',
+        ],
         disabled: [],
       },
       agents: {

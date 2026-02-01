@@ -2610,10 +2610,11 @@ Standardize all V3 QE skills to use the full `v3-qe-*` agent naming convention.
 
 ## ADR-038: V3 QE Memory System Unification
 
-**Status:** Proposed
-**Date:** 2026-01-11
+**Status:** Implemented
+**Date:** 2026-01-11 (Proposed) / 2026-02-01 (Implemented)
 **Decision Makers:** Architecture Team
 **Source:** V3 Skills Improvement Analysis
+**Implemented In:** v3.4.0 - All 12 DDD domains now enabled by default with unified memory.db
 
 ### Context
 
@@ -2662,10 +2663,11 @@ Create enhanced `v3-qe-mcp-optimization` skill with:
 
 ## ADR-040: V3 QE Agentic-Flow Integration
 
-**Status:** Proposed
-**Date:** 2026-01-11
+**Status:** Implemented
+**Date:** 2026-01-11 (Proposed) / 2026-02-01 (Implemented)
 **Decision Makers:** Architecture Team
 **Source:** V3 Skills Improvement Analysis
+**Implemented In:** v3.4.0 - AG-UI, A2A, and A2UI protocol implementations
 
 ### Context
 
