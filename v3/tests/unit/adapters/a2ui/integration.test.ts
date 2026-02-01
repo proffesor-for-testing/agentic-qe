@@ -41,7 +41,7 @@ function createTestStateManager(initialState: Record<string, unknown> = {}): Sta
 }
 
 function createTestEventAdapter(): EventAdapter {
-  return createEventAdapter({ emitRawForUnknown: false });
+  return createEventAdapter({ emitRawForUnknown: false, enableBatching: false });
 }
 
 function createTestSurfaceGenerator(): SurfaceGenerator {

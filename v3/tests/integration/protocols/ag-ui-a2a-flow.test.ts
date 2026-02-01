@@ -70,6 +70,7 @@ describe('AG-UI to A2A Integration', () => {
       defaultThreadId: 'integration-test',
       trackMessageState: true,
       trackActivityState: true,
+      enableBatching: false,
     });
 
     stateManager = createStateManager({

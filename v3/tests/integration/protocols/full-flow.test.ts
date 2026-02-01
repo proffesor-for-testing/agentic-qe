@@ -180,6 +180,7 @@ describe('Full Protocol Integration', () => {
       defaultThreadId: 'e2e-test',
       trackMessageState: true,
       trackActivityState: true,
+      enableBatching: false,
     });
 
     stateManager = createStateManager({
@@ -441,10 +442,13 @@ describe('Full Protocol Integration', () => {
         code: 'PROCESSING_ERROR',
       });
 
-      // Update state with error
-      stateManager.updatePath(`/tasks/${task.id}/error`, {
-        message: 'Processing error',
-        code: 'PROCESSING_ERROR',
+      // First create the task entry in state, then add the error
+      stateManager.updatePath(`/tasks/${task.id}`, {
+        status: 'failed',
+        error: {
+          message: 'Processing error',
+          code: 'PROCESSING_ERROR',
+        },
       });
 
       // Emit state delta
