@@ -13,6 +13,12 @@
 
 > **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 51 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 12 domains, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
+### What's New in v3.4.0
+
+- **AG-UI Protocol** - Anthropic's streaming agent-to-user interface with real-time progress updates
+- **A2A Protocol** - Google's agent-to-agent interoperability standard for cross-tool communication
+- **A2UI Components** - Unified UI combining AG-UI streaming with A2A event handling
+
 🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **63 QE Skills** | 🧬 **Coherence Verification** 
 
 </div>
@@ -71,6 +77,30 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
 - ✅ **63 QE Skills**: Domain-specific skills for testing, security, accessibility, QCSD, and more
+
+---
+
+## 🚀 Get Value in 60 Seconds
+
+```bash
+# 1. Install
+npm install -g agentic-qe
+
+# 2. Initialize (auto-detects your project, enables all 12 domains)
+cd your-project && aqe init --auto
+
+# 3. Generate tests immediately
+claude "Generate comprehensive tests for src/services/"
+
+# 4. Run quality assessment
+claude "Assess code quality and provide deployment recommendation"
+```
+
+**What happens:**
+1. **Auto-configuration** detects your tech stack (TypeScript/JS, testing framework, CI setup)
+2. **All 12 DDD domains** enabled automatically - no "No factory registered" errors
+3. **Pattern learning** kicks in - your project's test patterns are learned and reused
+4. **AI agents** generate tests, analyze coverage, and provide actionable recommendations
 
 ---
 
@@ -249,6 +279,45 @@ V3.3.5 unifies cross-phase feedback loops with UnifiedMemoryManager:
 - **Automatic TTL**: 30-90 day expiration per signal type
 - **No File-Based Storage**: Eliminated JSON file storage for cross-phase memory
 - **Full Hook Integration**: Pre/post hooks for cross-phase signal injection
+
+### 🌐 AG-UI, A2A & A2UI Protocols (v3.4.0)
+
+V3.4.0 adds support for **industry-standard agent communication protocols**:
+
+| Protocol | Standard | Purpose |
+|----------|----------|---------|
+| **AG-UI** | Anthropic | Agent-to-User streaming interface with lifecycle events |
+| **A2A** | Google | Agent-to-Agent interoperability with task/artifact exchange |
+| **A2UI** | Hybrid | Unified UI components combining streaming + events |
+
+**Programmatic usage:**
+
+```typescript
+import { AGUIAdapter, A2AAdapter } from 'agentic-qe';
+
+// AG-UI: Stream test generation progress to UI
+const agui = new AGUIAdapter();
+await agui.streamTask({
+  type: 'test-generation',
+  onProgress: (event) => updateProgressBar(event.progress),
+  onArtifact: (test) => displayGeneratedTest(test),
+});
+
+// A2A: Inter-agent task delegation
+const a2a = new A2AAdapter();
+await a2a.sendTask({
+  from: 'qe-test-architect',
+  to: 'qe-security-scanner',
+  task: { type: 'review-tests', files: generatedTests },
+});
+```
+
+**Benefits:**
+- **Streaming feedback** - Real-time progress instead of waiting for completion
+- **Agent interoperability** - Standard protocols for multi-agent coordination
+- **Framework integration** - Works with React, Vue, or any UI framework
+
+---
 
 ### 🔐 Consensus & MinCut Coordination (v3.3.3)
 

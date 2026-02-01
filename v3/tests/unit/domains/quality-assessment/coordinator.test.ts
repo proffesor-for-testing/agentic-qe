@@ -146,7 +146,7 @@ describe('QualityAssessmentCoordinator', () => {
     describe('analyzeTechnicalDebt()', () => {
       it('should analyze technical debt', async () => {
         const result = await coordinator.analyzeTechnicalDebt({
-          projectPath: '/workspaces/agentic-qe',
+          projectPath: process.cwd(), // Use current working directory, not hardcoded path
           includeCodeSmells: true,
         });
 

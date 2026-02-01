@@ -55,7 +55,7 @@ When analyzing a live website URL, use this specialized execution pattern.
 ### Parameters
 
 - `URL`: Website to analyze (required)
-- `OUTPUT_FOLDER`: Where to save reports (default: `/workspaces/agentic-qe/Agentic QCSD/{domain}/`)
+- `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/{domain}/` or `./Agentic QCSD/{domain}/`)
 
 ---
 
@@ -71,7 +71,10 @@ When analyzing a live website URL, use this specialized execution pattern.
 
 ```bash
 # SINGLE COMMAND - handles all tiers automatically:
-node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+# Use npx for installed package, or node with relative path for local development
+npx aqe fetch-content "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+# OR if running from project root:
+node ./scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
 ```
 
 **What the script does automatically:**
@@ -84,9 +87,9 @@ node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}"
 **Execution:**
 
 ```javascript
-// 1. Run the automated fetch cascade
+// 1. Run the automated fetch cascade (use relative path from project root)
 const fetchResult = Bash({
-  command: `node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000`,
+  command: `node ./scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000`,
   timeout: 120000  // 2 min total max
 })
 

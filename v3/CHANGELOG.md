@@ -5,6 +5,97 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-02-01
+
+### 🎯 Highlights
+
+**AG-UI, A2A, and A2UI Protocol Implementation** - Full implementation of Agent-to-UI (AG-UI), Agent-to-Agent (A2A), and Agent-to-UI (A2UI) protocols enabling interoperability with other agentic frameworks and real-time UI state synchronization.
+
+**All 12 DDD Domains Now Enabled by Default** - Critical fix ensuring all QE domains are available out of the box. Previously, V2→V3 migration only enabled 3 domains, causing "No factory registered" errors when using `fleet_init` with domains like `test-execution` or `quality-assessment`.
+
+**Portable Configuration** - Removed all hardcoded workspace paths throughout the codebase. AQE now works seamlessly across different environments (DevPod, Codespaces, local machines) without path-related failures.
+
+### Added
+
+#### AG-UI Protocol (Agent-to-UI)
+- **EventAdapter** - Transforms internal events to AG-UI format
+- **StateManager** - JSON Patch-based state synchronization
+- **SurfaceGenerator** - Dynamic UI surface generation from agent state
+- **StreamingRenderer** - Real-time UI updates via SSE/WebSocket
+
+#### A2A Protocol (Agent-to-Agent)
+- **DiscoveryService** - Agent capability discovery and registration
+- **MessageRouter** - Inter-agent message routing with delivery guarantees
+- **CapabilityNegotiator** - Protocol version and capability negotiation
+- **TaskDelegator** - Cross-agent task delegation and result aggregation
+
+#### A2UI Protocol (Agent-to-UI Integration)
+- **IntegrationBridge** - Bridges A2A and AG-UI for seamless UI updates
+- **StateSync** - Bidirectional state synchronization between agents and UI
+- **EventTransformer** - Event normalization across protocol boundaries
+
+#### Configuration Improvements
+- **Root config.yaml** - New `.agentic-qe/config.yaml` with all 12 domains enabled
+- **Relative path support** - MCP server configs use `./v3/dist/...` instead of absolute paths
+- **Environment-agnostic skills** - SKILL.md files use `npx` and relative paths
+
+### Changed
+
+#### Domain Registration (Breaking Fix)
+- **V2→V3 Migration** - Now enables all 12 DDD domains instead of just 3
+  - Previously: `test-generation`, `coverage-analysis`, `learning-optimization`
+  - Now: All 12 domains including `test-execution`, `quality-assessment`, `security-compliance`, etc.
+- **Default kernel config** - Uses `ALL_DOMAINS` constant ensuring consistency
+
+#### Error Messages
+- **Plugin loader** - Shows registered domains and actionable fix when domain not found:
+  ```
+  No factory registered for domain: test-execution
+  Registered domains: test-generation, coverage-analysis, ...
+  Fix: Add 'test-execution' to domains.enabled in .agentic-qe/config.yaml
+  ```
+
+#### Path Handling
+- **verify.sh** - Uses `$SCRIPT_DIR` instead of hardcoded paths
+- **Test files** - Use `process.cwd()` for project root detection
+- **MCP config** - Removed `AQE_PROJECT_ROOT` hardcoded environment variable
+
+### Fixed
+
+- **fleet_init failures** - "No factory registered for domain: test-execution" error resolved
+- **Cross-environment compatibility** - Works in DevPod, Codespaces, and local environments
+- **Integration test batching** - Disabled batching in protocol integration tests for deterministic behavior
+- **State update ordering** - Fixed task state creation before error assignment in full-flow tests
+
+### Migration Guide
+
+If you're upgrading from v3.3.x and experiencing domain registration errors:
+
+1. **Quick fix** - Re-run initialization:
+   ```bash
+   aqe init --auto-migrate
+   ```
+
+2. **Manual fix** - Add missing domains to `.agentic-qe/config.yaml`:
+   ```yaml
+   domains:
+     enabled:
+       - "test-generation"
+       - "test-execution"        # ADD
+       - "coverage-analysis"
+       - "quality-assessment"    # ADD
+       - "defect-intelligence"   # ADD
+       - "requirements-validation"
+       - "code-intelligence"
+       - "security-compliance"
+       - "contract-testing"
+       - "visual-accessibility"
+       - "chaos-resilience"
+       - "learning-optimization"
+   ```
+
+---
+
 ## [3.3.5] - 2026-01-30
 
 ### 🎯 Highlights

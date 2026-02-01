@@ -1,16 +1,17 @@
 /**
- * Agent-Browser Client E2E Integration Tests
+ * Agent-Browser Client INFRASTRUCTURE Tests
  *
- * REAL tests that actually:
- * - Launch a browser via agent-browser CLI
- * - Navigate to real URLs
- * - Get real snapshots with DOM elements
- * - Interact with real page elements
- * - Take real screenshots
+ * NOTE: These are NOT user-facing E2E tests. They test the browser
+ * client infrastructure. For critical user journey E2E tests, see:
+ * tests/e2e/critical-user-journeys.e2e.test.ts
+ *
+ * These tests verify:
+ * - Browser launch and session management
+ * - Command execution (navigate, click, type, etc.)
+ * - Snapshot parsing and element reference resolution
+ * - Screenshot capture functionality
  *
  * These tests require agent-browser CLI to be installed.
- * Run with: npm test -- --run tests/integration/browser/
- *
  * NOTE: These tests are automatically SKIPPED in CI environments
  * where agent-browser is not installed.
  */

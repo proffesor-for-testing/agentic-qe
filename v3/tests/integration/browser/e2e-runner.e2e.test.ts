@@ -1,11 +1,14 @@
 /**
- * E2E Test Runner Integration Tests
+ * E2E Test Runner INFRASTRUCTURE Tests
  *
- * REAL tests that verify:
- * - E2ETestRunnerService actually executes test steps in a real browser
- * - Navigation, clicks, typing, assertions work on real pages
- * - Screenshots are captured on failure
- * - Snapshot refs (@e1, @e2) work for element selection
+ * NOTE: These are NOT user-facing E2E tests. They test the E2E runner
+ * infrastructure itself. For critical user journey E2E tests, see:
+ * tests/e2e/critical-user-journeys.e2e.test.ts
+ *
+ * These tests verify:
+ * - Individual step types work (navigate, click, type, assert, wait, screenshot)
+ * - Step retries and timeouts work correctly
+ * - Error handling for various failure modes
  *
  * These tests require agent-browser CLI to be installed.
  * NOTE: Tests are automatically SKIPPED in CI where agent-browser is unavailable.
