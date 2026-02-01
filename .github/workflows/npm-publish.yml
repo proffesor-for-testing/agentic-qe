@@ -59,7 +59,7 @@ jobs:
           echo "Build verification passed (v3 structure)"
 
       - name: Run tests (excluding browser integration)
-        run: cd v3 && npm test -- --run --exclude='**/browser-integration/**' --exclude='**/browser-swarm-coordinator.test.ts'
+        run: cd v3 && npm test -- --run --exclude='**/browser-integration/**' --exclude='**/browser-swarm-coordinator.test.ts' --exclude='**/browser/*.e2e.test.ts'
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
           SKIP_BROWSER_TESTS: 'true'
