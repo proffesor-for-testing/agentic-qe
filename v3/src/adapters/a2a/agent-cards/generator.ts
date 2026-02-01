@@ -296,9 +296,8 @@ function defaultSkillExtractor(markdown: string, parsed: ParsedAgentMarkdown): A
 
   // Generate a primary skill from the agent's main purpose if no skills found
   if (skills.length === 0 && parsed.frontmatter.name && parsed.frontmatter.description) {
-    const primaryId = parsed.frontmatter.name
-      .replace(/^qe-/, '')
-      .replace(/-/g, '-');
+    // Remove qe- prefix to get the skill ID (e.g., "qe-test-architect" -> "test-architect")
+    const primaryId = parsed.frontmatter.name.replace(/^qe-/, '');
 
     skills.push(
       createAgentSkill(primaryId, formatSkillName(parsed.frontmatter.name), parsed.frontmatter.description, {
