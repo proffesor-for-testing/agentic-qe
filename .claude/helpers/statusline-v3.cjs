@@ -18,6 +18,14 @@ const fs = require('fs');
 const path = require('path');
 const { execSync, spawnSync } = require('child_process');
 
+// Use better-sqlite3 for reliable database access (no CLI dependency)
+let Database;
+try {
+  Database = require('better-sqlite3');
+} catch {
+  Database = null; // Fallback to CLI if better-sqlite3 not available
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Configuration
 // ═══════════════════════════════════════════════════════════════
@@ -117,8 +125,47 @@ function readJsonFile(filePath, defaultValue = {}) {
   return defaultValue;
 }
 
+// Database connection cache for performance
+let dbCache = new Map();
+
+function getDb(dbPath) {
+  if (!dbCache.has(dbPath)) {
+    if (Database && fileExists(dbPath)) {
+      try {
+        const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+        dbCache.set(dbPath, db);
+      } catch {
+        dbCache.set(dbPath, null);
+      }
+    } else {
+      dbCache.set(dbPath, null);
+    }
+  }
+  return dbCache.get(dbPath);
+}
+
 function sqlite3Query(dbPath, query, defaultValue = '0') {
   if (!fileExists(dbPath)) return defaultValue;
+
+  // Prefer better-sqlite3 (Node.js native, no CLI dependency)
+  if (Database) {
+    try {
+      const db = getDb(dbPath);
+      if (db) {
+        const row = db.prepare(query).get();
+        if (row) {
+          // Return the first column value
+          const values = Object.values(row);
+          return values.length > 0 ? String(values[0]) : defaultValue;
+        }
+      }
+      return defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  // Fallback to CLI if better-sqlite3 not available
   try {
     const result = execSync(`sqlite3 "${dbPath}" "${query}" 2>/dev/null`, {
       encoding: 'utf-8',
