@@ -1,0 +1,8 @@
+{
+  "name": "coverage-gap-scanner",
+  "enabled": true,
+  "interval": 3600000,
+  "projectRoot": "/workspaces/agentic-qe",
+  "dataDir": "/workspaces/agentic-qe/.agentic-qe/data",
+  "createdAt": "2026-01-25T14:23:40.904Z"
+}
