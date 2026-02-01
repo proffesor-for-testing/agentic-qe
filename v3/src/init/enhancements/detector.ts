@@ -62,8 +62,9 @@ async function detectClaudeFlow(): Promise<DetectionResult> {
           return { available: true };
         }
       }
-    } catch {
-      // Ignore
+    } catch (error) {
+      // Non-critical: Claude Flow config read/parse errors
+      console.debug('[EnhancementDetector] Claude Flow config check failed:', error instanceof Error ? error.message : error);
     }
 
     return { available: false };
@@ -93,8 +94,9 @@ async function detectRuVector(): Promise<DetectionResult> {
       if (result.trim().includes('ruvector')) {
         return { available: true };
       }
-    } catch {
-      // Ignore
+    } catch (error) {
+      // Non-critical: Docker check failed
+      console.debug('[EnhancementDetector] Docker RuVector check failed:', error instanceof Error ? error.message : error);
     }
 
     return { available: false };

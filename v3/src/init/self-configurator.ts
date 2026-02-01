@@ -178,9 +178,10 @@ const configurationRules: ConfigurationRule[] = [
     name: 'no-tests',
     condition: (a) => a.existingTests.totalCount === 0,
     apply: (config) => {
-      // Focus on test generation
+      // Focus on test generation - but keep ALL domains enabled
+      // Limiting domains causes "No factory registered" errors in fleet_init
       config.workers.enabled = ['pattern-consolidator'];
-      config.domains.enabled = ['test-generation', 'coverage-analysis', 'learning-optimization'];
+      // Don't override domains.enabled - keep all 12 domains from createDefaultConfig
       // Lower thresholds for new projects
       config.learning.qualityThreshold = 0.5;
       config.learning.promotionThreshold = 2;
@@ -417,44 +418,31 @@ export class SelfConfigurator {
 
   /**
    * Recommend enabled domains
+   *
+   * IMPORTANT: Always enable ALL 12 domains by default.
+   * Limiting domains causes "No factory registered" errors in fleet_init
+   * when MCP tools try to use domains that aren't enabled.
+   *
+   * Project analysis is used for prioritization and worker selection,
+   * but all domains remain available for users who need them.
    */
-  private recommendDomains(analysis: ProjectAnalysis): string[] {
-    // Core domains always enabled
-    const domains = new Set([
+  private recommendDomains(_analysis: ProjectAnalysis): string[] {
+    // All 12 DDD domains - always enabled to prevent fleet_init failures
+    // Users can disable domains manually in config.yaml if needed
+    return [
       'test-generation',
       'test-execution',
       'coverage-analysis',
+      'quality-assessment',
+      'defect-intelligence',
+      'requirements-validation',
+      'code-intelligence',
+      'security-compliance',
+      'contract-testing',
+      'visual-accessibility',
+      'chaos-resilience',
       'learning-optimization',
-    ]);
-
-    // Add quality assessment if CI is present
-    if (analysis.hasCIConfig) {
-      domains.add('quality-assessment');
-    }
-
-    // Add security for larger projects
-    if (analysis.codeComplexity.totalFiles > 100) {
-      domains.add('security-compliance');
-    }
-
-    // Add visual/a11y if E2E frameworks present
-    if (analysis.frameworks.some((f) => ['playwright', 'cypress'].includes(f.name))) {
-      domains.add('visual-accessibility');
-    }
-
-    // Add code intelligence for TypeScript/complex projects
-    if (
-      analysis.hasTypeScript ||
-      analysis.codeComplexity.recommendation === 'complex'
-    ) {
-      domains.add('code-intelligence');
-    }
-
-    // Add contract testing if API patterns detected
-    // (simplified: check for common API file patterns)
-    domains.add('contract-testing');
-
-    return Array.from(domains);
+    ];
   }
 
   /**

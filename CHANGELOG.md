@@ -5,6 +5,29 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.1] - 2026-02-01
+
+### Fixed
+
+- **MCP bundle missing dependencies** - Fixed issue #219 where `aqe-mcp` failed to start due to missing packages (`fast-json-patch`, `jose`, `uuid`, etc.)
+  - Changed build scripts from `--packages=external` to selective externalization
+  - Pure JS dependencies now bundled inline (no separate install needed)
+  - Native modules properly externalized (`better-sqlite3`, `hnswlib-node`, `@ruvector/*`)
+  - CommonJS modules with dynamic requires externalized (`typescript`, `fast-glob`, `yaml`, `commander`, `cli-progress`, `ora`)
+  - Bundle size reduced from ~15MB to ~5MB
+
+### Changed
+
+- **Build script improvements** - `v3/scripts/build-mcp.js` and `v3/scripts/build-cli.js` now use explicit `--external:` flags instead of `--packages=external`
+
+## [3.4.0] - 2026-01-31
+
+### Added
+
+- **All 12 QE domains enabled by default** - No longer requires manual domain activation
+- **Enhanced MCP server** - 31 tools registered for comprehensive QE automation
+- **Improved agent coordination** - Better swarm topology and task orchestration
+
 ## [3.1.5] - 2026-01-22
 
 ### Added

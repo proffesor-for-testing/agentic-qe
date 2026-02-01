@@ -1,10 +1,11 @@
 # Agentic QE Agent and Skill Catalog
 
-**Version**: 1.0
-**Generated**: 2026-01-23
-**Total Agents**: 59+
+**Version**: 1.1
+**Generated**: 2026-01-29
+**Total Agents**: 63+
 **Total Skills**: 91
 **V3 Domains**: 12
+**QCSD Ideation Agents**: 4 (NEW)
 
 ---
 
@@ -409,6 +410,62 @@ These agents span multiple domains and provide coordination capabilities.
 
 ---
 
+## QCSD Ideation Agents (New in v3.4)
+
+These agents support the QCSD Ideation phase with comprehensive quality analysis using HTSM v6.3 and SFDIPOT frameworks.
+
+| Agent | Function | Key Capabilities | QCSD Phases |
+|-------|----------|------------------|-------------|
+| `qe-quality-criteria-recommender` | HTSM v6.3 quality criteria | 10 quality categories, evidence-based recommendations, cross-phase learning | Ideation |
+| `qe-product-factors-assessor` | SFDIPOT analysis | 7-factor assessment, 37 subcategories, test idea generation | Ideation, Grooming |
+| `qe-risk-assessor` | Risk assessment | Multi-factor scoring, impact analysis, mitigation recommendations | Ideation, Grooming |
+| `qe-test-idea-rewriter` | Test idea transformation | Transform "Verify X" to action verbs, enforce quality rules | Grooming, Development |
+
+### HTSM v6.3 Quality Categories
+
+The `qe-quality-criteria-recommender` analyzes requirements against James Bach's 10 quality categories:
+
+| Category | Focus |
+|----------|-------|
+| Capability | Core functionality |
+| Reliability | Consistency under conditions |
+| Usability | User experience |
+| Charisma | Aesthetics, brand alignment |
+| Security | Protection from threats |
+| Scalability | Growth handling |
+| Compatibility | Integration with other systems |
+| Performance | Speed and efficiency |
+| Installability | Deployment ease |
+| Supportability | Maintenance and debugging |
+
+### SFDIPOT Framework
+
+The `qe-product-factors-assessor` uses SFDIPOT for comprehensive product analysis:
+
+| Factor | Questions |
+|--------|-----------|
+| **S**tructure | What the product IS (architecture, components) |
+| **F**unction | What it DOES (features, calculations) |
+| **D**ata | What it PROCESSES (input/output, persistence) |
+| **I**nterfaces | How it CONNECTS (UI, APIs, integrations) |
+| **P**latform | What it DEPENDS ON (OS, browser, services) |
+| **O**perations | How it's USED (workflows, edge cases) |
+| **T**ime | WHEN things happen (concurrency, scheduling) |
+
+### Cross-Phase Memory Integration
+
+These agents participate in QCSD feedback loops via the cross-phase memory system:
+
+| Agent | Loop | Role |
+|-------|------|------|
+| qe-quality-criteria-recommender | Strategic (Loop 1) | CONSUMER - receives production risk weights |
+| qe-risk-assessor | Strategic (Loop 1) | CONSUMER - receives production risk weights |
+| qe-product-factors-assessor | Tactical (Loop 2) | CONSUMER - receives SFDIPOT factor weights |
+
+See `docs/architecture/CROSS-PHASE-MEMORY-IMPLEMENTATION.md` for full details.
+
+---
+
 ## QCSD Phase Mapping
 
 ### Ideation Phase
@@ -418,6 +475,9 @@ These agents span multiple domains and provide coordination capabilities.
 | qe-requirements-validator | Validate requirement quality |
 | qe-acceptance-criteria | Assess testability |
 | qe-bdd-specialist | Generate initial scenarios |
+| **qe-quality-criteria-recommender** | HTSM v6.3 quality criteria analysis (NEW) |
+| **qe-risk-assessor** | Multi-factor risk scoring with cross-phase learning (NEW) |
+| **qe-product-factors-assessor** | SFDIPOT product factors analysis (NEW) |
 
 ### Grooming Phase
 
@@ -604,8 +664,9 @@ aqe test generate --file src/services/UserService.ts --framework jest
 
 | Category | Count |
 |----------|-------|
-| **Total Agents** | 59+ |
+| **Total Agents** | 63+ |
 | **V3 Domains** | 12 |
+| **QCSD Ideation Agents** | 4 (NEW) |
 | **Core QE Skills** | 12 |
 | **Total Skills** | 91 |
 | **QCSD Phases** | 5 |

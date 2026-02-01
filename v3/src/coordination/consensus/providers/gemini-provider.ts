@@ -193,7 +193,7 @@ export class GeminiModelProvider extends BaseModelProvider {
       defaultModel: config.defaultModel || 'gemini-1.5-pro-latest',
       baseUrl: this.baseUrl,
       defaultTimeout: config.defaultTimeout || 30000,
-      maxRetries: config.maxRetries || 3,
+      maxRetries: config.maxRetries ?? 3,
       retryDelayMs: config.retryDelayMs || 1000,
       enableLogging: config.enableLogging || false,
     };

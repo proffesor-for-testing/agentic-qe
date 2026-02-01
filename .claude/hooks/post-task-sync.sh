@@ -16,7 +16,7 @@
 # Configuration
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CLAUDE_FLOW_STORE="$PROJECT_ROOT/.claude-flow/memory/store.json"
-AQE_V3_DB="$PROJECT_ROOT/v3/.agentic-qe/memory.db"
+AQE_V3_DB="$PROJECT_ROOT/.agentic-qe/memory.db"
 SYNC_LOG="$PROJECT_ROOT/.agentic-qe/sync.log"
 
 # Create log directory if needed

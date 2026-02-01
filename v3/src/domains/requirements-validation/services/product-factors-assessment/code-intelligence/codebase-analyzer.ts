@@ -327,8 +327,9 @@ export class CodebaseAnalyzer {
             files.push(relativePath);
           }
         }
-      } catch {
-        // Ignore permission errors
+      } catch (error) {
+        // Non-critical: permission errors when scanning directories
+        console.debug('[CodebaseAnalyzer] Directory scan error:', error instanceof Error ? error.message : error);
       }
     };
 

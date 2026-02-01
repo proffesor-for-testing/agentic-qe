@@ -3,7 +3,7 @@
  * ADR-038: V3 QE Memory Unification
  *
  * Migrates data from V2 AQE fleet (.agentic-qe/memory.db) to V3 systems:
- * - patterns → RealQEReasoningBank (.agentic-qe/qe-patterns.db)
+ * - patterns → RealQEReasoningBank (.agentic-qe/memory.db)
  * - captured_experiences → QEUnifiedMemory learning domain
  * - learning_experiences → RL training data
  * - concept_nodes/edges → Code intelligence knowledge graph
@@ -23,7 +23,7 @@ import type { QEMemoryDomain } from './qe-unified-memory.js';
 export interface V2MigrationConfig {
   /** Path to V2 memory.db file */
   v2DbPath: string;
-  /** Path to V3 qe-patterns.db file */
+  /** Path to V3 memory.db file */
   v3PatternsDbPath: string;
   /** Progress callback */
   onProgress?: (progress: V2MigrationProgress) => void;
@@ -732,7 +732,7 @@ export class V2ToV3Migrator {
  */
 export async function migrateV2ToV3(
   v2DbPath: string = '.agentic-qe/memory.db',
-  v3PatternsDbPath: string = '.agentic-qe/qe-patterns.db',
+  v3PatternsDbPath: string = '.agentic-qe/memory.db',
   onProgress?: (progress: V2MigrationProgress) => void
 ): Promise<V2MigrationResult> {
   const migrator = new V2ToV3Migrator({

@@ -42,7 +42,14 @@ export class DefaultPluginLoader implements PluginLoader {
     // Get factory
     const factory = this.factories.get(domain);
     if (!factory) {
-      throw new Error(`No factory registered for domain: ${domain}`);
+      const registeredDomains = Array.from(this.factories.keys());
+      throw new Error(
+        `No factory registered for domain: ${domain}\n` +
+        `This usually means the domain is not enabled in your config.\n` +
+        `Registered domains: ${registeredDomains.join(', ')}\n` +
+        `Fix: Add '${domain}' to domains.enabled in .agentic-qe/config.yaml, ` +
+        `or run 'aqe init --auto-migrate' to enable all domains.`
+      );
     }
 
     // Start loading

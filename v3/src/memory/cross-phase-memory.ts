@@ -2,62 +2,67 @@
  * Cross-Phase Memory Service
  *
  * Implements persistent memory for QCSD cross-phase feedback loops.
- * Enables automated learning between phases.
+ * Uses UnifiedMemoryManager (SQLite) for storage instead of file-based JSON.
  *
  * @module cross-phase-memory
- * @version 1.0.0
+ * @version 2.0.0
  */
 
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, unlinkSync } from 'fs';
-import { join, dirname } from 'path';
+import {
+  UnifiedMemoryManager,
+  getUnifiedMemory,
+} from '../kernel/unified-memory.js';
 import {
   CrossPhaseSignal,
   ProductionRiskSignal,
   SFDIPOTWeightSignal,
   TestHealthSignal,
   ACQualitySignal,
-  CROSS_PHASE_NAMESPACES,
   SIGNAL_TTL,
   createSignalId,
   calculateExpiry,
   isSignalExpired,
-  getNamespaceForLoop,
   FeedbackLoopType,
-  CrossPhaseNamespace,
   RiskWeight,
   FactorWeight,
   FlakyPattern,
   UntestablePattern,
+  GateFailure,
+  CoverageGap,
 } from '../types/cross-phase-signals.js';
+
+// =============================================================================
+// Namespace Constants (stored in UnifiedMemory)
+// =============================================================================
+
+export const CROSS_PHASE_NAMESPACES = {
+  STRATEGIC: 'qcsd/strategic',
+  TACTICAL: 'qcsd/tactical',
+  OPERATIONAL: 'qcsd/operational',
+  QUALITY_CRITERIA: 'qcsd/quality-criteria',
+} as const;
+
+export type CrossPhaseNamespace = typeof CROSS_PHASE_NAMESPACES[keyof typeof CROSS_PHASE_NAMESPACES];
 
 // =============================================================================
 // Configuration
 // =============================================================================
 
-const DEFAULT_BASE_PATH = process.env.AGENTIC_QE_DATA_DIR || '.agentic-qe';
-
 export interface CrossPhaseMemoryConfig {
-  basePath: string;
-  enablePersistence: boolean;
-  cleanupOnInit: boolean;
+  /** Custom UnifiedMemoryManager instance (for testing) */
+  memoryManager?: UnifiedMemoryManager;
 }
-
-const defaultConfig: CrossPhaseMemoryConfig = {
-  basePath: DEFAULT_BASE_PATH,
-  enablePersistence: true,
-  cleanupOnInit: true,
-};
 
 // =============================================================================
 // Cross-Phase Memory Service
 // =============================================================================
 
 export class CrossPhaseMemoryService {
-  private config: CrossPhaseMemoryConfig;
+  private memory: UnifiedMemoryManager;
   private initialized: boolean = false;
 
-  constructor(config: Partial<CrossPhaseMemoryConfig> = {}) {
-    this.config = { ...defaultConfig, ...config };
+  constructor(config: CrossPhaseMemoryConfig = {}) {
+    this.memory = config.memoryManager || getUnifiedMemory();
   }
 
   // ---------------------------------------------------------------------------
@@ -67,29 +72,9 @@ export class CrossPhaseMemoryService {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Create all namespace directories
-    for (const namespace of Object.values(CROSS_PHASE_NAMESPACES)) {
-      const dir = this.getNamespacePath(namespace);
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
-      }
-    }
-
-    // Cleanup expired signals if configured
-    if (this.config.cleanupOnInit) {
-      await this.cleanupExpired();
-    }
-
+    await this.memory.initialize();
     this.initialized = true;
-    console.log('[CrossPhaseMemory] Initialized with namespaces:', Object.keys(CROSS_PHASE_NAMESPACES).length);
-  }
-
-  private getNamespacePath(namespace: CrossPhaseNamespace): string {
-    return join(this.config.basePath, namespace);
-  }
-
-  private getSignalPath(namespace: CrossPhaseNamespace, signalId: string): string {
-    return join(this.getNamespacePath(namespace), `${signalId}.json`);
+    console.log('[CrossPhaseMemory] Initialized with UnifiedMemoryManager');
   }
 
   // ---------------------------------------------------------------------------
@@ -114,14 +99,14 @@ export class CrossPhaseMemoryService {
       recommendations,
     };
 
-    await this.store(CROSS_PHASE_NAMESPACES.DEFECT_WEIGHTS, signal);
+    await this.store(CROSS_PHASE_NAMESPACES.STRATEGIC, signal);
     return signal;
   }
 
   async queryRiskSignals(): Promise<ProductionRiskSignal[]> {
     await this.ensureInitialized();
     const signals = await this.queryByNamespace<ProductionRiskSignal>(
-      CROSS_PHASE_NAMESPACES.DEFECT_WEIGHTS
+      CROSS_PHASE_NAMESPACES.STRATEGIC
     );
     return signals.filter(s => !isSignalExpired(s));
   }
@@ -150,14 +135,14 @@ export class CrossPhaseMemoryService {
       recommendations,
     };
 
-    await this.store(CROSS_PHASE_NAMESPACES.FAILURE_MODES, signal);
+    await this.store(CROSS_PHASE_NAMESPACES.TACTICAL, signal);
     return signal;
   }
 
   async querySFDIPOTSignals(featureContext?: string): Promise<SFDIPOTWeightSignal[]> {
     await this.ensureInitialized();
     let signals = await this.queryByNamespace<SFDIPOTWeightSignal>(
-      CROSS_PHASE_NAMESPACES.FAILURE_MODES
+      CROSS_PHASE_NAMESPACES.TACTICAL
     );
     signals = signals.filter(s => !isSignalExpired(s));
 
@@ -176,7 +161,7 @@ export class CrossPhaseMemoryService {
 
   async storeTestHealthSignal(
     flakyPatterns: FlakyPattern[],
-    gateFailures: TestHealthSignal['gateFailures'],
+    gateFailures: GateFailure[],
     recommendations: TestHealthSignal['recommendations']
   ): Promise<TestHealthSignal> {
     await this.ensureInitialized();
@@ -194,14 +179,14 @@ export class CrossPhaseMemoryService {
       recommendations,
     };
 
-    await this.store(CROSS_PHASE_NAMESPACES.FLAKY_TESTS, signal);
+    await this.store(CROSS_PHASE_NAMESPACES.OPERATIONAL, signal);
     return signal;
   }
 
   async queryTestHealthSignals(): Promise<TestHealthSignal[]> {
     await this.ensureInitialized();
     const signals = await this.queryByNamespace<TestHealthSignal>(
-      CROSS_PHASE_NAMESPACES.FLAKY_TESTS
+      CROSS_PHASE_NAMESPACES.OPERATIONAL
     );
     return signals.filter(s => !isSignalExpired(s));
   }
@@ -212,7 +197,7 @@ export class CrossPhaseMemoryService {
 
   async storeACQualitySignal(
     untestablePatterns: UntestablePattern[],
-    coverageGaps: ACQualitySignal['coverageGaps'],
+    coverageGaps: CoverageGap[],
     recommendations: ACQualitySignal['recommendations']
   ): Promise<ACQualitySignal> {
     await this.ensureInitialized();
@@ -230,14 +215,14 @@ export class CrossPhaseMemoryService {
       recommendations,
     };
 
-    await this.store(CROSS_PHASE_NAMESPACES.AC_PROBLEMS, signal);
+    await this.store(CROSS_PHASE_NAMESPACES.QUALITY_CRITERIA, signal);
     return signal;
   }
 
   async queryACQualitySignals(): Promise<ACQualitySignal[]> {
     await this.ensureInitialized();
     const signals = await this.queryByNamespace<ACQualitySignal>(
-      CROSS_PHASE_NAMESPACES.AC_PROBLEMS
+      CROSS_PHASE_NAMESPACES.QUALITY_CRITERIA
     );
     return signals.filter(s => !isSignalExpired(s));
   }
@@ -247,38 +232,23 @@ export class CrossPhaseMemoryService {
   // ---------------------------------------------------------------------------
 
   async store<T extends CrossPhaseSignal>(namespace: CrossPhaseNamespace, signal: T): Promise<void> {
-    if (!this.config.enablePersistence) {
-      console.log(`[CrossPhaseMemory] Persistence disabled, signal ${signal.id} not stored`);
-      return;
-    }
+    // Calculate TTL in seconds for UnifiedMemoryManager
+    const expiresAtMs = new Date(signal.expiresAt).getTime();
+    const ttlSeconds = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
 
-    const path = this.getSignalPath(namespace, signal.id);
-    const dir = dirname(path);
-
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
-
-    writeFileSync(path, JSON.stringify(signal, null, 2), 'utf-8');
+    await this.memory.kvSet(signal.id, signal, namespace, ttlSeconds > 0 ? ttlSeconds : undefined);
     console.log(`[CrossPhaseMemory] Stored signal: ${signal.id} in ${namespace}`);
   }
 
   async queryByNamespace<T extends CrossPhaseSignal>(namespace: CrossPhaseNamespace): Promise<T[]> {
-    const dir = this.getNamespacePath(namespace);
-
-    if (!existsSync(dir)) {
-      return [];
-    }
-
-    const files = readdirSync(dir).filter(f => f.endsWith('.json'));
+    // Search for all keys in this namespace
+    const keys = await this.memory.kvSearch('*', namespace, 1000);
     const signals: T[] = [];
 
-    for (const file of files) {
-      try {
-        const content = readFileSync(join(dir, file), 'utf-8');
-        signals.push(JSON.parse(content) as T);
-      } catch (err) {
-        console.warn(`[CrossPhaseMemory] Failed to read ${file}:`, err);
+    for (const key of keys) {
+      const signal = await this.memory.kvGet<T>(key, namespace);
+      if (signal) {
+        signals.push(signal);
       }
     }
 
@@ -289,15 +259,11 @@ export class CrossPhaseMemoryService {
   }
 
   async delete(namespace: CrossPhaseNamespace, signalId: string): Promise<boolean> {
-    const path = this.getSignalPath(namespace, signalId);
-
-    if (existsSync(path)) {
-      unlinkSync(path);
+    const deleted = await this.memory.kvDelete(signalId, namespace);
+    if (deleted) {
       console.log(`[CrossPhaseMemory] Deleted signal: ${signalId}`);
-      return true;
     }
-
-    return false;
+    return deleted;
   }
 
   // ---------------------------------------------------------------------------
@@ -405,7 +371,7 @@ export class CrossPhaseMemoryService {
 
 let instance: CrossPhaseMemoryService | null = null;
 
-export function getCrossPhaseMemory(config?: Partial<CrossPhaseMemoryConfig>): CrossPhaseMemoryService {
+export function getCrossPhaseMemory(config?: CrossPhaseMemoryConfig): CrossPhaseMemoryService {
   if (!instance) {
     instance = new CrossPhaseMemoryService(config);
   }

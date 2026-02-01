@@ -366,8 +366,8 @@ describe('EarlyExitTokenOptimizer', () => {
       const optimizer = new EarlyExitTokenOptimizer(store);
       optimizer.recordSuccessfulReuse(pattern.id);
 
-      // Wait for async operation
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Wait for async operation using process.nextTick for deterministic behavior
+      await new Promise((resolve) => process.nextTick(resolve));
 
       expect(store.recordUsage).toHaveBeenCalledWith(pattern.id, true);
     });
@@ -383,8 +383,8 @@ describe('EarlyExitTokenOptimizer', () => {
       const optimizer = new EarlyExitTokenOptimizer(store);
       optimizer.recordFailedReuse(pattern.id);
 
-      // Wait for async operation
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Wait for async operation using process.nextTick for deterministic behavior
+      await new Promise((resolve) => process.nextTick(resolve));
 
       expect(store.recordUsage).toHaveBeenCalledWith(pattern.id, false);
     });

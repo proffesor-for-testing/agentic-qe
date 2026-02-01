@@ -1,10 +1,14 @@
 /**
- * Accessibility Tester E2E Integration Tests
+ * Accessibility Tester INFRASTRUCTURE Tests
  *
- * REAL tests that verify:
- * - AccessibilityTesterService works with real browser client
- * - axe-core actually runs in the browser and returns results
- * - Real accessibility violations are detected on test pages
+ * NOTE: These are NOT user-facing E2E tests. They test the accessibility
+ * testing infrastructure. For critical user journey E2E tests, see:
+ * tests/e2e/critical-user-journeys.e2e.test.ts
+ *
+ * These tests verify:
+ * - AccessibilityTesterService integrates with browser client
+ * - axe-core injection and execution works
+ * - Violation detection and reporting works
  *
  * These tests require agent-browser CLI to be installed.
  * NOTE: Tests are automatically SKIPPED in CI where agent-browser is unavailable.

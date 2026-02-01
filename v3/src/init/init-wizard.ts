@@ -572,7 +572,7 @@ export class InitOrchestrator {
       // Step 1: Run the actual data migration (patterns, experiences, concept graph)
       if (v2Detection.memoryDbPath) {
         console.log('  Migrating V2 data to V3 format...');
-        const v3PatternsDbPath = join(this.projectRoot, '.agentic-qe', 'qe-patterns.db');
+        const v3PatternsDbPath = join(this.projectRoot, '.agentic-qe', 'memory.db');
 
         const migrator = new V2ToV3Migrator({
           v2DbPath: v2Detection.memoryDbPath,
@@ -763,7 +763,22 @@ export class InitOrchestrator {
           overwrite: false,
         },
         domains: {
-          enabled: ['test-generation', 'coverage-analysis', 'learning-optimization'],
+          // Enable ALL domains - v3 supports all 12 DDD domains
+          // Limiting to 3 causes "No factory registered" errors in fleet_init
+          enabled: [
+            'test-generation',
+            'test-execution',
+            'coverage-analysis',
+            'quality-assessment',
+            'defect-intelligence',
+            'requirements-validation',
+            'code-intelligence',
+            'security-compliance',
+            'contract-testing',
+            'visual-accessibility',
+            'chaos-resilience',
+            'learning-optimization',
+          ],
           disabled: [],
         },
         agents: {
@@ -989,8 +1004,9 @@ ${yaml.stringify(v3Config)}`;
    */
   private async initializePersistenceDatabase(): Promise<boolean> {
     // Check that better-sqlite3 is available (use dynamic import for ESM/test compatibility)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let Database: any = null;
+    // Type for dynamically imported better-sqlite3 constructor
+    type DatabaseConstructor = new (filename: string) => import('better-sqlite3').Database;
+    let Database: DatabaseConstructor | null = null;
     try {
       // Use dynamic import for proper mocking in tests
       const mod = await import('better-sqlite3');
@@ -1093,7 +1109,7 @@ ${yaml.stringify(v3Config)}`;
       hnswConfig: config.learning.hnswConfig,
       qualityThreshold: config.learning.qualityThreshold,
       promotionThreshold: config.learning.promotionThreshold,
-      databasePath: join(dataDir, 'qe-patterns.db'),
+      databasePath: join(dataDir, 'memory.db'),
       hnswIndexPath: join(hnswDir, 'index.bin'),
       initialized: new Date().toISOString(),
     };
@@ -1187,7 +1203,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_INPUT_file_path" ] && npx agentic-qe hooks pre-edit --file "$TOOL_INPUT_file_path" 2>/dev/null || true',
+              command: '[ -n "$TOOL_INPUT_file_path" ] && aqe hooks pre-edit --file "$TOOL_INPUT_file_path" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1198,7 +1214,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_INPUT_command" ] && npx agentic-qe hooks pre-command --command "$TOOL_INPUT_command" 2>/dev/null || true',
+              command: '[ -n "$TOOL_INPUT_command" ] && aqe hooks pre-command --command "$TOOL_INPUT_command" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1209,7 +1225,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_INPUT_prompt" ] && npx agentic-qe hooks pre-task --task-id "task-$(date +%s)" --description "$TOOL_INPUT_prompt" 2>/dev/null || true',
+              command: '[ -n "$TOOL_INPUT_prompt" ] && aqe hooks pre-task --task-id "task-$(date +%s)" --description "$TOOL_INPUT_prompt" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1224,7 +1240,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_INPUT_file_path" ] && npx agentic-qe hooks post-edit --file "$TOOL_INPUT_file_path" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
+              command: '[ -n "$TOOL_INPUT_file_path" ] && aqe hooks post-edit --file "$TOOL_INPUT_file_path" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1235,7 +1251,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_INPUT_command" ] && npx agentic-qe hooks post-command --command "$TOOL_INPUT_command" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
+              command: '[ -n "$TOOL_INPUT_command" ] && aqe hooks post-command --command "$TOOL_INPUT_command" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1246,7 +1262,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$TOOL_RESULT_agent_id" ] && npx agentic-qe hooks post-task --task-id "$TOOL_RESULT_agent_id" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
+              command: '[ -n "$TOOL_RESULT_agent_id" ] && aqe hooks post-task --task-id "$TOOL_RESULT_agent_id" --success "${TOOL_SUCCESS:-true}" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1260,7 +1276,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$PROMPT" ] && npx agentic-qe hooks route --task "$PROMPT" 2>/dev/null || true',
+              command: '[ -n "$PROMPT" ] && aqe hooks route --task "$PROMPT" 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1274,7 +1290,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: '[ -n "$SESSION_ID" ] && npx agentic-qe hooks session-start --session-id "$SESSION_ID" 2>/dev/null || true',
+              command: '[ -n "$SESSION_ID" ] && aqe hooks session-start --session-id "$SESSION_ID" 2>/dev/null || true',
               timeout: 10000,
               continueOnError: true,
             },
@@ -1287,7 +1303,7 @@ ${yaml.stringify(v3Config)}`;
           hooks: [
             {
               type: 'command',
-              command: 'npx agentic-qe hooks session-end --save-state 2>/dev/null || true',
+              command: 'aqe hooks session-end --save-state 2>/dev/null || true',
               timeout: 5000,
               continueOnError: true,
             },
@@ -1341,7 +1357,78 @@ ${yaml.stringify(v3Config)}`;
     // Write settings
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
 
+    // Install cross-phase memory hooks configuration
+    await this.installCrossPhaseMemoryHooks();
+
     return true;
+  }
+
+  /**
+   * Install cross-phase memory hooks configuration file
+   * Copies the QCSD feedback loop hooks from assets to .claude/hooks/
+   */
+  private async installCrossPhaseMemoryHooks(): Promise<void> {
+    const hooksDir = join(this.projectRoot, '.claude', 'hooks');
+    if (!existsSync(hooksDir)) {
+      mkdirSync(hooksDir, { recursive: true });
+    }
+
+    const targetPath = join(hooksDir, 'cross-phase-memory.yaml');
+
+    // Don't overwrite if already exists
+    if (existsSync(targetPath)) {
+      return;
+    }
+
+    // Try to find the asset file
+    const possiblePaths = [
+      // Installed package location
+      join(dirname(import.meta.url.replace('file://', '')), '..', '..', 'assets', 'hooks', 'cross-phase-memory.yaml'),
+      // Development location
+      join(process.cwd(), 'assets', 'hooks', 'cross-phase-memory.yaml'),
+      join(process.cwd(), 'v3', 'assets', 'hooks', 'cross-phase-memory.yaml'),
+    ];
+
+    for (const sourcePath of possiblePaths) {
+      try {
+        if (existsSync(sourcePath)) {
+          copyFileSync(sourcePath, targetPath);
+          console.log('  ✓ Cross-phase memory hooks installed');
+          return;
+        }
+      } catch {
+        // Try next path
+      }
+    }
+
+    // If no asset found, create minimal config
+    const minimalConfig = `# Cross-Phase Memory Hooks Configuration
+# Generated by aqe init
+# See: https://github.com/anthropics/agentic-qe/docs/cross-phase-memory.md
+
+version: "1.0"
+enabled: true
+
+hooks:
+  # Add custom QCSD feedback loop hooks here
+  # See .claude/hooks/cross-phase-memory.yaml in the agentic-qe repo for examples
+
+routing:
+  authorized_receivers:
+    strategic:
+      - "qe-risk-assessor"
+      - "qe-quality-criteria-recommender"
+    tactical:
+      - "qe-product-factors-assessor"
+    operational:
+      - "qe-test-architect"
+      - "qe-tdd-specialist"
+    quality-criteria:
+      - "qe-requirements-validator"
+      - "qe-bdd-generator"
+`;
+    writeFileSync(targetPath, minimalConfig, 'utf-8');
+    console.log('  ✓ Cross-phase memory hooks created (minimal config)');
   }
 
   /**
@@ -1641,7 +1728,7 @@ Bash("npx @claude-flow/cli@latest memory store --key 'qe-pattern-1' --value '...
 ### Data Storage
 
 - **Memory Backend**: \`.agentic-qe/memory.db\` (SQLite)
-- **Pattern Storage**: \`.agentic-qe/data/qe-patterns.db\` (ReasoningBank)
+- **Pattern Storage**: \`.agentic-qe/data/memory.db\` (ReasoningBank)
 - **HNSW Index**: \`.agentic-qe/data/hnsw/index.bin\`
 - **Configuration**: \`.agentic-qe/config.yaml\`
 

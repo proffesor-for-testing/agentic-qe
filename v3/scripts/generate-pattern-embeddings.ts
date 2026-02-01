@@ -14,7 +14,7 @@ async function main() {
   // Initialize SQLite Pattern Store
   console.log('1. Initializing Pattern Store...');
   const patternStore = createSQLitePatternStore({
-    dbPath: '.agentic-qe/qe-patterns.db',
+    dbPath: '.agentic-qe/memory.db',
   });
   await patternStore.initialize();
   console.log('   Initialized');

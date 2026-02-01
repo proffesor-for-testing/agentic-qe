@@ -18,14 +18,46 @@ const version = rootPkg.version;
 
 console.log(`Building MCP with version: ${version}`);
 
+// Native modules and packages that cannot be bundled
+// (native binaries, dynamic requires, or optional dependencies)
+const nativeExternals = [
+  // Native modules with platform-specific binaries
+  'better-sqlite3',
+  'hnswlib-node',
+  '@ruvector/attention',
+  '@ruvector/gnn',
+  '@ruvector/sona',
+  '@ruvector/attention-darwin-arm64',
+  '@ruvector/attention-linux-arm64-gnu',
+  '@ruvector/gnn-darwin-arm64',
+  '@ruvector/gnn-linux-arm64-gnu',
+  '@xenova/transformers',
+  'vibium',
+  '@claude-flow/browser',
+  'prime-radiant-advanced-wasm',
+  // PostgreSQL driver (optional)
+  'pg',
+  'pg-native',
+  // CommonJS modules with dynamic requires (incompatible with ESM bundling)
+  'typescript',
+  'fast-glob',
+  'yaml',
+  'commander',
+  'cli-progress',
+  'ora',
+  // Optional dependencies
+  'express',
+];
+
 // Build MCP with version injected
+// Bundle pure JS dependencies inline, externalize only native modules
 const cmd = [
   'esbuild',
   'src/mcp/entry.ts',
   '--bundle',
   '--platform=node',
   '--format=esm',
-  '--packages=external',
+  ...nativeExternals.map(pkg => `--external:${pkg}`),
   '--outfile=dist/mcp/bundle.js',
   `--define:__CLI_VERSION__='"${version}"'`,
   "--banner:js='#!/usr/bin/env node'",

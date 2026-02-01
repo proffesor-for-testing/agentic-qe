@@ -262,7 +262,17 @@ function printSyncReport(report: SyncReport): void {
 /**
  * Print sync status
  */
-function printSyncStatus(status: { sources: any[]; lastSync?: Date }): void {
+interface SyncSource {
+  name: string;
+  type: string;
+  targetTable: string;
+  recordCount: number;
+  priority: 'high' | 'medium' | 'low';
+  enabled: boolean;
+  error?: string;
+}
+
+function printSyncStatus(status: { sources: SyncSource[]; lastSync?: Date }): void {
   console.log(chalk.cyan('\n=== Sync Status ===\n'));
 
   if (status.lastSync) {
@@ -299,7 +309,20 @@ function printSyncStatus(status: { sources: any[]; lastSync?: Date }): void {
 /**
  * Print verify result
  */
-function printVerifyResult(result: any): void {
+interface VerifyTableResult {
+  source: string;
+  match: boolean;
+  localCount: number;
+  cloudCount: number;
+  diff: number;
+}
+
+interface VerifyResult {
+  verified: boolean;
+  results: VerifyTableResult[];
+}
+
+function printVerifyResult(result: VerifyResult): void {
   const statusColor = result.verified ? chalk.green : chalk.red;
 
   console.log(chalk.cyan('\n=== Verification Result ===\n'));

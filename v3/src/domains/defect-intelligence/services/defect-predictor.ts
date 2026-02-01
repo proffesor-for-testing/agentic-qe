@@ -697,8 +697,9 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
             (classCount > 3 ? 0.05 : 0); // Many classes add complexity
 
           return Math.max(0, Math.min(1, complexity));
-        } catch {
-          // Fall through to heuristics if parsing fails
+        } catch (error) {
+          // Non-critical: AST parse errors, using heuristics fallback
+          console.debug('[DefectPredictor] AST parse failed:', error instanceof Error ? error.message : error);
         }
       }
     }

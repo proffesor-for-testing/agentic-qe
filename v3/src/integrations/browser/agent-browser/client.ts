@@ -285,8 +285,9 @@ export class AgentBrowserClient implements IAgentBrowserClient {
       if (this.executor) {
         try {
           this.executor.terminateDaemon();
-        } catch {
-          // Ignore - best effort
+        } catch (error) {
+          // Non-critical: best effort daemon termination
+          console.debug('[AgentBrowserClient] Daemon termination error:', error instanceof Error ? error.message : error);
         }
       }
 
@@ -1188,8 +1189,9 @@ export async function cleanupAllBrowserProcesses(): Promise<void> {
       timeout: 5000,
       stdio: 'ignore'
     });
-  } catch {
-    // Ignore errors
+  } catch (error) {
+    // Non-critical: daemon cleanup errors
+    console.debug('[AgentBrowserClient] Daemon cleanup error:', error instanceof Error ? error.message : error);
   }
 
   try {
@@ -1198,7 +1200,8 @@ export async function cleanupAllBrowserProcesses(): Promise<void> {
       timeout: 5000,
       stdio: 'ignore'
     });
-  } catch {
-    // Ignore errors
+  } catch (error) {
+    // Non-critical: chromium cleanup errors
+    console.debug('[AgentBrowserClient] Chromium cleanup error:', error instanceof Error ? error.message : error);
   }
 }

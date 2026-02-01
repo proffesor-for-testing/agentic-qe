@@ -192,9 +192,30 @@ export async function compareImplementations(
 // ============================================================================
 
 /**
+ * Mock memory backend type for benchmarks
+ */
+interface MockMemoryBackend {
+  set(key: string, value: unknown, metadata?: unknown): Promise<void>;
+  get(key: string): Promise<{ value: unknown; metadata?: unknown } | null>;
+  delete(key: string): Promise<boolean>;
+  has(key: string): Promise<boolean>;
+  keys(): Promise<string[]>;
+  clear(): Promise<void>;
+  close(): Promise<void>;
+  vectorSearch(embedding: number[], k: number): Promise<Array<{ key: string; score: number; metadata: unknown }>>;
+  storeVector(key: string, embedding: number[], metadata?: unknown): Promise<void>;
+  getStats(): Promise<{ keyCount: number; vectorCount: number }>;
+  search(): Promise<never[]>;
+  count(): Promise<number>;
+  hasCodeIntelligenceIndex(): boolean;
+  initialize(): Promise<void>;
+  dispose(): Promise<void>;
+}
+
+/**
  * Create a mock memory backend for benchmarks
  */
-function createMockMemoryBackend(): any {
+function createMockMemoryBackend(): MockMemoryBackend {
   const store = new Map<string, { value: unknown; metadata?: unknown }>();
   const vectors = new Map<string, { embedding: number[]; metadata: unknown }>();
 
@@ -231,6 +252,10 @@ function createMockMemoryBackend(): any {
     },
     getStats: async () => ({ keyCount: store.size, vectorCount: vectors.size }),
     search: async () => [],
+    count: async () => store.size,
+    hasCodeIntelligenceIndex: () => false,
+    initialize: async () => {},
+    dispose: async () => { store.clear(); vectors.clear(); },
   };
 }
 
@@ -259,7 +284,8 @@ export async function benchmarkHNSWIndex(): Promise<BenchmarkResult[]> {
     };
 
     const mockMemory = createMockMemoryBackend();
-    const index = new HNSWIndex(mockMemory, config);
+    // Cast mock to MemoryBackend for benchmark purposes - mock implements required methods
+    const index = new HNSWIndex(mockMemory as unknown as import('../kernel/interfaces.js').MemoryBackend, config);
 
     // Benchmark initialization
     const initResult = await runBenchmark(
@@ -331,7 +357,7 @@ export async function benchmarkHNSWIndex(): Promise<BenchmarkResult[]> {
           metric: 'cosine' as const,
         };
         const testMemory = createMockMemoryBackend();
-        const testIndex = new HNSWIndex(testMemory, testConfig);
+        const testIndex = new HNSWIndex(testMemory as unknown as import('../kernel/interfaces.js').MemoryBackend, testConfig);
         await testIndex.initialize();
 
         for (let i = 0; i < size; i++) {

@@ -14,6 +14,8 @@ import { parse as parseYaml } from 'yaml';
 import {
   getCrossPhaseMemory,
   CrossPhaseMemoryService,
+  CROSS_PHASE_NAMESPACES,
+  CrossPhaseNamespace,
 } from '../memory/cross-phase-memory.js';
 import {
   CrossPhaseSignal,
@@ -22,8 +24,6 @@ import {
   TestHealthSignal,
   ACQualitySignal,
   FeedbackLoopType,
-  CROSS_PHASE_NAMESPACES,
-  CrossPhaseNamespace,
   RiskWeight,
   FactorWeight,
   FlakyPattern,

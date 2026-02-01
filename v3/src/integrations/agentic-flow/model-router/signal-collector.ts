@@ -267,8 +267,9 @@ export class SignalCollector implements ISignalCollector {
             reason: matchingOpp.reason,
           };
         }
-      } catch {
-        // Fall through to keyword-based detection
+      } catch (error) {
+        // Non-critical: WASM analysis failed, using keyword detection
+        console.debug('[SignalCollector] WASM analysis error:', error instanceof Error ? error.message : error);
       }
     }
 

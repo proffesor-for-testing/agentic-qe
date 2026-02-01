@@ -5,6 +5,263 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-02-01
+
+### 🎯 Highlights
+
+**AG-UI, A2A, and A2UI Protocol Implementation** - Full implementation of Agent-to-UI (AG-UI), Agent-to-Agent (A2A), and Agent-to-UI (A2UI) protocols enabling interoperability with other agentic frameworks and real-time UI state synchronization.
+
+**All 12 DDD Domains Now Enabled by Default** - Critical fix ensuring all QE domains are available out of the box. Previously, V2→V3 migration only enabled 3 domains, causing "No factory registered" errors when using `fleet_init` with domains like `test-execution` or `quality-assessment`.
+
+**Portable Configuration** - Removed all hardcoded workspace paths throughout the codebase. AQE now works seamlessly across different environments (DevPod, Codespaces, local machines) without path-related failures.
+
+### Added
+
+#### AG-UI Protocol (Agent-to-UI)
+- **EventAdapter** - Transforms internal events to AG-UI format
+- **StateManager** - JSON Patch-based state synchronization
+- **SurfaceGenerator** - Dynamic UI surface generation from agent state
+- **StreamingRenderer** - Real-time UI updates via SSE/WebSocket
+
+#### A2A Protocol (Agent-to-Agent)
+- **DiscoveryService** - Agent capability discovery and registration
+- **MessageRouter** - Inter-agent message routing with delivery guarantees
+- **CapabilityNegotiator** - Protocol version and capability negotiation
+- **TaskDelegator** - Cross-agent task delegation and result aggregation
+
+#### A2UI Protocol (Agent-to-UI Integration)
+- **IntegrationBridge** - Bridges A2A and AG-UI for seamless UI updates
+- **StateSync** - Bidirectional state synchronization between agents and UI
+- **EventTransformer** - Event normalization across protocol boundaries
+
+#### Configuration Improvements
+- **Root config.yaml** - New `.agentic-qe/config.yaml` with all 12 domains enabled
+- **Relative path support** - MCP server configs use `./v3/dist/...` instead of absolute paths
+- **Environment-agnostic skills** - SKILL.md files use `npx` and relative paths
+
+### Changed
+
+#### Domain Registration (Breaking Fix)
+- **V2→V3 Migration** - Now enables all 12 DDD domains instead of just 3
+  - Previously: `test-generation`, `coverage-analysis`, `learning-optimization`
+  - Now: All 12 domains including `test-execution`, `quality-assessment`, `security-compliance`, etc.
+- **Default kernel config** - Uses `ALL_DOMAINS` constant ensuring consistency
+
+#### Error Messages
+- **Plugin loader** - Shows registered domains and actionable fix when domain not found:
+  ```
+  No factory registered for domain: test-execution
+  Registered domains: test-generation, coverage-analysis, ...
+  Fix: Add 'test-execution' to domains.enabled in .agentic-qe/config.yaml
+  ```
+
+#### Path Handling
+- **verify.sh** - Uses `$SCRIPT_DIR` instead of hardcoded paths
+- **Test files** - Use `process.cwd()` for project root detection
+- **MCP config** - Removed `AQE_PROJECT_ROOT` hardcoded environment variable
+
+### Fixed
+
+- **fleet_init failures** - "No factory registered for domain: test-execution" error resolved
+- **Cross-environment compatibility** - Works in DevPod, Codespaces, and local environments
+- **Integration test batching** - Disabled batching in protocol integration tests for deterministic behavior
+- **State update ordering** - Fixed task state creation before error assignment in full-flow tests
+
+### Migration Guide
+
+If you're upgrading from v3.3.x and experiencing domain registration errors:
+
+1. **Quick fix** - Re-run initialization:
+   ```bash
+   aqe init --auto-migrate
+   ```
+
+2. **Manual fix** - Add missing domains to `.agentic-qe/config.yaml`:
+   ```yaml
+   domains:
+     enabled:
+       - "test-generation"
+       - "test-execution"        # ADD
+       - "coverage-analysis"
+       - "quality-assessment"    # ADD
+       - "defect-intelligence"   # ADD
+       - "requirements-validation"
+       - "code-intelligence"
+       - "security-compliance"
+       - "contract-testing"
+       - "visual-accessibility"
+       - "chaos-resilience"
+       - "learning-optimization"
+   ```
+
+---
+
+## [3.3.5] - 2026-01-30
+
+### 🎯 Highlights
+
+**QE Queen MCP-Powered Orchestration** - Complete rewrite of `qe-queen-coordinator` to use MCP tools for real fleet coordination. Queen now actually spawns agents via `mcp__agentic-qe__agent_spawn`, monitors task completion, and stores learnings - instead of just describing what agents would do.
+
+**Unified Database Architecture** - All databases consolidated to single `{project-root}/.agentic-qe/memory.db` with automatic project root detection. Eliminates scattered database files and ensures consistent data storage.
+
+**252 New Tests for Coordination Module** - Comprehensive test coverage for previously untested consensus providers, protocols, services, and cross-domain router.
+
+### Added
+
+#### QE Queen MCP-Powered Orchestration (v3.1.0)
+- **Mandatory 10-phase execution protocol** - fleet_init → memory_store
+- **Real agent spawning** via `mcp__agentic-qe__agent_spawn`
+- **Task monitoring loop** - polls `task_list` until completion
+- **Learning persistence** - stores patterns after each orchestration
+- **Task-to-domain routing table** - automatic agent selection by task type
+- **MCP tools reference** - fleet, agent, task, QE, and memory operations
+- **Execution examples** - comprehensive and coverage-specific
+
+#### Unified Database Architecture
+- **Project root detection** - finds nearest package.json/git root
+- **Single memory.db** - all tables in one SQLite database
+- **Automatic migration** - moves data from scattered locations
+- **Cross-phase memory hooks** - auto-installed on `aqe init`
+
+#### New Test Coverage (252 tests, all passing)
+- **consensus/providers/** - 6 provider test files
+  - `claude-provider.test.ts` (366 lines)
+  - `gemini-provider.test.ts` (391 lines)
+  - `native-learning-provider.test.ts` (500 lines)
+  - `ollama-provider.test.ts` (440 lines)
+  - `openai-provider.test.ts` (373 lines)
+  - `openrouter-provider.test.ts` (393 lines)
+- **protocols/** - 4 protocol test files
+  - `defect-investigation.test.ts` (618 lines)
+  - `learning-consolidation.test.ts` (594 lines)
+  - `morning-sync.test.ts` (853 lines)
+  - `quality-gate.test.ts` (727 lines)
+- **services/** - 2 service test files
+  - `task-audit-logger.test.ts` (611 lines)
+  - `index.test.ts` (103 lines)
+- **cross-domain-router.test.ts** (686 lines)
+
+### Changed
+
+#### QE Queen Coordinator
+- Upgraded from v3.0.0 to v3.1.0
+- Now uses MCP tools instead of descriptions
+- Added prohibited behaviors section
+- Added domain topology diagram
+
+#### CLI Hook Commands
+- Updated to use `aqe` binary instead of `npx`
+- Implemented missing CLI hook commands for Claude Code integration
+
+### Fixed
+
+- **CI timeout** - Increased Fast Tests timeout from 5m to 10m
+- **Workflow permissions** - Added permissions block to sauce-demo-e2e workflow
+- **Hook commands** - Fixed CLI hook commands to use correct binary
+
+---
+
+## [3.3.4] - 2026-01-29
+
+### 🎯 Highlights
+
+**QCSD Ideation Phase Complete** - Full Quality Conscious Software Delivery (QCSD) Ideation phase implementation with HTSM v6.3 quality criteria analysis, SFDIPOT product factors assessment, and cross-phase memory feedback loops.
+
+**Cross-Phase Memory System** - New persistent memory architecture enabling automated learning between QCSD phases (Production→Ideation, Production→Grooming, CI/CD→Development, Development→Grooming).
+
+**Comprehensive Test Coverage** - 358 files changed with 83,990+ lines of new tests across all 12 domains, kernel, MCP handlers, routing, and workers.
+
+### Added
+
+#### QCSD Ideation Phase Agents
+- **qe-quality-criteria-recommender** - HTSM v6.3 quality criteria analysis with 10 categories
+- **qe-product-factors-assessor** - SFDIPOT framework with 7 factors, 37 subcategories
+- **qe-risk-assessor** - Multi-factor risk scoring with mitigation recommendations
+- **qe-test-idea-rewriter** - Transform passive "Verify X" patterns to active test actions
+
+#### Cross-Phase Memory System
+- **CrossPhaseMemoryService** - File-based persistence for QCSD feedback loops
+- **Cross-phase MCP handlers** - 8 new tools for signal storage/retrieval
+- **Hook executor** - Automatic trigger of cross-phase hooks on agent completion
+- **4 feedback loops** - Strategic, Tactical, Operational, Quality Criteria
+
+#### New Skills
+- **a11y-ally** - Comprehensive WCAG accessibility audit with video caption generation
+- **qcsd-ideation-swarm** - Multi-agent swarm for QCSD Ideation phase
+- **skills-manifest.json** - Centralized skill registration
+
+#### Comprehensive Test Coverage (83,990+ lines)
+- **Kernel tests** - unified-memory, hybrid-backend, kernel, plugin-loader
+- **MCP handler tests** - All domain handlers, handler-factory, task-handlers
+- **Domain tests** - All 12 domain plugins with coordinator tests
+- **Learning tests** - pattern-store, experience-capture, v2-to-v3-migration
+- **Routing tests** - tiny-dancer-router, task-classifier, routing-config
+- **Sync tests** - claude-flow-bridge, sync-agent, json/sqlite readers
+- **Worker tests** - All 10 background workers
+
+#### E2E Test Framework
+- Moved e2e tests to v3/tests/e2e/
+- Sauce Demo test suite with accessibility, cart, checkout, security specs
+- Page Object Model with BasePage, CartPage, CheckoutPage, etc.
+
+#### Documentation Updates
+- Updated agent catalog with QCSD Ideation agents
+- Added HTSM v6.3 quality categories reference
+- Added SFDIPOT framework documentation
+- Updated skill counts: 61 → 63 QE Skills
+- Updated agent counts with new QCSD agents
+
+### Changed
+
+#### Handler Factory Migration
+- All 11 domain handlers now use centralized handler-factory.ts
+- Experience capture middleware wraps all domain operations
+- Consistent error handling across handlers
+
+#### Security Scanner Refactoring
+- Split monolithic security-scanner.ts into modular components
+- New scanner-orchestrator.ts for coordinating SAST/DAST scans
+- Separate sast-scanner.ts and dast-scanner.ts modules
+- security-patterns.ts for pattern definitions
+
+#### E2E Runner Modularization
+- Split e2e-runner.ts into 9 focused modules
+- browser-orchestrator.ts - Browser session management
+- step-executors.ts - Step execution logic
+- assertion-handlers.ts - Assertion processing
+- result-collector.ts - Test result aggregation
+
+### Fixed
+
+#### Test Timeout Fixes
+- Fixed 6 timeout failures in security-compliance/coordinator.test.ts
+- Added proper class-based mocks for SecurityScannerService
+- Added mocks for SecurityAuditorService and ComplianceValidatorService
+
+#### TypeScript Compilation
+- Fixed all TypeScript errors from PR #215 merge
+- Fixed history.length on unknown type casting
+- Fixed performTask payload access patterns
+- Fixed Map iteration with Array.from()
+
+#### Architecture Cleanup
+- Removed wrong-pattern TypeScript agent classes (QualityCriteriaRecommenderAgent, RiskAssessorAgent)
+- Removed orphaned QCSD agent tests
+- Moved n8n-validator to v3/packages/
+
+### Security
+
+- SSRF protection recommendations for DAST scanner (private IP blocking)
+- Path traversal edge case fix recommendation (startsWith + path.sep)
+- npm audit: 0 vulnerabilities
+
+### Deprecated
+
+- Root-level tests/e2e/ directory (moved to v3/tests/e2e/)
+- Root-level src/agents/ TypeScript classes (use .claude/agents/v3/*.md instead)
+
+---
+
 ## [3.3.3] - 2026-01-27
 
 ### 🎯 Highlights

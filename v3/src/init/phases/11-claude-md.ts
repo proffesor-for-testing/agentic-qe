@@ -83,6 +83,31 @@ This project uses **Agentic QE v3** - a Domain-Driven Quality Engineering platfo
 
 ---
 
+### ⚠️ CRITICAL POLICIES
+
+#### Integrity Rule (ABSOLUTE)
+- ❌ NO shortcuts, fake data, or false claims
+- ✅ ALWAYS implement properly, verify before claiming success
+- ✅ ALWAYS use real database queries for integration tests
+- ✅ ALWAYS run actual tests, not assume they pass
+
+**We value the quality we deliver to our users.**
+
+#### Test Execution
+- ❌ NEVER run \`npm test\` without \`--run\` flag (watch mode risk)
+- ✅ Use: \`npm test -- --run\` for single test runs
+- ✅ Use: \`npm run test:unit\`, \`npm run test:integration\` when available
+
+#### Data Protection
+- ❌ NEVER run \`rm -f\` on \`.agentic-qe/\` or \`*.db\` files without confirmation
+- ✅ ALWAYS backup before database operations
+
+#### Git Operations
+- ❌ NEVER auto-commit/push without explicit user request
+- ✅ ALWAYS wait for user confirmation before git operations
+
+---
+
 ### Quick Reference
 
 \`\`\`bash

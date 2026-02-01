@@ -18,6 +18,14 @@ const fs = require('fs');
 const path = require('path');
 const { execSync, spawnSync } = require('child_process');
 
+// Use better-sqlite3 for reliable database access (no CLI dependency)
+let Database;
+try {
+  Database = require('better-sqlite3');
+} catch {
+  Database = null; // Fallback to CLI if better-sqlite3 not available
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Configuration
 // ═══════════════════════════════════════════════════════════════
@@ -31,10 +39,12 @@ const CONFIG = {
   flashAttentionTarget: '2.49x-7.47x',
   intelligenceTargetExp: 1000, // 1000 experiences = 100%
 
-  // Paths (V3 database takes priority - actively used)
+  // Paths - ROOT database is the consolidated source (MCP writes here)
+  // Priority: root > v3 (v3 db is stale, kept only for backup)
   memoryDbPaths: [
-    'v3/.agentic-qe/memory.db',    // V3 primary location (new schema)
-    '.agentic-qe/memory.db',        // Root fallback (old schema)
+    '.agentic-qe/memory.db',       // ROOT: Primary when CWD is project root
+    '../.agentic-qe/memory.db',    // ROOT: When CWD is v3/ or other subdirectory
+    'v3/.agentic-qe/memory.db',    // V3: Fallback only (stale after consolidation)
   ],
   cveCache: '.agentic-qe/.cve-cache',
   cveCacheAge: 3600, // 1 hour
@@ -115,8 +125,47 @@ function readJsonFile(filePath, defaultValue = {}) {
   return defaultValue;
 }
 
+// Database connection cache for performance
+let dbCache = new Map();
+
+function getDb(dbPath) {
+  if (!dbCache.has(dbPath)) {
+    if (Database && fileExists(dbPath)) {
+      try {
+        const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+        dbCache.set(dbPath, db);
+      } catch {
+        dbCache.set(dbPath, null);
+      }
+    } else {
+      dbCache.set(dbPath, null);
+    }
+  }
+  return dbCache.get(dbPath);
+}
+
 function sqlite3Query(dbPath, query, defaultValue = '0') {
   if (!fileExists(dbPath)) return defaultValue;
+
+  // Prefer better-sqlite3 (Node.js native, no CLI dependency)
+  if (Database) {
+    try {
+      const db = getDb(dbPath);
+      if (db) {
+        const row = db.prepare(query).get();
+        if (row) {
+          // Return the first column value
+          const values = Object.values(row);
+          return values.length > 0 ? String(values[0]) : defaultValue;
+        }
+      }
+      return defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  // Fallback to CLI if better-sqlite3 not available
   try {
     const result = execSync(`sqlite3 "${dbPath}" "${query}" 2>/dev/null`, {
       encoding: 'utf-8',
@@ -214,24 +263,14 @@ function getTestCounts(projectDir) {
 }
 
 function getLearningMetrics(projectDir) {
-  // Find active database (V3 takes priority)
+  // Find the consolidated V3 database
   let dbPath = null;
-  let isV3Schema = false;
 
   for (const relPath of CONFIG.memoryDbPaths) {
     const candidate = path.join(projectDir, relPath);
     if (fileExists(candidate)) {
-      // Check which schema this database uses
-      const hasV3Tables = sqlite3Query(candidate,
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='qe_patterns'", '') !== '';
-      const hasOldTables = sqlite3Query(candidate,
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='patterns'", '') !== '';
-
-      if (hasV3Tables || hasOldTables) {
-        dbPath = candidate;
-        isV3Schema = hasV3Tables;
-        break;
-      }
+      dbPath = candidate;
+      break;
     }
   }
 
@@ -243,36 +282,37 @@ function getLearningMetrics(projectDir) {
     };
   }
 
-  let patterns = 0, synthesized = 0, experiences = 0, transfers = 0, successRate = 0;
+  // Consolidated V3 DB has BOTH old schema tables (migrated) and new V3 tables
+  // Read from ALL relevant tables for complete metrics
 
-  if (isV3Schema) {
-    // V3 Schema: qe_patterns, qe_trajectories, sona_patterns
-    patterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM qe_patterns')) || 0;
-    synthesized = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM sona_patterns')) || 0;
+  // Legacy patterns (migrated from root DB)
+  const legacyPatterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM patterns')) || 0;
+  // V3 SONA patterns (new V3 neural patterns)
+  const sonaPatterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM sona_patterns')) || 0;
+  // Synthesized patterns (dream-generated)
+  const synthesized = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM synthesized_patterns')) || 0;
 
-    // Experiences: trajectories + claude-flow imported sessions
-    const trajectories = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM qe_trajectories')) || 0;
-    const cfExperiences = parseInt(sqlite3Query(dbPath,
-      "SELECT COUNT(*) FROM kv_store WHERE key LIKE 'cf:%'")) || 0;
-    experiences = trajectories + cfExperiences;
+  // Total patterns = legacy + SONA + synthesized
+  const patterns = legacyPatterns + sonaPatterns;
 
-    // V3 uses rl_q_values for transfer learning
-    transfers = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM rl_q_values')) || 0;
+  // Learning experiences (migrated from root DB)
+  const legacyExperiences = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM learning_experiences')) || 0;
+  // V3 trajectories (new V3 trajectory tracking)
+  const trajectories = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM qe_trajectories')) || 0;
+  // Captured experiences (task execution captures)
+  const capturedExp = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM captured_experiences')) || 0;
 
-    // Success rate from sona_patterns (claude-flow imports have outcome_success)
-    successRate = parseFloat(sqlite3Query(dbPath,
-      'SELECT ROUND(AVG(outcome_success)*100) FROM sona_patterns WHERE outcome_success > 0', '0')) || 0;
-  } else {
-    // Old Schema: patterns, learning_experiences, synthesized_patterns
-    patterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM patterns')) || 0;
-    synthesized = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM synthesized_patterns')) || 0;
-    experiences = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM learning_experiences')) || 0;
-    transfers = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM transfer_registry')) || 0;
-    successRate = parseFloat(sqlite3Query(dbPath,
-      'SELECT ROUND(AVG(success_rate)*100) FROM patterns WHERE success_rate > 0', '0')) || 0;
-  }
+  // Total experiences = all sources
+  const experiences = legacyExperiences + trajectories + capturedExp;
 
-  // Intelligence % based on experiences (target: 1000 = 100%)
+  // Transfer learning count
+  const transfers = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM transfer_registry')) || 0;
+
+  // Success rate from legacy patterns
+  const successRate = parseFloat(sqlite3Query(dbPath,
+    'SELECT ROUND(AVG(success_rate)*100) FROM patterns WHERE success_rate > 0', '0')) || 0;
+
+  // Intelligence % based on total learning data (target: 1000 = 100%)
   const totalLearningData = patterns + synthesized + experiences;
   const intelligencePct = Math.min(100, Math.floor((totalLearningData / CONFIG.intelligenceTargetExp) * 100));
 
@@ -287,6 +327,9 @@ function getLearningMetrics(projectDir) {
     }
   }
 
+  // Determine dbSource from which path was found
+  const dbSource = dbPath.includes('v3/.agentic-qe') ? 'v3' : 'root';
+
   return {
     patterns,
     synthesized,
@@ -296,7 +339,7 @@ function getLearningMetrics(projectDir) {
     successRate,
     intelligencePct,
     mode,
-    dbSource: isV3Schema ? 'v3' : 'root',
+    dbSource,  // 'root' = consolidated primary, 'v3' = legacy
   };
 }
 

@@ -14,6 +14,15 @@ import {
 } from './transport';
 import { ToolRegistry, createToolRegistry } from './tool-registry';
 import { ToolDefinition } from './types';
+
+// AG-UI EventAdapter for streaming events
+import {
+  createEventAdapter,
+  type EventAdapter,
+  type AQEToolProgress,
+  type AQEToolResult,
+} from '../adapters/ag-ui/index.js';
+
 import {
   handleFleetInit,
   handleFleetStatus,
@@ -112,6 +121,9 @@ export class MCPProtocolServer {
   private readonly balancer = getLoadBalancer();
   private readonly monitor = getPerformanceMonitor();
 
+  // AG-UI EventAdapter for streaming events to HTTP clients
+  private readonly eventAdapter: EventAdapter;
+
   constructor(config: MCPServerConfig = {}) {
     this.config = {
       name: config.name ?? 'agentic-qe-v3',
@@ -126,8 +138,18 @@ export class MCPProtocolServer {
 
     this.registry = createToolRegistry();
 
+    // Initialize AG-UI EventAdapter for streaming
+    this.eventAdapter = createEventAdapter();
+
     // Register all tools
     this.registerAllTools();
+  }
+
+  /**
+   * Get the EventAdapter for streaming events (AG-UI protocol)
+   */
+  getEventAdapter(): EventAdapter {
+    return this.eventAdapter;
   }
 
   /**
@@ -331,9 +353,30 @@ export class MCPProtocolServer {
     const startTime = performance.now();
     let success = false;
 
+    // Emit AG-UI progress event for tool start
+    const stepId = `${name}-${Date.now()}`;
+    this.eventAdapter.adapt({
+      type: 'progress',
+      percent: 0,
+      message: `Starting ${name}...`,
+      stepId,
+      toolName: name,
+      timestamp: new Date().toISOString(),
+    } as AQEToolProgress);
+
     try {
       const result = await tool.handler(args);
       success = true;
+
+      // Emit AG-UI result event for tool completion
+      this.eventAdapter.adapt({
+        success: true,
+        data: result,
+        metadata: {
+          executionTime: performance.now() - startTime,
+          requestId: stepId,
+        },
+      } as AQEToolResult);
 
       return {
         content: [
@@ -345,6 +388,17 @@ export class MCPProtocolServer {
       };
     } catch (err) {
       const error = err as Error;
+
+      // Emit AG-UI result event for tool failure
+      this.eventAdapter.adapt({
+        success: false,
+        error: error.message,
+        metadata: {
+          executionTime: performance.now() - startTime,
+          requestId: stepId,
+        },
+      } as AQEToolResult);
+
       return {
         content: [
           {

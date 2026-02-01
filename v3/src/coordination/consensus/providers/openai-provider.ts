@@ -17,6 +17,7 @@ import {
   BaseModelProvider,
   buildVerificationPrompt,
 } from '../model-provider';
+import { CONSENSUS_CONSTANTS } from '../../constants.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -188,9 +189,9 @@ export class OpenAIModelProvider extends BaseModelProvider {
       organization: config.organization || '',
       defaultModel: config.defaultModel || 'gpt-4-turbo',
       baseUrl: this.baseUrl,
-      defaultTimeout: config.defaultTimeout || 30000,
-      maxRetries: config.maxRetries || 3,
-      retryDelayMs: config.retryDelayMs || 1000,
+      defaultTimeout: config.defaultTimeout || CONSENSUS_CONSTANTS.MODEL_TIMEOUT_MS,
+      maxRetries: config.maxRetries ?? CONSENSUS_CONSTANTS.DEFAULT_RETRY_ATTEMPTS,
+      retryDelayMs: config.retryDelayMs || CONSENSUS_CONSTANTS.DEFAULT_RETRY_DELAY_MS,
       enableLogging: config.enableLogging || false,
     };
 
@@ -211,7 +212,7 @@ export class OpenAIModelProvider extends BaseModelProvider {
     }
 
     const model = (options?.model as OpenAIModel) || this.config.defaultModel;
-    const maxTokens = options?.maxTokens || 4096;
+    const maxTokens = options?.maxTokens || CONSENSUS_CONSTANTS.DEFAULT_MAX_TOKENS;
     const temperature = options?.temperature ?? 0.7;
     const timeout = options?.timeout || this.config.defaultTimeout;
     const systemPrompt = options?.systemPrompt || this.getDefaultSystemPrompt();

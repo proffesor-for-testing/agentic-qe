@@ -166,6 +166,41 @@ const DEFAULT_CONFIG: TrajectoryTrackerConfig = {
   recentBufferSize: 100,
 };
 
+/**
+ * Database row structure for trajectory queries
+ */
+interface TrajectoryRow {
+  id: string;
+  task: string;
+  agent?: string;
+  domain?: string;
+  success: number | null;
+  started_at: string;
+  ended_at?: string;
+  feedback?: string;
+  embedding?: Buffer;
+  related_patterns?: string;
+  steps_json?: string;
+  metadata_json?: string;
+}
+
+/**
+ * Database row structure for step queries
+ */
+interface StepRow {
+  id: string;
+  action: string;
+  outcome: string;
+  result_data?: string;
+  error_message?: string;
+  metrics_json?: string;
+  quality: number;
+  duration_ms: number;
+  timestamp: string;
+  context_json?: string;
+  tokens_used?: number;
+}
+
 // ============================================================================
 // TrajectoryTracker Implementation
 // ============================================================================
@@ -768,7 +803,7 @@ export class TrajectoryTracker {
     };
   }
 
-  private async rowToTrajectory(row: any): Promise<Trajectory | null> {
+  private async rowToTrajectory(row: TrajectoryRow | undefined): Promise<Trajectory | null> {
     if (!row) return null;
 
     // Get steps from trajectory_steps table
@@ -776,7 +811,7 @@ export class TrajectoryTracker {
     let steps: TrajectoryStep[] = [];
 
     if (stepsStmt) {
-      const stepRows = stepsStmt.all(row.id) as any[];
+      const stepRows = stepsStmt.all(row.id) as StepRow[];
       steps = stepRows.map(s => ({
         id: s.id,
         action: s.action,

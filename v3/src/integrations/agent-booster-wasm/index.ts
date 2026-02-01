@@ -47,9 +47,50 @@ export interface TransformOptions {
   allowFallback?: boolean;
 }
 
+/**
+ * WASM apply_edit result
+ */
+interface WasmEditResult {
+  merged_code: string;
+  confidence: number;
+  strategy: number;
+  syntax_valid: boolean;
+}
+
+/**
+ * Interface for the WASM AgentBooster class
+ */
+interface WasmAgentBooster {
+  merge_code(
+    original: string,
+    generated: string,
+    language: Language,
+    strategy: MergeStrategy
+  ): string;
+  validate_syntax(code: string, language: Language): boolean;
+  compute_confidence(original: string, generated: string): number;
+  apply_edit(original: string, edit: string, language: number): WasmEditResult;
+}
+
+/**
+ * WASM AgentBooster constructor with static methods
+ */
+interface WasmAgentBoosterClass {
+  new (): WasmAgentBooster;
+  version(): string;
+}
+
+/**
+ * Interface for the WASM module exports
+ */
+interface WasmModule {
+  AgentBoosterWasm: WasmAgentBoosterClass;
+  WasmLanguage: Record<string, number>;
+}
+
 // WASM module instance (lazy loaded)
-let wasmModule: any = null;
-let wasmBooster: any = null;
+let wasmModule: WasmModule | null = null;
+let wasmBooster: WasmAgentBooster | null = null;
 let loadError: Error | null = null;
 
 /**
@@ -62,7 +103,10 @@ async function loadWasm(): Promise<boolean> {
   try {
     // Use createRequire for ESM compatibility
     const require = createRequire(import.meta.url);
-    wasmModule = require('./agent_booster_wasm.js');
+    wasmModule = require('./agent_booster_wasm.js') as WasmModule;
+    if (!wasmModule) {
+      throw new Error('WASM module loaded but is null');
+    }
     wasmBooster = new wasmModule.AgentBoosterWasm();
     return true;
   } catch (e) {
@@ -213,7 +257,7 @@ export async function transform(
 
   // Try WASM first
   const wasmLoaded = await loadWasm();
-  if (wasmLoaded && wasmBooster) {
+  if (wasmLoaded && wasmBooster && wasmModule) {
     try {
       const wasmLang = wasmModule.WasmLanguage[Language[language]];
       const result = wasmBooster.apply_edit(original, edit, wasmLang);
@@ -322,7 +366,7 @@ export async function getVersion(): Promise<string> {
  */
 export async function warmup(): Promise<void> {
   await loadWasm();
-  if (wasmBooster) {
+  if (wasmBooster && wasmModule) {
     // Run a dummy transform to warm up
     try {
       wasmBooster.apply_edit(
@@ -330,8 +374,9 @@ export async function warmup(): Promise<void> {
         'function x() {}',
         wasmModule.WasmLanguage.JavaScript
       );
-    } catch {
-      // Ignore warmup errors
+    } catch (error) {
+      // Non-critical: warmup errors don't affect subsequent operations
+      console.debug('[AgentBoosterWASM] Warmup error:', error instanceof Error ? error.message : error);
     }
   }
 }

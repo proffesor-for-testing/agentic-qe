@@ -2,7 +2,7 @@
  * Claude Flow to AQE Memory Bridge
  *
  * Syncs Claude Flow memories (.claude-flow/memory/store.json)
- * to AQE V3 database (v3/.agentic-qe/memory.db)
+ * to AQE consolidated database (.agentic-qe/memory.db)
  *
  * This ensures experiences captured by Claude Code tasks
  * are available to AQE agents for learning.
@@ -391,8 +391,9 @@ export async function getSyncStatus(projectRoot?: string): Promise<{
       claudeFlowEntries = store.entries
         ? Object.keys(store.entries).length
         : Object.keys(store).filter(k => !k.startsWith('_') && k !== 'version').length;
-    } catch {
-      // Ignore parse errors
+    } catch (error) {
+      // Non-critical: Claude Flow store parse errors
+      console.debug('[ClaudeFlowBridge] Store parse error:', error instanceof Error ? error.message : error);
     }
   }
 
@@ -415,8 +416,9 @@ export async function getSyncStatus(projectRoot?: string): Promise<{
       aqeSonaPatterns = sonaCount?.count || 0;
 
       db.close();
-    } catch {
-      // Ignore DB errors
+    } catch (error) {
+      // Non-critical: AQE database read errors during sync check
+      console.debug('[ClaudeFlowBridge] AQE database read error:', error instanceof Error ? error.message : error);
     }
   }
 

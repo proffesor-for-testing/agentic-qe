@@ -3,13 +3,13 @@
  * Integrates the defect intelligence domain into the kernel
  */
 
-import { DomainName, DomainEvent } from '../../shared/types';
+import { DomainName, DomainEvent, Result, err } from '../../shared/types';
 import {
   EventBus,
   MemoryBackend,
   AgentCoordinator,
 } from '../../kernel/interfaces';
-import { BaseDomainPlugin } from '../domain-interface';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import {
   DefectIntelligenceAPI,
   PredictRequest,
@@ -132,6 +132,125 @@ export class DefectIntelligencePlugin extends BaseDomainPlugin {
   }
 
   // ============================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ============================================================================
+
+  /**
+   * Get task handlers for direct Queen-Domain integration
+   * Maps task types to coordinator methods
+   */
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      // Predict defects task
+      ['predict-defects', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        const files = payload.files as string[] | undefined;
+        const threshold = payload.threshold as number | undefined;
+
+        if (!files || files.length === 0) {
+          return err(new Error('Invalid predict-defects payload: missing files'));
+        }
+
+        return this.coordinator.predictDefects({
+          files,
+          threshold: threshold ?? 0.7,
+        });
+      }],
+
+      // Analyze root cause task
+      ['analyze-root-cause', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        const defectId = payload.defectId as string | undefined;
+
+        if (!defectId) {
+          return err(new Error('Invalid analyze-root-cause payload: missing defectId'));
+        }
+
+        // Convert payload properties to the expected interface
+        const symptoms = payload.stackTrace
+          ? [payload.stackTrace as string]
+          : (payload.symptoms as string[] ?? []);
+
+        return this.coordinator.analyzeRootCause({
+          defectId,
+          symptoms,
+          context: payload.context as Record<string, unknown> | undefined,
+        });
+      }],
+
+      // Analyze regression risk task
+      ['analyze-regression-risk', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        const changedFiles = payload.changedFiles as string[] | undefined;
+
+        if (!changedFiles || changedFiles.length === 0) {
+          return err(new Error('Invalid analyze-regression-risk payload: missing changedFiles'));
+        }
+
+        return this.coordinator.analyzeRegressionRisk({
+          changeset: changedFiles,
+          baseline: payload.commitHash as string | undefined,
+        });
+      }],
+
+      // Cluster defects task
+      ['cluster-defects', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        const defects = payload.defects as Array<{ id: string; title?: string; description?: string }> | undefined;
+
+        if (!defects || defects.length === 0) {
+          return err(new Error('Invalid cluster-defects payload: missing defects'));
+        }
+
+        return this.coordinator.clusterDefects({
+          defects: defects.map(d => ({
+            id: d.id,
+            title: d.title ?? `Defect ${d.id}`,
+            description: d.description ?? '',
+          })),
+          method: (payload.method as 'semantic' | 'behavioral' | 'temporal') ?? 'semantic',
+        });
+      }],
+
+      // Learn patterns task
+      ['learn-patterns', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+
+        const defectHistory = payload.defectHistory as Array<{ id: string; title?: string; description?: string }> | undefined;
+        const defects = payload.defects as Array<{ id: string; title?: string; description?: string }> | undefined;
+        const defectData = defectHistory ?? defects;
+
+        if (!defectData || defectData.length === 0) {
+          return err(new Error('Invalid learn-patterns payload: missing defectHistory'));
+        }
+
+        return this.coordinator.learnPatterns({
+          defects: defectData.map(d => ({
+            id: d.id,
+            title: d.title ?? `Defect ${d.id}`,
+            description: d.description ?? '',
+          })),
+          includeResolutions: payload.includeResolutions as boolean | undefined,
+        });
+      }],
+    ]);
+  }
+
+  // ============================================================================
   // Lifecycle Methods
   // ============================================================================
 
@@ -225,6 +344,9 @@ export class DefectIntelligencePlugin extends BaseDomainPlugin {
         break;
       case 'code-intelligence.ImpactAnalysisCompleted':
         await this.handleImpactAnalysis(event);
+        break;
+      case 'quality-assessment.QualityGateEvaluated':
+        await this.handleQualityGate(event);
         break;
       default:
         // No specific handling needed

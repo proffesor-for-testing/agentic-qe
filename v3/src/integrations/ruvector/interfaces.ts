@@ -60,7 +60,7 @@ export const DEFAULT_RUVECTOR_CONFIG: Required<RuVectorConfig> = {
   endpoint: 'http://localhost:8080',
   // LEGACY: This path is ignored when RuVector uses unified storage (ADR-046)
   // Kept for backward compatibility with external RuVector service configs
-  databasePath: '.agentic-qe/ruvector-cache.db',
+  databasePath: '.agentic-qe/memory.db',
   timeout: 5000,
   cacheEnabled: true,
   cacheTtl: 5 * 60 * 1000, // 5 minutes

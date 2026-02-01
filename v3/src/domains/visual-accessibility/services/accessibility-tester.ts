@@ -299,8 +299,9 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
           this.managedBrowserClient = client;
           return client;
         }
-      } catch {
-        // Fall through to Vibium
+      } catch (error) {
+        // Non-critical: browser client acquisition failed, using Vibium
+        console.debug('[AccessibilityTester] Browser client error:', error instanceof Error ? error.message : error);
       }
     }
 

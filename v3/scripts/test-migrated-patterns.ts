@@ -14,7 +14,7 @@ async function main() {
   console.log('1. Initializing RealQERoutingBank...');
   const reasoningBank = createRealQEReasoningBank({
     sqlite: {
-      dbPath: '.agentic-qe/qe-patterns.db',
+      dbPath: '.agentic-qe/memory.db',
     },
   });
 
@@ -23,7 +23,7 @@ async function main() {
 
   // Also initialize SQLite store for direct access
   const patternStore = createSQLitePatternStore({
-    dbPath: '.agentic-qe/qe-patterns.db',
+    dbPath: '.agentic-qe/memory.db',
   });
   await patternStore.initialize();
 

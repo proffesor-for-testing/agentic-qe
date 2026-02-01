@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Result, ok, err } from '../../../shared/types';
 import { RetryResult, FailedTest } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
+import { TEST_EXECUTION_CONSTANTS, RETRY_CONSTANTS } from '../../constants.js';
 
 // ============================================================================
 // Configuration
@@ -66,11 +67,11 @@ export interface RetryHandlerConfig {
 
 const DEFAULT_RETRY_CONFIG: RetryHandlerConfig = {
   simulateForTesting: false,
-  simulatedRetrySuccessRate: 0.7,
+  simulatedRetrySuccessRate: RETRY_CONSTANTS.DEFAULT_FLAKY_PASS_RATE,
   enableJitter: false,
-  maxJitterPercent: 0.1,
+  maxJitterPercent: RETRY_CONSTANTS.RETRY_PASS_RATE_VARIATION,
   testRunner: 'auto',
-  testTimeout: 60000,
+  testTimeout: TEST_EXECUTION_CONSTANTS.DEFAULT_TEST_TIMEOUT_MS,
   npxPath: 'npx',
 };
 
@@ -509,8 +510,9 @@ export class RetryHandlerService implements IRetryHandler {
         if ('jest' in devDeps) return 'jest';
         if ('mocha' in devDeps) return 'mocha';
       }
-    } catch {
-      // Ignore package.json read errors
+    } catch (error) {
+      // Non-critical: package.json read errors during test runner detection
+      console.debug('[RetryHandler] package.json read failed:', error instanceof Error ? error.message : error);
     }
 
     return null;

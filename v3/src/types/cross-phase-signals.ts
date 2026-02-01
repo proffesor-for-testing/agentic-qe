@@ -166,34 +166,6 @@ export type CrossPhaseSignal =
   | ACQualitySignal;
 
 // =============================================================================
-// Memory Namespace Constants
-// =============================================================================
-
-export const CROSS_PHASE_NAMESPACES = {
-  // Loop 1 & 2: Production patterns
-  DEFECT_WEIGHTS: 'qcsd-memory/production-patterns/defect-weights',
-  FAILURE_MODES: 'qcsd-memory/production-patterns/failure-modes',
-  SLA_VIOLATIONS: 'qcsd-memory/production-patterns/sla-violations',
-
-  // Loop 3: CI/CD patterns
-  FLAKY_TESTS: 'qcsd-memory/cicd-patterns/flaky-tests',
-  GATE_FAILURES: 'qcsd-memory/cicd-patterns/gate-failures',
-  BUILD_HEALTH: 'qcsd-memory/cicd-patterns/build-health',
-
-  // Loop 4: Development patterns
-  COVERAGE_GAPS: 'qcsd-memory/development-patterns/coverage-gaps',
-  AC_PROBLEMS: 'qcsd-memory/development-patterns/ac-problems',
-  TEST_DEBT: 'qcsd-memory/development-patterns/test-debt',
-
-  // Cross-phase routing
-  IDEATION_INPUTS: 'qcsd-memory/cross-phase-signals/ideation-inputs',
-  GROOMING_INPUTS: 'qcsd-memory/cross-phase-signals/grooming-inputs',
-  DEVELOPMENT_INPUTS: 'qcsd-memory/cross-phase-signals/development-inputs',
-} as const;
-
-export type CrossPhaseNamespace = typeof CROSS_PHASE_NAMESPACES[keyof typeof CROSS_PHASE_NAMESPACES];
-
-// =============================================================================
 // TTL Constants (in milliseconds)
 // =============================================================================
 
@@ -220,17 +192,4 @@ export function calculateExpiry(ttlMs: number): string {
 
 export function isSignalExpired(signal: BaseSignal): boolean {
   return new Date(signal.expiresAt) < new Date();
-}
-
-export function getNamespaceForLoop(loopType: FeedbackLoopType): CrossPhaseNamespace {
-  switch (loopType) {
-    case 'strategic':
-      return CROSS_PHASE_NAMESPACES.DEFECT_WEIGHTS;
-    case 'tactical':
-      return CROSS_PHASE_NAMESPACES.FAILURE_MODES;
-    case 'operational':
-      return CROSS_PHASE_NAMESPACES.FLAKY_TESTS;
-    case 'quality-criteria':
-      return CROSS_PHASE_NAMESPACES.AC_PROBLEMS;
-  }
 }

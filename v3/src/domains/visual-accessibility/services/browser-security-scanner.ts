@@ -54,15 +54,59 @@ export interface PhishingResult {
 }
 
 // ============================================================================
+// MCP Result Types
+// ============================================================================
+
+/**
+ * Threat information from MCP security scan
+ */
+interface McpThreat {
+  type?: string;
+  description?: string;
+}
+
+/**
+ * MCP security scan result shape
+ */
+interface McpSecurityResult {
+  safe?: boolean;
+  threats?: McpThreat[];
+  confidence?: number;
+}
+
+/**
+ * MCP PII scan result shape
+ */
+interface McpPiiResult {
+  hasPii?: boolean;
+  types?: string[];
+  locations?: Array<{ type: string; start: number; end: number }>;
+}
+
+// ============================================================================
 // Type Guards
 // ============================================================================
+
+/**
+ * Type guard for McpSecurityResult
+ */
+function isMcpSecurityResult(value: unknown): value is McpSecurityResult {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * Type guard for McpPiiResult
+ */
+function isMcpPiiResult(value: unknown): value is McpPiiResult {
+  return typeof value === 'object' && value !== null;
+}
 
 /**
  * Check if MCP tools are available (runtime check)
  */
 function hasMcpTools(): boolean {
   // Check if running in Claude Code environment with MCP support
-  return typeof (globalThis as any).mcp !== 'undefined';
+  return typeof (globalThis as Record<string, unknown>).mcp !== 'undefined';
 }
 
 // ============================================================================
@@ -148,19 +192,17 @@ export class BrowserSecurityScanner {
       const mcpResult = await this.callMcpTool('aidefence_scan', { input: url });
 
       // Parse MCP result
-      if (typeof mcpResult === 'object' && mcpResult !== null) {
-        const result = mcpResult as any;
-
+      if (isMcpSecurityResult(mcpResult)) {
         // Extract threat information
         const threats: string[] = [];
         let safe = true;
         let score = 1.0;
 
-        if (result.threats && Array.isArray(result.threats)) {
-          threats.push(...result.threats.map((t: any) => t.type || String(t)));
+        if (mcpResult.threats && Array.isArray(mcpResult.threats)) {
+          threats.push(...mcpResult.threats.map(t => t.type || String(t)));
           safe = threats.length === 0;
           score = Math.max(0, 1.0 - threats.length * 0.25);
-        } else if (result.safe === false) {
+        } else if (mcpResult.safe === false) {
           safe = false;
           score = 0.5;
           threats.push('URL flagged as potentially unsafe');
@@ -196,28 +238,26 @@ export class BrowserSecurityScanner {
       // Call @claude-flow/browser MCP tool via aidefence_analyze
       const mcpResult = await this.callMcpTool('aidefence_analyze', { input: url });
 
-      if (typeof mcpResult === 'object' && mcpResult !== null) {
-        const result = mcpResult as any;
-
+      if (isMcpSecurityResult(mcpResult)) {
         const indicators: string[] = [];
         let isPhishing = false;
         let confidence = 0;
 
         // Check for phishing-specific threats
-        if (result.threats && Array.isArray(result.threats)) {
-          const phishingThreats = result.threats.filter((t: any) =>
+        if (mcpResult.threats && Array.isArray(mcpResult.threats)) {
+          const phishingThreats = mcpResult.threats.filter(t =>
             (t.type || '').toLowerCase().includes('phishing')
           );
           if (phishingThreats.length > 0) {
             isPhishing = true;
             confidence = 0.8;
-            indicators.push(...phishingThreats.map((t: any) => t.description || t.type));
+            indicators.push(...phishingThreats.map(t => t.description || t.type || ''));
           }
         }
 
         // Check confidence score
-        if (result.confidence !== undefined) {
-          confidence = Math.max(confidence, result.confidence);
+        if (mcpResult.confidence !== undefined) {
+          confidence = Math.max(confidence, mcpResult.confidence);
         }
 
         return ok({ isPhishing, confidence, indicators });
@@ -283,7 +323,7 @@ export class BrowserSecurityScanner {
    * Call an MCP tool (internal helper)
    * This is a placeholder that would be replaced with actual MCP tool invocation
    */
-  private async callMcpTool(toolName: string, params: any): Promise<unknown> {
+  private async callMcpTool(toolName: string, params: Record<string, unknown>): Promise<unknown> {
     // In a real implementation, this would call the MCP tool via the protocol
     // For now, we throw to trigger fallback
     throw new Error(`MCP tool ${toolName} not implemented in this context`);

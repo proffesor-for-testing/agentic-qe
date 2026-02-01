@@ -310,7 +310,8 @@ export class PatternStore implements IPatternStore {
   private tierIndex: Map<'short-term' | 'long-term', Set<string>> = new Map();
 
   // HNSW index for vector search (lazy loaded - ADR-048)
-  private hnswIndex: any = null;
+  // Using dynamic import type since HNSWIndex is lazily loaded
+  private hnswIndex: import('../domains/coverage-analysis/services/hnsw-index.js').IHNSWIndex | null = null;
   private hnswAvailable = false;
   private hnswInitPromise: Promise<void> | null = null;
 
@@ -366,7 +367,7 @@ export class PatternStore implements IPatternStore {
    *
    * @returns The HNSW index instance, or null if not available
    */
-  private async ensureHNSW(): Promise<any | null> {
+  private async ensureHNSW(): Promise<import('../domains/coverage-analysis/services/hnsw-index.js').IHNSWIndex | null> {
     // Already initialized
     if (this.hnswIndex !== null) {
       return this.hnswIndex;
@@ -553,12 +554,20 @@ export class PatternStore implements IPatternStore {
       const hnsw = await this.ensureHNSW();
       if (hnsw) {
         try {
+          // Cast pattern metadata to CoverageVectorMetadata for HNSW storage
+          // Pattern-specific fields are stored as extensions
           await hnsw.insert(pattern.id, pattern.embedding, {
-            patternType: pattern.patternType,
-            qeDomain: pattern.qeDomain,
-            confidence: pattern.confidence,
-            qualityScore: pattern.qualityScore,
-          });
+            filePath: pattern.patternType,
+            lineCoverage: pattern.confidence * 100,
+            branchCoverage: pattern.qualityScore * 100,
+            functionCoverage: 0,
+            statementCoverage: 0,
+            uncoveredLineCount: 0,
+            uncoveredBranchCount: 0,
+            riskScore: 1 - pattern.confidence,
+            lastUpdated: Date.now(),
+            totalLines: 0,
+          } as import('../domains/coverage-analysis/services/hnsw-index.js').CoverageVectorMetadata);
         } catch (error) {
           console.warn(`[PatternStore] Failed to index embedding for ${pattern.id}:`, error);
         }
@@ -1021,8 +1030,9 @@ export class PatternStore implements IPatternStore {
     if (this.hnswIndex !== null) {
       try {
         await this.hnswIndex.delete(id);
-      } catch {
-        // Ignore HNSW deletion errors
+      } catch (error) {
+        // Non-critical: HNSW deletion errors don't affect pattern removal
+        console.debug('[PatternStore] HNSW deletion error:', error instanceof Error ? error.message : error);
       }
     }
 

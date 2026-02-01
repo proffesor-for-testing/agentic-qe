@@ -505,8 +505,9 @@ export class PersistentScheduler {
       if (fs.existsSync(this.lockFile)) {
         fs.unlinkSync(this.lockFile);
       }
-    } catch {
-      // Ignore errors when releasing lock
+    } catch (error) {
+      // Non-critical: lock release errors don't affect scheduler
+      console.debug('[PersistentScheduler] Lock release error:', error instanceof Error ? error.message : error);
     }
   }
 

@@ -214,8 +214,9 @@ async function cleanupAndExit(code: number = 0): Promise<never> {
     }
 
     UnifiedMemoryManager.resetInstance();
-  } catch {
-    // Ignore cleanup errors
+  } catch (error) {
+    // Non-critical: cleanup errors during exit
+    console.debug('[CLI] Cleanup error during exit:', error instanceof Error ? error.message : error);
   }
   process.exit(code);
 }

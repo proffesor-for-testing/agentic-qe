@@ -215,8 +215,9 @@ class SourceFilesStep extends BaseWizardCommand<string[]> {
           }
         }
       }
-    } catch {
-      // Ignore permission errors
+    } catch (error) {
+      // Non-critical: permission errors when listing source files
+      console.debug('[TestWizard] Source file listing error:', error instanceof Error ? error.message : error);
     }
 
     return files;
@@ -300,8 +301,9 @@ class FrameworkSelectStep extends SingleSelectStep<TestFramework> {
       if (deps.jest) return 'jest';
       if (deps.mocha) return 'mocha';
       if (deps.playwright || deps['@playwright/test']) return 'playwright';
-    } catch {
-      // Ignore errors (file read or JSON parse failures)
+    } catch (error) {
+      // Non-critical: framework detection package.json read/parse errors
+      console.debug('[TestWizard] Framework detection error:', error instanceof Error ? error.message : error);
     }
 
     // Check for config files

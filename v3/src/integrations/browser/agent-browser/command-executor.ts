@@ -169,8 +169,9 @@ export class AgentBrowserCommandExecutor {
           `pkill -f "agent-browser.*--session[= ]${sessionName}" 2>/dev/null || true`,
           { timeout: 5000, stdio: 'ignore' }
         );
-      } catch {
-        // Ignore pkill errors - process might already be dead
+      } catch (error) {
+        // Non-critical: pkill errors - process might already be dead
+        console.debug('[CommandExecutor] pkill error:', error instanceof Error ? error.message : error);
       }
 
       // Also try to kill by AGENT_BROWSER_SESSION env var (harder to match)

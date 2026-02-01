@@ -15,6 +15,7 @@ import {
   ModelHealthResult,
 } from '../interfaces';
 import { BaseModelProvider } from '../model-provider';
+import { CONSENSUS_CONSTANTS, OLLAMA_CONSTANTS } from '../../constants.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -215,12 +216,19 @@ export function getCodeOllamaModels(): OllamaModel[] {
 // Ollama Provider Implementation
 // ============================================================================
 
-const DEFAULT_CONFIG = {
-  baseUrl: 'http://localhost:11434',
+const DEFAULT_CONFIG: {
+  baseUrl: string;
+  defaultModel: OllamaModel;
+  defaultTimeout: number;
+  maxRetries: number;
+  retryDelayMs: number;
+  enableLogging: boolean;
+} = {
+  baseUrl: OLLAMA_CONSTANTS.DEFAULT_BASE_URL,
   defaultModel: 'llama3.1' as OllamaModel,
-  defaultTimeout: 300000, // 5 minutes (local models can be slow)
+  defaultTimeout: CONSENSUS_CONSTANTS.OLLAMA_TIMEOUT_MS, // 5 minutes (local models can be slow)
   maxRetries: 2,
-  retryDelayMs: 2000,
+  retryDelayMs: CONSENSUS_CONSTANTS.OLLAMA_RETRY_DELAY_MS,
   enableLogging: false,
 };
 
@@ -277,7 +285,7 @@ export class OllamaModelProvider extends BaseModelProvider {
   async listModels(): Promise<string[]> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => controller.abort(), CONSENSUS_CONSTANTS.OLLAMA_CONNECTION_TEST_TIMEOUT_MS);
 
       const response = await fetch(`${this.config.baseUrl}/api/tags`, {
         method: 'GET',

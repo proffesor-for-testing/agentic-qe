@@ -5,7 +5,15 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 12 Bounded Contexts, 51 Specialized QE Agents, 61 QE Skills, and ReasoningBank Learning
+> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 12 Bounded Contexts, 51 Specialized QE Agents, 63 QE Skills, and ReasoningBank Learning
+
+### What's New in v3.4.0
+
+| Feature | Description |
+|---------|-------------|
+| **AG-UI Protocol** | Anthropic's streaming interface - real-time agent progress to UI |
+| **A2A Protocol** | Google's agent-to-agent standard - cross-tool interoperability |
+| **A2UI Components** | Hybrid UI components combining streaming + events |
 
 ## Quick Start
 
@@ -38,7 +46,7 @@ npx aqe test generate src/
 ## Why Agentic QE?
 
 - **51 Specialized QE Agents** - Domain-focused quality engineering agents (44 main + 7 subagents)
-- **61 QE Skills** - Domain-specific skills for testing, security, accessibility, and more
+- **63 QE Skills** - Domain-specific skills for testing, security, accessibility, QCSD, and more
 - **12 DDD Bounded Contexts** - Modular, extensible architecture
 - **TinyDancer Model Routing** - 3-tier intelligent routing for cost optimization
 - **O(log n) Coverage Analysis** - Sublinear performance with HNSW indexing
@@ -48,10 +56,55 @@ npx aqe test generate src/
 - **MinCut Topology** - Graph-based self-healing agent coordination
 - **Coherence Verification** (v3.3.0) - Mathematical proof of belief consistency using WASM engines
 - **MinCut/Consensus Integration** (v3.3.3) - Full 12/12 domain integration with self-healing
+- **Cross-Phase Memory Unification** (v3.3.5) - Unified SQLite storage for QCSD feedback loops
 - **Zero-Breaking-Changes Migration** - Full v2 backward compatibility
 - **Browser Automation** (v3.1.0) - @claude-flow/browser integration with 9 workflow templates
+- **AG-UI/A2A/A2UI Protocols** (v3.4.0) - Industry-standard agent communication
+
+## Get Value Fast
+
+```bash
+# Install and auto-configure (all 12 domains enabled)
+npm install -g agentic-qe
+cd your-project && aqe init --auto
+
+# Generate tests with AI
+claude "Generate unit tests for src/services/user.ts with 90% coverage"
+
+# Run full quality pipeline
+claude "Run quality assessment: tests, coverage, security, and deployment recommendation"
+
+# Check fleet status
+aqe status --verbose
+```
 
 ## New in v3: Key Features
+
+### AG-UI, A2A & A2UI Protocols (v3.4.0)
+
+Industry-standard agent communication protocols:
+
+| Protocol | Standard | Description |
+|----------|----------|-------------|
+| **AG-UI** | Anthropic | Streaming agent output with lifecycle events |
+| **A2A** | Google | Agent-to-agent task and artifact exchange |
+| **A2UI** | Hybrid | Rich UI components with streaming + events |
+
+```typescript
+// AG-UI: Stream test generation to UI
+const stream = await agUIAdapter.streamTestGeneration({
+  sourceFile: 'src/user.ts',
+  onProgress: (event) => console.log(`Progress: ${event.progress}%`),
+  onArtifact: (test) => console.log(`Generated: ${test.name}`),
+});
+
+// A2A: Cross-agent task delegation
+await a2aAdapter.delegateTask({
+  from: 'qe-test-architect',
+  to: 'qe-security-scanner',
+  task: { type: 'security-review', artifacts: generatedTests },
+});
+```
 
 ### TinyDancer Intelligent Model Routing (ADR-026)
 
@@ -354,6 +407,71 @@ aqe agent list -d test-generation
 aqe agent spawn test-generation -t worker -c unit-test,integration-test
 ```
 
+## Real-World Examples
+
+### Example 1: Quick Test Generation
+
+```bash
+# Generate tests for a single service with 90% coverage target
+claude "Use qe-test-architect to create unit tests for src/services/payment.ts targeting 90% coverage"
+```
+
+**Output:**
+```
+Generated 24 tests in payment.test.ts
+- 18 unit tests for business logic
+- 4 edge case tests (null, undefined, invalid input)
+- 2 error handling tests
+Coverage: 92.4%
+Pattern learned: "payment-validation" (confidence: 0.91)
+```
+
+### Example 2: Full Quality Pipeline
+
+```bash
+# Run comprehensive quality assessment before deployment
+claude "Run quality pipeline: test generation, coverage analysis, security scan, and deployment recommendation"
+```
+
+**What happens:**
+1. **qe-test-architect** generates missing tests
+2. **qe-coverage-specialist** analyzes gaps with risk scoring
+3. **qe-security-scanner** runs SAST/DAST checks
+4. **qe-deployment-advisor** provides go/no-go recommendation
+
+### Example 3: Fix Flaky Tests
+
+```bash
+# Identify and fix flaky tests
+claude "Use qe-flaky-hunter to analyze test runs from the last week and suggest fixes"
+```
+
+**Output:**
+```
+Found 3 flaky tests:
+1. auth.test.ts:45 - Race condition in token refresh (fix: add await)
+2. api.test.ts:123 - Timing-dependent assertion (fix: use fake timers)
+3. db.test.ts:67 - Shared state between tests (fix: add beforeEach reset)
+```
+
+### Example 4: Security Audit
+
+```bash
+# Run security scan on codebase
+claude "Use qe-security-scanner to audit src/ for OWASP Top 10 vulnerabilities"
+```
+
+**Output:**
+```
+Security Scan Complete:
+- 0 Critical vulnerabilities
+- 2 Medium issues:
+  - SQL injection risk in src/db/query.ts:34
+  - XSS potential in src/components/UserInput.tsx:12
+- 5 Low issues (informational)
+Recommendations generated in security-report.md
+```
+
 ## MCP Integration
 
 Add the MCP server to Claude Code (requires global install):
@@ -490,7 +608,7 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Memory | SQLite only | HNSW + SQLite hybrid |
 | Learning | Basic patterns | ReasoningBank + SONA + Dream Cycles |
 | Agents | 32 | 51 QE agents (44 main + 7 subagents) |
-| Skills | 35 | 61 QE skills (v2 + v3 domain skills) |
+| Skills | 35 | 63 QE skills (v2 + v3 domain skills) |
 | Coverage | O(n) | O(log n) |
 | Pattern Search | Linear | O(log n) HNSW indexing |
 | Coordination | Sequential | Queen + Work Stealing + Consensus |
@@ -606,12 +724,12 @@ Agentic QE includes 51 specialized quality engineering agents (44 main + 7 subag
 ### Additional Agents (New in v3)
 `qe-product-factors-assessor` (SFDIPOT analysis), `qe-quality-criteria-recommender` (HTSM v6.3 Quality Criteria), `qe-test-idea-rewriter` (passive→active test transforms)
 
-## 61 QE Skills
+## 63 QE Skills
 
-Agentic QE includes 61 domain-specific quality engineering skills that agents automatically apply:
+Agentic QE includes 63 domain-specific quality engineering skills that agents automatically apply:
 
 <details>
-<summary><b>View All 61 QE Skills</b></summary>
+<summary><b>View All 63 QE Skills</b></summary>
 
 ### Core Testing & Methodologies (12)
 - `agentic-quality-engineering` - Core PACT principles for AI-powered QE
@@ -684,6 +802,10 @@ Agentic QE includes 61 domain-specific quality engineering skills that agents au
 - `n8n-security-testing` - Workflow security scanning
 - `n8n-trigger-testing-strategies` - Webhook and event testing
 - `n8n-integration-testing-patterns` - API contract testing for n8n
+
+### QCSD & Accessibility (2)
+- `qcsd-ideation-swarm` - QCSD Ideation phase swarm using HTSM v6.3, Risk Storming, Testability analysis
+- `a11y-ally` - Comprehensive WCAG auditing with multi-tool testing, video captions, and EU compliance
 
 </details>
 

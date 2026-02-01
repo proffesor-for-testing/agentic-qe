@@ -17,6 +17,7 @@ import {
   UnifiedMemoryConfig,
   DEFAULT_UNIFIED_MEMORY_CONFIG
 } from './unified-memory';
+import { MEMORY_CONSTANTS } from './constants.js';
 
 // ============================================================================
 // Configuration Types (backward compatible)
@@ -94,7 +95,7 @@ export class HybridMemoryBackend implements MemoryBackend {
         path: config?.sqlite?.path ?? '.agentic-qe/memory.db',
         walMode: config?.sqlite?.walMode ?? true,
         poolSize: config?.sqlite?.poolSize ?? 5,
-        busyTimeout: config?.sqlite?.busyTimeout ?? 5000,
+        busyTimeout: config?.sqlite?.busyTimeout ?? MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
         ...config?.sqlite,
       },
       agentdb: {
@@ -104,7 +105,7 @@ export class HybridMemoryBackend implements MemoryBackend {
       },
       enableFallback: config?.enableFallback ?? true,
       defaultNamespace: config?.defaultNamespace ?? 'default',
-      cleanupInterval: config?.cleanupInterval ?? 60000,
+      cleanupInterval: config?.cleanupInterval ?? MEMORY_CONSTANTS.CLEANUP_INTERVAL_MS,
     };
   }
 
@@ -120,7 +121,7 @@ export class HybridMemoryBackend implements MemoryBackend {
     const unifiedConfig: Partial<UnifiedMemoryConfig> = {
       dbPath: this.config.sqlite.path ?? DEFAULT_UNIFIED_MEMORY_CONFIG.dbPath,
       walMode: this.config.sqlite.walMode ?? true,
-      busyTimeout: this.config.sqlite.busyTimeout ?? 5000,
+      busyTimeout: this.config.sqlite.busyTimeout ?? MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
     };
 
     this.unifiedMemory = getUnifiedMemory(unifiedConfig);

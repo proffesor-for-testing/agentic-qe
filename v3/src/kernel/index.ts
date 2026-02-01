@@ -32,6 +32,10 @@ export {
   initializeUnifiedMemory,
   resetUnifiedMemory,
   DEFAULT_UNIFIED_MEMORY_CONFIG,
+  // Project root detection for consistent DB path resolution
+  findProjectRoot,
+  getDefaultDbPath,
+  getResolvedDefaultConfig,
 } from './unified-memory';
 export type { UnifiedMemoryConfig } from './unified-memory';
 

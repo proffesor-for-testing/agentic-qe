@@ -250,8 +250,9 @@ async function walkDirectory(
         }
       }
     }
-  } catch {
-    // Ignore directories we can't read (permissions, etc.)
+  } catch (error) {
+    // Non-critical: permission errors when reading directories
+    console.debug('[FileReader] Directory read error:', error instanceof Error ? error.message : error);
   }
 }
 

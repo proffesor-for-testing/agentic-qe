@@ -512,8 +512,9 @@ export class ThresholdTuner implements IThresholdTuner {
       state.samplesSinceCalibration >= this.config.autoCalibrateInterval
     ) {
       // Fire and forget calibration
-      this.calibrateDomain(domain, 'auto').catch(() => {
-        // Ignore calibration errors in auto mode
+      this.calibrateDomain(domain, 'auto').catch((error) => {
+        // Non-critical: auto-calibration errors don't affect normal operation
+        console.debug('[ThresholdTuner] Auto-calibration error:', error instanceof Error ? error.message : error);
       });
     }
   }

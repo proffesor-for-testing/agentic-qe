@@ -313,15 +313,17 @@ export class AuthStateManager {
     // Remove state file
     try {
       await unlink(statePath);
-    } catch {
-      // Ignore if doesn't exist
+    } catch (error) {
+      // Non-critical: file may not exist
+      console.debug('[AuthStateManager] State file removal skipped:', error instanceof Error ? error.message : error);
     }
 
     // Remove metadata file
     try {
       await unlink(metaPath);
-    } catch {
-      // Ignore if doesn't exist
+    } catch (error) {
+      // Non-critical: file may not exist
+      console.debug('[AuthStateManager] Metadata file removal skipped:', error instanceof Error ? error.message : error);
     }
 
     // Clear cache

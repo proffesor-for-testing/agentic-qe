@@ -2,7 +2,7 @@
  * SQLite Data Reader
  *
  * Reads data from local SQLite databases for cloud sync.
- * Handles: memory.db, qe-patterns.db, etc.
+ * Handles: memory.db (consolidated database)
  */
 
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
@@ -300,8 +300,9 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
           `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`
         );
         tables = (stmt.all() as { name: string }[]).map(r => r.name);
-      } catch {
-        // Ignore errors
+      } catch (error) {
+        // Non-critical: table listing errors during database info
+        console.debug('[SQLiteReader] Table listing error:', error instanceof Error ? error.message : error);
       }
     }
 

@@ -42,8 +42,7 @@ function findV2AgentsPath(): string | null {
     resolve(cwd, 'dist/agents/n8n/index.js'),
     // Monorepo structure
     join(cwd, '..', 'dist', 'agents', 'n8n', 'index.js'),
-    // Absolute fallback
-    '/workspaces/agentic-qe/dist/agents/n8n/index.js',
+    // No absolute fallback - use only relative paths from project structure
   ];
 
   for (const path of possiblePaths) {

@@ -120,8 +120,8 @@ export async function handleTaskList(
       domain: params.domain,
     });
 
-    // Apply limit if specified
-    const limitedTasks = params.limit ? tasks.slice(0, params.limit) : tasks;
+    // Apply limit if specified (use typeof check to handle limit: 0)
+    const limitedTasks = typeof params.limit === 'number' ? tasks.slice(0, params.limit) : tasks;
 
     const results: TaskStatusResult[] = limitedTasks.map((execution) => ({
       taskId: execution.taskId,
@@ -645,11 +645,18 @@ export async function handleRoutingMetrics(
 function inferTaskType(description: string): TaskType {
   const lower = description.toLowerCase();
 
+  // Check execution first (more specific patterns)
+  if (
+    /run\s+(?:\w+\s+)*tests?/.test(lower) ||
+    /execute\s+(?:\w+\s+)*tests?/.test(lower) ||
+    lower.includes('run tests') ||
+    lower.includes('execute tests')
+  ) {
+    return 'execute-tests';
+  }
+  // Then check generation
   if (lower.includes('generate test') || lower.includes('create test') || lower.includes('write test')) {
     return 'generate-tests';
-  }
-  if (lower.includes('run test') || lower.includes('execute test')) {
-    return 'execute-tests';
   }
   if (lower.includes('coverage') || lower.includes('uncovered')) {
     return 'analyze-coverage';

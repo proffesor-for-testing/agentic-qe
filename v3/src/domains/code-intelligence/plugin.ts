@@ -3,13 +3,13 @@
  * Integrates the code intelligence domain into the kernel
  */
 
-import { DomainName, DomainEvent, Result } from '../../shared/types';
+import { DomainName, DomainEvent, Result, err } from '../../shared/types';
 import {
   EventBus,
   MemoryBackend,
   AgentCoordinator,
 } from '../../kernel/interfaces';
-import { BaseDomainPlugin } from '../domain-interface';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import {
   CodeIntelligenceAPI,
   IndexRequest,
@@ -69,6 +69,12 @@ export interface CodeIntelligenceExtendedAPI extends CodeIntelligenceAPI {
 
   /** Get the impact analyzer service */
   getImpactAnalyzer(): IImpactAnalyzerService;
+
+  /** Get dependencies (alias for mapDependencies) */
+  getDependencies(request: DependencyRequest): Promise<Result<DependencyMap, Error>>;
+
+  /** Get metrics */
+  getMetrics(): Promise<Result<{ indexed: number; queries: number; impacts: number }, Error>>;
 }
 
 /**
@@ -119,7 +125,9 @@ export class CodeIntelligencePlugin extends BaseDomainPlugin {
       search: this.search.bind(this),
       analyzeImpact: this.analyzeImpact.bind(this),
       mapDependencies: this.mapDependencies.bind(this),
+      getDependencies: this.mapDependencies.bind(this), // Alias
       queryKG: this.queryKG.bind(this),
+      getMetrics: this.getMetrics.bind(this),
 
       // Internal access methods
       getCoordinator: () => this.coordinator!,
@@ -129,6 +137,76 @@ export class CodeIntelligencePlugin extends BaseDomainPlugin {
     };
 
     return api as T;
+  }
+
+  // ============================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ============================================================================
+
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      ['index', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const paths = payload.paths as string[] | undefined;
+        if (!paths || paths.length === 0) {
+          return err(new Error('Invalid index payload: missing paths'));
+        }
+        const languages = payload.language
+          ? [payload.language as string]
+          : (payload.languages as string[] | undefined);
+        return this.coordinator.index({
+          paths,
+          languages,
+        });
+      }],
+
+      ['search', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const query = payload.query as string | undefined;
+        if (!query) {
+          return err(new Error('Invalid search payload: missing query'));
+        }
+        return this.coordinator.search({
+          query,
+          type: (payload.type as 'semantic' | 'exact' | 'fuzzy') ?? 'semantic',
+          limit: payload.limit as number | undefined,
+        });
+      }],
+
+      ['analyze-impact', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const changedFiles = payload.changedFiles as string[] | undefined;
+        if (!changedFiles || changedFiles.length === 0) {
+          return err(new Error('Invalid analyze-impact payload: missing changedFiles'));
+        }
+        return this.coordinator.analyzeImpact({
+          changedFiles,
+        });
+      }],
+
+      ['query-dependencies', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const file = payload.file as string | undefined;
+        const files = payload.files as string[] | undefined;
+        const targetFiles = files ?? (file ? [file] : undefined);
+        if (!targetFiles || targetFiles.length === 0) {
+          return err(new Error('Invalid query-dependencies payload: missing file or files'));
+        }
+        return this.coordinator.mapDependencies({
+          files: targetFiles,
+          direction: (payload.direction as 'incoming' | 'outgoing' | 'both') ?? 'both',
+          depth: payload.depth as number | undefined,
+        });
+      }],
+    ]);
   }
 
   // ============================================================================
@@ -320,6 +398,24 @@ export class CodeIntelligencePlugin extends BaseDomainPlugin {
       }
 
       return result;
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  private async getMetrics(): Promise<Result<{ indexed: number; queries: number; impacts: number }, Error>> {
+    this.ensureInitialized();
+
+    try {
+      const health = this.getHealth();
+      return {
+        success: true,
+        value: {
+          indexed: health.agents.total,
+          queries: health.agents.idle,
+          impacts: health.agents.active,
+        },
+      };
     } catch (error) {
       return this.handleError(error);
     }

@@ -129,6 +129,7 @@ coordination/orchestration/*
 .agentic-qe/data/improvement/state.json
 .agentic-qe/a11y-scans/
 data/
+!v3/src/adapters/a2ui/data/
 test-projects/
 
 

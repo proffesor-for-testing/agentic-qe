@@ -379,9 +379,9 @@ describe('ADR-046 Unified Storage Consistency', () => {
     const unified = getUnifiedMemory();
     await unified.initialize();
 
-    // Verify the expected path
+    // Verify the expected path (now absolute with project root detection)
     const actualPath = unified.getDbPath();
-    expect(actualPath).toBe(DEFAULT_UNIFIED_MEMORY_CONFIG.dbPath);
+    expect(actualPath).toContain('.agentic-qe');
     expect(actualPath).toContain('memory.db');
 
     // Verify HybridMemoryBackend uses same singleton

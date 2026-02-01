@@ -9,7 +9,7 @@ import {
   MemoryBackend,
   AgentCoordinator,
 } from '../../kernel/interfaces.js';
-import { BaseDomainPlugin } from '../domain-interface.js';
+import { BaseDomainPlugin, TaskHandler } from '../domain-interface.js';
 import type { WorkflowOrchestrator, WorkflowContext } from '../../coordination/workflow-orchestrator.js';
 import {
   Viewport,
@@ -170,6 +170,75 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
   }
 
   // ============================================================================
+  // Task Handlers (Queen-Domain Integration)
+  // ============================================================================
+
+  protected override getTaskHandlers(): Map<string, TaskHandler> {
+    return new Map([
+      ['run-visual-tests', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const urls = payload.urls as string[] | undefined;
+        const viewports = payload.viewports as Viewport[] | undefined;
+        if (!urls || urls.length === 0) {
+          return err(new Error('Invalid run-visual-tests payload: missing urls'));
+        }
+        return this.coordinator.runVisualTests(
+          urls,
+          viewports || [{ width: 1920, height: 1080, deviceScaleFactor: 1, isMobile: false, hasTouch: false }]
+        );
+      }],
+
+      ['run-accessibility-audit', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.coordinator) {
+          return err(new Error('Coordinator not initialized'));
+        }
+        const urls = payload.urls as string[] | undefined;
+        const level = (payload.level as 'A' | 'AA' | 'AAA') || 'AA';
+        if (!urls || urls.length === 0) {
+          return err(new Error('Invalid run-accessibility-audit payload: missing urls'));
+        }
+        return this.coordinator.runAccessibilityAudit(urls, level);
+      }],
+
+      ['capture-screenshot', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.visualTester) {
+          return err(new Error('Visual tester not initialized'));
+        }
+        const url = payload.url as string | undefined;
+        if (!url) {
+          return err(new Error('Invalid capture-screenshot payload: missing url'));
+        }
+        return this.visualTester.captureScreenshot(url, payload.options as CaptureOptions | undefined);
+      }],
+
+      ['test-responsiveness', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.responsiveTester) {
+          return err(new Error('Responsive tester not initialized'));
+        }
+        const url = payload.url as string | undefined;
+        if (!url) {
+          return err(new Error('Invalid test-responsiveness payload: missing url'));
+        }
+        return this.responsiveTester.testResponsiveness(url, payload.options as Partial<ResponsiveTestConfig> | undefined);
+      }],
+
+      ['validate-wcag', async (payload): Promise<Result<unknown, Error>> => {
+        if (!this.accessibilityTester) {
+          return err(new Error('Accessibility tester not initialized'));
+        }
+        const url = payload.url as string | undefined;
+        if (!url) {
+          return err(new Error('Invalid validate-wcag payload: missing url'));
+        }
+        const level = (payload.level as 'A' | 'AA' | 'AAA') || 'AA';
+        return this.accessibilityTester.validateWCAGLevel(url, level);
+      }],
+    ]);
+  }
+
+  // ============================================================================
   // Lifecycle Methods
   // ============================================================================
 
@@ -257,6 +326,9 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
         break;
       case 'code-intelligence.FileChanged':
         await this.handleFileChanged(event);
+        break;
+      case 'quality-assessment.QualityGateTriggered':
+        await this.handleQualityGateTriggered(event);
         break;
       default:
         // No specific handling needed
