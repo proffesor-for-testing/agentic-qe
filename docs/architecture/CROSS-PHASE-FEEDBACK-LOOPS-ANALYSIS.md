@@ -51,18 +51,18 @@ adds new failure modes.
 
 ---
 
-## Loop 2: Production → Grooming (Tactical)
+## Loop 2: Production → Refinement (Tactical)
 
 ```
 qe-defect-predictor → qe-pattern-learner → qe-product-factors-assessor
 ```
 
-**Purpose:** Defect patterns inform SFDIPOT assessments during story grooming.
+**Purpose:** Defect patterns inform SFDIPOT assessments during story refinement.
 
 ### Real-World Example
 
 ```
-SCENARIO: Mobile banking app grooming "Transfer Funds" story
+SCENARIO: Mobile banking app refinement of "Transfer Funds" story
 
 PRODUCTION PATTERNS LEARNED:
 - 60% of "Transfer" bugs are in the DATA factor (amount parsing,
@@ -135,13 +135,13 @@ This covers flakiness, genuine bugs, environment issues, and test design problem
 
 ---
 
-## Loop 4: Development → Grooming (Quality Criteria)
+## Loop 4: Development → Refinement (Quality Criteria)
 
 ```
 qe-coverage-specialist → qe-gap-detector → qe-requirements-validator
 ```
 
-**Purpose:** Coverage gaps during development reveal AC problems for future grooming.
+**Purpose:** Coverage gaps during development reveal AC problems for future refinement.
 
 ### Real-World Example
 
@@ -178,9 +178,9 @@ code keeps getting written, coverage stays low.
 | Loop | Name | Meaningful? | Example Valid? | Agent Chain Ideal? |
 |------|------|:-----------:|:--------------:|:------------------:|
 | **1** | Strategic (Prod→Ideation) | ✅ Yes | ✅ Yes | ⚠️ Could simplify |
-| **2** | Tactical (Prod→Grooming) | ✅ Yes | ✅ Yes | ✅ Accurate |
+| **2** | Tactical (Prod→Refinement) | ✅ Yes | ✅ Yes | ✅ Accurate |
 | **3** | Operational (CI/CD→Dev) | ✅ Yes | ✅ Yes | ⚠️ Oddly specific |
-| **4** | Quality Criteria (Dev→Grooming) | ✅ Yes | ✅ Yes | ✅ Accurate |
+| **4** | Quality Criteria (Dev→Refinement) | ✅ Yes | ✅ Yes | ✅ Accurate |
 
 ---
 

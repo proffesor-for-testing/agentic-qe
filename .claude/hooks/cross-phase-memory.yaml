@@ -50,7 +50,7 @@ hooks:
           - "qe-quality-criteria-recommender"
 
   # ---------------------------------------------------------------------------
-  # Loop 2: Production → Grooming (Tactical)
+  # Loop 2: Production → Refinement (Tactical)
   # ---------------------------------------------------------------------------
 
   post-pattern-analysis:
@@ -69,11 +69,11 @@ hooks:
           featureContext: "result.featureContext"
           recommendations: "result.recommendations"
 
-  pre-grooming-tactical:
-    description: "Query SFDIPOT weights before grooming"
+  pre-refinement-tactical:
+    description: "Query SFDIPOT weights before refinement"
     trigger:
       event: "phase-start"
-      phase: "grooming"
+      phase: "refinement"
     actions:
       - type: "query-signals"
         namespace: "qcsd-memory/production-patterns/failure-modes"
@@ -133,7 +133,7 @@ hooks:
           - "qe-tdd-specialist"
 
   # ---------------------------------------------------------------------------
-  # Loop 4: Development → Grooming (Quality Criteria)
+  # Loop 4: Development → Refinement (Quality Criteria)
   # ---------------------------------------------------------------------------
 
   post-coverage-analysis:
@@ -164,11 +164,11 @@ hooks:
           coverageGaps: "result.gaps"
           recommendations: "result.acRecommendations"
 
-  pre-grooming-quality:
-    description: "Query AC quality signals before grooming"
+  pre-refinement-quality:
+    description: "Query AC quality signals before refinement"
     trigger:
       event: "phase-start"
-      phase: "grooming"
+      phase: "refinement"
     actions:
       - type: "query-signals"
         namespace: "qcsd-memory/development-patterns/ac-problems"

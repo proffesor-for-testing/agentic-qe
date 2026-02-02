@@ -112,7 +112,7 @@ export class CrossPhaseMemoryService {
   }
 
   // ---------------------------------------------------------------------------
-  // Loop 2: Production → Grooming (Tactical)
+  // Loop 2: Production → Refinement (Tactical)
   // ---------------------------------------------------------------------------
 
   async storeSFDIPOTSignal(
@@ -126,7 +126,7 @@ export class CrossPhaseMemoryService {
       id: createSignalId('tactical', 'sfdipot'),
       timestamp: new Date().toISOString(),
       source: 'production',
-      target: 'grooming',
+      target: 'refinement',
       loopType: 'tactical',
       version: '1.0.0',
       expiresAt: calculateExpiry(SIGNAL_TTL.SFDIPOT_WEIGHTS),
@@ -192,7 +192,7 @@ export class CrossPhaseMemoryService {
   }
 
   // ---------------------------------------------------------------------------
-  // Loop 4: Development → Grooming (Quality Criteria)
+  // Loop 4: Development → Refinement (Quality Criteria)
   // ---------------------------------------------------------------------------
 
   async storeACQualitySignal(
@@ -206,7 +206,7 @@ export class CrossPhaseMemoryService {
       id: createSignalId('quality-criteria', 'ac-quality'),
       timestamp: new Date().toISOString(),
       source: 'development',
-      target: 'grooming',
+      target: 'refinement',
       loopType: 'quality-criteria',
       version: '1.0.0',
       expiresAt: calculateExpiry(SIGNAL_TTL.AC_QUALITY),
