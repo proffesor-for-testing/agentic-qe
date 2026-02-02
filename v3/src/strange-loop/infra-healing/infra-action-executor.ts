@@ -95,12 +95,13 @@ export class ShellCommandRunner implements CommandRunner {
         { timeout: timeoutMs, maxBuffer: 1024 * 1024 },
         (error, stdout, stderr) => {
           const durationMs = Date.now() - startTime;
-          const timedOut = error?.message?.includes('TIMEOUT') ??
-            (error as NodeJS.ErrnoException)?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ??
-            false;
+          const timedOut = (error?.message?.includes('TIMEOUT') ||
+            (error as NodeJS.ErrnoException)?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') ?? false;
 
+          const errWithCode = error as NodeJS.ErrnoException & { code?: string | number } | null;
+          const exitCode = error ? (typeof errWithCode?.code === 'number' ? errWithCode.code : 1) : 0;
           resolve({
-            exitCode: error ? (error as NodeJS.ErrnoException & { code?: number }).code as number ?? 1 : 0,
+            exitCode,
             stdout: stdout ?? '',
             stderr: stderr ?? '',
             durationMs,
