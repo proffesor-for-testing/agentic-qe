@@ -4,13 +4,20 @@ description: "WCAG 2.2 compliance testing, screen reader validation, and inclusi
 category: specialized-testing
 priority: high
 tokenEstimate: 1100
-agents: [qe-visual-tester, qe-test-generator, qe-quality-gate]
+agents: [qe-visual-tester, qe-test-generator, qe-quality-gate, qe-accessibility-auditor]
 implementation_status: optimized
 optimization_version: 1.0
 last_optimized: 2025-12-02
 dependencies: []
 quick_reference_card: true
 tags: [accessibility, wcag, a11y, screen-reader, ada, section-508, inclusive]
+
+# ADR-056 Trust Tier 3 Validation Stack
+trust_tier: 3
+validation:
+  schema_path: schemas/output.json
+  validator_path: scripts/validate.sh
+  eval_path: evals/accessibility-testing.yaml
 ---
 
 # Accessibility Testing

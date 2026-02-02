@@ -1,0 +1,212 @@
+[
+  {
+    "runId": "run-sonnet-20260202",
+    "model": "claude-sonnet",
+    "outcomes": [
+      {
+        "skillName": "security-testing",
+        "trustTier": 3,
+        "validationLevel": "eval",
+        "model": "claude-sonnet",
+        "passed": true,
+        "score": 0.95,
+        "testCaseResults": [
+          {
+            "testId": "security-injection-001",
+            "passed": true,
+            "expectedPatterns": ["sanitize", "validate"],
+            "actualPatterns": ["sanitize", "validate", "escape"],
+            "reasoningQuality": 0.92,
+            "executionTimeMs": 150,
+            "category": "injection",
+            "priority": "critical"
+          },
+          {
+            "testId": "security-auth-002",
+            "passed": true,
+            "expectedPatterns": ["authenticate", "authorize"],
+            "actualPatterns": ["authenticate", "authorize"],
+            "reasoningQuality": 0.88,
+            "executionTimeMs": 120,
+            "category": "auth",
+            "priority": "critical"
+          },
+          {
+            "testId": "security-xss-003",
+            "passed": true,
+            "expectedPatterns": ["escape", "sanitize"],
+            "actualPatterns": ["escape", "sanitize", "encode"],
+            "reasoningQuality": 0.95,
+            "executionTimeMs": 100,
+            "category": "xss",
+            "priority": "high"
+          }
+        ],
+        "timestamp": "2026-02-02T10:00:00.000Z",
+        "runId": "run-sonnet-20260202",
+        "metadata": {
+          "duration": 370,
+          "environment": "test"
+        }
+      },
+      {
+        "skillName": "accessibility-testing",
+        "trustTier": 3,
+        "validationLevel": "eval",
+        "model": "claude-sonnet",
+        "passed": true,
+        "score": 0.9,
+        "testCaseResults": [
+          {
+            "testId": "a11y-wcag-001",
+            "passed": true,
+            "expectedPatterns": ["alt-text", "aria-label"],
+            "actualPatterns": ["alt-text", "aria-label"],
+            "reasoningQuality": 0.9,
+            "executionTimeMs": 200,
+            "category": "wcag",
+            "priority": "high"
+          },
+          {
+            "testId": "a11y-keyboard-002",
+            "passed": true,
+            "expectedPatterns": ["tab-order", "focus-visible"],
+            "actualPatterns": ["tab-order", "focus-visible", "keyboard-nav"],
+            "reasoningQuality": 0.85,
+            "executionTimeMs": 180,
+            "category": "keyboard",
+            "priority": "high"
+          },
+          {
+            "testId": "a11y-color-003",
+            "passed": false,
+            "expectedPatterns": ["contrast-ratio"],
+            "actualPatterns": [],
+            "reasoningQuality": 0.6,
+            "executionTimeMs": 150,
+            "category": "color",
+            "priority": "medium",
+            "error": "Contrast ratio check not performed"
+          }
+        ],
+        "timestamp": "2026-02-02T10:01:00.000Z",
+        "runId": "run-sonnet-20260202",
+        "metadata": {
+          "duration": 530,
+          "environment": "test"
+        }
+      }
+    ],
+    "timestamp": "2026-02-02T10:00:00.000Z",
+    "durationMs": 900,
+    "metadata": {
+      "environment": "test",
+      "version": "1.0.0"
+    }
+  },
+  {
+    "runId": "run-haiku-20260202",
+    "model": "claude-haiku",
+    "outcomes": [
+      {
+        "skillName": "security-testing",
+        "trustTier": 3,
+        "validationLevel": "eval",
+        "model": "claude-haiku",
+        "passed": true,
+        "score": 0.85,
+        "testCaseResults": [
+          {
+            "testId": "security-injection-001",
+            "passed": true,
+            "expectedPatterns": ["sanitize", "validate"],
+            "actualPatterns": ["sanitize", "validate"],
+            "reasoningQuality": 0.82,
+            "executionTimeMs": 80,
+            "category": "injection",
+            "priority": "critical"
+          },
+          {
+            "testId": "security-auth-002",
+            "passed": true,
+            "expectedPatterns": ["authenticate", "authorize"],
+            "actualPatterns": ["authenticate"],
+            "reasoningQuality": 0.75,
+            "executionTimeMs": 70,
+            "category": "auth",
+            "priority": "critical"
+          },
+          {
+            "testId": "security-xss-003",
+            "passed": false,
+            "expectedPatterns": ["escape", "sanitize"],
+            "actualPatterns": ["escape"],
+            "reasoningQuality": 0.65,
+            "executionTimeMs": 60,
+            "category": "xss",
+            "priority": "high",
+            "error": "Missing sanitize pattern"
+          }
+        ],
+        "timestamp": "2026-02-02T10:00:00.000Z",
+        "runId": "run-haiku-20260202",
+        "metadata": {
+          "duration": 210,
+          "environment": "test"
+        }
+      },
+      {
+        "skillName": "accessibility-testing",
+        "trustTier": 3,
+        "validationLevel": "eval",
+        "model": "claude-haiku",
+        "passed": true,
+        "score": 0.85,
+        "testCaseResults": [
+          {
+            "testId": "a11y-wcag-001",
+            "passed": true,
+            "expectedPatterns": ["alt-text", "aria-label"],
+            "actualPatterns": ["alt-text", "aria-label"],
+            "reasoningQuality": 0.85,
+            "executionTimeMs": 100,
+            "category": "wcag",
+            "priority": "high"
+          },
+          {
+            "testId": "a11y-keyboard-002",
+            "passed": true,
+            "expectedPatterns": ["tab-order", "focus-visible"],
+            "actualPatterns": ["tab-order"],
+            "reasoningQuality": 0.7,
+            "executionTimeMs": 90,
+            "category": "keyboard",
+            "priority": "high"
+          },
+          {
+            "testId": "a11y-color-003",
+            "passed": true,
+            "expectedPatterns": ["contrast-ratio"],
+            "actualPatterns": ["contrast-ratio"],
+            "reasoningQuality": 0.8,
+            "executionTimeMs": 80,
+            "category": "color",
+            "priority": "medium"
+          }
+        ],
+        "timestamp": "2026-02-02T10:01:00.000Z",
+        "runId": "run-haiku-20260202",
+        "metadata": {
+          "duration": 270,
+          "environment": "test"
+        }
+      }
+    ],
+    "timestamp": "2026-02-02T10:00:00.000Z",
+    "durationMs": 480,
+    "metadata": {
+      "environment": "test",
+      "version": "1.0.0"
+    }
+  }
+]

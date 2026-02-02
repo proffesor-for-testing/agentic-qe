@@ -256,6 +256,36 @@ export type {
   ActionExecutor,
 } from './strange-loop';
 
+// ============================================================================
+// Validation Module (ADR-056 Phase 5)
+// ============================================================================
+
+export {
+  // Swarm Skill Validator
+  SwarmSkillValidator,
+  createSwarmSkillValidator,
+
+  // Configuration
+  DEFAULT_SWARM_VALIDATION_CONFIG,
+
+  // Constants
+  P0_SKILLS,
+  DEFAULT_VALIDATION_MODELS,
+} from './validation';
+
+export type {
+  // Configuration types
+  SwarmValidationConfig,
+  SwarmTopology as ValidationSwarmTopology,
+
+  // Result types
+  SwarmValidationResult,
+  SwarmValidationSummary,
+
+  // Function types
+  SkillValidatorFn,
+} from './validation';
+
 // Version info - read from package.json
 export const VERSION: string = pkg.version;
 export const ARCHITECTURE = 'DDD with 12 Bounded Contexts';

@@ -5,6 +5,12 @@ description: Comprehensive performance analysis, bottleneck detection, and optim
 category: monitoring
 tags: [performance, bottleneck, optimization, profiling, metrics, analysis]
 author: Claude Flow Team
+trust_tier: 3
+validation:
+  schema_path: schemas/output.json
+  validator_path: scripts/validate.sh
+  eval_path: evals/performance-analysis.yaml
+
 ---
 
 # Performance Analysis Skill

@@ -1,6 +1,12 @@
 ---
 name: "QE Defect Intelligence"
 description: "AI-powered defect prediction, pattern learning, and root cause analysis for proactive quality management."
+trust_tier: 3
+validation:
+  schema_path: schemas/output.json
+  validator_path: scripts/validate.sh
+  eval_path: evals/qe-defect-intelligence.yaml
+
 ---
 
 # QE Defect Intelligence

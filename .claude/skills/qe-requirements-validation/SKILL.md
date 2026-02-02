@@ -1,6 +1,12 @@
 ---
 name: "QE Requirements Validation"
 description: "Requirements traceability, acceptance criteria validation, and BDD scenario management for complete requirements coverage."
+trust_tier: 3
+validation:
+  schema_path: schemas/output.json
+  validator_path: scripts/validate.sh
+  eval_path: evals/qe-requirements-validation.yaml
+
 ---
 
 # QE Requirements Validation

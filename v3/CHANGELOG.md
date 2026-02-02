@@ -641,3 +641,24 @@ if (risk.probability > 0.5) {
 [3.3.0]: https://github.com/anthropics/agentic-qe/compare/v3.2.3...v3.3.0
 [3.2.3]: https://github.com/anthropics/agentic-qe/compare/v3.2.0...v3.2.3
 [3.2.0]: https://github.com/anthropics/agentic-qe/releases/tag/v3.2.0
+
+## [3.4.2] - 2026-02-02
+
+### Added
+- **ADR-056: Skill Validation System** - 4-layer trust tier validation architecture
+- Trust tier badges and manifest tracking (97 skills categorized)
+- 46 Tier 3 (Verified) skills with full evaluation test suites
+- 7 Tier 2 (Validated) skills with validator scripts
+- 5 Tier 1 (Structured) skills with JSON output schemas
+- Shared validation infrastructure in `.validation/` directory
+- GitHub Actions workflow for skill validation CI/CD
+- Skill validation learner integration for pattern learning
+
+### Changed
+- Updated all 52 skills with `trust_tier` frontmatter
+- Enhanced prepare-assets.sh to sync validation infrastructure
+- Improved skills-installer.ts to handle validation directories
+
+### Fixed
+- Skill output schema validation for deterministic results
+- Eval suite test case formatting and MCP integration

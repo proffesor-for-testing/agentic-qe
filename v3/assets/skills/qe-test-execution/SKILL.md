@@ -1,6 +1,12 @@
 ---
 name: "QE Test Execution"
 description: "Parallel test execution orchestration with intelligent scheduling, retry logic, and comprehensive result aggregation."
+trust_tier: 3
+validation:
+  schema_path: schemas/output.json
+  validator_path: scripts/validate.sh
+  eval_path: evals/qe-test-execution.yaml
+
 ---
 
 # QE Test Execution

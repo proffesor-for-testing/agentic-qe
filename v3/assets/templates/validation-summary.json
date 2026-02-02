@@ -1,0 +1,56 @@
+{
+  "$schema": "https://agentic-qe.dev/schemas/validation-summary.json",
+  "$comment": "Template for CI validation summary - values are placeholders",
+  "version": "1.0.0",
+  "runId": "{{runId}}",
+  "timestamp": "{{timestamp}}",
+  "status": "{{status}}",
+  "summary": {
+    "totalSkills": 0,
+    "passedSkills": 0,
+    "failedSkills": 0,
+    "avgPassRate": 0.0,
+    "totalTests": 0,
+    "passedTests": 0,
+    "failedTests": 0,
+    "totalDurationMs": 0,
+    "modelsUsed": []
+  },
+  "thresholds": {
+    "minPassRate": 0.9,
+    "regressionThreshold": 0.1,
+    "varianceThreshold": 0.04
+  },
+  "gates": {
+    "passRateGate": {
+      "passed": false,
+      "value": 0.0,
+      "threshold": 0.9,
+      "message": ""
+    },
+    "regressionGate": {
+      "passed": false,
+      "regressionCount": 0,
+      "criticalCount": 0,
+      "message": ""
+    },
+    "crossModelGate": {
+      "passed": false,
+      "variance": 0.0,
+      "threshold": 0.04,
+      "message": ""
+    }
+  },
+  "regressions": [],
+  "anomalies": [],
+  "recommendations": [],
+  "metadata": {
+    "generatedBy": "ValidationResultAggregator",
+    "policy": "ADR-056",
+    "inputs": {
+      "runIds": [],
+      "models": []
+    }
+  },
+  "exitCode": 0
+}

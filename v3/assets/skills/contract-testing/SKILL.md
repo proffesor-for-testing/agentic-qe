@@ -11,6 +11,11 @@ last_optimized: 2025-12-02
 dependencies: []
 quick_reference_card: true
 tags: [contract, pact, consumer-driven, api, microservices, schema-validation]
+trust_tier: 3
+validation:
+  schema_path: schemas/output.json
+  validator_path: scripts/validate.sh
+  eval_path: evals/contract-testing.yaml
 ---
 
 # Contract Testing

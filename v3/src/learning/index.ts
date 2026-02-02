@@ -407,3 +407,22 @@ export type {
   AuditRecommendation,
   MemoryAuditorConfig,
 } from './memory-auditor.js';
+
+// ============================================================================
+// Skill Validation Learner (ADR-056)
+// ============================================================================
+
+export {
+  SkillValidationLearner,
+  createSkillValidationLearner,
+} from './skill-validation-learner.js';
+
+export type {
+  SkillTrustTier,
+  ValidationLevel,
+  TestCaseResult,
+  SkillValidationOutcome,
+  SkillConfidence,
+  CrossModelAnalysis,
+  ValidationPattern,
+} from './skill-validation-learner.js';
