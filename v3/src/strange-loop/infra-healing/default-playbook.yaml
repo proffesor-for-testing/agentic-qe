@@ -1,0 +1,148 @@
+# Infrastructure Recovery Playbook
+# ADR-056: Infrastructure Self-Healing Extension for Strange Loop
+#
+# Each service entry defines:
+#   healthCheck: command that returns exit 0 if service is healthy
+#   recover: ordered list of recovery commands
+#   verify: command that returns exit 0 if recovery succeeded
+#
+# Framework-agnostic: change commands for your environment.
+# Supports ${VAR} interpolation from environment variables.
+
+version: "1.0.0"
+
+defaults:
+  timeoutMs: 10000
+  maxRetries: 3
+  backoffMs: [2000, 5000, 10000]
+
+services:
+  postgres:
+    description: "PostgreSQL database server"
+    healthCheck:
+      command: "pg_isready -h ${PGHOST:-localhost} -p ${PGPORT:-5432}"
+      timeoutMs: 5000
+    recover:
+      - command: "docker compose up -d postgres"
+        timeoutMs: 30000
+      - command: "sleep 3"
+        timeoutMs: 5000
+        required: false
+    verify:
+      command: "pg_isready -h ${PGHOST:-localhost} -p ${PGPORT:-5432}"
+      timeoutMs: 5000
+    maxRetries: 3
+    backoffMs: [3000, 5000, 10000]
+
+  mysql:
+    description: "MySQL database server"
+    healthCheck:
+      command: "mysqladmin ping -h ${MYSQL_HOST:-localhost} -P ${MYSQL_PORT:-3306} -u root"
+      timeoutMs: 5000
+    recover:
+      - command: "docker compose up -d mysql"
+        timeoutMs: 30000
+      - command: "sleep 5"
+        timeoutMs: 10000
+        required: false
+    verify:
+      command: "mysqladmin ping -h ${MYSQL_HOST:-localhost} -P ${MYSQL_PORT:-3306} -u root"
+      timeoutMs: 5000
+    maxRetries: 3
+    backoffMs: [3000, 5000, 10000]
+
+  mongodb:
+    description: "MongoDB database server"
+    healthCheck:
+      command: "mongosh --host ${MONGO_HOST:-localhost} --port ${MONGO_PORT:-27017} --eval 'db.runCommand({ping:1})' --quiet"
+      timeoutMs: 5000
+    recover:
+      - command: "docker compose up -d mongodb"
+        timeoutMs: 30000
+      - command: "sleep 3"
+        timeoutMs: 5000
+        required: false
+    verify:
+      command: "mongosh --host ${MONGO_HOST:-localhost} --port ${MONGO_PORT:-27017} --eval 'db.runCommand({ping:1})' --quiet"
+      timeoutMs: 5000
+    maxRetries: 3
+    backoffMs: [3000, 5000, 10000]
+
+  redis:
+    description: "Redis cache server"
+    healthCheck:
+      command: "redis-cli -h ${REDIS_HOST:-localhost} -p ${REDIS_PORT:-6379} ping"
+      timeoutMs: 3000
+    recover:
+      - command: "docker compose up -d redis"
+        timeoutMs: 15000
+    verify:
+      command: "redis-cli -h ${REDIS_HOST:-localhost} -p ${REDIS_PORT:-6379} ping"
+      timeoutMs: 3000
+    maxRetries: 3
+    backoffMs: [2000, 3000, 5000]
+
+  elasticsearch:
+    description: "Elasticsearch search engine"
+    healthCheck:
+      command: "curl -sf http://${ES_HOST:-localhost}:${ES_PORT:-9200}/_cluster/health -o /dev/null"
+      timeoutMs: 10000
+    recover:
+      - command: "docker compose up -d elasticsearch"
+        timeoutMs: 45000
+      - command: "sleep 10"
+        timeoutMs: 15000
+        required: false
+    verify:
+      command: "curl -sf http://${ES_HOST:-localhost}:${ES_PORT:-9200}/_cluster/health -o /dev/null"
+      timeoutMs: 10000
+    maxRetries: 2
+    backoffMs: [5000, 15000]
+
+  rabbitmq:
+    description: "RabbitMQ message broker"
+    healthCheck:
+      command: "rabbitmq-diagnostics -q ping"
+      timeoutMs: 5000
+    recover:
+      - command: "docker compose up -d rabbitmq"
+        timeoutMs: 30000
+      - command: "sleep 5"
+        timeoutMs: 10000
+        required: false
+    verify:
+      command: "rabbitmq-diagnostics -q ping"
+      timeoutMs: 5000
+    maxRetries: 3
+    backoffMs: [3000, 5000, 10000]
+
+  selenium-grid:
+    description: "Selenium Grid browser automation hub"
+    healthCheck:
+      command: "curl -sf http://${SELENIUM_HOST:-localhost}:${SELENIUM_PORT:-4444}/status -o /dev/null"
+      timeoutMs: 5000
+    recover:
+      - command: "docker compose restart selenium-hub selenium-node-chrome"
+        timeoutMs: 45000
+      - command: "sleep 5"
+        timeoutMs: 10000
+        required: false
+    verify:
+      command: "curl -sf http://${SELENIUM_HOST:-localhost}:${SELENIUM_PORT:-4444}/status -o /dev/null"
+      timeoutMs: 5000
+    maxRetries: 2
+    backoffMs: [5000, 10000]
+
+  generic-service:
+    description: "Generic HTTP service"
+    healthCheck:
+      command: "curl -sf http://${SERVICE_HOST:-localhost}:${SERVICE_PORT:-8080}/health -o /dev/null"
+      timeoutMs: 5000
+    recover:
+      - command: "docker compose up -d ${SERVICE_NAME:-app}"
+        timeoutMs: 30000
+    verify:
+      command: "curl -sf http://${SERVICE_HOST:-localhost}:${SERVICE_PORT:-8080}/health -o /dev/null"
+      timeoutMs: 5000
+    maxRetries: 3
+    backoffMs: [3000, 5000, 10000]
