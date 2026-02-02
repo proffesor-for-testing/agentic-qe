@@ -1,0 +1,487 @@
+# =============================================================================
+# Skill Validation CI Workflow
+# =============================================================================
+#
+# Validates skill output schemas, validator scripts, and evaluation suites
+# per ADR-056: Skill Validation Stack Architecture.
+#
+# Trust Tier-Based Validation:
+#   - Tier 3 (Verified): All validations required, blocks PR on failure
+#   - Tier 2 (Validated): Schema + Validator required, warns on failure
+#   - Tier 1 (Structured): Schema required, warns on failure
+#   - Tier 0 (Advisory): Skipped entirely
+#
+# Triggers:
+#   - On pull request when any skill files change
+#   - On manual dispatch with specific skill or "all"
+#
+# =============================================================================
+
+name: Skill Validation
+
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/**'
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      skill:
+        description: 'Skill to validate (skill name or "all")'
+        required: true
+        default: 'all'
+        type: string
+      run_evals:
+        description: 'Run evaluation suites (requires ANTHROPIC_API_KEY)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+concurrency:
+  group: skill-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ===========================================================================
+  # Job 1: Detect Changed Skills and Their Trust Tiers
+  # ===========================================================================
+  detect-changes:
+    name: Detect Changed Skills
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      skills_json: ${{ steps.detect.outputs.skills_json }}
+      tier3_skills: ${{ steps.detect.outputs.tier3_skills }}
+      tier2_skills: ${{ steps.detect.outputs.tier2_skills }}
+      tier1_skills: ${{ steps.detect.outputs.tier1_skills }}
+      has_changes: ${{ steps.detect.outputs.has_changes }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect skills and trust tiers
+        id: detect
+        run: |
+          echo "Detecting skills and their trust tiers..."
+
+          # Function to get trust tier from SKILL.md frontmatter
+          get_trust_tier() {
+            local skill_dir="$1"
+            local skill_md="$skill_dir/SKILL.md"
+
+            if [ ! -f "$skill_md" ]; then
+              skill_md="$skill_dir/skill.md"
+            fi
+
+            if [ ! -f "$skill_md" ]; then
+              echo "0"
+              return
+            fi
+
+            # Extract trust_tier from YAML frontmatter
+            tier=$(sed -n '/^---$/,/^---$/p' "$skill_md" | grep -E '^trust_tier:' | head -1 | sed 's/trust_tier:[[:space:]]*//' | tr -d ' ')
+
+            if [ -z "$tier" ]; then
+              echo "0"
+            else
+              echo "$tier"
+            fi
+          }
+
+          # Get list of skills to check
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            if [ "${{ inputs.skill }}" == "all" ]; then
+              skill_dirs=$(find .claude/skills -maxdepth 1 -mindepth 1 -type d ! -name '.*' | sort)
+            else
+              skill_dirs=".claude/skills/${{ inputs.skill }}"
+            fi
+          else
+            # PR trigger: detect changed skills
+            base_sha="${{ github.event.pull_request.base.sha }}"
+            head_sha="${{ github.event.pull_request.head.sha }}"
+
+            changed_files=$(git diff --name-only "$base_sha" "$head_sha" \
+              | grep '^.claude/skills/' \
+              | grep -v '^.claude/skills/\.' \
+              || true)
+
+            if [ -z "$changed_files" ]; then
+              echo "No skill changes detected"
+              echo "skills_json=[]" >> $GITHUB_OUTPUT
+              echo "tier3_skills=[]" >> $GITHUB_OUTPUT
+              echo "tier2_skills=[]" >> $GITHUB_OUTPUT
+              echo "tier1_skills=[]" >> $GITHUB_OUTPUT
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            # Get unique skill directories
+            skill_dirs=$(echo "$changed_files" | cut -d'/' -f1-3 | sort -u | grep -v '^$')
+          fi
+
+          # Build arrays by tier
+          tier3_list=""
+          tier2_list=""
+          tier1_list=""
+          all_skills=""
+
+          for skill_dir in $skill_dirs; do
+            if [ ! -d "$skill_dir" ]; then
+              continue
+            fi
+
+            skill_name=$(basename "$skill_dir")
+
+            # Skip hidden directories and special files
+            if [[ "$skill_name" == .* ]] || [[ "$skill_name" == "TRUST-TIERS.md" ]] || [[ "$skill_name" == *.json ]]; then
+              continue
+            fi
+
+            tier=$(get_trust_tier "$skill_dir")
+
+            echo "Skill: $skill_name -> Tier $tier"
+
+            all_skills="$all_skills\"$skill_name\","
+
+            case "$tier" in
+              3) tier3_list="$tier3_list\"$skill_name\"," ;;
+              2) tier2_list="$tier2_list\"$skill_name\"," ;;
+              1) tier1_list="$tier1_list\"$skill_name\"," ;;
+              *) echo "  (Tier 0 - skipping validation)" ;;
+            esac
+          done
+
+          # Format as JSON arrays (remove trailing comma)
+          all_skills="[${all_skills%,}]"
+          tier3_list="[${tier3_list%,}]"
+          tier2_list="[${tier2_list%,}]"
+          tier1_list="[${tier1_list%,}]"
+
+          echo "All skills: $all_skills"
+          echo "Tier 3 (blocking): $tier3_list"
+          echo "Tier 2 (warn): $tier2_list"
+          echo "Tier 1 (warn): $tier1_list"
+
+          echo "skills_json=$all_skills" >> $GITHUB_OUTPUT
+          echo "tier3_skills=$tier3_list" >> $GITHUB_OUTPUT
+          echo "tier2_skills=$tier2_list" >> $GITHUB_OUTPUT
+          echo "tier1_skills=$tier1_list" >> $GITHUB_OUTPUT
+
+          if [ "$all_skills" != "[]" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ===========================================================================
+  # Job 2: Validate Tier 3 Skills (BLOCKING)
+  # ===========================================================================
+  validate-tier3:
+    name: Tier 3 Validation
+    needs: detect-changes
+    if: needs.detect-changes.outputs.tier3_skills != '[]' && needs.detect-changes.outputs.tier3_skills != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        skill: ${{ fromJson(needs.detect-changes.outputs.tier3_skills) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install tools
+        run: |
+          npm install -g ajv-cli ajv-formats
+          sudo apt-get update && sudo apt-get install -y jq bc
+
+      - name: Validate Schema
+        id: schema
+        run: |
+          SKILL="${{ matrix.skill }}"
+          SCHEMA_PATH=".claude/skills/$SKILL/schemas/output.json"
+
+          echo "=== Tier 3 Schema Validation: $SKILL ==="
+
+          if [ ! -f "$SCHEMA_PATH" ]; then
+            echo "::error::Tier 3 skill '$SKILL' missing required schema"
+            exit 1
+          fi
+
+          # Validate JSON syntax
+          if ! jq empty "$SCHEMA_PATH" 2>/dev/null; then
+            echo "::error::Schema for $SKILL is not valid JSON"
+            exit 1
+          fi
+
+          echo "Schema is valid JSON"
+
+      - name: Run Validator Self-Test
+        id: validator
+        run: |
+          SKILL="${{ matrix.skill }}"
+          VALIDATOR=".claude/skills/$SKILL/scripts/validate.sh"
+
+          echo "=== Tier 3 Validator Self-Test: $SKILL ==="
+
+          if [ ! -f "$VALIDATOR" ]; then
+            echo "::error::Tier 3 skill '$SKILL' missing required validator"
+            exit 1
+          fi
+
+          chmod +x "$VALIDATOR"
+
+          set +e
+          timeout 120 "$VALIDATOR" --self-test
+          EXIT_CODE=$?
+          set -e
+
+          case $EXIT_CODE in
+            0) echo "Validator self-test PASSED" ;;
+            2) echo "::warning::Validator skipped (missing optional tools)" ;;
+            124) echo "::error::Validator timed out"; exit 1 ;;
+            *) echo "::error::Validator failed (exit $EXIT_CODE)"; exit 1 ;;
+          esac
+
+      - name: Check Eval Suite Exists
+        run: |
+          SKILL="${{ matrix.skill }}"
+          EVAL_PATH=".claude/skills/$SKILL/evals/${SKILL}.yaml"
+          ALT_EVAL_PATH=".claude/skills/$SKILL/evals/${SKILL}.yml"
+
+          if [ ! -f "$EVAL_PATH" ] && [ ! -f "$ALT_EVAL_PATH" ]; then
+            echo "::error::Tier 3 skill '$SKILL' missing required eval suite"
+            exit 1
+          fi
+
+          echo "Eval suite exists for $SKILL"
+
+  # ===========================================================================
+  # Job 3: Validate Tier 2 Skills (WARN ONLY)
+  # ===========================================================================
+  validate-tier2:
+    name: Tier 2 Validation (warn)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.tier2_skills != '[]' && needs.detect-changes.outputs.tier2_skills != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true  # Don't block PR
+    strategy:
+      matrix:
+        skill: ${{ fromJson(needs.detect-changes.outputs.tier2_skills) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup tools
+        run: |
+          npm install -g ajv-cli ajv-formats
+          sudo apt-get update && sudo apt-get install -y jq bc
+
+      - name: Validate Schema
+        continue-on-error: true
+        run: |
+          SKILL="${{ matrix.skill }}"
+          SCHEMA_PATH=".claude/skills/$SKILL/schemas/output.json"
+
+          echo "=== Tier 2 Schema Validation: $SKILL ==="
+
+          if [ ! -f "$SCHEMA_PATH" ]; then
+            echo "::warning::Tier 2 skill '$SKILL' missing schema"
+            exit 0
+          fi
+
+          if ! jq empty "$SCHEMA_PATH" 2>/dev/null; then
+            echo "::warning::Schema for $SKILL is not valid JSON"
+            exit 0
+          fi
+
+          echo "Schema valid"
+
+      - name: Run Validator Self-Test
+        continue-on-error: true
+        run: |
+          SKILL="${{ matrix.skill }}"
+          VALIDATOR=".claude/skills/$SKILL/scripts/validate.sh"
+
+          echo "=== Tier 2 Validator Self-Test: $SKILL ==="
+
+          if [ ! -f "$VALIDATOR" ]; then
+            echo "::warning::Tier 2 skill '$SKILL' missing validator"
+            exit 0
+          fi
+
+          chmod +x "$VALIDATOR"
+          timeout 120 "$VALIDATOR" --self-test || echo "::warning::Validator failed for $SKILL"
+
+  # ===========================================================================
+  # Job 4: Validate Tier 1 Skills (WARN ONLY)
+  # ===========================================================================
+  validate-tier1:
+    name: Tier 1 Validation (warn)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.tier1_skills != '[]' && needs.detect-changes.outputs.tier1_skills != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true  # Don't block PR
+    strategy:
+      matrix:
+        skill: ${{ fromJson(needs.detect-changes.outputs.tier1_skills) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate Schema
+        continue-on-error: true
+        run: |
+          SKILL="${{ matrix.skill }}"
+          SCHEMA_PATH=".claude/skills/$SKILL/schemas/output.json"
+
+          echo "=== Tier 1 Schema Validation: $SKILL ==="
+
+          if [ ! -f "$SCHEMA_PATH" ]; then
+            echo "::warning::Tier 1 skill '$SKILL' missing schema"
+            exit 0
+          fi
+
+          if ! jq empty "$SCHEMA_PATH" 2>/dev/null; then
+            echo "::warning::Schema for $SKILL is not valid JSON"
+          else
+            echo "Schema valid"
+          fi
+
+  # ===========================================================================
+  # Job 5: Run Evaluation Suites (Manual Only)
+  # ===========================================================================
+  run-evals:
+    name: Evaluation Suite
+    needs: [detect-changes, validate-tier3]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.has_changes == 'true' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.run_evals == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        skill: ${{ fromJson(needs.detect-changes.outputs.tier3_skills) }}
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Evaluation
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          SKILL="${{ matrix.skill }}"
+
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::ANTHROPIC_API_KEY not set - skipping evals"
+            exit 0
+          fi
+
+          npx tsx scripts/run-skill-eval.ts --skill "$SKILL" --model claude-sonnet-4
+
+  # ===========================================================================
+  # Job 6: Summary Report
+  # ===========================================================================
+  report:
+    name: Validation Summary
+    needs: [detect-changes, validate-tier3, validate-tier2, validate-tier1]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Generate Report
+        run: |
+          cat > report.md << 'EOF'
+          ## Skill Validation Report
+
+          | Tier | Skills | Validation | Status |
+          |------|--------|------------|--------|
+          | **Tier 3** (Verified) | Blocks PR | Schema + Validator + Eval | ${{ needs.validate-tier3.result || 'skipped' }} |
+          | **Tier 2** (Validated) | Warn only | Schema + Validator | ${{ needs.validate-tier2.result || 'skipped' }} |
+          | **Tier 1** (Structured) | Warn only | Schema | ${{ needs.validate-tier1.result || 'skipped' }} |
+          | **Tier 0** (Advisory) | Skipped | None | - |
+
+          ---
+          *Only Tier 3 failures block merge*
+          EOF
+
+          cat report.md
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('report.md', 'utf8');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user?.type === 'Bot' &&
+              c.body?.includes('Skill Validation Report')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: report
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: report
+              });
+            }
+
+      - name: Check Tier 3 Status
+        if: needs.validate-tier3.result == 'failure'
+        run: |
+          echo "::error::Tier 3 skill validation failed - blocking merge"
+          exit 1

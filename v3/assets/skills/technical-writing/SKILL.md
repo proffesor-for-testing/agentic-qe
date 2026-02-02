@@ -11,6 +11,10 @@ last_optimized: 2025-12-03
 dependencies: []
 quick_reference_card: true
 tags: [writing, documentation, communication, blogs, tutorials]
+trust_tier: 1
+validation:
+  schema_path: schemas/output.json
+
 ---
 
 # Technical Writing

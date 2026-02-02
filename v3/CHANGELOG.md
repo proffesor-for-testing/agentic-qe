@@ -5,6 +5,29 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.3] - 2026-02-02
+
+### Added
+- **`--upgrade` flag for `aqe init`** - Enables overwriting existing skills, agents, and validation infrastructure when upgrading between versions
+- Skills installer now scans actual directory for accurate README generation
+
+### Fixed
+- **Skills README accuracy** - README now shows actual 63 QE skills instead of only newly-installed skills
+- **Upgrade path from v3.2.3 to v3.4.x** - Previously only 31 new files were installed; now all 63 QE skills + agents + validation are properly updated when using `--upgrade`
+
+### Changed
+- Assets phase respects `--upgrade` flag for all installers (skills, agents, n8n)
+- Improved init help text with upgrade examples
+
+### Usage
+```bash
+# Upgrade existing installation (overwrites all skills, agents, validation)
+aqe init --auto --upgrade
+
+# Or standalone
+aqe init --upgrade
+```
+
 ## [3.4.0] - 2026-02-01
 
 ### 🎯 Highlights
@@ -641,3 +664,24 @@ if (risk.probability > 0.5) {
 [3.3.0]: https://github.com/anthropics/agentic-qe/compare/v3.2.3...v3.3.0
 [3.2.3]: https://github.com/anthropics/agentic-qe/compare/v3.2.0...v3.2.3
 [3.2.0]: https://github.com/anthropics/agentic-qe/releases/tag/v3.2.0
+
+## [3.4.2] - 2026-02-02
+
+### Added
+- **ADR-056: Skill Validation System** - 4-layer trust tier validation architecture
+- Trust tier badges and manifest tracking (97 skills categorized)
+- 46 Tier 3 (Verified) skills with full evaluation test suites
+- 7 Tier 2 (Validated) skills with validator scripts
+- 5 Tier 1 (Structured) skills with JSON output schemas
+- Shared validation infrastructure in `.validation/` directory
+- GitHub Actions workflow for skill validation CI/CD
+- Skill validation learner integration for pattern learning
+
+### Changed
+- Updated all 52 skills with `trust_tier` frontmatter
+- Enhanced prepare-assets.sh to sync validation infrastructure
+- Improved skills-installer.ts to handle validation directories
+
+### Fixed
+- Skill output schema validation for deterministic results
+- Eval suite test case formatting and MCP integration

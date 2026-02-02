@@ -13,13 +13,19 @@
 
 > **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 51 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 12 domains, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
+### What's New in v3.4.2
+
+- **Skill Validation System** - 4-layer trust tiers with schemas, validators, and evaluation suites (ADR-056)
+- **63 QE Skills with Trust Tiers** - 46 Tier 3 (Verified), 7 Tier 2, 5 Tier 1, 5 Tier 0 skills
+- **CLI Validation Commands** - `aqe skill report`, `aqe eval run`, regression detection
+
 ### What's New in v3.4.0
 
 - **AG-UI Protocol** - Anthropic's streaming agent-to-user interface with real-time progress updates
 - **A2A Protocol** - Google's agent-to-agent interoperability standard for cross-tool communication
 - **A2UI Components** - Unified UI combining AG-UI streaming with A2A event handling
 
-🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **63 QE Skills** | 🧬 **Coherence Verification** 
+🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **63 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** 
 
 </div>
 
@@ -76,7 +82,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
-- ✅ **63 QE Skills**: Domain-specific skills for testing, security, accessibility, QCSD, and more
+- ✅ **63 QE Skills with Trust Tiers**: 46 Tier 3 (Verified) skills with full validation suites
 
 ---
 
@@ -139,6 +145,37 @@ V3 is built on **12 DDD Bounded Contexts**, each with dedicated agents and clear
 | **visual-accessibility** | Visual regression & a11y | qe-visual-tester, qe-accessibility-auditor |
 | **chaos-resilience** | Chaos engineering & load | qe-chaos-engineer, qe-load-tester |
 | **learning-optimization** | Cross-domain learning | qe-learning-coordinator, qe-pattern-learner |
+
+---
+
+### ✅ Skill Trust Tiers (v3.4.2)
+
+All 63 QE skills are categorized by **trust tier** based on their validation infrastructure:
+
+| Tier | Badge | Count | Description |
+|------|-------|-------|-------------|
+| **Tier 3 - Verified** | ![Tier 3](https://img.shields.io/badge/Tier%203-Verified-brightgreen) | 46 | Full evaluation test suite |
+| **Tier 2 - Validated** | ![Tier 2](https://img.shields.io/badge/Tier%202-Validated-green) | 7 | Has executable validator |
+| **Tier 1 - Structured** | ![Tier 1](https://img.shields.io/badge/Tier%201-Structured-yellow) | 5 | Has JSON output schema |
+| **Tier 0 - Advisory** | ![Tier 0](https://img.shields.io/badge/Tier%200-Advisory-lightgrey) | 5 | SKILL.md guidance only |
+
+**Tier 3 Skills** are recommended for production use - they have:
+- JSON Schema validation for output structure
+- Executable validator scripts for correctness
+- Evaluation test suites with multi-model testing
+
+```bash
+# Check skill trust tier
+aqe eval status --skill security-testing
+
+# Run skill evaluation
+aqe eval run --skill security-testing --model claude-sonnet-4
+
+# View all trust tiers
+cat .claude/skills/TRUST-TIERS.md
+```
+
+[Full documentation: docs/guides/skill-validation.md]
 
 ---
 

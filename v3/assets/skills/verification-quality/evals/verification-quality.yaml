@@ -1,0 +1,150 @@
+skill: verification-quality
+version: 1.0.0
+description: >
+  Evaluation suite for verification-quality skill.
+  Tests comprehensive quality verification including truth scoring,
+  code quality analysis, and comprehensive quality assessment.
+
+models_to_test:
+  - claude-3.5-sonnet
+  - claude-3-haiku
+
+mcp_integration:
+  enabled: true
+  namespace: skill-validation
+  query_patterns: true
+  track_outcomes: true
+  store_patterns: true
+  share_learning: true
+  target_agents:
+    - qe-learning-coordinator
+
+learning:
+  store_success_patterns: true
+  pattern_ttl_days: 90
+  min_confidence_to_store: 0.7
+
+result_format:
+  json_output: true
+  include_timing: true
+
+setup:
+  required_tools:
+    - jq
+
+test_cases:
+  - id: tc001_quality_scoring
+    description: "Skill generates comprehensive quality score"
+    category: core
+    priority: critical
+
+    input:
+      codeContent: "function add(a, b) { return a + b; }"
+      context:
+        assessmentScope: "comprehensive"
+
+    expected_output:
+      must_contain:
+        - "quality"
+        - "score"
+      must_not_contain:
+        - "error"
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+
+  - id: tc002_truth_scoring
+    description: "Truth scoring correctly evaluates statement validity"
+    category: core
+    priority: critical
+
+    input:
+      statements:
+        - "Function returns correct result"
+        - "Code is optimized"
+      context:
+        evaluateTruth: true
+
+    expected_output:
+      must_contain:
+        - "truth"
+        - "score"
+
+    validation:
+      schema_check: true
+
+  - id: tc003_code_quality_dimensions
+    description: "Quality assessment covers multiple dimensions"
+    category: core
+    priority: high
+
+    input:
+      codeMetrics:
+        readability: 0.8
+        maintainability: 0.7
+        testability: 0.75
+      context:
+        assessmentDimensions: ["readability", "maintainability", "testability"]
+
+    expected_output:
+      must_contain:
+        - "readability"
+        - "maintainability"
+
+    validation:
+      schema_check: true
+      allow_partial: true
+
+  - id: tc004_issue_identification
+    description: "Quality issues are properly identified and categorized"
+    category: core
+    priority: high
+
+    input:
+      code: "var x = 1; // poor variable naming"
+      context:
+        findIssues: true
+
+    expected_output:
+      must_contain:
+        - "issue"
+        - "quality"
+
+    validation:
+      schema_check: true
+      allow_partial: true
+
+  - id: tc005_improvement_recommendations
+    description: "Actionable improvement recommendations are provided"
+    category: core
+    priority: high
+
+    input:
+      qualityGaps:
+        - "Low test coverage"
+        - "Complex functions"
+      context:
+        provideRecommendations: true
+
+    expected_output:
+      must_contain:
+        - "recommend"
+        - "improve"
+
+    validation:
+      schema_check: true
+      allow_partial: true
+
+success_criteria:
+  pass_rate: 0.8
+  critical_pass_rate: 1.0
+  avg_reasoning_quality: 0.7
+  max_execution_time_ms: 300000
+  cross_model_variance: 0.15
+
+metadata:
+  author: "qe-quality-specialist"
+  created: "2026-02-02"
+  last_updated: "2026-02-02"
+  coverage_target: "Quality scoring, truth evaluation, code metrics, issue identification, recommendations"

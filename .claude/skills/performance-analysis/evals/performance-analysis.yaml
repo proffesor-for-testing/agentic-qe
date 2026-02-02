@@ -1,0 +1,144 @@
+skill: performance-analysis
+version: 1.0.0
+description: >
+  Evaluation suite for performance analysis skill.
+  Tests metrics collection, bottleneck detection, and optimization recommendations.
+
+models_to_test:
+  - claude-3.5-sonnet
+  - claude-3-haiku
+
+mcp_integration:
+  enabled: true
+  namespace: skill-validation
+  query_patterns: true
+  track_outcomes: true
+  store_patterns: true
+  target_agents:
+    - qe-learning-coordinator
+
+learning:
+  store_success_patterns: true
+  store_failure_patterns: true
+  pattern_ttl_days: 90
+
+result_format:
+  json_output: true
+  include_timing: true
+  include_token_usage: true
+
+setup:
+  required_tools:
+    - jq
+
+test_cases:
+
+  - id: tc001_cpu_bottleneck_detection
+    description: "Detect CPU performance bottlenecks"
+    category: metrics
+    priority: critical
+
+    input:
+      metrics:
+        cpu_usage: 95
+        memory_usage: 45
+        response_time_ms: 2500
+
+    expected_output:
+      must_contain:
+        - "CPU"
+        - "bottleneck"
+        - "optimization"
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+
+  - id: tc002_memory_leak_detection
+    description: "Identify potential memory leaks"
+    category: metrics
+    priority: high
+
+    input:
+      metrics:
+        memory_growth_percent_per_hour: 15
+        total_runtime_hours: 8
+
+    expected_output:
+      must_contain:
+        - "memory"
+        - "leak"
+
+    validation:
+      schema_check: true
+
+  - id: tc003_response_time_analysis
+    description: "Analyze and report response time metrics"
+    category: metrics
+    priority: high
+
+    input:
+      metrics:
+        p50_ms: 100
+        p95_ms: 500
+        p99_ms: 1200
+
+    expected_output:
+      must_contain:
+        - "latency"
+        - "response"
+
+    validation:
+      schema_check: true
+
+  - id: tc004_optimization_recommendations
+    description: "Provide actionable optimization recommendations"
+    category: recommendations
+    priority: medium
+
+    input:
+      metrics:
+        cpu_usage: 85
+        cache_hit_rate: 0.6
+
+    expected_output:
+      must_contain:
+        - "recommend"
+        - "improve"
+        - "cache"
+
+    validation:
+      schema_check: true
+
+  - id: tc005_no_issues_healthy_system
+    description: "Recognize healthy system metrics"
+    category: negative
+    priority: medium
+
+    input:
+      metrics:
+        cpu_usage: 35
+        memory_usage: 40
+        response_time_ms: 100
+
+    expected_output:
+      must_contain:
+        - "healthy"
+        - "optimal"
+
+    validation:
+      schema_check: true
+      allow_partial: true
+
+success_criteria:
+  pass_rate: 0.9
+  critical_pass_rate: 1.0
+  avg_reasoning_quality: 0.7
+  max_execution_time_ms: 300000
+
+metadata:
+  author: "qe-performance-analyst"
+  created: "2026-02-02"
+  coverage_target: >
+    Performance analysis with 5 test cases covering CPU/memory bottlenecks,
+    leak detection, response time analysis, and optimization recommendations.

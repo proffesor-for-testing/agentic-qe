@@ -1,6 +1,12 @@
 ---
 name: "QE Test Generation"
 description: "AI-powered test generation using pattern recognition, code analysis, and intelligent test synthesis for comprehensive test coverage."
+trust_tier: 3
+validation:
+  schema_path: schemas/output.json
+  validator_path: scripts/validate.sh
+  eval_path: evals/qe-test-generation.yaml
+
 ---
 
 # QE Test Generation

@@ -63,4 +63,17 @@ else
   echo "  ⚠️  Agents directory not found at $REPO_ROOT/.claude/agents/v3"
 fi
 
+# Copy validation infrastructure (ADR-056)
+echo "🔍 Copying validation infrastructure..."
+if [ -d "$REPO_ROOT/.claude/skills/.validation" ]; then
+  mkdir -p "$V3_DIR/assets/skills/.validation"
+  cp -r "$REPO_ROOT/.claude/skills/.validation/"* "$V3_DIR/assets/skills/.validation/"
+  echo "  ✅ Copied validation infrastructure"
+  echo "    - schemas: $(ls -1 "$V3_DIR/assets/skills/.validation/schemas" 2>/dev/null | wc -l | tr -d ' ') files"
+  echo "    - templates: $(ls -1 "$V3_DIR/assets/skills/.validation/templates" 2>/dev/null | wc -l | tr -d ' ') files"
+  echo "    - examples: $(ls -1 "$V3_DIR/assets/skills/.validation/examples" 2>/dev/null | wc -l | tr -d ' ') files"
+else
+  echo "  ⚠️  Validation directory not found at $REPO_ROOT/.claude/skills/.validation"
+fi
+
 echo "✨ Asset preparation complete!"

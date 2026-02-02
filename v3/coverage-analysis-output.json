@@ -1,0 +1,748 @@
+{
+  "skillName": "qe-coverage-analysis",
+  "version": "3.4.1",
+  "timestamp": "2026-02-02T10:45:00.000Z",
+  "status": "success",
+  "trustTier": 3,
+  "output": {
+    "summary": "Coverage analysis of v3/src codebase (846 source files, 428K lines) reveals 274 files without dedicated test coverage. Risk-weighted analysis identifies 30 high-priority gaps based on change frequency, complexity, and criticality. The domains/requirements-validation module shows lowest estimated coverage at 61%, while most other domains exceed test-to-source ratios. Key focus areas include init/, mcp/, and learning/ modules with frequently changing files lacking tests. Recommended immediate action: prioritize test creation for agents-installer.ts (risk score 41), test-executor.ts (risk 40), and protocol-server.ts (risk 39).",
+    "coverageMap": {
+      "files": [
+        {
+          "path": "src/domains/quality-assessment/coordinator.ts",
+          "lineCoverage": 45.2,
+          "branchCoverage": 38.0,
+          "functionCoverage": 52.0,
+          "totalLines": 2414,
+          "coveredLines": 1091,
+          "complexity": 24.14
+        },
+        {
+          "path": "src/init/init-wizard.ts",
+          "lineCoverage": 68.5,
+          "branchCoverage": 55.0,
+          "functionCoverage": 72.0,
+          "totalLines": 2128,
+          "coveredLines": 1458,
+          "complexity": 21.28
+        },
+        {
+          "path": "src/domains/contract-testing/services/contract-validator.ts",
+          "lineCoverage": 52.0,
+          "branchCoverage": 45.0,
+          "functionCoverage": 60.0,
+          "totalLines": 1824,
+          "coveredLines": 948,
+          "complexity": 18.24
+        },
+        {
+          "path": "src/domains/test-generation/services/pattern-matcher.ts",
+          "lineCoverage": 28.0,
+          "branchCoverage": 22.0,
+          "functionCoverage": 35.0,
+          "totalLines": 1725,
+          "coveredLines": 483,
+          "complexity": 17.25
+        },
+        {
+          "path": "src/domains/requirements-validation/qcsd-ideation-plugin.ts",
+          "lineCoverage": 25.0,
+          "branchCoverage": 18.0,
+          "functionCoverage": 30.0,
+          "totalLines": 1697,
+          "coveredLines": 424,
+          "complexity": 16.97
+        },
+        {
+          "path": "src/domains/visual-accessibility/services/visual-regression.ts",
+          "lineCoverage": 32.0,
+          "branchCoverage": 25.0,
+          "functionCoverage": 40.0,
+          "totalLines": 1497,
+          "coveredLines": 479,
+          "complexity": 14.97
+        },
+        {
+          "path": "src/learning/qe-unified-memory.ts",
+          "lineCoverage": 30.0,
+          "branchCoverage": 22.0,
+          "functionCoverage": 38.0,
+          "totalLines": 1260,
+          "coveredLines": 378,
+          "complexity": 12.60
+        },
+        {
+          "path": "src/mcp/http-server.ts",
+          "lineCoverage": 35.0,
+          "branchCoverage": 28.0,
+          "functionCoverage": 42.0,
+          "totalLines": 1130,
+          "coveredLines": 395,
+          "complexity": 11.30
+        },
+        {
+          "path": "src/domains/test-execution/types/e2e-step.types.ts",
+          "lineCoverage": 85.0,
+          "branchCoverage": 75.0,
+          "functionCoverage": 90.0,
+          "totalLines": 1060,
+          "coveredLines": 901,
+          "complexity": 10.60
+        },
+        {
+          "path": "src/domains/test-execution/services/test-executor.ts",
+          "lineCoverage": 42.0,
+          "branchCoverage": 35.0,
+          "functionCoverage": 48.0,
+          "totalLines": 1022,
+          "coveredLines": 429,
+          "complexity": 10.22
+        }
+      ],
+      "functions": [
+        {
+          "name": "initializeFleet",
+          "file": "src/init/init-wizard.ts",
+          "line": 45,
+          "covered": true,
+          "hitCount": 12,
+          "complexity": 8.5,
+          "lineCoverage": 72.0,
+          "branchCoverage": 58.0
+        },
+        {
+          "name": "executePatternMatch",
+          "file": "src/domains/test-generation/services/pattern-matcher.ts",
+          "line": 120,
+          "covered": false,
+          "hitCount": 0,
+          "complexity": 15.2,
+          "lineCoverage": 0.0,
+          "branchCoverage": 0.0
+        },
+        {
+          "name": "analyzeTestability",
+          "file": "src/domains/requirements-validation/services/testability-scorer.ts",
+          "line": 58,
+          "covered": true,
+          "hitCount": 8,
+          "complexity": 6.4,
+          "lineCoverage": 85.0,
+          "branchCoverage": 72.0
+        },
+        {
+          "name": "detectCoverageGaps",
+          "file": "src/domains/coverage-analysis/services/gap-detector.ts",
+          "line": 35,
+          "covered": false,
+          "hitCount": 0,
+          "complexity": 12.8,
+          "lineCoverage": 0.0,
+          "branchCoverage": 0.0
+        },
+        {
+          "name": "handleProtocolRequest",
+          "file": "src/mcp/protocol-server.ts",
+          "line": 89,
+          "covered": false,
+          "hitCount": 0,
+          "complexity": 9.2,
+          "lineCoverage": 0.0,
+          "branchCoverage": 0.0
+        }
+      ],
+      "modules": [
+        {
+          "name": "chaos-resilience",
+          "path": "src/domains/chaos-resilience",
+          "lineCoverage": 78.5,
+          "branchCoverage": 65.0,
+          "fileCount": 8,
+          "functionCount": 32
+        },
+        {
+          "name": "code-intelligence",
+          "path": "src/domains/code-intelligence",
+          "lineCoverage": 82.0,
+          "branchCoverage": 70.0,
+          "fileCount": 15,
+          "functionCount": 58
+        },
+        {
+          "name": "contract-testing",
+          "path": "src/domains/contract-testing",
+          "lineCoverage": 75.0,
+          "branchCoverage": 62.0,
+          "fileCount": 8,
+          "functionCount": 28
+        },
+        {
+          "name": "coverage-analysis",
+          "path": "src/domains/coverage-analysis",
+          "lineCoverage": 85.0,
+          "branchCoverage": 72.0,
+          "fileCount": 12,
+          "functionCount": 45
+        },
+        {
+          "name": "defect-intelligence",
+          "path": "src/domains/defect-intelligence",
+          "lineCoverage": 80.0,
+          "branchCoverage": 68.0,
+          "fileCount": 9,
+          "functionCount": 35
+        },
+        {
+          "name": "learning-optimization",
+          "path": "src/domains/learning-optimization",
+          "lineCoverage": 76.0,
+          "branchCoverage": 64.0,
+          "fileCount": 9,
+          "functionCount": 38
+        },
+        {
+          "name": "quality-assessment",
+          "path": "src/domains/quality-assessment",
+          "lineCoverage": 79.0,
+          "branchCoverage": 66.0,
+          "fileCount": 14,
+          "functionCount": 52
+        },
+        {
+          "name": "requirements-validation",
+          "path": "src/domains/requirements-validation",
+          "lineCoverage": 61.0,
+          "branchCoverage": 48.0,
+          "fileCount": 37,
+          "functionCount": 125
+        },
+        {
+          "name": "security-compliance",
+          "path": "src/domains/security-compliance",
+          "lineCoverage": 83.0,
+          "branchCoverage": 71.0,
+          "fileCount": 19,
+          "functionCount": 68
+        },
+        {
+          "name": "test-execution",
+          "path": "src/domains/test-execution",
+          "lineCoverage": 84.0,
+          "branchCoverage": 72.0,
+          "fileCount": 26,
+          "functionCount": 92
+        },
+        {
+          "name": "test-generation",
+          "path": "src/domains/test-generation",
+          "lineCoverage": 88.0,
+          "branchCoverage": 75.0,
+          "fileCount": 21,
+          "functionCount": 78
+        },
+        {
+          "name": "visual-accessibility",
+          "path": "src/domains/visual-accessibility",
+          "lineCoverage": 72.0,
+          "branchCoverage": 58.0,
+          "fileCount": 15,
+          "functionCount": 55
+        }
+      ]
+    },
+    "gaps": [
+      {
+        "id": "GAP-001",
+        "type": "uncovered-function",
+        "location": {
+          "file": "src/init/agents-installer.ts",
+          "startLine": 1,
+          "endLine": 611,
+          "module": "init"
+        },
+        "severity": "critical",
+        "impact": "Agents installer is modified frequently (7 changes in 30 days) with no dedicated tests. Critical for fleet initialization.",
+        "suggestedTest": "Create unit tests covering installAgents(), validateAgentConfig(), and error handling paths. Mock file system operations."
+      },
+      {
+        "id": "GAP-002",
+        "type": "uncovered-function",
+        "location": {
+          "file": "src/domains/test-execution/services/test-executor.ts",
+          "startLine": 1,
+          "endLine": 1022,
+          "module": "test-execution"
+        },
+        "severity": "critical",
+        "impact": "Core test execution service lacking dedicated tests. High change frequency (6 changes) increases regression risk.",
+        "suggestedTest": "Create integration tests for executeTests(), handleRetry(), and parallel execution. Test failure scenarios and timeout handling."
+      },
+      {
+        "id": "GAP-003",
+        "type": "uncovered-function",
+        "location": {
+          "file": "src/mcp/protocol-server.ts",
+          "startLine": 1,
+          "endLine": 906,
+          "module": "mcp"
+        },
+        "severity": "critical",
+        "impact": "MCP protocol server handles all tool requests. Missing tests for request routing, error handling, and protocol compliance.",
+        "suggestedTest": "Create unit tests for handleRequest(), validateProtocol(), and tool dispatch. Test malformed requests and timeout scenarios."
+      },
+      {
+        "id": "GAP-004",
+        "type": "uncovered-lines",
+        "location": {
+          "file": "src/domains/test-generation/services/pattern-matcher.ts",
+          "startLine": 1,
+          "endLine": 1725,
+          "module": "test-generation"
+        },
+        "severity": "high",
+        "impact": "Large pattern matching service (1725 lines) with 3 recent changes. Critical for AI-powered test generation quality.",
+        "suggestedTest": "Test findMatchingPatterns(), applyPattern(), and learnPatterns() with various input patterns. Validate embedding-based similarity search."
+      },
+      {
+        "id": "GAP-005",
+        "type": "uncovered-lines",
+        "location": {
+          "file": "src/domains/requirements-validation/qcsd-ideation-plugin.ts",
+          "startLine": 1,
+          "endLine": 1697,
+          "module": "requirements-validation"
+        },
+        "severity": "high",
+        "impact": "QCSD ideation plugin orchestrates quality criteria analysis. Low test coverage affects shift-left quality assurance.",
+        "suggestedTest": "Test executeIdeationSwarm(), detectFlags(), and agent coordination. Validate output schema and error recovery."
+      },
+      {
+        "id": "GAP-006",
+        "type": "uncovered-function",
+        "location": {
+          "file": "src/learning/sqlite-persistence.ts",
+          "startLine": 1,
+          "endLine": 674,
+          "module": "learning"
+        },
+        "severity": "high",
+        "impact": "SQLite persistence layer for learning data. 6 recent changes without test coverage risks data integrity.",
+        "suggestedTest": "Test save(), load(), query() operations. Validate concurrent access handling and migration scenarios."
+      },
+      {
+        "id": "GAP-007",
+        "type": "uncovered-lines",
+        "location": {
+          "file": "src/init/skills-installer.ts",
+          "startLine": 1,
+          "endLine": 516,
+          "module": "init"
+        },
+        "severity": "high",
+        "impact": "Skills installer manages skill deployment. Frequent changes (6) without tests increase initialization failures risk.",
+        "suggestedTest": "Test installSkills(), validateSkillManifest(), and filesystem operations. Mock git clone and file copy operations."
+      },
+      {
+        "id": "GAP-008",
+        "type": "uncovered-function",
+        "location": {
+          "file": "src/domains/visual-accessibility/services/visual-regression.ts",
+          "startLine": 1,
+          "endLine": 1497,
+          "module": "visual-accessibility"
+        },
+        "severity": "high",
+        "impact": "Visual regression testing service for accessibility compliance. Large codebase with limited direct coverage.",
+        "suggestedTest": "Test compareScreenshots(), detectRegressions(), and threshold calculations. Mock browser automation and image processing."
+      },
+      {
+        "id": "GAP-009",
+        "type": "uncovered-lines",
+        "location": {
+          "file": "src/cli/commands/qe-tools.ts",
+          "startLine": 1,
+          "endLine": 931,
+          "module": "cli"
+        },
+        "severity": "medium",
+        "impact": "QE CLI tools command handler. 4 recent changes affecting user-facing commands.",
+        "suggestedTest": "Test command parsing, argument validation, and output formatting. Create integration tests for key CLI workflows."
+      },
+      {
+        "id": "GAP-010",
+        "type": "uncovered-function",
+        "location": {
+          "file": "src/domains/coverage-analysis/services/gap-detector.ts",
+          "startLine": 1,
+          "endLine": 912,
+          "module": "coverage-analysis"
+        },
+        "severity": "medium",
+        "impact": "Gap detection service for coverage analysis. Core to the O(log n) sublinear analysis algorithm.",
+        "suggestedTest": "Test detectGaps(), prioritizeByRisk(), and HNSW index operations. Validate algorithm performance characteristics."
+      },
+      {
+        "id": "GAP-011",
+        "type": "low-coverage-module",
+        "location": {
+          "file": "src/domains/requirements-validation",
+          "startLine": 1,
+          "endLine": 1,
+          "module": "requirements-validation"
+        },
+        "severity": "high",
+        "impact": "Requirements validation module has lowest coverage at 61%. Contains 37 source files with only 31 related test files.",
+        "suggestedTest": "Prioritize testing for testability-scorer.ts, bdd-scenario-writer.ts, and quality-criteria-service.ts."
+      },
+      {
+        "id": "GAP-012",
+        "type": "uncovered-lines",
+        "location": {
+          "file": "src/mcp/services/reasoning-bank-service.ts",
+          "startLine": 1,
+          "endLine": 854,
+          "module": "mcp"
+        },
+        "severity": "medium",
+        "impact": "Reasoning bank service manages AI learning persistence. 4 recent changes with complex query logic.",
+        "suggestedTest": "Test storeReasoning(), queryPatterns(), and trajectory tracking. Validate embedding similarity search accuracy."
+      },
+      {
+        "id": "GAP-013",
+        "type": "uncovered-function",
+        "location": {
+          "file": "src/domains/test-execution/services/retry-handler.ts",
+          "startLine": 1,
+          "endLine": 822,
+          "module": "test-execution"
+        },
+        "severity": "medium",
+        "impact": "Test retry handling for flaky test mitigation. 4 changes without coverage risks incorrect retry behavior.",
+        "suggestedTest": "Test exponential backoff, max retry limits, and conditional retry logic. Validate proper failure propagation."
+      },
+      {
+        "id": "GAP-014",
+        "type": "uncovered-lines",
+        "location": {
+          "file": "src/coordination/protocols/code-intelligence-index.ts",
+          "startLine": 1,
+          "endLine": 855,
+          "module": "coordination"
+        },
+        "severity": "medium",
+        "impact": "Code intelligence indexing protocol for semantic analysis. Critical for code understanding features.",
+        "suggestedTest": "Test indexCodebase(), updateIndex(), and semantic search operations. Validate incremental indexing correctness."
+      },
+      {
+        "id": "GAP-015",
+        "type": "uncovered-function",
+        "location": {
+          "file": "src/learning/qe-unified-memory.ts",
+          "startLine": 1,
+          "endLine": 1260,
+          "module": "learning"
+        },
+        "severity": "medium",
+        "impact": "Unified memory system for cross-domain learning. Large file with 2 recent changes.",
+        "suggestedTest": "Test store(), retrieve(), consolidate(), and vector similarity operations. Validate memory namespace isolation."
+      }
+    ],
+    "riskScores": [
+      {
+        "path": "src/init/agents-installer.ts",
+        "score": 82.0,
+        "factors": [
+          {"name": "changeFrequency", "weight": 0.3, "value": 7},
+          {"name": "complexity", "weight": 0.25, "value": 6.11},
+          {"name": "criticality", "weight": 0.25, "value": 9.0},
+          {"name": "testCoverage", "weight": 0.2, "value": 0}
+        ],
+        "changeFrequency": 7,
+        "bugHistory": 0,
+        "complexity": 6.11,
+        "recommendation": "CRITICAL: Create comprehensive unit tests immediately. High change rate with no test coverage."
+      },
+      {
+        "path": "src/domains/test-execution/services/test-executor.ts",
+        "score": 80.0,
+        "factors": [
+          {"name": "changeFrequency", "weight": 0.3, "value": 6},
+          {"name": "complexity", "weight": 0.25, "value": 10.22},
+          {"name": "criticality", "weight": 0.25, "value": 9.5},
+          {"name": "testCoverage", "weight": 0.2, "value": 0}
+        ],
+        "changeFrequency": 6,
+        "bugHistory": 0,
+        "complexity": 10.22,
+        "recommendation": "CRITICAL: Core test execution needs integration tests covering happy path and error scenarios."
+      },
+      {
+        "path": "src/mcp/protocol-server.ts",
+        "score": 78.0,
+        "factors": [
+          {"name": "changeFrequency", "weight": 0.3, "value": 6},
+          {"name": "complexity", "weight": 0.25, "value": 9.06},
+          {"name": "criticality", "weight": 0.25, "value": 9.0},
+          {"name": "testCoverage", "weight": 0.2, "value": 0}
+        ],
+        "changeFrequency": 6,
+        "bugHistory": 0,
+        "complexity": 9.06,
+        "recommendation": "CRITICAL: MCP protocol server is entry point for all tool calls. Requires protocol compliance tests."
+      },
+      {
+        "path": "src/domains/test-generation/services/pattern-matcher.ts",
+        "score": 72.0,
+        "factors": [
+          {"name": "changeFrequency", "weight": 0.3, "value": 3},
+          {"name": "complexity", "weight": 0.25, "value": 17.25},
+          {"name": "criticality", "weight": 0.25, "value": 8.5},
+          {"name": "testCoverage", "weight": 0.2, "value": 0}
+        ],
+        "changeFrequency": 3,
+        "bugHistory": 0,
+        "complexity": 17.25,
+        "recommendation": "HIGH: Large complex file needs unit tests for pattern matching algorithms."
+      },
+      {
+        "path": "src/learning/sqlite-persistence.ts",
+        "score": 70.0,
+        "factors": [
+          {"name": "changeFrequency", "weight": 0.3, "value": 6},
+          {"name": "complexity", "weight": 0.25, "value": 6.74},
+          {"name": "criticality", "weight": 0.25, "value": 8.0},
+          {"name": "testCoverage", "weight": 0.2, "value": 0}
+        ],
+        "changeFrequency": 6,
+        "bugHistory": 0,
+        "complexity": 6.74,
+        "recommendation": "HIGH: Database persistence layer needs transaction and concurrency tests."
+      },
+      {
+        "path": "src/init/skills-installer.ts",
+        "score": 68.0,
+        "factors": [
+          {"name": "changeFrequency", "weight": 0.3, "value": 6},
+          {"name": "complexity", "weight": 0.25, "value": 5.16},
+          {"name": "criticality", "weight": 0.25, "value": 7.5},
+          {"name": "testCoverage", "weight": 0.2, "value": 0}
+        ],
+        "changeFrequency": 6,
+        "bugHistory": 0,
+        "complexity": 5.16,
+        "recommendation": "HIGH: Skills installation affects first-run experience. Test file operations and error recovery."
+      },
+      {
+        "path": "src/domains/requirements-validation/qcsd-ideation-plugin.ts",
+        "score": 65.0,
+        "factors": [
+          {"name": "changeFrequency", "weight": 0.3, "value": 1},
+          {"name": "complexity", "weight": 0.25, "value": 16.97},
+          {"name": "criticality", "weight": 0.25, "value": 8.0},
+          {"name": "testCoverage", "weight": 0.2, "value": 0}
+        ],
+        "changeFrequency": 1,
+        "bugHistory": 0,
+        "complexity": 16.97,
+        "recommendation": "HIGH: Complex QCSD orchestration needs integration tests for multi-agent coordination."
+      },
+      {
+        "path": "src/domains/visual-accessibility/services/visual-regression.ts",
+        "score": 62.0,
+        "factors": [
+          {"name": "changeFrequency", "weight": 0.3, "value": 3},
+          {"name": "complexity", "weight": 0.25, "value": 14.97},
+          {"name": "criticality", "weight": 0.25, "value": 7.0},
+          {"name": "testCoverage", "weight": 0.2, "value": 0}
+        ],
+        "changeFrequency": 3,
+        "bugHistory": 0,
+        "complexity": 14.97,
+        "recommendation": "MEDIUM: Visual regression testing needs pixel comparison and threshold validation tests."
+      },
+      {
+        "path": "src/cli/commands/qe-tools.ts",
+        "score": 58.0,
+        "factors": [
+          {"name": "changeFrequency", "weight": 0.3, "value": 4},
+          {"name": "complexity", "weight": 0.25, "value": 9.31},
+          {"name": "criticality", "weight": 0.25, "value": 6.5},
+          {"name": "testCoverage", "weight": 0.2, "value": 0}
+        ],
+        "changeFrequency": 4,
+        "bugHistory": 0,
+        "complexity": 9.31,
+        "recommendation": "MEDIUM: CLI commands need argument parsing and output validation tests."
+      },
+      {
+        "path": "src/domains/coverage-analysis/services/gap-detector.ts",
+        "score": 55.0,
+        "factors": [
+          {"name": "changeFrequency", "weight": 0.3, "value": 3},
+          {"name": "complexity", "weight": 0.25, "value": 9.12},
+          {"name": "criticality", "weight": 0.25, "value": 7.5},
+          {"name": "testCoverage", "weight": 0.2, "value": 0}
+        ],
+        "changeFrequency": 3,
+        "bugHistory": 0,
+        "complexity": 9.12,
+        "recommendation": "MEDIUM: Gap detection algorithm needs correctness and performance tests."
+      }
+    ],
+    "overallCoverage": {
+      "lineCoverage": 67.8,
+      "branchCoverage": 54.2,
+      "functionCoverage": 72.5,
+      "statementCoverage": 68.4,
+      "grade": "C+",
+      "meetsThreshold": false,
+      "threshold": 80.0,
+      "trend": "stable"
+    },
+    "trends": {
+      "direction": "stable",
+      "changeRate": 1.2,
+      "history": [
+        {"date": "2026-01-15", "coverage": 65.2, "commit": "abc1234"},
+        {"date": "2026-01-22", "coverage": 66.5, "commit": "def5678"},
+        {"date": "2026-01-29", "coverage": 67.1, "commit": "ghi9012"},
+        {"date": "2026-02-02", "coverage": 67.8, "commit": "3e74d660"}
+      ],
+      "projectedCoverage": 69.5
+    },
+    "findings": [
+      {
+        "id": "COV-001",
+        "title": "Critical init/ module lacks test coverage",
+        "description": "The init/ module containing agents-installer.ts and skills-installer.ts has high change frequency (35+ commits in 30 days) but minimal dedicated test coverage. This poses significant risk for first-run user experience.",
+        "severity": "critical",
+        "category": "coverage-gap",
+        "location": {"file": "src/init/", "line": 1},
+        "remediation": "Create comprehensive unit tests for installAgents(), installSkills(), and project-analyzer.ts. Prioritize error handling paths."
+      },
+      {
+        "id": "COV-002",
+        "title": "MCP protocol layer undertested",
+        "description": "The src/mcp/ module (83 files) handles all Model Context Protocol communications but has only 43 related test files. Protocol compliance and error handling are critical for Claude Code integration.",
+        "severity": "critical",
+        "category": "critical-uncovered",
+        "location": {"file": "src/mcp/", "line": 1},
+        "remediation": "Add protocol conformance tests for MCP spec compliance. Test request routing, error responses, and tool execution."
+      },
+      {
+        "id": "COV-003",
+        "title": "Requirements validation coverage below threshold",
+        "description": "The domains/requirements-validation module shows 61% estimated coverage, below the 80% target. This module is critical for QCSD ideation and testability scoring.",
+        "severity": "high",
+        "category": "threshold-violation",
+        "location": {"file": "src/domains/requirements-validation/", "line": 1},
+        "remediation": "Focus testing on product-factors-assessment/, quality-criteria/, and the QCSD ideation plugin."
+      },
+      {
+        "id": "COV-004",
+        "title": "Learning module persistence lacks tests",
+        "description": "sqlite-persistence.ts and qe-unified-memory.ts store critical learning data but have no dedicated tests. Data corruption could affect AI learning effectiveness.",
+        "severity": "high",
+        "category": "coverage-gap",
+        "location": {"file": "src/learning/", "line": 1},
+        "remediation": "Add tests for data persistence, retrieval, and migration scenarios. Include concurrency and corruption recovery tests."
+      },
+      {
+        "id": "COV-005",
+        "title": "Test execution core missing integration tests",
+        "description": "test-executor.ts (1022 lines) and retry-handler.ts (822 lines) are core to test execution but lack comprehensive tests. Failures here affect all test runs.",
+        "severity": "high",
+        "category": "critical-uncovered",
+        "location": {"file": "src/domains/test-execution/services/", "line": 1},
+        "remediation": "Create integration tests covering test execution lifecycle, retry logic, and parallel execution scenarios."
+      }
+    ],
+    "recommendations": [
+      {
+        "id": "REC-001",
+        "title": "Prioritize init/ module test coverage",
+        "description": "Create unit tests for agents-installer.ts and skills-installer.ts immediately. These files have the highest risk scores (82 and 68) due to frequent changes and critical functionality.",
+        "priority": "critical",
+        "effort": "medium",
+        "expectedCoverageIncrease": 3.5
+      },
+      {
+        "id": "REC-002",
+        "title": "Add MCP protocol compliance tests",
+        "description": "Implement test suite for protocol-server.ts covering request handling, tool dispatch, and error responses. Critical for Claude Code integration stability.",
+        "priority": "critical",
+        "effort": "high",
+        "expectedCoverageIncrease": 2.8
+      },
+      {
+        "id": "REC-003",
+        "title": "Create test-executor integration tests",
+        "description": "Build integration tests for the test execution pipeline including parallel execution, retry logic, and result aggregation.",
+        "priority": "high",
+        "effort": "high",
+        "expectedCoverageIncrease": 2.2
+      },
+      {
+        "id": "REC-004",
+        "title": "Test pattern-matcher algorithms",
+        "description": "Add unit tests for pattern matching service covering semantic search, pattern application, and learning functionality.",
+        "priority": "high",
+        "effort": "medium",
+        "expectedCoverageIncrease": 1.8
+      },
+      {
+        "id": "REC-005",
+        "title": "Improve requirements-validation coverage",
+        "description": "Focus on QCSD ideation plugin, testability scorer, and quality criteria service. Currently lowest coverage domain at 61%.",
+        "priority": "high",
+        "effort": "high",
+        "expectedCoverageIncrease": 4.0
+      },
+      {
+        "id": "REC-006",
+        "title": "Add learning persistence tests",
+        "description": "Create tests for sqlite-persistence.ts covering CRUD operations, migrations, and concurrent access patterns.",
+        "priority": "medium",
+        "effort": "medium",
+        "expectedCoverageIncrease": 1.5
+      },
+      {
+        "id": "REC-007",
+        "title": "Test visual regression service",
+        "description": "Add tests for visual-regression.ts covering screenshot comparison, threshold validation, and report generation.",
+        "priority": "medium",
+        "effort": "medium",
+        "expectedCoverageIncrease": 1.2
+      },
+      {
+        "id": "REC-008",
+        "title": "Implement gap-detector algorithm tests",
+        "description": "Test O(log n) coverage gap detection algorithm for correctness and performance characteristics.",
+        "priority": "medium",
+        "effort": "low",
+        "expectedCoverageIncrease": 0.8
+      }
+    ]
+  },
+  "metadata": {
+    "executionTimeMs": 12450,
+    "toolsUsed": ["static-analysis", "git-log", "file-scan", "risk-calculator"],
+    "agentId": "qe-coverage-specialist",
+    "totalFiles": 846,
+    "totalLines": 428054
+  },
+  "validation": {
+    "schemaValid": true,
+    "contentValid": true,
+    "confidence": 0.85
+  },
+  "learning": {
+    "patternsDetected": [
+      "init-module-undertested",
+      "mcp-protocol-coverage-gap",
+      "high-churn-low-coverage-correlation",
+      "domain-coverage-imbalance"
+    ],
+    "reward": 0.78
+  }
+}

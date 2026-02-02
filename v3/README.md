@@ -7,13 +7,16 @@
 
 > Domain-Driven Quality Engineering with Mathematical Coherence Verification, 12 Bounded Contexts, 51 Specialized QE Agents, 63 QE Skills, and ReasoningBank Learning
 
-### What's New in v3.4.0
+### Key Features
 
 | Feature | Description |
 |---------|-------------|
-| **AG-UI Protocol** | Anthropic's streaming interface - real-time agent progress to UI |
-| **A2A Protocol** | Google's agent-to-agent standard - cross-tool interoperability |
-| **A2UI Components** | Hybrid UI components combining streaming + events |
+| **63 QE Skills** | Quality engineering skills with 4-tier trust validation system |
+| **51 QE Agents** | Specialized agents for test generation, security, coverage, and more |
+| **12 DDD Domains** | Modular bounded contexts for all quality engineering needs |
+| **MCP Integration** | Full Claude Code integration via Model Context Protocol |
+| **AG-UI/A2A Protocols** | Industry-standard agent streaming and interoperability |
+| **O(log n) Analysis** | Sublinear coverage analysis with HNSW vector indexing |
 
 ## Quick Start
 
@@ -46,7 +49,7 @@ npx aqe test generate src/
 ## Why Agentic QE?
 
 - **51 Specialized QE Agents** - Domain-focused quality engineering agents (44 main + 7 subagents)
-- **63 QE Skills** - Domain-specific skills for testing, security, accessibility, QCSD, and more
+- **63 QE Skills with Trust Tiers** - Validated skills with 4-layer trust system (46 Tier 3 verified)
 - **12 DDD Bounded Contexts** - Modular, extensible architecture
 - **TinyDancer Model Routing** - 3-tier intelligent routing for cost optimization
 - **O(log n) Coverage Analysis** - Sublinear performance with HNSW indexing
@@ -54,12 +57,12 @@ npx aqe test generate src/
 - **ReasoningBank + SONA + Dream Cycles** - Neural pattern learning with 9 RL algorithms
 - **Queen-led Coordination** - 3-5x throughput with work stealing and consensus
 - **MinCut Topology** - Graph-based self-healing agent coordination
-- **Coherence Verification** (v3.3.0) - Mathematical proof of belief consistency using WASM engines
-- **MinCut/Consensus Integration** (v3.3.3) - Full 12/12 domain integration with self-healing
-- **Cross-Phase Memory Unification** (v3.3.5) - Unified SQLite storage for QCSD feedback loops
+- **Coherence Verification** - Mathematical proof of belief consistency using WASM engines
+- **MinCut/Consensus Integration** - Full 12/12 domain integration with self-healing
+- **Cross-Phase Memory Unification** - Unified SQLite storage for QCSD feedback loops
 - **Zero-Breaking-Changes Migration** - Full v2 backward compatibility
-- **Browser Automation** (v3.1.0) - @claude-flow/browser integration with 9 workflow templates
-- **AG-UI/A2A/A2UI Protocols** (v3.4.0) - Industry-standard agent communication
+- **Browser Automation** - @claude-flow/browser integration with 9 workflow templates
+- **AG-UI/A2A/A2UI Protocols** - Industry-standard agent communication
 
 ## Get Value Fast
 
@@ -78,9 +81,9 @@ claude "Run quality assessment: tests, coverage, security, and deployment recomm
 aqe status --verbose
 ```
 
-## New in v3: Key Features
+## Architecture Highlights
 
-### AG-UI, A2A & A2UI Protocols (v3.4.0)
+### AG-UI, A2A & A2UI Protocols
 
 Industry-standard agent communication protocols:
 
@@ -106,7 +109,29 @@ await a2aAdapter.delegateTask({
 });
 ```
 
-### TinyDancer Intelligent Model Routing (ADR-026)
+### Trust Tiers - Skill Validation
+
+4-layer validation system ensuring deterministic, trustworthy skill outputs:
+
+| Tier | Badge | Description | Count |
+|------|-------|-------------|-------|
+| **Tier 3** | ![Verified](https://img.shields.io/badge/Tier%203-Verified-brightgreen) | Full eval test suite | 46 |
+| **Tier 2** | ![Validated](https://img.shields.io/badge/Tier%202-Validated-green) | Executable validator | 7 |
+| **Tier 1** | ![Structured](https://img.shields.io/badge/Tier%201-Structured-yellow) | JSON output schema | 5 |
+| **Tier 0** | ![Advisory](https://img.shields.io/badge/Tier%200-Advisory-lightgrey) | SKILL.md guidance | 5 |
+
+```bash
+# Check skill trust tier
+aqe eval status --skill security-testing
+
+# Run skill evaluation
+aqe eval run --skill security-testing --model claude-sonnet-4
+
+# Generate validation reports
+aqe skill report --input results/ --output validation-report.md
+```
+
+### TinyDancer Intelligent Model Routing
 
 3-tier intelligent model routing for cost optimization:
 
@@ -127,7 +152,7 @@ Background neural consolidation for continuous improvement:
 - **EWC++ Protection**: Elastic Weight Consolidation prevents catastrophic forgetting
 - **Novelty Scoring**: Prioritize learning from novel patterns
 
-### Consensus & MinCut Coordination (v3.3.3)
+### Consensus & MinCut Coordination
 
 Advanced coordination for reliable multi-agent decisions with **full 12/12 domain integration**:
 
@@ -139,7 +164,7 @@ Advanced coordination for reliable multi-agent decisions with **full 12/12 domai
 - **Topology-Aware Routing**: `getTopologyBasedRouting()` avoids weak vertices
 - **Self-Healing Triggers**: `shouldPauseOperations()` enables automatic recovery
 
-### Coherence-Gated Quality Engineering (v3.3.0)
+### Coherence-Gated Quality Engineering
 
 Mathematical verification using Prime Radiant WASM engines:
 
@@ -724,9 +749,18 @@ Agentic QE includes 51 specialized quality engineering agents (44 main + 7 subag
 ### Additional Agents (New in v3)
 `qe-product-factors-assessor` (SFDIPOT analysis), `qe-quality-criteria-recommender` (HTSM v6.3 Quality Criteria), `qe-test-idea-rewriter` (passive→active test transforms)
 
-## 63 QE Skills
+## 63 QE Skills with Trust Tiers
 
-Agentic QE includes 63 domain-specific quality engineering skills that agents automatically apply:
+Agentic QE includes 63 domain-specific quality engineering skills with a 4-layer trust validation system (ADR-056):
+
+| Trust Tier | Skills | Validation Level |
+|------------|--------|------------------|
+| **Tier 3** (Verified) | 46 | Full eval test suite + validator + schema |
+| **Tier 2** (Validated) | 7 | Executable validator + schema |
+| **Tier 1** (Structured) | 5 | JSON output schema |
+| **Tier 0** (Advisory) | 5 | SKILL.md guidance only |
+
+Agents automatically apply these skills:
 
 <details>
 <summary><b>View All 63 QE Skills</b></summary>

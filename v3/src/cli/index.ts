@@ -775,6 +775,9 @@ import { createCodeCommand } from './commands/code.js';
 import { createMigrateCommand } from './commands/migrate.js';
 import { createCompletionsCommand } from './commands/completions.js';
 import { createFleetCommand } from './commands/fleet.js';
+import { createValidateSwarmCommand } from './commands/validate-swarm.js';
+import { createValidateCommand } from './commands/validate.js';
+import { createEvalCommand } from './commands/eval.js';
 
 // Register shortcut commands
 program.addCommand(createTestCommand(context, cleanupAndExit, ensureInitialized));
@@ -785,6 +788,9 @@ program.addCommand(createCodeCommand(context, cleanupAndExit, ensureInitialized)
 program.addCommand(createMigrateCommand(context, cleanupAndExit, ensureInitialized));
 program.addCommand(createCompletionsCommand(cleanupAndExit));
 program.addCommand(createFleetCommand(context, cleanupAndExit, ensureInitialized, registerDomainWorkflowActions));
+program.addCommand(createValidateSwarmCommand(context, cleanupAndExit, ensureInitialized));
+program.addCommand(createValidateCommand(context, cleanupAndExit, ensureInitialized));
+program.addCommand(createEvalCommand());
 
 // ============================================================================
 // External Command Modules

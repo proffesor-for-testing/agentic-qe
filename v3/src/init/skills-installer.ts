@@ -27,6 +27,7 @@ export interface SkillsInstallResult {
   errors: string[];
   totalCount: number;
   skillsDir: string;
+  validationInstalled: boolean;
 }
 
 export interface SkillsInstallerOptions {
@@ -216,6 +217,7 @@ export class SkillsInstaller {
       errors: [],
       totalCount: 0,
       skillsDir: join(this.projectRoot, '.claude', 'skills'),
+      validationInstalled: false,
     };
 
     // Check if source skills exist
@@ -251,10 +253,50 @@ export class SkillsInstaller {
       }
     }
 
+    // Install validation infrastructure (ADR-056)
+    result.validationInstalled = this.installValidationInfrastructure(targetSkillsDir);
+
     // Create skills index file
     await this.createSkillsIndex(targetSkillsDir, result.installed);
 
     return result;
+  }
+
+  /**
+   * Install validation infrastructure to the project
+   * ADR-056: Deterministic Skill Validation System
+   */
+  private installValidationInfrastructure(targetSkillsDir: string): boolean {
+    const sourceValidationDir = join(this.sourceSkillsDir, '.validation');
+    const targetValidationDir = join(targetSkillsDir, '.validation');
+
+    // Check if source validation directory exists
+    if (!existsSync(sourceValidationDir)) {
+      console.debug('[SkillsInstaller] Validation infrastructure not found in source');
+      return false;
+    }
+
+    // Check if already exists and overwrite is disabled
+    if (existsSync(targetValidationDir) && !this.options.overwrite) {
+      console.debug('[SkillsInstaller] Validation infrastructure already exists, skipping');
+      return true; // Already installed
+    }
+
+    try {
+      // Create target directory
+      if (!existsSync(targetValidationDir)) {
+        mkdirSync(targetValidationDir, { recursive: true });
+      }
+
+      // Copy validation infrastructure recursively
+      this.copyDirectoryRecursive(sourceValidationDir, targetValidationDir);
+      console.debug('[SkillsInstaller] Validation infrastructure installed successfully');
+      return true;
+    } catch (error) {
+      console.error('[SkillsInstaller] Failed to install validation infrastructure:',
+        error instanceof Error ? error.message : error);
+      return false;
+    }
   }
 
   /**
@@ -406,42 +448,105 @@ export class SkillsInstaller {
 
   /**
    * Create a skills index file for easy reference
+   * Scans the actual directory to reflect ALL skills present (not just newly installed)
    */
-  private async createSkillsIndex(skillsDir: string, installed: SkillInfo[]): Promise<void> {
-    const v2Skills = installed.filter(s => s.type === 'v2-methodology');
-    const v3Skills = installed.filter(s => s.type === 'v3-domain');
+  private async createSkillsIndex(skillsDir: string, _installed: SkillInfo[]): Promise<void> {
+    // Scan the actual directory for all skills (not just newly installed)
+    const allSkills = this.scanSkillsDirectory(skillsDir);
+    const qeSkills = allSkills.filter(s => !EXCLUDED_SKILLS.includes(s.name));
+    const v2Skills = qeSkills.filter(s => s.type === 'v2-methodology');
+    const v3Skills = qeSkills.filter(s => s.type === 'v3-domain');
+    const platformSkills = allSkills.filter(s => EXCLUDED_SKILLS.includes(s.name));
+    const hasValidation = existsSync(join(skillsDir, '.validation'));
 
     const indexContent = `# AQE Skills Index
 
-This directory contains Quality Engineering skills installed by \`aqe init\`.
-
-> **Note**: Claude Flow platform skills (agentdb, n8n, github, flow-nexus, etc.) are managed
-> separately by the claude-flow package. This directory contains only QE-specific skills.
+This directory contains Quality Engineering skills managed by Agentic QE.
 
 ## Summary
 
-- **Total Skills**: ${installed.length}
+- **Total QE Skills**: ${qeSkills.length}
 - **V2 Methodology Skills**: ${v2Skills.length}
 - **V3 Domain Skills**: ${v3Skills.length}
+- **Platform Skills**: ${platformSkills.length} (Claude Flow managed)
+- **Validation Infrastructure**: ${hasValidation ? '✅ Installed' : '❌ Not installed'}
+
+> **Note**: Platform skills (agentdb, github, flow-nexus, etc.) are managed by claude-flow.
+> Only QE-specific skills are installed/updated by \`aqe init\`.
 
 ## V2 Methodology Skills (${v2Skills.length})
 
 Version-agnostic quality engineering best practices from the QE community.
 
-${v2Skills.map(s => `- **${s.name}**${s.description ? `: ${s.description}` : ''}`).join('\n')}
+${v2Skills.length > 0 ? v2Skills.map(s => `- **${s.name}**${s.description ? `: ${s.description}` : ''}`).join('\n') : '*None installed*'}
 
 ## V3 Domain Skills (${v3Skills.length})
 
 V3-specific implementation guides for the 12 DDD bounded contexts.
 
-${v3Skills.map(s => `- **${s.name}**${s.description ? `: ${s.description}` : ''}`).join('\n')}
+${v3Skills.length > 0 ? v3Skills.map(s => `- **${s.name}**${s.description ? `: ${s.description}` : ''}`).join('\n') : '*None installed*'}
 
+## Platform Skills (${platformSkills.length})
+
+Claude Flow platform skills (managed separately).
+
+${platformSkills.length > 0 ? platformSkills.map(s => `- ${s.name}`).join('\n') : '*None present*'}
+${hasValidation ? `
+## Validation Infrastructure
+
+The \`.validation/\` directory contains the skill validation infrastructure (ADR-056):
+
+- **schemas/**: JSON Schema definitions for validating skill outputs
+- **templates/**: Validator script templates for creating skill validators
+- **examples/**: Example skill outputs that validate against schemas
+- **test-data/**: Test data for validator self-testing
+
+See \`.validation/README.md\` for usage instructions.
+` : ''}
 ---
 
 *Generated by AQE v3 init on ${new Date().toISOString()}*
 `;
 
     writeFileSync(join(skillsDir, 'README.md'), indexContent, 'utf-8');
+  }
+
+  /**
+   * Scan the skills directory to get all present skills
+   */
+  private scanSkillsDirectory(skillsDir: string): SkillInfo[] {
+    const skills: SkillInfo[] = [];
+
+    try {
+      const entries = readdirSync(skillsDir);
+      for (const entry of entries) {
+        // Skip hidden directories and files
+        if (entry.startsWith('.')) continue;
+
+        const fullPath = join(skillsDir, entry);
+        if (!statSync(fullPath).isDirectory()) continue;
+
+        // Check for SKILL.md to confirm it's a valid skill
+        const skillMdPath = join(fullPath, 'SKILL.md');
+        if (!existsSync(skillMdPath)) continue;
+
+        const skillType = this.getSkillType(entry);
+        const description = this.getSkillDescription(fullPath);
+        const hasResources = existsSync(join(fullPath, 'resources'));
+
+        skills.push({
+          name: entry,
+          type: skillType,
+          description,
+          hasResources,
+        });
+      }
+    } catch (error) {
+      console.debug('[SkillsInstaller] Failed to scan skills directory:', error instanceof Error ? error.message : error);
+    }
+
+    // Sort alphabetically
+    return skills.sort((a, b) => a.name.localeCompare(b.name));
   }
 }
 
