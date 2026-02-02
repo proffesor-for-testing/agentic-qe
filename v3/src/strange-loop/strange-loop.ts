@@ -40,6 +40,11 @@ import { DEFAULT_STRANGE_LOOP_CONFIG } from './types.js';
 import { SwarmObserver, AgentProvider, InMemoryAgentProvider } from './swarm-observer.js';
 import { SwarmSelfModel } from './self-model.js';
 import { SelfHealingController, ActionExecutor, NoOpActionExecutor } from './healing-controller.js';
+import type { CommandRunner, InfraHealingConfig } from './infra-healing/types.js';
+import type { InfraErrorSignature } from './infra-healing/types.js';
+import { createInfraHealingOrchestratorSync, InfraHealingOrchestrator } from './infra-healing/infra-healing-orchestrator.js';
+import { createInfraAwareAgentProvider } from './infra-healing/infra-aware-agent-provider.js';
+import { createCompositeActionExecutor } from './infra-healing/composite-action-executor.js';
 import type {
   ICoherenceService,
   CoherenceNode,
@@ -1040,4 +1045,125 @@ export function createInMemoryStrangeLoopWithCoherence(
   );
 
   return { orchestrator, provider, executor };
+}
+
+// ============================================================================
+// Infrastructure Self-Healing Integration (ADR-056)
+// ============================================================================
+
+/**
+ * Options for creating a StrangeLoopOrchestrator with infrastructure self-healing.
+ */
+export interface InfraHealingIntegrationOptions {
+  /** Agent provider for observing swarm state */
+  provider: AgentProvider;
+  /** Action executor for swarm healing actions (will be wrapped with CompositeActionExecutor) */
+  executor: ActionExecutor;
+  /** Command runner for shell execution (inject NoOpCommandRunner for tests) */
+  commandRunner: CommandRunner;
+  /** YAML playbook content (string) */
+  playbook: string;
+  /** Custom error signatures (extends defaults) */
+  customSignatures?: readonly InfraErrorSignature[];
+  /** Variable overrides for playbook interpolation */
+  variables?: Record<string, string>;
+  /** Strange Loop configuration overrides */
+  config?: Partial<StrangeLoopConfig>;
+  /** Infrastructure healing configuration overrides */
+  infraConfig?: Partial<InfraHealingConfig>;
+  /** Prefix for synthetic infra agent IDs (default: 'infra-') */
+  infraAgentPrefix?: string;
+}
+
+/**
+ * Create a StrangeLoopOrchestrator with infrastructure self-healing wired in.
+ *
+ * This is the real integration point — it wraps the provider with
+ * InfraAwareAgentProvider and the executor with CompositeActionExecutor,
+ * so infrastructure failures detected by TestOutputObserver surface as
+ * degraded synthetic agents and healing actions route through the playbook.
+ *
+ * @example
+ * ```typescript
+ * const { orchestrator, infraHealing } = createStrangeLoopWithInfraHealing({
+ *   provider: new InMemoryAgentProvider('obs-0'),
+ *   executor: new NoOpActionExecutor(),
+ *   commandRunner: new ShellCommandRunner(),
+ *   playbook: fs.readFileSync('./recovery-playbook.yaml', 'utf-8'),
+ * });
+ *
+ * // Feed test output → infra failures become degraded synthetic agents
+ * infraHealing.feedTestOutput(testStderr);
+ *
+ * // Strange Loop cycle detects degraded infra agents → heals via playbook
+ * await orchestrator.runCycle();
+ * ```
+ */
+export function createStrangeLoopWithInfraHealing(
+  options: InfraHealingIntegrationOptions,
+): {
+  orchestrator: StrangeLoopOrchestrator;
+  infraHealing: InfraHealingOrchestrator;
+} {
+  // 1. Create the infra healing orchestrator (observer + playbook + lock + executor)
+  const infraHealing = createInfraHealingOrchestratorSync({
+    commandRunner: options.commandRunner,
+    playbook: options.playbook,
+    customSignatures: options.customSignatures,
+    variables: options.variables,
+    config: options.infraConfig,
+  });
+
+  // 2. Wrap the provider — adds synthetic infra agents whose health
+  //    reflects the observer's failure state (responsiveness=0 when down)
+  const wrappedProvider = createInfraAwareAgentProvider(
+    options.provider,
+    infraHealing.getObserver(),
+    infraHealing.getPlaybook(),
+    options.infraAgentPrefix,
+  );
+
+  // 3. Wrap the executor — routes restart_agent for infra-* agents to
+  //    InfraActionExecutor for playbook-driven recovery
+  const wrappedExecutor = createCompositeActionExecutor(
+    options.executor,
+    infraHealing.getExecutor(),
+  );
+
+  // 4. Create the Strange Loop with wrapped dependencies
+  const orchestrator = new StrangeLoopOrchestrator(
+    wrappedProvider,
+    wrappedExecutor,
+    options.config,
+  );
+
+  return { orchestrator, infraHealing };
+}
+
+/**
+ * Create a StrangeLoopOrchestrator with in-memory components and infrastructure
+ * self-healing wired in. Convenience factory for testing.
+ */
+export function createInMemoryStrangeLoopWithInfraHealing(
+  observerId: string = 'observer-0',
+  commandRunner: CommandRunner,
+  playbook: string,
+  config?: Partial<StrangeLoopConfig>,
+): {
+  orchestrator: StrangeLoopOrchestrator;
+  provider: InMemoryAgentProvider;
+  infraHealing: InfraHealingOrchestrator;
+} {
+  const provider = new InMemoryAgentProvider(observerId);
+  const executor = new NoOpActionExecutor();
+
+  const { orchestrator, infraHealing } = createStrangeLoopWithInfraHealing({
+    provider,
+    executor,
+    commandRunner,
+    playbook,
+    config,
+  });
+
+  return { orchestrator, provider, infraHealing };
 }
