@@ -9,6 +9,19 @@
  *
  * Supports ${VAR} interpolation from environment variables or an
  * explicit variables map.
+ *
+ * ## Security: Trust Boundary
+ *
+ * Playbook commands are passed to ShellCommandRunner which executes them
+ * via `execFile('/bin/sh', ['-c', command])`. The ${VAR} interpolation
+ * merges process.env with any explicit variables map — if an environment
+ * variable contains shell metacharacters (e.g. `PGHOST="localhost; rm -rf /"`),
+ * those will be interpreted by the shell.
+ *
+ * **Mitigation**: Playbook YAML must come from trusted configuration (checked
+ * into source control, operator-managed). Do NOT load playbooks from untrusted
+ * user input. Do NOT allow untrusted processes to set environment variables
+ * that playbook commands reference.
  */
 
 import * as fs from 'node:fs/promises';

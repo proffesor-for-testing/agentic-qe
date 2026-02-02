@@ -282,4 +282,57 @@ describe('RecoveryPlaybook', () => {
       expect(plan.backoffMs).toEqual([2000, 5000, 10000]); // hardcoded default
     });
   });
+
+  // ==========================================================================
+  // loadFromFile
+  // ==========================================================================
+
+  describe('loadFromFile', () => {
+    it('loads playbook from a real YAML file', async () => {
+      const fs = await import('node:fs/promises');
+      const path = await import('node:path');
+      const os = await import('node:os');
+
+      // Write a temp YAML file
+      const tmpDir = os.tmpdir();
+      const tmpFile = path.join(tmpDir, `aqe-playbook-test-${Date.now()}.yaml`);
+      await fs.writeFile(tmpFile, MINIMAL_PLAYBOOK, 'utf-8');
+
+      try {
+        await playbook.loadFromFile(tmpFile);
+        const services = playbook.listServices();
+        expect(services).toContain('postgres');
+        const plan = playbook.getRecoveryPlan('postgres')!;
+        expect(plan.healthCheck.command).toBe('pg_isready');
+        expect(plan.recover).toHaveLength(1);
+        expect(plan.recover[0].command).toBe('docker compose up -d postgres');
+      } finally {
+        await fs.unlink(tmpFile);
+      }
+    });
+
+    it('rejects non-existent file path', async () => {
+      await expect(playbook.loadFromFile('/tmp/does-not-exist-aqe.yaml'))
+        .rejects.toThrow();
+    });
+
+    it('getConfig returns parsed config after loadFromFile', async () => {
+      const fs = await import('node:fs/promises');
+      const path = await import('node:path');
+      const os = await import('node:os');
+
+      const tmpFile = path.join(os.tmpdir(), `aqe-playbook-config-${Date.now()}.yaml`);
+      await fs.writeFile(tmpFile, MINIMAL_PLAYBOOK, 'utf-8');
+
+      try {
+        await playbook.loadFromFile(tmpFile);
+        const config = playbook.getConfig();
+        expect(config).toBeDefined();
+        expect(config!.version).toBe('1.0.0');
+        expect(config!.services).toHaveProperty('postgres');
+      } finally {
+        await fs.unlink(tmpFile);
+      }
+    });
+  });
 });

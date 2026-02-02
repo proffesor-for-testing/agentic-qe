@@ -111,12 +111,17 @@ function waitForHealthy(maxWaitMs: number = 20000): boolean {
 
 const skip = !imageExists();
 
+if (skip) {
+  console.warn(
+    '\n⚠️  DOCKER TESTS SKIPPED: postgres:16-alpine image not available.\n' +
+    '   These 5 tests prove real container recovery and are critical.\n' +
+    '   Pull the image to run them: docker pull postgres:16-alpine\n',
+  );
+}
+
 describe('Infrastructure Self-Healing: Real Docker Integration', () => {
   beforeAll(() => {
-    if (skip) {
-      console.log('[skip] postgres:16-alpine image not available');
-      return;
-    }
+    if (skip) return;
     removeContainer();
     execSync(
       `docker run -d --name ${CONTAINER_NAME} -e POSTGRES_PASSWORD=${PG_PASSWORD} -p ${PG_PORT}:5432 postgres:16-alpine`,
