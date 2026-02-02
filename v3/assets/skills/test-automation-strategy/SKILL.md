@@ -11,6 +11,12 @@ last_optimized: 2025-12-02
 dependencies: []
 quick_reference_card: true
 tags: [automation, test-pyramid, page-object, first-principles, ci-cd, flaky-tests]
+trust_tier: 3
+validation:
+  schema_path: schemas/output.json
+  validator_path: scripts/validate.sh
+  eval_path: evals/test-automation-strategy.yaml
+
 ---
 
 # Test Automation Strategy

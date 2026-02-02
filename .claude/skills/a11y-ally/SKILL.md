@@ -11,6 +11,12 @@ last_optimized: 2026-01-26
 dependencies: [playwright, playwright-extra, puppeteer-extra-plugin-stealth, "@axe-core/playwright", pa11y, lighthouse]
 quick_reference_card: true
 tags: [accessibility, wcag, a11y, video, captions, audiodesc, vtt, eu-compliance, context-aware, remediation, axe-core, pa11y, lighthouse, parallel, resilient, graceful-degradation, retry]
+trust_tier: 3
+validation:
+  schema_path: schemas/output.json
+  validator_path: scripts/validate.sh
+  eval_path: evals/a11y-ally.yaml
+
 ---
 
 # /a11y-ally - Comprehensive Accessibility Audit

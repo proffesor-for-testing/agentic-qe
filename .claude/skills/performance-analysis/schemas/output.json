@@ -1,0 +1,588 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-qe.dev/schemas/performance-analysis-output.json",
+  "title": "Performance Analysis Skill Output Schema",
+  "description": "Schema for comprehensive performance analysis output with metrics, bottlenecks, and optimization recommendations.",
+  "type": "object",
+  "required": ["skillName", "version", "timestamp", "status", "trustTier", "output"],
+  "properties": {
+    "skillName": {
+      "type": "string",
+      "const": "performance-analysis",
+      "description": "Must be 'performance-analysis'"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial", "failed", "skipped"]
+    },
+    "trustTier": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "output": {
+      "type": "object",
+      "required": ["summary", "performanceMetrics"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 50,
+          "maxLength": 2000
+        },
+        "performanceMetrics": {
+          "$ref": "#/$defs/performanceMetrics"
+        },
+        "coreWebVitals": {
+          "$ref": "#/$defs/coreWebVitals"
+        },
+        "bottlenecks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bottleneck"
+          }
+        },
+        "loadTestResults": {
+          "$ref": "#/$defs/loadTestResults"
+        },
+        "resourceAnalysis": {
+          "$ref": "#/$defs/resourceAnalysis"
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/finding"
+          },
+          "maxItems": 100
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/recommendation"
+          },
+          "maxItems": 50
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        }
+      }
+    },
+    "metadata": {
+      "$ref": "#/$defs/metadata"
+    },
+    "validation": {
+      "$ref": "#/$defs/validationResult"
+    },
+    "learning": {
+      "$ref": "#/$defs/learningData"
+    }
+  },
+  "$defs": {
+    "performanceMetrics": {
+      "type": "object",
+      "required": ["overallScore"],
+      "properties": {
+        "overallScore": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Overall performance score"
+        },
+        "grade": {
+          "type": "string",
+          "pattern": "^[A-F][+-]?$"
+        },
+        "responseTime": {
+          "type": "object",
+          "properties": {
+            "avg": {
+              "type": "number",
+              "description": "Average response time in ms"
+            },
+            "p50": {
+              "type": "number"
+            },
+            "p75": {
+              "type": "number"
+            },
+            "p90": {
+              "type": "number"
+            },
+            "p95": {
+              "type": "number"
+            },
+            "p99": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number"
+            }
+          }
+        },
+        "throughput": {
+          "type": "object",
+          "properties": {
+            "requestsPerSecond": {
+              "type": "number"
+            },
+            "bytesPerSecond": {
+              "type": "number"
+            },
+            "transactionsPerSecond": {
+              "type": "number"
+            }
+          }
+        },
+        "errorRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Error rate percentage"
+        },
+        "availability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Availability percentage"
+        },
+        "concurrentUsers": {
+          "type": "object",
+          "properties": {
+            "peak": {
+              "type": "integer"
+            },
+            "avg": {
+              "type": "number"
+            },
+            "supported": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "coreWebVitals": {
+      "type": "object",
+      "properties": {
+        "lcp": {
+          "type": "object",
+          "description": "Largest Contentful Paint",
+          "properties": {
+            "value": {
+              "type": "number",
+              "description": "LCP in milliseconds"
+            },
+            "rating": {
+              "type": "string",
+              "enum": ["good", "needs-improvement", "poor"]
+            },
+            "threshold": {
+              "type": "number"
+            }
+          }
+        },
+        "fid": {
+          "type": "object",
+          "description": "First Input Delay",
+          "properties": {
+            "value": {
+              "type": "number",
+              "description": "FID in milliseconds"
+            },
+            "rating": {
+              "type": "string",
+              "enum": ["good", "needs-improvement", "poor"]
+            }
+          }
+        },
+        "cls": {
+          "type": "object",
+          "description": "Cumulative Layout Shift",
+          "properties": {
+            "value": {
+              "type": "number",
+              "description": "CLS score"
+            },
+            "rating": {
+              "type": "string",
+              "enum": ["good", "needs-improvement", "poor"]
+            }
+          }
+        },
+        "inp": {
+          "type": "object",
+          "description": "Interaction to Next Paint",
+          "properties": {
+            "value": {
+              "type": "number"
+            },
+            "rating": {
+              "type": "string",
+              "enum": ["good", "needs-improvement", "poor"]
+            }
+          }
+        },
+        "ttfb": {
+          "type": "object",
+          "description": "Time to First Byte",
+          "properties": {
+            "value": {
+              "type": "number"
+            },
+            "rating": {
+              "type": "string",
+              "enum": ["good", "needs-improvement", "poor"]
+            }
+          }
+        },
+        "fcp": {
+          "type": "object",
+          "description": "First Contentful Paint",
+          "properties": {
+            "value": {
+              "type": "number"
+            },
+            "rating": {
+              "type": "string",
+              "enum": ["good", "needs-improvement", "poor"]
+            }
+          }
+        }
+      }
+    },
+    "bottleneck": {
+      "type": "object",
+      "required": ["id", "type", "severity", "description"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^BTL-\\d{3,6}$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["cpu", "memory", "io", "network", "database", "api", "rendering", "javascript"]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"]
+        },
+        "description": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "impact": {
+          "type": "object",
+          "properties": {
+            "latencyImpact": {
+              "type": "number",
+              "description": "Latency impact in ms"
+            },
+            "throughputImpact": {
+              "type": "number",
+              "description": "Throughput impact percentage"
+            }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "remediation": {
+          "type": "string"
+        }
+      }
+    },
+    "loadTestResults": {
+      "type": "object",
+      "properties": {
+        "testType": {
+          "type": "string",
+          "enum": ["load", "stress", "spike", "endurance", "scalability"]
+        },
+        "duration": {
+          "type": "integer",
+          "description": "Test duration in seconds"
+        },
+        "virtualUsers": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "integer"
+            },
+            "max": {
+              "type": "integer"
+            },
+            "rampUp": {
+              "type": "integer",
+              "description": "Ramp up time in seconds"
+            }
+          }
+        },
+        "iterations": {
+          "type": "integer"
+        },
+        "passRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "saturationPoint": {
+          "type": "integer",
+          "description": "User count at saturation"
+        },
+        "breakingPoint": {
+          "type": "integer",
+          "description": "User count at breaking point"
+        },
+        "scenarios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "passed": {
+                "type": "boolean"
+              },
+              "avgResponseTime": {
+                "type": "number"
+              },
+              "errorRate": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "resourceAnalysis": {
+      "type": "object",
+      "properties": {
+        "cpu": {
+          "type": "object",
+          "properties": {
+            "avgUtilization": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "peakUtilization": {
+              "type": "number"
+            },
+            "throttling": {
+              "type": "boolean"
+            }
+          }
+        },
+        "memory": {
+          "type": "object",
+          "properties": {
+            "avgUsage": {
+              "type": "number"
+            },
+            "peakUsage": {
+              "type": "number"
+            },
+            "leakDetected": {
+              "type": "boolean"
+            }
+          }
+        },
+        "network": {
+          "type": "object",
+          "properties": {
+            "totalRequests": {
+              "type": "integer"
+            },
+            "totalSize": {
+              "type": "number",
+              "description": "Total size in KB"
+            },
+            "avgLatency": {
+              "type": "number"
+            }
+          }
+        },
+        "assets": {
+          "type": "object",
+          "properties": {
+            "totalSize": {
+              "type": "number"
+            },
+            "jsSize": {
+              "type": "number"
+            },
+            "cssSize": {
+              "type": "number"
+            },
+            "imageSize": {
+              "type": "number"
+            },
+            "fontSize": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["id", "title", "severity", "category"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^PERF-\\d{3,6}$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "info"]
+        },
+        "category": {
+          "type": "string",
+          "enum": ["response-time", "throughput", "resource", "web-vitals", "scalability", "stability"]
+        },
+        "metric": {
+          "type": "string"
+        },
+        "currentValue": {
+          "type": "number"
+        },
+        "threshold": {
+          "type": "number"
+        },
+        "remediation": {
+          "type": "string"
+        }
+      }
+    },
+    "recommendation": {
+      "type": "object",
+      "required": ["id", "title", "priority"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^REC-\\d{3,6}$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"]
+        },
+        "effort": {
+          "type": "string",
+          "enum": ["trivial", "low", "medium", "high", "major"]
+        },
+        "expectedImprovement": {
+          "type": "object",
+          "properties": {
+            "metric": {
+              "type": "string"
+            },
+            "improvementPercent": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["type", "path"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["report", "trace", "profile", "chart", "data", "har"]
+        },
+        "path": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "executionTimeMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolsUsed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "agentId": {
+          "type": "string"
+        },
+        "targetUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "environment": {
+          "type": "string"
+        }
+      }
+    },
+    "validationResult": {
+      "type": "object",
+      "properties": {
+        "schemaValid": {
+          "type": "boolean"
+        },
+        "contentValid": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "learningData": {
+      "type": "object",
+      "properties": {
+        "patternsDetected": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reward": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

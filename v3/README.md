@@ -7,6 +7,15 @@
 
 > Domain-Driven Quality Engineering with Mathematical Coherence Verification, 12 Bounded Contexts, 51 Specialized QE Agents, 63 QE Skills, and ReasoningBank Learning
 
+### What's New in v3.4.2
+
+| Feature | Description |
+|---------|-------------|
+| **Trust Tiers** | 4-layer skill validation system (Tier 0-3) for deterministic outputs |
+| **46 Tier 3 Skills** | Full evaluation test suites with verified behavior |
+| **Skill Validation CLI** | `aqe skill report`, `aqe eval run` for validation workflows |
+| **ReasoningBank Integration** | Validation patterns persisted for cross-domain learning |
+
 ### What's New in v3.4.0
 
 | Feature | Description |
@@ -46,7 +55,7 @@ npx aqe test generate src/
 ## Why Agentic QE?
 
 - **51 Specialized QE Agents** - Domain-focused quality engineering agents (44 main + 7 subagents)
-- **63 QE Skills** - Domain-specific skills for testing, security, accessibility, QCSD, and more
+- **63 QE Skills with Trust Tiers** - Validated skills with 4-layer trust system (46 Tier 3 verified)
 - **12 DDD Bounded Contexts** - Modular, extensible architecture
 - **TinyDancer Model Routing** - 3-tier intelligent routing for cost optimization
 - **O(log n) Coverage Analysis** - Sublinear performance with HNSW indexing
@@ -104,6 +113,28 @@ await a2aAdapter.delegateTask({
   to: 'qe-security-scanner',
   task: { type: 'security-review', artifacts: generatedTests },
 });
+```
+
+### Trust Tiers - Skill Validation (v3.4.2)
+
+4-layer validation system ensuring deterministic, trustworthy skill outputs:
+
+| Tier | Badge | Description | Count |
+|------|-------|-------------|-------|
+| **Tier 3** | ![Verified](https://img.shields.io/badge/Tier%203-Verified-brightgreen) | Full eval test suite | 46 |
+| **Tier 2** | ![Validated](https://img.shields.io/badge/Tier%202-Validated-green) | Executable validator | 7 |
+| **Tier 1** | ![Structured](https://img.shields.io/badge/Tier%201-Structured-yellow) | JSON output schema | 5 |
+| **Tier 0** | ![Advisory](https://img.shields.io/badge/Tier%200-Advisory-lightgrey) | SKILL.md guidance | 5 |
+
+```bash
+# Check skill trust tier
+aqe eval status --skill security-testing
+
+# Run skill evaluation
+aqe eval run --skill security-testing --model claude-sonnet-4
+
+# Generate validation reports
+aqe skill report --input results/ --output validation-report.md
 ```
 
 ### TinyDancer Intelligent Model Routing (ADR-026)
@@ -724,9 +755,18 @@ Agentic QE includes 51 specialized quality engineering agents (44 main + 7 subag
 ### Additional Agents (New in v3)
 `qe-product-factors-assessor` (SFDIPOT analysis), `qe-quality-criteria-recommender` (HTSM v6.3 Quality Criteria), `qe-test-idea-rewriter` (passive→active test transforms)
 
-## 63 QE Skills
+## 63 QE Skills with Trust Tiers
 
-Agentic QE includes 63 domain-specific quality engineering skills that agents automatically apply:
+Agentic QE includes 63 domain-specific quality engineering skills with a 4-layer trust validation system (ADR-056):
+
+| Trust Tier | Skills | Validation Level |
+|------------|--------|------------------|
+| **Tier 3** (Verified) | 46 | Full eval test suite + validator + schema |
+| **Tier 2** (Validated) | 7 | Executable validator + schema |
+| **Tier 1** (Structured) | 5 | JSON output schema |
+| **Tier 0** (Advisory) | 5 | SKILL.md guidance only |
+
+Agents automatically apply these skills:
 
 <details>
 <summary><b>View All 63 QE Skills</b></summary>
