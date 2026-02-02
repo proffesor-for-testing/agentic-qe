@@ -35,6 +35,7 @@ export function createInitCommand(): Command {
   const initCmd = new Command('init')
     .description('Initialize Agentic QE v3 in your project')
     .option('-a, --auto', 'Auto-configure without prompts')
+    .option('-u, --upgrade', 'Upgrade existing installation (overwrites skills, agents, validation)')
     .option('--auto-migrate', 'Automatically migrate from v2 if detected')
     .option('--minimal', 'Minimal installation (no skills, patterns, or workers)')
     .option('--skip-patterns', 'Skip pattern loading')
@@ -81,6 +82,7 @@ export function createInitCommand(): Command {
 
 interface InitOptions {
   auto?: boolean;
+  upgrade?: boolean;
   autoMigrate?: boolean;
   minimal?: boolean;
   skipPatterns?: boolean;
@@ -105,9 +107,10 @@ async function runInit(options: InitOptions): Promise<void> {
   const aqeDir = path.join(projectRoot, '.agentic-qe');
   const isExisting = existsSync(aqeDir);
 
-  if (isExisting && !options.auto && !options.autoMigrate) {
+  if (isExisting && !options.auto && !options.autoMigrate && !options.upgrade) {
     console.log(chalk.yellow('  ⚠ AQE directory already exists at:'), aqeDir);
-    console.log(chalk.gray('    Use --auto to update configuration'));
+    console.log(chalk.gray('    Use --auto to update configuration (keeps existing skills)'));
+    console.log(chalk.gray('    Use --upgrade to update all skills, agents, and validation'));
     console.log(chalk.gray('    Use --auto-migrate to migrate from v2'));
     console.log('');
   }
@@ -116,6 +119,7 @@ async function runInit(options: InitOptions): Promise<void> {
   const orchestrator = createModularInitOrchestrator({
     projectRoot,
     autoMode: options.auto,
+    upgrade: options.upgrade,
     autoMigrate: options.autoMigrate,
     minimal: options.minimal,
     skipPatterns: options.skipPatterns,

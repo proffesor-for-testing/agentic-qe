@@ -7,22 +7,16 @@
 
 > Domain-Driven Quality Engineering with Mathematical Coherence Verification, 12 Bounded Contexts, 51 Specialized QE Agents, 63 QE Skills, and ReasoningBank Learning
 
-### What's New in v3.4.2
+### Key Features
 
 | Feature | Description |
 |---------|-------------|
-| **Trust Tiers** | 4-layer skill validation system (Tier 0-3) for deterministic outputs |
-| **46 Tier 3 Skills** | Full evaluation test suites with verified behavior |
-| **Skill Validation CLI** | `aqe skill report`, `aqe eval run` for validation workflows |
-| **ReasoningBank Integration** | Validation patterns persisted for cross-domain learning |
-
-### What's New in v3.4.0
-
-| Feature | Description |
-|---------|-------------|
-| **AG-UI Protocol** | Anthropic's streaming interface - real-time agent progress to UI |
-| **A2A Protocol** | Google's agent-to-agent standard - cross-tool interoperability |
-| **A2UI Components** | Hybrid UI components combining streaming + events |
+| **63 QE Skills** | Quality engineering skills with 4-tier trust validation system |
+| **51 QE Agents** | Specialized agents for test generation, security, coverage, and more |
+| **12 DDD Domains** | Modular bounded contexts for all quality engineering needs |
+| **MCP Integration** | Full Claude Code integration via Model Context Protocol |
+| **AG-UI/A2A Protocols** | Industry-standard agent streaming and interoperability |
+| **O(log n) Analysis** | Sublinear coverage analysis with HNSW vector indexing |
 
 ## Quick Start
 
@@ -63,12 +57,12 @@ npx aqe test generate src/
 - **ReasoningBank + SONA + Dream Cycles** - Neural pattern learning with 9 RL algorithms
 - **Queen-led Coordination** - 3-5x throughput with work stealing and consensus
 - **MinCut Topology** - Graph-based self-healing agent coordination
-- **Coherence Verification** (v3.3.0) - Mathematical proof of belief consistency using WASM engines
-- **MinCut/Consensus Integration** (v3.3.3) - Full 12/12 domain integration with self-healing
-- **Cross-Phase Memory Unification** (v3.3.5) - Unified SQLite storage for QCSD feedback loops
+- **Coherence Verification** - Mathematical proof of belief consistency using WASM engines
+- **MinCut/Consensus Integration** - Full 12/12 domain integration with self-healing
+- **Cross-Phase Memory Unification** - Unified SQLite storage for QCSD feedback loops
 - **Zero-Breaking-Changes Migration** - Full v2 backward compatibility
-- **Browser Automation** (v3.1.0) - @claude-flow/browser integration with 9 workflow templates
-- **AG-UI/A2A/A2UI Protocols** (v3.4.0) - Industry-standard agent communication
+- **Browser Automation** - @claude-flow/browser integration with 9 workflow templates
+- **AG-UI/A2A/A2UI Protocols** - Industry-standard agent communication
 
 ## Get Value Fast
 
@@ -87,9 +81,9 @@ claude "Run quality assessment: tests, coverage, security, and deployment recomm
 aqe status --verbose
 ```
 
-## New in v3: Key Features
+## Architecture Highlights
 
-### AG-UI, A2A & A2UI Protocols (v3.4.0)
+### AG-UI, A2A & A2UI Protocols
 
 Industry-standard agent communication protocols:
 
@@ -115,7 +109,7 @@ await a2aAdapter.delegateTask({
 });
 ```
 
-### Trust Tiers - Skill Validation (v3.4.2)
+### Trust Tiers - Skill Validation
 
 4-layer validation system ensuring deterministic, trustworthy skill outputs:
 
@@ -137,7 +131,7 @@ aqe eval run --skill security-testing --model claude-sonnet-4
 aqe skill report --input results/ --output validation-report.md
 ```
 
-### TinyDancer Intelligent Model Routing (ADR-026)
+### TinyDancer Intelligent Model Routing
 
 3-tier intelligent model routing for cost optimization:
 
@@ -158,7 +152,7 @@ Background neural consolidation for continuous improvement:
 - **EWC++ Protection**: Elastic Weight Consolidation prevents catastrophic forgetting
 - **Novelty Scoring**: Prioritize learning from novel patterns
 
-### Consensus & MinCut Coordination (v3.3.3)
+### Consensus & MinCut Coordination
 
 Advanced coordination for reliable multi-agent decisions with **full 12/12 domain integration**:
 
@@ -170,7 +164,7 @@ Advanced coordination for reliable multi-agent decisions with **full 12/12 domai
 - **Topology-Aware Routing**: `getTopologyBasedRouting()` avoids weak vertices
 - **Self-Healing Triggers**: `shouldPauseOperations()` enables automatic recovery
 
-### Coherence-Gated Quality Engineering (v3.3.0)
+### Coherence-Gated Quality Engineering
 
 Mathematical verification using Prime Radiant WASM engines:
 

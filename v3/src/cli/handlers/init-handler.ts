@@ -47,6 +47,7 @@ export class InitHandler implements ICommandHandler {
       .option('--lazy', 'Enable lazy loading of domains')
       .option('--wizard', 'Run interactive setup wizard')
       .option('--auto', 'Auto-configure based on project analysis')
+      .option('-u, --upgrade', 'Upgrade existing installation (overwrite skills, agents, validation)')
       .option('--minimal', 'Minimal configuration (skip optional features)')
       .option('--skip-patterns', 'Skip loading pre-trained patterns')
       .option('--with-n8n', 'Install n8n workflow testing agents and skills')
@@ -93,6 +94,7 @@ export class InitHandler implements ICommandHandler {
     const orchestrator = createModularInitOrchestrator({
       projectRoot: process.cwd(),
       autoMode: options.auto,
+      upgrade: options.upgrade,
       minimal: options.minimal,
       skipPatterns: options.skipPatterns,
       withN8n: options.withN8n,
@@ -346,6 +348,7 @@ Options:
   --lazy                     Enable lazy loading of domains
   --wizard                   Run interactive setup wizard
   --auto                     Auto-configure based on project analysis
+  -u, --upgrade              Upgrade existing installation (overwrite skills, agents, validation)
   --minimal                  Minimal configuration (skip optional features)
   --skip-patterns            Skip loading pre-trained patterns
   --with-n8n                 Install n8n workflow testing agents and skills
@@ -355,7 +358,9 @@ Options:
   --modular                  Use new modular init system
 
 Examples:
-  aqe init --auto            # Auto-configure based on project
+  aqe init --auto            # Auto-configure based on project (keeps existing skills)
+  aqe init --auto --upgrade  # Auto-configure AND update all skills/agents
+  aqe init --upgrade         # Upgrade existing installation
   aqe init --wizard          # Run interactive wizard
   aqe init --domains test-generation,coverage-analysis
 `;
@@ -373,6 +378,7 @@ interface InitOptions {
   lazy?: boolean;
   wizard?: boolean;
   auto?: boolean;
+  upgrade?: boolean;
   minimal?: boolean;
   skipPatterns?: boolean;
   withN8n?: boolean;

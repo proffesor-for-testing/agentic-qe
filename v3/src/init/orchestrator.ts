@@ -47,6 +47,7 @@ export class ModularInitOrchestrator {
       projectRoot: options.projectRoot,
       options: {
         autoMode: options.autoMode,
+        upgrade: options.upgrade,
         skipPatterns: options.skipPatterns,
         minimal: options.minimal,
         autoMigrate: options.autoMigrate,
