@@ -146,6 +146,42 @@ After QCSD skill completes, verify:
 
 **If any verification fails, the QCSD analysis is INCOMPLETE.**
 
+### Trigger Patterns - IMMEDIATELY invoke `/qcsd-refinement-swarm`
+
+When user requests ANY of these, use `Skill({ skill: "qcsd-refinement-swarm" })`:
+- "QCSD refinement" / "refinement swarm"
+- "SFDIPOT analysis" / "product factors analysis"
+- "sprint refinement" / "story refinement"
+- "BDD generation" / "generate scenarios"
+- "refine story" / "refine epic"
+
+### What You MUST NOT Do (Refinement)
+
+- ❌ **NEVER** manually spawn qe-product-factors-assessor, qe-bdd-generator, qe-requirements-validator, qe-contract-validator, qe-impact-analyzer, qe-dependency-mapper for QCSD refinement without using the skill
+- ❌ **NEVER** skip flag detection (HAS_API, HAS_REFACTORING, HAS_DEPENDENCIES, HAS_SECURITY)
+- ❌ **NEVER** skip the qe-test-idea-rewriter transformation step
+- ❌ **NEVER** skip cross-phase signal consumption (Loop 2 + Loop 4)
+
+### Correct Refinement Invocation
+
+```javascript
+// For story/epic refinement
+Skill({ skill: "qcsd-refinement-swarm", args: "<story content>" })
+```
+
+### Post-Refinement Verification
+
+After QCSD Refinement skill completes, verify:
+```
+✓ Flag detection was performed (HAS_API, HAS_REFACTORING, HAS_DEPENDENCIES, HAS_SECURITY)
+✓ All core agents were spawned (3 minimum: product-factors, bdd-generator, requirements-validator)
+✓ Conditional agents spawned per flags (up to 3 more)
+✓ Test ideas were rewritten by qe-test-idea-rewriter
+✓ Cross-phase signals consumed (Loop 2 + Loop 4)
+✓ READY/CONDITIONAL/NOT-READY decision rendered
+✓ Executive summary synthesized from all reports
+```
+
 ---
 
 ## 🚨 SWARM EXECUTION RULES

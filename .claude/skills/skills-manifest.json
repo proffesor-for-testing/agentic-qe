@@ -1,14 +1,14 @@
 {
   "version": "1.2.0",
   "generated": "2026-01-27T00:00:00.000Z",
-  "totalSkills": 43,
+  "totalSkills": 44,
   "description": "Agentic QE Fleet skills manifest - Quality Engineering focused skills only. Claude Flow platform skills are managed separately.",
   "categories": {
     "qcsd-phases": {
       "description": "QCSD (Quality Conscious Software Delivery) phase swarms for shift-left quality",
       "priority": "critical",
       "autoInvoke": true,
-      "skills": ["qcsd-ideation-swarm"]
+      "skills": ["qcsd-ideation-swarm", "qcsd-refinement-swarm"]
     },
     "qe-core": {
       "description": "Foundational quality engineering philosophy and agentic principles",
@@ -127,6 +127,56 @@
           "qe-accessibility-auditor": "HAS_UI",
           "qe-security-auditor": "HAS_SECURITY",
           "qe-qx-partner": "HAS_UX"
+        }
+      }
+    },
+    "qcsd-refinement-swarm": {
+      "id": "qcsd-refinement-swarm",
+      "name": "QCSD Refinement Swarm",
+      "description": "QCSD Refinement phase swarm using SFDIPOT product factors, BDD scenario generation, and requirements validation for Sprint Refinement sessions.",
+      "category": "qcsd-phases",
+      "priority": "critical",
+      "file": "qcsd-refinement-swarm/SKILL.md",
+      "tokenEstimate": 3200,
+      "optimizationStatus": "active",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2026-02-02",
+      "tags": ["qcsd", "refinement", "sfdipot", "bdd", "gherkin", "requirements", "swarm"],
+      "dependencies": ["agentic-quality-engineering", "context-driven-testing"],
+      "agents": [
+        "qe-product-factors-assessor",
+        "qe-bdd-generator",
+        "qe-requirements-validator",
+        "qe-contract-validator",
+        "qe-impact-analyzer",
+        "qe-dependency-mapper",
+        "qe-test-idea-rewriter"
+      ],
+      "relatedSkills": ["context-driven-testing", "testability-scoring", "risk-based-testing"],
+      "triggers": {
+        "patterns": [
+          "qcsd refinement",
+          "refinement swarm",
+          "sfdipot analysis",
+          "product factors analysis",
+          "sprint refinement",
+          "story refinement",
+          "bdd generation",
+          "refine story",
+          "refine epic"
+        ],
+        "autoInvoke": true,
+        "enforcementLevel": "strict"
+      },
+      "execution": {
+        "primary": "task-tool",
+        "parallel_batches": 3,
+        "requiresFlagDetection": true,
+        "requiresDirectWrite": true,
+        "conditionalAgents": {
+          "qe-contract-validator": "HAS_API",
+          "qe-impact-analyzer": "HAS_REFACTORING",
+          "qe-dependency-mapper": "HAS_DEPENDENCIES"
         }
       }
     },
