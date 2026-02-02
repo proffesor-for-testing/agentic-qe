@@ -320,7 +320,6 @@ if [[ "$SELF_TEST" == "true" ]]; then
   echo "--- Step 4: WCAG Validation Functions ---"
 
   # Create a test output
-  local test_file
   test_file=$(mktemp)
   cat > "$test_file" << 'EOF'
 {
@@ -361,7 +360,6 @@ EOF
     success "Test output is valid JSON"
 
     # Check WCAG-specific fields
-    local conformance
     conformance=$(json_get "$test_file" ".output.conformanceLevel" 2>/dev/null)
     if [[ -n "$conformance" ]]; then
       success "WCAG conformance level detected: $conformance"
@@ -371,7 +369,6 @@ EOF
     fi
 
     # Check POUR breakdown
-    local pour_perceivable
     pour_perceivable=$(json_get "$test_file" ".output.pourBreakdown.perceivable.score" 2>/dev/null)
     if [[ -n "$pour_perceivable" ]]; then
       success "POUR breakdown detected: perceivable score = $pour_perceivable"
@@ -381,7 +378,6 @@ EOF
     fi
 
     # Check finding structure
-    local finding_wcag
     finding_wcag=$(json_get "$test_file" ".output.findings[0].wcagCriterion" 2>/dev/null)
     if [[ "$finding_wcag" == "1.1.1" ]]; then
       success "Finding WCAG criterion detected: $finding_wcag"

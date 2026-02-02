@@ -189,7 +189,6 @@ if [[ "$SELF_TEST" == "true" ]]; then
   # Step 3: Test compatibility-specific validation
   echo "--- Step 3: Compatibility Validation Functions ---"
 
-  local test_file
   test_file=$(mktemp)
   cat > "$test_file" << 'EOF'
 {
@@ -238,7 +237,6 @@ EOF
     success "Test output is valid JSON"
 
     # Check browser matrix
-    local browser_count
     browser_count=$(json_count "$test_file" ".output.browserMatrix.browsers" 2>/dev/null)
     if [[ "$browser_count" -ge 1 ]]; then
       success "Browser matrix detected: $browser_count browsers"
@@ -248,7 +246,6 @@ EOF
     fi
 
     # Check device coverage
-    local tier1_pass
     tier1_pass=$(json_get "$test_file" ".output.deviceCoverage.tier1.passRate" 2>/dev/null)
     if [[ -n "$tier1_pass" ]]; then
       success "Device coverage detected: Tier 1 pass rate = $tier1_pass%"
