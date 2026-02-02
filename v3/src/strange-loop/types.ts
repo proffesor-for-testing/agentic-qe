@@ -151,7 +151,11 @@ export interface ConnectivityMetrics {
  */
 export interface SwarmVulnerability {
   /** Vulnerability type */
-  type: 'bottleneck' | 'isolated_agent' | 'overloaded_agent' | 'single_point_of_failure' | 'network_partition' | 'degraded_connectivity';
+  type: 'bottleneck' | 'isolated_agent' | 'overloaded_agent' | 'single_point_of_failure' | 'network_partition' | 'degraded_connectivity'
+    // ADR-057: Infrastructure self-healing vulnerability types
+    | 'db_connection_failure' | 'service_unreachable' | 'dns_resolution_failure'
+    | 'port_bind_failure' | 'out_of_memory' | 'disk_full'
+    | 'certificate_expired' | 'infra_timeout';
 
   /** Severity (0-1) */
   severity: number;
@@ -373,7 +377,9 @@ export type SelfHealingActionType =
   | 'trigger_failover'
   | 'scale_up'
   | 'scale_down'
-  | 'rebalance_topology';
+  | 'rebalance_topology'
+  // ADR-057: Infrastructure self-healing action type
+  | 'restart_service';
 
 /**
  * Priority levels for healing actions

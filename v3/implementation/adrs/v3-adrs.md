@@ -4,7 +4,7 @@
 **Date Range:** 2026-01-07 onwards
 **Status:** Phase 10 Complete (Skill Validation System - ADR-056 Implemented)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-02-02 (ADR-001-056: 53 Implemented, 97 skills with trust tiers)
+**Last Verified:** 2026-02-02 (ADR-001-057: 54 Implemented, 97 skills with trust tiers)
 
 ---
 
@@ -68,6 +68,7 @@
 | [ADR-054](./ADR-054-a2a-protocol.md) | A2A Protocol Integration | **Proposed** | 2026-01-30 | Agent Cards for 68 agents, JSON-RPC 2.0, discovery endpoint |
 | [ADR-055](./ADR-055-a2ui-declarative-ui.md) | A2UI Declarative UI Strategy | **Proposed** | 2026-01-30 | 15+ components, QE catalog, WCAG 2.2, AG-UI state sync |
 | [ADR-056](./ADR-056-skill-validation-system.md) | Deterministic Skill Validation System | **Implemented** | 2026-02-02 | ✅ 46 Tier 3 skills, 52 validators, CLI commands (`aqe skill`, `aqe eval`) |
+| [ADR-057](./ADR-057-infra-self-healing.md) | Infrastructure Self-Healing Extension | **Implemented** | 2026-02-02 | ✅ Extends Strange Loop to detect and recover infrastructure failures |
 
 ---
 

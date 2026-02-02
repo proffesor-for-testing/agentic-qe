@@ -294,6 +294,33 @@ export class SelfHealingController {
           result = await this.executeRebalanceTopology(action);
           break;
 
+        // ADR-057: Infrastructure actions — delegated to executor.
+        // When wired via createStrangeLoopWithInfraHealing(), the executor
+        // is CompositeActionExecutor which routes to InfraActionExecutor.
+        case 'restart_service': {
+          const infraStartTime = Date.now();
+          try {
+            await this.executor.restartAgent(action.targetAgentId ?? '');
+            result = {
+              action,
+              success: true,
+              message: `Infrastructure action '${action.type}' delegated to executor`,
+              durationMs: Date.now() - infraStartTime,
+              executedAt: infraStartTime,
+            };
+          } catch (infraError) {
+            result = {
+              action,
+              success: false,
+              message: `Infrastructure action failed: ${infraError instanceof Error ? infraError.message : 'Unknown'}`,
+              durationMs: Date.now() - infraStartTime,
+              error: infraError instanceof Error ? infraError.message : 'unknown',
+              executedAt: infraStartTime,
+            };
+          }
+          break;
+        }
+
         default:
           result = {
             action,
@@ -708,17 +735,43 @@ export class SelfHealingController {
       single_point_of_failure: 'spawn_redundant_agent',
       network_partition: 'add_connection',
       degraded_connectivity: 'add_connection',
+      // ADR-057: Infrastructure vulnerabilities — routed through CompositeActionExecutor
+      // to InfraActionExecutor for playbook-driven recovery
+      db_connection_failure: 'restart_service',
+      service_unreachable: 'restart_service',
+      dns_resolution_failure: 'restart_service',
+      port_bind_failure: 'restart_service',
+      out_of_memory: 'restart_service',
+      disk_full: 'restart_service',
+      certificate_expired: 'restart_service',
+      infra_timeout: 'restart_service',
     };
 
-    const actionType = typeToAction[vulnerability.type];
+    let actionType = typeToAction[vulnerability.type];
     if (!actionType) return null;
+
+    const targetAgentId = vulnerability.affectedAgents[0];
+
+    // ADR-057: Synthetic infra agents don't participate in swarm topology.
+    // Only fire restart_service when the agent is actually degraded.
+    if (targetAgentId?.startsWith('infra-') && actionType !== 'restart_service') {
+      if (vulnerability.type === 'single_point_of_failure') {
+        // Agent responsiveness dropped — override to restart_service
+        // so CompositeActionExecutor routes to InfraActionExecutor
+        actionType = 'restart_service';
+      } else {
+        // Suppress topology actions (isolated_agent, bottleneck, etc.)
+        // for infra agents — they don't have real swarm connections
+        return null;
+      }
+    }
 
     const priority = this.severityToPriority(vulnerability.severity);
 
     return {
       id: uuidv4(),
       type: actionType,
-      targetAgentId: vulnerability.affectedAgents[0],
+      targetAgentId,
       priority,
       estimatedImpact: vulnerability.severity,
       reversible: true,
