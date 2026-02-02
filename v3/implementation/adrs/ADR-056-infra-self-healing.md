@@ -223,3 +223,14 @@ The default `actionCooldownMs: 10000` prevents multiple actions within the same 
 4. **YAML playbook** — Users customize recovery via YAML configuration. Default playbook includes postgres, mysql, mongodb, redis, elasticsearch, rabbitmq, selenium-grid, and generic-service.
 
 5. **CoordinationLock** — In-process Map-based mutex with TTL auto-expiry. Prevents concurrent recovery attempts for the same service. Single-process scope (not distributed).
+
+### Security: Trust Boundary
+
+Playbook commands support `${VAR}` interpolation from environment variables. Since commands execute via `/bin/sh -c`, a poisoned environment variable (e.g. `PGHOST="localhost; rm -rf /"`) could inject arbitrary shell commands.
+
+**Mitigations:**
+- Playbook YAML must come from trusted configuration (source control, operator-managed)
+- Do NOT load playbooks from untrusted user input
+- Do NOT allow untrusted processes to set environment variables referenced by playbook commands
+- `ShellCommandRunner` uses `execFile` (not `exec`) and enforces timeouts and buffer limits
+- `default-playbook.yaml` is a reference template — it is never auto-loaded

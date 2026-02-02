@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   InfraHealingOrchestrator,
   createInfraHealingOrchestratorSync,
+  createInfraHealingOrchestrator,
 } from '../../../../src/strange-loop/infra-healing/infra-healing-orchestrator.js';
 import { NoOpCommandRunner } from '../../../../src/strange-loop/infra-healing/infra-action-executor.js';
 
@@ -350,6 +351,84 @@ describe('InfraHealingOrchestrator', () => {
       const results = await orchestrator.runRecoveryCycle();
       // 'dns' service is not in test playbook — should be skipped
       expect(results).toHaveLength(0);
+    });
+  });
+
+  // ==========================================================================
+  // Async factory: createInfraHealingOrchestrator (file-based)
+  // ==========================================================================
+
+  describe('createInfraHealingOrchestrator (async factory)', () => {
+    it('creates orchestrator from YAML file path', async () => {
+      const fs = await import('node:fs/promises');
+      const path = await import('node:path');
+      const os = await import('node:os');
+
+      const tmpFile = path.join(os.tmpdir(), `aqe-orch-test-${Date.now()}.yaml`);
+      await fs.writeFile(tmpFile, TEST_PLAYBOOK, 'utf-8');
+
+      try {
+        const runner = new NoOpCommandRunner();
+        const orch = await createInfraHealingOrchestrator({
+          commandRunner: runner,
+          playbook: tmpFile, // file path, not YAML string
+        });
+
+        expect(orch.isReady()).toBe(true);
+        expect(orch.getPlaybook().listServices()).toContain('postgres');
+        expect(orch.getPlaybook().listServices()).toContain('redis');
+      } finally {
+        await fs.unlink(tmpFile);
+      }
+    });
+
+    it('creates orchestrator from inline YAML when playbookIsFile is false', async () => {
+      const runner = new NoOpCommandRunner();
+      const orch = await createInfraHealingOrchestrator({
+        commandRunner: runner,
+        playbook: TEST_PLAYBOOK,
+        playbookIsFile: false,
+      });
+
+      expect(orch.isReady()).toBe(true);
+      expect(orch.getPlaybook().listServices()).toContain('postgres');
+    });
+
+    it('async factory produces working recovery cycle', async () => {
+      const fs = await import('node:fs/promises');
+      const path = await import('node:path');
+      const os = await import('node:os');
+
+      const tmpFile = path.join(os.tmpdir(), `aqe-orch-cycle-${Date.now()}.yaml`);
+      await fs.writeFile(tmpFile, TEST_PLAYBOOK, 'utf-8');
+
+      try {
+        const runner = new NoOpCommandRunner();
+        runner.setResponse('pg_isready', { exitCode: 1, stderr: 'no response', stdout: '' });
+        runner.setResponse('docker compose up -d postgres', { exitCode: 0, stdout: 'Starting...' });
+
+        const orch = await createInfraHealingOrchestrator({
+          commandRunner: runner,
+          playbook: tmpFile,
+        });
+
+        orch.feedTestOutput('Error: connect ECONNREFUSED 127.0.0.1:5432');
+        const results = await orch.runRecoveryCycle();
+
+        expect(results.length).toBeGreaterThan(0);
+        expect(results[0].serviceName).toBe('postgres');
+        expect(runner.getCalls().length).toBeGreaterThan(0);
+      } finally {
+        await fs.unlink(tmpFile);
+      }
+    });
+
+    it('rejects non-existent file path', async () => {
+      const runner = new NoOpCommandRunner();
+      await expect(createInfraHealingOrchestrator({
+        commandRunner: runner,
+        playbook: '/tmp/does-not-exist-aqe-playbook.yaml',
+      })).rejects.toThrow();
     });
   });
 });
