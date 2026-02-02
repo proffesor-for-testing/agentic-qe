@@ -78,6 +78,8 @@ export interface InitContext {
 export interface InitOptions {
   /** Skip wizard and use auto-configuration */
   autoMode?: boolean;
+  /** Upgrade existing installation (overwrite skills, agents, validation) */
+  upgrade?: boolean;
   /** Skip pattern loading */
   skipPatterns?: boolean;
   /** Minimal configuration (no skills, patterns, workers) */

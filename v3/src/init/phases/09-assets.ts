@@ -33,10 +33,17 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     const config = context.config as AQEInitConfig;
     const { projectRoot, options } = context;
 
+    // Determine overwrite mode: --upgrade flag OR config setting
+    const shouldOverwrite = options.upgrade || config.skills.overwrite;
+
     let skillsInstalled = 0;
     let agentsInstalled = 0;
     let n8nAgents = 0;
     let n8nSkills = 0;
+
+    if (options.upgrade) {
+      context.services.log(`  Upgrade mode: overwriting existing files`);
+    }
 
     // Install skills
     if (config.skills.install) {
@@ -44,7 +51,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
         projectRoot,
         installV2Skills: config.skills.installV2,
         installV3Skills: config.skills.installV3,
-        overwrite: config.skills.overwrite,
+        overwrite: shouldOverwrite,
       });
 
       const skillsResult = await skillsInstaller.install();
@@ -60,7 +67,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       projectRoot,
       installQEAgents: true,
       installSubagents: true,
-      overwrite: false,
+      overwrite: shouldOverwrite,
     });
 
     const agentsResult = await agentsInstaller.install();
@@ -76,7 +83,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
         projectRoot,
         installAgents: true,
         installSkills: true,
-        overwrite: false,
+        overwrite: shouldOverwrite,
         n8nApiConfig: options.n8nApiConfig,
       });
 
