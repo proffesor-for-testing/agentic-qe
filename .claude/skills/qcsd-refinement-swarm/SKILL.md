@@ -84,6 +84,7 @@ this?" using SFDIPOT product factors, BDD scenarios, and INVEST validation.
 | **E6** | You MUST generate the full report structure. No abbreviated versions. |
 | **E7** | Each agent MUST read its reference files before analysis. |
 | **E8** | You MUST apply qe-test-idea-rewriter transformation on ALL test ideas in Phase 8. Always. |
+| **E9** | You MUST execute Phase 7 learning persistence. Store refinement findings to memory BEFORE Phase 8. No skipping. |
 
 **PROHIBITED BEHAVIORS:**
 - Summarizing instead of spawning agents
@@ -93,6 +94,7 @@ this?" using SFDIPOT product factors, BDD scenarios, and INVEST validation.
 - Omitting report sections
 - Using placeholder text like "[details here]"
 - Skipping the test idea rewriter transformation
+- Skipping learning persistence (Phase 7) or treating it as optional
 - Generating BDD scenarios yourself instead of using qe-bdd-generator
 
 ---
@@ -1373,6 +1375,22 @@ Before presenting report:
 
 ## PHASE 7: Store Learnings & Persist State
 
+### ENFORCEMENT: ALWAYS RUN THIS PHASE
+
+```
++-------------------------------------------------------------+
+|  LEARNING PERSISTENCE MUST ALWAYS EXECUTE                    |
+|                                                              |
+|  This is NOT optional. It runs on EVERY refinement.          |
+|  It stores findings for cross-phase feedback loops,          |
+|  historical decision analysis, and pattern learning.         |
+|                                                              |
+|  DO NOT skip this phase for any reason.                      |
+|  DO NOT treat this as "nice to have".                        |
+|  Enforcement Rule E9 applies.                                |
++-------------------------------------------------------------+
+```
+
 ### Purpose
 
 Store refinement findings for:
@@ -1381,10 +1399,13 @@ Store refinement findings for:
 - SFDIPOT pattern learning across stories
 - BDD scenario quality improvement over time
 
-### Option A: MCP Memory Tools (RECOMMENDED)
+### Auto-Execution Steps (ALL THREE are MANDATORY)
+
+**Step 1: Store refinement findings to memory**
+
+You MUST execute this MCP call with actual values from the refinement analysis:
 
 ```javascript
-// Store refinement findings
 mcp__agentic_qe__memory_store({
   key: `qcsd-refinement-${storyId}-${Date.now()}`,
   namespace: "qcsd-refinement",
@@ -1417,59 +1438,93 @@ mcp__agentic_qe__memory_store({
     timestamp: new Date().toISOString()
   }
 })
+```
 
-// Share learnings with learning coordinator for cross-domain patterns
+**Step 2: Share learnings with learning coordinator**
+
+You MUST execute this MCP call to propagate patterns cross-domain:
+
+```javascript
 mcp__agentic_qe__memory_share({
   sourceAgentId: "qcsd-refinement-swarm",
   targetAgentIds: ["qe-learning-coordinator", "qe-pattern-learner"],
   knowledgeDomain: "refinement-patterns"
 })
-
-// Query previous refinement results for similar stories
-mcp__agentic_qe__memory_query({
-  pattern: "qcsd-refinement-*",
-  namespace: "qcsd-refinement"
-})
 ```
 
-### Option B: CLI Memory Commands
+**Step 3: Save learning persistence record to output folder**
+
+You MUST use the Write tool to save a JSON record of the persisted learnings:
+
+```
+Save to: ${OUTPUT_FOLDER}/09-learning-persistence.json
+
+Contents:
+{
+  "phase": "QCSD-Refinement",
+  "storyId": "[story ID]",
+  "storyName": "[story name]",
+  "recommendation": "[READY/CONDITIONAL/NOT-READY]",
+  "memoryKey": "qcsd-refinement-[storyId]-[timestamp]",
+  "namespace": "qcsd-refinement",
+  "metrics": {
+    "sfdipotCoverage": [0-7],
+    "bddScenarioCount": [N],
+    "investCompleteness": [0-100],
+    "criticalGaps": [N],
+    "testIdeaQuality": [0-100]
+  },
+  "sfdipotPriorities": {
+    "structure": "P0/P1/P2/P3",
+    "function": "P0/P1/P2/P3",
+    "data": "P0/P1/P2/P3",
+    "interfaces": "P0/P1/P2/P3",
+    "platform": "P0/P1/P2/P3",
+    "operations": "P0/P1/P2/P3",
+    "time": "P0/P1/P2/P3"
+  },
+  "flags": {
+    "HAS_API": true/false,
+    "HAS_REFACTORING": true/false,
+    "HAS_DEPENDENCIES": true/false,
+    "HAS_SECURITY": true/false
+  },
+  "agentsInvoked": ["list", "of", "agents"],
+  "crossPhaseSignals": {
+    "toDevelopment": "BDD scenarios as test specification",
+    "toVerification": "INVEST gaps as verification focus"
+  },
+  "persistedAt": "[ISO timestamp]"
+}
+```
+
+### Fallback: CLI Memory Commands
+
+If MCP memory_store tool is unavailable, use CLI instead (STILL MANDATORY):
 
 ```bash
-# Store refinement findings
 npx @claude-flow/cli@latest memory store \
-  --key "qcsd-refinement-${STORY_ID}" \
-  --value '{"recommendation":"READY","investCompleteness":92,"sfdipotCoverage":7}' \
+  --key "qcsd-refinement-${STORY_ID}-$(date +%s)" \
+  --value '{"recommendation":"[VALUE]","investCompleteness":[N],"sfdipotCoverage":[N],"bddScenarioCount":[N],"criticalGaps":[N]}' \
   --namespace qcsd-refinement
 
-# Search for similar stories
-npx @claude-flow/cli@latest memory search \
-  --query "refinement recommendation" \
-  --namespace qcsd-refinement
-
-# List all refinement records
-npx @claude-flow/cli@latest memory list \
-  --namespace qcsd-refinement
-
-# Post-task hook for learning
 npx @claude-flow/cli@latest hooks post-task \
   --task-id "qcsd-refinement-${STORY_ID}" \
   --success true
 ```
 
-### Option C: Direct File Storage (Fallback)
+### Validation Before Proceeding to Phase 8
 
-If MCP/CLI not available, save to `.agentic-qe/`:
-
-```bash
-# Output directory structure
-.agentic-qe/
-+-- refinement-reports/
-|   +-- [story-name]-refinement-report.md
-+-- bdd-scenarios/
-|   +-- [story-name]-scenarios.feature
-+-- learnings/
-    +-- [story-id]-refinement-metrics.json
 ```
++-- Did I execute mcp__agentic_qe__memory_store with actual values? (not placeholders)
++-- Did I execute mcp__agentic_qe__memory_share to propagate learnings?
++-- Did I save 09-learning-persistence.json to the output folder?
++-- Does the JSON contain the correct recommendation from Phase 5?
++-- Does the JSON contain actual SFDIPOT priorities from Phase 2?
++-- Does the JSON contain actual flag values from Phase 1?
+```
+
+**If ANY validation check fails, DO NOT proceed to Phase 8.**
 
 ### Cross-Phase Signal Consumption
 
@@ -1673,6 +1728,7 @@ Use the Write tool to save BEFORE completing.
 |  [IF HAS_DEPENDENCIES]                                               |
 |  +-- 07-dependency-map.md                                            |
 |  +-- 08-rewritten-test-ideas.md                                      |
+|  +-- 09-learning-persistence.json                                    |
 |                                                                      |
 +---------------------------------------------------------------------+
 ```
@@ -1732,6 +1788,7 @@ Use the Write tool to save BEFORE completing.
 | qe-impact-analyzer | `06-impact-analysis.md` | Batch 2 (conditional) |
 | qe-dependency-mapper | `07-dependency-map.md` | Batch 2 (conditional) |
 | qe-test-idea-rewriter | `08-rewritten-test-ideas.md` | Batch 3 (transformation) |
+| Learning Persistence | `09-learning-persistence.json` | Phase 7 (auto-execute) |
 | Synthesis | `01-executive-summary.md` | Phase 6 |
 
 ---
@@ -1838,7 +1895,7 @@ npx @claude-flow/cli@latest agent spawn --type qe-requirements-validator
 | 4 | Spawn ALL flagged conditional agents | Skipping a TRUE flag |
 | 5 | Apply EXACT decision logic | Wrong recommendation |
 | 6 | Generate COMPLETE report | Missing sections |
-| 7 | Store learnings (if MCP/CLI available) | Pattern loss |
+| 7 | ALWAYS store learnings + save 09-learning-persistence.json | Pattern loss, missing audit trail |
 | 8 | ALWAYS run test idea rewriter | Skipping transformation |
 | 9 | Output completion summary | Missing final output |
 
@@ -1953,6 +2010,16 @@ npx @claude-flow/cli@latest memory list --namespace qcsd-refinement
     +-----------+ +------------+ +--------------+
                        |
                 [SYNTHESIS]
+                       |
+          PHASE 7 (Learning Persistence - Always)
+                       |
+               +-------v-------+
+               | memory_store  |
+               | memory_share  |
+               | 09-learning-  |
+               | persistence   |
+               | (ALWAYS RUNS) |
+               +-------+-------+
                        |
           BATCH 3 (Transformation - Always)
                        |
