@@ -171,9 +171,16 @@ if [ -f "$PROJECT_ROOT/node_modules/.bin/aqe-mcp" ]; then
   MCP_CMD="$PROJECT_ROOT/node_modules/.bin/aqe-mcp"
 elif [ -f "$PROJECT_ROOT/node_modules/agentic-qe/v3/dist/mcp/bundle.js" ]; then
   MCP_CMD="node $PROJECT_ROOT/node_modules/agentic-qe/v3/dist/mcp/bundle.js"
+elif [ -f "$PROJECT_ROOT/node_modules/.bin/aqe" ]; then
+  # Use aqe CLI with mcp subcommand
+  MCP_CMD="$PROJECT_ROOT/node_modules/.bin/aqe mcp"
 elif command -v aqe-mcp &> /dev/null; then
   MCP_CMD="aqe-mcp"
+elif command -v aqe &> /dev/null; then
+  # Use global aqe CLI with mcp subcommand
+  MCP_CMD="aqe mcp"
 else
+  # Fallback to npx - aqe CLI has mcp subcommand
   MCP_CMD="npx --yes agentic-qe mcp"
 fi
 
@@ -382,14 +389,20 @@ fi
 
   /**
    * Find the aqe-mcp command
+   *
+   * Search order:
+   * 1. Local aqe-mcp binary (node_modules/.bin/)
+   * 2. Local bundled MCP server (node_modules/agentic-qe/v3/dist/)
+   * 3. Local aqe CLI binary with mcp subcommand
+   * 4. npx fallback (uses aqe mcp subcommand)
    */
   private async findMcpCommand(
     projectRoot: string
   ): Promise<{ command: string; args: string[] } | null> {
-    // Try local node_modules first
-    const localBin = join(projectRoot, 'node_modules', '.bin', 'aqe-mcp');
-    if (existsSync(localBin)) {
-      return { command: localBin, args: [] };
+    // Try local node_modules aqe-mcp binary first
+    const localMcpBin = join(projectRoot, 'node_modules', '.bin', 'aqe-mcp');
+    if (existsSync(localMcpBin)) {
+      return { command: localMcpBin, args: [] };
     }
 
     // Try local node_modules bundle (alternative path)
@@ -398,8 +411,14 @@ fi
       return { command: 'node', args: [localBundle] };
     }
 
-    // Try to use npx to run the package (most reliable for end users)
-    // This handles both global and local installs
+    // Try local aqe CLI binary with mcp subcommand
+    const localAqeBin = join(projectRoot, 'node_modules', '.bin', 'aqe');
+    if (existsSync(localAqeBin)) {
+      return { command: localAqeBin, args: ['mcp'] };
+    }
+
+    // Fallback to npx with aqe mcp subcommand
+    // The CLI now has an 'mcp' command that starts the MCP server
     return { command: 'npx', args: ['--yes', 'agentic-qe', 'mcp'] };
   }
 }

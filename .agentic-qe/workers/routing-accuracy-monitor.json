@@ -1,0 +1,8 @@
+{
+  "name": "routing-accuracy-monitor",
+  "enabled": true,
+  "interval": 900000,
+  "projectRoot": "/workspaces/agentic-qe-new",
+  "dataDir": "/workspaces/agentic-qe-new/.agentic-qe/data",
+  "createdAt": "2026-02-03T14:30:46.980Z"
+}
