@@ -1,10 +1,21 @@
 /**
  * Phase 04: Database
- * Initializes SQLite persistence database
+ * Initializes SQLite persistence database using UnifiedMemoryManager
+ *
+ * This ensures ALL v3 tables are created for the full self-learning system:
+ * - KV Store (v2 compatible)
+ * - Vectors (HNSW embeddings)
+ * - Q-Values (RL algorithms)
+ * - GOAP (planning)
+ * - Dreams (pattern discovery)
+ * - QE Patterns (ReasoningBank)
+ * - MinCut (self-healing)
+ * - SONA (neural backbone)
+ * - Hypergraph (complex relationships)
  */
 
 import { existsSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
+import { join } from 'path';
 
 import {
   BasePhase,
@@ -15,10 +26,11 @@ export interface DatabaseResult {
   dbPath: string;
   created: boolean;
   tablesCreated: string[];
+  schemaVersion: number;
 }
 
 /**
- * Database phase - initializes SQLite persistence
+ * Database phase - initializes SQLite persistence via UnifiedMemoryManager
  */
 export class DatabasePhase extends BasePhase<DatabaseResult> {
   readonly name = 'database';
@@ -30,80 +42,66 @@ export class DatabasePhase extends BasePhase<DatabaseResult> {
   protected async run(context: InitContext): Promise<DatabaseResult> {
     const { projectRoot } = context;
 
-    // Dynamic import for better-sqlite3
-    // Type for dynamically imported better-sqlite3 constructor
-    type DatabaseConstructor = new (filename: string) => import('better-sqlite3').Database;
-    let Database: DatabaseConstructor;
-    try {
-      const mod = await import('better-sqlite3');
-      Database = mod.default;
-    } catch (error) {
-      throw new Error(
-        'SQLite persistence REQUIRED but better-sqlite3 is not installed.\n' +
-        'Install it with: npm install better-sqlite3\n' +
-        'If you see native compilation errors, ensure build tools are installed.'
-      );
-    }
-
-    // Create .agentic-qe directory
+    // Create .agentic-qe directory structure
     const dataDir = join(projectRoot, '.agentic-qe');
     if (!existsSync(dataDir)) {
       mkdirSync(dataDir, { recursive: true });
+    }
+
+    // Create workers directory for background workers
+    const workersDir = join(dataDir, 'workers');
+    if (!existsSync(workersDir)) {
+      mkdirSync(workersDir, { recursive: true });
+    }
+
+    // Create data directory for domain-specific data
+    const domainDataDir = join(dataDir, 'data');
+    if (!existsSync(domainDataDir)) {
+      mkdirSync(domainDataDir, { recursive: true });
     }
 
     const dbPath = join(dataDir, 'memory.db');
     const created = !existsSync(dbPath);
 
     try {
-      const db = new Database(dbPath);
+      // Use UnifiedMemoryManager to create ALL v3 tables
+      // This runs migrations and creates the complete schema
+      const { initializeUnifiedMemory, resetUnifiedMemory } = await import('../../kernel/unified-memory.js');
 
-      // Configure for performance
-      db.pragma('journal_mode = WAL');
-      db.pragma('busy_timeout = 5000');
+      const unifiedMemory = await initializeUnifiedMemory({
+        dbPath,
+        walMode: true,
+        busyTimeout: 5000,
+      });
 
-      // Create tables
-      const tablesCreated: string[] = [];
+      // Get stats to see what tables were created
+      const stats = unifiedMemory.getStats();
+      const tablesCreated = stats.tables.map(t => t.name);
 
-      // kv_store table
-      db.exec(`
-        CREATE TABLE IF NOT EXISTS kv_store (
-          key TEXT NOT NULL,
-          namespace TEXT NOT NULL,
-          value TEXT NOT NULL,
-          expires_at INTEGER,
-          created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
-          PRIMARY KEY (namespace, key)
-        );
-        CREATE INDEX IF NOT EXISTS idx_kv_namespace ON kv_store(namespace);
-        CREATE INDEX IF NOT EXISTS idx_kv_expires ON kv_store(expires_at) WHERE expires_at IS NOT NULL;
-      `);
-      tablesCreated.push('kv_store');
+      // Write init marker to kv_store
+      await unifiedMemory.kvSet('_init_marker', {
+        initialized: new Date().toISOString(),
+        projectRoot,
+        version: '3.0.0',
+      }, '_system');
 
-      // Verify the table exists
-      const tableCheck = db.prepare(`
-        SELECT name FROM sqlite_master WHERE type='table' AND name='kv_store'
-      `).get();
+      // Get schema version
+      const db = unifiedMemory.getDatabase();
+      const versionRow = db.prepare('SELECT version FROM schema_version WHERE id = 1').get() as { version: number } | undefined;
+      const schemaVersion = versionRow?.version ?? 0;
 
-      if (!tableCheck) {
-        throw new Error('Failed to create kv_store table');
-      }
-
-      // Write init test entry
-      const stmt = db.prepare(`
-        INSERT OR REPLACE INTO kv_store (key, namespace, value)
-        VALUES (?, ?, ?)
-      `);
-      stmt.run('_init_test', '_system', JSON.stringify({ initialized: new Date().toISOString() }));
-
-      db.close();
+      // Reset singleton so MCP server can reinitialize with its own config
+      resetUnifiedMemory();
 
       context.services.log(`  Database: ${dbPath}`);
-      context.services.log(`  Tables: ${tablesCreated.join(', ')}`);
+      context.services.log(`  Schema version: v${schemaVersion}`);
+      context.services.log(`  Tables: ${tablesCreated.length} (v3 full schema)`);
 
       return {
         dbPath,
         created,
         tablesCreated,
+        schemaVersion,
       };
     } catch (error) {
       throw new Error(

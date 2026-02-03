@@ -5,6 +5,33 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.4] - 2026-02-03
+
+### Added
+
+#### Infrastructure Self-Healing Extension (ADR-057)
+- **TestOutputObserver** - Pattern-matches 22+ OS-level error signatures (ECONNREFUSED, ETIMEDOUT, ENOTFOUND, ENOMEM, ENOSPC) from test stderr to detect infrastructure failures
+- **RecoveryPlaybook** - YAML-driven configuration for service recovery with `${VAR}` environment interpolation
+- **CoordinationLock** - In-process TTL-based mutex preventing duplicate recovery attempts for the same service
+- **InfraActionExecutor** - Executes recovery cycle: healthCheck → recover → backoff → verify
+- **CompositeActionExecutor** - Routes swarm actions to original executor, infra actions to InfraActionExecutor
+- **InfraAwareAgentProvider** - Wraps AgentProvider to inject synthetic infrastructure agents with health derived from observer state
+- **InfraHealingOrchestrator** - Top-level coordinator: `feedTestOutput()` → `runRecoveryCycle()` → stats
+- **Factory functions** - `createStrangeLoopWithInfraHealing()` and `createInMemoryStrangeLoopWithInfraHealing()` for easy integration
+- **Default playbook** - Reference YAML template for 8 services (postgres, mysql, mongodb, redis, elasticsearch, rabbitmq, selenium-grid, generic-service)
+- **Demo script** - `scripts/demo-infra-healing.ts` demonstrates full pipeline
+
+### Changed
+- **Strange Loop types** - Added 8 infrastructure vulnerability types to `SwarmVulnerability['type']` union
+- **Healing controller** - Extended with `restart_service` action type and infra-agent override logic in `mapVulnerabilityToAction()`
+- **ADR index** - Updated v3-adrs.md with ADR-057 entry (54 total ADRs implemented)
+
+### Technical Details
+- Extends Strange Loop through existing DI seams without modifying core OMDA cycle
+- Framework-agnostic: works with Jest, Pytest, JUnit, or any test framework
+- 245 tests (151 new + 94 existing), zero regressions
+- Security: uses `execFile` (not `exec`), documents trust boundary for playbook YAML
+
 ## [3.4.3] - 2026-02-02
 
 ### Added

@@ -86,3 +86,12 @@ export {
   type VerifyResult,
   type VerifyTableResult,
 } from './sync-agent.js';
+
+// Embeddings (Phase 3)
+export {
+  SyncEmbeddingGenerator,
+  createSyncEmbeddingGenerator,
+  type PatternRecord,
+  type PatternEmbeddingResult,
+  type EmbeddingBatchStats,
+} from './embeddings/index.js';

@@ -10,25 +10,41 @@
 
 import { createRequire } from 'module';
 
-// Types from WASM module
-export enum Language {
-  JavaScript = 0,
-  TypeScript = 1,
-  Python = 2,
-  Rust = 3,
-  Go = 4,
-  Java = 5,
-  C = 6,
-  Cpp = 7,
-}
+// Language constants (const object instead of enum for ESM compatibility)
+// This pattern works consistently across tsx dev mode, node, and bundled builds
+export const Language = {
+  JavaScript: 0,
+  TypeScript: 1,
+  Python: 2,
+  Rust: 3,
+  Go: 4,
+  Java: 5,
+  C: 6,
+  Cpp: 7,
+} as const;
+export type Language = (typeof Language)[keyof typeof Language];
 
-export enum MergeStrategy {
-  ExactReplace = 0,
-  FuzzyReplace = 1,
-  InsertAfter = 2,
-  InsertBefore = 3,
-  Append = 4,
-}
+// MergeStrategy constants (const object instead of enum for ESM compatibility)
+export const MergeStrategy = {
+  ExactReplace: 0,
+  FuzzyReplace: 1,
+  InsertAfter: 2,
+  InsertBefore: 3,
+  Append: 4,
+} as const;
+export type MergeStrategy = (typeof MergeStrategy)[keyof typeof MergeStrategy];
+
+// Reverse lookup for Language (number → string name)
+const LanguageNames: Record<number, string> = {
+  0: 'JavaScript',
+  1: 'TypeScript',
+  2: 'Python',
+  3: 'Rust',
+  4: 'Go',
+  5: 'Java',
+  6: 'C',
+  7: 'Cpp',
+};
 
 export interface TransformResult {
   success: boolean;
@@ -259,7 +275,7 @@ export async function transform(
   const wasmLoaded = await loadWasm();
   if (wasmLoaded && wasmBooster && wasmModule) {
     try {
-      const wasmLang = wasmModule.WasmLanguage[Language[language]];
+      const wasmLang = wasmModule.WasmLanguage[LanguageNames[language]];
       const result = wasmBooster.apply_edit(original, edit, wasmLang);
 
       return {
