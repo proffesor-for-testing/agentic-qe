@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-27T10:45:18.164Z",
+  "timestamp": "2026-02-03T09:01:55.014Z",
   "versions": {
     "baseline": "3.2.3",
     "comparison": "3.3.0"
@@ -11,7 +11,7 @@
       "v323Behavior": {
         "passed": true,
         "detected": true,
-        "latencyMs": 0.020958000000064203,
+        "latencyMs": 0.02487499999983811,
         "falsePositives": 0,
         "falseNegatives": 0,
         "details": "Simple keyword matching (no coherence)"
@@ -19,7 +19,7 @@
       "v330Behavior": {
         "passed": true,
         "detected": true,
-        "latencyMs": 7.690208999999868,
+        "latencyMs": 12.65683399999989,
         "falsePositives": 0,
         "falseNegatives": 0,
         "coherenceEnergy": 1,
@@ -39,7 +39,7 @@
       "v323Behavior": {
         "passed": false,
         "detected": false,
-        "latencyMs": 0.004708000000391621,
+        "latencyMs": 0.007458000000042375,
         "falsePositives": 0,
         "falseNegatives": 1,
         "details": "Simple keyword matching (no coherence)"
@@ -47,7 +47,7 @@
       "v330Behavior": {
         "passed": true,
         "detected": true,
-        "latencyMs": 3.77337499999976,
+        "latencyMs": 45.22112599999991,
         "falsePositives": 0,
         "falseNegatives": 0,
         "coherenceEnergy": 1,
@@ -67,7 +67,7 @@
       "v323Behavior": {
         "passed": false,
         "detected": false,
-        "latencyMs": 0.004750000000058208,
+        "latencyMs": 0.00687500000003638,
         "falsePositives": 0,
         "falseNegatives": 1,
         "details": "Simple keyword matching (no coherence)"
@@ -75,7 +75,7 @@
       "v330Behavior": {
         "passed": false,
         "detected": false,
-        "latencyMs": 3.497541000000183,
+        "latencyMs": 5.8274169999999685,
         "falsePositives": 0,
         "falseNegatives": 1,
         "coherenceEnergy": 0,
@@ -95,7 +95,7 @@
       "v323Behavior": {
         "passed": false,
         "detected": true,
-        "latencyMs": 0.003917000000001281,
+        "latencyMs": 0.010209000000031665,
         "falsePositives": 1,
         "falseNegatives": 0,
         "details": "Simple keyword matching (no coherence)"
@@ -103,7 +103,7 @@
       "v330Behavior": {
         "passed": false,
         "detected": true,
-        "latencyMs": 3.907249999999749,
+        "latencyMs": 8.19658400000003,
         "falsePositives": 1,
         "falseNegatives": 0,
         "coherenceEnergy": 1,
@@ -123,7 +123,7 @@
       "v323Behavior": {
         "passed": false,
         "detected": false,
-        "latencyMs": 0.004040999999688211,
+        "latencyMs": 0.027499999999918145,
         "falsePositives": 0,
         "falseNegatives": 1,
         "details": "Simple keyword matching (no coherence)"
@@ -131,7 +131,7 @@
       "v330Behavior": {
         "passed": true,
         "detected": true,
-        "latencyMs": 10.090584000000035,
+        "latencyMs": 7.862041999999974,
         "falsePositives": 0,
         "falseNegatives": 0,
         "coherenceEnergy": 1,
@@ -151,7 +151,7 @@
       "v323Behavior": {
         "passed": true,
         "detected": true,
-        "latencyMs": 0.025165999999899213,
+        "latencyMs": 0.027166999999963082,
         "falsePositives": 0,
         "falseNegatives": 0,
         "details": "Simple majority: 3/3"
@@ -159,7 +159,7 @@
       "v330Behavior": {
         "passed": false,
         "detected": false,
-        "latencyMs": 0.44020799999998417,
+        "latencyMs": 0.7509580000000824,
         "falsePositives": 0,
         "falseNegatives": 0,
         "coherenceEnergy": 0,
@@ -178,7 +178,7 @@
       "v323Behavior": {
         "passed": false,
         "detected": true,
-        "latencyMs": 0.0016669999999976426,
+        "latencyMs": 0.003332999999884123,
         "falsePositives": 0,
         "falseNegatives": 0,
         "details": "Simple majority: 2/3"
@@ -186,7 +186,7 @@
       "v330Behavior": {
         "passed": false,
         "detected": false,
-        "latencyMs": 0.02454200000011042,
+        "latencyMs": 0.039957999999842286,
         "falsePositives": 0,
         "falseNegatives": 0,
         "coherenceEnergy": 0,
@@ -205,7 +205,7 @@
       "v323Behavior": {
         "passed": true,
         "detected": true,
-        "latencyMs": 0.0017090000001189765,
+        "latencyMs": 0.0027090000000953296,
         "falsePositives": 1,
         "falseNegatives": 0,
         "details": "Simple majority: 3/3"
@@ -213,7 +213,7 @@
       "v330Behavior": {
         "passed": true,
         "detected": true,
-        "latencyMs": 0.036375000000134605,
+        "latencyMs": 0.0595419999999649,
         "falsePositives": 0,
         "falseNegatives": 0,
         "coherenceEnergy": 0,
@@ -232,7 +232,7 @@
       "v323Behavior": {
         "passed": false,
         "detected": false,
-        "latencyMs": 0.00029200000017226557,
+        "latencyMs": 0.0012500000000272848,
         "falsePositives": 0,
         "falseNegatives": 1,
         "details": "No memory coherence auditing in v3.2.3"
@@ -240,7 +240,7 @@
       "v330Behavior": {
         "passed": true,
         "detected": true,
-        "latencyMs": 0.7935410000000047,
+        "latencyMs": 1.1329169999999067,
         "falsePositives": 0,
         "falseNegatives": 0,
         "details": "undefined: energy=1"
@@ -258,7 +258,7 @@
       "v323Behavior": {
         "passed": true,
         "detected": false,
-        "latencyMs": 0.0002500000000509317,
+        "latencyMs": 0.0003339999998388521,
         "falsePositives": 0,
         "falseNegatives": 0,
         "details": "No memory coherence auditing in v3.2.3"
@@ -266,7 +266,7 @@
       "v330Behavior": {
         "passed": false,
         "detected": true,
-        "latencyMs": 0.14312499999959982,
+        "latencyMs": 0.16033300000003692,
         "falsePositives": 1,
         "falseNegatives": 0,
         "details": "undefined: energy=1"
@@ -284,7 +284,7 @@
       "v323Behavior": {
         "passed": false,
         "detected": false,
-        "latencyMs": 0.0002500000000509317,
+        "latencyMs": 0.00045799999998052954,
         "falsePositives": 0,
         "falseNegatives": 1,
         "details": "v3.2.3 allows test generation from contradictory specs"
@@ -292,7 +292,7 @@
       "v330Behavior": {
         "passed": true,
         "detected": true,
-        "latencyMs": 0.16437500000029104,
+        "latencyMs": 0.22137500000008004,
         "falsePositives": 0,
         "falseNegatives": 0,
         "coherenceEnergy": 1,
@@ -311,7 +311,7 @@
       "v323Behavior": {
         "passed": false,
         "detected": false,
-        "latencyMs": 0.0003329999999550637,
+        "latencyMs": 0.0003749999998490239,
         "falsePositives": 0,
         "falseNegatives": 1,
         "details": "No collapse prediction in v3.2.3"
@@ -319,7 +319,7 @@
       "v330Behavior": {
         "passed": false,
         "detected": false,
-        "latencyMs": 0.5515409999998155,
+        "latencyMs": 0.72787500000004,
         "falsePositives": 0,
         "falseNegatives": 1,
         "details": "Stable: NaN% risk"
@@ -337,7 +337,7 @@
     "v323PassRate": 0.3333333333333333,
     "v330PassRate": 0.5,
     "detectionImprovementRate": 0.3333333333333333,
-    "avgLatencyReduction": -2.587052083333257,
+    "avgLatencyReduction": -6.895368166666685,
     "coherenceFeaturesUsed": 9
   }
 }

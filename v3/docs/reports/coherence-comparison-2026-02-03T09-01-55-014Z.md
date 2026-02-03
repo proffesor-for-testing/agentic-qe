@@ -1,6 +1,6 @@
 # ADR-052 Coherence Version Comparison Report
 
-**Generated:** 2026-01-27T10:45:18.164Z
+**Generated:** 2026-02-03T09:01:55.014Z
 **Baseline:** v3.2.3
 **Comparison:** v3.3.0
 
