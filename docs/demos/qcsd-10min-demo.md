@@ -528,7 +528,7 @@ Total Signals: 4
 By Loop:
 ├─ Strategic (Production→Ideation): 1 signal
 │   └─ E-commerce checkout is highest risk area
-├─ Tactical (Grooming→Ideation): 1 signal
+├─ Tactical (Refinement→Ideation): 1 signal
 │   └─ SFDIPOT weights: Data(8), Function(8), Time(8)
 ├─ Operational (CI/CD→Development): 1 signal
 │   └─ Cart persistence requires waitForResponse

@@ -57,7 +57,7 @@ qcsd-memory/
 │   ├── failure-modes/           # Common failure patterns
 │   └── sla-violations/          # Performance/reliability issues
 │
-├── development-patterns/         # Loop 4: Development → Grooming
+├── development-patterns/         # Loop 4: Development → Refinement
 │   ├── coverage-gaps/           # Untestable code patterns
 │   ├── ac-problems/             # Requirements that caused issues
 │   └── test-debt/               # Technical debt indicators
@@ -69,7 +69,7 @@ qcsd-memory/
 │
 └── cross-phase-signals/         # Routing signals between phases
     ├── ideation-inputs/         # What Ideation should know
-    ├── grooming-inputs/         # What Grooming should know
+    ├── refinement-inputs/       # What Refinement should know
     └── development-inputs/      # What Development should know
 ```
 
@@ -247,7 +247,7 @@ npx @claude-flow/cli@latest hooks route \
 
 ---
 
-## Loop 2: Production → Grooming (Tactical)
+## Loop 2: Production → Refinement (Tactical)
 
 ### Memory Schema
 
@@ -256,7 +256,7 @@ interface SFDIPOTWeightSignal {
   id: string;
   timestamp: string;
   source: "production";
-  target: "grooming";
+  target: "refinement";
   loopType: "tactical";
 
   factorWeights: {
@@ -286,7 +286,7 @@ await mcp__agentic_qe__memory_store({
     id: `sfdipot-weights-${featureArea}-${Date.now()}`,
     timestamp: new Date().toISOString(),
     source: "production",
-    target: "grooming",
+    target: "refinement",
     loopType: "tactical",
     factorWeights: [
       {
@@ -322,10 +322,10 @@ await mcp__agentic_qe__memory_store({
 });
 ```
 
-### Retrieval Implementation (Grooming Phase)
+### Retrieval Implementation (Refinement Phase)
 
 ```javascript
-// GROOMING: Query SFDIPOT weights before product factors assessment
+// REFINEMENT: Query SFDIPOT weights before product factors assessment
 
 const sfdipotSignals = await mcp__agentic_qe__memory_query({
   pattern: `sfdipot-weights-${featureArea}-*`,
@@ -474,7 +474,7 @@ Now generate tests for:
 
 ---
 
-## Loop 4: Development → Grooming (Quality Criteria)
+## Loop 4: Development → Refinement (Quality Criteria)
 
 ### Memory Schema
 
@@ -483,7 +483,7 @@ interface ACQualitySignal {
   id: string;
   timestamp: string;
   source: "development";
-  target: "grooming";
+  target: "refinement";
   loopType: "quality-criteria";
 
   untestablePatterns: {
@@ -519,7 +519,7 @@ await mcp__agentic_qe__memory_store({
     id: `ac-quality-${sprint}-${Date.now()}`,
     timestamp: new Date().toISOString(),
     source: "development",
-    target: "grooming",
+    target: "refinement",
     loopType: "quality-criteria",
     untestablePatterns: [
       {
@@ -565,10 +565,10 @@ await mcp__agentic_qe__memory_store({
 });
 ```
 
-### Retrieval Implementation (Grooming Phase)
+### Retrieval Implementation (Refinement Phase)
 
 ```javascript
-// GROOMING: Query AC quality signals before requirements validation
+// REFINEMENT: Query AC quality signals before requirements validation
 
 const acSignals = await mcp__agentic_qe__memory_query({
   pattern: "ac-quality-*",
@@ -614,7 +614,7 @@ hooks:
     action:
       - store_risk_weights
       - notify_learning_coordinator
-    target_phases: [ideation, grooming]
+    target_phases: [ideation, refinement]
 
   # After CI/CD quality gate
   post-quality-gate:
@@ -630,7 +630,7 @@ hooks:
     action:
       - store_coverage_gaps
       - store_ac_problems
-    target_phases: [grooming]
+    target_phases: [refinement]
 
   # At phase start - query relevant signals
   pre-ideation:
@@ -639,8 +639,8 @@ hooks:
       - query_production_risk_signals
       - inject_into_agent_context
 
-  pre-grooming:
-    trigger: "grooming phase starts"
+  pre-refinement:
+    trigger: "refinement phase starts"
     action:
       - query_sfdipot_weights
       - query_ac_quality_signals
@@ -681,7 +681,7 @@ npx @claude-flow/cli@latest hooks pre-task \
 | Risk weights | 90 days | Defect patterns change slowly |
 | SFDIPOT weights | 90 days | Product factor risks stable |
 | Flaky patterns | 30 days | CI/CD health changes quickly |
-| AC quality | 60 days | Grooming practices evolve |
+| AC quality | 60 days | Refinement practices evolve |
 
 ### Cleanup Job
 

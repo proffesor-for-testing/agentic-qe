@@ -92,6 +92,20 @@ export {
   type IdeationReport,
 } from './qcsd-ideation-plugin.js';
 
+// QCSD Refinement Swarm Plugin
+export {
+  QCSDRefinementPlugin,
+  createQCSDRefinementPlugin,
+  type SFDIPOTFactor,
+  type SFDIPOTFactorAnalysis,
+  type SFDIPOTAssessment,
+  type SubcategoryAnalysis,
+  type BDDScenario,
+  type BDDFeature,
+  type BDDScenarioSet,
+  type RefinementReport,
+} from './qcsd-refinement-plugin.js';
+
 // ============================================================================
 // Interfaces (Types Only)
 // ============================================================================

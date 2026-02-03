@@ -47,7 +47,7 @@ The Agentic QE system provides AI-powered quality engineering through a fleet of
 | **SFDIPOT** | Test idea generation (Structure, Function, Data, Interfaces, Platform, Operations, Time) |
 | **PACT** | Agent behavior principles |
 | **Holistic Testing Model** | Tech/Business x Support/Critique quadrants |
-| **QCSD Phases** | Ideation, Grooming, Development, CI/CD, Production Telemetry |
+| **QCSD Phases** | Ideation, Refinement, Development, CI/CD, Production Telemetry |
 
 ---
 
@@ -87,7 +87,7 @@ The Agentic QE system provides AI-powered quality engineering through a fleet of
 |-------|----------|------------------|-------------|
 | `qe-test-architect` | Strategic test design | Pattern-based generation, multi-framework support, coverage-driven synthesis | Development, CI/CD |
 | `qe-test-generator` | AI-powered test creation | Code analysis, edge case detection, mock generation | Development |
-| `qe-tdd-specialist` | TDD workflow specialist | Red-Green-Refactor cycle, behavior-driven design | Grooming, Development |
+| `qe-tdd-specialist` | TDD workflow specialist | Red-Green-Refactor cycle, behavior-driven design | Refinement, Development |
 | `qe-tdd-red` | TDD RED phase | Write failing tests first | Development |
 | `qe-tdd-green` | TDD GREEN phase | Minimal implementation to pass | Development |
 | `qe-tdd-refactor` | TDD REFACTOR phase | Improve design while keeping tests green | Development |
@@ -246,10 +246,10 @@ The Agentic QE system provides AI-powered quality engineering through a fleet of
 
 | Agent | Function | Key Capabilities | QCSD Phases |
 |-------|----------|------------------|-------------|
-| `qe-requirements-validator` | Requirements check | SMART criteria, completeness validation | Ideation, Grooming |
-| `qe-acceptance-criteria` | AC validation | Testability assessment, clarity scoring | Grooming |
-| `qe-traceability-builder` | Traceability matrix | Requirements to tests mapping | Grooming, Development |
-| `qe-bdd-specialist` | BDD scenarios | Gherkin generation, step definitions | Grooming, Development |
+| `qe-requirements-validator` | Requirements check | SMART criteria, completeness validation | Ideation, Refinement |
+| `qe-acceptance-criteria` | AC validation | Testability assessment, clarity scoring | Refinement |
+| `qe-traceability-builder` | Traceability matrix | Requirements to tests mapping | Refinement, Development |
+| `qe-bdd-specialist` | BDD scenarios | Gherkin generation, step definitions | Refinement, Development |
 | `qe-property-tester` | Property-based testing | Invariant discovery, property specification | Development |
 
 ### Key Capabilities
@@ -417,9 +417,9 @@ These agents support the QCSD Ideation phase with comprehensive quality analysis
 | Agent | Function | Key Capabilities | QCSD Phases |
 |-------|----------|------------------|-------------|
 | `qe-quality-criteria-recommender` | HTSM v6.3 quality criteria | 10 quality categories, evidence-based recommendations, cross-phase learning | Ideation |
-| `qe-product-factors-assessor` | SFDIPOT analysis | 7-factor assessment, 37 subcategories, test idea generation | Ideation, Grooming |
-| `qe-risk-assessor` | Risk assessment | Multi-factor scoring, impact analysis, mitigation recommendations | Ideation, Grooming |
-| `qe-test-idea-rewriter` | Test idea transformation | Transform "Verify X" to action verbs, enforce quality rules | Grooming, Development |
+| `qe-product-factors-assessor` | SFDIPOT analysis | 7-factor assessment, 37 subcategories, test idea generation | Ideation, Refinement |
+| `qe-risk-assessor` | Risk assessment | Multi-factor scoring, impact analysis, mitigation recommendations | Ideation, Refinement |
+| `qe-test-idea-rewriter` | Test idea transformation | Transform "Verify X" to action verbs, enforce quality rules | Refinement, Development |
 
 ### HTSM v6.3 Quality Categories
 
@@ -479,7 +479,7 @@ See `docs/architecture/CROSS-PHASE-MEMORY-IMPLEMENTATION.md` for full details.
 | **qe-risk-assessor** | Multi-factor risk scoring with cross-phase learning (NEW) |
 | **qe-product-factors-assessor** | SFDIPOT product factors analysis (NEW) |
 
-### Grooming Phase
+### Refinement Phase
 
 | Agent | Primary Use |
 |-------|-------------|
