@@ -1,0 +1,96 @@
+{
+  "version": "3.0.0",
+  "maxConcurrent": 6,
+  "workers": {
+    "learning-consolidation": {
+      "name": "learning-consolidation",
+      "enabled": true,
+      "interval": 1800000,
+      "lastRun": null,
+      "status": "pending",
+      "description": "Consolidates learning patterns, runs dream cycles"
+    },
+    "coverage-tracker": {
+      "name": "coverage-tracker",
+      "enabled": true,
+      "interval": 3600000,
+      "lastRun": null,
+      "status": "pending",
+      "description": "Tracks coverage gaps and trends"
+    },
+    "flaky-detector": {
+      "name": "flaky-detector",
+      "enabled": true,
+      "interval": 7200000,
+      "lastRun": null,
+      "status": "pending",
+      "description": "Detects flaky tests"
+    },
+    "test-health": {
+      "name": "test-health",
+      "enabled": true,
+      "interval": 300000,
+      "lastRun": null,
+      "status": "pending",
+      "description": "Monitors test suite health"
+    },
+    "quality-gate": {
+      "name": "quality-gate",
+      "enabled": true,
+      "interval": 300000,
+      "lastRun": null,
+      "status": "pending",
+      "description": "Evaluates quality gates"
+    },
+    "defect-predictor": {
+      "name": "defect-predictor",
+      "enabled": true,
+      "interval": 900000,
+      "lastRun": null,
+      "status": "pending",
+      "description": "ML-based defect prediction"
+    },
+    "security-scan": {
+      "name": "security-scan",
+      "enabled": true,
+      "interval": 1800000,
+      "lastRun": null,
+      "status": "pending",
+      "description": "Security vulnerability scanning"
+    },
+    "regression-monitor": {
+      "name": "regression-monitor",
+      "enabled": true,
+      "interval": 600000,
+      "lastRun": null,
+      "status": "pending",
+      "description": "Monitors for regressions"
+    },
+    "performance-baseline": {
+      "name": "performance-baseline",
+      "enabled": true,
+      "interval": 3600000,
+      "lastRun": null,
+      "status": "pending",
+      "description": "Tracks performance baselines"
+    },
+    "compliance-checker": {
+      "name": "compliance-checker",
+      "enabled": true,
+      "interval": 1800000,
+      "lastRun": null,
+      "status": "pending",
+      "description": "ADR/DDD compliance checking"
+    },
+    "cloud-sync": {
+      "name": "cloud-sync",
+      "enabled": true,
+      "interval": 300000,
+      "lastRun": null,
+      "status": "pending",
+      "description": "Cloud synchronization worker"
+    }
+  },
+  "createdAt": "2026-02-03T09:45:00.000Z",
+  "daemonPid": null
+}
