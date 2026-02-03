@@ -18,6 +18,7 @@ import { quickStart, MCPProtocolServer } from './protocol-server';
 import { createHTTPServer, type HTTPServer } from './http-server.js';
 import { createRequire } from 'module';
 import { bootstrapTokenTracking, shutdownTokenTracking } from '../init/token-bootstrap.js';
+import { initializeExperienceCapture, stopCleanupTimer } from '../learning/experience-capture-middleware.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json') as { version: string };
@@ -32,6 +33,7 @@ async function main(): Promise<void> {
 
   // Handle graceful shutdown
   process.on('SIGINT', async () => {
+    stopCleanupTimer();
     await shutdownTokenTracking();
     if (httpServer) {
       await httpServer.stop();
@@ -43,6 +45,7 @@ async function main(): Promise<void> {
   });
 
   process.on('SIGTERM', async () => {
+    stopCleanupTimer();
     await shutdownTokenTracking();
     if (httpServer) {
       await httpServer.stop();
@@ -76,6 +79,12 @@ async function main(): Promise<void> {
       enablePersistence: true,
       verbose: process.env.AQE_VERBOSE === 'true',
     });
+
+    // ADR-051: Initialize experience capture and unified memory BEFORE server starts.
+    // This ensures all tool invocations (domain, memory, core) write to v3 memory.db
+    // from the first request, rather than lazy-initializing on first domain tool call.
+    originalStderrWrite('[MCP] Initializing experience capture...\n');
+    await initializeExperienceCapture();
 
     // Start the MCP server
     originalStderrWrite('[MCP] Starting server...\n');
