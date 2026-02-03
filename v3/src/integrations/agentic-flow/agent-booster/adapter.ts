@@ -71,23 +71,62 @@ import type { MetricsTracker } from '../metrics/metrics-tracker';
 
 import { getPatternLoader } from '../pattern-loader';
 
-// Import WASM module functions
-import {
-  transform as wasmTransform,
-  warmup as wasmWarmup,
-  isWasmAvailable as checkWasmAvailable,
-  Language as WasmLanguage,
-} from '../../agent-booster-wasm/index';
+// ============================================================================
+// WASM Module Types and Lazy Loading
+// ============================================================================
+
+// WASM Language constant (matches agent-booster-wasm/index.ts)
+// We define locally to avoid static import issues with tsx dev mode
+const WasmLanguage = {
+  JavaScript: 0,
+  TypeScript: 1,
+  Python: 2,
+  Rust: 3,
+  Go: 4,
+  Java: 5,
+  C: 6,
+  Cpp: 7,
+} as const;
+type WasmLanguageType = (typeof WasmLanguage)[keyof typeof WasmLanguage];
+
+// Lazy-loaded WASM module functions
+let wasmTransform: typeof import('../../agent-booster-wasm/index.js').transform | null = null;
+let wasmWarmup: typeof import('../../agent-booster-wasm/index.js').warmup | null = null;
+let checkWasmAvailable: typeof import('../../agent-booster-wasm/index.js').isWasmAvailable | null = null;
+let wasmModuleLoaded = false;
+let wasmModuleError: Error | null = null;
+
+/**
+ * Lazily load the WASM module (avoids tsx static import issues)
+ */
+async function loadWasmModule(): Promise<boolean> {
+  if (wasmModuleLoaded) return wasmModuleError === null;
+  if (wasmModuleError) return false;
+
+  try {
+    // Dynamic import works around tsx's static import resolution quirks
+    const wasmModule = await import('../../agent-booster-wasm/index.js');
+    wasmTransform = wasmModule.transform;
+    wasmWarmup = wasmModule.warmup;
+    checkWasmAvailable = wasmModule.isWasmAvailable;
+    wasmModuleLoaded = true;
+    return true;
+  } catch (e) {
+    wasmModuleError = e as Error;
+    wasmModuleLoaded = true;
+    return false;
+  }
+}
 
 // ============================================================================
 // Transform Type to WASM Language Mapping
 // ============================================================================
 
 /**
- * Map TransformType to WASM Language enum
+ * Map TransformType to WASM Language value
  * The WASM module uses Language to determine parsing rules
  */
-function getWasmLanguageForTransform(_type: TransformType): WasmLanguage {
+function getWasmLanguageForTransform(_type: TransformType): WasmLanguageType {
   // All our transforms are for TypeScript/JavaScript
   // The WASM module handles both with TypeScript setting
   return WasmLanguage.TypeScript;
@@ -336,12 +375,22 @@ export class AgentBoosterAdapter implements IAgentBoosterAdapter {
    */
   private async tryLoadWasm(): Promise<void> {
     try {
+      this.logger.debug('Loading WASM module');
+
+      // First, load the WASM module (lazy loading to avoid tsx static import issues)
+      const moduleLoaded = await loadWasmModule();
+      if (!moduleLoaded || !checkWasmAvailable) {
+        this.logger.debug('WASM module could not be loaded, using TypeScript fallback');
+        this.wasmAvailable = false;
+        return;
+      }
+
       this.logger.debug('Checking WASM availability from local module');
 
       // Check if WASM is available via the local module
       const available = await checkWasmAvailable();
 
-      if (available) {
+      if (available && wasmTransform && wasmWarmup) {
         // Pre-warm the WASM module for optimal performance
         this.logger.debug('Warming up WASM module');
         await wasmWarmup();
@@ -570,6 +619,9 @@ export class AgentBoosterAdapter implements IAgentBoosterAdapter {
     }
 
     // Use WASM to apply the transform with high-confidence merging
+    if (!wasmTransform) {
+      throw new WasmUnavailableError('WASM transform function not loaded');
+    }
     const wasmResult = await Promise.race([
       wasmTransform(code, tsResult.transformedCode, language, {
         confidenceThreshold: this.config.confidenceThreshold,

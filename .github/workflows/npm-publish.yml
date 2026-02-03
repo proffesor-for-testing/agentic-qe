@@ -58,11 +58,11 @@ jobs:
           fi
           echo "Build verification passed (v3 structure)"
 
-      - name: Run tests (excluding browser integration)
-        run: cd v3 && npm test -- --run --exclude='**/browser-integration/**' --exclude='**/browser-swarm-coordinator.test.ts' --exclude='**/browser/*.e2e.test.ts' --exclude='**/*.e2e.test.ts'
+      - name: Run tests (excluding browser E2E - requires real browser)
+        run: cd v3 && npm run test:ci
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
-          SKIP_BROWSER_TESTS: 'true'
+          CI: 'true'
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

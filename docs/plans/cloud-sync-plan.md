@@ -397,14 +397,29 @@ CREATE INDEX idx_patterns_domain ON aqe.patterns(domain);
 ### Phase 3: Initial Migration (Day 4) ✅ COMPLETED
 - [x] Full sync of all historical data (5,062 records total)
 - [x] Verify data integrity (all tables verified)
-- [ ] Generate embeddings for patterns (planned)
-- [ ] Test vector similarity search (planned)
+- [x] Generate embeddings for patterns (2026-02-03)
+- [x] Test vector similarity search (2026-02-03)
 
-### Phase 4: Incremental Sync (Day 5) 🔄 IN PROGRESS
+**Embedding Generation Results (2026-02-03):**
+- 45 patterns table embeddings generated (384-dim)
+- 22 sona_patterns table embeddings generated
+- Total: 67 embeddings
+- Avg generation time: 10.65ms per pattern
+- Model: Xenova/all-MiniLM-L6-v2
+- Vector similarity search tested and working
+
+### Phase 4: Incremental Sync (Day 5) ✅ COMPLETED
 - [x] Implement change detection (incremental mode)
-- [ ] Set up periodic sync (cron/hook)
+- [x] Set up periodic sync via background worker (2026-02-03)
 - [x] Add sync status monitoring (`aqe sync status`)
 - [x] Handle network failures gracefully (port connectivity check, retries)
+
+**Periodic Sync Implementation (2026-02-03):**
+- Created `CloudSyncWorker` background worker (`v3/src/workers/workers/cloud-sync.ts`)
+- Default interval: 1 hour (configurable via `AQE_SYNC_INTERVAL`)
+- Enable with `AQE_CLOUD_SYNC_ENABLED=true`
+- Worker checks gcloud availability before syncing
+- Graceful handling when gcloud CLI not installed
 
 ### Phase 5: Bidirectional Learning (Day 6+)
 - [ ] Enable pattern sharing across environments
@@ -619,9 +634,59 @@ export AQE_ENV=devpod
 2. ~~**Create cloud schema**~~ ✅ DONE - Schema applied with ruvector
 3. ~~**Build sync agent**~~ ✅ DONE - TypeScript implementation complete
 4. ~~**Initial migration**~~ ✅ DONE - 5,062 records synced
-5. **Set up automation** - Cron or hook-based sync (TODO)
-6. **Generate embeddings** - Use ruvector for semantic search (TODO)
+5. ~~**Set up automation**~~ ✅ DONE - CloudSyncWorker (1-hour interval)
+6. ~~**Generate embeddings**~~ ✅ DONE - 67 patterns with 384-dim vectors
 7. **Enable bidirectional sync** - Multi-environment learning (TODO)
+
+## 12. CLI Commands for Embeddings
+
+```bash
+# Generate embeddings for all patterns (skip existing)
+npm run sync:embeddings
+
+# Regenerate all embeddings (force)
+npm run sync:embeddings:force
+
+# Search for similar patterns
+npm run sync:embeddings:search "your query here"
+
+# Example: Find patterns related to test coverage
+npm run sync:embeddings:search "test coverage gap detection"
+```
+
+## 13. Technical Details
+
+### Embedding Generator
+
+Location: `v3/src/sync/embeddings/sync-embedding-generator.ts`
+
+**Features:**
+- Uses @xenova/transformers with all-MiniLM-L6-v2 model
+- Generates 384-dimensional embeddings
+- ONNX acceleration for fast inference (<15ms per pattern)
+- Caching support for repeated embeddings
+- Batch processing with progress reporting
+- Vector similarity search using cosine similarity
+
+**API:**
+```typescript
+import { createSyncEmbeddingGenerator } from '@agentic-qe/v3/sync';
+
+const generator = createSyncEmbeddingGenerator();
+
+// Generate embeddings for all patterns
+const stats = await generator.generateForAllPatterns('patterns', {
+  force: false,      // Skip existing embeddings
+  batchSize: 50,     // Process in batches
+  verbose: true      // Show progress
+});
+
+// Search for similar patterns
+const results = await generator.findSimilarPatterns('test coverage', {
+  limit: 10,
+  threshold: 0.3
+});
+```
 
 ---
 

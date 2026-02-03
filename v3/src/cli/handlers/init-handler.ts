@@ -67,6 +67,11 @@ export class InitHandler implements ICommandHandler {
         options.auto = true;
       }
 
+      // --upgrade implies --auto (must use modular orchestrator to overwrite files)
+      if (options.upgrade && !options.auto && !options.wizard) {
+        options.auto = true;
+      }
+
       // Check if wizard mode requested
       if (options.wizard || options.auto) {
         console.log(chalk.blue('\n  Agentic QE v3 Initialization\n'));

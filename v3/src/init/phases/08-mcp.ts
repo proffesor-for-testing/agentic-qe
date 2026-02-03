@@ -1,6 +1,10 @@
 /**
  * Phase 08: MCP
  * Configures MCP server for Claude Code integration
+ *
+ * Creates MCP configuration in both locations for compatibility:
+ * - .mcp.json (project root) - Claude Code primary location
+ * - .claude/mcp.json - Alternative location
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -15,6 +19,7 @@ export interface MCPResult {
   configured: boolean;
   mcpPath: string;
   serverName: string;
+  alternativePath: string;
 }
 
 /**
@@ -25,56 +30,83 @@ export class MCPPhase extends BasePhase<MCPResult> {
   readonly description = 'Configure MCP server';
   readonly order = 80;
   readonly critical = false;
-  readonly requiresPhases = ['configuration'] as const;
+  readonly requiresPhases = ['configuration', 'database'] as const;
 
   protected async run(context: InitContext): Promise<MCPResult> {
     const { projectRoot } = context;
 
-    // Create .claude directory
+    // AQE MCP server configuration
+    const aqeServerConfig = {
+      command: 'aqe-mcp',
+      args: [],
+      env: {
+        AQE_PROJECT_ROOT: projectRoot,
+        AQE_LEARNING_ENABLED: 'true',
+        AQE_WORKERS_ENABLED: 'true',
+        NODE_ENV: 'production',
+      },
+    };
+
+    // 1. Write to .mcp.json at project root (Claude Code primary location)
+    const rootMcpPath = join(projectRoot, '.mcp.json');
+    let rootMcpConfig: Record<string, unknown> = {};
+
+    if (existsSync(rootMcpPath)) {
+      try {
+        const content = readFileSync(rootMcpPath, 'utf-8');
+        rootMcpConfig = JSON.parse(content);
+      } catch {
+        rootMcpConfig = {};
+      }
+    }
+
+    if (!rootMcpConfig.mcpServers) {
+      rootMcpConfig.mcpServers = {};
+    }
+
+    const rootServers = rootMcpConfig.mcpServers as Record<string, unknown>;
+    rootServers['agentic-qe'] = aqeServerConfig;
+
+    writeFileSync(rootMcpPath, JSON.stringify(rootMcpConfig, null, 2), 'utf-8');
+
+    // 2. Also write to .claude/mcp.json for alternative location
     const claudeDir = join(projectRoot, '.claude');
     if (!existsSync(claudeDir)) {
       mkdirSync(claudeDir, { recursive: true });
     }
 
-    // Load existing MCP config
-    const mcpPath = join(claudeDir, 'mcp.json');
-    let mcpConfig: Record<string, unknown> = {};
+    const claudeMcpPath = join(claudeDir, 'mcp.json');
+    let claudeMcpConfig: Record<string, unknown> = {};
 
-    if (existsSync(mcpPath)) {
+    if (existsSync(claudeMcpPath)) {
       try {
-        const content = readFileSync(mcpPath, 'utf-8');
-        mcpConfig = JSON.parse(content);
+        const content = readFileSync(claudeMcpPath, 'utf-8');
+        claudeMcpConfig = JSON.parse(content);
       } catch {
-        mcpConfig = {};
+        claudeMcpConfig = {};
       }
     }
 
-    // Ensure mcpServers object exists
-    if (!mcpConfig.mcpServers) {
-      mcpConfig.mcpServers = {};
+    if (!claudeMcpConfig.mcpServers) {
+      claudeMcpConfig.mcpServers = {};
     }
 
-    // Add AQE MCP server configuration
-    const servers = mcpConfig.mcpServers as Record<string, unknown>;
-    servers['aqe'] = {
-      command: 'aqe-mcp',
-      args: [],
-      env: {
-        AQE_PROJECT_ROOT: projectRoot,
-        NODE_ENV: 'production',
-      },
-    };
+    const claudeServers = claudeMcpConfig.mcpServers as Record<string, unknown>;
+    claudeServers['agentic-qe'] = aqeServerConfig;
 
-    // Write MCP config
-    writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2), 'utf-8');
+    writeFileSync(claudeMcpPath, JSON.stringify(claudeMcpConfig, null, 2), 'utf-8');
 
-    context.services.log(`  MCP config: ${mcpPath}`);
-    context.services.log(`  Server: aqe`);
+    context.services.log(`  MCP config (primary): ${rootMcpPath}`);
+    context.services.log(`  MCP config (alt): ${claudeMcpPath}`);
+    context.services.log(`  Server: agentic-qe`);
+    context.services.log(`  Learning: enabled`);
+    context.services.log(`  Workers: enabled`);
 
     return {
       configured: true,
-      mcpPath,
-      serverName: 'aqe',
+      mcpPath: rootMcpPath,
+      serverName: 'agentic-qe',
+      alternativePath: claudeMcpPath,
     };
   }
 }
