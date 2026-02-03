@@ -5,6 +5,26 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.6] - 2026-02-03
+
+### Fixed
+- **Code Intelligence KG scan performance** - Fixed glob patterns to properly exclude nested `node_modules`, `dist`, `coverage`, and `.agentic-qe` directories at any depth
+  - Before: 15+ min init, 941K entries, 1.1GB database (76% from node_modules)
+  - After: ~1.5 min init, 90K entries, 245MB database
+  - Changed `node_modules/**` to `**/node_modules/**` (and same for other excludes)
+- **Hooks duplication bug** - Fixed hooks phase appending duplicate hooks on every `aqe init` run
+  - Now deduplicates by command string before adding new hooks
+  - Prevents settings.json from growing unbounded with repeated init runs
+
+### Changed
+- Hooks phase now checks for existing hook commands before adding duplicates
+- Code intelligence phase uses recursive glob excludes for all ignored directories
+
+## [3.4.5] - 2026-02-03
+
+### Fixed
+- MCP daemon startup and code intelligence KG persistence
+
 ## [3.4.4] - 2026-02-03
 
 ### Added

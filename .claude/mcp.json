@@ -11,36 +11,24 @@
       }
     },
     "agentic-qe": {
-      "command": "npx",
-      "args": [
-        "aqe-mcp"
-      ],
+      "command": "aqe-mcp",
+      "args": [],
       "env": {
-        "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
+        "AQE_PROJECT_ROOT": "/workspaces/agentic-qe-new",
         "AQE_LEARNING_ENABLED": "true",
-        "NODE_NO_WARNINGS": "1"
+        "AQE_WORKERS_ENABLED": "true",
+        "NODE_ENV": "production"
       }
     },
     "claude-flow": {
       "command": "npx",
       "args": [
-        "claude-flow@alpha",
+        "@claude-flow/cli@latest",
         "mcp",
         "start"
       ],
       "env": {
         "CLAUDE_FLOW_HOOKS_ENABLED": "true",
-        "NODE_NO_WARNINGS": "1"
-      }
-    },
-    "ruv-swarm": {
-      "command": "npx",
-      "args": [
-        "ruv-swarm",
-        "mcp",
-        "start"
-      ],
-      "env": {
         "NODE_NO_WARNINGS": "1"
       }
     },
@@ -55,13 +43,6 @@
         "VIBIUM_HEADLESS": "true",
         "CHROMEDRIVER_PATH": "/usr/bin/chromedriver",
         "CHROME_PATH": "/usr/bin/chromium"
-      }
-    },
-    "aqe": {
-      "command": "aqe-mcp",
-      "args": [],
-      "env": {
-        "NODE_ENV": "production"
       }
     }
   }

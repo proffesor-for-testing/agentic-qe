@@ -68,13 +68,35 @@ export class HooksPhase extends BasePhase<HooksResult> {
     const hooks = this.generateHooksConfig(config);
     const hookTypes = Object.keys(hooks);
 
-    // Merge with existing hooks
+    // Merge with existing hooks (deduplicate by command string)
     const existingHooks = settings.hooks as Record<string, unknown[]> || {};
     const mergedHooks: Record<string, unknown[]> = {};
 
     for (const [hookType, hookArray] of Object.entries(hooks)) {
       const existing = existingHooks[hookType] || [];
-      mergedHooks[hookType] = [...existing, ...(hookArray as unknown[])];
+      const newHooks = hookArray as Array<{ matcher?: string; hooks?: Array<{ command?: string }> }>;
+
+      // Build set of existing commands for deduplication
+      const existingCommands = new Set<string>();
+      for (const hook of existing) {
+        const h = hook as { matcher?: string; hooks?: Array<{ command?: string }> };
+        if (h.hooks) {
+          for (const innerHook of h.hooks) {
+            if (innerHook.command) {
+              existingCommands.add(innerHook.command);
+            }
+          }
+        }
+      }
+
+      // Only add hooks that don't already exist
+      const uniqueNewHooks = newHooks.filter(hook => {
+        if (!hook.hooks) return true;
+        // Check if any of the hook's commands already exist
+        return !hook.hooks.some(h => h.command && existingCommands.has(h.command));
+      });
+
+      mergedHooks[hookType] = [...existing, ...uniqueNewHooks];
     }
 
     // Preserve hooks not in our list

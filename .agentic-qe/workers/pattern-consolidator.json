@@ -1,0 +1,8 @@
+{
+  "name": "pattern-consolidator",
+  "enabled": true,
+  "interval": 1800000,
+  "projectRoot": "/workspaces/agentic-qe-new",
+  "dataDir": "/workspaces/agentic-qe-new/.agentic-qe/data",
+  "createdAt": "2026-02-03T14:30:46.980Z"
+}
