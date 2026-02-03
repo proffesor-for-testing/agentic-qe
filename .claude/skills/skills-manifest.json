@@ -1,14 +1,14 @@
 {
   "version": "1.2.0",
   "generated": "2026-01-27T00:00:00.000Z",
-  "totalSkills": 44,
+  "totalSkills": 45,
   "description": "Agentic QE Fleet skills manifest - Quality Engineering focused skills only. Claude Flow platform skills are managed separately.",
   "categories": {
     "qcsd-phases": {
       "description": "QCSD (Quality Conscious Software Delivery) phase swarms for shift-left quality",
       "priority": "critical",
       "autoInvoke": true,
-      "skills": ["qcsd-ideation-swarm", "qcsd-refinement-swarm"]
+      "skills": ["qcsd-ideation-swarm", "qcsd-refinement-swarm", "qcsd-development-swarm"]
     },
     "qe-core": {
       "description": "Foundational quality engineering philosophy and agentic principles",
@@ -112,6 +112,8 @@
           "evaluate with qcsd",
           "run qcsd",
           "shift-left quality",
+          "shift-left quality assessment",
+          "analyze url for quality",
           "quality criteria session",
           "risk storming"
         ],
@@ -162,6 +164,7 @@
           "sprint refinement",
           "story refinement",
           "bdd generation",
+          "generate scenarios",
           "refine story",
           "refine epic"
         ],
@@ -177,6 +180,63 @@
           "qe-contract-validator": "HAS_API",
           "qe-impact-analyzer": "HAS_REFACTORING",
           "qe-dependency-mapper": "HAS_DEPENDENCIES"
+        }
+      }
+    },
+    "qcsd-development-swarm": {
+      "id": "qcsd-development-swarm",
+      "name": "QCSD Development Swarm",
+      "description": "QCSD Development phase swarm for in-sprint code quality assurance using TDD adherence, code complexity analysis, coverage gap detection, and defect prediction.",
+      "category": "qcsd-phases",
+      "priority": "critical",
+      "file": "qcsd-development-swarm/SKILL.md",
+      "tokenEstimate": 3400,
+      "optimizationStatus": "active",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2026-02-03",
+      "tags": ["qcsd", "development", "tdd", "complexity", "coverage", "security", "performance", "mutation", "defect-prediction", "swarm"],
+      "dependencies": ["agentic-quality-engineering", "tdd-london-chicago"],
+      "agents": [
+        "qe-tdd-specialist",
+        "qe-code-complexity",
+        "qe-coverage-specialist",
+        "qe-security-scanner",
+        "qe-performance-tester",
+        "qe-mutation-tester",
+        "qe-defect-predictor"
+      ],
+      "relatedSkills": ["tdd-london-chicago", "mutation-testing", "performance-testing", "security-testing"],
+      "triggers": {
+        "patterns": [
+          "qcsd development",
+          "development swarm",
+          "code quality analysis",
+          "tdd analysis",
+          "coverage analysis",
+          "complexity analysis",
+          "development quality",
+          "development quality gate",
+          "code review swarm",
+          "analyze code quality",
+          "analyze code for quality",
+          "sprint code check",
+          "in-sprint quality check",
+          "mutation testing",
+          "defect prediction",
+          "is code ready to ship"
+        ],
+        "autoInvoke": true,
+        "enforcementLevel": "strict"
+      },
+      "execution": {
+        "primary": "task-tool",
+        "parallel_batches": 3,
+        "requiresFlagDetection": true,
+        "requiresDirectWrite": true,
+        "conditionalAgents": {
+          "qe-security-scanner": "HAS_SECURITY_CODE",
+          "qe-performance-tester": "HAS_PERFORMANCE_CODE",
+          "qe-mutation-tester": "HAS_CRITICAL_CODE"
         }
       }
     },
@@ -742,6 +802,8 @@
     },
     "byTask": {
       "qcsd-analysis": ["qcsd-ideation-swarm", "testability-scoring", "risk-based-testing", "context-driven-testing", "holistic-testing-pact"],
+      "qcsd-refinement": ["qcsd-refinement-swarm", "context-driven-testing", "testability-scoring", "risk-based-testing"],
+      "qcsd-development": ["qcsd-development-swarm", "tdd-london-chicago", "mutation-testing", "performance-testing", "security-testing"],
       "url-quality-analysis": ["qcsd-ideation-swarm", "a11y-ally", "security-testing", "performance-testing"],
       "test-generation": ["tdd-london-chicago", "api-testing-patterns", "test-design-techniques"],
       "coverage-analysis": ["holistic-testing-pact", "quality-metrics", "testability-scoring"],
@@ -757,8 +819,8 @@
   "optimizationTracking": {
     "targetReduction": "40-50%",
     "optimizedSkills": 7,
-    "totalSkills": 42,
-    "progress": "14.6%",
+    "totalSkills": 45,
+    "progress": "15.6%",
     "tokensSaved": 10200,
     "optimizedList": [
       "agentic-quality-engineering",
