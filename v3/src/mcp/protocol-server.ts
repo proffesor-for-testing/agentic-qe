@@ -57,6 +57,10 @@ import {
   handleMemoryDelete,
   handleMemoryUsage,
   handleMemoryShare,
+  // ADR-057: Infrastructure self-healing handlers
+  handleInfraHealingStatus,
+  handleInfraHealingFeedOutput,
+  handleInfraHealingRecover,
 } from './handlers';
 
 // ADR-039: Performance optimization imports
@@ -836,6 +840,44 @@ export class MCPProtocolServer {
         ],
       },
       handler: (params) => handleRoutingMetrics(params as unknown as Parameters<typeof handleRoutingMetrics>[0]),
+    });
+
+    // ADR-057: Infrastructure self-healing tools
+    this.registerTool({
+      definition: {
+        name: 'infra_healing_status',
+        description: 'Get infrastructure healing status, stats, and failing services',
+        category: 'infra-healing',
+        parameters: [
+          { name: 'verbose', type: 'boolean', description: 'Include detailed observation data', default: false },
+        ],
+      },
+      handler: (params) => handleInfraHealingStatus(params as { verbose?: boolean }),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'infra_healing_feed_output',
+        description: 'Feed test runner output for infrastructure error detection',
+        category: 'infra-healing',
+        parameters: [
+          { name: 'output', type: 'string', description: 'Test runner stdout/stderr output' },
+        ],
+      },
+      handler: (params) => handleInfraHealingFeedOutput(params as { output: string }),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'infra_healing_recover',
+        description: 'Trigger infrastructure recovery cycle for detected failures',
+        category: 'infra-healing',
+        parameters: [
+          { name: 'services', type: 'array', description: 'Specific services to recover (empty = all failing)' },
+          { name: 'rerunTests', type: 'boolean', description: 'Re-run affected tests after recovery', default: true },
+        ],
+      },
+      handler: (params) => handleInfraHealingRecover(params as { services?: string[]; rerunTests?: boolean }),
     });
 
     console.error(`[MCP] Registered ${this.tools.size} tools`);

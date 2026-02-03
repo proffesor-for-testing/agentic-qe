@@ -8,6 +8,7 @@ import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
 import { TestExecutionAPI, IExecuteTestsRequest, ISimpleTestRequest } from './interfaces';
 import { TestExecutionCoordinator, createTestExecutionCoordinator } from './coordinator';
+import { getGlobalInfraHealing } from '../../strange-loop/infra-healing/global-instance.js';
 
 // ============================================================================
 // Plugin Implementation
@@ -147,9 +148,13 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
   // ============================================================================
 
   protected async onInitialize(): Promise<void> {
+    // ADR-057: Inject infra-healing orchestrator if available
+    const infraHealing = getGlobalInfraHealing() ?? undefined;
+
     this.coordinator = createTestExecutionCoordinator(
       this.eventBus,
-      this.memory
+      this.memory,
+      { infraHealing },
     ) as TestExecutionCoordinator;
 
     await this.coordinator.initialize();

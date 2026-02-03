@@ -69,6 +69,13 @@ export {
   createInfraAwareAgentProvider,
 } from './infra-aware-agent-provider.js';
 
+// Test Rerun Manager
+export {
+  TestRerunManager,
+  createTestRerunManager,
+  type ITestRerunManager,
+} from './test-rerun-manager.js';
+
 // Orchestrator
 export {
   InfraHealingOrchestrator,
@@ -76,3 +83,9 @@ export {
   createInfraHealingOrchestratorSync,
   type InfraHealingOrchestratorOptions,
 } from './infra-healing-orchestrator.js';
+
+// Global singleton accessor (shared between MCP and domain layers)
+export {
+  setGlobalInfraHealing,
+  getGlobalInfraHealing,
+} from './global-instance.js';

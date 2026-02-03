@@ -92,42 +92,6 @@ export const DEFAULT_ERROR_SIGNATURES: readonly InfraErrorSignature[] = [
     description: 'Elasticsearch connection refused',
   },
 
-  // Generic connection errors
-  {
-    pattern: /ECONNREFUSED\s+[\d.]+:\d+/,
-    classification: 'infra_failure',
-    vulnerabilityType: 'service_unreachable',
-    serviceName: 'generic-service',
-    defaultSeverity: 0.8,
-    description: 'Service connection refused on unknown port',
-  },
-
-  // Timeout errors
-  {
-    pattern: /ETIMEDOUT/,
-    classification: 'infra_failure',
-    vulnerabilityType: 'infra_timeout',
-    serviceName: 'network',
-    defaultSeverity: 0.7,
-    description: 'Network connection timed out',
-  },
-  {
-    pattern: /ESOCKETTIMEDOUT/,
-    classification: 'infra_failure',
-    vulnerabilityType: 'infra_timeout',
-    serviceName: 'network',
-    defaultSeverity: 0.7,
-    description: 'Socket connection timed out',
-  },
-  {
-    pattern: /ECONNRESET/,
-    classification: 'infra_failure',
-    vulnerabilityType: 'service_unreachable',
-    serviceName: 'network',
-    defaultSeverity: 0.6,
-    description: 'Connection reset by peer',
-  },
-
   // DNS errors
   {
     pattern: /ENOTFOUND/,
@@ -184,16 +148,6 @@ export const DEFAULT_ERROR_SIGNATURES: readonly InfraErrorSignature[] = [
     description: 'TLS certificate error',
   },
 
-  // Connection pool exhaustion
-  {
-    pattern: /pool.*(?:exhausted|timeout|full)|too many (?:connections|clients)|max.*connections.*reached/i,
-    classification: 'infra_failure',
-    vulnerabilityType: 'service_unreachable',
-    serviceName: 'connection-pool',
-    defaultSeverity: 0.8,
-    description: 'Connection pool exhausted',
-  },
-
   // Docker / container errors
   {
     pattern: /Cannot connect to the Docker daemon|docker.*not running/i,
@@ -231,6 +185,172 @@ export const DEFAULT_ERROR_SIGNATURES: readonly InfraErrorSignature[] = [
     defaultSeverity: 0.95,
     description: 'Java JDBC connection failed',
   },
+
+  // ========================================================================
+  // Enterprise: SAP RFC/BAPI Errors
+  // ========================================================================
+
+  {
+    pattern: /(?:RFC_)?COMMUNICATION_FAILURE|CpicError.*CMRC/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'sap_rfc_failure',
+    serviceName: 'sap-rfc',
+    defaultSeverity: 0.95,
+    description: 'SAP RFC communication failure',
+  },
+  {
+    pattern: /(?:RFC_)?SYSTEM_FAILURE|ABAP.*runtime.*error/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'sap_system_failure',
+    serviceName: 'sap-rfc',
+    defaultSeverity: 0.95,
+    description: 'SAP system failure (ABAP runtime error)',
+  },
+  {
+    pattern: /ECONNREFUSED.*(?::443.*sap|sapbtp)|BTP_.*(?:FAILURE|UNAVAILABLE)/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'sap_btp_failure',
+    serviceName: 'sap-btp',
+    defaultSeverity: 0.9,
+    description: 'SAP BTP connection failure',
+  },
+
+  // ========================================================================
+  // Enterprise: Salesforce Errors
+  // ========================================================================
+
+  {
+    pattern: /REQUEST_LIMIT_EXCEEDED|API_CURRENTLY_DISABLED/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'api_rate_limit',
+    serviceName: 'salesforce',
+    defaultSeverity: 0.85,
+    description: 'Salesforce API rate limit exceeded',
+  },
+  {
+    pattern: /INVALID_SESSION_ID|Session expired.*(?:salesforce|sfdc|force\.com)/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'auth_token_expired',
+    serviceName: 'salesforce',
+    defaultSeverity: 0.8,
+    description: 'Salesforce session/token expired',
+  },
+  {
+    pattern: /ECONNREFUSED.*(?:salesforce|sfdc|force\.com|sf-api)/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'service_unreachable',
+    serviceName: 'salesforce',
+    defaultSeverity: 0.9,
+    description: 'Salesforce API connection refused',
+  },
+
+  // ========================================================================
+  // Enterprise: Payment Gateway Errors
+  // ========================================================================
+
+  {
+    pattern: /payment.*(?:timeout|ETIMEDOUT)|(?:stripe|paypal|adyen|braintree).*timeout/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'payment_gateway_timeout',
+    serviceName: 'payment-gateway',
+    defaultSeverity: 0.95,
+    description: 'Payment gateway timeout',
+  },
+  {
+    pattern: /ECONNREFUSED.*(?:stripe|paypal|adyen|braintree|payment)/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'service_unreachable',
+    serviceName: 'payment-gateway',
+    defaultSeverity: 0.95,
+    description: 'Payment gateway connection refused',
+  },
+  {
+    pattern: /payment.*(?:rate.limit|429|too.many.requests)/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'api_rate_limit',
+    serviceName: 'payment-gateway',
+    defaultSeverity: 0.8,
+    description: 'Payment gateway rate limit exceeded',
+  },
+
+  // ========================================================================
+  // Enterprise: WMS / ERP Errors
+  // ========================================================================
+
+  {
+    pattern: /ECONNREFUSED.*(?:wms|warehouse|erp)/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'service_unreachable',
+    serviceName: 'wms',
+    defaultSeverity: 0.85,
+    description: 'WMS/ERP connection refused',
+  },
+  {
+    pattern: /WMS.*(?:connection|timeout|unreachable)/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'service_unreachable',
+    serviceName: 'wms',
+    defaultSeverity: 0.85,
+    description: 'WMS service connection failure',
+  },
+  {
+    pattern: /SAP.*pool.*(?:exhausted|timeout)|BTP.*connection.*pool/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'service_unreachable',
+    serviceName: 'sap-btp',
+    defaultSeverity: 0.85,
+    description: 'SAP BTP connection pool exhausted',
+  },
+
+  // ========================================================================
+  // Generic Catch-All Patterns (MUST be last — specific patterns above take priority)
+  // ========================================================================
+
+  // Generic ECONNREFUSED (no service qualifier — catches any IP:port)
+  {
+    pattern: /ECONNREFUSED\s+[\d.]+:\d+/,
+    classification: 'infra_failure',
+    vulnerabilityType: 'service_unreachable',
+    serviceName: 'generic-service',
+    defaultSeverity: 0.8,
+    description: 'Service connection refused on unknown port',
+  },
+
+  // Generic timeout errors
+  {
+    pattern: /ETIMEDOUT/,
+    classification: 'infra_failure',
+    vulnerabilityType: 'infra_timeout',
+    serviceName: 'network',
+    defaultSeverity: 0.7,
+    description: 'Network connection timed out',
+  },
+  {
+    pattern: /ESOCKETTIMEDOUT/,
+    classification: 'infra_failure',
+    vulnerabilityType: 'infra_timeout',
+    serviceName: 'network',
+    defaultSeverity: 0.7,
+    description: 'Socket connection timed out',
+  },
+  {
+    pattern: /ECONNRESET/,
+    classification: 'infra_failure',
+    vulnerabilityType: 'service_unreachable',
+    serviceName: 'network',
+    defaultSeverity: 0.6,
+    description: 'Connection reset by peer',
+  },
+
+  // Generic connection pool exhaustion
+  {
+    pattern: /pool.*(?:exhausted|timeout|full)|too many (?:connections|clients)|max.*connections.*reached/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'service_unreachable',
+    serviceName: 'connection-pool',
+    defaultSeverity: 0.8,
+    description: 'Connection pool exhausted',
+  },
 ];
 
 // ============================================================================
@@ -247,7 +367,9 @@ export class TestOutputObserver {
   private lastObservation: TestOutputObservation | null = null;
 
   constructor(customSignatures?: readonly InfraErrorSignature[]) {
-    this.signatures = customSignatures ?? DEFAULT_ERROR_SIGNATURES;
+    this.signatures = customSignatures
+      ? [...DEFAULT_ERROR_SIGNATURES, ...customSignatures]
+      : DEFAULT_ERROR_SIGNATURES;
   }
 
   /**

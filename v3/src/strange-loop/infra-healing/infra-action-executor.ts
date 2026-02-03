@@ -166,6 +166,7 @@ export class InfraActionExecutor {
         attempts: [],
         totalDurationMs: 0,
         escalated: true,
+        affectedTestIds: [],
       };
     }
 
@@ -180,6 +181,7 @@ export class InfraActionExecutor {
         attempts: [],
         totalDurationMs: 0,
         escalated: false,
+        affectedTestIds: [],
       };
     }
 
@@ -223,6 +225,7 @@ export class InfraActionExecutor {
       attempts,
       totalDurationMs: Date.now() - startTime,
       escalated: !recovered,
+      affectedTestIds: [],
     };
   }
 
