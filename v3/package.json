@@ -1,6 +1,6 @@
 {
   "name": "@agentic-qe/v3",
-  "version": "3.4.3",
+  "version": "3.4.4",
   "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 51 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
@@ -64,12 +64,13 @@
     "mcp": "tsx src/mcp/entry.ts",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
+    "test:ci": "vitest run --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/vibium/**' --exclude='**/integration/browser/**' --exclude='**/browser-swarm-coordinator.test.ts'",
     "test:e2e": "vitest run tests/integration/browser --testTimeout=120000",
     "test:safe": "NODE_OPTIONS='--max-old-space-size=1536' vitest run",
     "test:dev": "vitest run --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/vibium/**' --exclude='**/browser-swarm-coordinator.test.ts'",
-    "test:regression": "vitest run",
+    "test:regression": "vitest run --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/integration/browser/**' --exclude='**/browser-swarm-coordinator.test.ts'",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/integration/browser/**' --exclude='**/browser-swarm-coordinator.test.ts'",
     "test:perf": "vitest bench tests/performance/",
     "performance:gate": "npx tsx src/performance/run-gates.ts",
     "test:integration:browser": "VIBIUM_REAL_TESTS=true vitest run tests/integrations/vibium/vibium-real.test.ts",
@@ -84,7 +85,10 @@
     "sync:cloud:status": "tsx src/cli/index.ts sync status",
     "sync:cloud:verify": "tsx src/cli/index.ts sync verify",
     "sync:cloud:init": "tsx src/cli/index.ts sync init --output ./src/sync/schema/cloud-schema.sql",
-    "sync:cloud:config": "tsx src/cli/index.ts sync config --sources"
+    "sync:cloud:config": "tsx src/cli/index.ts sync config --sources",
+    "sync:embeddings": "tsx scripts/generate-embeddings.ts --verbose",
+    "sync:embeddings:force": "tsx scripts/generate-embeddings.ts --force --verbose",
+    "sync:embeddings:search": "tsx scripts/generate-embeddings.ts --search"
   },
   "keywords": [
     "agentic",

@@ -216,10 +216,11 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Run tests with coverage
-        run: npm run test:coverage
+      - name: Run tests with coverage (excluding browser E2E)
+        run: cd v3 && npm run test:coverage
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
+          CI: 'true'
         continue-on-error: true
 
       - name: Upload coverage report
@@ -273,10 +274,10 @@ jobs:
           echo "**Commit**: ${{ github.sha }}" >> ci-metrics.md
           echo "" >> ci-metrics.md
 
-          total_files=$(find tests -name "*.test.ts" | wc -l)
-          total_lines=$(find tests -name "*.test.ts" -exec wc -l {} + | tail -1 | awk '{print $1}')
-          large_files=$(find tests -name "*.test.ts" -exec wc -l {} \; | awk '$1 > 600' | wc -l)
-          skipped=$(grep -r "describe.skip\|it.skip\|test.skip" tests --include="*.test.ts" 2>/dev/null | wc -l || echo "0")
+          total_files=$(find v3/tests -name "*.test.ts" 2>/dev/null | wc -l || echo "0")
+          total_lines=$(find v3/tests -name "*.test.ts" -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+          large_files=$(find v3/tests -name "*.test.ts" -exec wc -l {} \; 2>/dev/null | awk '$1 > 600' | wc -l || echo "0")
+          skipped=$(grep -r "describe.skip\|it.skip\|test.skip" v3/tests --include="*.test.ts" 2>/dev/null | wc -l || echo "0")
 
           echo "## Current State" >> ci-metrics.md
           echo "- Total test files: $total_files (target: 50)" >> ci-metrics.md

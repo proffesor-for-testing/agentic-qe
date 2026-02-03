@@ -176,25 +176,36 @@ export class SkillsInstaller {
       join(this.projectRoot, 'node_modules/@agentic-qe/v3/assets/skills'),
     ];
 
-    // For global npm installs, also check global node_modules paths
-    try {
-      const { execSync } = require('child_process');
-      // Get npm global prefix
-      const npmPrefix = execSync('npm config get prefix', { encoding: 'utf-8' }).trim();
+    // For global npm installs, add common global node_modules paths
+    // Note: We use platform-based heuristics instead of npm prefix lookup
+    // to avoid dynamic require issues in ESM bundles
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+    const isWindows = process.platform === 'win32';
 
-      // Add global paths for different package names
+    if (isWindows) {
+      // Windows: npm global is typically in AppData
+      const appData = process.env.APPDATA || join(homeDir, 'AppData', 'Roaming');
       possiblePaths.push(
-        // Global install as @agentic-qe/v3
-        join(npmPrefix, 'lib/node_modules/@agentic-qe/v3/assets/skills'),
-        // Global install as agentic-qe (root package)
-        join(npmPrefix, 'lib/node_modules/agentic-qe/.claude/skills'),
-        // Linux global without lib
-        join(npmPrefix, 'node_modules/@agentic-qe/v3/assets/skills'),
-        join(npmPrefix, 'node_modules/agentic-qe/.claude/skills'),
+        join(appData, 'npm/node_modules/@agentic-qe/v3/assets/skills'),
+        join(appData, 'npm/node_modules/agentic-qe/.claude/skills'),
       );
-    } catch (error) {
-      // Non-critical: npm prefix unavailable, using other paths
-      console.debug('[SkillsInstaller] npm prefix lookup failed:', error instanceof Error ? error.message : error);
+    } else {
+      // Unix/Linux/macOS: common global prefixes
+      const globalPrefixes = [
+        '/usr/local',
+        '/usr',
+        join(homeDir, '.npm-global'),
+        join(homeDir, '.nvm/versions/node', process.version),
+      ];
+
+      for (const prefix of globalPrefixes) {
+        possiblePaths.push(
+          join(prefix, 'lib/node_modules/@agentic-qe/v3/assets/skills'),
+          join(prefix, 'lib/node_modules/agentic-qe/.claude/skills'),
+          join(prefix, 'node_modules/@agentic-qe/v3/assets/skills'),
+          join(prefix, 'node_modules/agentic-qe/.claude/skills'),
+        );
+      }
     }
 
     for (const skillsPath of possiblePaths) {
