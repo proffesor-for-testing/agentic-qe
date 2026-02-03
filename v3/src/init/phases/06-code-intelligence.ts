@@ -132,7 +132,7 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
         '**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'
       ], {
         cwd: projectRoot,
-        ignore: ['node_modules/**', 'dist/**', 'coverage/**', '.agentic-qe/**'],
+        ignore: ['**/node_modules/**', '**/dist/**', '**/coverage/**', '**/.agentic-qe/**'],
       });
 
       // Index files - this now persists to SQLite

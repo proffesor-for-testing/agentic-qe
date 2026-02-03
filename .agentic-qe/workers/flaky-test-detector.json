@@ -1,0 +1,8 @@
+{
+  "name": "flaky-test-detector",
+  "enabled": true,
+  "interval": 7200000,
+  "projectRoot": "/workspaces/agentic-qe-new",
+  "dataDir": "/workspaces/agentic-qe-new/.agentic-qe/data",
+  "createdAt": "2026-02-03T14:30:46.980Z"
+}
