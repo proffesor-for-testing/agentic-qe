@@ -1,6 +1,10 @@
 /**
  * Phase 06: Code Intelligence
  * Pre-scans project and builds knowledge graph
+ *
+ * IMPORTANT: KG data is persisted to SQLite (.agentic-qe/memory.db)
+ * so QE agents can use it later to reduce token consumption via
+ * semantic code search instead of full file reads.
  */
 
 import { existsSync } from 'fs';
@@ -10,6 +14,7 @@ import {
   BasePhase,
   type InitContext,
 } from './phase-interface.js';
+import { createMemoryBackend, type MemoryBackendConfig } from '../../kernel/memory-factory.js';
 
 export interface CodeIntelligenceResult {
   status: 'indexed' | 'existing' | 'skipped' | 'error';
@@ -87,6 +92,13 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
 
   /**
    * Run code intelligence scan
+   *
+   * CRITICAL: Uses SQLite backend to persist KG data to .agentic-qe/memory.db
+   * This allows QE agents to query the KG later for:
+   * - Semantic code search (find functions by intent, not just name)
+   * - Dependency analysis (impact of changes)
+   * - Test target discovery (what tests cover what code)
+   * - Token reduction (search KG instead of reading entire files)
    */
   private async runCodeIntelligenceScan(
     projectRoot: string,
@@ -95,11 +107,19 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
     try {
       // Import knowledge graph service
       const { KnowledgeGraphService } = await import('../../domains/code-intelligence/services/knowledge-graph.js');
-      const { InMemoryBackend } = await import('../../kernel/memory-backend.js');
 
-      // Create temporary memory backend
-      const memory = new InMemoryBackend();
-      await memory.initialize();
+      // FIXED: Use SQLite backend for PERSISTENCE instead of InMemoryBackend
+      // This ensures KG data survives init and is available to QE agents
+      const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
+      const memoryConfig: MemoryBackendConfig = {
+        type: 'sqlite',
+        sqlite: {
+          path: dbPath,
+          walMode: true,
+        },
+      };
+
+      const { backend: memory } = await createMemoryBackend(memoryConfig, true);
 
       const kgService = new KnowledgeGraphService(memory, {
         namespace: 'code-intelligence:kg',
@@ -115,18 +135,22 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
         ignore: ['node_modules/**', 'dist/**', 'coverage/**', '.agentic-qe/**'],
       });
 
-      // Index files
+      // Index files - this now persists to SQLite
       const result = await kgService.index({
         paths: files.map(f => join(projectRoot, f)),
         incremental: false,
         includeTests: true,
       });
 
+      // Clear caches but keep persisted data
       kgService.destroy();
+
+      // Dispose memory backend to flush writes
+      await memory.dispose();
 
       if (result.success) {
         const entries = result.value.nodesCreated + result.value.edgesCreated;
-        context.services.log(`  Indexed ${entries} entries`);
+        context.services.log(`  Indexed ${entries} entries to ${dbPath}`);
         return { status: 'indexed', entries };
       }
 
