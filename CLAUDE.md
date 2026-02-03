@@ -101,7 +101,7 @@ Skills are defined in `.claude/skills/{skill-name}/SKILL.md` and registered in `
 
 ## 🎯 QCSD AUTO-INVOCATION RULES (MANDATORY)
 
-**All QCSD Swarms (Ideation, Refinement, Development) MUST be invoked via the Skill tool. Manual agent spawning is FORBIDDEN.**
+**All QCSD Swarms (Ideation, Refinement, Development, Verification) MUST be invoked via the Skill tool. Manual agent spawning is FORBIDDEN.**
 
 ### Trigger Patterns - IMMEDIATELY invoke `/qcsd-ideation-swarm`
 
@@ -228,6 +228,49 @@ After QCSD Development skill completes, verify:
 ```
 
 **If any verification fails, the QCSD Development analysis is INCOMPLETE.**
+
+### Trigger Patterns - IMMEDIATELY invoke `/qcsd-cicd-swarm`
+
+When user requests ANY of these, use `Skill({ skill: "qcsd-cicd-swarm" })`:
+- "QCSD verification" / "QCSD CI/CD"
+- "pipeline verification" / "release readiness"
+- "is this safe to release" / "deployment readiness"
+- "verify pipeline" / "verify build"
+- "release gate" / "quality gate check"
+- "pre-release check" / "release verification"
+- "cicd swarm" / "pipeline quality"
+
+### What You MUST NOT Do (Verification)
+
+- ❌ **NEVER** manually spawn qe-quality-gate, qe-regression-analyzer, qe-flaky-hunter, qe-security-scanner, qe-chaos-engineer, qe-coverage-specialist, qe-deployment-advisor for QCSD verification without using the skill
+- ❌ **NEVER** skip flag detection (HAS_SECURITY_PIPELINE, HAS_PERFORMANCE_PIPELINE, HAS_INFRA_CHANGE)
+- ❌ **NEVER** skip the qe-deployment-advisor analysis step
+- ❌ **NEVER** skip cross-phase signal consumption (Loop 3 from Development)
+
+### Correct Verification Invocation
+
+```javascript
+// For CI/CD pipeline verification
+Skill({ skill: "qcsd-cicd-swarm", args: "<pipeline-artifacts-path>" })
+
+// For specific release verification
+Skill({ skill: "qcsd-cicd-swarm", args: "ci/artifacts/ --baseline main" })
+```
+
+### Post-Verification Verification
+
+After QCSD CI/CD skill completes, verify:
+```
+✓ Flag detection was performed (HAS_SECURITY_PIPELINE, HAS_PERFORMANCE_PIPELINE, HAS_INFRA_CHANGE)
+✓ All core agents were spawned (3 minimum: quality-gate, regression-analyzer, flaky-hunter)
+✓ Conditional agents spawned per flags (up to 3 more)
+✓ Deployment readiness analysis completed by qe-deployment-advisor
+✓ Cross-phase signals consumed from Development (SHIP/CONDITIONAL/HOLD decisions)
+✓ RELEASE/REMEDIATE/BLOCK decision rendered
+✓ Executive summary synthesized from all reports
+```
+
+**If any verification fails, the QCSD CI/CD analysis is INCOMPLETE.**
 
 ---
 

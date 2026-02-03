@@ -69,7 +69,7 @@ Development Swarm asks "Is the code quality sufficient to ship?"
 | Ideation | qcsd-ideation-swarm | Should we build this? | GO / CONDITIONAL / NO-GO | PI/Sprint Planning |
 | Refinement | qcsd-refinement-swarm | How should we test this? | READY / CONDITIONAL / NOT-READY | Sprint Refinement |
 | **Development** | **qcsd-development-swarm** | **Is the code quality sufficient?** | **SHIP / CONDITIONAL / HOLD** | **During Sprint** |
-| Verification | (future) | Did we build it right? | RELEASE / PATCH / ROLLBACK | Pre-Release |
+| Verification | qcsd-cicd-swarm | Is this change safe to release? | RELEASE / REMEDIATE / BLOCK | Pre-Release / CI-CD |
 
 ### Key Differentiators from Refinement Swarm
 
