@@ -101,6 +101,9 @@ export {
   StrangeLoopOrchestrator,
   createStrangeLoopOrchestrator,
   createInMemoryStrangeLoop,
+  createStrangeLoopWithInfraHealing,
+  createInMemoryStrangeLoopWithInfraHealing,
+  type InfraHealingIntegrationOptions,
 } from './strange-loop.js';
 
 // Belief Reconciler (ADR-052)
@@ -120,3 +123,6 @@ export {
   type BeliefReconcilerEventType,
   type BeliefReconcilerEventListener,
 } from './belief-reconciler.js';
+
+// Infrastructure Self-Healing (ADR-057)
+export * from './infra-healing/index.js';
