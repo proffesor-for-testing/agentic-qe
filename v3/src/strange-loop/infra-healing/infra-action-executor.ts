@@ -1,6 +1,6 @@
 /**
  * Infrastructure Action Executor
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * Executes infrastructure recovery using a health-check → recover → backoff → verify
  * cycle. Uses CommandRunner (DI) for shell execution so tests can inject NoOpCommandRunner.

@@ -1,6 +1,6 @@
 /**
  * Infrastructure Healing Orchestrator Tests
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * Full pipeline tests: feed output → observe → detect → recover → verify.
  * Tests the top-level coordinator that wires all components together.

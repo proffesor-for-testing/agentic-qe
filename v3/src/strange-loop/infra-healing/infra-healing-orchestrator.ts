@@ -1,6 +1,6 @@
 /**
  * Infrastructure Healing Orchestrator
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * Top-level coordinator that wires TestOutputObserver, InfraActionExecutor,
  * RecoveryPlaybook, and CoordinationLock together. Provides a simple API:

@@ -1,6 +1,6 @@
 /**
  * Infrastructure Self-Healing Types
- * ADR-056: Infrastructure Self-Healing Extension for Strange Loop
+ * ADR-057: Infrastructure Self-Healing Extension for Strange Loop
  *
  * Defines types for detecting infrastructure failures during test execution
  * and orchestrating automated recovery via YAML-driven playbooks.

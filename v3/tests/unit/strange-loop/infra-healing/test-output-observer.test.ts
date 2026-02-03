@@ -1,6 +1,6 @@
 /**
  * Test Output Observer Tests
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * Tests pattern matching for infrastructure error signatures,
  * classification, deduplication, and vulnerability generation.

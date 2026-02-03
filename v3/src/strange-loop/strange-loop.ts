@@ -1048,7 +1048,7 @@ export function createInMemoryStrangeLoopWithCoherence(
 }
 
 // ============================================================================
-// Infrastructure Self-Healing Integration (ADR-056)
+// Infrastructure Self-Healing Integration (ADR-057)
 // ============================================================================
 
 /**

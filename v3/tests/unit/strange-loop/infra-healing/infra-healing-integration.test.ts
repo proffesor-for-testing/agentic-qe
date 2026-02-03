@@ -1,6 +1,6 @@
 /**
  * Infrastructure Healing Integration Tests
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * These tests prove the ACTUAL end-to-end wiring:
  * - InfraAwareAgentProvider is plugged into StrangeLoopOrchestrator

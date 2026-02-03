@@ -1,5 +1,5 @@
 # Infrastructure Recovery Playbook
-# ADR-056: Infrastructure Self-Healing Extension for Strange Loop
+# ADR-057: Infrastructure Self-Healing Extension for Strange Loop
 #
 # Each service entry defines:
 #   healthCheck: command that returns exit 0 if service is healthy

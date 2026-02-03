@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Interactive Demo: Infrastructure Self-Healing (ADR-056)
+ * Interactive Demo: Infrastructure Self-Healing (ADR-057)
  *
  * Demonstrates the full pipeline using NoOpCommandRunner:
  *   test stderr → classify → vulnerabilities → Strange Loop cycle → recovery
@@ -153,7 +153,7 @@ const SCENARIOS: Array<{ name: string; testOutput: string }> = [
 // ============================================================================
 
 async function main(): Promise<void> {
-  header('ADR-056: Infrastructure Self-Healing Demo');
+  header('ADR-057: Infrastructure Self-Healing Demo');
   console.log('  Using NoOpCommandRunner (no real shell execution)');
   console.log('  All recovery commands are logged, not executed.\n');
 

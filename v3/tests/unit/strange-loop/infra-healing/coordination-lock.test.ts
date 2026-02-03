@@ -1,6 +1,6 @@
 /**
  * Coordination Lock Tests
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * Tests for the in-process async mutex that prevents duplicate
  * infrastructure recovery attempts.

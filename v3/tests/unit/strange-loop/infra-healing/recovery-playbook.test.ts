@@ -1,6 +1,6 @@
 /**
  * Recovery Playbook Tests
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * Tests for YAML playbook loading, parsing, variable interpolation,
  * and service recovery plan retrieval.

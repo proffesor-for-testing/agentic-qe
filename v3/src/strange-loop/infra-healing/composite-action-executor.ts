@@ -1,6 +1,6 @@
 /**
  * Composite Action Executor
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * Routes healing actions to the appropriate executor:
  * - Swarm actions (spawn_redundant_agent, add_connection, etc.) → original swarm executor

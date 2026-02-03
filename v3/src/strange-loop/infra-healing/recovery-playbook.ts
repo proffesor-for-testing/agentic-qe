@@ -1,6 +1,6 @@
 /**
  * Recovery Playbook
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * YAML-driven configuration for infrastructure recovery.
  * Maps service names to health-check / recover / verify shell commands.

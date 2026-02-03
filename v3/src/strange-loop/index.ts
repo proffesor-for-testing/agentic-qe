@@ -124,5 +124,5 @@ export {
   type BeliefReconcilerEventListener,
 } from './belief-reconciler.js';
 
-// Infrastructure Self-Healing (ADR-056)
+// Infrastructure Self-Healing (ADR-057)
 export * from './infra-healing/index.js';

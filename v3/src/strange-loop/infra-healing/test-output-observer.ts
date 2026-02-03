@@ -1,6 +1,6 @@
 /**
  * Test Output Observer
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * Parses test runner stdout/stderr, pattern-matches infrastructure error
  * signatures, classifies errors as test_bug | infra_failure | flaky | unknown,

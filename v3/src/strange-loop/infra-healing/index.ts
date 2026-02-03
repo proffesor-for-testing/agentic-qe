@@ -1,6 +1,6 @@
 /**
  * Infrastructure Self-Healing Module
- * ADR-056: Infrastructure Self-Healing Extension for Strange Loop
+ * ADR-057: Infrastructure Self-Healing Extension for Strange Loop
  *
  * Extends the Strange Loop self-awareness system to detect and recover from
  * infrastructure failures during test execution. Framework-agnostic via

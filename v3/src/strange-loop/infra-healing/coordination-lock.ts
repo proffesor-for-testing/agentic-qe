@@ -1,6 +1,6 @@
 /**
  * Coordination Lock
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * In-process async mutex keyed by service name.
  * Prevents duplicate recovery attempts for the same infrastructure service.

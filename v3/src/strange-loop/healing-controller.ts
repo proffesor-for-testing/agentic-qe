@@ -294,7 +294,7 @@ export class SelfHealingController {
           result = await this.executeRebalanceTopology(action);
           break;
 
-        // ADR-056: Infrastructure actions — delegated to executor.
+        // ADR-057: Infrastructure actions — delegated to executor.
         // When wired via createStrangeLoopWithInfraHealing(), the executor
         // is CompositeActionExecutor which routes to InfraActionExecutor.
         case 'restart_service': {
@@ -735,7 +735,7 @@ export class SelfHealingController {
       single_point_of_failure: 'spawn_redundant_agent',
       network_partition: 'add_connection',
       degraded_connectivity: 'add_connection',
-      // ADR-056: Infrastructure vulnerabilities — routed through CompositeActionExecutor
+      // ADR-057: Infrastructure vulnerabilities — routed through CompositeActionExecutor
       // to InfraActionExecutor for playbook-driven recovery
       db_connection_failure: 'restart_service',
       service_unreachable: 'restart_service',
@@ -752,7 +752,7 @@ export class SelfHealingController {
 
     const targetAgentId = vulnerability.affectedAgents[0];
 
-    // ADR-056: Synthetic infra agents don't participate in swarm topology.
+    // ADR-057: Synthetic infra agents don't participate in swarm topology.
     // Only fire restart_service when the agent is actually degraded.
     if (targetAgentId?.startsWith('infra-') && actionType !== 'restart_service') {
       if (vulnerability.type === 'single_point_of_failure') {

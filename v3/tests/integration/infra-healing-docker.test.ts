@@ -1,5 +1,5 @@
 /**
- * Real Docker Integration Test: Infrastructure Self-Healing (ADR-056)
+ * Real Docker Integration Test: Infrastructure Self-Healing (ADR-057)
  *
  * Tests the FULL pipeline with a real PostgreSQL container:
  *   1. Start postgres container

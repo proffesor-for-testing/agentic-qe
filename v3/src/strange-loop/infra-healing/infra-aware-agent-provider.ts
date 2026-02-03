@@ -1,6 +1,6 @@
 /**
  * Infrastructure-Aware Agent Provider
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * Wraps an existing AgentProvider and enriches it with synthetic "agents"
  * representing infrastructure services. When a service is down (detected by

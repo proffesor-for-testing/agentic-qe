@@ -1,6 +1,6 @@
 /**
  * Infrastructure Action Executor Tests
- * ADR-056: Infrastructure Self-Healing Extension
+ * ADR-057: Infrastructure Self-Healing Extension
  *
  * Tests for the recovery cycle: healthCheck → recover → backoff → verify.
  * Uses NoOpCommandRunner for deterministic testing.
