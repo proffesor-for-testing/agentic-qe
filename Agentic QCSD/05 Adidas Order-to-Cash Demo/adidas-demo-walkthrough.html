@@ -508,7 +508,7 @@
   <h1>Adidas Order-to-Cash E2E Demo</h1>
   <p class="subtitle">Agentic QE v3 &mdash; End-to-End Testing + Infrastructure Self-Healing</p>
   <div class="badges">
-    <span class="badge badge-blue">7 Systems</span>
+    <span class="badge badge-blue">8 Systems</span>
     <span class="badge badge-green">E2E Testing</span>
     <span class="badge badge-purple">Strange Loop</span>
     <span class="badge badge-cyan">Self-Healing</span>
@@ -554,19 +554,40 @@
         <span class="port">:3005</span>
       </div>
       <span class="pipeline-arrow" id="arrow-5">&rarr;</span>
+      <div class="pipeline-node active" data-service="wms-idoc" id="node-wms-idoc">
+        <div class="icon">&#x1F4C4;</div>
+        <span class="label">WMS IDoc</span>
+        <span class="port">:3005</span>
+      </div>
+      <span class="pipeline-arrow" id="arrow-6">&rarr;</span>
+      <div class="pipeline-node active" data-service="sap-idoc" id="node-sap-idoc">
+        <div class="icon">&#x1F4E5;</div>
+        <span class="label">SAP IDoc</span>
+        <span class="port">:3006</span>
+      </div>
+      <span class="pipeline-arrow" id="arrow-7">&rarr;</span>
       <div class="pipeline-node active" data-service="sap" id="node-sap">
         <div class="icon">&#x1F4CA;</div>
         <span class="label">SAP S/4</span>
         <span class="port">:3006</span>
       </div>
-      <span class="pipeline-arrow" id="arrow-6">&rarr;</span>
+      <span class="pipeline-arrow" id="arrow-8">&rarr;</span>
       <div class="pipeline-node active" data-service="kibana" id="node-kibana">
         <div class="icon">&#x1F4C8;</div>
         <span class="label">Kibana</span>
         <span class="port">:3007</span>
       </div>
+      <span class="pipeline-arrow" id="arrow-9">&rarr;</span>
+      <div class="pipeline-node active" data-service="broker" id="node-broker">
+        <div class="icon">&#x1F4E8;</div>
+        <span class="label">Broker</span>
+        <span class="port">:3008</span>
+      </div>
     </div>
     <div class="progress-bar" id="progress-bar">
+      <div class="progress-segment done"></div>
+      <div class="progress-segment done"></div>
+      <div class="progress-segment done"></div>
       <div class="progress-segment done"></div>
       <div class="progress-segment done"></div>
       <div class="progress-segment done"></div>
@@ -595,7 +616,7 @@
   <div class="step open" id="step-1">
     <div class="step-header" onclick="toggleStep(1)">
       <div class="step-number">1</div>
-      <div class="step-title">Start All 7 Services</div>
+      <div class="step-title">Start All 8 Services</div>
       <span class="step-tag tag-info">Setup</span>
       <span class="step-chevron">&#9660;</span>
     </div>
@@ -606,25 +627,35 @@
           <ul>
             <li>Console shows colored output as each service boots</li>
             <li>Each service prints a green checkmark when ready</li>
-            <li>All 7 systems confirmed running in under 2 seconds</li>
+            <li>All 8 systems confirmed running in under 2 seconds</li>
           </ul>
         </div>
         <div class="view-panel system">
           <h4>&#x1F527; Under the Hood</h4>
           <ul>
-            <li>Node.js HTTP servers start on ports 3001-3007</li>
+            <li>Node.js HTTP servers start on ports 3001-3008</li>
             <li>Each extends <code>BaseMockService</code> with domain endpoints</li>
             <li>Services register <code>/health</code>, <code>/admin/fail</code>, <code>/admin/recover</code></li>
+            <li>Every service auto-generates a landing page at <code>/</code> listing its endpoints</li>
+            <li>API Tester exposes SOAP/WSDL endpoint for order validation</li>
+            <li>Message Broker provides pub/sub audit trail with DLQ (in-memory or RabbitMQ)</li>
             <li>All requests are logged and tracked for assertions</li>
           </ul>
         </div>
       </div>
       <div class="code-block">
-<span class="dim">$</span> <span class="blue">npx tsx run-demo.ts --auto</span>
-<span class="green">&#10003;</span> integrator-web started on port 3001
-<span class="green">&#10003;</span> api-tester started on port 3002
-<span class="dim">... (all 7 services)</span>
-<span class="green">&#10003;</span> kibana started on port 3007
+<span class="dim">$</span> <span class="blue">npm start</span>
+<span class="green">&#10003;</span> message-broker started on port 3008 <span class="dim">(in-memory + DLQ)</span>
+<span class="green">&#10003;</span> integrator-web started on port 3001 <span class="dim">(storefront UI)</span>
+<span class="green">&#10003;</span> api-tester started on port 3002 <span class="dim">(REST + SOAP/WSDL)</span>
+<span class="green">&#10003;</span> omni started on port 3003 <span class="dim">(orchestrator)</span>
+<span class="green">&#10003;</span> iib-esb started on port 3004 <span class="dim">(ESB transform)</span>
+<span class="green">&#10003;</span> wms started on port 3005 <span class="dim">(+ IDoc generation)</span>
+<span class="green">&#10003;</span> sap-s4 started on port 3006 <span class="dim">(OData + IDoc inbound)</span>
+<span class="green">&#10003;</span> kibana started on port 3007 <span class="dim">(analytics dashboard)</span>
+
+<span class="dim"># Each service has a landing page at its root URL listing all endpoints</span>
+<span class="dim"># e.g. http://localhost:3002/ shows api-tester endpoints</span>
       </div>
     </div>
   </div>
@@ -644,7 +675,7 @@
           <ul>
             <li>Each service is polled with a health check</li>
             <li>Green checkmarks appear one-by-one as each responds</li>
-            <li>All 7 systems confirmed healthy before proceeding</li>
+            <li>All 8 systems confirmed healthy before proceeding</li>
           </ul>
         </div>
         <div class="view-panel system">
@@ -665,6 +696,7 @@
 <span class="green">&#10003;</span> wms (port 3005) &mdash; healthy
 <span class="green">&#10003;</span> sap-s4 (port 3006) &mdash; healthy
 <span class="green">&#10003;</span> kibana (port 3007) &mdash; healthy
+<span class="green">&#10003;</span> message-broker (port 3008) &mdash; healthy
       </div>
     </div>
   </div>
@@ -690,10 +722,10 @@
         <div class="view-panel system">
           <h4>&#x1F527; Under the Hood</h4>
           <ul>
-            <li><code>TestDataGeneratorService</code> from Agentic QE v3 generates all fields</li>
-            <li>Products use the fixtures catalog: Ultraboost, Jersey, Bag</li>
-            <li><code>buildOrder()</code> creates an order with unique ID, line items, totals</li>
-            <li>Data seeded for reproducibility across runs</li>
+            <li>Storefront auto-demo uses static customer <em>Max Mustermann</em> (hardcoded in UI)</li>
+            <li>Products from static Adidas catalog: Ultraboost (&euro;180), Jersey (&euro;90), Duffle Bag (&euro;65)</li>
+            <li><code>TestDataGeneratorService</code> (v3) available in <code>fixtures/test-data.ts</code> for programmatic test generation via <code>@faker-js/faker</code> with real locale support (de, fr, ja, etc.)</li>
+            <li><code>buildGeneratedOrder(locale)</code> combines locale-aware customer (German streets, zip codes, phone formats) + static products (used by test scripts, not the browser UI)</li>
           </ul>
         </div>
       </div>
@@ -703,7 +735,8 @@ Address:  Adi-Dassler-Str. 1, 91074 Herzogenaurach
 Products:
   - Ultraboost 23 x1 @ <span class="green">&euro;180</span>
   - Home Jersey 2025 x1 @ <span class="green">&euro;90</span>
-Total:    <span class="green">&euro;270</span>
+  - Duffle Bag x1 @ <span class="green">&euro;65</span>
+Total:    <span class="green">&euro;335</span>
       </div>
     </div>
   </div>
@@ -725,23 +758,26 @@ Total:    <span class="green">&euro;270</span>
             <li>Products appear, items are added to cart</li>
             <li>Checkout form fills, order is placed</li>
             <li>Order confirmation shows with order ID</li>
-            <li>All 7 pipeline steps show green status</li>
+            <li>All 9 pipeline steps show green status</li>
           </ul>
         </div>
         <div class="view-panel system">
           <h4>&#x1F527; Under the Hood</h4>
           <ul>
             <li><strong>Integrator</strong> receives checkout, calls API Tester</li>
-            <li><strong>API Tester</strong> validates payload, calls OMNI</li>
-            <li><strong>OMNI</strong> orchestrates: IIB &rarr; WMS &rarr; SAP &rarr; Kibana</li>
+            <li><strong>API Tester</strong> validates payload (REST + SOAP/WSDL), calls OMNI</li>
+            <li><strong>OMNI</strong> orchestrates 6 steps: IIB &rarr; WMS &rarr; WMS IDoc &rarr; SAP IDoc &rarr; SAP OData &rarr; Kibana</li>
             <li><strong>IIB ESB</strong> transforms JSON, adds ESB headers</li>
             <li><strong>WMS</strong> allocates inventory from warehouse</li>
+            <li><strong>WMS IDoc</strong> generates WMMBID01 flat-file IDoc from allocation</li>
+            <li><strong>SAP IDoc</strong> parses inbound IDoc, validates segments, posts with status 03</li>
             <li><strong>SAP S/4</strong> creates OData sales order</li>
             <li><strong>Kibana</strong> ingests order event for analytics</li>
+            <li><strong>Broker</strong> receives audit events on each step (non-blocking)</li>
           </ul>
         </div>
       </div>
-      <p style="font-size:0.85rem; color: var(--text-dim); margin-top: 0.8rem;">Call chain through all 7 systems:</p>
+      <p style="font-size:0.85rem; color: var(--text-dim); margin-top: 0.8rem;">Call chain through all 8 systems (6 OMNI steps + audit broker):</p>
       <div class="call-chain">
         <span class="node">Integrator :3001</span>
         <span class="arrow">&rarr;</span>
@@ -753,7 +789,11 @@ Total:    <span class="green">&euro;270</span>
         <span class="arrow">&rarr;</span>
         <span class="node">WMS :3005</span>
         <span class="arrow">&rarr;</span>
-        <span class="node">SAP :3006</span>
+        <span class="node">WMS IDoc :3005</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">SAP IDoc :3006</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">SAP OData :3006</span>
         <span class="arrow">&rarr;</span>
         <span class="node">Kibana :3007</span>
       </div>
@@ -763,9 +803,11 @@ Total:    <span class="green">&euro;270</span>
 <span class="green">  Order confirmed: ORD-abc123 ... PASSED</span>
 <span class="dim">  Pipeline step "iib-esb": success</span>
 <span class="dim">  Pipeline step "wms": success</span>
+<span class="dim">  Pipeline step "wms-idoc": success (WMMBID01 generated)</span>
+<span class="dim">  Pipeline step "sap-idoc": success (status 03 — posted)</span>
 <span class="dim">  Pipeline step "sap-s4": success</span>
 <span class="dim">  Pipeline step "kibana": success</span>
-<span class="green">Tests: 1 passed, 1 total</span>
+<span class="green">Tests: 1 passed, 1 total (6/6 systems)</span>
 <span class="green">&#10003; All E2E tests PASSED</span>
       </div>
     </div>
@@ -789,7 +831,7 @@ Total:    <span class="green">&euro;270</span>
           <ul>
             <li>SAP S/4 is killed (simulating a real production outage)</li>
             <li>Console confirms SAP is DOWN and returning 503</li>
-            <li>All other 6 services remain operational</li>
+            <li>All other 7 services remain operational</li>
           </ul>
         </div>
         <div class="view-panel system">
@@ -829,8 +871,8 @@ Total:    <span class="green">&euro;270</span>
           <ul>
             <li>Same E2E test runs again</li>
             <li>Order goes through IIB and WMS successfully</li>
-            <li>Fails at SAP with connection refused error</li>
-            <li>Test output shows exactly where the failure is</li>
+            <li>Fails at SAP with 503 error (failure mode active)</li>
+            <li>Test output shows exactly where the pipeline broke</li>
           </ul>
         </div>
         <div class="view-panel system">
@@ -838,13 +880,14 @@ Total:    <span class="green">&euro;270</span>
           <ul>
             <li>OMNI calls IIB (3004) &rarr; success</li>
             <li>OMNI calls WMS (3005) &rarr; success</li>
-            <li>OMNI calls SAP (3006) &rarr; <code>ECONNREFUSED</code></li>
-            <li>OMNI stops and returns partial failure response</li>
-            <li>Error output includes port number for detection</li>
+            <li>OMNI calls WMS IDoc (3005) &rarr; success (WMMBID01 generated)</li>
+            <li>OMNI calls SAP IDoc (3006) &rarr; <code>HTTP 503</code> (failure mode active)</li>
+            <li>OMNI stops pipeline and returns partial failure with systemTrace</li>
+            <li>Broker still receives audit events for the completed steps</li>
           </ul>
         </div>
       </div>
-      <p style="font-size:0.85rem; color: var(--text-dim); margin-top: 0.8rem;">Call chain breaks at SAP:</p>
+      <p style="font-size:0.85rem; color: var(--text-dim); margin-top: 0.8rem;">Call chain breaks at SAP IDoc inbound:</p>
       <div class="call-chain">
         <span class="node">Integrator</span>
         <span class="arrow">&rarr;</span>
@@ -855,8 +898,12 @@ Total:    <span class="green">&euro;270</span>
         <span class="node">IIB</span>
         <span class="arrow">&rarr;</span>
         <span class="node">WMS</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">WMS IDoc</span>
         <span class="arrow broken">&cross;</span>
-        <span class="node fail">SAP :3006</span>
+        <span class="node fail">SAP IDoc :3006</span>
+        <span class="arrow" style="opacity:0.2">&rarr;</span>
+        <span class="node" style="opacity:0.3">SAP OData</span>
         <span class="arrow" style="opacity:0.2">&rarr;</span>
         <span class="node" style="opacity:0.3">Kibana</span>
       </div>
@@ -866,10 +913,11 @@ Total:    <span class="green">&euro;270</span>
 <span class="red">  Order FAILED: FAILED</span>
 <span class="dim">  Pipeline step "iib-esb": success</span>
 <span class="dim">  Pipeline step "wms": success</span>
-<span class="red">  Pipeline step "sap-s4": failed</span>
-<span class="red">    Error: connect ECONNREFUSED 127.0.0.1:3006</span>
+<span class="dim">  Pipeline step "wms-idoc": success (WMMBID01 generated)</span>
+<span class="red">  Pipeline step "sap-idoc": failed</span>
+<span class="red">    Error: HTTP 503 (sap-s4 failure mode active)</span>
 <span class="red">Tests: 1 failed, 1 total</span>
-<span class="red">&#10007; E2E test FAILED at sap-s4 (expected)</span>
+<span class="red">&#10007; E2E test FAILED at sap-idoc (expected)</span>
       </div>
     </div>
   </div>
@@ -891,19 +939,19 @@ Total:    <span class="green">&euro;270</span>
           <h4>&#x1F464; End User Perspective</h4>
           <ul>
             <li>Test output is analyzed automatically</li>
-            <li>System identifies "SAP S/4HANA connection refused on port 3006"</li>
+            <li>System identifies "SAP S/4HANA returning 503 on port 3006"</li>
             <li>Classifies as infrastructure failure (not a product bug)</li>
-            <li>Confidence level: 90%</li>
+            <li>Confidence level: 85%</li>
           </ul>
         </div>
         <div class="view-panel system">
           <h4>&#x1F527; Under the Hood</h4>
           <ul>
             <li><code>TestOutputObserver</code> (ADR-057) scans test output line by line</li>
-            <li>9 Adidas-specific error signatures loaded</li>
-            <li>Pattern <code>/ECONNREFUSED.*:3006/</code> matches SAP port</li>
+            <li>12 Adidas-specific error signatures loaded (incl. IDoc, SOAP, broker)</li>
+            <li>Pattern <code>/503 Service Unavailable.*sap/</code> matches SAP failure mode</li>
             <li>Classified as <code>infra_failure</code> (not <code>test_failure</code>)</li>
-            <li>Vulnerability generated: type=<code>service_unreachable</code>, severity=0.95</li>
+            <li>Vulnerability generated: type=<code>service_unavailable</code>, severity=0.8</li>
           </ul>
         </div>
       </div>
@@ -914,11 +962,11 @@ Total:    <span class="green">&euro;270</span>
 <span class="blue">&rarr;</span> Feeding test output to TestOutputObserver (ADR-057)...
 <span class="blue">&rarr;</span> Lines parsed: 9
 <span class="blue">&rarr;</span> Infrastructure failures detected: 1
-  <span class="red">[INFRA]</span> SAP S/4HANA connection refused on port 3006
-    Service: sap-s4 | Confidence: 90%
+  <span class="red">[INFRA]</span> SAP S/4HANA returning 503 (failure mode) on port 3006
+    Service: sap-s4 | Confidence: 85%
     Classification: infra_failure
 <span class="blue">&rarr;</span> Vulnerabilities generated: 1
-  <span class="orange">[VULN]</span> type=service_unreachable severity=0.95 agent=infra-sap-s4
+  <span class="orange">[VULN]</span> type=service_unavailable severity=0.80 agent=infra-sap-s4
       </div>
     </div>
   </div>
@@ -961,7 +1009,7 @@ Total:    <span class="green">&euro;270</span>
       <div class="code-block">
 <span class="blue">&rarr;</span> Loading Adidas recovery playbook...
 <span class="blue">&rarr;</span> Running Strange Loop cycle: <span class="cyan">Observe</span> &rarr; <span class="cyan">Model</span> &rarr; <span class="cyan">Decide</span> &rarr; <span class="cyan">Act</span>
-<span class="blue">&rarr;</span> Vulnerabilities observed: 9
+<span class="blue">&rarr;</span> Vulnerabilities observed: 1
 <span class="blue">&rarr;</span> Actions decided: 1
 <span class="blue">&rarr;</span> Recovering sap-s4 via /admin/recover...
 <span class="green">&#10003;</span> sap-s4 recovered
@@ -992,7 +1040,7 @@ Total:    <span class="green">&euro;270</span>
           <h4>&#x1F464; End User Perspective</h4>
           <ul>
             <li>Only the failed test is re-executed (not the full suite)</li>
-            <li>Order goes through all 7 systems successfully</li>
+            <li>Order goes through all 8 systems successfully</li>
             <li>SAP is back online, creates the sales order</li>
             <li>Test PASSES &mdash; infrastructure fully recovered</li>
           </ul>
@@ -1002,7 +1050,7 @@ Total:    <span class="green">&euro;270</span>
           <ul>
             <li><code>TestRerunManager</code> tracks which tests failed</li>
             <li>Only <code>order-to-cash.e2e.ts</code> is re-run (not other suites)</li>
-            <li>Full call chain succeeds: IIB &rarr; WMS &rarr; SAP &rarr; Kibana</li>
+            <li>Full call chain succeeds: IIB &rarr; WMS &rarr; WMS IDoc &rarr; SAP IDoc &rarr; SAP OData &rarr; Kibana</li>
             <li>Kibana receives the new order event</li>
             <li>Selective re-run saves CI time on large test suites</li>
           </ul>
@@ -1020,7 +1068,11 @@ Total:    <span class="green">&euro;270</span>
         <span class="arrow">&rarr;</span>
         <span class="node">WMS</span>
         <span class="arrow">&rarr;</span>
-        <span class="node heal">SAP :3006</span>
+        <span class="node">WMS IDoc</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node heal">SAP IDoc :3006</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">SAP OData</span>
         <span class="arrow">&rarr;</span>
         <span class="node">Kibana</span>
       </div>
@@ -1030,9 +1082,11 @@ Total:    <span class="green">&euro;270</span>
 <span class="green">  Order confirmed: ORD-xyz789 ... PASSED</span>
 <span class="dim">  Pipeline step "iib-esb": success</span>
 <span class="dim">  Pipeline step "wms": success</span>
+<span class="dim">  Pipeline step "wms-idoc": success (WMMBID01 generated)</span>
+<span class="dim">  Pipeline step "sap-idoc": success (status 03 — posted)</span>
 <span class="dim">  Pipeline step "sap-s4": success</span>
 <span class="dim">  Pipeline step "kibana": success</span>
-<span class="green">Tests: 1 passed, 1 total</span>
+<span class="green">Tests: 1 passed, 1 total (6/6 systems)</span>
 <span class="green">&#10003; Re-run PASSED &mdash; infrastructure fully recovered</span>
       </div>
     </div>
@@ -1054,7 +1108,7 @@ Total:    <span class="green">&euro;270</span>
             <li>Open <code>http://localhost:3007</code> in a browser</li>
             <li>Dashboard shows order volume, system health, recent orders</li>
             <li>Both successful orders visible in the event log</li>
-            <li>All 7 systems show green health status</li>
+            <li>All 8 systems show green health status (2x4 grid)</li>
           </ul>
         </div>
         <div class="view-panel system">
@@ -1063,7 +1117,7 @@ Total:    <span class="green">&euro;270</span>
             <li>Kibana mock stores all ingested order events</li>
             <li><code>GET /kibana/api/orders</code> returns full event log</li>
             <li>Dashboard auto-refreshes every 2 seconds</li>
-            <li>Health grid polls all 7 services in parallel</li>
+            <li>Health grid polls all 8 services in parallel (incl. Broker :3008)</li>
           </ul>
         </div>
       </div>
@@ -1094,12 +1148,27 @@ Total:    <span class="green">&euro;270</span>
         <tr>
           <td><span class="status status-green"><span class="status-dot"></span> E2E Cross-System Testing</span></td>
           <td>Step 4</td>
-          <td>Playwright + 7 mock services</td>
+          <td>Playwright + 8 mock services</td>
         </tr>
         <tr>
           <td><span class="status status-green"><span class="status-dot"></span> Test Data Generation</span></td>
           <td>Step 3</td>
-          <td>TestDataGeneratorService</td>
+          <td>Static catalog (UI) + TestDataGeneratorService via <code>fixtures/test-data.ts</code> (programmatic)</td>
+        </tr>
+        <tr>
+          <td><span class="status status-green"><span class="status-dot"></span> SOAP/WSDL Endpoint</span></td>
+          <td>Step 4</td>
+          <td>API Tester WSDL + SOAP envelope parsing</td>
+        </tr>
+        <tr>
+          <td><span class="status status-green"><span class="status-dot"></span> SAP IDoc Flat-File</span></td>
+          <td>Step 4</td>
+          <td>WMMBID01/SHPMNT05 generation &amp; inbound parsing</td>
+        </tr>
+        <tr>
+          <td><span class="status status-green"><span class="status-dot"></span> Message Broker (Pub/Sub)</span></td>
+          <td>Step 4</td>
+          <td>In-memory broker with DLQ &amp; audit trail</td>
         </tr>
         <tr>
           <td><span class="status status-red"><span class="status-dot"></span> Controlled Failure Injection</span></td>
@@ -1139,7 +1208,7 @@ Total:    <span class="green">&euro;270</span>
   <div class="pipeline-section">
     <h2>Architecture at a Glance</h2>
     <div class="callout callout-info" style="margin-top: 0.5rem;">
-      The demo uses real Agentic QE v3 components &mdash; not mocked framework code. The only mocks are the 7 Adidas backend services. All detection, classification, recovery, and re-run logic is production code from the <code>v3/src/strange-loop/</code> module.
+      The demo uses real Agentic QE v3 components &mdash; not mocked framework code. The only mocks are the 8 Adidas backend services (incl. SOAP/WSDL, IDoc, and message broker). All detection, classification, recovery, and re-run logic is production code from the <code>v3/src/strange-loop/</code> module.
     </div>
 
     <h3 style="font-size: 0.95rem; margin-top: 1.5rem; margin-bottom: 0.8rem; color: var(--purple);">Key Files</h3>
@@ -1156,7 +1225,19 @@ Total:    <span class="green">&euro;270</span>
           <td><code>v3/demo/adidas-order-to-cash/run-demo.ts</code></td>
         </tr>
         <tr>
-          <td>7 Mock Services</td>
+          <td>Playwright Walkthrough</td>
+          <td><code>v3/demo/adidas-order-to-cash/demo-walkthrough.ts</code></td>
+        </tr>
+        <tr>
+          <td>Walkthrough Runner</td>
+          <td><code>v3/demo/adidas-order-to-cash/run-demo-walkthrough.sh</code></td>
+        </tr>
+        <tr>
+          <td>Base Service (landing pages)</td>
+          <td><code>v3/demo/adidas-order-to-cash/services/base-mock-service.ts</code></td>
+        </tr>
+        <tr>
+          <td>8 Mock Services</td>
           <td><code>v3/demo/adidas-order-to-cash/services/*.ts</code></td>
         </tr>
         <tr>
@@ -1188,16 +1269,28 @@ Total:    <span class="green">&euro;270</span>
 
     <h3 style="font-size: 0.95rem; margin-top: 1.5rem; margin-bottom: 0.8rem; color: var(--purple);">Running the Demo</h3>
     <div class="code-block">
-<span class="dim"># Interactive mode (pause between steps)</span>
+<span class="dim"># Start all 8 services</span>
 <span class="blue">cd v3/demo/adidas-order-to-cash</span>
+<span class="blue">npm start</span>
+
+<span class="dim"># Interactive mode (pause between steps)</span>
 <span class="blue">npx tsx run-demo.ts</span>
 
 <span class="dim"># Automated mode (runs all steps)</span>
 <span class="blue">npx tsx run-demo.ts --auto</span>
 
-<span class="dim"># With Docker (real container kill/restart)</span>
+<span class="dim"># Playwright walkthrough (3-phase: success → failure → recovery)</span>
+<span class="blue">npm run demo:walkthrough</span>                     <span class="dim"># headless + screenshots</span>
+<span class="blue">npm run demo:walkthrough:headed</span>               <span class="dim"># headed with auto-Xvfb</span>
+<span class="blue">./run-demo-walkthrough.sh --video</span>              <span class="dim"># with video recording</span>
+<span class="blue">./run-demo-walkthrough.sh --headed --video --slow-mo 500</span>
+
+<span class="dim"># With Docker (real container kill/restart — default mode)</span>
 <span class="blue">docker compose up -d</span>
-<span class="blue">npx tsx run-demo.ts --docker</span>
+<span class="blue">npx tsx run-demo.ts</span>                          <span class="dim"># default = Docker</span>
+
+<span class="dim"># RabbitMQ broker mode (requires docker)</span>
+<span class="blue">npm run start:rabbitmq</span>
     </div>
   </div>
 
@@ -1205,7 +1298,7 @@ Total:    <span class="green">&euro;270</span>
 
 <footer class="footer">
   Agentic QE v3 &mdash; Adidas Order-to-Cash Demo Walkthrough<br>
-  7 systems, 1 demo, full self-healing
+  8 systems, SOAP/WSDL, IDoc, Message Broker, full self-healing
 </footer>
 
 <script>
@@ -1231,10 +1324,13 @@ Total:    <span class="green">&euro;270</span>
       omni: document.getElementById('node-omni'),
       iib: document.getElementById('node-iib'),
       wms: document.getElementById('node-wms'),
+      'wms-idoc': document.getElementById('node-wms-idoc'),
+      'sap-idoc': document.getElementById('node-sap-idoc'),
       sap: document.getElementById('node-sap'),
       kibana: document.getElementById('node-kibana'),
+      broker: document.getElementById('node-broker'),
     };
-    const arrows = [1,2,3,4,5,6].map(i => document.getElementById('arrow-' + i));
+    const arrows = [1,2,3,4,5,6,7,8,9].map(i => document.getElementById('arrow-' + i));
     const segments = document.querySelectorAll('#progress-bar .progress-segment');
 
     // Reset
@@ -1256,24 +1352,28 @@ Total:    <span class="green">&euro;270</span>
       document.querySelector('.btn-green').classList.add('active');
     }
     else if (state === 'failed') {
-      ['integrator','api','omni','iib','wms'].forEach(k => nodes[k].classList.add('active'));
-      nodes.sap.classList.add('failed');
+      ['integrator','api','omni','iib','wms','wms-idoc'].forEach(k => nodes[k].classList.add('active'));
+      nodes['sap-idoc'].classList.add('failed');
+      nodes.sap.style.opacity = '0.3';
       nodes.kibana.style.opacity = '0.3';
-      arrows[4].classList.add('broken');
-      arrows[5].style.opacity = '0.15';
+      nodes.broker.classList.add('active'); // broker still receives audit events
+      arrows[5].classList.add('broken'); // arrow after wms-idoc
+      arrows[6].style.opacity = '0.15';
+      arrows[7].style.opacity = '0.15';
       segments.forEach((s, i) => {
-        if (i < 5) s.className = 'progress-segment done';
-        else if (i === 5) s.className = 'progress-segment fail';
+        if (i < 6) s.className = 'progress-segment done';
+        else if (i === 6) s.className = 'progress-segment fail';
+        else if (i === 9) s.className = 'progress-segment done'; // broker still up
         else s.className = 'progress-segment';
       });
       document.querySelector('.btn-red').classList.add('active');
     }
     else if (state === 'recovered') {
       Object.values(nodes).forEach(n => n.classList.add('active'));
-      nodes.sap.classList.remove('active');
-      nodes.sap.classList.add('recovered');
+      nodes['sap-idoc'].classList.remove('active');
+      nodes['sap-idoc'].classList.add('recovered');
       segments.forEach((s, i) => {
-        if (i === 5) s.className = 'progress-segment heal';
+        if (i === 6) s.className = 'progress-segment heal';
         else s.className = 'progress-segment done';
       });
       document.querySelector('.btn-cyan').classList.add('active');

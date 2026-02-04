@@ -39,11 +39,11 @@ export function createKibanaService(): BaseMockService {
     const order = body as Record<string, unknown> | null;
     const event: OrderEvent = {
       orderId: (order?.orderId as string) || `ORD-${Date.now()}`,
-      status: 'COMPLETED',
+      status: (order?.status as string) || 'COMPLETED',
       timestamp: new Date().toISOString(),
-      systems: 7,
+      systems: 8,
       totalAmount: (order?.totalAmount as number) || 0,
-      customer: (order?.customer as Record<string, string>)?.email || 'unknown',
+      customer: (order?.customer as Record<string, string>)?.name || (order?.customer as Record<string, string>)?.email || 'unknown',
     };
     events.push(event);
     console.log(`  [Kibana] Event ingested: ${event.orderId}`);

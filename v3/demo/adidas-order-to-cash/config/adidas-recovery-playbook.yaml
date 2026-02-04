@@ -103,6 +103,20 @@ services:
     maxRetries: 2
     backoffMs: [3000, 6000]
 
+  message-broker:
+    description: "Message Broker — In-memory pub/sub with DLQ (port 3008)"
+    healthCheck:
+      command: "curl -sf http://localhost:3008/health"
+      timeoutMs: 3000
+    recover:
+      - command: "docker compose -f v3/demo/adidas-order-to-cash/docker-compose.yml restart message-broker"
+        timeoutMs: 15000
+    verify:
+      command: "curl -sf http://localhost:3008/health"
+      timeoutMs: 3000
+    maxRetries: 2
+    backoffMs: [2000, 5000]
+
   kibana:
     description: "Kibana — Analytics dashboard (port 3007)"
     healthCheck:

@@ -1,7 +1,7 @@
 /**
  * Adidas-Specific Error Signatures
  *
- * Custom InfraErrorSignature definitions for the 7 Adidas services.
+ * Custom InfraErrorSignature definitions for the 8 Adidas services.
  * Merged with DEFAULT_ERROR_SIGNATURES via createTestOutputObserver(customSignatures).
  */
 
@@ -83,9 +83,39 @@ export const ADIDAS_ERROR_SIGNATURES: readonly InfraErrorSignature[] = [
     description: 'Kibana (dashboard) connection refused on port 3007',
   },
 
+  // Message Broker (port 3008)
+  {
+    pattern: /ECONNREFUSED.*:3008/,
+    classification: 'infra_failure',
+    vulnerabilityType: 'service_unreachable',
+    serviceName: 'message-broker',
+    defaultSeverity: 0.8,
+    description: 'Message Broker (pub/sub) connection refused on port 3008',
+  },
+
+  // IDoc processing errors
+  {
+    pattern: /IDoc.*(?:status 51|status 56|REJECTED|syntax error)/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'service_unreachable',
+    serviceName: 'sap-s4',
+    defaultSeverity: 0.85,
+    description: 'SAP IDoc processing error',
+  },
+
+  // SOAP fault errors
+  {
+    pattern: /soap:Fault|faultcode|faultstring/i,
+    classification: 'infra_failure',
+    vulnerabilityType: 'service_unreachable',
+    serviceName: 'api-tester',
+    defaultSeverity: 0.75,
+    description: 'SOAP fault response from API Tester',
+  },
+
   // 503 Service Unavailable from any Adidas service (failure mode)
   {
-    pattern: /503 Service Unavailable.*(?:integrator|api-tester|omni|iib|wms|sap|kibana)/i,
+    pattern: /503 Service Unavailable.*(?:integrator|api-tester|omni|iib|wms|sap|kibana|broker)/i,
     classification: 'infra_failure',
     vulnerabilityType: 'service_unreachable',
     serviceName: 'unknown',
@@ -138,4 +168,5 @@ export const SERVICE_PORTS: Record<string, number> = {
   'wms': 3005,
   'sap-s4': 3006,
   'kibana': 3007,
+  'message-broker': 3008,
 };

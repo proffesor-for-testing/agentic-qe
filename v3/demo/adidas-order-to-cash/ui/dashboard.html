@@ -15,7 +15,7 @@
     .card { background: #16213e; border-radius: 8px; padding: 20px; border: 1px solid #0f3460; }
     .card h3 { font-size: 14px; color: #7f8c8d; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
     .card .value { font-size: 32px; font-weight: 700; color: #00d4ff; }
-    .systems-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 24px; }
+    .systems-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 24px; }
     .system-card { background: #16213e; border-radius: 8px; padding: 12px; text-align: center; border: 1px solid #0f3460; }
     .system-card .name { font-size: 11px; color: #7f8c8d; margin-bottom: 4px; text-transform: uppercase; }
     .system-card .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-bottom: 4px; }
@@ -69,6 +69,7 @@
       <div class="system-card"><div class="dot unknown"></div><div class="name">WMS</div><div class="latency">--</div></div>
       <div class="system-card"><div class="dot unknown"></div><div class="name">SAP S/4</div><div class="latency">--</div></div>
       <div class="system-card"><div class="dot unknown"></div><div class="name">Kibana</div><div class="latency">--</div></div>
+      <div class="system-card"><div class="dot unknown"></div><div class="name">Broker</div><div class="latency">--</div></div>
     </div>
 
     <div class="grid" style="grid-template-columns: 1fr 2fr;">
@@ -97,6 +98,7 @@
       { name: 'WMS', port: 3005 },
       { name: 'SAP S/4', port: 3006 },
       { name: 'Kibana', port: 3007 },
+      { name: 'Broker', port: 3008 },
     ];
 
     async function checkHealth(port) {
@@ -137,7 +139,8 @@
 
       document.getElementById('total-orders').textContent = orders.length;
 
-      const revenue = orders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+      const completedOrders = orders.filter(o => o.status === 'COMPLETED');
+      const revenue = completedOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
       document.getElementById('total-revenue').textContent = `\u20AC${revenue.toFixed(0)}`;
 
       const completed = orders.filter(o => o.status === 'COMPLETED').length;
@@ -150,7 +153,8 @@
       const chart = document.getElementById('bar-chart');
       chart.innerHTML = last10.map(o => {
         const h = Math.max(((o.totalAmount || 0) / maxAmount) * 100, 4);
-        return `<div class="bar" style="height:${h}px; flex:1;"><span class="tooltip">${o.orderId}: \u20AC${(o.totalAmount||0).toFixed(0)}</span></div>`;
+        const color = o.status === 'FAILED' ? '#dc3545' : '#00d4ff';
+        return `<div class="bar" style="height:${h}px; flex:1; background:${color};"><span class="tooltip">${o.orderId}: \u20AC${(o.totalAmount||0).toFixed(0)} (${o.status})</span></div>`;
       }).join('');
 
       // Table

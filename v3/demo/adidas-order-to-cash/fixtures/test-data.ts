@@ -2,14 +2,63 @@
  * Test Data Fixtures for Adidas Order-to-Cash E2E Demo
  *
  * Provides:
- * - Static product catalog
- * - Customer generation
+ * - Static product catalog (Adidas-specific)
+ * - Dynamic customer generation via TestDataGeneratorService (v3)
+ * - Static customer fallbacks
  * - Order payload builder
  * - Expected response fixtures for each system
  */
 
+import { TestDataGeneratorService } from '../../../src/domains/test-generation/services/test-data-generator.js';
+
 // ============================================================================
-// Products (Static Catalog)
+// TestDataGeneratorService (Agentic QE v3)
+// ============================================================================
+
+const dataGenerator = new TestDataGeneratorService();
+
+/** Adidas customer schema — used by TestDataGeneratorService */
+const ADIDAS_CUSTOMER_SCHEMA: Record<string, unknown> = {
+  name: 'fullname',
+  email: 'email',
+  address: 'address',
+  phone: 'phone',
+};
+
+/**
+ * Generate a realistic Adidas customer using TestDataGeneratorService.
+ * Uses German locale by default for Adidas HQ realism.
+ */
+export async function generateAdidasCustomer(locale = 'de'): Promise<{
+  name: string;
+  email: string;
+  address: string;
+  phone: string;
+}> {
+  const result = await dataGenerator.generateTestData({
+    schema: ADIDAS_CUSTOMER_SCHEMA,
+    count: 1,
+    locale,
+  });
+
+  const record = result.records[0] as Record<string, unknown>;
+  const addr = record.address as Record<string, string> | string;
+
+  // Address can be object or string depending on faker output
+  const addressStr = typeof addr === 'string'
+    ? addr
+    : `${addr.street}, ${addr.zipCode} ${addr.city}`;
+
+  return {
+    name: String(record.name),
+    email: String(record.email),
+    address: addressStr,
+    phone: String(record.phone),
+  };
+}
+
+// ============================================================================
+// Products (Static Catalog — Adidas-specific, not generated)
 // ============================================================================
 
 export const PRODUCTS = [
@@ -19,7 +68,7 @@ export const PRODUCTS = [
 ] as const;
 
 // ============================================================================
-// Customer Fixtures
+// Customer Fixtures (static fallbacks — use generateAdidasCustomer() for dynamic)
 // ============================================================================
 
 export const CUSTOMERS = {
@@ -79,6 +128,31 @@ export function buildFullCartOrder(customerKey: keyof typeof CUSTOMERS = 'defaul
   return buildOrder(customerKey, ['ULTRA-23', 'JERSEY-H', 'BAG-DFL'], [1, 1, 1]);
 }
 
+/**
+ * Build an order with dynamically generated customer via TestDataGeneratorService.
+ * Products remain from the static Adidas catalog.
+ */
+export async function buildGeneratedOrder(
+  productIds: string[] = ['ULTRA-23', 'JERSEY-H', 'BAG-DFL'],
+  quantities: number[] = [1, 1, 1],
+  locale = 'de',
+): Promise<OrderPayload> {
+  const customer = await generateAdidasCustomer(locale);
+  const items = productIds.map((id, i) => {
+    const product = PRODUCTS.find(p => p.id === id);
+    if (!product) throw new Error(`Unknown product: ${id}`);
+    const quantity = quantities[i] || 1;
+    return { id: product.id, productId: product.id, name: product.name, price: product.price, quantity };
+  });
+  const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  return {
+    customer: { name: customer.name, email: customer.email, address: customer.address },
+    items,
+    totalAmount,
+  };
+}
+
 // ============================================================================
 // Expected Response Fixtures
 // ============================================================================
@@ -119,6 +193,19 @@ export const EXPECTED_SAP_RESPONSE = {
   },
 };
 
+/** Expected shape from WMS IDoc /wms/idoc/generate */
+export const EXPECTED_WMS_IDOC_RESPONSE = {
+  idocType: 'WMMBID01',
+  messageType: 'WMMBID',
+  status: 'generated',
+};
+
+/** Expected shape from SAP IDoc /sap/idoc/inbound */
+export const EXPECTED_SAP_IDOC_RESPONSE = {
+  statusCode: '03',
+  status: 'posted',
+};
+
 /** Expected shape from Kibana /kibana/api/ingest */
 export const EXPECTED_KIBANA_RESPONSE = {
   indexed: true,
@@ -129,13 +216,15 @@ export const EXPECTED_KIBANA_RESPONSE = {
 // ============================================================================
 
 export const TEST_OUTPUT_SCENARIOS = {
-  /** All 7 systems healthy — tests pass */
+  /** All 8 systems healthy — tests pass */
   allHealthy: [
     'PASS tests/order-to-cash.e2e.ts',
     '  Product grid displays 3 items',
     '  Add to cart works',
     '  Checkout flow completes',
-    '  Order pipeline shows all 7 systems green',
+    '  Order pipeline shows all 8 systems green',
+    '  IDoc WMMBID01 generated and posted to SAP',
+    '  Broker audit trail: 5 messages published',
     'Tests: 1 passed, 1 total',
     'Time: 8.2s',
   ].join('\n'),
@@ -179,6 +268,34 @@ export const TEST_OUTPUT_SCENARIOS = {
     '  Error: connect ECONNREFUSED 127.0.0.1:3005',
     '  Error: connect ECONNREFUSED 127.0.0.1:3006',
     '  Error: 503 Service Unavailable from wms',
+    'Tests: 1 failed, 1 total',
+  ].join('\n'),
+
+  /** Message broker down — orders still work but no audit trail */
+  brokerDown: [
+    'PASS tests/order-to-cash.e2e.ts',
+    '  Checkout flow completes',
+    '  Warning: connect ECONNREFUSED 127.0.0.1:3008',
+    '  Broker audit trail: unavailable (non-blocking)',
+    'Tests: 1 passed, 1 total',
+  ].join('\n'),
+
+  /** IDoc rejection — SAP returns status 51 */
+  idocRejected: [
+    'FAIL tests/order-to-cash.e2e.ts',
+    '  IDoc WMMBID01 submitted to SAP',
+    '  IDoc status 51: application error — Missing E1MBXYI item segments',
+    '  Expected IDoc statusCode "03" but got "51"',
+    'Tests: 1 failed, 1 total',
+  ].join('\n'),
+
+  /** SOAP fault — invalid order via SOAP endpoint */
+  soapFault: [
+    'FAIL tests/order-to-cash.e2e.ts',
+    '  SOAP ValidateOrder returned fault:',
+    '    <soap:Fault><faultcode>soap:Client</faultcode>',
+    '    <faultstring>Missing &lt;customer&gt; element</faultstring>',
+    '  Expected SOAP response <valid>true</valid> but got fault',
     'Tests: 1 failed, 1 total',
   ].join('\n'),
 };

@@ -1,14 +1,69 @@
 ##
-## Adidas Order-to-Cash — 7 Mock Services
+## Adidas Order-to-Cash — 8 Mock Services + Optional RabbitMQ
 ##
 ## Usage:
-##   docker compose up -d          # Start all services
-##   docker compose stop sap-s4    # Kill SAP to trigger failure
-##   docker compose restart sap-s4 # Recover SAP
-##   docker compose down           # Stop everything
+##   docker compose up -d                           # In-memory broker (default)
+##   docker compose --profile rabbitmq up -d        # With real RabbitMQ
+##
+##   docker compose stop sap-s4        # Kill SAP to trigger failure
+##   docker compose restart sap-s4     # Recover SAP
+##   docker compose down               # Stop everything
+##
+## Broker modes:
+##   memory   — In-memory pub/sub (default, zero dependencies)
+##   rabbitmq — Real RabbitMQ via AMQP (requires --profile rabbitmq)
+##
+## New services:
+##   message-broker (3008) — Dual-mode pub/sub with DLQ
+##   rabbitmq (5672/15672) — Optional real RabbitMQ (profile: rabbitmq)
+##
+## New endpoints:
+##   GET  :3002/api/wsdl           — WSDL definition
+##   POST :3002/api/soap/validate  — SOAP order validation
+##   POST :3005/wms/idoc/generate  — Generate WMMBID01 IDoc
+##   POST :3006/sap/idoc/inbound   — SAP IDoc inbound processing
+##   POST :3008/broker/publish     — Publish message to topic
+##   GET  :3008/broker/dlq         — Dead letter queue contents
+##   GET  :3008/broker/mode        — Check active broker mode
 ##
 
 services:
+
+  # ── Optional: Real RabbitMQ (activate with --profile rabbitmq) ────────
+  rabbitmq:
+    image: rabbitmq:3-management
+    profiles: [rabbitmq]
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI (guest/guest)
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  # ── Message Broker (port 3008) ────────────────────────────────────────
+  message-broker:
+    build: .
+    environment:
+      SERVICE_FILE: message-broker.ts
+      BROKER_MODE: ${BROKER_MODE:-memory}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
+    ports:
+      - "3008:3008"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3008/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
   integrator-web:
     build: .
     environment:
@@ -63,6 +118,8 @@ services:
       sap-s4:
         condition: service_healthy
       kibana:
+        condition: service_healthy
+      message-broker:
         condition: service_healthy
     restart: unless-stopped
 

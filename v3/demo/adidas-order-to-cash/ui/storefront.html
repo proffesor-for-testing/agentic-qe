@@ -40,6 +40,25 @@
     .confirmation.failed { background: #f8d7da; }
     .error-output { margin-top: 16px; padding: 16px; background: #2d2d2d; color: #f8d7da; border-radius: 4px; font-family: monospace; font-size: 12px; white-space: pre-wrap; display: none; }
     .error-output.active { display: block; }
+    /* Inline order log (mini Kibana) */
+    .order-log { background: #1a1a2e; color: #e0e0e0; border-radius: 8px; padding: 24px; margin-top: 24px; display: none; }
+    .order-log.active { display: block; }
+    .order-log h3 { color: #00ff88; margin-bottom: 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+    .order-log table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .order-log th { text-align: left; padding: 8px 12px; color: #888; border-bottom: 1px solid #333; font-weight: 600; }
+    .order-log td { padding: 8px 12px; border-bottom: 1px solid #222; }
+    .order-log .status-completed { color: #28a745; font-weight: 700; }
+    .order-log .status-failed { color: #dc3545; font-weight: 700; }
+    .order-log .new-row { animation: log-highlight 2s ease-out; }
+    @keyframes log-highlight { 0% { background: rgba(0,255,136,0.15); } 100% { background: transparent; } }
+    /* Auto-demo mode */
+    .demo-banner { position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(135deg, #1a1a2e, #16213e); color: #fff; padding: 14px 32px; font-size: 16px; font-weight: 600; z-index: 1000; text-align: center; display: none; gap: 12px; align-items: center; justify-content: center; box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
+    .demo-banner.active { display: flex; }
+    .demo-banner .phase { background: rgba(255,255,255,0.15); padding: 2px 10px; border-radius: 12px; font-size: 13px; margin-right: 8px; }
+    .demo-banner .text { flex: 1; }
+    body.demo-active { padding-top: 52px; }
+    @keyframes demo-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,193,7,0.6); } 50% { box-shadow: 0 0 0 10px rgba(255,193,7,0); } }
+    .demo-highlight { animation: demo-pulse 0.8s ease-in-out; outline: 3px solid #ffc107; outline-offset: 3px; border-radius: 6px; }
     .cart-summary { background: #fff; border-radius: 8px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 24px; display: none; }
     .cart-summary.active { display: block; }
     .cart-summary table { width: 100%; border-collapse: collapse; }
@@ -48,6 +67,7 @@
   </style>
 </head>
 <body>
+  <div class="demo-banner" id="demo-banner"><span class="phase" id="demo-phase"></span><span class="text" id="demo-text"></span></div>
   <header>
     <h1>ADIDAS</h1>
     <div class="cart-badge" data-testid="cart-badge" onclick="showCart()">Cart: 0</div>
@@ -119,6 +139,10 @@
         <span class="pipeline-arrow">&rarr;</span>
         <div class="pipeline-step" id="step-wms" data-testid="system-status-wms">WMS</div>
         <span class="pipeline-arrow">&rarr;</span>
+        <div class="pipeline-step" id="step-wms-idoc" data-testid="system-status-wms-idoc">WMS IDoc</div>
+        <span class="pipeline-arrow">&rarr;</span>
+        <div class="pipeline-step" id="step-sap-idoc" data-testid="system-status-sap-idoc">SAP IDoc</div>
+        <span class="pipeline-arrow">&rarr;</span>
         <div class="pipeline-step" id="step-sap" data-testid="system-status-sap">SAP S/4</div>
         <span class="pipeline-arrow">&rarr;</span>
         <div class="pipeline-step" id="step-kibana" data-testid="system-status-kibana">Kibana</div>
@@ -133,6 +157,8 @@
     </div>
 
     <div class="error-output" id="error-output" data-testid="error-output"></div>
+
+    <div class="order-log" id="order-log"></div>
   </main>
 
   <script>
@@ -166,7 +192,7 @@
       document.getElementById('checkout-panel').classList.add('active');
     }
 
-    const SYSTEMS = ['integrator', 'api-tester', 'omni', 'iib', 'wms', 'sap', 'kibana'];
+    const SYSTEMS = ['integrator', 'api-tester', 'omni', 'iib', 'wms', 'wms-idoc', 'sap-idoc', 'sap', 'kibana'];
 
     function setStepStatus(system, status) {
       const el = document.getElementById(`step-${system}`);
@@ -217,10 +243,15 @@
 
         if (response.ok && data.status === 'COMPLETED') {
           setStepStatus('api-tester', 'success');
+          // OMNI orchestrated the pipeline — mark it green
+          await delay(200);
+          setStepStatus('omni', 'active');
+          await delay(200);
+          setStepStatus('omni', 'success');
           // Animate remaining steps
           const trace = data.systemTrace || [];
           for (const step of trace) {
-            const systemMap = { 'iib-esb': 'iib', 'sap-s4': 'sap' };
+            const systemMap = { 'iib-esb': 'iib', 'sap-s4': 'sap', 'wms-idoc': 'wms-idoc', 'sap-idoc': 'sap-idoc' };
             const key = systemMap[step.system] || step.system;
             setStepStatus(key, 'active');
             await delay(200);
@@ -234,10 +265,12 @@
           document.getElementById('order-systems').textContent = `${data.completedSystems}/${data.totalSystems}`;
         } else {
           setStepStatus('api-tester', data.systemTrace ? 'success' : 'failed');
+          // OMNI ran the pipeline even if downstream failed
+          if (data.systemTrace) setStepStatus('omni', 'success');
           // Show which system failed
           if (data.systemTrace) {
             for (const step of data.systemTrace) {
-              const systemMap = { 'iib-esb': 'iib', 'sap-s4': 'sap' };
+              const systemMap = { 'iib-esb': 'iib', 'sap-s4': 'sap', 'wms-idoc': 'wms-idoc', 'sap-idoc': 'sap-idoc' };
               const key = systemMap[step.system] || step.system;
               setStepStatus(key, step.status === 'success' ? 'success' : 'failed');
             }
@@ -249,7 +282,7 @@
           document.getElementById('order-id').textContent = data.orderId || 'N/A';
           document.getElementById('order-status').textContent = data.status || 'FAILED';
           document.getElementById('order-systems').textContent =
-            `${data.completedSystems || 0}/${data.totalSystems || 7}`;
+            `${data.completedSystems || 0}/${data.totalSystems || 6}`;
 
           const errEl = document.getElementById('error-output');
           errEl.classList.add('active');
@@ -262,7 +295,7 @@
         conf.querySelector('h3').textContent = 'Order Failed';
         document.getElementById('order-id').textContent = 'N/A';
         document.getElementById('order-status').textContent = 'CONNECTION_ERROR';
-        document.getElementById('order-systems').textContent = '1/7';
+        document.getElementById('order-systems').textContent = '0/6';
         const errEl = document.getElementById('error-output');
         errEl.classList.add('active');
         errEl.textContent = `Error: ${err.message}\n\nconnect ECONNREFUSED 127.0.0.1:3002`;
@@ -273,6 +306,251 @@
     }
 
     function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // ── Auto-Demo Mode (?demo=auto) ────────────────────────────────────
+
+    function setBanner(phase, total, text, html) {
+      const banner = document.getElementById('demo-banner');
+      banner.classList.add('active');
+      document.getElementById('demo-phase').textContent = total ? `${phase}/${total}` : phase;
+      const textEl = document.getElementById('demo-text');
+      if (html) { textEl.innerHTML = text; } else { textEl.textContent = text; }
+    }
+
+    function highlight(testId) {
+      const el = document.querySelector(`[data-testid="${testId}"]`);
+      if (el) { el.classList.add('demo-highlight'); setTimeout(() => el.classList.remove('demo-highlight'), 1200); }
+    }
+
+    function scrollTo(el) {
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    async function typeInto(id, text) {
+      const el = document.getElementById(id);
+      el.value = '';
+      el.focus();
+      for (const ch of text) {
+        el.value += ch;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        await delay(40 + Math.random() * 25);
+      }
+    }
+
+    function resetOrderUI() {
+      document.getElementById('confirmation').classList.remove('active', 'failed');
+      document.getElementById('confirmation').querySelector('h3').textContent = 'Order Confirmed';
+      document.getElementById('error-output').classList.remove('active');
+      document.getElementById('pipeline').classList.remove('active');
+      SYSTEMS.forEach(s => setStepStatus(s, ''));
+      const btn = document.getElementById('submit-order');
+      btn.disabled = false;
+      btn.textContent = 'Place Order';
+    }
+
+    function waitForOrderResult() {
+      return new Promise(resolve => {
+        const check = setInterval(() => {
+          const conf = document.getElementById('confirmation');
+          if (conf.classList.contains('active')) { clearInterval(check); resolve(); }
+        }, 200);
+        setTimeout(() => { clearInterval(check); resolve(); }, 15000);
+      });
+    }
+
+    async function showOrderLog(highlightLatest) {
+      const logEl = document.getElementById('order-log');
+      try {
+        // Small delay to let Kibana ingest complete
+        await delay(500);
+        const res = await fetch('/api/order-status');
+        const data = await res.json();
+        if (data.orders && data.orders.length > 0) {
+          let html = '<h3>Order Activity Log (Kibana)</h3>';
+          html += '<table><thead><tr><th>Order ID</th><th>Customer</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead><tbody>';
+          const orders = data.orders;
+          for (let i = 0; i < orders.length; i++) {
+            const order = orders[i];
+            const statusClass = order.status === 'COMPLETED' ? 'status-completed' : 'status-failed';
+            const time = new Date(order.timestamp).toLocaleTimeString();
+            const isNew = highlightLatest && i === orders.length - 1;
+            html += '<tr' + (isNew ? ' class="new-row"' : '') + '>';
+            html += '<td>' + order.orderId + '</td>';
+            html += '<td>' + order.customer + '</td>';
+            html += '<td>&euro;' + (order.totalAmount ? order.totalAmount.toFixed(2) : '0.00') + '</td>';
+            html += '<td class="' + statusClass + '">' + order.status + '</td>';
+            html += '<td>' + time + '</td>';
+            html += '</tr>';
+          }
+          html += '</tbody></table>';
+          logEl.innerHTML = html;
+          logEl.classList.add('active');
+          scrollTo(logEl);
+        }
+      } catch (e) {
+        console.warn('Order log fetch failed:', e);
+      }
+    }
+
+    function hideOrderLog() {
+      document.getElementById('order-log').classList.remove('active');
+    }
+
+    // ── Demo customer profiles ──
+    const DEMO_CUSTOMERS = [
+      { name: 'Max Mustermann', email: 'max.mustermann@adidas.de', address: 'Adi-Dassler-Str. 1, 91074 Herzogenaurach' },
+      { name: 'Anna Schmidt',   email: 'anna.schmidt@adidas.de',   address: 'Leopoldstr. 42, 80802 Munich' },
+      { name: 'Lukas Weber',    email: 'lukas.weber@adidas.de',    address: 'Zeil 112, 60313 Frankfurt am Main' },
+    ];
+
+    async function fillCheckoutForm(customer) {
+      await typeInto('input-name', customer.name);
+      await delay(300);
+      await typeInto('input-email', customer.email);
+      await delay(300);
+      await typeInto('input-address', customer.address);
+      await delay(500);
+    }
+
+    async function placeAndWait(phaseNum, total) {
+      highlight('submit-order');
+      await delay(600);
+      scrollTo(document.getElementById('pipeline'));
+      placeOrder();
+      await waitForOrderResult();
+      await delay(600);
+    }
+
+    async function runAutoDemo() {
+      document.body.classList.add('demo-active');
+      const T = 5;
+
+      // ═══════════════════════════════════════════════════════════════
+      // PHASE 1 — Browse & Add to Cart
+      // ═══════════════════════════════════════════════════════════════
+      setBanner(1, T, 'Customer browses the Adidas store...');
+      await delay(2500);
+
+      scrollTo(document.querySelector('.products'));
+      await delay(600);
+
+      highlight('product-ultraboost');
+      await delay(700);
+      addToCart('ULTRA-23', 'Ultraboost 23', 180);
+      await delay(1200);
+
+      highlight('product-jersey');
+      await delay(700);
+      addToCart('JERSEY-H', 'Home Jersey 2025', 90);
+      await delay(1200);
+
+      highlight('product-bag');
+      await delay(700);
+      addToCart('BAG-DFL', 'Duffle Bag', 65);
+      await delay(1500);
+
+      // ═══════════════════════════════════════════════════════════════
+      // PHASE 2 — Happy Path: Max Mustermann
+      // ═══════════════════════════════════════════════════════════════
+      setBanner(2, T, 'Happy Path \u2014 Max Mustermann places an order...');
+      scrollTo(document.getElementById('cart-summary'));
+      await delay(800);
+      highlight('checkout-button');
+      await delay(600);
+      showCheckout();
+      scrollTo(document.getElementById('checkout-panel'));
+      await delay(800);
+
+      await fillCheckoutForm(DEMO_CUSTOMERS[0]);
+
+      setBanner(2, T, 'Happy Path \u2014 watch the 6-system pipeline...');
+      await placeAndWait(2, T);
+
+      const status1 = document.getElementById('order-status').textContent;
+      if (status1 === 'COMPLETED') {
+        setBanner(2, T, '\u2705 Max Mustermann \u2014 order completed, all 6 systems OK');
+      }
+      await delay(2000);
+
+      // Show order log — 1 order (COMPLETED)
+      setBanner(2, T, '\u2705 Max Mustermann \u2014 verifying in Kibana...');
+      await showOrderLog(true);
+      await delay(4000);
+
+      // ═══════════════════════════════════════════════════════════════
+      // PHASE 3 — Failure Injection: Anna Schmidt
+      // ═══════════════════════════════════════════════════════════════
+      hideOrderLog();
+      setBanner(3, T, '\uD83D\uDCA5 Injecting failure into SAP S/4 HANA...');
+      scrollTo(document.querySelector('.products'));
+      await delay(3000);
+      await fetch('/demo/fail-sap', { method: 'POST' });
+      await delay(1500);
+
+      resetOrderUI();
+      setBanner(3, T, 'SAP is down \u2014 Anna Schmidt places an order...');
+      scrollTo(document.getElementById('checkout-panel'));
+      await delay(800);
+      await fillCheckoutForm(DEMO_CUSTOMERS[1]);
+
+      setBanner(3, T, 'SAP is down \u2014 watch the pipeline break...');
+      await placeAndWait(3, T);
+
+      setBanner(3, T, '\u274C Anna Schmidt \u2014 pipeline failed at SAP S/4 HANA');
+      const hasError = document.getElementById('error-output').classList.contains('active');
+      if (hasError) {
+        scrollTo(document.getElementById('error-output'));
+        await delay(3000);
+      }
+
+      // Show order log — 2 orders (COMPLETED + FAILED)
+      setBanner(3, T, '\u274C Anna Schmidt \u2014 failure logged in Kibana...');
+      await showOrderLog(true);
+      await delay(5000);
+
+      // ═══════════════════════════════════════════════════════════════
+      // PHASE 4 — Self-Healing Recovery: Lukas Weber
+      // ═══════════════════════════════════════════════════════════════
+      hideOrderLog();
+      setBanner(4, T, '\uD83D\uDD27 Self-healing: recovering SAP S/4 HANA...');
+      scrollTo(document.querySelector('.products'));
+      await delay(3000);
+      await fetch('/demo/recover-sap', { method: 'POST' });
+      await delay(2000);
+
+      resetOrderUI();
+      setBanner(4, T, 'SAP recovered \u2014 Lukas Weber places an order...');
+      scrollTo(document.getElementById('checkout-panel'));
+      await delay(800);
+      await fillCheckoutForm(DEMO_CUSTOMERS[2]);
+
+      setBanner(4, T, 'SAP recovered \u2014 pipeline should succeed...');
+      await placeAndWait(4, T);
+
+      const status3 = document.getElementById('order-status').textContent;
+      if (status3 === 'COMPLETED') {
+        setBanner(4, T, '\u2705 Lukas Weber \u2014 order completed, SAP fully restored');
+      } else {
+        setBanner(4, T, 'Lukas Weber \u2014 recovery order placed, check result above');
+      }
+      await delay(2000);
+
+      // Show order log — 3 orders (COMPLETED + FAILED + COMPLETED)
+      setBanner(4, T, '\u2705 Lukas Weber \u2014 verifying full recovery in Kibana...');
+      await showOrderLog(true);
+      await delay(5000);
+
+      // ═══════════════════════════════════════════════════════════════
+      // PHASE 5 — Demo Complete
+      // ═══════════════════════════════════════════════════════════════
+      const kibanaUrl = window.location.origin.replace(':3001', ':3007');
+      setBanner('DONE', '', '\uD83C\uDFC1 Demo complete \u2014 3 orders: \u2705 Success \u2192 \u274C Failure \u2192 \u2705 Recovery &nbsp;&nbsp; <a href="' + kibanaUrl + '" target="_blank" style="color:#00ff88;text-decoration:underline;">Open Kibana Dashboard \u2192</a>', true);
+    }
+
+    // Auto-start if ?demo=auto
+    if (new URLSearchParams(window.location.search).has('demo')) {
+      window.addEventListener('load', () => setTimeout(runAutoDemo, 1500));
+    }
   </script>
 </body>
 </html>

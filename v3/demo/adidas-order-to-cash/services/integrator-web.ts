@@ -44,6 +44,34 @@ export function createIntegratorWebService(): BaseMockService {
     }
   });
 
+  // ── Demo control proxy (same-origin access to other services) ──────────
+
+  service.route('POST', '/demo/fail-sap', async (_req, res) => {
+    try {
+      await fetch('http://localhost:3006/admin/fail', { method: 'POST' });
+      service['json'](res, { status: 'sap_failure_injected' });
+    } catch {
+      service['json'](res, { error: 'SAP service unreachable' }, 502);
+    }
+  });
+
+  service.route('POST', '/demo/recover-sap', async (_req, res) => {
+    try {
+      await fetch('http://localhost:3006/admin/recover', { method: 'POST' });
+      service['json'](res, { status: 'sap_recovered' });
+    } catch {
+      service['json'](res, { error: 'SAP service unreachable' }, 502);
+    }
+  });
+
+  service.route('POST', '/demo/reset-all', async (_req, res) => {
+    const services = [3002, 3003, 3004, 3005, 3006, 3007, 3008];
+    await Promise.allSettled(
+      services.map(port => fetch(`http://localhost:${port}/admin/recover`, { method: 'POST' }))
+    );
+    service['json'](res, { status: 'all_services_recovered' });
+  });
+
   // Order status polling (aggregates from Kibana)
   service.route('GET', '/api/order-status', async (_req, res) => {
     try {

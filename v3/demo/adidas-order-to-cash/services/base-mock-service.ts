@@ -40,6 +40,42 @@ export class BaseMockService {
     this.route('GET', '/health', (_req, res) => {
       this.json(res, { status: 'ok', service: this.config.name, uptime: process.uptime() });
     });
+
+    // Default landing page — overridden by services that define their own GET /
+    this.route('GET', '/', (_req, res) => {
+      const endpoints = Array.from(this.routes.keys())
+        .sort()
+        .map(key => {
+          const [method, path] = key.split(' ', 2);
+          const isGet = method === 'GET';
+          const link = isGet ? `<a href="${path}">${path}</a>` : path;
+          return `<tr><td><code>${method}</code></td><td>${link}</td></tr>`;
+        })
+        .join('\n          ');
+
+      this.html(res, `<!DOCTYPE html>
+<html><head>
+  <title>${this.config.name} — :${this.config.port}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    h1 { font-size: 1.4rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    td { padding: 6px 12px; border-bottom: 1px solid #eee; }
+    td:first-child { width: 60px; text-align: center; }
+    code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 0.85rem; }
+    a { color: #1a73e8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .status { color: #0a0; }
+  </style>
+</head><body>
+  <h1>${this.config.name} <span style="color:#888">:${this.config.port}</span></h1>
+  <p class="status">Running — uptime ${Math.floor(process.uptime())}s</p>
+  <table>
+    <tr><th>Method</th><th>Endpoint</th></tr>
+    ${endpoints}
+  </table>
+</body></html>`);
+    });
   }
 
   /** Register a route handler */
