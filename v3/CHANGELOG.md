@@ -69,7 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Grooming → Refinement** - Renamed QCSD "Grooming" phase to "Refinement" across entire codebase (modern Scrum terminology)
-- **skills-manifest.json** - totalSkills increased from 45 to 46, added all QCSD swarm entries
+- **skills-manifest.json** - Updated to v1.3.0 with totalSkillsOnDisk: 103 and full skill breakdown
+- **Documentation Updates** - Updated README, v3/README, and release-verification with accurate skill counts (100+ skills: 46 QE + 57 platform)
 - **CLAUDE.md** - Added auto-invocation rules for all 4 QCSD phases
 - **SwarmVulnerability type** - Extended with 6 enterprise vulnerability types
 - **ToolCategory type** - Added 'infra-healing' category
@@ -141,8 +142,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Skills installer now scans actual directory for accurate README generation
 
 ### Fixed
-- **Skills README accuracy** - README now shows actual 63 QE skills instead of only newly-installed skills
-- **Upgrade path from v3.2.3 to v3.4.x** - Previously only 31 new files were installed; now all 63 QE skills + agents + validation are properly updated when using `--upgrade`
+- **Skills README accuracy** - README now shows actual skills count instead of only newly-installed skills
+- **Upgrade path from v3.2.3 to v3.4.x** - Previously only 31 new files were installed; now all skills + agents + validation are properly updated when using `--upgrade`
 
 ### Changed
 - Assets phase respects `--upgrade` flag for all installers (skills, agents, n8n)

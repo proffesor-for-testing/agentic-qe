@@ -1,8 +1,9 @@
 {
-  "version": "1.2.0",
-  "generated": "2026-01-27T00:00:00.000Z",
+  "version": "1.3.0",
+  "generated": "2026-02-04T00:00:00.000Z",
   "totalSkills": 46,
-  "description": "Agentic QE Fleet skills manifest - Quality Engineering focused skills only. Claude Flow platform skills are managed separately.",
+  "totalSkillsOnDisk": 103,
+  "description": "Agentic QE Fleet skills manifest - 46 Tier 3 verified QE skills. Additional 57 platform/integration skills (GitHub, AgentDB, Flow Nexus, n8n, v3 enhancements) exist on disk but are managed separately.",
   "categories": {
     "qcsd-phases": {
       "description": "QCSD (Quality Conscious Software Delivery) phase swarms for shift-left quality",
@@ -902,9 +903,9 @@
   },
   "metadata": {
     "generatedBy": "Agentic QE Fleet",
-    "fleetVersion": "2.1.0",
-    "manifestVersion": "1.1.0",
-    "lastUpdated": "2025-12-02T00:00:00.000Z",
+    "fleetVersion": "3.5.0",
+    "manifestVersion": "1.3.0",
+    "lastUpdated": "2026-02-04T00:00:00.000Z",
     "contributors": [
       {
         "name": "@fndlalit",
@@ -912,10 +913,26 @@
         "url": "https://github.com/fndlalit"
       }
     ],
-    "notes": "This manifest contains only QE-focused skills. Claude Flow platform skills (agentdb, flow-nexus, github-*, swarm-*, hive-mind, etc.) are managed separately in the claude-flow package.",
+    "notes": "This manifest tracks 46 Tier 3 verified QE skills. The full skills library includes 103 skills on disk: 46 QE skills (this manifest) + 57 platform/integration skills (GitHub, AgentDB, Flow Nexus, n8n, v3 enhancements, swarm orchestration).",
+    "skillBreakdown": {
+      "qeSkillsInManifest": 46,
+      "platformSkillsOnDisk": 57,
+      "totalOnDisk": 103,
+      "categories": {
+        "github-integration": 5,
+        "agentdb": 5,
+        "flow-nexus": 3,
+        "n8n-workflow": 5,
+        "v3-enhancements": 9,
+        "swarm-orchestration": 4,
+        "reasoningbank": 2,
+        "automation-utilities": 6,
+        "other-platform": 18
+      }
+    },
     "excludedCategories": {
-      "reason": "These are Claude Flow platform skills, not QE skills",
-      "categories": ["agentdb", "orchestration", "github-integration", "flow-nexus", "meta"]
+      "reason": "Platform skills are available but not tracked in this QE-focused manifest",
+      "categories": ["agentdb", "orchestration", "github-integration", "flow-nexus", "meta", "v3-internal"]
     }
   }
 }
