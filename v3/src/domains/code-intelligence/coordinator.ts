@@ -118,6 +118,12 @@ import {
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 
+// ADR-058: Governance-aware mixin for MemoryWriteGate integration
+import {
+  GovernanceAwareDomainMixin,
+  createGovernanceAwareMixin,
+} from '../../coordination/mixins/governance-aware-domain.js';
+
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 import type { WeakVertex } from '../../coordination/mincut/interfaces';
 import type { ConsensusStats } from '../../coordination/mixins/consensus-enabled-domain';
@@ -314,6 +320,9 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
   // Domain identifier for mixin initialization
   private readonly domainName = 'code-intelligence';
 
+  // ADR-058: Governance mixin for MemoryWriteGate integration
+  private readonly governanceMixin: GovernanceAwareDomainMixin;
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -340,6 +349,9 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
       verifySeverities: ['critical', 'high'],
       enableLogging: false,
     });
+
+    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
+    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.knowledgeGraph = new KnowledgeGraphService(memory);
     this.semanticAnalyzer = new SemanticAnalyzerService(memory);

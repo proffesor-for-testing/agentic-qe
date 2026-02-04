@@ -69,6 +69,12 @@ import {
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 
+// ADR-058: Governance-aware mixin for MemoryWriteGate integration
+import {
+  GovernanceAwareDomainMixin,
+  createGovernanceAwareMixin,
+} from '../../coordination/mixins/governance-aware-domain.js';
+
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 
 import {
@@ -265,6 +271,9 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   // Coherence gate (ADR-052)
   private coherenceGate: TestGenerationCoherenceGate | null = null;
 
+  // ADR-058: Governance mixin for MemoryWriteGate integration
+  private readonly governanceMixin: GovernanceAwareDomainMixin;
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -313,6 +322,9 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
       verifySeverities: ['critical', 'high'],
       enableLogging: false,
     });
+
+    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
+    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
   }
 
   /**

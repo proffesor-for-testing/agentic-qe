@@ -86,6 +86,12 @@ import {
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain.js';
 
+// ADR-058: Governance-aware mixin for MemoryWriteGate integration
+import {
+  GovernanceAwareDomainMixin,
+  createGovernanceAwareMixin,
+} from '../../coordination/mixins/governance-aware-domain.js';
+
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
 
 import {
@@ -208,6 +214,9 @@ export class LearningOptimizationCoordinator
   // Domain identifier for mixin initialization
   private readonly domainName = 'learning-optimization';
 
+  // ADR-058: Governance mixin for MemoryWriteGate integration
+  private readonly governanceMixin: GovernanceAwareDomainMixin;
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -234,6 +243,9 @@ export class LearningOptimizationCoordinator
       verifySeverities: ['critical', 'high'],
       enableLogging: false,
     });
+
+    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
+    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.learningService = new LearningCoordinatorService({ memory });
     this.transferService = new TransferSpecialistService(memory);

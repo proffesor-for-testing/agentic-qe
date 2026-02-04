@@ -70,6 +70,12 @@ import {
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 
+// ADR-058: Governance-aware mixin for MemoryWriteGate integration
+import {
+  GovernanceAwareDomainMixin,
+  createGovernanceAwareMixin,
+} from '../../coordination/mixins/governance-aware-domain.js';
+
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 
 import {
@@ -171,6 +177,9 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
   // Domain identifier for mixin initialization
   private readonly domainName = 'visual-accessibility';
 
+  // ADR-058: Governance mixin for MemoryWriteGate integration
+  private readonly governanceMixin: GovernanceAwareDomainMixin;
+
   private initialized = false;
 
   constructor(
@@ -207,6 +216,9 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
       verifySeverities: ['critical', 'high'],
       enableLogging: false,
     });
+
+    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
+    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.visualTester = createVisualTesterService(memory, visualConfig);
     this.accessibilityTester = new AccessibilityTesterService(memory, accessibilityConfig);

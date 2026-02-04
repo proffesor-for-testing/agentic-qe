@@ -97,6 +97,12 @@ import {
 } from '../../coordination/consensus/domain-findings';
 import type { ConsensusResult, ConsensusStats } from '../../coordination/consensus';
 
+// ADR-058: Governance-aware mixin for MemoryWriteGate integration
+import {
+  GovernanceAwareDomainMixin,
+  createGovernanceAwareMixin,
+} from '../../coordination/mixins/governance-aware-domain.js';
+
 /**
  * Interface for the quality assessment coordinator
  */
@@ -242,6 +248,9 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
   // Quality domain name for SONA
   private readonly domain: DomainName = 'quality-assessment';
 
+  // ADR-058: Governance mixin for MemoryWriteGate integration
+  private readonly governanceMixin: GovernanceAwareDomainMixin;
+
   // Cache of recent dream insights for quality assessment enhancement
   private recentDreamInsights: Array<{
     id: string;
@@ -291,6 +300,9 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       verifySeverities: ['critical', 'high'],
       enableLogging: false,
     });
+
+    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
+    this.governanceMixin = createGovernanceAwareMixin(this.domain);
   }
 
   /**

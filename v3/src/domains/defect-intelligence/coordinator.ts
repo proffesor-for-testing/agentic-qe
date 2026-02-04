@@ -66,6 +66,12 @@ import {
   type ConsensusResult,
 } from '../../coordination/consensus';
 
+// ADR-058: Governance-aware mixin for MemoryWriteGate integration
+import {
+  GovernanceAwareDomainMixin,
+  createGovernanceAwareMixin,
+} from '../../coordination/mixins/governance-aware-domain.js';
+
 /**
  * Interface for the defect intelligence coordinator
  */
@@ -155,6 +161,12 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
   // V3: Multi-model consensus mixin (MM-001)
   private readonly consensusMixin: ConsensusEnabledMixin;
 
+  // ADR-058: Governance mixin for MemoryWriteGate integration
+  private readonly governanceMixin: GovernanceAwareDomainMixin;
+
+  // Domain identifier for mixin initialization
+  private readonly domainName = 'defect-intelligence';
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -185,6 +197,9 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
       enableLogging: false,
       ...this.config.consensusConfig,
     });
+
+    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
+    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
   }
 
   /**
