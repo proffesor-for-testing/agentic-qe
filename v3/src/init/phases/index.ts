@@ -29,6 +29,7 @@ import { AssetsPhase } from './09-assets.js';
 import { WorkersPhase } from './10-workers.js';
 import { ClaudeMdPhase } from './11-claude-md.js';
 import { VerificationPhase } from './12-verification.js';
+import { GovernancePhase } from './13-governance.js';
 
 export { DetectionPhase, type DetectionResult } from './01-detection.js';
 export { AnalysisPhase } from './02-analysis.js';
@@ -42,6 +43,7 @@ export { AssetsPhase, type AssetsResult } from './09-assets.js';
 export { WorkersPhase, type WorkersResult } from './10-workers.js';
 export { ClaudeMdPhase, type ClaudeMdResult } from './11-claude-md.js';
 export { VerificationPhase, type VerificationResult } from './12-verification.js';
+export { GovernancePhase, type GovernanceResult } from './13-governance.js';
 
 // Phase instances
 export const detectionPhase = new DetectionPhase();
@@ -56,6 +58,7 @@ export const assetsPhase = new AssetsPhase();
 export const workersPhase = new WorkersPhase();
 export const claudeMdPhase = new ClaudeMdPhase();
 export const verificationPhase = new VerificationPhase();
+export const governancePhase = new GovernancePhase();
 
 /**
  * Get all default phases in order
@@ -71,6 +74,7 @@ export function getDefaultPhases() {
     hooksPhase,
     mcpPhase,
     assetsPhase,
+    governancePhase, // ADR-058: Governance ON by default (after assets, before workers)
     workersPhase,
     claudeMdPhase,
     verificationPhase,
