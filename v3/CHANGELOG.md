@@ -5,6 +5,19 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.1] - 2026-02-04
+
+### Security
+
+- **tar vulnerability fix** - Added `tar>=7.5.7` override to fix 6 HIGH severity Dependabot alerts
+  - Fixes: Hardlink Path Traversal, Unicode Ligature Race Condition, Symlink Poisoning
+  - `npm audit` now shows 0 vulnerabilities
+
+### Changed
+
+- **Documentation** - Added v3.5.0 release highlights to README.md and v3/README.md
+- **skills-manifest.json** - Updated to v1.3.0 with skill breakdown (67 QE skills)
+
 ## [3.5.0] - 2026-02-04
 
 ### 🎯 Highlights
