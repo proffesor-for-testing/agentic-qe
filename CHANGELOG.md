@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Governance ON by Default (ADR-058)** - @claude-flow/guidance integration provides invisible guardrails protecting AI agents from rule drift, runaway loops, memory corruption, and trust erosion
 - **QCSD 2.0 Complete Lifecycle** - All four phases implemented: Ideation → Refinement → Development → CI/CD Verification
-- **100+ Skills Library** - Updated from 63 to 100+ skills (46 QE Tier 3 + 57 platform/integration)
+- **67 QE Skills** - Updated from 63 to 67 QE skills (4 new: QCSD Refinement, Development, CI/CD swarms + compatibility-testing)
 - **Infrastructure Self-Healing Enterprise Edition (ADR-057)** - 12 enterprise error signatures (SAP, Salesforce, Payment Gateway)
 
 ### Added
@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Skills manifest** - Updated to v1.3.0 with totalSkillsOnDisk: 103
+- **Skills manifest** - Updated to v1.3.0 with totalQESkills: 67
 - **Documentation** - README, v3/README, release-verification updated with accurate skill counts
 - **CLAUDE.md** - Added auto-invocation rules for all 4 QCSD phases
 - **Grooming → Refinement** - Renamed across codebase (modern Scrum terminology)

@@ -17,7 +17,7 @@
 
 - **Governance ON by Default** - @claude-flow/guidance integration with 7 unbreakable QE invariants (ADR-058)
 - **QCSD 2.0 Complete Lifecycle** - All 4 phases: Ideation → Refinement → Development → CI/CD Verification
-- **100+ Skills Library** - 46 Tier 3 QE skills + 57 platform/integration skills (GitHub, n8n, AgentDB, Flow Nexus, v3 enhancements)
+- **67 QE Skills** - 4 new in v3.5.0 (QCSD Refinement, Development, CI/CD swarms + compatibility-testing)
 - **Infrastructure Self-Healing Enterprise** - 12 enterprise error signatures (SAP, Salesforce, Payment Gateway)
 
 ### What's New in v3.4.2
@@ -31,7 +31,7 @@
 - **A2A Protocol** - Google's agent-to-agent interoperability standard for cross-tool communication
 - **A2UI Components** - Unified UI combining AG-UI streaming with A2A event handling
 
-🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **100+ Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance** 
+🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **67 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance** 
 
 </div>
 
@@ -88,7 +88,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
-- ✅ **100+ Skills Library**: 46 Tier 3 QE skills + 57 platform/integration skills (GitHub, n8n, AgentDB, v3 enhancements)
+- ✅ **67 QE Skills**: 46 Tier 3 verified + 21 additional QE skills (QCSD swarms, n8n testing, qe-* domains)
 
 ---
 
@@ -156,7 +156,7 @@ V3 is built on **12 DDD Bounded Contexts**, each with dedicated agents and clear
 
 ### ✅ Skill Trust Tiers (v3.4.2)
 
-AQE includes **100+ skills** organized into QE skills (46 Tier 3 verified) and platform/integration skills. Trust tiers apply to core QE skills:
+AQE includes **67 QE skills** (46 Tier 3 verified + 21 additional). Trust tiers apply to core QE skills:
 
 | Tier | Badge | Count | Description |
 |------|-------|-------|-------------|
@@ -600,12 +600,12 @@ claude "Coordinate security audit across the monorepo:
 
 ---
 
-## 🎓 100+ Skills Library
+## 🎓 67 QE Skills
 
-V3 agents automatically apply relevant skills from the comprehensive skill library. Skills are organized into **QE Skills** (46 Tier 3 verified) and **Platform/Integration Skills** (57 additional).
+V3 agents automatically apply relevant skills from the comprehensive QE skill library.
 
 <details>
-<summary><b>View All 100+ Skills</b></summary>
+<summary><b>View All 67 QE Skills</b></summary>
 
 **Core Testing & Methodologies (12)**
 - agentic-quality-engineering - Core PACT principles for AI-powered QE
@@ -689,58 +689,6 @@ V3 agents automatically apply relevant skills from the comprehensive skill libra
 **Accessibility (2)**
 - a11y-ally - Comprehensive WCAG auditing with video captions and EU compliance
 - accessibility-testing - WCAG 2.2 compliance and screen reader validation
-
----
-
-### Platform & Integration Skills (57)
-
-**GitHub Integration (5)**
-- github-code-review - Automated code review workflows
-- github-multi-repo - Cross-repository coordination and sync
-- github-project-management - Project board automation
-- github-release-management - Release orchestration and versioning
-- github-workflow-automation - GitHub Actions CI/CD automation
-
-**AgentDB & Memory (5)**
-- agentdb-advanced - Advanced AgentDB features and patterns
-- agentdb-learning - AI learning plugins for AgentDB
-- agentdb-memory-patterns - Persistent memory pattern implementation
-- agentdb-optimization - AgentDB performance optimization
-- agentdb-vector-search - Semantic vector search with HNSW
-
-**Flow Nexus Platform (3)**
-- flow-nexus-platform - Comprehensive Flow Nexus platform operations
-- flow-nexus-neural - Neural network training and deployment
-- flow-nexus-swarm - Cloud-based AI swarm deployment
-
-**Swarm Orchestration (4)**
-- swarm-orchestration - Multi-agent swarm coordination
-- swarm-advanced - Advanced swarm patterns and topologies
-- hive-mind-advanced - Collective intelligence coordination
-- sparc-methodology - SPARC development methodology
-
-**ReasoningBank & Learning (2)**
-- reasoningbank-agentdb - ReasoningBank with AgentDB integration
-- reasoningbank-intelligence - Adaptive learning with trajectory tracking
-
-**V3 Enhancement Skills (9)**
-- v3-cli-modernization - CLI modernization and hooks system
-- v3-core-implementation - Core module implementation
-- v3-ddd-architecture - Domain-Driven Design architecture
-- v3-integration-deep - Deep agentic-flow integration
-- v3-mcp-optimization - MCP server optimization
-- v3-memory-unification - Unified memory service (ADR-006/009)
-- v3-performance-optimization - Performance targets (2.49x-7.47x speedup)
-- v3-security-overhaul - Security architecture overhaul
-- v3-swarm-coordination - 15-agent hierarchical mesh coordination
-
-**Automation & Utilities (6)**
-- hooks-automation - Automated coordination and formatting
-- iterative-loop - Continuous AI iteration patterns
-- stream-chain - Stream-JSON chaining for multi-agent flows
-- skill-builder - Create new Claude Code skills
-- agentic-jujutsu - Quantum-resistant self-learning validation
-- performance-analysis - Comprehensive performance profiling
 
 </details>
 

@@ -69,8 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Grooming → Refinement** - Renamed QCSD "Grooming" phase to "Refinement" across entire codebase (modern Scrum terminology)
-- **skills-manifest.json** - Updated to v1.3.0 with totalSkillsOnDisk: 103 and full skill breakdown
-- **Documentation Updates** - Updated README, v3/README, and release-verification with accurate skill counts (100+ skills: 46 QE + 57 platform)
+- **skills-manifest.json** - Updated to v1.3.0 with totalQESkills: 67 and full skill breakdown
+- **Documentation Updates** - Updated README, v3/README, and release-verification with accurate skill counts (67 QE skills)
 - **CLAUDE.md** - Added auto-invocation rules for all 4 QCSD phases
 - **SwarmVulnerability type** - Extended with 6 enterprise vulnerability types
 - **ToolCategory type** - Added 'infra-healing' category
