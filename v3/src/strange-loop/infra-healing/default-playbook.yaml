@@ -146,3 +146,77 @@ services:
       timeoutMs: 5000
     maxRetries: 3
     backoffMs: [3000, 5000, 10000]
+
+  # ========================================================================
+  # Enterprise: SAP Services
+  # ========================================================================
+
+  sap-rfc:
+    description: "SAP RFC/BAPI connection gateway"
+    healthCheck:
+      command: "curl -sf http://${SAP_HOST:-localhost}:${SAP_ICM_PORT:-8000}/sap/bc/ping -o /dev/null"
+      timeoutMs: 10000
+    recover:
+      - command: "docker compose restart sap-rfc-connector"
+        timeoutMs: 60000
+      - command: "sleep 10"
+        timeoutMs: 15000
+        required: false
+    verify:
+      command: "curl -sf http://${SAP_HOST:-localhost}:${SAP_ICM_PORT:-8000}/sap/bc/ping -o /dev/null"
+      timeoutMs: 10000
+    maxRetries: 2
+    backoffMs: [5000, 15000]
+
+  sap-btp:
+    description: "SAP BTP cloud services"
+    healthCheck:
+      command: "curl -sf https://${BTP_HOST:-localhost}:${BTP_PORT:-443}/health -o /dev/null"
+      timeoutMs: 15000
+    recover:
+      - command: "docker compose restart sap-btp-proxy"
+        timeoutMs: 60000
+    verify:
+      command: "curl -sf https://${BTP_HOST:-localhost}:${BTP_PORT:-443}/health -o /dev/null"
+      timeoutMs: 15000
+    maxRetries: 2
+    backoffMs: [10000, 30000]
+
+  # ========================================================================
+  # Enterprise: Salesforce
+  # ========================================================================
+
+  salesforce:
+    description: "Salesforce API connection"
+    healthCheck:
+      command: "curl -sf https://${SF_INSTANCE:-login.salesforce.com}/services/data/ -o /dev/null -w '%{http_code}'"
+      timeoutMs: 10000
+    recover:
+      - command: "docker compose restart salesforce-connector"
+        timeoutMs: 45000
+    verify:
+      command: "curl -sf https://${SF_INSTANCE:-login.salesforce.com}/services/data/ -o /dev/null -w '%{http_code}'"
+      timeoutMs: 10000
+    maxRetries: 3
+    backoffMs: [5000, 15000, 30000]
+
+  # ========================================================================
+  # Enterprise: Payment Gateway
+  # ========================================================================
+
+  payment-gateway:
+    description: "Payment gateway service (Stripe, PayPal, Adyen, etc.)"
+    healthCheck:
+      command: "curl -sf http://${PAYMENT_HOST:-localhost}:${PAYMENT_PORT:-8443}/health -o /dev/null"
+      timeoutMs: 10000
+    recover:
+      - command: "docker compose restart payment-gateway"
+        timeoutMs: 45000
+      - command: "sleep 5"
+        timeoutMs: 10000
+        required: false
+    verify:
+      command: "curl -sf http://${PAYMENT_HOST:-localhost}:${PAYMENT_PORT:-8443}/health -o /dev/null"
+      timeoutMs: 10000
+    maxRetries: 3
+    backoffMs: [5000, 10000, 20000]

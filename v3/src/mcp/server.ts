@@ -595,7 +595,7 @@ const CROSS_PHASE_TOOLS: Array<{ definition: ToolDefinition; handler: Function }
       description: 'Trigger phase start hooks to get injected cross-phase signals for agents',
       category: 'cross-phase',
       parameters: [
-        { name: 'phase', type: 'string', description: 'QCSD phase name', required: true, enum: ['ideation', 'grooming', 'development', 'cicd', 'production'] },
+        { name: 'phase', type: 'string', description: 'QCSD phase name', required: true, enum: ['ideation', 'refinement', 'development', 'cicd', 'production'] },
         { name: 'context', type: 'object', description: 'Phase context data', required: false },
       ],
     },
@@ -609,7 +609,7 @@ const CROSS_PHASE_TOOLS: Array<{ definition: ToolDefinition; handler: Function }
       description: 'Trigger phase end hooks to store accumulated signals',
       category: 'cross-phase',
       parameters: [
-        { name: 'phase', type: 'string', description: 'QCSD phase name', required: true, enum: ['ideation', 'grooming', 'development', 'cicd', 'production'] },
+        { name: 'phase', type: 'string', description: 'QCSD phase name', required: true, enum: ['ideation', 'refinement', 'development', 'cicd', 'production'] },
         { name: 'context', type: 'object', description: 'Phase result data', required: false },
       ],
     },

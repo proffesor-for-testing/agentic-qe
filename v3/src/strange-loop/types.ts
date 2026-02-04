@@ -155,7 +155,10 @@ export interface SwarmVulnerability {
     // ADR-057: Infrastructure self-healing vulnerability types
     | 'db_connection_failure' | 'service_unreachable' | 'dns_resolution_failure'
     | 'port_bind_failure' | 'out_of_memory' | 'disk_full'
-    | 'certificate_expired' | 'infra_timeout';
+    | 'certificate_expired' | 'infra_timeout'
+    // ADR-057: Enterprise infrastructure vulnerability types
+    | 'sap_rfc_failure' | 'sap_system_failure' | 'sap_btp_failure'
+    | 'api_rate_limit' | 'auth_token_expired' | 'payment_gateway_timeout';
 
   /** Severity (0-1) */
   severity: number;

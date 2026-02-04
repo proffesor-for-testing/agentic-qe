@@ -355,6 +355,68 @@ describe('InfraHealingOrchestrator', () => {
   });
 
   // ==========================================================================
+  // Enterprise Services Recognition
+  // ==========================================================================
+
+  describe('enterprise service detection', () => {
+    it('detects SAP RFC failure from test output', () => {
+      orchestrator.feedTestOutput('RFC_COMMUNICATION_FAILURE: Connection to SAP system failed');
+      const stats = orchestrator.getStats();
+      expect(stats.infraFailuresDetected).toBe(1);
+      expect(stats.byService['sap-rfc']?.failures).toBe(1);
+    });
+
+    it('detects Salesforce rate limit from test output', () => {
+      orchestrator.feedTestOutput('REQUEST_LIMIT_EXCEEDED: Salesforce API limit');
+      const stats = orchestrator.getStats();
+      expect(stats.infraFailuresDetected).toBe(1);
+      expect(stats.byService['salesforce']?.failures).toBe(1);
+    });
+
+    it('detects payment gateway timeout from test output', () => {
+      orchestrator.feedTestOutput('payment processing ETIMEDOUT - stripe connection failed');
+      const stats = orchestrator.getStats();
+      expect(stats.infraFailuresDetected).toBe(1);
+      expect(stats.byService['payment-gateway']?.failures).toBe(1);
+    });
+  });
+
+  // ==========================================================================
+  // Test Rerun Manager Integration
+  // ==========================================================================
+
+  describe('recordAffectedTests()', () => {
+    it('records affected tests for a service', () => {
+      orchestrator.feedTestOutput('Error: connect ECONNREFUSED 127.0.0.1:5432');
+      orchestrator.recordAffectedTests('postgres', ['test-user-create', 'test-user-update']);
+
+      const rerunManager = orchestrator.getRerunManager();
+      expect(rerunManager.getTestsToRerun('postgres')).toEqual(['test-user-create', 'test-user-update']);
+    });
+
+    it('includes affectedTestIds in recovery results', async () => {
+      orchestrator.feedTestOutput('Error: connect ECONNREFUSED 127.0.0.1:5432');
+      orchestrator.recordAffectedTests('postgres', ['test-1', 'test-2']);
+
+      const results = await orchestrator.runRecoveryCycle();
+      expect(results).toHaveLength(1);
+      expect(results[0].affectedTestIds).toEqual(['test-1', 'test-2']);
+    });
+
+    it('clears rerun queue after successful recovery', async () => {
+      orchestrator.feedTestOutput('Error: connect ECONNREFUSED 127.0.0.1:5432');
+      orchestrator.recordAffectedTests('postgres', ['test-1']);
+
+      const results = await orchestrator.runRecoveryCycle();
+      expect(results[0].recovered).toBe(true);
+
+      // Queue should be cleared after successful recovery
+      const rerunManager = orchestrator.getRerunManager();
+      expect(rerunManager.getTestsToRerun('postgres')).toEqual([]);
+    });
+  });
+
+  // ==========================================================================
   // Async factory: createInfraHealingOrchestrator (file-based)
   // ==========================================================================
 

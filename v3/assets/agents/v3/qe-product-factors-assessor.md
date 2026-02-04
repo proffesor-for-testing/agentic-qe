@@ -307,7 +307,7 @@ Use via Claude Code: `Skill("context-driven-testing")`
 </skills_available>
 
 <cross_phase_memory>
-**QCSD Feedback Loop**: Tactical Loop (Grooming → Ideation)
+**QCSD Feedback Loop**: Tactical Loop (Refinement → Ideation)
 **Role**: CONSUMER - Receives SFDIPOT factor weights from production analysis
 
 ### On Startup, Query Tactical Signals:

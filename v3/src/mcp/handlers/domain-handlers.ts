@@ -261,6 +261,139 @@ export const handleCodeIndex = createDomainHandler<CodeIndexParams, CodeIndexRes
 );
 
 // ============================================================================
+// ADR-057: Infrastructure Self-Healing Handlers
+// ============================================================================
+
+import type {
+  InfraHealingOrchestrator,
+} from '../../strange-loop/infra-healing/infra-healing-orchestrator.js';
+import {
+  setGlobalInfraHealing,
+  getGlobalInfraHealing,
+} from '../../strange-loop/infra-healing/global-instance.js';
+
+/**
+ * Set the infra-healing orchestrator instance (called during MCP server init).
+ * Delegates to the shared global accessor so both MCP and domain layers can access it.
+ */
+export function setInfraHealingOrchestrator(orchestrator: InfraHealingOrchestrator): void {
+  setGlobalInfraHealing(orchestrator);
+}
+
+/**
+ * Get infra-healing stats, failing services, and last observation.
+ */
+export async function handleInfraHealingStatus(params: { verbose?: boolean }): Promise<ToolResult> {
+  const infraHealing = getGlobalInfraHealing();
+  if (!infraHealing) {
+    return { success: false, error: 'Infrastructure healing not initialized' };
+  }
+
+  const stats = infraHealing.getStats();
+  const observer = infraHealing.getObserver();
+  const failingServices = [...observer.getFailingServices()];
+  const rerunManager = infraHealing.getRerunManager();
+
+  const result: Record<string, unknown> = {
+    ready: infraHealing.isReady(),
+    stats,
+    failingServices,
+    pendingReruns: rerunManager.hasPendingReruns(),
+    pendingRerunCount: rerunManager.getPendingRerunCount(),
+    servicesWithPendingReruns: rerunManager.getServicesWithPendingReruns(),
+  };
+
+  if (params.verbose) {
+    const lastObs = observer.getLastObservation();
+    if (lastObs) {
+      result.lastObservation = {
+        id: lastObs.id,
+        totalLinesParsed: lastObs.totalLinesParsed,
+        infraFailureCount: lastObs.infraFailures.length,
+        vulnerabilityCount: lastObs.vulnerabilities.length,
+        observedAt: lastObs.observedAt,
+        parsingDurationMs: lastObs.parsingDurationMs,
+      };
+    }
+  }
+
+  return { success: true, data: result };
+}
+
+/**
+ * Feed test runner output for infrastructure error detection.
+ */
+export async function handleInfraHealingFeedOutput(params: { output: string }): Promise<ToolResult> {
+  const infraHealing = getGlobalInfraHealing();
+  if (!infraHealing) {
+    return { success: false, error: 'Infrastructure healing not initialized' };
+  }
+
+  if (!params.output) {
+    return { success: false, error: 'Missing required parameter: output' };
+  }
+
+  infraHealing.feedTestOutput(params.output);
+
+  const observer = infraHealing.getObserver();
+  const lastObs = observer.getLastObservation();
+
+  return {
+    success: true,
+    data: {
+      infraFailuresDetected: lastObs?.infraFailures.length ?? 0,
+      failingServices: [...observer.getFailingServices()],
+      vulnerabilities: lastObs?.vulnerabilities.map(v => ({
+        type: v.type,
+        severity: v.severity,
+        affectedAgents: v.affectedAgents,
+        description: v.description,
+      })) ?? [],
+    },
+  };
+}
+
+/**
+ * Trigger infrastructure recovery cycle for detected failures.
+ */
+export async function handleInfraHealingRecover(params: {
+  services?: string[];
+  rerunTests?: boolean;
+}): Promise<ToolResult> {
+  const infraHealing = getGlobalInfraHealing();
+  if (!infraHealing) {
+    return { success: false, error: 'Infrastructure healing not initialized' };
+  }
+
+  const results = await infraHealing.runRecoveryCycle();
+
+  // Optionally filter to requested services
+  const filtered = params.services?.length
+    ? results.filter(r => params.services!.includes(r.serviceName))
+    : results;
+
+  return {
+    success: true,
+    data: {
+      recoveryResults: filtered.map(r => ({
+        serviceName: r.serviceName,
+        recovered: r.recovered,
+        totalAttempts: r.totalAttempts,
+        totalDurationMs: r.totalDurationMs,
+        escalated: r.escalated,
+        affectedTestIds: r.affectedTestIds,
+      })),
+      summary: {
+        attempted: filtered.length,
+        succeeded: filtered.filter(r => r.recovered).length,
+        failed: filtered.filter(r => !r.recovered).length,
+        testsToRerun: filtered.flatMap(r => [...r.affectedTestIds]),
+      },
+    },
+  };
+}
+
+// ============================================================================
 // Handler Registry (for dynamic dispatch)
 // ============================================================================
 

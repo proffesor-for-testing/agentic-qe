@@ -7,7 +7,9 @@
       ],
       "env": {
         "NODE_ENV": "production",
-        "NODE_NO_WARNINGS": "1"
+        "NODE_NO_WARNINGS": "1",
+        "AQE_MEMORY_PATH": "v3/.agentic-qe/memory.db",
+        "AQE_LEARNING_ENABLED": "true"
       }
     },
     "agentic-qe": {
