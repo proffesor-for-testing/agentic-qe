@@ -1,0 +1,19 @@
+{
+  "name": "adidas-order-to-cash-demo",
+  "version": "1.0.0",
+  "description": "Adidas Order-to-Cash E2E demo with 7 mock services",
+  "type": "module",
+  "scripts": {
+    "start": "npx tsx services/start-all.ts",
+    "demo": "npx tsx run-demo.ts",
+    "demo:auto": "npx tsx run-demo.ts --auto",
+    "test:e2e": "npx playwright test tests/order-to-cash.e2e.ts",
+    "build": "tsc --outDir dist"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "@playwright/test": "^1.48.0"
+  }
+}

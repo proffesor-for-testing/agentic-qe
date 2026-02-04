@@ -1,0 +1,123 @@
+##
+## Adidas Order-to-Cash — 7 Mock Services
+##
+## Usage:
+##   docker compose up -d          # Start all services
+##   docker compose stop sap-s4    # Kill SAP to trigger failure
+##   docker compose restart sap-s4 # Recover SAP
+##   docker compose down           # Stop everything
+##
+
+services:
+  integrator-web:
+    build: .
+    environment:
+      SERVICE_FILE: integrator-web.ts
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      api-tester:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api-tester:
+    build: .
+    environment:
+      SERVICE_FILE: api-tester.ts
+    ports:
+      - "3002:3002"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3002/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      omni:
+        condition: service_healthy
+    restart: unless-stopped
+
+  omni:
+    build: .
+    environment:
+      SERVICE_FILE: omni.ts
+    ports:
+      - "3003:3003"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3003/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      iib-esb:
+        condition: service_healthy
+      wms:
+        condition: service_healthy
+      sap-s4:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
+    restart: unless-stopped
+
+  iib-esb:
+    build: .
+    environment:
+      SERVICE_FILE: iib-esb.ts
+    ports:
+      - "3004:3004"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3004/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  wms:
+    build: .
+    environment:
+      SERVICE_FILE: wms.ts
+    ports:
+      - "3005:3005"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3005/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  sap-s4:
+    build: .
+    environment:
+      SERVICE_FILE: sap-s4.ts
+    ports:
+      - "3006:3006"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3006/sap/bc/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  kibana:
+    build: .
+    environment:
+      SERVICE_FILE: kibana.ts
+    ports:
+      - "3007:3007"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3007/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped

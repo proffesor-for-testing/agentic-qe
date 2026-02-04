@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adidas Order-to-Cash E2E Demo Walkthrough</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --orange: #d29922;
+    --purple: #bc8cff;
+    --cyan: #39d2c0;
+    --pink: #f778ba;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0;
+  }
+
+  /* Header */
+  .hero {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 3rem 2rem;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: 2.4rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--accent), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero .subtitle {
+    color: var(--text-dim);
+    font-size: 1.1rem;
+    margin-bottom: 1.5rem;
+  }
+  .hero .badges {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); border-color: rgba(88,166,255,0.3); }
+  .badge-green { background: rgba(63,185,80,0.15); color: var(--green); border-color: rgba(63,185,80,0.3); }
+  .badge-purple { background: rgba(188,140,255,0.15); color: var(--purple); border-color: rgba(188,140,255,0.3); }
+  .badge-cyan { background: rgba(57,210,192,0.15); color: var(--cyan); border-color: rgba(57,210,192,0.3); }
+
+  /* Layout */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+
+  /* Pipeline Diagram */
+  .pipeline-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+  .pipeline-section h2 {
+    font-size: 1.3rem;
+    margin-bottom: 1.5rem;
+    color: var(--accent);
+  }
+  .pipeline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    padding: 1rem 0;
+  }
+  .pipeline-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.3s;
+    cursor: pointer;
+    position: relative;
+  }
+  .pipeline-node:hover {
+    transform: translateY(-4px);
+  }
+  .pipeline-node .icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    border: 2px solid var(--border);
+    background: var(--surface2);
+    transition: all 0.3s;
+  }
+  .pipeline-node.active .icon {
+    border-color: var(--green);
+    box-shadow: 0 0 12px rgba(63,185,80,0.3);
+  }
+  .pipeline-node.failed .icon {
+    border-color: var(--red);
+    box-shadow: 0 0 12px rgba(248,81,73,0.3);
+    animation: pulse-red 2s infinite;
+  }
+  .pipeline-node.recovered .icon {
+    border-color: var(--cyan);
+    box-shadow: 0 0 12px rgba(57,210,192,0.3);
+    animation: glow-cyan 2s infinite;
+  }
+  .pipeline-node .label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-align: center;
+    max-width: 70px;
+  }
+  .pipeline-node .port {
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    opacity: 0.6;
+  }
+  .pipeline-arrow {
+    color: var(--text-dim);
+    font-size: 1.2rem;
+    margin: 0 0.3rem;
+    opacity: 0.5;
+  }
+  .pipeline-arrow.broken {
+    color: var(--red);
+    opacity: 1;
+    animation: flash 1s infinite;
+  }
+
+  @keyframes pulse-red {
+    0%, 100% { box-shadow: 0 0 8px rgba(248,81,73,0.2); }
+    50% { box-shadow: 0 0 20px rgba(248,81,73,0.5); }
+  }
+  @keyframes glow-cyan {
+    0%, 100% { box-shadow: 0 0 8px rgba(57,210,192,0.2); }
+    50% { box-shadow: 0 0 16px rgba(57,210,192,0.4); }
+  }
+  @keyframes flash {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  /* Interactive Controls */
+  .controls {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .btn {
+    padding: 0.5rem 1.2rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+  .btn:hover { border-color: var(--accent); background: rgba(88,166,255,0.1); }
+  .btn.active { border-color: var(--accent); background: rgba(88,166,255,0.15); color: var(--accent); }
+  .btn-green { border-color: rgba(63,185,80,0.4); }
+  .btn-green:hover { border-color: var(--green); background: rgba(63,185,80,0.1); }
+  .btn-red { border-color: rgba(248,81,73,0.4); }
+  .btn-red:hover { border-color: var(--red); background: rgba(248,81,73,0.1); }
+  .btn-cyan { border-color: rgba(57,210,192,0.4); }
+  .btn-cyan:hover { border-color: var(--cyan); background: rgba(57,210,192,0.1); }
+
+  /* Steps */
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+  .step:hover { border-color: rgba(88,166,255,0.3); }
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.2rem 1.5rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+  }
+  .step-header:hover { background: var(--surface2); }
+
+  .step-number {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    border: 2px solid var(--border);
+    background: var(--surface2);
+    transition: all 0.3s;
+  }
+  .step.open .step-number {
+    border-color: var(--accent);
+    background: rgba(88,166,255,0.15);
+    color: var(--accent);
+  }
+
+  .step-title {
+    flex: 1;
+    font-weight: 600;
+    font-size: 1.05rem;
+  }
+  .step-tag {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+  .tag-success { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tag-failure { background: rgba(248,81,73,0.15); color: var(--red); }
+  .tag-healing { background: rgba(57,210,192,0.15); color: var(--cyan); }
+  .tag-detect { background: rgba(210,153,34,0.15); color: var(--orange); }
+  .tag-info { background: rgba(88,166,255,0.15); color: var(--accent); }
+
+  .step-chevron {
+    font-size: 1.2rem;
+    color: var(--text-dim);
+    transition: transform 0.3s;
+    flex-shrink: 0;
+  }
+  .step.open .step-chevron { transform: rotate(180deg); }
+
+  .step-body {
+    display: none;
+    padding: 0 1.5rem 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .step.open .step-body { display: block; }
+
+  /* Two-column layout inside steps */
+  .dual-view {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+  @media (max-width: 700px) {
+    .dual-view { grid-template-columns: 1fr; }
+  }
+
+  .view-panel {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+  }
+  .view-panel h4 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .view-panel.user h4 { color: var(--accent); }
+  .view-panel.system h4 { color: var(--cyan); }
+
+  .view-panel ul {
+    list-style: none;
+    padding: 0;
+  }
+  .view-panel li {
+    padding: 0.3rem 0;
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    position: relative;
+    padding-left: 1.2rem;
+  }
+  .view-panel li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.65rem;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .view-panel.user li::before { background: var(--accent); }
+  .view-panel.system li::before { background: var(--cyan); }
+
+  /* Code blocks */
+  .code-block {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.8rem 1rem;
+    margin: 0.8rem 0;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+  .code-block .green { color: var(--green); }
+  .code-block .red { color: var(--red); }
+  .code-block .blue { color: var(--accent); }
+  .code-block .cyan { color: var(--cyan); }
+  .code-block .dim { color: #484f58; }
+  .code-block .orange { color: var(--orange); }
+
+  /* Call chain */
+  .call-chain {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    margin: 0.8rem 0;
+    font-size: 0.8rem;
+    font-family: 'SF Mono', monospace;
+  }
+  .call-chain .node {
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    background: rgba(88,166,255,0.1);
+    color: var(--accent);
+    border: 1px solid rgba(88,166,255,0.2);
+  }
+  .call-chain .node.fail {
+    background: rgba(248,81,73,0.1);
+    color: var(--red);
+    border-color: rgba(248,81,73,0.2);
+  }
+  .call-chain .node.heal {
+    background: rgba(57,210,192,0.1);
+    color: var(--cyan);
+    border-color: rgba(57,210,192,0.2);
+  }
+  .call-chain .arrow { color: var(--text-dim); }
+  .call-chain .arrow.broken { color: var(--red); }
+
+  /* Summary table */
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+  }
+  .summary-table th {
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+  }
+  .summary-table td {
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .summary-table tr:hover td {
+    background: rgba(88,166,255,0.03);
+  }
+
+  /* Inline status indicators */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .status-green .status-dot { background: var(--green); }
+  .status-red .status-dot { background: var(--red); }
+  .status-orange .status-dot { background: var(--orange); }
+  .status-cyan .status-dot { background: var(--cyan); }
+
+  /* Note callouts */
+  .callout {
+    border-left: 3px solid;
+    padding: 0.8rem 1rem;
+    margin: 0.8rem 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.85rem;
+  }
+  .callout-info { border-color: var(--accent); background: rgba(88,166,255,0.05); }
+  .callout-warning { border-color: var(--orange); background: rgba(210,153,34,0.05); }
+  .callout-success { border-color: var(--green); background: rgba(63,185,80,0.05); }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    border-top: 1px solid var(--border);
+    margin-top: 2rem;
+  }
+
+  /* Expand All / Collapse All */
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .toolbar .btn {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.8rem;
+  }
+
+  /* Phase separator */
+  .phase {
+    text-align: center;
+    padding: 1rem 0;
+    position: relative;
+    margin: 1.5rem 0 1rem;
+  }
+  .phase::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--border);
+  }
+  .phase span {
+    position: relative;
+    background: var(--bg);
+    padding: 0 1rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+  }
+
+  /* Transition progress bar */
+  .progress-bar {
+    display: flex;
+    gap: 2px;
+    margin: 1rem 0;
+  }
+  .progress-segment {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background 0.5s;
+  }
+  .progress-segment.done { background: var(--green); }
+  .progress-segment.fail { background: var(--red); }
+  .progress-segment.heal { background: var(--cyan); }
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<header class="hero">
+  <h1>Adidas Order-to-Cash E2E Demo</h1>
+  <p class="subtitle">Agentic QE v3 &mdash; End-to-End Testing + Infrastructure Self-Healing</p>
+  <div class="badges">
+    <span class="badge badge-blue">7 Systems</span>
+    <span class="badge badge-green">E2E Testing</span>
+    <span class="badge badge-purple">Strange Loop</span>
+    <span class="badge badge-cyan">Self-Healing</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Interactive Pipeline Diagram -->
+  <div class="pipeline-section">
+    <h2>System Pipeline</h2>
+    <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 1rem;">
+      Click the buttons below to see how the pipeline looks at each phase of the demo.
+    </p>
+    <div class="pipeline" id="pipeline">
+      <div class="pipeline-node active" data-service="integrator" id="node-integrator">
+        <div class="icon">&#x1F6D2;</div>
+        <span class="label">Integrator Web</span>
+        <span class="port">:3001</span>
+      </div>
+      <span class="pipeline-arrow" id="arrow-1">&rarr;</span>
+      <div class="pipeline-node active" data-service="api" id="node-api">
+        <div class="icon">&#x1F310;</div>
+        <span class="label">API Tester</span>
+        <span class="port">:3002</span>
+      </div>
+      <span class="pipeline-arrow" id="arrow-2">&rarr;</span>
+      <div class="pipeline-node active" data-service="omni" id="node-omni">
+        <div class="icon">&#x2699;&#xFE0F;</div>
+        <span class="label">OMNI</span>
+        <span class="port">:3003</span>
+      </div>
+      <span class="pipeline-arrow" id="arrow-3">&rarr;</span>
+      <div class="pipeline-node active" data-service="iib" id="node-iib">
+        <div class="icon">&#x1F504;</div>
+        <span class="label">IIB ESB</span>
+        <span class="port">:3004</span>
+      </div>
+      <span class="pipeline-arrow" id="arrow-4">&rarr;</span>
+      <div class="pipeline-node active" data-service="wms" id="node-wms">
+        <div class="icon">&#x1F4E6;</div>
+        <span class="label">WMS</span>
+        <span class="port">:3005</span>
+      </div>
+      <span class="pipeline-arrow" id="arrow-5">&rarr;</span>
+      <div class="pipeline-node active" data-service="sap" id="node-sap">
+        <div class="icon">&#x1F4CA;</div>
+        <span class="label">SAP S/4</span>
+        <span class="port">:3006</span>
+      </div>
+      <span class="pipeline-arrow" id="arrow-6">&rarr;</span>
+      <div class="pipeline-node active" data-service="kibana" id="node-kibana">
+        <div class="icon">&#x1F4C8;</div>
+        <span class="label">Kibana</span>
+        <span class="port">:3007</span>
+      </div>
+    </div>
+    <div class="progress-bar" id="progress-bar">
+      <div class="progress-segment done"></div>
+      <div class="progress-segment done"></div>
+      <div class="progress-segment done"></div>
+      <div class="progress-segment done"></div>
+      <div class="progress-segment done"></div>
+      <div class="progress-segment done"></div>
+      <div class="progress-segment done"></div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-green active" onclick="setPipelineState('healthy')">All Healthy</button>
+      <button class="btn btn-red" onclick="setPipelineState('failed')">SAP Failed</button>
+      <button class="btn btn-cyan" onclick="setPipelineState('recovered')">Recovered</button>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="btn" onclick="expandAll()">Expand All</button>
+    <button class="btn" onclick="collapseAll()">Collapse All</button>
+  </div>
+
+  <!-- PHASE 1: Setup & Happy Path -->
+  <div class="phase"><span>Phase 1 &mdash; Setup &amp; Happy Path</span></div>
+
+  <!-- Step 1 -->
+  <div class="step open" id="step-1">
+    <div class="step-header" onclick="toggleStep(1)">
+      <div class="step-number">1</div>
+      <div class="step-title">Start All 7 Services</div>
+      <span class="step-tag tag-info">Setup</span>
+      <span class="step-chevron">&#9660;</span>
+    </div>
+    <div class="step-body">
+      <div class="dual-view">
+        <div class="view-panel user">
+          <h4>&#x1F464; End User Perspective</h4>
+          <ul>
+            <li>Console shows colored output as each service boots</li>
+            <li>Each service prints a green checkmark when ready</li>
+            <li>All 7 systems confirmed running in under 2 seconds</li>
+          </ul>
+        </div>
+        <div class="view-panel system">
+          <h4>&#x1F527; Under the Hood</h4>
+          <ul>
+            <li>Node.js HTTP servers start on ports 3001-3007</li>
+            <li>Each extends <code>BaseMockService</code> with domain endpoints</li>
+            <li>Services register <code>/health</code>, <code>/admin/fail</code>, <code>/admin/recover</code></li>
+            <li>All requests are logged and tracked for assertions</li>
+          </ul>
+        </div>
+      </div>
+      <div class="code-block">
+<span class="dim">$</span> <span class="blue">npx tsx run-demo.ts --auto</span>
+<span class="green">&#10003;</span> integrator-web started on port 3001
+<span class="green">&#10003;</span> api-tester started on port 3002
+<span class="dim">... (all 7 services)</span>
+<span class="green">&#10003;</span> kibana started on port 3007
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="step" id="step-2">
+    <div class="step-header" onclick="toggleStep(2)">
+      <div class="step-number">2</div>
+      <div class="step-title">Verify System Health</div>
+      <span class="step-tag tag-success">All Green</span>
+      <span class="step-chevron">&#9660;</span>
+    </div>
+    <div class="step-body">
+      <div class="dual-view">
+        <div class="view-panel user">
+          <h4>&#x1F464; End User Perspective</h4>
+          <ul>
+            <li>Each service is polled with a health check</li>
+            <li>Green checkmarks appear one-by-one as each responds</li>
+            <li>All 7 systems confirmed healthy before proceeding</li>
+          </ul>
+        </div>
+        <div class="view-panel system">
+          <h4>&#x1F527; Under the Hood</h4>
+          <ul>
+            <li><code>GET /health</code> sent to each port</li>
+            <li>Retries up to 10 times with 500ms delay</li>
+            <li>Health endpoint returns <code>{ status: "ok", service: "name" }</code></li>
+            <li>500ms buffer added after all pass to ensure stability</li>
+          </ul>
+        </div>
+      </div>
+      <div class="code-block">
+<span class="green">&#10003;</span> integrator-web (port 3001) &mdash; healthy
+<span class="green">&#10003;</span> api-tester (port 3002) &mdash; healthy
+<span class="green">&#10003;</span> omni (port 3003) &mdash; healthy
+<span class="green">&#10003;</span> iib-esb (port 3004) &mdash; healthy
+<span class="green">&#10003;</span> wms (port 3005) &mdash; healthy
+<span class="green">&#10003;</span> sap-s4 (port 3006) &mdash; healthy
+<span class="green">&#10003;</span> kibana (port 3007) &mdash; healthy
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="step" id="step-3">
+    <div class="step-header" onclick="toggleStep(3)">
+      <div class="step-number">3</div>
+      <div class="step-title">Generate Test Data</div>
+      <span class="step-tag tag-info">Data</span>
+      <span class="step-chevron">&#9660;</span>
+    </div>
+    <div class="step-body">
+      <div class="dual-view">
+        <div class="view-panel user">
+          <h4>&#x1F464; End User Perspective</h4>
+          <ul>
+            <li>Realistic Adidas customer data appears in console</li>
+            <li>German address, real product names, EUR pricing</li>
+            <li>Data looks production-like, not random strings</li>
+          </ul>
+        </div>
+        <div class="view-panel system">
+          <h4>&#x1F527; Under the Hood</h4>
+          <ul>
+            <li><code>TestDataGeneratorService</code> from Agentic QE v3 generates all fields</li>
+            <li>Products use the fixtures catalog: Ultraboost, Jersey, Bag</li>
+            <li><code>buildOrder()</code> creates an order with unique ID, line items, totals</li>
+            <li>Data seeded for reproducibility across runs</li>
+          </ul>
+        </div>
+      </div>
+      <div class="code-block">
+Customer: Max Mustermann (max.mustermann@example.de)
+Address:  Adi-Dassler-Str. 1, 91074 Herzogenaurach
+Products:
+  - Ultraboost 23 x1 @ <span class="green">&euro;180</span>
+  - Home Jersey 2025 x1 @ <span class="green">&euro;90</span>
+Total:    <span class="green">&euro;270</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="step" id="step-4">
+    <div class="step-header" onclick="toggleStep(4)">
+      <div class="step-number">4</div>
+      <div class="step-title">Run E2E Test &mdash; Happy Path</div>
+      <span class="step-tag tag-success">PASSED</span>
+      <span class="step-chevron">&#9660;</span>
+    </div>
+    <div class="step-body">
+      <div class="dual-view">
+        <div class="view-panel user">
+          <h4>&#x1F464; End User Perspective</h4>
+          <ul>
+            <li>Playwright opens the storefront in a real browser</li>
+            <li>Products appear, items are added to cart</li>
+            <li>Checkout form fills, order is placed</li>
+            <li>Order confirmation shows with order ID</li>
+            <li>All 7 pipeline steps show green status</li>
+          </ul>
+        </div>
+        <div class="view-panel system">
+          <h4>&#x1F527; Under the Hood</h4>
+          <ul>
+            <li><strong>Integrator</strong> receives checkout, calls API Tester</li>
+            <li><strong>API Tester</strong> validates payload, calls OMNI</li>
+            <li><strong>OMNI</strong> orchestrates: IIB &rarr; WMS &rarr; SAP &rarr; Kibana</li>
+            <li><strong>IIB ESB</strong> transforms JSON, adds ESB headers</li>
+            <li><strong>WMS</strong> allocates inventory from warehouse</li>
+            <li><strong>SAP S/4</strong> creates OData sales order</li>
+            <li><strong>Kibana</strong> ingests order event for analytics</li>
+          </ul>
+        </div>
+      </div>
+      <p style="font-size:0.85rem; color: var(--text-dim); margin-top: 0.8rem;">Call chain through all 7 systems:</p>
+      <div class="call-chain">
+        <span class="node">Integrator :3001</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">API Tester :3002</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">OMNI :3003</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">IIB :3004</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">WMS :3005</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">SAP :3006</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">Kibana :3007</span>
+      </div>
+      <div class="code-block">
+<span class="dim">RUNNING tests/order-to-cash.e2e.ts</span>
+<span class="green">  Navigate to storefront ... PASSED</span>
+<span class="green">  Order confirmed: ORD-abc123 ... PASSED</span>
+<span class="dim">  Pipeline step "iib-esb": success</span>
+<span class="dim">  Pipeline step "wms": success</span>
+<span class="dim">  Pipeline step "sap-s4": success</span>
+<span class="dim">  Pipeline step "kibana": success</span>
+<span class="green">Tests: 1 passed, 1 total</span>
+<span class="green">&#10003; All E2E tests PASSED</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 2: Failure Injection -->
+  <div class="phase"><span>Phase 2 &mdash; Failure Injection</span></div>
+
+  <!-- Step 5 -->
+  <div class="step" id="step-5">
+    <div class="step-header" onclick="toggleStep(5)">
+      <div class="step-number">5</div>
+      <div class="step-title">Inject Failure &mdash; Kill SAP S/4</div>
+      <span class="step-tag tag-failure">Chaos</span>
+      <span class="step-chevron">&#9660;</span>
+    </div>
+    <div class="step-body">
+      <div class="dual-view">
+        <div class="view-panel user">
+          <h4>&#x1F464; End User Perspective</h4>
+          <ul>
+            <li>SAP S/4 is killed (simulating a real production outage)</li>
+            <li>Console confirms SAP is DOWN and returning 503</li>
+            <li>All other 6 services remain operational</li>
+          </ul>
+        </div>
+        <div class="view-panel system">
+          <h4>&#x1F527; Under the Hood</h4>
+          <ul>
+            <li><code>POST /admin/fail</code> sent to SAP on port 3006</li>
+            <li>SAP's <code>failureMode</code> flag set to <code>true</code></li>
+            <li>All subsequent requests return <code>503 Service Unavailable</code></li>
+            <li>Health check confirms: <code>/health</code> now returns 503</li>
+            <li>In Docker mode: <code>docker compose stop sap-s4</code></li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout callout-warning">
+        <strong>Why SAP?</strong> SAP S/4HANA is the most critical backend system &mdash; it's where the actual sales order is created. When it goes down, orders cannot complete, but upstream systems (IIB, WMS) still process normally. This is the realistic partial-failure scenario.
+      </div>
+      <div class="code-block">
+<span class="blue">&rarr;</span> Killing sap-s4 on port 3006...
+<span class="green">&#10003;</span> sap-s4 put into failure mode (returning 503)
+<span class="green">&#10003;</span> sap-s4 confirmed <span class="red">DOWN</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 6 -->
+  <div class="step" id="step-6">
+    <div class="step-header" onclick="toggleStep(6)">
+      <div class="step-number">6</div>
+      <div class="step-title">Re-Run E2E Test &mdash; Expected Failure</div>
+      <span class="step-tag tag-failure">FAILED</span>
+      <span class="step-chevron">&#9660;</span>
+    </div>
+    <div class="step-body">
+      <div class="dual-view">
+        <div class="view-panel user">
+          <h4>&#x1F464; End User Perspective</h4>
+          <ul>
+            <li>Same E2E test runs again</li>
+            <li>Order goes through IIB and WMS successfully</li>
+            <li>Fails at SAP with connection refused error</li>
+            <li>Test output shows exactly where the failure is</li>
+          </ul>
+        </div>
+        <div class="view-panel system">
+          <h4>&#x1F527; Under the Hood</h4>
+          <ul>
+            <li>OMNI calls IIB (3004) &rarr; success</li>
+            <li>OMNI calls WMS (3005) &rarr; success</li>
+            <li>OMNI calls SAP (3006) &rarr; <code>ECONNREFUSED</code></li>
+            <li>OMNI stops and returns partial failure response</li>
+            <li>Error output includes port number for detection</li>
+          </ul>
+        </div>
+      </div>
+      <p style="font-size:0.85rem; color: var(--text-dim); margin-top: 0.8rem;">Call chain breaks at SAP:</p>
+      <div class="call-chain">
+        <span class="node">Integrator</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">API Tester</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">OMNI</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">IIB</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">WMS</span>
+        <span class="arrow broken">&cross;</span>
+        <span class="node fail">SAP :3006</span>
+        <span class="arrow" style="opacity:0.2">&rarr;</span>
+        <span class="node" style="opacity:0.3">Kibana</span>
+      </div>
+      <div class="code-block">
+<span class="dim">RUNNING tests/order-to-cash.e2e.ts</span>
+<span class="dim">  Navigate to storefront ... PASSED</span>
+<span class="red">  Order FAILED: FAILED</span>
+<span class="dim">  Pipeline step "iib-esb": success</span>
+<span class="dim">  Pipeline step "wms": success</span>
+<span class="red">  Pipeline step "sap-s4": failed</span>
+<span class="red">    Error: connect ECONNREFUSED 127.0.0.1:3006</span>
+<span class="red">Tests: 1 failed, 1 total</span>
+<span class="red">&#10007; E2E test FAILED at sap-s4 (expected)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 3: Self-Healing -->
+  <div class="phase"><span>Phase 3 &mdash; Self-Healing Recovery</span></div>
+
+  <!-- Step 7 -->
+  <div class="step" id="step-7">
+    <div class="step-header" onclick="toggleStep(7)">
+      <div class="step-number">7</div>
+      <div class="step-title">Strange Loop &mdash; Detect &amp; Classify</div>
+      <span class="step-tag tag-detect">Detect</span>
+      <span class="step-chevron">&#9660;</span>
+    </div>
+    <div class="step-body">
+      <div class="dual-view">
+        <div class="view-panel user">
+          <h4>&#x1F464; End User Perspective</h4>
+          <ul>
+            <li>Test output is analyzed automatically</li>
+            <li>System identifies "SAP S/4HANA connection refused on port 3006"</li>
+            <li>Classifies as infrastructure failure (not a product bug)</li>
+            <li>Confidence level: 90%</li>
+          </ul>
+        </div>
+        <div class="view-panel system">
+          <h4>&#x1F527; Under the Hood</h4>
+          <ul>
+            <li><code>TestOutputObserver</code> (ADR-057) scans test output line by line</li>
+            <li>9 Adidas-specific error signatures loaded</li>
+            <li>Pattern <code>/ECONNREFUSED.*:3006/</code> matches SAP port</li>
+            <li>Classified as <code>infra_failure</code> (not <code>test_failure</code>)</li>
+            <li>Vulnerability generated: type=<code>service_unreachable</code>, severity=0.95</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout callout-info">
+        <strong>Key Insight:</strong> The framework distinguishes between a test bug and an infrastructure outage. A test that fails because SAP is down isn't a bug in the test code &mdash; it's infrastructure. This classification drives different remediation paths.
+      </div>
+      <div class="code-block">
+<span class="blue">&rarr;</span> Feeding test output to TestOutputObserver (ADR-057)...
+<span class="blue">&rarr;</span> Lines parsed: 9
+<span class="blue">&rarr;</span> Infrastructure failures detected: 1
+  <span class="red">[INFRA]</span> SAP S/4HANA connection refused on port 3006
+    Service: sap-s4 | Confidence: 90%
+    Classification: infra_failure
+<span class="blue">&rarr;</span> Vulnerabilities generated: 1
+  <span class="orange">[VULN]</span> type=service_unreachable severity=0.95 agent=infra-sap-s4
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 8 -->
+  <div class="step" id="step-8">
+    <div class="step-header" onclick="toggleStep(8)">
+      <div class="step-number">8</div>
+      <div class="step-title">Infrastructure Recovery</div>
+      <span class="step-tag tag-healing">Healing</span>
+      <span class="step-chevron">&#9660;</span>
+    </div>
+    <div class="step-body">
+      <div class="dual-view">
+        <div class="view-panel user">
+          <h4>&#x1F464; End User Perspective</h4>
+          <ul>
+            <li>Strange Loop cycle runs: Observe &rarr; Model &rarr; Decide &rarr; Act</li>
+            <li>Recovery playbook loaded with Adidas service definitions</li>
+            <li>SAP S/4 is automatically recovered</li>
+            <li>Confirmation: "sap-s4 recovered"</li>
+          </ul>
+        </div>
+        <div class="view-panel system">
+          <h4>&#x1F527; Under the Hood</h4>
+          <ul>
+            <li><strong>Observe:</strong> Feeds test output into <code>StrangeLoopOrchestrator</code></li>
+            <li><strong>Model:</strong> <code>SwarmObserver</code> analyzes vulnerability patterns</li>
+            <li><strong>Decide:</strong> Recovery action selected from <code>RecoveryPlaybook</code></li>
+            <li><strong>Act:</strong> <code>POST /admin/recover</code> sent to SAP on port 3006</li>
+            <li><code>CoordinationLock</code> prevents duplicate recovery attempts</li>
+            <li>In Docker mode: <code>docker compose restart sap-s4</code></li>
+            <li>Health check verifies SAP is back online</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout callout-success">
+        <strong>Self-Healing Loop:</strong> The Strange Loop (named after Douglas Hofstadter's concept) is a self-referential awareness cycle. The system observes its own test results, models the failure, decides on a recovery action, and acts &mdash; then verifies the result, forming a closed feedback loop.
+      </div>
+      <div class="code-block">
+<span class="blue">&rarr;</span> Loading Adidas recovery playbook...
+<span class="blue">&rarr;</span> Running Strange Loop cycle: <span class="cyan">Observe</span> &rarr; <span class="cyan">Model</span> &rarr; <span class="cyan">Decide</span> &rarr; <span class="cyan">Act</span>
+<span class="blue">&rarr;</span> Vulnerabilities observed: 9
+<span class="blue">&rarr;</span> Actions decided: 1
+<span class="blue">&rarr;</span> Recovering sap-s4 via /admin/recover...
+<span class="green">&#10003;</span> sap-s4 recovered
+
+<span class="blue">&rarr;</span> Recovery Statistics:
+  Total observations:     1
+  Infra failures:         1
+  Recoveries attempted:   1
+  Recoveries succeeded:   1
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 4: Verification -->
+  <div class="phase"><span>Phase 4 &mdash; Verification &amp; Results</span></div>
+
+  <!-- Step 9 -->
+  <div class="step" id="step-9">
+    <div class="step-header" onclick="toggleStep(9)">
+      <div class="step-number">9</div>
+      <div class="step-title">Smart Re-Run &mdash; Only Failed Tests</div>
+      <span class="step-tag tag-success">PASSED</span>
+      <span class="step-chevron">&#9660;</span>
+    </div>
+    <div class="step-body">
+      <div class="dual-view">
+        <div class="view-panel user">
+          <h4>&#x1F464; End User Perspective</h4>
+          <ul>
+            <li>Only the failed test is re-executed (not the full suite)</li>
+            <li>Order goes through all 7 systems successfully</li>
+            <li>SAP is back online, creates the sales order</li>
+            <li>Test PASSES &mdash; infrastructure fully recovered</li>
+          </ul>
+        </div>
+        <div class="view-panel system">
+          <h4>&#x1F527; Under the Hood</h4>
+          <ul>
+            <li><code>TestRerunManager</code> tracks which tests failed</li>
+            <li>Only <code>order-to-cash.e2e.ts</code> is re-run (not other suites)</li>
+            <li>Full call chain succeeds: IIB &rarr; WMS &rarr; SAP &rarr; Kibana</li>
+            <li>Kibana receives the new order event</li>
+            <li>Selective re-run saves CI time on large test suites</li>
+          </ul>
+        </div>
+      </div>
+      <p style="font-size:0.85rem; color: var(--text-dim); margin-top: 0.8rem;">Full pipeline restored:</p>
+      <div class="call-chain">
+        <span class="node">Integrator</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">API Tester</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">OMNI</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">IIB</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">WMS</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node heal">SAP :3006</span>
+        <span class="arrow">&rarr;</span>
+        <span class="node">Kibana</span>
+      </div>
+      <div class="code-block">
+<span class="dim">RUNNING tests/order-to-cash.e2e.ts (re-run)</span>
+<span class="green">  Navigate to storefront ... PASSED</span>
+<span class="green">  Order confirmed: ORD-xyz789 ... PASSED</span>
+<span class="dim">  Pipeline step "iib-esb": success</span>
+<span class="dim">  Pipeline step "wms": success</span>
+<span class="dim">  Pipeline step "sap-s4": success</span>
+<span class="dim">  Pipeline step "kibana": success</span>
+<span class="green">Tests: 1 passed, 1 total</span>
+<span class="green">&#10003; Re-run PASSED &mdash; infrastructure fully recovered</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 10 -->
+  <div class="step" id="step-10">
+    <div class="step-header" onclick="toggleStep(10)">
+      <div class="step-number">10</div>
+      <div class="step-title">Kibana Dashboard</div>
+      <span class="step-tag tag-info">Analytics</span>
+      <span class="step-chevron">&#9660;</span>
+    </div>
+    <div class="step-body">
+      <div class="dual-view">
+        <div class="view-panel user">
+          <h4>&#x1F464; End User Perspective</h4>
+          <ul>
+            <li>Open <code>http://localhost:3007</code> in a browser</li>
+            <li>Dashboard shows order volume, system health, recent orders</li>
+            <li>Both successful orders visible in the event log</li>
+            <li>All 7 systems show green health status</li>
+          </ul>
+        </div>
+        <div class="view-panel system">
+          <h4>&#x1F527; Under the Hood</h4>
+          <ul>
+            <li>Kibana mock stores all ingested order events</li>
+            <li><code>GET /kibana/api/orders</code> returns full event log</li>
+            <li>Dashboard auto-refreshes every 2 seconds</li>
+            <li>Health grid polls all 7 services in parallel</li>
+          </ul>
+        </div>
+      </div>
+      <div class="code-block">
+<span class="blue">&rarr;</span> Open http://localhost:3007 to see the analytics dashboard
+<span class="blue">&rarr;</span> Dashboard shows: order volume, system health, recent orders
+<span class="blue">&rarr;</span> Total events in Kibana: 2
+  Order ORD-abc123: <span class="green">&euro;180</span>
+  Order ORD-xyz789: <span class="green">&euro;180</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Section -->
+  <div class="phase"><span>Summary</span></div>
+
+  <div class="pipeline-section">
+    <h2>Capabilities Demonstrated</h2>
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th>Demo Step</th>
+          <th>Framework Component</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="status status-green"><span class="status-dot"></span> E2E Cross-System Testing</span></td>
+          <td>Step 4</td>
+          <td>Playwright + 7 mock services</td>
+        </tr>
+        <tr>
+          <td><span class="status status-green"><span class="status-dot"></span> Test Data Generation</span></td>
+          <td>Step 3</td>
+          <td>TestDataGeneratorService</td>
+        </tr>
+        <tr>
+          <td><span class="status status-red"><span class="status-dot"></span> Controlled Failure Injection</span></td>
+          <td>Step 5</td>
+          <td>/admin/fail + Docker stop</td>
+        </tr>
+        <tr>
+          <td><span class="status status-orange"><span class="status-dot"></span> Infrastructure Error Detection</span></td>
+          <td>Step 7</td>
+          <td>TestOutputObserver (ADR-057)</td>
+        </tr>
+        <tr>
+          <td><span class="status status-cyan"><span class="status-dot"></span> Strange Loop Self-Healing</span></td>
+          <td>Step 8</td>
+          <td>StrangeLoopOrchestrator</td>
+        </tr>
+        <tr>
+          <td><span class="status status-cyan"><span class="status-dot"></span> Automated Recovery</span></td>
+          <td>Step 8</td>
+          <td>RecoveryPlaybook + CoordinationLock</td>
+        </tr>
+        <tr>
+          <td><span class="status status-green"><span class="status-dot"></span> Smart Test Re-Run</span></td>
+          <td>Step 9</td>
+          <td>TestRerunManager</td>
+        </tr>
+        <tr>
+          <td><span class="status status-green"><span class="status-dot"></span> Observability Dashboard</span></td>
+          <td>Step 10</td>
+          <td>Kibana mock analytics</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Architecture Detail -->
+  <div class="pipeline-section">
+    <h2>Architecture at a Glance</h2>
+    <div class="callout callout-info" style="margin-top: 0.5rem;">
+      The demo uses real Agentic QE v3 components &mdash; not mocked framework code. The only mocks are the 7 Adidas backend services. All detection, classification, recovery, and re-run logic is production code from the <code>v3/src/strange-loop/</code> module.
+    </div>
+
+    <h3 style="font-size: 0.95rem; margin-top: 1.5rem; margin-bottom: 0.8rem; color: var(--purple);">Key Files</h3>
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>File</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Demo Script</td>
+          <td><code>v3/demo/adidas-order-to-cash/run-demo.ts</code></td>
+        </tr>
+        <tr>
+          <td>7 Mock Services</td>
+          <td><code>v3/demo/adidas-order-to-cash/services/*.ts</code></td>
+        </tr>
+        <tr>
+          <td>Error Signatures</td>
+          <td><code>v3/demo/adidas-order-to-cash/config/adidas-error-signatures.ts</code></td>
+        </tr>
+        <tr>
+          <td>Recovery Playbook</td>
+          <td><code>v3/demo/adidas-order-to-cash/config/adidas-recovery-playbook.yaml</code></td>
+        </tr>
+        <tr>
+          <td>Test Data</td>
+          <td><code>v3/demo/adidas-order-to-cash/fixtures/test-data.ts</code></td>
+        </tr>
+        <tr>
+          <td>TestOutputObserver</td>
+          <td><code>v3/src/strange-loop/infra-healing/test-output-observer.ts</code></td>
+        </tr>
+        <tr>
+          <td>StrangeLoopOrchestrator</td>
+          <td><code>v3/src/strange-loop/strange-loop.ts</code></td>
+        </tr>
+        <tr>
+          <td>RecoveryPlaybook</td>
+          <td><code>v3/src/strange-loop/infra-healing/recovery-playbook.ts</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 0.95rem; margin-top: 1.5rem; margin-bottom: 0.8rem; color: var(--purple);">Running the Demo</h3>
+    <div class="code-block">
+<span class="dim"># Interactive mode (pause between steps)</span>
+<span class="blue">cd v3/demo/adidas-order-to-cash</span>
+<span class="blue">npx tsx run-demo.ts</span>
+
+<span class="dim"># Automated mode (runs all steps)</span>
+<span class="blue">npx tsx run-demo.ts --auto</span>
+
+<span class="dim"># With Docker (real container kill/restart)</span>
+<span class="blue">docker compose up -d</span>
+<span class="blue">npx tsx run-demo.ts --docker</span>
+    </div>
+  </div>
+
+</div>
+
+<footer class="footer">
+  Agentic QE v3 &mdash; Adidas Order-to-Cash Demo Walkthrough<br>
+  7 systems, 1 demo, full self-healing
+</footer>
+
+<script>
+  // Toggle step open/close
+  function toggleStep(n) {
+    const step = document.getElementById('step-' + n);
+    step.classList.toggle('open');
+  }
+
+  // Expand / Collapse all
+  function expandAll() {
+    document.querySelectorAll('.step').forEach(s => s.classList.add('open'));
+  }
+  function collapseAll() {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('open'));
+  }
+
+  // Pipeline state visualization
+  function setPipelineState(state) {
+    const nodes = {
+      integrator: document.getElementById('node-integrator'),
+      api: document.getElementById('node-api'),
+      omni: document.getElementById('node-omni'),
+      iib: document.getElementById('node-iib'),
+      wms: document.getElementById('node-wms'),
+      sap: document.getElementById('node-sap'),
+      kibana: document.getElementById('node-kibana'),
+    };
+    const arrows = [1,2,3,4,5,6].map(i => document.getElementById('arrow-' + i));
+    const segments = document.querySelectorAll('#progress-bar .progress-segment');
+
+    // Reset
+    Object.values(nodes).forEach(n => {
+      n.className = 'pipeline-node';
+      n.style.opacity = '1';
+    });
+    arrows.forEach(a => {
+      a.className = 'pipeline-arrow';
+      a.style.opacity = '0.5';
+    });
+
+    // Update buttons
+    document.querySelectorAll('.controls .btn').forEach(b => b.classList.remove('active'));
+
+    if (state === 'healthy') {
+      Object.values(nodes).forEach(n => n.classList.add('active'));
+      segments.forEach(s => { s.className = 'progress-segment done'; });
+      document.querySelector('.btn-green').classList.add('active');
+    }
+    else if (state === 'failed') {
+      ['integrator','api','omni','iib','wms'].forEach(k => nodes[k].classList.add('active'));
+      nodes.sap.classList.add('failed');
+      nodes.kibana.style.opacity = '0.3';
+      arrows[4].classList.add('broken');
+      arrows[5].style.opacity = '0.15';
+      segments.forEach((s, i) => {
+        if (i < 5) s.className = 'progress-segment done';
+        else if (i === 5) s.className = 'progress-segment fail';
+        else s.className = 'progress-segment';
+      });
+      document.querySelector('.btn-red').classList.add('active');
+    }
+    else if (state === 'recovered') {
+      Object.values(nodes).forEach(n => n.classList.add('active'));
+      nodes.sap.classList.remove('active');
+      nodes.sap.classList.add('recovered');
+      segments.forEach((s, i) => {
+        if (i === 5) s.className = 'progress-segment heal';
+        else s.className = 'progress-segment done';
+      });
+      document.querySelector('.btn-cyan').classList.add('active');
+    }
+  }
+</script>
+
+</body>
+</html>
