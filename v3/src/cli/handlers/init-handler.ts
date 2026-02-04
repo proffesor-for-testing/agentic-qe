@@ -54,6 +54,7 @@ export class InitHandler implements ICommandHandler {
       .option('--auto-migrate', 'Automatically migrate from v2 if detected')
       .option('--with-claude-flow', 'Force Claude Flow integration setup')
       .option('--skip-claude-flow', 'Skip Claude Flow integration')
+      .option('--no-governance', 'Skip governance configuration (ADR-058)')
       .option('--modular', 'Use new modular init system (default for --auto)')
       .action(async (options) => {
         await this.execute(options, context);
@@ -104,6 +105,7 @@ export class InitHandler implements ICommandHandler {
       skipPatterns: options.skipPatterns,
       withN8n: options.withN8n,
       autoMigrate: options.autoMigrate,
+      noGovernance: options.noGovernance,
     });
 
     console.log(chalk.white('  Analyzing project...\n'));
@@ -360,7 +362,16 @@ Options:
   --auto-migrate             Automatically migrate from v2 if detected
   --with-claude-flow         Force Claude Flow integration setup
   --skip-claude-flow         Skip Claude Flow integration
+  --no-governance            Skip governance configuration (ADR-058)
   --modular                  Use new modular init system
+
+Governance:
+  Governance is ENABLED BY DEFAULT. It installs .claude/guidance/ with:
+  - constitution.md: 7 unbreakable QE invariants
+  - shards/*.shard.md: 12 domain-specific governance rules
+
+  Use --no-governance to skip, or set GOVERNANCE_*=false env vars for
+  fine-grained control over individual gates (ContinueGate, MemoryWriteGate, etc.)
 
 Examples:
   aqe init --auto            # Auto-configure based on project (keeps existing skills)
@@ -390,6 +401,7 @@ interface InitOptions {
   autoMigrate?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
+  noGovernance?: boolean;
   modular?: boolean;
 }
 

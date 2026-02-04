@@ -1,6 +1,9 @@
 /**
  * Agentic QE v3 - Memory MCP Handlers
  * Memory storage, retrieval, and query handlers
+ *
+ * ADR-058: Integrated with MemoryWriteGate for contradiction detection
+ * and ComplianceReporter for violation tracking.
  */
 
 import { getFleetState, isFleetInitialized } from './core-handlers';
@@ -12,6 +15,16 @@ import {
   MemoryRetrieveResult,
   MemoryQueryParams,
 } from '../types';
+
+// ADR-058: Governance integration for memory writes
+import {
+  memoryWriteGateIntegration,
+  createMemoryPattern,
+  isMemoryWriteGateEnabled,
+  isStrictMode,
+  complianceReporter,
+  isComplianceReporterEnabled,
+} from '../../governance/index.js';
 
 // ============================================================================
 // Memory Store Handler
@@ -34,9 +47,57 @@ export async function handleMemoryStore(
     // Build namespaced key ourselves since get/delete interface doesn't support namespace
     const fullKey = `${namespace}:${params.key}`;
 
+    // ADR-058: MemoryWriteGate check for contradiction detection
+    if (isMemoryWriteGateEnabled()) {
+      const memoryPattern = createMemoryPattern(
+        params.key,
+        params.value,
+        namespace as any, // Map namespace to domain
+        { tags: params.metadata?.tags as string[] }
+      );
+
+      const decision = await memoryWriteGateIntegration.evaluateWrite(memoryPattern);
+
+      if (!decision.allowed) {
+        // Record violation with ComplianceReporter
+        if (isComplianceReporterEnabled()) {
+          complianceReporter.recordViolation({
+            type: 'contradiction',
+            severity: 'medium',
+            gate: 'memoryWriteGate',
+            description: `Memory write blocked for key ${params.key}: ${decision.reason}`,
+            context: {
+              key: params.key,
+              namespace,
+              reason: decision.reason,
+              conflictingPatterns: decision.conflictingPatterns,
+            },
+          });
+        }
+
+        // In strict mode, block the write
+        if (isStrictMode()) {
+          return {
+            success: false,
+            error: `Memory write blocked by governance: ${decision.reason}`,
+          };
+        }
+
+        // In non-strict mode, warn but continue
+        console.warn(`[MemoryHandler] Write allowed with warning: ${decision.reason}`);
+      }
+    }
+
     await kernel!.memory.set(fullKey, params.value, {
       ttl: params.ttl,
     });
+
+    // ADR-058: Register pattern after successful write for future contradiction detection
+    if (isMemoryWriteGateEnabled()) {
+      memoryWriteGateIntegration.registerPattern(
+        createMemoryPattern(params.key, params.value, namespace as any)
+      );
+    }
 
     return {
       success: true,
@@ -309,16 +370,62 @@ export async function handleMemoryShare(
   try {
     // Store shared knowledge for each target agent
     const sharedKey = `shared:${params.knowledgeDomain}:${Date.now()}`;
-
-    await kernel!.memory.set(sharedKey, {
+    const sharedContent = {
       source: params.sourceAgentId,
       targets: params.targetAgentIds,
       domain: params.knowledgeDomain,
       content: params.knowledgeContent,
       timestamp: new Date().toISOString(),
-    }, {
+    };
+
+    // ADR-058: MemoryWriteGate check for shared knowledge
+    if (isMemoryWriteGateEnabled()) {
+      const memoryPattern = createMemoryPattern(
+        sharedKey,
+        sharedContent,
+        params.knowledgeDomain as any,
+        { agentId: params.sourceAgentId }
+      );
+
+      const decision = await memoryWriteGateIntegration.evaluateWrite(memoryPattern);
+
+      if (!decision.allowed) {
+        // Record violation
+        if (isComplianceReporterEnabled()) {
+          complianceReporter.recordViolation({
+            type: 'contradiction',
+            severity: 'medium',
+            agentId: params.sourceAgentId,
+            gate: 'memoryWriteGate',
+            description: `Shared knowledge blocked for domain ${params.knowledgeDomain}: ${decision.reason}`,
+            context: {
+              sourceAgent: params.sourceAgentId,
+              targetAgents: params.targetAgentIds,
+              domain: params.knowledgeDomain,
+              reason: decision.reason,
+            },
+          });
+        }
+
+        if (isStrictMode()) {
+          return {
+            success: false,
+            error: `Knowledge sharing blocked by governance: ${decision.reason}`,
+          };
+        }
+      }
+    }
+
+    await kernel!.memory.set(sharedKey, sharedContent, {
       namespace: 'agent-knowledge',
     });
+
+    // ADR-058: Register pattern after successful share
+    if (isMemoryWriteGateEnabled()) {
+      memoryWriteGateIntegration.registerPattern(
+        createMemoryPattern(sharedKey, sharedContent, params.knowledgeDomain as any)
+      );
+    }
 
     return {
       success: true,

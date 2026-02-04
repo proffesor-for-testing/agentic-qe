@@ -54,6 +54,14 @@ import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { CircularBuffer } from '../shared/utils/circular-buffer.js';
 
+// ADR-058: @claude-flow/guidance governance integration
+import {
+  memoryWriteGateIntegration,
+  createMemoryPattern,
+  isMemoryWriteGateEnabled,
+  type MemoryWriteGateDecision,
+} from '../governance/index.js';
+
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -443,6 +451,7 @@ export class RealQEReasoningBank {
 
   /**
    * Store a QE pattern with REAL embeddings
+   * ADR-058: Integrates with MemoryWriteGate for contradiction detection
    */
   async storeQEPattern(options: CreateQEPatternOptions): Promise<Result<QEPattern>> {
     // Require explicit initialization - don't auto-initialize to avoid memory issues
@@ -454,6 +463,43 @@ export class RealQEReasoningBank {
 
       // Detect QE domain
       const qeDomain = detectQEDomain(textToEmbed) || 'test-generation';
+
+      // ADR-058: Check MemoryWriteGate for contradictions before storing
+      if (isMemoryWriteGateEnabled()) {
+        try {
+          const memoryPattern = createMemoryPattern(
+            options.name,
+            {
+              description: options.description,
+              template: options.template,
+              patternType: options.patternType,
+            },
+            mapQEDomainToAQE(qeDomain),
+            {
+              tags: options.context?.tags,
+            }
+          );
+
+          const decision = await memoryWriteGateIntegration.evaluateWrite(memoryPattern);
+
+          if (!decision.allowed) {
+            console.warn(
+              `[RealQEReasoningBank] Pattern blocked by MemoryWriteGate: ${options.name}`,
+              `Reason: ${decision.reason}`,
+              `Conflicts: ${decision.conflictingPatterns?.join(', ') || 'none'}`
+            );
+
+            // In non-strict mode, log and continue; in strict mode, reject
+            if (decision.reason?.includes('strict')) {
+              return err(new Error(`Pattern blocked by governance: ${decision.reason}`));
+            }
+            // Non-strict: warn but allow (governance logs the violation)
+          }
+        } catch (govError) {
+          // Non-fatal: log but continue if governance check fails
+          console.warn('[RealQEReasoningBank] MemoryWriteGate check error (continuing):', govError);
+        }
+      }
 
       // Generate pattern ID
       const patternId = uuidv4();
@@ -491,6 +537,24 @@ export class RealQEReasoningBank {
         const index = this.hnswIndex.getCurrentCount();
         this.hnswIndex.addPoint(embedding, index);
         this.patternIdMap.set(index, patternId);
+      }
+
+      // ADR-058: Register pattern with MemoryWriteGate for future contradiction detection
+      if (isMemoryWriteGateEnabled()) {
+        try {
+          memoryWriteGateIntegration.registerPattern({
+            key: patternId,
+            value: {
+              name: pattern.name,
+              description: pattern.description,
+              patternType: pattern.patternType,
+            },
+            domain: pattern.domain,
+          });
+        } catch (regError) {
+          // Non-fatal: registration failure doesn't affect storage
+          console.warn('[RealQEReasoningBank] Pattern registration with MemoryWriteGate failed:', regError);
+        }
       }
 
       return ok(pattern);

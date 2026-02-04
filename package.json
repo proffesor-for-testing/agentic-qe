@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.4.6",
+  "version": "3.5.0",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 51 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
   "main": "./v3/dist/index.js",
   "types": "./v3/dist/index.d.ts",
@@ -75,6 +75,7 @@
   "author": "AQE Development Team",
   "license": "MIT",
   "dependencies": {
+    "@claude-flow/guidance": "^3.0.0-alpha.1",
     "@faker-js/faker": "^10.2.0",
     "@ruvector/attention": "0.1.3",
     "@ruvector/gnn": "0.1.19",

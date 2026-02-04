@@ -5,6 +5,88 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.0] - 2026-02-04
+
+### 🎯 Highlights
+
+**Governance ON by Default (ADR-058)** - The @claude-flow/guidance governance integration is now enabled by default during `aqe init`. This provides invisible guardrails that protect your AI agents from rule drift, runaway loops, memory corruption, and trust erosion—without slowing them down.
+
+**QCSD 2.0 Complete Lifecycle** - All four QCSD phases are now implemented:
+- **Phase 1: Ideation** - Quality criteria analysis with HTSM/SFDIPOT
+- **Phase 2: Refinement** - BDD scenario generation for Sprint Refinement
+- **Phase 3: Development** - Code-integrated quality gates (SHIP/CONDITIONAL/HOLD)
+- **Phase 4: CI/CD Verification** - Pipeline quality gates (RELEASE/REMEDIATE/BLOCK)
+
+**Infrastructure Self-Healing Enterprise Edition (ADR-057)** - Extended with 12 enterprise error signatures (SAP RFC/BAPI, Salesforce, Payment Gateway, WMS/ERP), auto-recovery pipeline, and MCP tools.
+
+### Added
+
+#### @claude-flow/guidance Governance Integration (ADR-058)
+- **Governance Phase in `aqe init`** - Phase 13 installs constitution.md and 12 domain shards to `.claude/guidance/`
+- **Governance ON by default** - Use `--no-governance` to opt-out (not recommended)
+- **Constitution** - 7 unbreakable QE invariants enforced across all agents
+- **Domain Shards** - 12 governance rule files, one per QE domain
+- **Feature Flags** - Fine-grained control over individual governance gates
+- **Non-strict Mode** - Logs violations but doesn't block (graceful degradation)
+- **`--upgrade` support** - Overwrites governance files when upgrading
+
+#### QCSD Refinement Swarm (Phase 2)
+- **SKILL.md** - 2076-line skill definition with 9 phases, 7 agents, 3 parallel batches
+- **qcsd-refinement-plugin.ts** - 1860-line TypeScript plugin with 10 workflow actions
+- **SFDIPOT Analysis** - Structure, Function, Data, Interface, Platform, Operations, Time factor analysis
+- **BDD Scenario Generation** - Automated Gherkin scenario creation from requirements
+- **Requirements Validation** - Testability scoring and acceptance criteria validation
+- **28 integration tests** - Full test coverage
+
+#### QCSD Development Swarm (Phase 3)
+- **SKILL.md** - 1839-line skill definition with 9 phases, 7 agents
+- **Flag Detection** - HAS_SECURITY_CODE, HAS_PERFORMANCE_CODE, HAS_CRITICAL_CODE
+- **Decision Logic** - SHIP/CONDITIONAL/HOLD based on quality gates
+- **Cross-phase Memory** - Consumes signals from Refinement phase
+
+#### QCSD CI/CD Verification Swarm (Phase 4)
+- **SKILL.md** - 1904-line skill definition with 9 phases, 7 agents
+- **Flag Detection** - HAS_SECURITY_PIPELINE, HAS_PERFORMANCE_PIPELINE, HAS_INFRA_CHANGE
+- **Decision Logic** - RELEASE/REMEDIATE/BLOCK based on pipeline quality gates
+- **E1-E9 Enforcement Rules** - Mandatory execution with violation detection
+- **Cross-phase Signal Consumption** - Consumes SHIP/CONDITIONAL/HOLD from Development phase
+
+#### Infrastructure Self-Healing Enterprise Signatures (ADR-057)
+- **12 Enterprise Error Signatures** - SAP RFC, SAP BAPI, SAP BTP, Salesforce API, Payment Gateway (Stripe/Braintree/Adyen), WMS/ERP integrations
+- **Priority-ordered Matching** - Enterprise patterns match before generic catch-alls
+- **4 Enterprise Recovery Playbooks** - sap-rfc, sap-btp, salesforce, payment-gateway
+- **TestRerunManager** - Tracks and re-runs tests affected by infrastructure failures
+- **Auto-recovery Pipeline** - Automatic detect → track → recover → re-run cycle
+- **3 MCP Tools** - `infra_healing_status`, `infra_healing_feed_output`, `infra_healing_recover`
+- **Global Singleton Bridge** - Avoids circular dependencies between MCP and domain layers
+
+#### V3 Memory Initialization
+- **Eager Memory Init** - Experience capture and UnifiedMemory initialized at MCP startup (not lazy)
+- **V2→V3 Migration Script** - `scripts/migrate-v2-to-v3-memory.js` migrates all data:
+  - kv_store, memory_entries, learning_experiences, goap_actions
+  - dream_cycles, mincut_history/snapshots, patterns, RL Q-values
+- **MCP Config Updates** - AQE_MEMORY_PATH and AQE_LEARNING_ENABLED env vars added to `.claude/mcp.json`
+
+### Changed
+- **Grooming → Refinement** - Renamed QCSD "Grooming" phase to "Refinement" across entire codebase (modern Scrum terminology)
+- **skills-manifest.json** - totalSkills increased from 45 to 46, added all QCSD swarm entries
+- **CLAUDE.md** - Added auto-invocation rules for all 4 QCSD phases
+- **SwarmVulnerability type** - Extended with 6 enterprise vulnerability types
+- **ToolCategory type** - Added 'infra-healing' category
+- **healing-controller.ts** - Added mappings for all enterprise vulnerability types
+
+### Fixed
+- **Duplicate BDDScenario export** - Renamed to RefinementBDDScenario to avoid conflict with interfaces.ts
+- **Missing ToolCategory** - Added 'infra-healing' to ToolCategory union type
+- **Incomplete Record type** - Added 6 missing enterprise vulnerability types to healing controller
+
+### Technical Details
+- Governance integration uses dependency injection, not core modifications
+- Feature flags provide rollback for any individual governance gate
+- Non-strict mode ensures graceful degradation (violations logged, not blocked)
+- QCSD cross-phase memory enables signal flow: Ideation → Refinement → Development → CI/CD
+- 700+ tests passing (governance, QCSD, infrastructure self-healing)
+
 ## [3.4.6] - 2026-02-03
 
 ### Fixed

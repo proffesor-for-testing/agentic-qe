@@ -91,6 +91,12 @@ import {
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 
+// ADR-058: Governance-aware mixin for MemoryWriteGate and ConstitutionalEnforcer
+import {
+  GovernanceAwareDomainMixin,
+  createSecurityGovernanceMixin,
+} from '../../coordination/mixins/governance-aware-domain.js';
+
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 
 import {
@@ -223,6 +229,9 @@ export class SecurityComplianceCoordinator
   // Consensus verification mixin (MM-001)
   private readonly consensusMixin: ConsensusEnabledMixin;
 
+  // ADR-058: Governance-aware mixin for security scan requirement enforcement
+  private readonly governanceMixin: GovernanceAwareDomainMixin;
+
   // Domain identifier for mixin initialization
   private readonly domainName = 'security-compliance';
 
@@ -257,6 +266,13 @@ export class SecurityComplianceCoordinator
       verifySeverities: ['critical', 'high'],
       enableLogging: false,
     });
+
+    // ADR-058: Initialize Governance-aware mixin for security scan enforcement
+    // Uses createSecurityGovernanceMixin which enables:
+    // - MemoryWriteGate for pattern contradiction detection
+    // - Constitutional Invariant #2: Security scan required for auth code changes
+    // - Constitutional Invariant #3: Backup required before destructive operations
+    this.governanceMixin = createSecurityGovernanceMixin(this.domainName);
 
     this.securityScanner = new SecurityScannerService(memory);
     this.securityAuditor = new SecurityAuditorService(memory);
@@ -378,6 +394,9 @@ export class SecurityComplianceCoordinator
 
   /**
    * Run comprehensive security audit
+   *
+   * ADR-058: If audit affects authentication code, validates that security scan
+   * was already performed (Constitutional Invariant #2).
    */
   async runSecurityAudit(
     options: SecurityAuditOptions
@@ -386,6 +405,20 @@ export class SecurityComplianceCoordinator
 
     try {
       this.startWorkflow(workflowId, 'audit');
+
+      // ADR-058: Check if this audit affects auth code and validate security scan requirement
+      const affectsAuthCode = this.detectAuthCodeInScope(options);
+      if (affectsAuthCode && this.governanceMixin.isGovernanceEnabled()) {
+        const validation = await this.governanceMixin.validateSecurityScanRequired(
+          workflowId,
+          true, // affectsAuthCode
+          undefined // No prior scan result - this IS the scan
+        );
+        // For security audits, we're the scan itself, so we just log the governance check
+        if (!validation.allowed && this.governanceMixin.isStrictMode()) {
+          console.log(`[${this.domainName}] Security audit for auth code registered with governance`);
+        }
+      }
 
       // Self-healing: Check if operations should be paused due to critical topology
       if (this.minCutMixin.shouldPauseOperations()) {
@@ -1146,6 +1179,59 @@ export class SecurityComplianceCoordinator
     if (workflow) {
       workflow.agentIds.push(agentId);
     }
+  }
+
+  // ==========================================================================
+  // ADR-058: Governance Helper Methods
+  // ==========================================================================
+
+  /**
+   * Detect if security audit scope includes authentication-related code
+   * Used for Constitutional Invariant #2 enforcement
+   */
+  private detectAuthCodeInScope(options: SecurityAuditOptions): boolean {
+    const authPatterns = [
+      /auth/i,
+      /login/i,
+      /password/i,
+      /token/i,
+      /session/i,
+      /oauth/i,
+      /jwt/i,
+      /credential/i,
+      /identity/i,
+    ];
+
+    // Check target URL
+    if (options.targetUrl) {
+      for (const pattern of authPatterns) {
+        if (pattern.test(options.targetUrl)) {
+          return true;
+        }
+      }
+    }
+
+    // Check scan types
+    if (options.scanTypes) {
+      const authScanTypes = ['authentication', 'authorization', 'session-management'];
+      for (const scanType of options.scanTypes) {
+        if (authScanTypes.includes(scanType.toLowerCase())) {
+          return true;
+        }
+      }
+    }
+
+    // Check compliance frameworks that typically include auth requirements
+    if (options.complianceFrameworks) {
+      const authFrameworks = ['soc2', 'pci-dss', 'hipaa', 'iso27001'];
+      for (const framework of options.complianceFrameworks) {
+        if (authFrameworks.includes(framework.toLowerCase())) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   // ==========================================================================

@@ -95,6 +95,8 @@ export interface InitOptions {
   };
   /** Custom wizard answers */
   wizardAnswers?: Record<string, unknown>;
+  /** Skip governance installation (ADR-058) - governance is ON by default */
+  noGovernance?: boolean;
 }
 
 /**

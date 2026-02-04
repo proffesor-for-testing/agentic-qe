@@ -42,6 +42,7 @@ export function createInitCommand(): Command {
     .option('--with-n8n', 'Include n8n workflow testing platform')
     .option('--with-claude-flow', 'Force Claude Flow integration setup')
     .option('--skip-claude-flow', 'Skip Claude Flow integration')
+    .option('--no-governance', 'Skip governance configuration (ADR-058)')
     .option('-d, --debug', 'Enable debug output')
     .action(async (options) => {
       await runInit(options);
@@ -89,6 +90,7 @@ interface InitOptions {
   withN8n?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
+  noGovernance?: boolean;
   debug?: boolean;
 }
 
@@ -124,6 +126,7 @@ async function runInit(options: InitOptions): Promise<void> {
     minimal: options.minimal,
     skipPatterns: options.skipPatterns,
     withN8n: options.withN8n,
+    noGovernance: options.noGovernance,
   });
 
   // Run initialization
