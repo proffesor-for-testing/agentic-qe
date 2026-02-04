@@ -56,6 +56,12 @@ import {
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 
+// ADR-058: Governance-aware mixin for MemoryWriteGate and backup-before-delete integration
+import {
+  GovernanceAwareDomainMixin,
+  createDestructiveOpsGovernanceMixin,
+} from '../../coordination/mixins/governance-aware-domain.js';
+
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 
 import {
@@ -156,6 +162,9 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
   // Domain identifier for mixin initialization
   private readonly domainName = 'chaos-resilience';
 
+  // ADR-058: Governance mixin for MemoryWriteGate and ConstitutionalEnforcer integration
+  private readonly governanceMixin: GovernanceAwareDomainMixin;
+
   private initialized = false;
 
   constructor(
@@ -189,6 +198,10 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
       verifySeverities: ['critical', 'high'],
       enableLogging: false,
     });
+
+    // ADR-058: Initialize governance mixin for backup-before-delete enforcement
+    // Chaos resilience performs destructive operations, so use specialized mixin
+    this.governanceMixin = createDestructiveOpsGovernanceMixin(this.domainName);
 
     this.chaosEngineer = new ChaosEngineerService({ memory });
     this.loadTester = new LoadTesterService(memory);

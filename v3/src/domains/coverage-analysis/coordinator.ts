@@ -65,6 +65,12 @@ import {
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 
+// ADR-058: Governance-aware mixin for MemoryWriteGate integration
+import {
+  GovernanceAwareDomainMixin,
+  createGovernanceAwareMixin,
+} from '../../coordination/mixins/governance-aware-domain.js';
+
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 
 import {
@@ -161,6 +167,9 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
   // Coordinator configuration
   private readonly config: CoverageAnalysisCoordinatorConfig;
 
+  // ADR-058: Governance mixin for MemoryWriteGate integration
+  private readonly governanceMixin: GovernanceAwareDomainMixin;
+
   private readonly qlConfig = {
     stateSize: 12,
     actionSize: 4,
@@ -195,6 +204,9 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
       verifySeverities: ['critical', 'high'],
       enableLogging: false,
     });
+
+    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
+    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.coverageAnalyzer = new CoverageAnalyzerService(memory);
     this.gapDetector = new GapDetectorService(memory);

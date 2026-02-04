@@ -60,6 +60,13 @@ import type { ClassifiableTask } from '../routing/task-classifier.js';
 // V3 Integration: Cross-Phase Memory Hooks (QCSD feedback loops)
 import { getCrossPhaseHookExecutor } from '../hooks/cross-phase-hooks.js';
 
+// V3 Integration: @claude-flow/guidance governance (ADR-058)
+import {
+  queenGovernanceAdapter,
+  type TaskGovernanceContext,
+  type TaskGovernanceDecision,
+} from '../governance/index.js';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -459,6 +466,15 @@ export class QueenCoordinator implements IQueenCoordinator {
       }
     }
 
+    // ADR-058: Initialize governance adapter
+    try {
+      await queenGovernanceAdapter.initialize();
+      console.log('[QueenCoordinator] Governance adapter initialized');
+    } catch (govError) {
+      // Non-fatal: governance is optional but recommended
+      console.warn('[QueenCoordinator] Governance initialization failed (continuing):', govError);
+    }
+
     // Publish initialization event
     await this.publishEvent('QueenInitialized', {
       timestamp: new Date(),
@@ -536,6 +552,36 @@ export class QueenCoordinator implements IQueenCoordinator {
       createdAt: new Date(),
       timeout: taskInput.timeout || this.config.defaultTaskTimeout,
     };
+
+    // ADR-058: Governance check before task execution
+    // Check if task is allowed by governance gates (ContinueGate, TrustAccumulator, etc.)
+    const governanceContext: TaskGovernanceContext = {
+      taskId: task.id,
+      taskType: task.type,
+      agentId: task.requester || 'unknown',
+      domain: task.targetDomains[0] || 'test-generation',
+      priority: task.priority,
+      payload: task.payload,
+    };
+
+    try {
+      const governanceDecision = await queenGovernanceAdapter.beforeTaskExecution(governanceContext);
+      if (!governanceDecision.allowed) {
+        // SEC-003: Log governance rejection
+        this.auditLogger.logFail(taskId, 'governance', governanceDecision.reason || 'Governance check failed');
+
+        await this.publishEvent('TaskRejected', {
+          taskId,
+          reason: governanceDecision.reason,
+          escalate: governanceDecision.escalate,
+        });
+
+        return err(new Error(`Task blocked by governance: ${governanceDecision.reason}`));
+      }
+    } catch (govError) {
+      // Non-fatal: log but continue if governance check fails
+      console.warn('[QueenCoordinator] Governance check error (continuing):', govError);
+    }
 
     // CC-002 FIX: Use atomic increment pattern to prevent TOCTOU race condition
     // Atomically reserve a slot by incrementing counter BEFORE the check
@@ -1144,6 +1190,24 @@ export class QueenCoordinator implements IQueenCoordinator {
         // Non-fatal: log but don't fail the task completion
         console.warn('[QueenCoordinator] Cross-phase hook error:', hookError);
       }
+
+      // ADR-058: Record successful task outcome with governance
+      try {
+        await queenGovernanceAdapter.afterTaskExecution(
+          {
+            taskId,
+            taskType: execution.task.type,
+            agentId: execution.assignedAgents[0] || 'unknown',
+            domain: execution.assignedDomain || 'test-generation',
+            priority: execution.task.priority,
+          },
+          true, // success
+          0, // cost (not tracked at this level)
+          0  // tokens (not tracked at this level)
+        );
+      } catch (govError) {
+        console.warn('[QueenCoordinator] Governance tracking error:', govError);
+      }
     }
 
     // Process queue for next task
@@ -1193,6 +1257,24 @@ export class QueenCoordinator implements IQueenCoordinator {
 
         // SEC-003 Simplified: Log permanent failure
         this.auditLogger.logFail(taskId, execution.assignedAgents[0], error);
+
+        // ADR-058: Record failed task outcome with governance
+        try {
+          await queenGovernanceAdapter.afterTaskExecution(
+            {
+              taskId,
+              taskType: execution.task.type,
+              agentId: execution.assignedAgents[0] || 'unknown',
+              domain: execution.assignedDomain || 'test-generation',
+              priority: execution.task.priority,
+            },
+            false, // success = false
+            0, // cost
+            0  // tokens
+          );
+        } catch (govError) {
+          console.warn('[QueenCoordinator] Governance tracking error:', govError);
+        }
       }
     }
 

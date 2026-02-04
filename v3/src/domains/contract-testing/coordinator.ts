@@ -55,6 +55,12 @@ import {
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain.js';
 
+// ADR-058: Governance-aware mixin for MemoryWriteGate integration
+import {
+  GovernanceAwareDomainMixin,
+  createGovernanceAwareMixin,
+} from '../../coordination/mixins/governance-aware-domain.js';
+
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
 
 import {
@@ -157,6 +163,9 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
   // Domain identifier for mixin initialization
   private readonly domainName = 'contract-testing';
 
+  // ADR-058: Governance mixin for MemoryWriteGate integration
+  private readonly governanceMixin: GovernanceAwareDomainMixin;
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -183,6 +192,9 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       verifySeverities: ['critical', 'high'],
       enableLogging: false,
     });
+
+    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
+    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.contractValidator = new ContractValidatorService({ memory });
     this.apiCompatibility = new ApiCompatibilityService(memory);

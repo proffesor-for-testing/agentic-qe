@@ -5,6 +5,35 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.5] - 2026-02-03
+
+### Fixed
+
+- **MCP daemon startup failure** - Fixed "error: unknown command 'mcp'" when running `aqe init --auto`
+  - Added `mcp` subcommand to CLI that starts the MCP protocol server
+  - Updated daemon startup scripts to properly locate and invoke MCP server
+  - Fallback chain: `aqe-mcp` binary → bundled MCP → `aqe mcp` CLI → `npx agentic-qe mcp`
+
+- **Code Intelligence KG not persisted** - Fixed knowledge graph data being lost after init
+  - Changed from `InMemoryBackend` (ephemeral) to SQLite backend (persistent)
+  - KG data now persisted to `.agentic-qe/memory.db` in `code-intelligence:kg` namespace
+  - QE agents can now query the KG for semantic code search, reducing token consumption
+
+### Added
+
+- **`aqe mcp` command** - New CLI command to start the MCP protocol server
+  - `aqe mcp` - Start MCP server on stdio (for Claude Code integration)
+  - `aqe mcp --http 8080` - Also start HTTP server for AG-UI/A2A protocols
+  - `aqe mcp --verbose` - Enable verbose logging
+
+### Changed
+
+- **Code Intelligence integration** - Knowledge graph now properly integrated with QE agents
+  - Semantic code search via vector embeddings (Nomic)
+  - Dependency analysis for impact assessment
+  - Test target discovery for coverage optimization
+  - ~90% token reduction for targeted code operations
+
 ## [3.4.1] - 2026-02-01
 
 ### Fixed

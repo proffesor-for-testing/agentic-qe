@@ -745,6 +745,13 @@ export class SelfHealingController {
       disk_full: 'restart_service',
       certificate_expired: 'restart_service',
       infra_timeout: 'restart_service',
+      // ADR-057: Enterprise infrastructure vulnerabilities
+      sap_rfc_failure: 'restart_service',
+      sap_system_failure: 'restart_service',
+      sap_btp_failure: 'restart_service',
+      api_rate_limit: null, // Rate limits require backoff, not restart
+      auth_token_expired: 'restart_service',
+      payment_gateway_timeout: 'restart_service',
     };
 
     let actionType = typeToAction[vulnerability.type];
