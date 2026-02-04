@@ -77,6 +77,9 @@ import {
 import type { DomainName } from '../../shared/types';
 import type { WeakVertex } from '../../coordination/mincut/interfaces';
 
+// ADR-057: Infrastructure self-healing integration
+import type { InfraHealingOrchestrator } from '../../strange-loop/infra-healing/infra-healing-orchestrator.js';
+
 // ============================================================================
 // Coordinator Configuration
 // ============================================================================
@@ -128,6 +131,25 @@ export interface TestExecutionCoordinatorConfig {
   consensusThreshold: number;
   consensusStrategy: 'majority' | 'weighted' | 'unanimous';
   consensusMinModels: number;
+  /**
+   * ADR-057: Optional infrastructure healing orchestrator.
+   * When provided, failed test error output is fed to the infra-healing observer
+   * for infrastructure failure detection and automated recovery.
+   */
+  infraHealing?: InfraHealingOrchestrator;
+  /**
+   * ADR-057: Enable automatic recovery + re-run when infra failures are detected.
+   * When true, the coordinator will attempt to recover failing services and
+   * re-execute affected tests automatically. Requires infraHealing to be set.
+   * @default true (when infraHealing is provided)
+   */
+  infraAutoRecover?: boolean;
+  /**
+   * ADR-057: Maximum number of automatic recovery attempts per execution run.
+   * Prevents infinite loops when a service can't be recovered.
+   * @default 1
+   */
+  infraMaxAutoRecoveryAttempts?: number;
 }
 
 const DEFAULT_COORDINATOR_CONFIG: TestExecutionCoordinatorConfig = {
@@ -416,6 +438,8 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
   async execute(request: ExecuteTestsRequest): Promise<Result<TestRunResult, Error>> {
     const runId = uuidv4();
     this.activeRuns.add(runId);
+    // ADR-057: Reset recovery attempt counter for each top-level execution
+    this.infraRecoveryAttempts = 0;
 
     try {
       // Prioritize tests if enabled
@@ -485,6 +509,19 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
             timestamp: new Date(),
           });
         }
+
+        // ADR-057: Feed failed test errors to infra-healing observer
+        if (this.config.infraHealing && result.value.failedTests.length > 0) {
+          this.feedInfraHealingFromFailures(result.value.failedTests);
+
+          // ADR-057: Attempt automatic recovery and re-run affected tests
+          const rerunResult = await this.attemptAutoRecoveryAndRerun(
+            result.value.failedTests,
+            request.framework,
+            { timeout: request.timeout, env: request.env },
+          );
+          if (rerunResult) return rerunResult;
+        }
       }
 
       return result;
@@ -502,6 +539,8 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
   async executeParallel(request: ParallelExecutionRequest): Promise<Result<TestRunResult, Error>> {
     const runId = uuidv4();
     this.activeRuns.add(runId);
+    // ADR-057: Reset recovery attempt counter for each top-level execution
+    this.infraRecoveryAttempts = 0;
 
     try {
       // ADR-047: Check topology health before expensive parallel operations
@@ -589,6 +628,19 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
               }
             );
           }
+        }
+
+        // ADR-057: Feed failed test errors to infra-healing observer
+        if (this.config.infraHealing && result.value.failedTests.length > 0) {
+          this.feedInfraHealingFromFailures(result.value.failedTests);
+
+          // ADR-057: Attempt automatic recovery and re-run affected tests
+          const rerunResult = await this.attemptAutoRecoveryAndRerun(
+            result.value.failedTests,
+            request.framework,
+            { timeout: request.timeout, env: request.env },
+          );
+          if (rerunResult) return rerunResult;
         }
       }
 
@@ -776,6 +828,91 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
   private async publishEvent<T>(type: string, payload: T): Promise<void> {
     const event = createEvent(type, 'test-execution', payload);
     await this.eventBus.publish(event);
+  }
+
+  /**
+   * ADR-057: Feed failed test error messages to the infrastructure healing observer.
+   * Records affected test IDs per detected failing service for later re-run.
+   */
+  private feedInfraHealingFromFailures(failedTests: readonly { testId: string; error: string }[]): void {
+    if (!this.config.infraHealing) return;
+
+    // Combine all error messages into a single output block for the observer
+    const errorOutput = failedTests.map(t => t.error).join('\n');
+    this.config.infraHealing.feedTestOutput(errorOutput);
+
+    // Record affected test IDs for each detected failing service
+    const failingServices = this.config.infraHealing.getObserver().getFailingServices();
+    if (failingServices.size > 0) {
+      const testIds = failedTests.map(t => t.testId);
+      for (const service of failingServices) {
+        this.config.infraHealing.recordAffectedTests(service, testIds);
+      }
+    }
+  }
+
+  /** ADR-057: Tracks recovery attempts per run to prevent infinite loops */
+  private infraRecoveryAttempts = 0;
+
+  /**
+   * ADR-057: Attempt automatic infrastructure recovery and re-run affected tests.
+   * Called after feedInfraHealingFromFailures detects infra failures.
+   *
+   * Guards:
+   * - infraAutoRecover must be true (default when infraHealing is set)
+   * - Recovery attempts capped at infraMaxAutoRecoveryAttempts (default 1)
+   * - Only re-runs files that had infra-related failures, not all tests
+   *
+   * Returns the re-run result if recovery + re-execution happened, null otherwise.
+   */
+  private async attemptAutoRecoveryAndRerun(
+    failedTests: readonly { testId: string; file: string; error: string }[],
+    framework: string,
+    originalRequest: { timeout?: number; env?: Record<string, string> },
+  ): Promise<Result<TestRunResult, Error> | null> {
+    if (!this.config.infraHealing) return null;
+
+    // Check if auto-recovery is enabled (default true when infraHealing is set)
+    const autoRecover = this.config.infraAutoRecover ?? true;
+    if (!autoRecover) return null;
+
+    // Check if we've exhausted recovery attempts for this run
+    const maxAttempts = this.config.infraMaxAutoRecoveryAttempts ?? 1;
+    if (this.infraRecoveryAttempts >= maxAttempts) return null;
+
+    // Check if the observer actually detected infra failures
+    const failingServices = this.config.infraHealing.getObserver().getFailingServices();
+    if (failingServices.size === 0) return null;
+
+    this.infraRecoveryAttempts++;
+
+    // Attempt recovery
+    const recoveryResults = await this.config.infraHealing.runRecoveryCycle();
+    const recoveredServices = recoveryResults.filter(r => r.recovered);
+
+    if (recoveredServices.length === 0) return null;
+
+    // Collect unique test files affected by recovered services
+    const filesToRerun = new Set<string>();
+    for (const result of recoveredServices) {
+      for (const testId of result.affectedTestIds) {
+        // Find the original failed test to get its file path
+        const failed = failedTests.find(t => t.testId === testId);
+        if (failed) {
+          filesToRerun.add(failed.file);
+        }
+      }
+    }
+
+    if (filesToRerun.size === 0) return null;
+
+    // Re-run affected tests
+    return this.execute({
+      testFiles: [...filesToRerun],
+      framework,
+      timeout: originalRequest.timeout,
+      env: originalRequest.env,
+    });
   }
 
   /**

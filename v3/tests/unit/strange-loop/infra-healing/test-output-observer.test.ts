@@ -35,7 +35,7 @@ describe('TestOutputObserver', () => {
       expect(obs).toBeInstanceOf(TestOutputObserver);
     });
 
-    it('accepts custom signatures', () => {
+    it('accepts custom signatures and merges with defaults', () => {
       const custom: InfraErrorSignature[] = [
         {
           pattern: /CUSTOM_ERROR/,
@@ -47,9 +47,15 @@ describe('TestOutputObserver', () => {
         },
       ];
       const obs = createTestOutputObserver(custom);
-      const result = obs.observe('CUSTOM_ERROR occurred');
-      expect(result.infraFailures).toHaveLength(1);
-      expect(result.infraFailures[0].serviceName).toBe('custom-service');
+      // Custom signature works
+      const customResult = obs.observe('CUSTOM_ERROR occurred');
+      expect(customResult.infraFailures).toHaveLength(1);
+      expect(customResult.infraFailures[0].serviceName).toBe('custom-service');
+
+      // Default signatures still work (merged, not replaced)
+      const defaultResult = obs.observe('Error: connect ECONNREFUSED 127.0.0.1:5432');
+      expect(defaultResult.infraFailures).toHaveLength(1);
+      expect(defaultResult.infraFailures[0].serviceName).toBe('postgres');
     });
   });
 
@@ -58,8 +64,8 @@ describe('TestOutputObserver', () => {
   // ==========================================================================
 
   describe('DEFAULT_ERROR_SIGNATURES', () => {
-    it('has at least 20 built-in signatures', () => {
-      expect(DEFAULT_ERROR_SIGNATURES.length).toBeGreaterThanOrEqual(20);
+    it('has at least 34 built-in signatures', () => {
+      expect(DEFAULT_ERROR_SIGNATURES.length).toBeGreaterThanOrEqual(34);
     });
 
     it('all signatures have required fields', () => {

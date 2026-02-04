@@ -25,6 +25,7 @@ import { RecoveryPlaybook, createRecoveryPlaybook } from './recovery-playbook.js
 import { CoordinationLock, createCoordinationLock } from './coordination-lock.js';
 import { InfraActionExecutor, createInfraActionExecutor } from './infra-action-executor.js';
 import type { InfraErrorSignature } from './types.js';
+import { TestRerunManager, createTestRerunManager } from './test-rerun-manager.js';
 
 // ============================================================================
 // Orchestrator Options
@@ -69,6 +70,7 @@ export class InfraHealingOrchestrator {
   private readonly executor: InfraActionExecutor;
   private readonly config: InfraHealingConfig;
   private readonly stats: InfraHealingStats;
+  private readonly rerunManager: TestRerunManager;
   private initialized = false;
 
   constructor(
@@ -84,6 +86,7 @@ export class InfraHealingOrchestrator {
     this.executor = executor;
     this.config = config;
     this.stats = createEmptyStats();
+    this.rerunManager = createTestRerunManager();
   }
 
   /**
@@ -131,7 +134,20 @@ export class InfraHealingOrchestrator {
 
       activeRecoveries++;
       const actionId = uuidv4();
-      const result = await this.executor.recoverService(serviceName, actionId);
+      const executorResult = await this.executor.recoverService(serviceName, actionId);
+
+      // Enrich with affected test IDs from the rerun manager
+      const affectedTestIds = this.rerunManager.getTestsToRerun(serviceName);
+      const result: ServiceRecoveryResult = {
+        ...executorResult,
+        affectedTestIds,
+      };
+
+      // Clear the rerun queue if recovery succeeded
+      if (result.recovered) {
+        this.rerunManager.clearRerunQueue(serviceName);
+      }
+
       results.push(result);
 
       // Merge executor stats
@@ -173,6 +189,21 @@ export class InfraHealingOrchestrator {
    */
   getExecutor(): InfraActionExecutor {
     return this.executor;
+  }
+
+  /**
+   * Get the test rerun manager (for recording affected tests and checking queues).
+   */
+  getRerunManager(): TestRerunManager {
+    return this.rerunManager;
+  }
+
+  /**
+   * Record test IDs that were affected by an infrastructure failure for a service.
+   * After recovery, these tests will be included in the ServiceRecoveryResult.affectedTestIds.
+   */
+  recordAffectedTests(serviceName: string, testIds: readonly string[]): void {
+    this.rerunManager.recordAffectedTests(serviceName, testIds);
   }
 
   /**

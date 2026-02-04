@@ -605,4 +605,237 @@ describe('TestExecutionCoordinator', () => {
       expect(coord).toBeDefined();
     });
   });
+
+  // ===========================================================================
+  // ADR-057: Infrastructure Self-Healing Auto-Recovery Tests
+  // ===========================================================================
+
+  describe('Infrastructure Self-Healing Auto-Recovery', () => {
+    /**
+     * Creates a mock InfraHealingOrchestrator that:
+     * - feedTestOutput() → tracks calls
+     * - getObserver().getFailingServices() → returns configured failing services
+     * - recordAffectedTests() → tracks calls
+     * - runRecoveryCycle() → returns configured recovery results
+     */
+    function createMockInfraHealing(options: {
+      failingServices?: Set<string>;
+      recoveryResults?: Array<{ serviceName: string; recovered: boolean; affectedTestIds: string[] }>;
+    } = {}) {
+      const failingServices = options.failingServices ?? new Set<string>();
+      const recoveryResults = (options.recoveryResults ?? []).map(r => ({
+        serviceName: r.serviceName,
+        recovered: r.recovered,
+        totalAttempts: 1,
+        totalDurationMs: 100,
+        escalated: false,
+        affectedTestIds: r.affectedTestIds,
+        steps: [],
+      }));
+
+      const feedCalls: string[] = [];
+      const recordCalls: Array<{ service: string; testIds: string[] }> = [];
+
+      return {
+        mock: {
+          feedTestOutput: vi.fn((output: string) => { feedCalls.push(output); }),
+          getObserver: vi.fn(() => ({
+            getFailingServices: vi.fn(() => failingServices),
+            getLastObservation: vi.fn(() => null),
+          })),
+          recordAffectedTests: vi.fn((service: string, testIds: string[]) => {
+            recordCalls.push({ service, testIds });
+          }),
+          runRecoveryCycle: vi.fn(async () => recoveryResults),
+        },
+        feedCalls,
+        recordCalls,
+      };
+    }
+
+    it('should attempt auto-recovery when infra failures are detected', async () => {
+      const { mock } = createMockInfraHealing({
+        failingServices: new Set(['postgres']),
+        recoveryResults: [{
+          serviceName: 'postgres',
+          recovered: true,
+          affectedTestIds: ['test-1'],
+        }],
+      });
+
+      const infraCoordinator = new TestExecutionCoordinator(
+        ctx.eventBus,
+        ctx.memory,
+        {
+          ...defaultConfig,
+          infraHealing: mock as any,
+          infraAutoRecover: true,
+          infraMaxAutoRecoveryAttempts: 1,
+          executorConfig: {
+            simulateForTesting: true,
+            simulatedFailureRate: 1.0, // Force all tests to fail
+          },
+        },
+      );
+      await infraCoordinator.initialize();
+
+      await infraCoordinator.execute({
+        testFiles: ['db-test.test.ts'],
+        framework: 'vitest',
+        timeout: 30000,
+      });
+
+      // feedTestOutput should have been called with the error messages
+      expect(mock.feedTestOutput).toHaveBeenCalled();
+      // runRecoveryCycle should have been called (auto-recovery triggered)
+      expect(mock.runRecoveryCycle).toHaveBeenCalled();
+
+      await infraCoordinator.dispose();
+    });
+
+    it('should not auto-recover when infraAutoRecover is false', async () => {
+      const { mock } = createMockInfraHealing({
+        failingServices: new Set(['postgres']),
+        recoveryResults: [{
+          serviceName: 'postgres',
+          recovered: true,
+          affectedTestIds: ['test-1'],
+        }],
+      });
+
+      const infraCoordinator = new TestExecutionCoordinator(
+        ctx.eventBus,
+        ctx.memory,
+        {
+          ...defaultConfig,
+          infraHealing: mock as any,
+          infraAutoRecover: false,
+          executorConfig: {
+            simulateForTesting: true,
+            simulatedFailureRate: 1.0,
+          },
+        },
+      );
+      await infraCoordinator.initialize();
+
+      await infraCoordinator.execute({
+        testFiles: ['db-test.test.ts'],
+        framework: 'vitest',
+        timeout: 30000,
+      });
+
+      // feedTestOutput still called (detection always happens)
+      expect(mock.feedTestOutput).toHaveBeenCalled();
+      // But runRecoveryCycle should NOT be called
+      expect(mock.runRecoveryCycle).not.toHaveBeenCalled();
+
+      await infraCoordinator.dispose();
+    });
+
+    it('should respect maxAutoRecoveryAttempts limit', async () => {
+      const { mock } = createMockInfraHealing({
+        failingServices: new Set(['postgres']),
+        recoveryResults: [{
+          serviceName: 'postgres',
+          recovered: true,
+          affectedTestIds: ['test-1'],
+        }],
+      });
+
+      const infraCoordinator = new TestExecutionCoordinator(
+        ctx.eventBus,
+        ctx.memory,
+        {
+          ...defaultConfig,
+          infraHealing: mock as any,
+          infraAutoRecover: true,
+          infraMaxAutoRecoveryAttempts: 1,
+          executorConfig: {
+            simulateForTesting: true,
+            simulatedFailureRate: 1.0, // Will keep failing even after recovery
+          },
+        },
+      );
+      await infraCoordinator.initialize();
+
+      await infraCoordinator.execute({
+        testFiles: ['db-test.test.ts'],
+        framework: 'vitest',
+        timeout: 30000,
+      });
+
+      // runRecoveryCycle called at most 1 time (maxAutoRecoveryAttempts = 1)
+      expect(mock.runRecoveryCycle.mock.calls.length).toBeLessThanOrEqual(1);
+
+      await infraCoordinator.dispose();
+    });
+
+    it('should not recover when no infra failures are detected', async () => {
+      const { mock } = createMockInfraHealing({
+        failingServices: new Set(), // No infra failures
+      });
+
+      const infraCoordinator = new TestExecutionCoordinator(
+        ctx.eventBus,
+        ctx.memory,
+        {
+          ...defaultConfig,
+          infraHealing: mock as any,
+          infraAutoRecover: true,
+          executorConfig: {
+            simulateForTesting: true,
+            simulatedFailureRate: 1.0,
+          },
+        },
+      );
+      await infraCoordinator.initialize();
+
+      await infraCoordinator.execute({
+        testFiles: ['logic-test.test.ts'],
+        framework: 'vitest',
+        timeout: 30000,
+      });
+
+      // feedTestOutput called (detection happens)
+      expect(mock.feedTestOutput).toHaveBeenCalled();
+      // But no recovery because observer found no infra failures
+      expect(mock.runRecoveryCycle).not.toHaveBeenCalled();
+
+      await infraCoordinator.dispose();
+    });
+
+    it('should record affected tests per failing service', async () => {
+      const { mock, recordCalls } = createMockInfraHealing({
+        failingServices: new Set(['postgres', 'redis']),
+      });
+
+      const infraCoordinator = new TestExecutionCoordinator(
+        ctx.eventBus,
+        ctx.memory,
+        {
+          ...defaultConfig,
+          infraHealing: mock as any,
+          infraAutoRecover: false, // Just test detection/recording
+          executorConfig: {
+            simulateForTesting: true,
+            simulatedFailureRate: 1.0,
+          },
+        },
+      );
+      await infraCoordinator.initialize();
+
+      await infraCoordinator.execute({
+        testFiles: ['db-test.test.ts'],
+        framework: 'vitest',
+        timeout: 30000,
+      });
+
+      // recordAffectedTests called for each failing service
+      expect(mock.recordAffectedTests).toHaveBeenCalledTimes(2);
+      const services = recordCalls.map(c => c.service).sort();
+      expect(services).toEqual(['postgres', 'redis']);
+
+      await infraCoordinator.dispose();
+    });
+  });
 });

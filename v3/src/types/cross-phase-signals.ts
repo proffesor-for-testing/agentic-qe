@@ -12,7 +12,7 @@
 // Base Types
 // =============================================================================
 
-export type QCSDPhase = 'ideation' | 'grooming' | 'development' | 'cicd' | 'production';
+export type QCSDPhase = 'ideation' | 'refinement' | 'development' | 'cicd' | 'production';
 export type FeedbackLoopType = 'strategic' | 'tactical' | 'operational' | 'quality-criteria';
 export type SignalPriority = 'critical' | 'high' | 'medium' | 'low';
 
@@ -59,7 +59,7 @@ export interface ProductionRiskSignal extends BaseSignal {
 }
 
 // =============================================================================
-// Loop 2: Production → Grooming (Tactical)
+// Loop 2: Production → Refinement (Tactical)
 // =============================================================================
 
 export type SFDIPOTFactor =
@@ -80,7 +80,7 @@ export interface FactorWeight {
 
 export interface SFDIPOTWeightSignal extends BaseSignal {
   source: 'production';
-  target: 'grooming';
+  target: 'refinement';
   loopType: 'tactical';
 
   factorWeights: FactorWeight[];
@@ -124,7 +124,7 @@ export interface TestHealthSignal extends BaseSignal {
 }
 
 // =============================================================================
-// Loop 4: Development → Grooming (Quality Criteria)
+// Loop 4: Development → Refinement (Quality Criteria)
 // =============================================================================
 
 export interface UntestablePattern {
@@ -143,7 +143,7 @@ export interface CoverageGap {
 
 export interface ACQualitySignal extends BaseSignal {
   source: 'development';
-  target: 'grooming';
+  target: 'refinement';
   loopType: 'quality-criteria';
 
   untestablePatterns: UntestablePattern[];

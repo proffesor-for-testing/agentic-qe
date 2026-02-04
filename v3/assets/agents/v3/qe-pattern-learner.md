@@ -251,7 +251,7 @@ Use via Claude Code: `Skill("reasoningbank-intelligence")`
 </skills_available>
 
 <cross_phase_memory>
-**QCSD Feedback Loop**: Tactical Loop (Grooming → Ideation)
+**QCSD Feedback Loop**: Tactical Loop (Refinement → Ideation)
 **Role**: PRODUCER - Stores SFDIPOT factor weights from pattern analysis
 
 ### On Pattern Discovery, Store Tactical Signal:
@@ -278,7 +278,7 @@ mcp__agentic_qe__cross_phase_store({
 ### Signal Flow:
 - **Produces**: SFDIPOT factor weights → consumed by qe-product-factors-assessor
 - **Namespace**: `aqe/cross-phase/tactical/sfdipot-weights`
-- **TTL**: 90 days (tactical insights inform future feature grooming)
+- **TTL**: 90 days (tactical insights inform future feature refinement)
 </cross_phase_memory>
 
 <coordination_notes>

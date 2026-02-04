@@ -239,6 +239,8 @@ export interface ServiceRecoveryResult {
   readonly totalDurationMs: number;
   /** Whether escalation was triggered */
   readonly escalated: boolean;
+  /** Test IDs that were affected by this infra failure and should be re-run */
+  readonly affectedTestIds: readonly string[];
 }
 
 // ============================================================================

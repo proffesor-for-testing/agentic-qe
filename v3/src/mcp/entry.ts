@@ -18,6 +18,12 @@ import { quickStart, MCPProtocolServer } from './protocol-server';
 import { createHTTPServer, type HTTPServer } from './http-server.js';
 import { createRequire } from 'module';
 import { bootstrapTokenTracking, shutdownTokenTracking } from '../init/token-bootstrap.js';
+import { initializeExperienceCapture, stopCleanupTimer } from '../learning/experience-capture-middleware.js';
+import { createInfraHealingOrchestratorSync, ShellCommandRunner } from '../strange-loop/infra-healing/index.js';
+import { setInfraHealingOrchestrator } from './handlers/index.js';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json') as { version: string };
@@ -32,6 +38,7 @@ async function main(): Promise<void> {
 
   // Handle graceful shutdown
   process.on('SIGINT', async () => {
+    stopCleanupTimer();
     await shutdownTokenTracking();
     if (httpServer) {
       await httpServer.stop();
@@ -43,6 +50,7 @@ async function main(): Promise<void> {
   });
 
   process.on('SIGTERM', async () => {
+    stopCleanupTimer();
     await shutdownTokenTracking();
     if (httpServer) {
       await httpServer.stop();
@@ -76,6 +84,41 @@ async function main(): Promise<void> {
       enablePersistence: true,
       verbose: process.env.AQE_VERBOSE === 'true',
     });
+
+    // ADR-051: Initialize experience capture and unified memory BEFORE server starts.
+    // This ensures all tool invocations (domain, memory, core) write to v3 memory.db
+    // from the first request, rather than lazy-initializing on first domain tool call.
+    originalStderrWrite('[MCP] Initializing experience capture...\n');
+    await initializeExperienceCapture();
+
+    // ADR-057: Initialize infrastructure self-healing
+    originalStderrWrite('[MCP] Initializing infra-healing...\n');
+    try {
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = dirname(__filename);
+      const playbookPath = resolve(__dirname, '../strange-loop/infra-healing/default-playbook.yaml');
+      let playbookContent: string;
+      try {
+        playbookContent = readFileSync(playbookPath, 'utf-8');
+      } catch {
+        // Fallback for bundled environments where the YAML may not be at the resolved path
+        playbookContent = '';
+      }
+
+      if (playbookContent) {
+        const infraOrchestrator = createInfraHealingOrchestratorSync({
+          commandRunner: new ShellCommandRunner(),
+          playbook: playbookContent,
+        });
+        setInfraHealingOrchestrator(infraOrchestrator);
+        originalStderrWrite(`[MCP] Infra-healing ready (${infraOrchestrator.getPlaybook().listServices().length} services)\n`);
+      } else {
+        originalStderrWrite('[MCP] Infra-healing skipped: no playbook found\n');
+      }
+    } catch (infraError) {
+      originalStderrWrite(`[MCP] WARNING: Infra-healing init failed: ${infraError}\n`);
+      // Non-fatal — MCP server continues without infra-healing
+    }
 
     // Start the MCP server
     originalStderrWrite('[MCP] Starting server...\n');

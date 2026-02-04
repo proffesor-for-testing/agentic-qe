@@ -54,6 +54,14 @@ export {
   resetTaskExecutor,
 } from './wrapped-domain-handlers.js';
 
+// ADR-057: Infrastructure self-healing handlers
+export {
+  handleInfraHealingStatus,
+  handleInfraHealingFeedOutput,
+  handleInfraHealingRecover,
+  setInfraHealingOrchestrator,
+} from './domain-handlers';
+
 // Memory handlers
 export {
   handleMemoryStore,
