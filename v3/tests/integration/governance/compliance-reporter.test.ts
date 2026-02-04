@@ -257,9 +257,9 @@ describe('Compliance Reporter Integration', () => {
         });
       }
 
-      // Resolve one violation
-      const allViols = reporter.getViolations();
-      reporter.resolveViolation(allViols[0].id, 'Resolved');
+      // Resolve the agent-3 violation specifically (deterministic)
+      const agent3Violation = reporter.getViolations({ agentId: 'agent-3' })[0];
+      reporter.resolveViolation(agent3Violation.id, 'Resolved');
     });
 
     it('should get all violations', () => {
