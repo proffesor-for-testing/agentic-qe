@@ -13,10 +13,16 @@
 
 > **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 51 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 12 domains, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
+### What's New in v3.5.0
+
+- **Governance ON by Default** - @claude-flow/guidance integration with 7 unbreakable QE invariants (ADR-058)
+- **QCSD 2.0 Complete Lifecycle** - All 4 phases: Ideation → Refinement → Development → CI/CD Verification
+- **67 QE Skills** - 4 new in v3.5.0 (QCSD Refinement, Development, CI/CD swarms + compatibility-testing)
+- **Infrastructure Self-Healing Enterprise** - 12 enterprise error signatures (SAP, Salesforce, Payment Gateway)
+
 ### What's New in v3.4.2
 
 - **Skill Validation System** - 4-layer trust tiers with schemas, validators, and evaluation suites (ADR-056)
-- **63 QE Skills with Trust Tiers** - 46 Tier 3 (Verified), 7 Tier 2, 5 Tier 1, 5 Tier 0 skills
 - **CLI Validation Commands** - `aqe skill report`, `aqe eval run`, regression detection
 
 ### What's New in v3.4.0
@@ -25,7 +31,7 @@
 - **A2A Protocol** - Google's agent-to-agent interoperability standard for cross-tool communication
 - **A2UI Components** - Unified UI combining AG-UI streaming with A2A event handling
 
-🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **63 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** 
+🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **67 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance** 
 
 </div>
 
@@ -82,7 +88,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
-- ✅ **63 QE Skills with Trust Tiers**: 46 Tier 3 (Verified) skills with full validation suites
+- ✅ **67 QE Skills**: 46 Tier 3 verified + 21 additional QE skills (QCSD swarms, n8n testing, qe-* domains)
 
 ---
 
@@ -150,7 +156,7 @@ V3 is built on **12 DDD Bounded Contexts**, each with dedicated agents and clear
 
 ### ✅ Skill Trust Tiers (v3.4.2)
 
-All 63 QE skills are categorized by **trust tier** based on their validation infrastructure:
+AQE includes **67 QE skills** (46 Tier 3 verified + 21 additional). Trust tiers apply to core QE skills:
 
 | Tier | Badge | Count | Description |
 |------|-------|-------|-------------|
@@ -594,12 +600,12 @@ claude "Coordinate security audit across the monorepo:
 
 ---
 
-## 🎓 63 QE Skills
+## 🎓 67 QE Skills
 
-V3 agents automatically apply relevant skills from the comprehensive skill library:
+V3 agents automatically apply relevant skills from the comprehensive QE skill library.
 
 <details>
-<summary><b>View All 63 QE Skills</b></summary>
+<summary><b>View All 67 QE Skills</b></summary>
 
 **Core Testing & Methodologies (12)**
 - agentic-quality-engineering - Core PACT principles for AI-powered QE
@@ -674,9 +680,15 @@ V3 agents automatically apply relevant skills from the comprehensive skill libra
 - n8n-trigger-testing-strategies - Webhook and event testing
 - n8n-integration-testing-patterns - API contract testing for n8n
 
-**QCSD & Accessibility (2)**
-- qcsd-ideation-swarm - QCSD Ideation phase swarm using HTSM v6.3, Risk Storming, Testability analysis
-- a11y-ally - Comprehensive WCAG auditing with multi-tool testing, video captions, and EU compliance
+**QCSD Swarms (4)** - Quality Conscious Software Delivery lifecycle
+- qcsd-ideation-swarm - Phase 1: HTSM v6.3, Risk Storming, Testability analysis
+- qcsd-refinement-swarm - Phase 2: SFDIPOT analysis, BDD scenario generation
+- qcsd-development-swarm - Phase 3: TDD, coverage, code quality gates (SHIP/CONDITIONAL/HOLD)
+- qcsd-cicd-swarm - Phase 4: Pipeline quality gates (RELEASE/REMEDIATE/BLOCK)
+
+**Accessibility (2)**
+- a11y-ally - Comprehensive WCAG auditing with video captions and EU compliance
+- accessibility-testing - WCAG 2.2 compliance and screen reader validation
 
 </details>
 

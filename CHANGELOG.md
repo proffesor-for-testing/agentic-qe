@@ -5,6 +5,58 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.1] - 2026-02-04
+
+### Security
+
+- **tar vulnerability fix** - Added `tar>=7.5.7` override to fix 6 HIGH severity Dependabot alerts
+  - Fixes: Hardlink Path Traversal, Unicode Ligature Race Condition, Symlink Poisoning
+  - `npm audit` now shows 0 vulnerabilities
+
+### Changed
+
+- **Documentation** - Added v3.5.0 release highlights to README.md and v3/README.md
+- **skills-manifest.json** - Updated to v1.3.0 with skill breakdown (67 QE skills)
+
+## [3.5.0] - 2026-02-04
+
+### 🎯 Highlights
+
+- **Governance ON by Default (ADR-058)** - @claude-flow/guidance integration provides invisible guardrails protecting AI agents from rule drift, runaway loops, memory corruption, and trust erosion
+- **QCSD 2.0 Complete Lifecycle** - All four phases implemented: Ideation → Refinement → Development → CI/CD Verification
+- **67 QE Skills** - Updated from 63 to 67 QE skills (4 new: QCSD Refinement, Development, CI/CD swarms + compatibility-testing)
+- **Infrastructure Self-Healing Enterprise Edition (ADR-057)** - 12 enterprise error signatures (SAP, Salesforce, Payment Gateway)
+
+### Added
+
+- **QCSD Refinement Swarm (Phase 2)** - SFDIPOT analysis, BDD scenario generation, requirements validation
+- **QCSD Development Swarm (Phase 3)** - TDD adherence, code complexity, coverage gates (SHIP/CONDITIONAL/HOLD)
+- **QCSD CI/CD Verification Swarm (Phase 4)** - Pipeline quality gates (RELEASE/REMEDIATE/BLOCK)
+- **Governance Phase in `aqe init`** - Phase 13 installs constitution.md and 12 domain shards
+- **V2→V3 Memory Migration Script** - `scripts/migrate-v2-to-v3-memory.js`
+- **3 MCP Tools** - `infra_healing_status`, `infra_healing_feed_output`, `infra_healing_recover`
+
+### Changed
+
+- **Skills manifest** - Updated to v1.3.0 with totalQESkills: 67
+- **Documentation** - README, v3/README, release-verification updated with accurate skill counts
+- **CLAUDE.md** - Added auto-invocation rules for all 4 QCSD phases
+- **Grooming → Refinement** - Renamed across codebase (modern Scrum terminology)
+
+### Fixed
+
+- **Duplicate BDDScenario export** - Renamed to RefinementBDDScenario
+- **Missing ToolCategory** - Added 'infra-healing' to ToolCategory union
+
+## [3.4.6] - 2026-02-03
+
+### Fixed
+
+- **Code Intelligence KG scan performance** - Fixed glob patterns to properly exclude nested directories
+  - Before: 15+ min init, 941K entries, 1.1GB database
+  - After: ~1.5 min init, 90K entries, 245MB database
+- **Hooks duplication bug** - Fixed hooks phase appending duplicates on every `aqe init` run
+
 ## [3.4.5] - 2026-02-03
 
 ### Fixed

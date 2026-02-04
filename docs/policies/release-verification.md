@@ -55,15 +55,15 @@ npx aqe agent spawn qe-test-generator --task "Generate unit test for simple func
 # - AgentDB: Verify databases created and accessible
 
 # 8. Count verification (MUST MATCH CLAIMS)
-find .claude/agents -name "*.md" | wc -l    # Should show 18 agents
-find .claude/skills -name "*.md" | wc -l    # Should show 34 skills
+find .claude/agents -name "*.md" | wc -l    # Should show 51+ agents
+find .claude/skills -name "*.md" | wc -l    # Should show 100+ skills (46 QE + 57 platform)
 find .claude/commands -name "*.md" | wc -l  # Should show 8 commands
 ```
 
 ## Verification Success Criteria
 
-- ✅ All 18 QE agents present in `.claude/agents/` (exact count verified)
-- ✅ All 34 QE skills present in `.claude/skills/` (exact count verified)
+- ✅ All 51+ QE agents present in `.claude/agents/` (44 main + 7 TDD subagents)
+- ✅ All 100+ skills present in `.claude/skills/` (46 QE Tier 3 + 57 platform/integration)
 - ✅ All 8 AQE slash commands present in `.claude/commands/` (exact count verified)
 - ✅ CLAUDE.md contains fleet configuration with agent descriptions
 - ✅ Fleet config file exists at `.agentic-qe/config/fleet.json` and is valid JSON
@@ -73,7 +73,7 @@ find .claude/commands -name "*.md" | wc -l  # Should show 8 commands
 - ✅ At least one agent successfully executes a task (qe-test-generator tested)
 - ✅ Agent uses claimed features (Learning, Pattern Bank, Multi-Model Router, AgentDB)
 - ✅ No initialization errors or missing files
-- ✅ File counts match documentation claims (18 agents, 34 skills, 8 commands)
+- ✅ File counts match documentation claims (51+ agents, 100+ skills, 8 commands)
 
 ## Version Update Policy (CRITICAL)
 
