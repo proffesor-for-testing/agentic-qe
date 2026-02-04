@@ -441,6 +441,7 @@ export const ALL_DOMAINS = [
   'visual-accessibility',
   'chaos-resilience',
   'learning-optimization',
+  'enterprise-integration',
 ];
 
 /**

@@ -21,3 +21,4 @@ export * as ContractTesting from './contract-testing/interfaces';
 export * as VisualAccessibility from './visual-accessibility/interfaces';
 export * as ChaosResilience from './chaos-resilience/interfaces';
 export * as LearningOptimization from './learning-optimization/interfaces';
+export * as EnterpriseIntegration from './enterprise-integration/interfaces';

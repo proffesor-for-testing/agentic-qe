@@ -1,7 +1,7 @@
 {
-  "version": "1.2.0",
-  "generated": "2026-01-27T00:00:00.000Z",
-  "totalSkills": 46,
+  "version": "1.3.0",
+  "generated": "2026-02-04T00:00:00.000Z",
+  "totalSkills": 50,
   "description": "Agentic QE Fleet skills manifest - Quality Engineering focused skills only. Claude Flow platform skills are managed separately.",
   "categories": {
     "qcsd-phases": {
@@ -85,6 +85,11 @@
       "description": "Bug reporting and defect management",
       "priority": "medium",
       "skills": ["bug-reporting-excellence"]
+    },
+    "enterprise-integration": {
+      "description": "Enterprise middleware, SAP, WMS, and observability testing for complex integration landscapes",
+      "priority": "high",
+      "skills": ["enterprise-integration-testing", "middleware-testing-patterns", "observability-testing-patterns", "wms-testing-patterns"]
     }
   },
   "skills": {
@@ -101,7 +106,7 @@
       "lastOptimized": "2026-01-27",
       "tags": ["qcsd", "ideation", "htsm", "quality-criteria", "risk-storming", "testability", "swarm", "url-analysis"],
       "dependencies": ["agentic-quality-engineering", "holistic-testing-pact"],
-      "agents": ["qe-quality-criteria-recommender", "qe-risk-assessor", "qe-requirements-validator", "qe-accessibility-auditor", "qe-security-auditor", "qe-qx-partner"],
+      "agents": ["qe-quality-criteria-recommender", "qe-risk-assessor", "qe-requirements-validator", "qe-accessibility-auditor", "qe-security-auditor", "qe-qx-partner", "qe-middleware-validator", "qe-sap-rfc-tester", "qe-sod-analyzer"],
       "relatedSkills": ["testability-scoring", "risk-based-testing", "context-driven-testing", "holistic-testing-pact"],
       "triggers": {
         "patterns": [
@@ -128,7 +133,10 @@
         "conditionalAgents": {
           "qe-accessibility-auditor": "HAS_UI",
           "qe-security-auditor": "HAS_SECURITY",
-          "qe-qx-partner": "HAS_UX"
+          "qe-qx-partner": "HAS_UX",
+          "qe-middleware-validator": "HAS_MIDDLEWARE",
+          "qe-sap-rfc-tester": "HAS_SAP_INTEGRATION",
+          "qe-sod-analyzer": "HAS_AUTHORIZATION"
         }
       }
     },
@@ -152,7 +160,10 @@
         "qe-contract-validator",
         "qe-impact-analyzer",
         "qe-dependency-mapper",
-        "qe-test-idea-rewriter"
+        "qe-test-idea-rewriter",
+        "qe-middleware-validator",
+        "qe-odata-contract-tester",
+        "qe-sod-analyzer"
       ],
       "relatedSkills": ["context-driven-testing", "testability-scoring", "risk-based-testing"],
       "triggers": {
@@ -179,7 +190,10 @@
         "conditionalAgents": {
           "qe-contract-validator": "HAS_API",
           "qe-impact-analyzer": "HAS_REFACTORING",
-          "qe-dependency-mapper": "HAS_DEPENDENCIES"
+          "qe-dependency-mapper": "HAS_DEPENDENCIES",
+          "qe-middleware-validator": "HAS_MIDDLEWARE",
+          "qe-odata-contract-tester": "HAS_SAP_INTEGRATION",
+          "qe-sod-analyzer": "HAS_AUTHORIZATION"
         }
       }
     },
@@ -203,7 +217,10 @@
         "qe-security-scanner",
         "qe-performance-tester",
         "qe-mutation-tester",
-        "qe-defect-predictor"
+        "qe-defect-predictor",
+        "qe-message-broker-tester",
+        "qe-sap-idoc-tester",
+        "qe-sod-analyzer"
       ],
       "relatedSkills": ["tdd-london-chicago", "mutation-testing", "performance-testing", "security-testing"],
       "triggers": {
@@ -236,7 +253,10 @@
         "conditionalAgents": {
           "qe-security-scanner": "HAS_SECURITY_CODE",
           "qe-performance-tester": "HAS_PERFORMANCE_CODE",
-          "qe-mutation-tester": "HAS_CRITICAL_CODE"
+          "qe-mutation-tester": "HAS_CRITICAL_CODE",
+          "qe-message-broker-tester": "HAS_MIDDLEWARE",
+          "qe-sap-idoc-tester": "HAS_SAP_INTEGRATION",
+          "qe-sod-analyzer": "HAS_AUTHORIZATION"
         }
       }
     },
@@ -260,7 +280,10 @@
         "qe-security-scanner",
         "qe-chaos-engineer",
         "qe-coverage-specialist",
-        "qe-deployment-advisor"
+        "qe-deployment-advisor",
+        "qe-middleware-validator",
+        "qe-soap-tester",
+        "qe-sod-analyzer"
       ],
       "relatedSkills": ["shift-left-testing", "shift-right-testing", "regression-testing", "security-testing"],
       "triggers": {
@@ -291,7 +314,10 @@
         "conditionalAgents": {
           "qe-security-scanner": "HAS_SECURITY_PIPELINE",
           "qe-chaos-engineer": "HAS_PERFORMANCE_PIPELINE",
-          "qe-coverage-specialist": "HAS_INFRA_CHANGE"
+          "qe-coverage-specialist": "HAS_INFRA_CHANGE",
+          "qe-middleware-validator": "HAS_MIDDLEWARE",
+          "qe-soap-tester": "HAS_SAP_INTEGRATION",
+          "qe-sod-analyzer": "HAS_AUTHORIZATION"
         }
       }
     },
@@ -831,6 +857,93 @@
       "tags": ["bug-reporting", "communication", "quality"],
       "dependencies": [],
       "agents": ["qe-test-executor", "qe-flaky-test-hunter"]
+    },
+    "enterprise-integration-testing": {
+      "id": "enterprise-integration-testing",
+      "name": "Enterprise Integration Testing",
+      "description": "Orchestration skill for enterprise integration testing covering SOAP/WSDL, message brokers, SAP RFC/BAPI/IDoc/OData, ESB middleware, SoD analysis, and WMS integration.",
+      "category": "enterprise-integration",
+      "priority": "high",
+      "file": "enterprise-integration-testing/SKILL.md",
+      "tokenEstimate": 2800,
+      "optimizationStatus": "active",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2026-02-04",
+      "tags": ["enterprise", "integration", "soap", "sap", "esb", "middleware", "wms", "odata", "idoc", "sod"],
+      "dependencies": ["api-testing-patterns", "contract-testing"],
+      "agents": ["qe-soap-tester", "qe-message-broker-tester", "qe-sap-rfc-tester", "qe-middleware-validator", "qe-sap-idoc-tester", "qe-odata-contract-tester", "qe-sod-analyzer"],
+      "relatedSkills": ["middleware-testing-patterns", "observability-testing-patterns", "wms-testing-patterns"],
+      "triggers": {
+        "patterns": [
+          "enterprise integration testing",
+          "soap testing",
+          "sap integration testing",
+          "middleware testing",
+          "esb testing",
+          "message broker testing",
+          "idoc testing",
+          "odata testing",
+          "sod analysis"
+        ],
+        "autoInvoke": false,
+        "enforcementLevel": "recommended"
+      },
+      "execution": {
+        "primary": "task-tool",
+        "parallel_batches": 3,
+        "requiresFlagDetection": true,
+        "conditionalAgents": {
+          "qe-sap-rfc-tester": "HAS_SAP_INTEGRATION",
+          "qe-sap-idoc-tester": "HAS_SAP_INTEGRATION",
+          "qe-sod-analyzer": "HAS_AUTHORIZATION",
+          "qe-middleware-validator": "HAS_MIDDLEWARE"
+        }
+      }
+    },
+    "middleware-testing-patterns": {
+      "id": "middleware-testing-patterns",
+      "name": "Middleware Testing Patterns",
+      "description": "Enterprise middleware testing patterns for message routing, transformation, DLQ, protocol mediation, ESB error handling, and EIP patterns.",
+      "category": "enterprise-integration",
+      "priority": "high",
+      "file": "middleware-testing-patterns/SKILL.md",
+      "tokenEstimate": 1800,
+      "optimizationStatus": "active",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2026-02-04",
+      "tags": ["middleware", "esb", "soap", "messaging", "iib", "mq", "transformation", "routing"],
+      "dependencies": ["api-testing-patterns", "contract-testing"],
+      "agents": ["qe-middleware-validator", "qe-message-broker-tester", "qe-soap-tester"]
+    },
+    "observability-testing-patterns": {
+      "id": "observability-testing-patterns",
+      "name": "Observability Testing Patterns",
+      "description": "Observability and monitoring validation patterns for log aggregation, distributed tracing, metrics/alerting, dashboard accuracy, and SLA compliance.",
+      "category": "enterprise-integration",
+      "priority": "medium",
+      "file": "observability-testing-patterns/SKILL.md",
+      "tokenEstimate": 2000,
+      "optimizationStatus": "active",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2026-02-04",
+      "tags": ["observability", "monitoring", "logging", "tracing", "metrics", "kibana", "splunk", "elk", "alerting"],
+      "dependencies": ["shift-right-testing", "performance-testing"],
+      "agents": ["qe-chaos-engineer", "qe-performance-tester"]
+    },
+    "wms-testing-patterns": {
+      "id": "wms-testing-patterns",
+      "name": "WMS Testing Patterns",
+      "description": "Warehouse Management System testing patterns for inventory operations, pick/pack/ship workflows, wave management, EDI X12/EDIFACT, RF scanning, and WMS-ERP integration.",
+      "category": "enterprise-integration",
+      "priority": "high",
+      "file": "wms-testing-patterns/SKILL.md",
+      "tokenEstimate": 1600,
+      "optimizationStatus": "active",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2026-02-04",
+      "tags": ["wms", "warehouse", "inventory", "edi", "pick-pack-ship", "blue-yonder", "manhattan", "sap-ewm"],
+      "dependencies": ["api-testing-patterns", "contract-testing", "enterprise-integration-testing"],
+      "agents": ["qe-middleware-validator", "qe-contract-validator"]
     }
   },
   "preloadRules": {
@@ -853,7 +966,14 @@
       "qe-flaky-test-hunter": ["exploratory-testing-advanced", "sherlock-review", "bug-reporting-excellence"],
       "qe-visual-tester": ["visual-testing-advanced"],
       "qe-chaos-engineer": ["chaos-engineering-resilience"],
-      "qe-accessibility-auditor": ["a11y-ally", "accessibility-testing", "compliance-testing"]
+      "qe-accessibility-auditor": ["a11y-ally", "accessibility-testing", "compliance-testing"],
+      "qe-soap-tester": ["enterprise-integration-testing", "middleware-testing-patterns", "api-testing-patterns"],
+      "qe-message-broker-tester": ["enterprise-integration-testing", "middleware-testing-patterns"],
+      "qe-sap-rfc-tester": ["enterprise-integration-testing"],
+      "qe-middleware-validator": ["enterprise-integration-testing", "middleware-testing-patterns"],
+      "qe-sap-idoc-tester": ["enterprise-integration-testing"],
+      "qe-odata-contract-tester": ["enterprise-integration-testing", "api-testing-patterns", "contract-testing"],
+      "qe-sod-analyzer": ["enterprise-integration-testing", "compliance-testing", "security-testing"]
     },
     "byTask": {
       "qcsd-analysis": ["qcsd-ideation-swarm", "testability-scoring", "risk-based-testing", "context-driven-testing", "holistic-testing-pact"],
@@ -869,14 +989,18 @@
       "ci-cd-setup": ["cicd-pipeline-qe-orchestrator", "shift-left-testing", "shift-right-testing"],
       "mobile-testing": ["mobile-testing", "accessibility-testing", "visual-testing-advanced"],
       "api-testing": ["api-testing-patterns", "contract-testing"],
-      "accessibility-audit": ["a11y-ally", "accessibility-testing", "compliance-testing"]
+      "accessibility-audit": ["a11y-ally", "accessibility-testing", "compliance-testing"],
+      "enterprise-integration": ["enterprise-integration-testing", "middleware-testing-patterns", "api-testing-patterns", "contract-testing"],
+      "sap-integration": ["enterprise-integration-testing", "middleware-testing-patterns", "compliance-testing"],
+      "wms-testing": ["wms-testing-patterns", "enterprise-integration-testing", "contract-testing"],
+      "observability-testing": ["observability-testing-patterns", "shift-right-testing", "performance-testing"]
     }
   },
   "optimizationTracking": {
     "targetReduction": "40-50%",
     "optimizedSkills": 7,
-    "totalSkills": 46,
-    "progress": "15.2%",
+    "totalSkills": 50,
+    "progress": "14.0%",
     "tokensSaved": 10200,
     "optimizedList": [
       "agentic-quality-engineering",
@@ -903,8 +1027,8 @@
   "metadata": {
     "generatedBy": "Agentic QE Fleet",
     "fleetVersion": "2.1.0",
-    "manifestVersion": "1.1.0",
-    "lastUpdated": "2025-12-02T00:00:00.000Z",
+    "manifestVersion": "1.3.0",
+    "lastUpdated": "2026-02-04T00:00:00.000Z",
     "contributors": [
       {
         "name": "@fndlalit",

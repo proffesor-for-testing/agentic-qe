@@ -21,15 +21,17 @@ domains:
       agents: [qe-chaos-engineer]
     - domain: coverage-analysis
       agents: [qe-coverage-specialist]
+    - domain: enterprise-integration
+      agents: [qe-middleware-validator, qe-soap-tester, qe-sod-analyzer]
   analysis:
     - domain: quality-assessment
       agents: [qe-deployment-advisor]
 # Agent Inventory
 agents:
   core: [qe-quality-gate, qe-regression-analyzer, qe-flaky-hunter]
-  conditional: [qe-security-scanner, qe-chaos-engineer, qe-coverage-specialist]
+  conditional: [qe-security-scanner, qe-chaos-engineer, qe-coverage-specialist, qe-middleware-validator, qe-soap-tester, qe-sod-analyzer]
   analysis: [qe-deployment-advisor]
-  total: 7
+  total: 10
   sub_agents: 0
 skills: [shift-left-testing, shift-right-testing, regression-testing, security-testing]
 # Execution Models (Task Tool is PRIMARY)
@@ -79,10 +81,10 @@ a RELEASE / REMEDIATE / BLOCK decision.
 | Dimension | Development Swarm | CI/CD Swarm |
 |-----------|-------------------|-------------|
 | Framework | TDD + Complexity + Coverage | Quality Gates + Regression + Stability |
-| Agents | 7 (3 core + 3 conditional + 1 analysis) | 7 (3 core + 3 conditional + 1 analysis) |
+| Agents | 10 (3 core + 6 conditional + 1 analysis) | 10 (3 core + 6 conditional + 1 analysis) |
 | Core Output | Code quality assessment | Release readiness assessment |
 | Decision | SHIP / CONDITIONAL / HOLD | RELEASE / REMEDIATE / BLOCK |
-| Flags | HAS_SECURITY_CODE, HAS_PERFORMANCE_CODE, HAS_CRITICAL_CODE | HAS_SECURITY_PIPELINE, HAS_PERFORMANCE_PIPELINE, HAS_INFRA_CHANGE |
+| Flags | HAS_SECURITY_CODE, HAS_PERFORMANCE_CODE, HAS_CRITICAL_CODE, HAS_MIDDLEWARE, HAS_SAP_INTEGRATION, HAS_AUTHORIZATION | HAS_SECURITY_PIPELINE, HAS_PERFORMANCE_PIPELINE, HAS_INFRA_CHANGE, HAS_MIDDLEWARE, HAS_SAP_INTEGRATION, HAS_AUTHORIZATION |
 | Phase | During Sprint Development | Pre-Release / CI-CD Pipeline |
 | Input | Source code + test files | Pipeline artifacts + test results + build output |
 | Final Step | Defect prediction analysis | Deployment readiness advisory |
@@ -133,7 +135,7 @@ a RELEASE / REMEDIATE / BLOCK decision.
 
 Scan the pipeline artifacts, CI/CD configuration, test results, and change diff to SET these flags. Do not skip any flag.
 
-### Flag Detection (Check ALL THREE)
+### Flag Detection (Check ALL SIX)
 
 ```
 HAS_SECURITY_PIPELINE = FALSE
@@ -157,6 +159,24 @@ HAS_INFRA_CHANGE = FALSE
   infrastructure as code, helm charts, ansible playbooks,
   environment variables, nginx config, database migrations,
   service mesh config, load balancer config, DNS changes
+
+HAS_MIDDLEWARE = FALSE
+  Set TRUE if pipeline artifacts or changes reference ANY of:
+  middleware, ESB, message broker, MQ, Kafka, RabbitMQ,
+  integration bus, API gateway, message queue, pub/sub,
+  event bus, service bus, ActiveMQ, NATS, Redis Streams
+
+HAS_SAP_INTEGRATION = FALSE
+  Set TRUE if pipeline artifacts or changes reference ANY of:
+  SAP, RFC, BAPI, IDoc, OData, S/4HANA, EWM, ECC, ABAP,
+  CDS view, Fiori, SAP Cloud Integration, SAP PI/PO,
+  SAP Gateway, SOAP service, SAP connector
+
+HAS_AUTHORIZATION = FALSE
+  Set TRUE if pipeline artifacts or changes reference ANY of:
+  SoD, segregation of duties, role conflict, authorization object,
+  T-code, user role, access control matrix, GRC, RBAC policy,
+  permission matrix, privilege escalation, role assignment
 ```
 
 ### Validation Checkpoint
@@ -167,7 +187,7 @@ Before proceeding to Phase 2, confirm:
 +-- I have read the pipeline artifacts and test results
 +-- I have read the CI/CD configuration files
 +-- I have reviewed the change diff against baseline
-+-- I have evaluated ALL THREE flags
++-- I have evaluated ALL SIX flags
 +-- I have recorded which flags are TRUE
 +-- I understand which conditional agents will be needed
 ```
@@ -190,6 +210,15 @@ You MUST output flag detection results before proceeding:
 |  Evidence:                 [what triggered it - specific]   |
 |                                                             |
 |  HAS_INFRA_CHANGE:         [TRUE/FALSE]                     |
+|  Evidence:                 [what triggered it - specific]   |
+|                                                             |
+|  HAS_MIDDLEWARE:            [TRUE/FALSE]                     |
+|  Evidence:                 [what triggered it - specific]   |
+|                                                             |
+|  HAS_SAP_INTEGRATION:      [TRUE/FALSE]                     |
+|  Evidence:                 [what triggered it - specific]   |
+|                                                             |
+|  HAS_AUTHORIZATION:        [TRUE/FALSE]                     |
 |  Evidence:                 [what triggered it - specific]   |
 |                                                             |
 |  EXPECTED AGENTS:                                           |
@@ -661,6 +690,9 @@ Output extracted metrics:
 |  HAS_SECURITY_PIPELINE = TRUE    -> MUST spawn qe-security-scanner   |
 |  HAS_PERFORMANCE_PIPELINE = TRUE -> MUST spawn qe-chaos-engineer     |
 |  HAS_INFRA_CHANGE = TRUE         -> MUST spawn qe-coverage-specialist|
+|  HAS_MIDDLEWARE = TRUE            -> MUST spawn qe-middleware-validator|
+|  HAS_SAP_INTEGRATION = TRUE      -> MUST spawn qe-soap-tester        |
+|  HAS_AUTHORIZATION = TRUE        -> MUST spawn qe-sod-analyzer       |
 |                                                              |
 |  Skipping a flagged agent is a FAILURE of this skill.        |
 +-------------------------------------------------------------+
@@ -673,11 +705,14 @@ Output extracted metrics:
 | HAS_SECURITY_PIPELINE | qe-security-scanner | security-compliance | `security_scan_comprehensive` |
 | HAS_PERFORMANCE_PIPELINE | qe-chaos-engineer | chaos-resilience | `performance_benchmark` |
 | HAS_INFRA_CHANGE | qe-coverage-specialist | coverage-analysis | `coverage_analyze_sublinear` |
+| HAS_MIDDLEWARE | qe-middleware-validator | enterprise-integration | `task_orchestrate` |
+| HAS_SAP_INTEGRATION | qe-soap-tester | enterprise-integration | `task_orchestrate` |
+| HAS_AUTHORIZATION | qe-sod-analyzer | enterprise-integration | `task_orchestrate` |
 
 ### Decision Tree
 
 ```
-IF HAS_SECURITY_PIPELINE == FALSE AND HAS_PERFORMANCE_PIPELINE == FALSE AND HAS_INFRA_CHANGE == FALSE:
+IF HAS_SECURITY_PIPELINE == FALSE AND HAS_PERFORMANCE_PIPELINE == FALSE AND HAS_INFRA_CHANGE == FALSE AND HAS_MIDDLEWARE == FALSE AND HAS_SAP_INTEGRATION == FALSE AND HAS_AUTHORIZATION == FALSE:
     -> Skip to Phase 5 (no conditional agents needed)
     -> State: "No conditional agents needed based on pipeline analysis"
 
@@ -921,6 +956,214 @@ Use the Write tool to save BEFORE completing.`,
 })
 ```
 
+### IF HAS_MIDDLEWARE: Middleware Validator (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "Middleware and message broker pipeline verification",
+  prompt: `You are qe-middleware-validator. Your output quality is being audited.
+
+## PURPOSE
+
+Validate middleware and message broker components in the CI/CD pipeline.
+Analyze message flow test results, broker health checks, queue metrics,
+and integration test outcomes for middleware components.
+
+## PIPELINE ARTIFACTS
+
+=== MIDDLEWARE TEST RESULTS START ===
+[PASTE middleware integration test results, broker health checks, queue metrics]
+=== MIDDLEWARE TEST RESULTS END ===
+
+=== MIDDLEWARE CONFIG CHANGES START ===
+[PASTE middleware configuration diffs - broker configs, queue definitions, routing rules]
+=== MIDDLEWARE CONFIG CHANGES END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. Middleware Component Inventory
+
+| Component | Type | Protocol | Pipeline Status | Test Coverage |
+|-----------|------|----------|-----------------|---------------|
+| [name] | Queue/Topic/Exchange/Gateway | AMQP/Kafka/JMS/HTTP | Healthy/Degraded/Failed | [%] |
+
+### 2. Message Flow Test Results
+
+| Flow | Producer | Consumer | Test Status | Latency | Throughput | Errors |
+|------|----------|----------|-------------|---------|------------|--------|
+| [name] | [source] | [target] | Pass/Fail | [ms] | [msg/s] | [count] |
+
+### 3. Broker Health Assessment
+
+| Metric | Current | Threshold | Status |
+|--------|---------|-----------|--------|
+| Queue depth | [value] | [max] | PASS/FAIL |
+| Consumer lag | [value] | [max] | PASS/FAIL |
+| Dead letter count | [value] | 0 | PASS/FAIL |
+| Connection pool | [value] | [max] | PASS/FAIL |
+| Memory usage | [value] | [max] | PASS/FAIL |
+
+### 4. Configuration Change Impact
+
+| Config Change | Risk | Backward Compatible | Rollback Plan | Verified |
+|---------------|------|---------------------|---------------|----------|
+| [change] | High/Medium/Low | Yes/No | [plan] | Yes/No |
+
+### 5. Recommendations
+
+| Priority | Action | Impact | Effort |
+|----------|--------|--------|--------|
+| P0 | [critical middleware pipeline issues] | [what risk] | [effort] |
+| P1 | [important improvements] | [what risk] | [effort] |
+
+**MIDDLEWARE PIPELINE SCORE: X/50**
+
+## OUTPUT FORMAT
+
+Save to: $\{OUTPUT_FOLDER}/10-middleware-pipeline.md
+Use the Write tool to save BEFORE completing.`,
+  subagent_type: "qe-middleware-validator",
+  run_in_background: true
+})
+```
+
+### IF HAS_SAP_INTEGRATION: SOAP Tester (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "SAP SOAP service and integration pipeline verification",
+  prompt: `You are qe-soap-tester. Your output quality is being audited.
+
+## PURPOSE
+
+Validate SAP SOAP services and integration points in the CI/CD pipeline.
+Analyze WSDL contracts, SOAP message validation results, SAP connector
+test outcomes, and integration gateway health.
+
+## PIPELINE ARTIFACTS
+
+=== SAP INTEGRATION TEST RESULTS START ===
+[PASTE SAP integration test results, SOAP service tests, connector health checks]
+=== SAP INTEGRATION TEST RESULTS END ===
+
+=== SAP CONFIG CHANGES START ===
+[PASTE SAP configuration diffs - WSDL changes, connector configs, endpoint changes]
+=== SAP CONFIG CHANGES END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. SAP Service Inventory
+
+| Service | Type | Endpoint | WSDL Version | Pipeline Status | Test Coverage |
+|---------|------|----------|-------------|-----------------|---------------|
+| [name] | SOAP/OData/RFC | [url] | [version] | Healthy/Failed | [%] |
+
+### 2. SOAP Contract Validation
+
+| Contract | WSDL Change | Backward Compatible | Breaking Changes | Schema Valid |
+|----------|-------------|---------------------|------------------|-------------|
+| [service] | Yes/No | Yes/No | [list] | Yes/No |
+
+### 3. Integration Gateway Health
+
+| Gateway | Status | Response Time | Error Rate | Throughput | Connection Pool |
+|---------|--------|---------------|------------|------------|-----------------|
+| [name] | Up/Down | [ms] | [%] | [req/s] | [used/max] |
+
+### 4. SAP Connector Test Results
+
+| Connector | Test Type | Status | Messages Processed | Errors | Data Integrity |
+|-----------|-----------|--------|-------------------|--------|----------------|
+| [name] | End-to-end/Unit/Contract | Pass/Fail | [count] | [count] | Pass/Fail |
+
+### 5. Recommendations
+
+| Priority | Action | Impact | Effort |
+|----------|--------|--------|--------|
+| P0 | [critical SAP pipeline issues] | [what risk] | [effort] |
+| P1 | [important improvements] | [what risk] | [effort] |
+
+**SAP PIPELINE SCORE: X/50**
+
+## OUTPUT FORMAT
+
+Save to: $\{OUTPUT_FOLDER}/11-sap-pipeline.md
+Use the Write tool to save BEFORE completing.`,
+  subagent_type: "qe-soap-tester",
+  run_in_background: true
+})
+```
+
+### IF HAS_AUTHORIZATION: SoD Analyzer (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "Segregation of duties and authorization verification in pipeline",
+  prompt: `You are qe-sod-analyzer. Your output quality is being audited.
+
+## PURPOSE
+
+Validate segregation of duties and authorization controls in the CI/CD pipeline.
+Analyze role-based access changes, permission matrix diffs, SoD policy
+compliance, and access control test results.
+
+## PIPELINE ARTIFACTS
+
+=== AUTHORIZATION TEST RESULTS START ===
+[PASTE authorization test results, access control tests, SoD compliance checks]
+=== AUTHORIZATION TEST RESULTS END ===
+
+=== AUTHORIZATION CONFIG CHANGES START ===
+[PASTE authorization configuration diffs - role definitions, permission matrices, policies]
+=== AUTHORIZATION CONFIG CHANGES END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. Authorization Change Inventory
+
+| Change | Type | Scope | Risk | Compliance Impact |
+|--------|------|-------|------|-------------------|
+| [change] | Role/Permission/Policy | [scope] | Critical/High/Medium/Low | [impact] |
+
+### 2. SoD Compliance Verification
+
+| Policy | Status | Violations Found | New Violations | Remediated |
+|--------|--------|------------------|----------------|------------|
+| [policy] | Compliant/Non-compliant | [count] | [count] | [count] |
+
+### 3. Role Change Impact Analysis
+
+| Role | Changes | Users Affected | Privilege Direction | SoD Check | Approved |
+|------|---------|---------------|---------------------|-----------|----------|
+| [role] | [changes] | [count] | Escalation/Reduction/Neutral | Pass/Fail | Yes/No |
+
+### 4. Access Control Test Results
+
+| Test Type | Tests Run | Passed | Failed | Coverage |
+|-----------|-----------|--------|--------|----------|
+| Positive access | [count] | [count] | [count] | [%] |
+| Negative access | [count] | [count] | [count] | [%] |
+| Cross-role | [count] | [count] | [count] | [%] |
+| Privilege escalation | [count] | [count] | [count] | [%] |
+
+### 5. Recommendations
+
+| Priority | Action | Impact | Effort |
+|----------|--------|--------|--------|
+| P0 | [critical authorization pipeline issues] | [what risk] | [effort] |
+| P1 | [important improvements] | [what risk] | [effort] |
+
+**AUTHORIZATION PIPELINE SCORE: X/50**
+
+## OUTPUT FORMAT
+
+Save to: $\{OUTPUT_FOLDER}/12-sod-pipeline.md
+Use the Write tool to save BEFORE completing.`,
+  subagent_type: "qe-sod-analyzer",
+  run_in_background: true
+})
+```
+
 ### Agent Count Validation
 
 **Before proceeding, verify agent count:**
@@ -939,6 +1182,9 @@ Use the Write tool to save BEFORE completing.`,
 |    [ ] qe-security-scanner - SPAWNED? [Y/N] (HAS_SEC_PIPE)  |
 |    [ ] qe-chaos-engineer - SPAWNED? [Y/N] (HAS_PERF_PIPE)   |
 |    [ ] qe-coverage-specialist - SPAWNED? [Y/N] (HAS_INFRA)  |
+|    [ ] qe-middleware-validator - SPAWNED? [Y/N] (HAS_MIDDLEWARE)  |
+|    [ ] qe-soap-tester - SPAWNED? [Y/N] (HAS_SAP_INTEG)          |
+|    [ ] qe-sod-analyzer - SPAWNED? [Y/N] (HAS_AUTHORIZATION)     |
 |                                                              |
 |  VALIDATION:                                                 |
 |    Expected agents: [3 + count of TRUE flags]                |
@@ -964,6 +1210,12 @@ I've launched [N] conditional agent(s) in parallel:
                               - Performance regression detection, resource analysis, resilience
 [IF HAS_INFRA_CHANGE]         qe-coverage-specialist [Domain: coverage-analysis]
                               - Infrastructure change coverage, config drift, artifact verification
+[IF HAS_MIDDLEWARE]           qe-middleware-validator [Domain: enterprise-integration]
+                              - Middleware pipeline verification, broker health, message flow testing
+[IF HAS_SAP_INTEGRATION]     qe-soap-tester [Domain: enterprise-integration]
+                              - SAP SOAP service validation, WSDL contracts, integration gateway health
+[IF HAS_AUTHORIZATION]        qe-sod-analyzer [Domain: enterprise-integration]
+                              - SoD compliance verification, role change impact, access control testing
 
   WAITING for conditional agents to complete...
 ```
@@ -1150,6 +1402,15 @@ If recommendation is BLOCK, provide mandatory fixes:
 ### Infrastructure Coverage (IF HAS_INFRA_CHANGE)
 [Full output from qe-coverage-specialist]
 
+### Middleware Pipeline (IF HAS_MIDDLEWARE)
+[Full output from qe-middleware-validator]
+
+### SAP Pipeline (IF HAS_SAP_INTEGRATION)
+[Full output from qe-soap-tester]
+
+### Authorization Pipeline (IF HAS_AUTHORIZATION)
+[Full output from qe-sod-analyzer]
+
 ---
 
 ## Recommended Actions
@@ -1251,7 +1512,10 @@ mcp__agentic_qe__memory_store({
     flags: {
       HAS_SECURITY_PIPELINE: HAS_SECURITY_PIPELINE,
       HAS_PERFORMANCE_PIPELINE: HAS_PERFORMANCE_PIPELINE,
-      HAS_INFRA_CHANGE: HAS_INFRA_CHANGE
+      HAS_INFRA_CHANGE: HAS_INFRA_CHANGE,
+      HAS_MIDDLEWARE: HAS_MIDDLEWARE,
+      HAS_SAP_INTEGRATION: HAS_SAP_INTEGRATION,
+      HAS_AUTHORIZATION: HAS_AUTHORIZATION
     },
     agentsInvoked: agentList,
     timestamp: new Date().toISOString()
@@ -1300,7 +1564,10 @@ Contents:
   "flags": {
     "HAS_SECURITY_PIPELINE": true/false,
     "HAS_PERFORMANCE_PIPELINE": true/false,
-    "HAS_INFRA_CHANGE": true/false
+    "HAS_INFRA_CHANGE": true/false,
+    "HAS_MIDDLEWARE": true/false,
+    "HAS_SAP_INTEGRATION": true/false,
+    "HAS_AUTHORIZATION": true/false
   },
   "agentsInvoked": ["list", "of", "agents"],
   "crossPhaseSignals": {
@@ -1528,6 +1795,12 @@ Use the Write tool to save BEFORE completing.
 |  +-- Performance Score:       __/40                                   |
 |  [IF HAS_INFRA_CHANGE]                                                |
 |  +-- Infrastructure Score:    __/40                                   |
+|  [IF HAS_MIDDLEWARE]                                                  |
+|  +-- Middleware Pipeline:     __/50                                   |
+|  [IF HAS_SAP_INTEGRATION]                                            |
+|  +-- SAP Pipeline:            __/50                                   |
+|  [IF HAS_AUTHORIZATION]                                              |
+|  +-- Authorization Pipeline:  __/50                                   |
 |                                                                      |
 |  RECOMMENDATION: [RELEASE / REMEDIATE / BLOCK]                        |
 |  REASON: [1-2 sentence rationale]                                     |
@@ -1543,6 +1816,12 @@ Use the Write tool to save BEFORE completing.
 |  +-- 06-performance-pipeline.md                                       |
 |  [IF HAS_INFRA_CHANGE]                                                |
 |  +-- 07-infrastructure-coverage.md                                    |
+|  [IF HAS_MIDDLEWARE]                                                  |
+|  +-- 10-middleware-pipeline.md                                        |
+|  [IF HAS_SAP_INTEGRATION]                                            |
+|  +-- 11-sap-pipeline.md                                              |
+|  [IF HAS_AUTHORIZATION]                                              |
+|  +-- 12-sod-pipeline.md                                              |
 |  +-- 08-deployment-advisory.md                                        |
 |  +-- 09-learning-persistence.json                                     |
 |                                                                      |
@@ -1609,6 +1888,9 @@ Use the Write tool to save BEFORE completing.
 | qe-security-scanner | `05-security-pipeline.md` | Batch 2 (conditional) |
 | qe-chaos-engineer | `06-performance-pipeline.md` | Batch 2 (conditional) |
 | qe-coverage-specialist | `07-infrastructure-coverage.md` | Batch 2 (conditional) |
+| qe-middleware-validator | `10-middleware-pipeline.md` | Batch 2 (conditional) |
+| qe-soap-tester | `11-sap-pipeline.md` | Batch 2 (conditional) |
+| qe-sod-analyzer | `12-sod-pipeline.md` | Batch 2 (conditional) |
 | qe-deployment-advisor | `08-deployment-advisory.md` | Batch 3 (analysis) |
 | Learning Persistence | `09-learning-persistence.json` | Phase 7 (auto-execute) |
 | Synthesis | `01-executive-summary.md` | Phase 6 |
@@ -1617,7 +1899,7 @@ Use the Write tool to save BEFORE completing.
 
 ## DDD Domain Integration
 
-This swarm operates across **2 primary domains**, **3 conditional domains**,
+This swarm operates across **2 primary domains**, **4 conditional domains**,
 and **1 analysis domain**:
 
 ```
@@ -1646,6 +1928,14 @@ and **1 analysis domain**:
 |  | [IF HAS_SEC_PIPELINE] |  |  [IF HAS_PERF_PIPE]   |  | specialist       | |
 |  |                       |  |                       |  | [IF HAS_INFRA]   | |
 |  +-----------------------+  +-----------------------+  +------------------+ |
+|                                                                              |
+|  +-----------------------------------------------------------------------+  |
+|  |                  enterprise-integration                                |  |
+|  |  -----------------------------------------------------------------   |  |
+|  |  - qe-middleware-validator [IF HAS_MIDDLEWARE]                        |  |
+|  |  - qe-soap-tester [IF HAS_SAP_INTEGRATION]                          |  |
+|  |  - qe-sod-analyzer [IF HAS_AUTHORIZATION]                           |  |
+|  +-----------------------------------------------------------------------+  |
 |                                                                              |
 |  ANALYSIS DOMAIN (Always Active)                                             |
 |  +-----------------------------------------------------------------------+  |
@@ -1714,7 +2004,7 @@ npx @claude-flow/cli@latest agent spawn --type qe-flaky-hunter
 
 | Phase | Must Do | Failure Condition |
 |-------|---------|-------------------|
-| 1 | Check ALL 3 flags | Missing flag evaluation |
+| 1 | Check ALL 6 flags | Missing flag evaluation |
 | 2 | Spawn ALL 3 core agents in ONE message | Fewer than 3 Task calls |
 | 3 | WAIT for completion | Proceeding before results |
 | 4 | Spawn ALL flagged conditional agents | Skipping a TRUE flag |
@@ -1744,6 +2034,9 @@ npx @claude-flow/cli@latest agent spawn --type qe-flaky-hunter
 | security-compliance | qe-security-scanner | Conditional (HAS_SECURITY_PIPELINE) | 2 |
 | chaos-resilience | qe-chaos-engineer | Conditional (HAS_PERFORMANCE_PIPELINE) | 2 |
 | coverage-analysis | qe-coverage-specialist | Conditional (HAS_INFRA_CHANGE) | 2 |
+| enterprise-integration | qe-middleware-validator | Conditional (HAS_MIDDLEWARE) | 2 |
+| enterprise-integration | qe-soap-tester | Conditional (HAS_SAP_INTEGRATION) | 2 |
+| enterprise-integration | qe-sod-analyzer | Conditional (HAS_AUTHORIZATION) | 2 |
 | quality-assessment | qe-deployment-advisor | Analysis (ALWAYS) | 3 |
 
 ### Execution Model Quick Reference
@@ -1834,6 +2127,15 @@ npx @claude-flow/cli@latest memory list --namespace qcsd-cicd
     |-----------| |------------| |--------------|
     | sec-compl | | chaos-res  | | cov-analy    |
     +-----------+ +------------+ +--------------+
+          +-------------+---+-------------+
+          |             |                 |
+    +-----v------+ +---v--------+ +------v-------+
+    | Middleware | | SOAP       | | SoD          |
+    | Validator  | | Tester     | | Analyzer     |
+    | [IF MIDW]  | | [IF SAP]   | | [IF AUTH]    |
+    |------------| |------------| |--------------|
+    | ent-integ  | | ent-integ  | | ent-integ    |
+    +------------+ +------------+ +--------------+
                          |
                   [SYNTHESIS]
                          |
@@ -1866,10 +2168,10 @@ npx @claude-flow/cli@latest memory list --namespace qcsd-cicd
 
 | Resource Type | Count | Primary | Conditional | Analysis |
 |---------------|:-----:|:-------:|:-----------:|:--------:|
-| **Agents** | 7 | 3 | 3 | 1 |
+| **Agents** | 10 | 3 | 6 | 1 |
 | **Sub-agents** | 0 | - | - | - |
 | **Skills** | 4 | 4 | - | - |
-| **Domains** | 5 | 2 | 3 | 1 |
+| **Domains** | 7 | 2 | 4 | 1 |
 | **Parallel Batches** | 3 | 1 | 1 | 1 |
 
 **Skills Used:**

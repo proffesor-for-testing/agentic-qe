@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 12 Complete (Guidance Governance - ADR-058 Implemented)
+**Status:** Phase 13 In Progress (Enterprise Integration - ADR-059)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-02-04 (ADR-001-058: 56 Implemented, 97 skills with trust tiers, 657 tests passing)
+**Last Verified:** 2026-02-04 (ADR-001-059: 57 Implemented, 101 skills with trust tiers, 657 tests passing)
 
 ---
 
@@ -70,6 +70,7 @@
 | [ADR-056](./ADR-056-skill-validation-system.md) | Deterministic Skill Validation System | **Implemented** | 2026-02-02 | ✅ 46 Tier 3 skills, 52 validators, CLI commands (`aqe skill`, `aqe eval`) |
 | [ADR-057](./ADR-057-infra-self-healing.md) | Infrastructure Self-Healing Extension | **Implemented** | 2026-02-02 | ✅ Extends Strange Loop to detect and recover infrastructure failures |
 | [ADR-058](./ADR-058-guidance-governance-integration.md) | @claude-flow/guidance Governance Integration | **Implemented** | 2026-02-04 | ✅ 16 governance modules + GovernanceAwareDomainMixin wired to 12 domain coordinators + Queen/ReasoningBank/MCP integration + 657 tests |
+| [ADR-059](./ADR-059-enterprise-integration-testing.md) | Enterprise Integration Testing Gap Closure | **Implemented** | 2026-02-04 | ✅ 7 new agents + 4 new skills + enterprise-integration bounded context (13th domain) + QCSD flag extensions |
 
 ---
 
