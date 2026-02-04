@@ -100,7 +100,7 @@ export {
   type SFDIPOTFactorAnalysis,
   type SFDIPOTAssessment,
   type SubcategoryAnalysis,
-  type BDDScenario,
+  type BDDScenario as RefinementBDDScenario, // Renamed to avoid conflict with interfaces.ts
   type BDDFeature,
   type BDDScenarioSet,
   type RefinementReport,
