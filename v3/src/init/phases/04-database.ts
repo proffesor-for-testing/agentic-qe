@@ -21,6 +21,7 @@ import {
   BasePhase,
   type InitContext,
 } from './phase-interface.js';
+import { getAQEVersion } from '../types.js';
 
 export interface DatabaseResult {
   dbPath: string;
@@ -82,7 +83,7 @@ export class DatabasePhase extends BasePhase<DatabaseResult> {
       await unifiedMemory.kvSet('_init_marker', {
         initialized: new Date().toISOString(),
         projectRoot,
-        version: '3.0.0',
+        version: getAQEVersion(),
       }, '_system');
 
       // Get schema version

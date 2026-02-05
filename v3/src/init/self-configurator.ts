@@ -25,6 +25,7 @@ import {
   DEFAULT_AUTO_TUNING_CONFIG,
   DEFAULT_SKILLS_CONFIG,
   ALL_DOMAINS,
+  getAQEVersion,
 } from './types.js';
 
 // ============================================================================
@@ -243,7 +244,7 @@ export class SelfConfigurator {
   recommend(analysis: ProjectAnalysis): AQEInitConfig {
     // Start with base configuration
     const config: AQEInitConfig = {
-      version: '3.0.0',
+      version: getAQEVersion(),
       project: {
         name: analysis.projectName,
         root: analysis.projectRoot,

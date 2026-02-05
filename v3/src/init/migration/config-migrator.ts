@@ -5,6 +5,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { getAQEVersion } from '../types.js';
 
 /**
  * V2 Config Migrator
@@ -74,7 +75,7 @@ ${yaml.stringify(v3Config)}`;
     codeIntelConfig: Record<string, unknown> | null
   ): Record<string, unknown> {
     return {
-      version: '3.0.0',
+      version: getAQEVersion(),
       migratedFrom: '2.x.x',
       migratedAt: new Date().toISOString(),
       project: {

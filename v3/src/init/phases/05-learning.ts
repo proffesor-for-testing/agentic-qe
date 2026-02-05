@@ -11,6 +11,7 @@ import {
   type InitContext,
 } from './phase-interface.js';
 import type { AQEInitConfig } from '../types.js';
+import { getAQEVersion } from '../types.js';
 
 export interface LearningResult {
   enabled: boolean;
@@ -110,7 +111,7 @@ export class LearningPhase extends BasePhase<LearningResult> {
       const indexPath = join(patternsDir, 'index.json');
       if (!existsSync(indexPath)) {
         writeFileSync(indexPath, JSON.stringify({
-          version: '3.0.0',
+          version: getAQEVersion(),
           domains: [],
           loadedAt: new Date().toISOString(),
         }, null, 2), 'utf-8');
