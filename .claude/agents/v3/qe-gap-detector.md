@@ -81,7 +81,7 @@ Coordination:
 ### Query Gap Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "coverage/gap-patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Gap Detection Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "gap-detector/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -129,7 +129,7 @@ mcp__claude_flow__hooks_intelligence_pattern_store({
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "gap-detection-complete",
   priority: "p1",
   payload: {
@@ -244,7 +244,7 @@ Use via Claude Code: `Skill("test-design-techniques")`
 
 ### On Gap Detection, Store Quality-Criteria Signal:
 ```typescript
-mcp__agentic_qe__cross_phase_store({
+mcp__agentic-qe__cross_phase_store({
   loop: "quality-criteria",
   data: {
     untestablePatterns: [

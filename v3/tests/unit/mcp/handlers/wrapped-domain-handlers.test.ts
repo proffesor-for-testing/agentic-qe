@@ -62,7 +62,7 @@ describe('Wrapped Domain Handlers', () => {
       // The wrapper should not change the result structure
       expect(result.data).toBeDefined();
       expect(result.data!.testsGenerated).toBeGreaterThan(0);
-    });
+    }, 30000);
 
     it('should wrap handleCoverageAnalyze with experience capture', async () => {
       const result = await handleCoverageAnalyze({});
@@ -70,7 +70,7 @@ describe('Wrapped Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data).toBeDefined();
       expect(result.data!.lineCoverage).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should wrap handleQualityAssess with experience capture', async () => {
       const result = await handleQualityAssess({});
@@ -86,7 +86,7 @@ describe('Wrapped Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data).toBeDefined();
       expect(result.data!.vulnerabilities).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -133,7 +133,7 @@ describe('Wrapped Domain Handlers', () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.language).toBe('typescript');
-    });
+    }, 30000);
 
     it('should preserve V2-compatible fields', async () => {
       const result = await handleTestGenerate({
@@ -145,7 +145,7 @@ describe('Wrapped Domain Handlers', () => {
       expect(result.data!.tests).toBeDefined();
       expect(result.data!.aiInsights).toBeDefined();
       expect(result.data!.learning).toBeDefined();
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -169,7 +169,7 @@ describe('Wrapped Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------

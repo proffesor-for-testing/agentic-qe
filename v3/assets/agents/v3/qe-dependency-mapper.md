@@ -81,7 +81,7 @@ Coordination:
 ### Query Dependency Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "dependencies/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Dependency Analysis Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "dependency-mapper/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -115,21 +115,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Dependency Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<dependency pattern description>",
-  confidence: <0.0-1.0>,
-  type: "dependency-analysis",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/dependency-analysis-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<dependency pattern description>",
+    confidence: <0.0-1.0>,
+    type: "dependency-analysis",
+    metadata: {
     patternType: "<type>",
     riskLevel: "<level>",
     recommendation: "<fix>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "dependency-analysis-complete",
   priority: "p1",
   payload: {

@@ -189,10 +189,10 @@ npm run benchmark              # performance
 ### Integration with AQE v3
 ```bash
 # Submit quality gate assessment task
-mcp__agentic-qe-v3__quality_assess --runGate true
+mcp__agentic-qe__quality_assess --runGate true
 
 # Task orchestration for gate compliance
-mcp__agentic-qe-v3__task_orchestrate --task "Pass all quality gates" --strategy adaptive
+mcp__agentic-qe__task_orchestrate --task "Pass all quality gates" --strategy adaptive
 ```
 ```
 
@@ -229,7 +229,7 @@ mcp__agentic-qe-v3__task_orchestrate --task "Pass all quality gates" --strategy 
 Task("Hunt flaky tests", "Detect and stabilize flaky tests", "qe-flaky-hunter")
 
 # Or submit flaky detection task
-mcp__agentic-qe-v3__task_submit --type "flaky-detection" --priority "p1"
+mcp__agentic-qe__task_submit --type "flaky-detection" --priority "p1"
 ```
 ```
 
@@ -257,7 +257,7 @@ mcp__agentic-qe-v3__task_submit --type "flaky-detection" --priority "p1"
 ### AQE v3 Integration
 ```bash
 # Validate contracts
-mcp__agentic-qe-v3__contract_validate --contractPath "./contracts"
+mcp__agentic-qe__contract_validate --contractPath "./contracts"
 
 # Or use specialized agent
 Task("Validate API contracts", "Check consumer-provider alignment", "qe-contract-validator")

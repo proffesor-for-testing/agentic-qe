@@ -619,7 +619,7 @@ If using MCP instead of Task tool:
 
 ```javascript
 // Option 1: Orchestrate via Fleet
-mcp__agentic_qe__fleet_init({
+mcp__agentic-qe__fleet_init({
   topology: "hierarchical",
   enabledDomains: ["requirements-validation", "test-generation"],
   maxAgents: 7,
@@ -627,7 +627,7 @@ mcp__agentic_qe__fleet_init({
 })
 
 // Submit tasks to specific domains
-mcp__agentic_qe__task_submit({
+mcp__agentic-qe__task_submit({
   type: "product-factors-assessment",
   priority: "p0",
   payload: {
@@ -637,7 +637,7 @@ mcp__agentic_qe__task_submit({
   }
 })
 
-mcp__agentic_qe__task_submit({
+mcp__agentic-qe__task_submit({
   type: "bdd-scenario-generation",
   priority: "p0",
   payload: {
@@ -647,7 +647,7 @@ mcp__agentic_qe__task_submit({
   }
 })
 
-mcp__agentic_qe__task_submit({
+mcp__agentic-qe__task_submit({
   type: "requirements-validation",
   priority: "p0",
   payload: {
@@ -658,7 +658,7 @@ mcp__agentic_qe__task_submit({
 })
 
 // Check task status
-mcp__agentic_qe__task_list({ status: "pending" })
+mcp__agentic-qe__task_list({ status: "pending" })
 ```
 
 ### Alternative: CLI Execution
@@ -1275,7 +1275,7 @@ Use the Write tool to save BEFORE completing.`,
 ```javascript
 // IF HAS_API - Enable contract-testing domain
 if (HAS_API) {
-  mcp__agentic_qe__task_submit({
+  mcp__agentic-qe__task_submit({
     type: "contract-validation",
     priority: "p0",
     payload: {
@@ -1288,7 +1288,7 @@ if (HAS_API) {
 
 // IF HAS_REFACTORING - Enable code-intelligence domain
 if (HAS_REFACTORING) {
-  mcp__agentic_qe__coverage_analyze_sublinear({
+  mcp__agentic-qe__coverage_analyze_sublinear({
     target: "src/",
     detectGaps: true,
     blastRadius: true
@@ -1297,7 +1297,7 @@ if (HAS_REFACTORING) {
 
 // IF HAS_DEPENDENCIES - Enable code-intelligence domain
 if (HAS_DEPENDENCIES) {
-  mcp__agentic_qe__defect_predict({
+  mcp__agentic-qe__defect_predict({
     target: "src/",
     analyzeCoupling: true,
     detectCircular: true
@@ -1708,7 +1708,7 @@ Store refinement findings for:
 You MUST execute this MCP call with actual values from the refinement analysis:
 
 ```javascript
-mcp__agentic_qe__memory_store({
+mcp__agentic-qe__memory_store({
   key: `qcsd-refinement-${storyId}-${Date.now()}`,
   namespace: "qcsd-refinement",
   value: {
@@ -1750,7 +1750,7 @@ mcp__agentic_qe__memory_store({
 You MUST execute this MCP call to propagate patterns cross-domain:
 
 ```javascript
-mcp__agentic_qe__memory_share({
+mcp__agentic-qe__memory_share({
   sourceAgentId: "qcsd-refinement-swarm",
   targetAgentIds: ["qe-learning-coordinator", "qe-pattern-learner"],
   knowledgeDomain: "refinement-patterns"
@@ -1824,8 +1824,8 @@ npx @claude-flow/cli@latest hooks post-task \
 ### Validation Before Proceeding to Phase 8
 
 ```
-+-- Did I execute mcp__agentic_qe__memory_store with actual values? (not placeholders)
-+-- Did I execute mcp__agentic_qe__memory_share to propagate learnings?
++-- Did I execute mcp__agentic-qe__memory_store with actual values? (not placeholders)
++-- Did I execute mcp__agentic-qe__memory_share to propagate learnings?
 +-- Did I save 09-learning-persistence.json to the output folder?
 +-- Does the JSON contain the correct recommendation from Phase 5?
 +-- Does the JSON contain actual SFDIPOT priorities from Phase 2?
@@ -2173,14 +2173,14 @@ Just follow the skill phases below - uses Task() calls with run_in_background: t
 **Option B: MCP Tools**
 ```javascript
 // Initialize fleet for Refinement domains
-mcp__agentic_qe__fleet_init({
+mcp__agentic-qe__fleet_init({
   topology: "hierarchical",
   enabledDomains: ["requirements-validation", "contract-testing", "code-intelligence", "test-generation"],
   maxAgents: 7
 })
 
 // Orchestrate refinement task
-mcp__agentic_qe__task_orchestrate({
+mcp__agentic-qe__task_orchestrate({
   task: "qcsd-refinement-analysis",
   strategy: "parallel"
 })
@@ -2254,24 +2254,24 @@ npx @claude-flow/cli@latest agent spawn --type qe-requirements-validator
 
 ```javascript
 // Initialization
-mcp__agentic_qe__fleet_init({
+mcp__agentic-qe__fleet_init({
   topology: "hierarchical",
   enabledDomains: ["requirements-validation", "contract-testing", "code-intelligence", "test-generation"],
   maxAgents: 7
 })
 
 // Task submission
-mcp__agentic_qe__task_submit({ type: "...", priority: "p0", payload: {...} })
-mcp__agentic_qe__task_orchestrate({ task: "...", strategy: "parallel" })
+mcp__agentic-qe__task_submit({ type: "...", priority: "p0", payload: {...} })
+mcp__agentic-qe__task_orchestrate({ task: "...", strategy: "parallel" })
 
 // Status
-mcp__agentic_qe__fleet_status({ verbose: true })
-mcp__agentic_qe__task_list({ status: "pending" })
+mcp__agentic-qe__fleet_status({ verbose: true })
+mcp__agentic-qe__task_list({ status: "pending" })
 
 // Memory
-mcp__agentic_qe__memory_store({ key: "...", value: {...}, namespace: "qcsd-refinement" })
-mcp__agentic_qe__memory_query({ pattern: "qcsd-refinement-*", namespace: "qcsd-refinement" })
-mcp__agentic_qe__memory_share({
+mcp__agentic-qe__memory_store({ key: "...", value: {...}, namespace: "qcsd-refinement" })
+mcp__agentic-qe__memory_query({ pattern: "qcsd-refinement-*", namespace: "qcsd-refinement" })
+mcp__agentic-qe__memory_share({
   sourceAgentId: "qcsd-refinement-swarm",
   targetAgentIds: ["qe-learning-coordinator"],
   knowledgeDomain: "refinement-patterns"

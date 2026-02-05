@@ -112,23 +112,34 @@ else
 fi
 
 # Get pattern count and learning metrics from memory database
-# Include BOTH patterns and synthesized_patterns for accurate count
+# Include BOTH v2 tables (patterns, learning_experiences) AND v3 tables (qe_patterns, qe_pattern_usage)
 if [ -f "$MEMORY_DB" ] && command -v sqlite3 &>/dev/null; then
+  # V2 tables
   PATTERNS_COUNT=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM patterns" 2>/dev/null || echo "0")
   SYNTHESIZED_COUNT=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM synthesized_patterns" 2>/dev/null || echo "0")
   LEARNING_EXP=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM learning_experiences" 2>/dev/null || echo "0")
   TRANSFER_COUNT=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM transfer_registry" 2>/dev/null || echo "0")
-  PATTERN_SUCCESS=$(sqlite3 "$MEMORY_DB" "SELECT ROUND(AVG(success_rate)*100) FROM patterns WHERE success_rate > 0" 2>/dev/null || echo "0")
 
-  # Calculate intelligence % based on learning experiences and patterns
+  # V3 tables (qe_* namespace)
+  QE_PATTERNS_COUNT=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM qe_patterns" 2>/dev/null || echo "0")
+  QE_USAGE_COUNT=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM qe_pattern_usage" 2>/dev/null || echo "0")
+  QE_TRAJECTORIES=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM qe_trajectories" 2>/dev/null || echo "0")
+
+  # Combine v2 + v3 metrics
+  TOTAL_LEARNING=$((LEARNING_EXP + QE_USAGE_COUNT + QE_TRAJECTORIES))
+
+  # Calculate intelligence % based on combined learning data
   # Target: 1000 experiences = 100% intelligence
-  if [ "$LEARNING_EXP" -gt 0 ]; then
-    INTELLIGENCE_PCT=$((LEARNING_EXP * 100 / 1000))
+  if [ "$TOTAL_LEARNING" -gt 0 ]; then
+    INTELLIGENCE_PCT=$((TOTAL_LEARNING * 100 / 1000))
     [ "$INTELLIGENCE_PCT" -gt 100 ] && INTELLIGENCE_PCT=100
   fi
+
+  # Use combined learning count for display
+  LEARNING_EXP=$TOTAL_LEARNING
 fi
-# Total patterns = patterns + synthesized
-TOTAL_PATTERNS=$((PATTERNS_COUNT + SYNTHESIZED_COUNT))
+# Total patterns = v2 (patterns + synthesized) + v3 (qe_patterns)
+TOTAL_PATTERNS=$((PATTERNS_COUNT + SYNTHESIZED_COUNT + QE_PATTERNS_COUNT))
 
 # Get CVE status from claude-flow security (cached for performance)
 CVE_CACHE="${PROJECT_DIR}/.agentic-qe/.cve-cache"
@@ -156,10 +167,11 @@ if [ "$CVE_TOTAL" -eq 0 ]; then
 fi
 CVE_UNFIXED=$((CVE_TOTAL - CVE_FIXED))
 
-# Get sub-agents count from Claude Code JSON
-if [ "$CLAUDE_INPUT" != "{}" ]; then
-  SUB_AGENTS=$(echo "$CLAUDE_INPUT" | jq -r '.agents.active_count // 0' 2>/dev/null || echo "0")
-  [ "$SUB_AGENTS" = "null" ] && SUB_AGENTS=0
+# Get sub-agents count from agent_registry database (active = not terminated)
+SUB_AGENTS=0
+if [ -f "$MEMORY_DB" ] && command -v sqlite3 &>/dev/null; then
+  SUB_AGENTS=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM agent_registry WHERE status != 'terminated'" 2>/dev/null || echo "0")
+  [ -z "$SUB_AGENTS" ] && SUB_AGENTS=0
 fi
 
 # Get learning mode from config
@@ -187,18 +199,18 @@ else
 fi
 AGENTS_ACTIVE=${V3_QE_AGENTS:-0}
 
-# Calculate context usage from actual token fields
+# Calculate memory utilization from memory_entries table
+# Target: 5000 entries = 100% (memory is filling up)
 CONTEXT_PCT=0
 CONTEXT_COLOR="${DIM}"
-if [ "$CLAUDE_INPUT" != "{}" ]; then
-  INPUT_TOKENS=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.current_usage.input_tokens // 0' 2>/dev/null)
-  CACHE_CREATE=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.current_usage.cache_creation_input_tokens // 0' 2>/dev/null)
-  CACHE_READ=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.current_usage.cache_read_input_tokens // 0' 2>/dev/null)
-  WINDOW_SIZE=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.context_window_size // 0' 2>/dev/null)
+MEMORY_TARGET=5000
+if [ -f "$MEMORY_DB" ] && command -v sqlite3 &>/dev/null; then
+  MEMORY_ENTRIES=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM memory_entries" 2>/dev/null || echo "0")
+  [ -z "$MEMORY_ENTRIES" ] && MEMORY_ENTRIES=0
 
-  if [ "$WINDOW_SIZE" -gt 0 ] 2>/dev/null; then
-    CURRENT_TOKENS=$((INPUT_TOKENS + CACHE_CREATE + CACHE_READ))
-    CONTEXT_PCT=$((CURRENT_TOKENS * 100 / WINDOW_SIZE))
+  if [ "$MEMORY_ENTRIES" -gt 0 ]; then
+    CONTEXT_PCT=$((MEMORY_ENTRIES * 100 / MEMORY_TARGET))
+    [ "$CONTEXT_PCT" -gt 100 ] && CONTEXT_PCT=100
   fi
 
   if [ "$CONTEXT_PCT" -lt 50 ]; then

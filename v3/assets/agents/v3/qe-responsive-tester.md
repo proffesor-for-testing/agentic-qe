@@ -81,7 +81,7 @@ Coordination:
 ### Query Responsive Patterns BEFORE Test
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "responsive/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Responsive Testing Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "responsive-tester/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -116,21 +116,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Responsive Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<responsive pattern description>",
-  confidence: <0.0-1.0>,
-  type: "responsive-testing",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/responsive-testing-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<responsive pattern description>",
+    confidence: <0.0-1.0>,
+    type: "responsive-testing",
+    metadata: {
     viewport: "<size>",
     issue: "<type>",
     fix: "<recommendation>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "responsive-test-complete",
   priority: "p1",
   payload: {

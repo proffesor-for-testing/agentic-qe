@@ -291,9 +291,13 @@ function getLearningMetrics(projectDir) {
   const sonaPatterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM sona_patterns')) || 0;
   // Synthesized patterns (dream-generated)
   const synthesized = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM synthesized_patterns')) || 0;
+  // QE patterns (v3 pattern store)
+  const qePatterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM qe_patterns')) || 0;
+  // KV store patterns (MCP-stored patterns)
+  const kvPatterns = parseInt(sqlite3Query(dbPath, "SELECT COUNT(*) FROM kv_store WHERE key LIKE '%pattern%'")) || 0;
 
-  // Total patterns = legacy + SONA + synthesized
-  const patterns = legacyPatterns + sonaPatterns;
+  // Total patterns = legacy + SONA + QE + KV patterns (deduplicated estimate)
+  const patterns = legacyPatterns + sonaPatterns + qePatterns + Math.floor(kvPatterns / 10);
 
   // Learning experiences (migrated from root DB)
   const legacyExperiences = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM learning_experiences')) || 0;
@@ -301,9 +305,11 @@ function getLearningMetrics(projectDir) {
   const trajectories = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM qe_trajectories')) || 0;
   // Captured experiences (task execution captures)
   const capturedExp = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM captured_experiences')) || 0;
+  // Memory entries with learning data (MCP-stored experiences)
+  const memoryLearning = parseInt(sqlite3Query(dbPath, "SELECT COUNT(*) FROM memory_entries WHERE key LIKE 'learning%' OR key LIKE 'phase2/learning%'")) || 0;
 
   // Total experiences = all sources
-  const experiences = legacyExperiences + trajectories + capturedExp;
+  const experiences = legacyExperiences + trajectories + capturedExp + memoryLearning;
 
   // Transfer learning count
   const transfers = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM transfer_registry')) || 0;

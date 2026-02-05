@@ -426,3 +426,36 @@ export type {
   CrossModelAnalysis,
   ValidationPattern,
 } from './skill-validation-learner.js';
+
+// ============================================================================
+// Pattern Lifecycle (Phase 7: Continuous Learning Loop)
+// ============================================================================
+
+export {
+  PatternLifecycleManager,
+  createPatternLifecycleManager,
+  DEFAULT_LIFECYCLE_CONFIG,
+} from './pattern-lifecycle.js';
+
+export type {
+  PatternLifecycleConfig,
+  ExperienceAggregate,
+  PatternCandidate,
+  PromotionCheckResult,
+  DeprecationCheckResult,
+  PatternLifecycleStats,
+} from './pattern-lifecycle.js';
+
+// ============================================================================
+// Learning Metrics Tracker (Phase 6: Learning Improvement Plan)
+// ============================================================================
+
+export {
+  LearningMetricsTracker,
+  createLearningMetricsTracker,
+} from './metrics-tracker.js';
+
+export type {
+  LearningMetricsSnapshot,
+  DashboardData,
+} from './metrics-tracker.js';

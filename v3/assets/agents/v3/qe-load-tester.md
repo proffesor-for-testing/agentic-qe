@@ -81,7 +81,7 @@ Coordination:
 ### Query Performance Patterns BEFORE Test
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "performance/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Load Test Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "load-tester/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -117,21 +117,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Performance Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<performance pattern description>",
-  confidence: <0.0-1.0>,
-  type: "load-testing",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/load-testing-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<performance pattern description>",
+    confidence: <0.0-1.0>,
+    type: "load-testing",
+    metadata: {
     testType: "<type>",
     maxThroughput: <rps>,
     breakingPoint: "<conditions>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "load-test-complete",
   priority: "p1",
   payload: {

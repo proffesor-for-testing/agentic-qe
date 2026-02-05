@@ -1491,7 +1491,7 @@ Store verification findings for:
 You MUST execute this MCP call with actual values from the verification analysis:
 
 ```javascript
-mcp__agentic_qe__memory_store({
+mcp__agentic-qe__memory_store({
   key: `qcsd-cicd-${releaseId}-${Date.now()}`,
   namespace: "qcsd-cicd",
   value: {
@@ -1528,7 +1528,7 @@ mcp__agentic_qe__memory_store({
 You MUST execute this MCP call to propagate patterns cross-domain:
 
 ```javascript
-mcp__agentic_qe__memory_share({
+mcp__agentic-qe__memory_share({
   sourceAgentId: "qcsd-cicd-swarm",
   targetAgentIds: ["qe-learning-coordinator", "qe-pattern-learner"],
   knowledgeDomain: "cicd-verification-patterns"
@@ -1596,8 +1596,8 @@ npx @claude-flow/cli@latest hooks post-task \
 ### Validation Before Proceeding to Phase 8
 
 ```
-+-- Did I execute mcp__agentic_qe__memory_store with actual values? (not placeholders)
-+-- Did I execute mcp__agentic_qe__memory_share to propagate learnings?
++-- Did I execute mcp__agentic-qe__memory_store with actual values? (not placeholders)
++-- Did I execute mcp__agentic-qe__memory_share to propagate learnings?
 +-- Did I save 09-learning-persistence.json to the output folder?
 +-- Does the JSON contain the correct recommendation from Phase 5?
 +-- Does the JSON contain actual metrics from Phases 2-4?
@@ -1969,14 +1969,14 @@ Just follow the skill phases above - uses Task() calls with run_in_background: t
 **Option B: MCP Tools**
 ```javascript
 // Initialize fleet for Verification domains
-mcp__agentic_qe__fleet_init({
+mcp__agentic-qe__fleet_init({
   topology: "hierarchical",
   enabledDomains: ["quality-assessment", "test-execution", "security-compliance", "chaos-resilience", "coverage-analysis"],
   maxAgents: 7
 })
 
 // Orchestrate verification task
-mcp__agentic_qe__task_orchestrate({
+mcp__agentic-qe__task_orchestrate({
   task: "qcsd-cicd-verification",
   strategy: "parallel"
 })
@@ -2051,24 +2051,24 @@ npx @claude-flow/cli@latest agent spawn --type qe-flaky-hunter
 
 ```javascript
 // Initialization
-mcp__agentic_qe__fleet_init({
+mcp__agentic-qe__fleet_init({
   topology: "hierarchical",
   enabledDomains: ["quality-assessment", "test-execution", "security-compliance", "chaos-resilience", "coverage-analysis"],
   maxAgents: 7
 })
 
 // Task submission
-mcp__agentic_qe__task_submit({ type: "...", priority: "p0", payload: {...} })
-mcp__agentic_qe__task_orchestrate({ task: "...", strategy: "parallel" })
+mcp__agentic-qe__task_submit({ type: "...", priority: "p0", payload: {...} })
+mcp__agentic-qe__task_orchestrate({ task: "...", strategy: "parallel" })
 
 // Status
-mcp__agentic_qe__fleet_status({ verbose: true })
-mcp__agentic_qe__task_list({ status: "pending" })
+mcp__agentic-qe__fleet_status({ verbose: true })
+mcp__agentic-qe__task_list({ status: "pending" })
 
 // Memory
-mcp__agentic_qe__memory_store({ key: "...", value: {...}, namespace: "qcsd-cicd" })
-mcp__agentic_qe__memory_query({ pattern: "qcsd-cicd-*", namespace: "qcsd-cicd" })
-mcp__agentic_qe__memory_share({
+mcp__agentic-qe__memory_store({ key: "...", value: {...}, namespace: "qcsd-cicd" })
+mcp__agentic-qe__memory_query({ pattern: "qcsd-cicd-*", namespace: "qcsd-cicd" })
+mcp__agentic-qe__memory_share({
   sourceAgentId: "qcsd-cicd-swarm",
   targetAgentIds: ["qe-learning-coordinator"],
   knowledgeDomain: "cicd-verification-patterns"

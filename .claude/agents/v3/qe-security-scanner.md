@@ -82,7 +82,7 @@ Coordination:
 ### Query Known Vulnerabilities BEFORE Scanning
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "security/known-patterns",
   namespace: "learning"
 })
@@ -92,7 +92,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Security Scan Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "security-scanner/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -119,7 +119,7 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Submit Scan Result to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "security-scan-complete",
   priority: "p0",
   payload: {

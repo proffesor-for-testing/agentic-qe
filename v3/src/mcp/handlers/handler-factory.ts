@@ -6,6 +6,7 @@
  *
  * ADR-051: Integrates with task router for optimal model tier selection.
  * ADR-037: Supports V2-compatible response enrichment.
+ * Phase 5: Integrates pattern utilization in routing.
  *
  * @module mcp/handlers/handler-factory
  */
@@ -14,8 +15,9 @@ import { randomUUID } from 'crypto';
 import { getFleetState, isFleetInitialized } from './core-handlers';
 import { ToolResult } from '../types';
 import { createTaskExecutor, DomainTaskExecutor } from '../../coordination/task-executor';
-import { getTaskRouter, type TaskRoutingResult } from '../services/task-router';
+import { getTaskRouter, type TaskRoutingResult, type PatternHint } from '../services/task-router';
 import { Priority } from '../../shared/types';
+import type { QEDomain as LearningDomain } from '../../learning/qe-patterns.js';
 
 // ============================================================================
 // Types
@@ -334,6 +336,9 @@ export function detectAntiPatterns(sourceCode: string, language: string): Array<
 // Cached task executor
 let taskExecutor: DomainTaskExecutor | null = null;
 
+// Cached learning engine for pattern search (declared here for use in resetTaskExecutor)
+let cachedLearningEngine: import('../../learning/aqe-learning-engine.js').AQELearningEngine | null = null;
+
 /**
  * Get or create the task executor
  */
@@ -353,6 +358,8 @@ export function getTaskExecutor(): DomainTaskExecutor {
  */
 export function resetTaskExecutor(): void {
   taskExecutor = null;
+  // Also reset the learning engine cache
+  cachedLearningEngine = null;
 }
 
 // ============================================================================
@@ -360,8 +367,91 @@ export function resetTaskExecutor(): void {
 // ============================================================================
 
 /**
+ * Get or create the learning engine for pattern search
+ */
+async function getLearningEngine(): Promise<import('../../learning/aqe-learning-engine.js').AQELearningEngine | null> {
+  if (cachedLearningEngine) {
+    return cachedLearningEngine;
+  }
+
+  try {
+    const { kernel } = getFleetState();
+    if (!kernel) {
+      return null;
+    }
+
+    const { createAQELearningEngine } = await import('../../learning/aqe-learning-engine.js');
+    const memory = kernel.memory;
+
+    cachedLearningEngine = createAQELearningEngine(memory, {
+      projectRoot: process.cwd(),
+      enableClaudeFlow: false, // Don't need Claude Flow for pattern search
+    });
+
+    await cachedLearningEngine.initialize();
+    return cachedLearningEngine;
+  } catch (error) {
+    // Non-critical - pattern search is optional
+    console.debug(
+      '[HandlerFactory] Learning engine init failed:',
+      error instanceof Error ? error.message : String(error)
+    );
+    return null;
+  }
+}
+
+/**
+ * Search for relevant patterns for a task (Phase 5.1)
+ */
+async function searchPatternsForTask(
+  taskDescription: string,
+  domain: string
+): Promise<PatternHint[]> {
+  try {
+    const engine = await getLearningEngine();
+    if (!engine) {
+      return [];
+    }
+
+    // Map domain string to QEDomain
+    const qeDomain = domain as LearningDomain;
+
+    const result = await engine.searchPatterns(taskDescription, {
+      limit: 5,
+      minConfidence: 0.4,
+      domain: qeDomain,
+      useVectorSearch: true,
+    });
+
+    if (!result.success || result.value.length === 0) {
+      return [];
+    }
+
+    // Convert to PatternHints
+    return result.value
+      .filter(r => r.similarity >= 0.4)
+      .map(r => ({
+        name: r.pattern.name,
+        description: r.pattern.description,
+        similarity: r.similarity,
+        confidence: r.pattern.confidence,
+        canReuse: r.canReuse,
+        patternId: r.pattern.id,
+      }));
+  } catch (error) {
+    // Non-critical - pattern search is optional
+    console.debug(
+      '[HandlerFactory] Pattern search failed:',
+      error instanceof Error ? error.message : String(error)
+    );
+    return [];
+  }
+}
+
+/**
  * Route a domain task through the Model Router
  * Returns routing decision with model tier recommendation
+ * Includes pattern hints from learning system (Phase 5.1, 5.2)
  */
 async function routeDomainTask(
   taskDescription: string,
@@ -369,12 +459,23 @@ async function routeDomainTask(
   codeContext?: string
 ): Promise<TaskRoutingResult | null> {
   try {
+    // Search for relevant patterns (Phase 5.1)
+    const patternHints = await searchPatternsForTask(taskDescription, domain);
+
+    if (patternHints.length > 0) {
+      console.debug(
+        `[HandlerFactory] Found ${patternHints.length} relevant patterns for ${domain}`
+      );
+    }
+
     const router = await getTaskRouter();
     const result = await router.routeTask({
       task: taskDescription,
       domain,
       codeContext,
       agentType: `qe-${domain}`,
+      enablePatternSearch: true,
+      patternHints: patternHints.length > 0 ? patternHints : undefined,
     });
     return result;
   } catch (error) {
@@ -382,6 +483,13 @@ async function routeDomainTask(
     console.error(`[HandlerFactory] Routing failed for ${domain}: ${error}`);
     return null;
   }
+}
+
+/**
+ * Reset the cached learning engine (call when fleet is reinitialized)
+ */
+export function resetLearningEngine(): void {
+  cachedLearningEngine = null;
 }
 
 // ============================================================================

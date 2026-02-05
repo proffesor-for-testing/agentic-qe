@@ -425,7 +425,7 @@ safe_patterns:
 <learning_protocol>
 **Query Past Learnings:**
 ```typescript
-mcp__agentic_qe__learning_query({
+mcp__agentic-qe__learning_query({
   agentId: "n8n-expression-validator",
   taskType: "expression-validation",
   minReward: 0.7,
@@ -436,7 +436,7 @@ mcp__agentic_qe__learning_query({
 
 **Store Experience:**
 ```typescript
-mcp__agentic_qe__learning_store_experience({
+mcp__agentic-qe__learning_store_experience({
   agentId: "n8n-expression-validator",
   taskType: "expression-validation",
   reward: <calculated>,

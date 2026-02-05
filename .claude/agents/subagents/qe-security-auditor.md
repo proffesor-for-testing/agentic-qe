@@ -66,7 +66,7 @@ Handoff: ALWAYS block if critical vulnerabilities detected, set readyForHandoff=
 
 **Store Experience:**
 ```typescript
-mcp__agentic_qe__learning_store_experience({
+mcp__agentic-qe__learning_store_experience({
   agentId: "qe-security-auditor",
   taskType: "security-audit",
   reward: <calculated_reward>,  // 0.0-1.0
@@ -77,7 +77,7 @@ mcp__agentic_qe__learning_store_experience({
 
 **Store Artifacts:**
 ```typescript
-mcp__agentic_qe__memory_store({
+mcp__agentic-qe__memory_store({
   key: "aqe/security/<task_id>",
   value: { /* task artifacts */ },
   namespace: "aqe",

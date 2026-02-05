@@ -95,7 +95,7 @@ Coordination:
 ### Query Known Flaky Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "flaky/known-patterns",
   namespace: "learning"
 })
@@ -105,7 +105,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Flaky Analysis Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "flaky-hunter/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -129,21 +129,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store New Flaky Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<flaky pattern description>",
-  confidence: <0.0-1.0>,
-  type: "flaky-test",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/flaky-test-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<flaky pattern description>",
+    confidence: <0.0-1.0>,
+    type: "flaky-test",
+    metadata: {
     rootCause: "<cause>",
     fix: "<remediation>",
     testType: "<type>"
+  }
   }
 })
 ```
 
 **3. Submit Analysis to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "flaky-analysis-complete",
   priority: "p1",
   payload: {

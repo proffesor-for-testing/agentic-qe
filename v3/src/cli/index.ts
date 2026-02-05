@@ -800,12 +800,14 @@ import { createTokenUsageCommand } from './commands/token-usage.js';
 import { createLLMRouterCommand } from './commands/llm-router.js';
 import { createSyncCommands } from './commands/sync.js';
 import { createHooksCommand } from './commands/hooks.js';
+import { createLearningCommand } from './commands/learning.js';
 import { createMcpCommand } from './commands/mcp.js';
 
 program.addCommand(createTokenUsageCommand());
 program.addCommand(createLLMRouterCommand());
 program.addCommand(createSyncCommands());
 program.addCommand(createHooksCommand());
+program.addCommand(createLearningCommand());
 program.addCommand(createMcpCommand());
 
 // ============================================================================

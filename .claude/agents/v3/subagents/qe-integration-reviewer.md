@@ -80,7 +80,7 @@ Coordination:
 ### Query Integration Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "integration/patterns",
   namespace: "learning"
 })
@@ -90,7 +90,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Integration Review Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "integration-reviewer/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -128,7 +128,7 @@ mcp__claude_flow__hooks_intelligence_pattern_store({
 
 **3. Submit Results to Coordinator:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "integration-review-complete",
   priority: "p0",
   payload: {

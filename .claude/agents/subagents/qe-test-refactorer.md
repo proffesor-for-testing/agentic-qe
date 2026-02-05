@@ -89,7 +89,7 @@ Validation: cycleComplete=true ONLY if allTestsPassing=true AND testFile.hash un
 
 **Store Experience:**
 ```typescript
-mcp__agentic_qe__learning_store_experience({
+mcp__agentic-qe__learning_store_experience({
   agentId: "qe-test-refactorer",
   taskType: "tdd-refactor-phase",
   reward: <calculated_reward>,  // 0.0-1.0
@@ -100,7 +100,7 @@ mcp__agentic_qe__learning_store_experience({
 
 **Store Artifacts:**
 ```typescript
-mcp__agentic_qe__memory_store({
+mcp__agentic-qe__memory_store({
   key: "aqe/tdd/refactor/<task_id>",
   value: { /* task artifacts */ },
   namespace: "aqe",

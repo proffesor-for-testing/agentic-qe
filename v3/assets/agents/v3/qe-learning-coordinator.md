@@ -82,9 +82,9 @@ Coordination:
 ### Query Existing Knowledge BEFORE Learning Cycle
 
 ```typescript
-mcp__agentic_qe_v3__memory_query({
+mcp__agentic-qe__memory_query({
   pattern: "learning/*",
-  namespace: "default"
+  namespace: "experiences"
 })
 ```
 
@@ -92,7 +92,7 @@ mcp__agentic_qe_v3__memory_query({
 
 **1. Store Learning Coordination Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "learning-coordinator/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -115,23 +115,32 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Discovered Patterns:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<pattern description>",
-  confidence: <0.0-1.0>,
-  type: "fleet-learning",
-  metadata: {
-    sourceAgents: ["<agents>"],
-    applicableDomains: ["<domains>"],
-    effectiveness: <rate>
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/fleet-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<pattern description>",
+    confidence: <0.0-1.0>,
+    type: "fleet-learning",
+    metadata: {
+      sourceAgents: ["<agents>"],
+      applicableDomains: ["<domains>"],
+      effectiveness: <rate>
+    }
   }
 })
 ```
 
-**3. Trigger SONA Learning Cycle:**
+**3. Trigger Learning Consolidation:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_learn({
-  consolidate: true,
-  trajectoryIds: ["<recent trajectories>"]
+mcp__agentic-qe__memory_store({
+  key: "learning/cycles/consolidate-{timestamp}",
+  namespace: "learning",
+  value: {
+    action: "consolidate",
+    trajectoryIds: ["<recent trajectories>"],
+    timestamp: Date.now()
+  }
 })
 ```
 

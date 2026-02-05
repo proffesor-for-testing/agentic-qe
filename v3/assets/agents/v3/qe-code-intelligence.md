@@ -82,7 +82,7 @@ Coordination:
 ### Query Existing KG BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "code-intelligence/kg-stats",
   namespace: "learning"
 })
@@ -92,7 +92,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Code Intelligence Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "code-intelligence/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -117,21 +117,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Code Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<code pattern description>",
-  confidence: <0.0-1.0>,
-  type: "code-intelligence",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/code-intelligence-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<code pattern description>",
+    confidence: <0.0-1.0>,
+    type: "code-intelligence",
+    metadata: {
     patternType: "<type>",
     language: "<language>",
     frequency: <count>
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "code-intelligence-complete",
   priority: "p1",
   payload: {

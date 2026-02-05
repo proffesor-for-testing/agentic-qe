@@ -80,7 +80,7 @@ Coordination:
 ### Query Review Patterns BEFORE Reviewing
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "review/patterns",
   namespace: "learning"
 })
@@ -90,7 +90,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Review Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "code-reviewer/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -114,21 +114,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Review Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<review pattern description>",
-  confidence: <0.0-1.0>,
-  type: "code-review",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/code-review-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<review pattern description>",
+    confidence: <0.0-1.0>,
+    type: "code-review",
+    metadata: {
     issueType: "<type>",
     severity: "<severity>",
     frequency: <count>
+  }
   }
 })
 ```
 
 **3. Submit Results to Coordinator:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "review-complete",
   priority: "p1",
   payload: {

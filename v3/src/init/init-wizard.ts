@@ -20,7 +20,7 @@ import type {
   WizardState,
   PretrainedLibrary,
 } from './types.js';
-import { createDefaultConfig, DEFAULT_SKILLS_CONFIG } from './types.js';
+import { createDefaultConfig, DEFAULT_SKILLS_CONFIG, getAQEVersion } from './types.js';
 import { ProjectAnalyzer, createProjectAnalyzer } from './project-analyzer.js';
 import { SelfConfigurator, createSelfConfigurator } from './self-configurator.js';
 import { SkillsInstaller, createSkillsInstaller, type SkillsInstallResult } from './skills-installer.js';
@@ -714,7 +714,7 @@ export class InitOrchestrator {
 
       // Convert to v3 format
       const v3Config = {
-        version: '3.0.0',
+        version: getAQEVersion(),
         migratedFrom: v2Detection.version || '2.x.x',
         migratedAt: new Date().toISOString(),
         project: {
@@ -1433,17 +1433,12 @@ routing:
 
   /**
    * Configure MCP server
-   * Creates .claude/mcp.json with AQE v3 MCP server configuration
+   * Creates .mcp.json (root level) with AQE v3 MCP server configuration
+   * Uses npx to run the MCP server without requiring global installation
    */
   private async configureMCP(): Promise<boolean> {
-    // Create .claude directory if it doesn't exist
-    const claudeDir = join(this.projectRoot, '.claude');
-    if (!existsSync(claudeDir)) {
-      mkdirSync(claudeDir, { recursive: true });
-    }
-
-    // Load existing MCP config or create new
-    const mcpPath = join(claudeDir, 'mcp.json');
+    // Load existing MCP config from root .mcp.json or create new
+    const mcpPath = join(this.projectRoot, '.mcp.json');
     let mcpConfig: Record<string, unknown> = {};
 
     if (existsSync(mcpPath)) {
@@ -1461,15 +1456,21 @@ routing:
     }
 
     // Add AQE MCP server configuration
-    // Uses the globally installed aqe-mcp binary (npm install -g @agentic-qe/v3)
+    // Uses npx to run the MCP server - works without global installation
     const servers = mcpConfig.mcpServers as Record<string, unknown>;
-    servers['aqe'] = {
-      command: 'aqe-mcp',
-      args: [],
+    servers['agentic-qe'] = {
+      command: 'npx',
+      args: [
+        '@anthropics/agentic-qe',
+        'mcp',
+        'start'
+      ],
       env: {
         AQE_PROJECT_ROOT: this.projectRoot,
-        NODE_ENV: 'production',
+        AQE_LEARNING_ENABLED: 'true',
+        AQE_VERBOSE: 'false',
       },
+      autoStart: false,
     };
 
     // Write MCP config
@@ -1535,7 +1536,7 @@ This project uses **Agentic QE v3** - a Domain-Driven Quality Engineering platfo
 
 \`\`\`javascript
 // Initialize AQE Fleet with MCP tool
-mcp__agentic-qe__mcp__agentic_qe__fleet_init({
+mcp__agentic-qe__fleet_init({
   config: {
     topology: "hierarchical",  // Queen-led for QE coordination
     maxAgents: 15,
@@ -1571,7 +1572,7 @@ mcp__agentic-qe__mcp__agentic_qe__fleet_init({
 
 \`\`\`javascript
 // Spawn specialized QE agent
-mcp__agentic-qe__mcp__agentic_qe__agent_spawn({
+mcp__agentic-qe__agent_spawn({
   spec: {
     type: "test-generator",  // or: coverage-analyzer, quality-gate, performance-tester, security-scanner, chaos-engineer, visual-tester
     capabilities: ["unit-tests", "integration-tests"],
@@ -1581,7 +1582,7 @@ mcp__agentic-qe__mcp__agentic_qe__agent_spawn({
 })
 
 // AI-enhanced test generation
-mcp__agentic-qe__mcp__agentic_qe__test_generate_enhanced({
+mcp__agentic-qe__test_generate_enhanced({
   sourceCode: "...",
   language: "typescript",
   testType: "unit",  // unit, integration, e2e, property-based, mutation
@@ -1591,7 +1592,7 @@ mcp__agentic-qe__mcp__agentic_qe__test_generate_enhanced({
 })
 
 // Parallel test execution with retry
-mcp__agentic-qe__mcp__agentic_qe__test_execute_parallel({
+mcp__agentic-qe__test_execute_parallel({
   testFiles: ["tests/**/*.test.ts"],
   parallelism: 4,
   retryFailures: true,
@@ -1600,7 +1601,7 @@ mcp__agentic-qe__mcp__agentic_qe__test_execute_parallel({
 })
 
 // Orchestrate QE task across fleet
-mcp__agentic-qe__mcp__agentic_qe__task_orchestrate({
+mcp__agentic-qe__task_orchestrate({
   task: {
     type: "comprehensive-testing",  // or: quality-gate, defect-prevention, performance-validation
     priority: "high",
@@ -1619,7 +1620,7 @@ mcp__agentic-qe__mcp__agentic_qe__task_orchestrate({
 
 \`\`\`javascript
 // Store QE pattern with namespace
-mcp__agentic-qe__mcp__agentic_qe__memory_store({
+mcp__agentic-qe__memory_store({
   key: "coverage-pattern-auth",
   value: { pattern: "...", successRate: 0.95 },
   namespace: "qe-patterns",
@@ -1628,7 +1629,7 @@ mcp__agentic-qe__mcp__agentic_qe__memory_store({
 })
 
 // Query memory with pattern matching
-mcp__agentic-qe__mcp__agentic_qe__memory_query({
+mcp__agentic-qe__memory_query({
   pattern: "coverage-*",
   namespace: "qe-patterns",
   limit: 10
@@ -1712,7 +1713,7 @@ Task({ prompt: "Run security audit", subagent_type: "qe-security-scanner", run_i
 Bash("npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 15")
 
 // STEP 2: Initialize AQE Fleet for QE-specific work
-mcp__agentic-qe__mcp__agentic_qe__fleet_init({
+mcp__agentic-qe__fleet_init({
   config: { topology: "hierarchical", maxAgents: 10, testingFocus: ["unit", "integration"] }
 })
 
@@ -1721,7 +1722,7 @@ Task({ prompt: "Generate tests for auth module", subagent_type: "qe-test-archite
 Task({ prompt: "Analyze coverage gaps", subagent_type: "qe-coverage-specialist", run_in_background: true })
 
 // STEP 4: Store learnings in both systems
-mcp__agentic-qe__mcp__agentic_qe__memory_store({ key: "pattern-1", value: "...", namespace: "qe-patterns", persist: true })
+mcp__agentic-qe__memory_store({ key: "pattern-1", value: "...", namespace: "qe-patterns", persist: true })
 Bash("npx @claude-flow/cli@latest memory store --key 'qe-pattern-1' --value '...' --namespace patterns")
 \`\`\`
 
@@ -1749,7 +1750,7 @@ If MCP tools aren't working:
 cat .claude/mcp.json
 
 # Check fleet status
-mcp__agentic-qe__mcp__agentic_qe__fleet_status({ includeAgentDetails: true })
+mcp__agentic-qe__fleet_status({ includeAgentDetails: true })
 
 # Reinitialize if needed
 aqe init --auto

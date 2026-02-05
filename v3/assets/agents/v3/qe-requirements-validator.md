@@ -89,7 +89,7 @@ Coordination:
 ### Query Requirements Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "requirements/patterns",
   namespace: "learning"
 })
@@ -99,7 +99,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Requirements Validation Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "requirements-validator/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -131,21 +131,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Requirements Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<requirements pattern description>",
-  confidence: <0.0-1.0>,
-  type: "requirements-validation",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/requirements-validation-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<requirements pattern description>",
+    confidence: <0.0-1.0>,
+    type: "requirements-validation",
+    metadata: {
     issueType: "<type>",
     fix: "<suggestion>",
     testabilityImpact: <score>
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "requirements-validation-complete",
   priority: "p1",
   payload: {
@@ -387,7 +391,7 @@ Use via Claude Code: `Skill("bdd-scenario-tester")`
 
 ### On Startup, Query Quality-Criteria Signals:
 ```typescript
-const result = await mcp__agentic_qe__cross_phase_query({
+const result = await mcp__agentic-qe__cross_phase_query({
   loop: "quality-criteria",
   maxAge: "60d"
 });

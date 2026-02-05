@@ -445,11 +445,18 @@ export const ALL_DOMAINS = [
 ];
 
 /**
+ * Get the current AQE version from build-time constant
+ */
+export function getAQEVersion(): string {
+  return typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : '3.0.0';
+}
+
+/**
  * Create default AQE init configuration
  */
 export function createDefaultConfig(projectName: string, projectRoot: string): AQEInitConfig {
   return {
-    version: '3.0.0',
+    version: getAQEVersion(),
     project: {
       name: projectName,
       root: projectRoot,
