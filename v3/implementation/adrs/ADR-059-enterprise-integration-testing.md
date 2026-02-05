@@ -7,7 +7,7 @@
 
 ## Context
 
-The Adidas Order-to-Cash E2E capability analysis (2026-02-04) revealed that the Agentic QE v3 fleet has **67-72% E2E readiness** across a 7-system flow: Integrator → API Tester → OMNI → IIB → WMS → SAP/S4 → KIBANA. While web UI (90%), REST API (95%), and performance testing (90%) are well-covered, critical gaps exist in:
+The Enterprise Client Order-to-Cash E2E capability analysis (2026-02-04) revealed that the Agentic QE v3 fleet has **67-72% E2E readiness** across a 7-system flow: Integrator → API Tester → OMNI → IIB → WMS → SAP/S4 → KIBANA. While web UI (90%), REST API (95%), and performance testing (90%) are well-covered, critical gaps exist in:
 
 1. **Enterprise middleware** (IIB/ESB): SOAP/WSDL, message broker, ESB routing — **10% coverage**
 2. **SAP-specific interfaces**: RFC/BAPI (0%), IDoc (0%), OData-specific (60-70%) — **45-58% coverage**
@@ -99,7 +99,7 @@ Extend the Agentic QE v3 fleet with an **enterprise-integration** bounded contex
 
 ## References
 
-- [Adidas E2E Capability Analysis](../../../Agentic%20QCSD/03%20Reference%20Docs/adidas-e2e-capability-analysis.md)
+- [Enterprise Client E2E Capability Analysis](../../../Agentic%20QCSD/03%20Reference%20Docs/enterprise-client-e2e-capability-analysis.md)
 - [SAP S/4HANA Migration QE Strategy](../../../docs/sap-s4hana-migration-qe-strategy.md)
 - [ADR-001: DDD Bounded Contexts](./v3-adrs.md#adr-001)
 - [ADR-009: AgentDB Memory Backend](./v3-adrs.md#adr-009)
