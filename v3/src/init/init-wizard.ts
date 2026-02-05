@@ -20,7 +20,7 @@ import type {
   WizardState,
   PretrainedLibrary,
 } from './types.js';
-import { createDefaultConfig, DEFAULT_SKILLS_CONFIG } from './types.js';
+import { createDefaultConfig, DEFAULT_SKILLS_CONFIG, getAQEVersion } from './types.js';
 import { ProjectAnalyzer, createProjectAnalyzer } from './project-analyzer.js';
 import { SelfConfigurator, createSelfConfigurator } from './self-configurator.js';
 import { SkillsInstaller, createSkillsInstaller, type SkillsInstallResult } from './skills-installer.js';
@@ -714,7 +714,7 @@ export class InitOrchestrator {
 
       // Convert to v3 format
       const v3Config = {
-        version: '3.0.0',
+        version: getAQEVersion(),
         migratedFrom: v2Detection.version || '2.x.x',
         migratedAt: new Date().toISOString(),
         project: {
