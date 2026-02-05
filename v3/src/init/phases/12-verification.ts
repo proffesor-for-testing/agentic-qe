@@ -75,7 +75,8 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
       passed: versionWritten,
     });
 
-    // All critical checks must pass
+    // Critical checks must pass; version marker is informational only
+    // (may fail due to better-sqlite3 loading issues but init still succeeds)
     const criticalChecks = ['Database exists', '.agentic-qe directory', 'Config saved'];
     const allCriticalPassed = checks
       .filter(c => criticalChecks.includes(c.name))
@@ -83,7 +84,11 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
 
     context.services.log('  Verification checks:');
     for (const check of checks) {
-      context.services.log(`    ${check.passed ? '✓' : '✗'} ${check.name}`);
+      const isCritical = criticalChecks.includes(check.name);
+      // Use different icons: ✓ for passed, ✗ for critical failure, ⚠ for optional failure
+      const icon = check.passed ? '✓' : (isCritical ? '✗' : '⚠');
+      const suffix = !isCritical && !check.passed ? ' (optional)' : '';
+      context.services.log(`    ${icon} ${check.name}${suffix}`);
     }
 
     return {
