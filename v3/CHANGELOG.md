@@ -5,6 +5,38 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.2] - 2026-02-05
+
+### Added
+
+#### Standalone Learning Commands (ADR-021)
+- **`aqe learning` command** - New command group for self-learning system management without claude-flow dependency
+  - `aqe learning stats` - Display learning system statistics (patterns, domains, search performance)
+  - `aqe learning export` - Export learned patterns to JSON for sharing between projects
+  - `aqe learning import` - Import patterns from JSON file
+  - `aqe learning consolidate` - Promote successful patterns to long-term memory
+  - `aqe learning reset` - Reset learning data (with confirmation)
+  - `aqe learning info` - Show learning system configuration and paths
+- **Portable hooks** - `aqe init --auto` now generates hooks using `npx agentic-qe` for portability (no global install required)
+
+#### Domain-Driven Design Documentation
+- **DDD README** - Comprehensive guide to V3's 12 bounded contexts architecture
+- **12 Domain Specifications** - Full DDD documentation for each QE domain:
+  - test-generation, test-execution, coverage-analysis, quality-assessment
+  - defect-intelligence, learning-optimization, requirements-validation, code-intelligence
+  - security-compliance, contract-testing, visual-accessibility, chaos-resilience
+- Each domain doc includes: bounded context, aggregates, domain events, anti-corruption layers, and integration patterns
+
+### Fixed
+
+- **JSON parse bug in v3-qe-bridge.sh** - Fixed shell escaping issue by passing data via environment variables instead of direct interpolation. Now handles file paths with spaces and special characters correctly.
+- **Statusline accuracy** - Show actual values for sub-agents and memory utilization instead of placeholders
+
+### Changed
+
+- **Hooks configuration** - All hook commands now use `--json` flag for structured output
+- **CLAUDE.md** - Streamlined project instructions
+
 ## [3.5.1] - 2026-02-04
 
 ### Security
