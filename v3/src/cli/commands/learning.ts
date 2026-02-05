@@ -493,6 +493,269 @@ Examples:
     });
 
   // -------------------------------------------------------------------------
+  // extract: Extract patterns from learning experiences
+  // -------------------------------------------------------------------------
+  learning
+    .command('extract')
+    .description('Extract QE patterns from existing learning experiences')
+    .option('--min-reward <n>', 'Minimum reward threshold for pattern extraction', '0.7')
+    .option('--min-count <n>', 'Minimum occurrences to form a pattern', '3')
+    .option('--dry-run', 'Show what would be extracted without saving')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const cwd = process.cwd();
+        const dbPath = path.join(cwd, '.agentic-qe', 'memory.db');
+
+        if (!existsSync(dbPath)) {
+          throw new Error('No memory database found. Run "aqe init --auto" first.');
+        }
+
+        const minReward = parseFloat(options.minReward);
+        const minCount = parseInt(options.minCount, 10);
+
+        console.log(chalk.bold('\n🔬 Pattern Extraction from Learning Experiences\n'));
+        console.log(`  Min reward threshold: ${minReward}`);
+        console.log(`  Min occurrences: ${minCount}`);
+        console.log('');
+
+        // Dynamic import for better-sqlite3
+        const Database = (await import('better-sqlite3')).default;
+        const db = new Database(dbPath, { readonly: true });
+
+        // Query learning experiences grouped by task_type
+        const experiences = db.prepare(`
+          SELECT
+            task_type,
+            COUNT(*) as count,
+            AVG(reward) as avg_reward,
+            MAX(reward) as max_reward,
+            MIN(reward) as min_reward,
+            GROUP_CONCAT(DISTINCT action) as actions
+          FROM learning_experiences
+          WHERE reward >= ?
+          GROUP BY task_type
+          HAVING COUNT(*) >= ?
+          ORDER BY avg_reward DESC
+        `).all(minReward, minCount) as Array<{
+          task_type: string;
+          count: number;
+          avg_reward: number;
+          max_reward: number;
+          min_reward: number;
+          actions: string;
+        }>;
+
+        // Query memory entries for additional context
+        const memoryPatterns = db.prepare(`
+          SELECT
+            substr(key, 1, 40) as key_prefix,
+            COUNT(*) as count
+          FROM memory_entries
+          WHERE key LIKE 'phase2/learning/%'
+          GROUP BY substr(key, 1, 40)
+          HAVING COUNT(*) >= ?
+          ORDER BY COUNT(*) DESC
+          LIMIT 20
+        `).all(minCount) as Array<{ key_prefix: string; count: number }>;
+
+        db.close();
+
+        // Map task types to QE domains
+        const domainMapping: Record<string, QEDomain> = {
+          'generate': 'test-generation',
+          'test-generation': 'test-generation',
+          'analyze': 'coverage-analysis',
+          'coverage': 'coverage-analysis',
+          'coverage-analysis': 'coverage-analysis',
+          'run': 'test-execution',
+          'test-execution': 'test-execution',
+          'report': 'quality-assessment',
+          'quality': 'quality-assessment',
+          'quality-analysis': 'quality-assessment',
+          'security': 'security-compliance',
+          'sast': 'security-compliance',
+          'owasp': 'security-compliance',
+          'secrets': 'security-compliance',
+          'audit': 'security-compliance',
+          'recommend': 'defect-intelligence',
+          'predict': 'defect-intelligence',
+          'complexity-analysis': 'code-intelligence',
+          'code-analysis': 'code-intelligence',
+          'stabilize': 'chaos-resilience',
+          'flaky': 'chaos-resilience',
+          'quarantine': 'chaos-resilience',
+          'retry': 'chaos-resilience',
+          'stress': 'chaos-resilience',
+          'load': 'chaos-resilience',
+          'endurance': 'chaos-resilience',
+          'baseline': 'chaos-resilience',
+        };
+
+        // Map task types to valid QE pattern types
+        const patternTypeMapping: Record<string, string> = {
+          'generate': 'test-template',
+          'test-generation': 'test-template',
+          'analyze': 'coverage-strategy',
+          'coverage': 'coverage-strategy',
+          'coverage-analysis': 'coverage-strategy',
+          'run': 'test-template',
+          'test-execution': 'test-template',
+          'report': 'assertion-pattern',
+          'quality': 'assertion-pattern',
+          'quality-analysis': 'assertion-pattern',
+          'security': 'assertion-pattern',
+          'sast': 'assertion-pattern',
+          'owasp': 'assertion-pattern',
+          'secrets': 'assertion-pattern',
+          'audit': 'assertion-pattern',
+          'recommend': 'assertion-pattern',
+          'predict': 'assertion-pattern',
+          'complexity-analysis': 'assertion-pattern',
+          'code-analysis': 'assertion-pattern',
+          'stabilize': 'flaky-fix',
+          'flaky': 'flaky-fix',
+          'quarantine': 'flaky-fix',
+          'retry': 'flaky-fix',
+          'stress': 'perf-benchmark',
+          'load': 'perf-benchmark',
+          'endurance': 'perf-benchmark',
+          'baseline': 'perf-benchmark',
+          'mock': 'mock-pattern',
+          'dependency': 'mock-pattern',
+        };
+
+        // Extract patterns
+        const extractedPatterns: Array<{
+          name: string;
+          domain: QEDomain;
+          patternType: string;
+          confidence: number;
+          sourceCount: number;
+          avgReward: number;
+          actions: string[];
+        }> = [];
+
+        for (const exp of experiences) {
+          const domain = domainMapping[exp.task_type] || 'code-intelligence';
+          const patternType = patternTypeMapping[exp.task_type] || 'test-template';
+          const actions = exp.actions ? exp.actions.split(',').slice(0, 5) : [];
+
+          extractedPatterns.push({
+            name: `${exp.task_type}-success-pattern`,
+            domain,
+            patternType,
+            confidence: Math.min(0.95, exp.avg_reward / 2),
+            sourceCount: exp.count,
+            avgReward: exp.avg_reward,
+            actions,
+          });
+        }
+
+        if (options.json) {
+          printJson({
+            minReward,
+            minCount,
+            dryRun: options.dryRun || false,
+            experienceGroups: experiences.length,
+            memoryPatterns: memoryPatterns.length,
+            extractedPatterns,
+          });
+        } else {
+          console.log(chalk.bold('Learning Experience Groups:'));
+          if (experiences.length === 0) {
+            console.log(chalk.dim('  No qualifying experience groups found'));
+          } else {
+            for (const exp of experiences) {
+              const rewardColor = exp.avg_reward >= 1.0 ? chalk.green :
+                                  exp.avg_reward >= 0.5 ? chalk.yellow : chalk.red;
+              console.log(`  ${chalk.cyan(exp.task_type)}`);
+              console.log(`    Count: ${exp.count}, Avg Reward: ${rewardColor(exp.avg_reward.toFixed(2))}`);
+            }
+          }
+
+          console.log(chalk.bold('\nMemory Pattern Sources:'));
+          for (const mp of memoryPatterns.slice(0, 10)) {
+            console.log(`  ${mp.key_prefix}... (${mp.count})`);
+          }
+
+          console.log(chalk.bold('\nExtracted Patterns:'));
+          if (extractedPatterns.length === 0) {
+            console.log(chalk.dim('  No patterns extracted'));
+          } else {
+            for (const p of extractedPatterns) {
+              console.log(`  ${chalk.green('+')} ${chalk.cyan(p.name)}`);
+              console.log(chalk.dim(`      Domain: ${p.domain}, Type: ${p.patternType}`));
+              console.log(chalk.dim(`      Confidence: ${(p.confidence * 100).toFixed(0)}%, Sources: ${p.sourceCount}`));
+            }
+          }
+
+          if (!options.dryRun && extractedPatterns.length > 0) {
+            // Store extracted patterns
+            const reasoningBank = await initializeLearningSystem();
+            let stored = 0;
+            const errors: string[] = [];
+
+            for (const p of extractedPatterns) {
+              try {
+                // Build template content from actions
+                const templateContent = p.actions.length > 0
+                  ? `// ${p.name}\n// Steps: ${p.actions.join(' -> ')}\n\n{{implementation}}`
+                  : `// ${p.name}\n// Extracted pattern with ${p.sourceCount} successful uses\n\n{{implementation}}`;
+
+                const result = await reasoningBank.storePattern({
+                  patternType: p.patternType as any,
+                  name: p.name,
+                  description: `Extracted from ${p.sourceCount} learning experiences with avg reward ${p.avgReward.toFixed(2)}`,
+                  template: {
+                    type: 'code',
+                    content: templateContent,
+                    variables: [
+                      {
+                        name: 'implementation',
+                        type: 'code',
+                        required: true,
+                        description: 'Implementation code for this pattern',
+                      },
+                    ],
+                  },
+                  context: {
+                    sourceCount: p.sourceCount,
+                    avgReward: p.avgReward,
+                    extractedAt: new Date().toISOString(),
+                    tags: [p.domain, p.patternType],
+                  },
+                });
+
+                if (result.success) {
+                  stored++;
+                } else {
+                  errors.push(`${p.name}: ${result.error.message}`);
+                }
+              } catch (e) {
+                errors.push(`${p.name}: ${e instanceof Error ? e.message : 'unknown'}`);
+              }
+            }
+
+            console.log(chalk.green(`\n✓ Stored ${stored} new patterns`));
+            if (errors.length > 0 && errors.length <= 5) {
+              console.log(chalk.yellow(`  Errors: ${errors.slice(0, 3).join(', ')}${errors.length > 3 ? '...' : ''}`));
+            }
+          } else if (options.dryRun) {
+            console.log(chalk.yellow('\n  Dry run - no patterns stored'));
+          }
+
+          console.log('');
+        }
+
+        process.exit(0);
+      } catch (error) {
+        printError(`extract failed: ${error instanceof Error ? error.message : 'unknown'}`);
+        process.exit(1);
+      }
+    });
+
+  // -------------------------------------------------------------------------
   // info: Show learning system information
   // -------------------------------------------------------------------------
   learning

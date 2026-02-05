@@ -15,9 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `aqe learning export` - Export learned patterns to JSON for sharing between projects
   - `aqe learning import` - Import patterns from JSON file
   - `aqe learning consolidate` - Promote successful patterns to long-term memory
+  - `aqe learning extract` - **NEW** Extract QE patterns from existing learning experiences in the database
   - `aqe learning reset` - Reset learning data (with confirmation)
   - `aqe learning info` - Show learning system configuration and paths
 - **Portable hooks** - `aqe init --auto` now generates hooks using `npx agentic-qe` for portability (no global install required)
+- **Pattern extraction** - Mine historical learning data to bootstrap new patterns with proper confidence scoring
 
 #### Domain-Driven Design Documentation
 - **DDD README** - Comprehensive guide to V3's 12 bounded contexts architecture
