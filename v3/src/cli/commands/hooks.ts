@@ -784,14 +784,14 @@ Examples:
       try {
         const sessionId = state.sessionId || 'unknown';
 
-        // Try to get stats if system was initialized
+        // Initialize hooks system to get final stats
+        // BUG FIX: Must call getHooksSystem() to initialize, not check state.initialized
         let stats = null;
-        if (state.initialized && state.reasoningBank) {
-          try {
-            stats = await state.reasoningBank.getStats();
-          } catch {
-            // Ignore - system may be shutting down
-          }
+        try {
+          const { reasoningBank } = await getHooksSystem();
+          stats = await reasoningBank.getStats();
+        } catch {
+          // Ignore - system may not be available during shutdown
         }
 
         if (options.json) {
@@ -890,22 +890,37 @@ Examples:
       try {
         const success = options.success === 'true' || options.success === true;
 
-        // Record outcome if we have an initialized system
+        // Initialize hooks system and record learning outcome
+        // BUG FIX: Must call getHooksSystem() FIRST to initialize, not check state.initialized
         let patternsLearned = 0;
-        if (state.initialized && state.reasoningBank) {
-          try {
-            // Emit learning event
-            const { hookRegistry } = await getHooksSystem();
-            const results = await hookRegistry.emit(QE_HOOK_EVENTS.PostTestGeneration, {
-              taskId: options.taskId,
+        try {
+          // Initialize system (creates ReasoningBank and HookRegistry)
+          const { hookRegistry, reasoningBank } = await getHooksSystem();
+
+          // Emit learning event for task completion
+          const results = await hookRegistry.emit(QE_HOOK_EVENTS.QEAgentCompletion, {
+            taskId: options.taskId,
+            success,
+            agent: options.agent,
+            duration: options.duration ? parseInt(options.duration, 10) : undefined,
+            timestamp: Date.now(),
+          });
+          patternsLearned = results.reduce((sum, r) => sum + (r.patternsLearned || 0), 0);
+
+          // Also record as learning experience directly if we have task details
+          if (options.taskId && options.agent) {
+            await reasoningBank.recordOutcome({
+              patternId: `task:${options.agent}:${options.taskId}`,
               success,
-              agent: options.agent,
-              duration: options.duration ? parseInt(options.duration, 10) : undefined,
+              metrics: {
+                executionTimeMs: options.duration ? parseInt(options.duration, 10) : 0,
+              },
+              feedback: `Agent: ${options.agent}, Task: ${options.taskId}`,
             });
-            patternsLearned = results.reduce((sum, r) => sum + (r.patternsLearned || 0), 0);
-          } catch {
-            // Ignore learning errors
           }
+        } catch (initError) {
+          // Log but don't fail - learning is best-effort
+          console.error(chalk.dim(`[hooks] Learning init: ${initError instanceof Error ? initError.message : 'unknown'}`));
         }
 
         if (options.json) {
