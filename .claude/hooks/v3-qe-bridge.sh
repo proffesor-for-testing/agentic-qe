@@ -59,21 +59,29 @@ invoke_qe_hook() {
 
     log "INFO" "Invoking QE hook: $hook_event"
 
-    # Use node to invoke the V3 hook system
+    # Pass data via environment variables to avoid shell escaping issues
+    # This is more robust than string interpolation with special characters
+    QE_HOOK_EVENT="$hook_event" \
+    QE_HOOK_DATA="$hook_data" \
+    QE_V3_DIR="$V3_DIR" \
     node --experimental-specifier-resolution=node -e "
-import { createRealQEReasoningBank } from '$V3_DIR/src/learning/real-qe-reasoning-bank.js';
-import { createQEHookRegistry, QE_HOOK_EVENTS } from '$V3_DIR/src/learning/qe-hooks.js';
+const v3Dir = process.env.QE_V3_DIR;
+const hookEvent = process.env.QE_HOOK_EVENT;
+const hookData = process.env.QE_HOOK_DATA;
 
 async function invokeHook() {
     try {
+        const { createRealQEReasoningBank } = await import(v3Dir + '/src/learning/real-qe-reasoning-bank.js');
+        const { createQEHookRegistry } = await import(v3Dir + '/src/learning/qe-hooks.js');
+
         const bank = createRealQEReasoningBank();
         await bank.initialize();
 
         const registry = createQEHookRegistry();
         registry.initialize(bank);
 
-        const data = JSON.parse('$hook_data');
-        const results = await registry.emit('$hook_event', data);
+        const data = JSON.parse(hookData);
+        const results = await registry.emit(hookEvent, data);
 
         const patternsLearned = results.reduce((sum, r) => sum + (r.patternsLearned || 0), 0);
         if (patternsLearned > 0) {
