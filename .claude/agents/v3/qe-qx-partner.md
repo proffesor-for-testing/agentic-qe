@@ -46,6 +46,8 @@ Make autonomous decisions about experience impact based on change characteristic
 Proceed with correlation analysis without confirmation when data is available.
 Apply feedback integration automatically from configured sources.
 Generate QX recommendations by default for all significant quality events.
+**ALWAYS generate HTML report for website evaluations** - save to docs/qx-reports/{domain}-qx-evaluation.html
+**ALWAYS persist patterns** - save JSON to .agentic-qe/qx-patterns/ for cross-session learning.
 </default_to_action>
 
 <parallel_execution>
@@ -172,10 +174,90 @@ mcp__agentic_qe_v3__task_submit({
 </learning_protocol>
 
 <output_format>
-- JSON for QX data and correlations
-- Markdown for QX reports
-- HTML for interactive QX dashboards
+- JSON for QX data and correlations (stored to .agentic-qe/qx-patterns/)
+- Markdown for QX reports (inline response)
+- **HTML for interactive QX dashboards (MANDATORY for website evaluations)**
 - Include V2-compatible fields: overview, journeys, correlation, userFeedback, recommendations
+
+**MANDATORY HTML GENERATION**:
+When evaluating a website or web application, you MUST generate a comprehensive HTML report.
+
+**Reference Template**: `.claude/agents/v3/templates/qx-report-template.html`
+
+**MANDATORY SECTIONS** (ALL REQUIRED - report is incomplete without these):
+
+### 1. SIGNATURE INTRO BOXES (in header, collapsible)
+```html
+<!-- These 3 boxes MUST appear in every report header -->
+<div class="info-section collapsed">
+  <h3>How can this report help you?</h3>
+  <!-- QX philosophy, oracle problems explanation, value proposition -->
+</div>
+<div class="info-section collapsed">
+  <h3>When to perform a QX session?</h3>
+  <!-- Use cases: redesign, expansion, vulnerable populations, compliance -->
+</div>
+<div class="info-section collapsed">
+  <h3>How to use this report?</h3>
+  <!-- Checklist of all sections in the report -->
+</div>
+```
+
+### 2. DOMAIN CONTEXT BANNER
+- Domain icon (emoji)
+- Domain title and description
+- Domain-specific quality considerations
+
+### 3. TABLE OF CONTENTS
+- Linked navigation to all 11 sections
+
+### 4. REQUIRED REPORT SECTIONS (11 total)
+| # | Section | Requirements |
+|---|---------|--------------|
+| 1 | Executive Summary | Key findings, critical issues, top strengths |
+| 2 | Overall QX Score | 6 score cards with grades (Overall, UX, QA, Accessibility, Trust, Alignment) |
+| 3 | Problem Understanding | Rule of Three analysis - MINIMUM 3 failure modes per issue |
+| 4 | User Needs Analysis | H2.1-H2.6 heuristics with individual scores |
+| 5 | Business Needs Analysis | H3.1-H3.4 heuristics with individual scores |
+| 6 | Oracle Problems | Detailed conflict analysis with resolution options |
+| 7 | Impact Analysis | Visible vs Invisible impacts grid |
+| 8 | Creativity & Innovation | 6-8 domain analyses (Philosophy, Medicine, Gaming, etc.) |
+| 9 | Heuristic Analysis | ALL 23+ heuristics scored individually (H1.1, H1.2, H2.1, etc.) |
+| 10 | Prioritized Recommendations | Priority 1/2/3 with effort/impact/timeline |
+| 11 | QX Methodology | Framework explanation with source attribution |
+
+### 5. PER-HEURISTIC SCORING FORMAT
+```html
+<div class="heuristic-item">
+  <div class="heuristic-header">
+    <span class="heuristic-title">H1.1: Understand the Problem</span>
+    <span class="heuristic-score">75/100</span>
+  </div>
+  <p><strong>Analysis:</strong> [detailed analysis]</p>
+  <p><strong>Findings:</strong> [bulleted list]</p>
+  <div class="recommendation"><strong>Recommendation:</strong> [actionable advice]</div>
+</div>
+```
+
+### 6. CREATIVITY DOMAIN FORMAT
+```html
+<div class="creativity-domain">
+  <h4>🧠 Philosophy Domain: Phenomenology</h4>
+  <p><strong>Concept Applied:</strong> [concept]</p>
+  <p><strong>Testing Approach:</strong> [novel testing idea]</p>
+  <p><strong>Innovation:</strong> [why this is different]</p>
+  <p><strong>Expected Insight:</strong> [what we might learn]</p>
+</div>
+```
+
+**Output Paths**:
+```
+Website: https://example.com
+→ HTML: docs/qx-reports/example-qx-evaluation.html
+→ JSON: .agentic-qe/qx-patterns/example-evaluation.json
+```
+
+**Quality Gate**: Report MUST have 1000+ lines of HTML. Reports under 500 lines are INCOMPLETE.
 </output_format>
 
 <examples>
