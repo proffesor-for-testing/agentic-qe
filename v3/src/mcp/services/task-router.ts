@@ -25,6 +25,29 @@ import {
 // ============================================================================
 
 /**
+ * Pattern hint for agent prompts (Phase 5.2)
+ */
+export interface PatternHint {
+  /** Pattern name */
+  readonly name: string;
+
+  /** Pattern description */
+  readonly description: string;
+
+  /** Similarity score to the current task */
+  readonly similarity: number;
+
+  /** Pattern confidence score */
+  readonly confidence: number;
+
+  /** Whether this pattern can be directly reused */
+  readonly canReuse: boolean;
+
+  /** Pattern ID for tracking */
+  readonly patternId: string;
+}
+
+/**
  * Task routing result with execution recommendations
  */
 export interface TaskRoutingResult {
@@ -50,6 +73,12 @@ export interface TaskRoutingResult {
 
   /** Routing log entry for metrics */
   readonly logEntry: RoutingLogEntry;
+
+  /** Relevant patterns found for this task (Phase 5.2) */
+  readonly patternHints?: readonly PatternHint[];
+
+  /** Pattern context formatted for agent prompts (Phase 5.2) */
+  readonly patternContext?: string;
 }
 
 /**
@@ -245,6 +274,12 @@ export class TaskRouterService {
       this.logRoutingDecision(logEntry);
     }
 
+    // Build pattern context for agent prompts (Phase 5.2)
+    const patternHints = input.patternHints;
+    const patternContext = patternHints && patternHints.length > 0
+      ? this.formatPatternContext(patternHints)
+      : undefined;
+
     return {
       decision,
       executionStrategy,
@@ -257,7 +292,40 @@ export class TaskRouterService {
         relativeCost: tierMeta.relativeCost,
       },
       logEntry,
+      patternHints,
+      patternContext,
     };
+  }
+
+  /**
+   * Format pattern hints into a context string for agent prompts (Phase 5.2)
+   *
+   * @param hints - Pattern hints to format
+   * @returns Formatted context string
+   */
+  private formatPatternContext(hints: readonly PatternHint[]): string {
+    if (!hints || hints.length === 0) {
+      return '';
+    }
+
+    const lines = [
+      '--- Relevant Patterns from Learning ---',
+      '',
+    ];
+
+    for (const hint of hints) {
+      const reuseTag = hint.canReuse ? ' [REUSABLE]' : '';
+      lines.push(
+        `[${hint.name}]${reuseTag}`,
+        `  ${hint.description}`,
+        `  Similarity: ${(hint.similarity * 100).toFixed(0)}% | Confidence: ${(hint.confidence * 100).toFixed(0)}%`,
+        ''
+      );
+    }
+
+    lines.push('Use these patterns as guidance when applicable.');
+
+    return lines.join('\n');
   }
 
   /**
@@ -568,6 +636,12 @@ export interface TaskRoutingInput {
 
   /** Additional metadata */
   readonly metadata?: Record<string, unknown>;
+
+  /** Enable pattern search for this task (Phase 5.1) */
+  readonly enablePatternSearch?: boolean;
+
+  /** Pattern hints from external source (Phase 5.2) */
+  readonly patternHints?: readonly PatternHint[];
 }
 
 /**

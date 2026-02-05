@@ -23,8 +23,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 V3_DIR="$PROJECT_ROOT/v3"
+V3_DIST_DIR="$V3_DIR/dist"
 MEMORY_DB="${AQE_MEMORY_PATH:-.agentic-qe/memory.db}"
 LOG_FILE="$PROJECT_ROOT/.agentic-qe/v3-hooks.log"
+
+# Debug mode (set QE_HOOK_DEBUG=1 to enable verbose logging)
+DEBUG_MODE="${QE_HOOK_DEBUG:-0}"
 
 # Ensure log directory exists
 mkdir -p "$(dirname "$LOG_FILE")"
@@ -34,6 +38,13 @@ log() {
     local level="$1"
     shift
     echo "[$(date -Iseconds)] [$level] $*" >> "$LOG_FILE"
+}
+
+# Debug logging (only when QE_HOOK_DEBUG=1)
+debug() {
+    if [[ "$DEBUG_MODE" == "1" ]]; then
+        log "DEBUG" "$@"
+    fi
 }
 
 # Check if V3 mode is enabled
@@ -58,27 +69,43 @@ invoke_qe_hook() {
     local hook_data="$2"
 
     log "INFO" "Invoking QE hook: $hook_event"
+    debug "Hook data: $hook_data"
+
+    # Check if dist directory exists
+    if [[ ! -d "$V3_DIST_DIR/learning" ]]; then
+        log "WARN" "V3 dist/learning directory not found: $V3_DIST_DIR/learning"
+        log "INFO" "Run 'npm run build' in v3 directory to compile TypeScript"
+        return 0
+    fi
 
     # Pass data via environment variables to avoid shell escaping issues
     # This is more robust than string interpolation with special characters
     QE_HOOK_EVENT="$hook_event" \
     QE_HOOK_DATA="$hook_data" \
-    QE_V3_DIR="$V3_DIR" \
-    node --experimental-specifier-resolution=node -e "
-const v3Dir = process.env.QE_V3_DIR;
+    QE_V3_DIST_DIR="$V3_DIST_DIR" \
+    QE_DEBUG_MODE="$DEBUG_MODE" \
+    node -e "
+const distDir = process.env.QE_V3_DIST_DIR;
 const hookEvent = process.env.QE_HOOK_EVENT;
 const hookData = process.env.QE_HOOK_DATA;
+const debugMode = process.env.QE_DEBUG_MODE === '1';
 
 async function invokeHook() {
     try {
-        const { createRealQEReasoningBank } = await import(v3Dir + '/src/learning/real-qe-reasoning-bank.js');
-        const { createQEHookRegistry } = await import(v3Dir + '/src/learning/qe-hooks.js');
+        if (debugMode) console.error('[DEBUG] Loading modules from:', distDir);
+
+        const { createRealQEReasoningBank } = await import(distDir + '/learning/real-qe-reasoning-bank.js');
+        const { createQEHookRegistry } = await import(distDir + '/learning/qe-hooks.js');
+
+        if (debugMode) console.error('[DEBUG] Modules loaded, creating bank...');
 
         const bank = createRealQEReasoningBank();
         await bank.initialize();
 
         const registry = createQEHookRegistry();
         registry.initialize(bank);
+
+        if (debugMode) console.error('[DEBUG] Parsing hook data...');
 
         const data = JSON.parse(hookData);
         const results = await registry.emit(hookEvent, data);
@@ -88,9 +115,12 @@ async function invokeHook() {
             console.log(JSON.stringify({ success: true, patternsLearned }));
         }
 
+        if (debugMode) console.error('[DEBUG] Hook completed, patterns learned:', patternsLearned);
+
         await bank.dispose();
     } catch (error) {
         console.error('Hook error:', error.message);
+        if (debugMode) console.error('[DEBUG] Full error:', error.stack);
         process.exit(0); // Don't fail the parent operation
     }
 }
@@ -193,6 +223,25 @@ detect_framework() {
     esac
 }
 
+# Escape JSON string value (handles quotes and backslashes)
+json_escape() {
+    local str="$1"
+    # Escape backslashes first, then quotes
+    str="${str//\\/\\\\}"
+    str="${str//\"/\\\"}"
+    # Remove newlines and control characters
+    str="${str//$'\n'/\\n}"
+    str="${str//$'\r'/}"
+    str="${str//$'\t'/\\t}"
+    echo -n "$str"
+}
+
+# Build JSON object safely
+build_json() {
+    # Build JSON using printf for safety
+    printf '%s' "$1"
+}
+
 # Handle file edit hook
 handle_file_edit() {
     local file="${1:-}"
@@ -205,23 +254,17 @@ handle_file_edit() {
 
     local domain=$(detect_domain_from_file "$file")
     local filename=$(basename "$file")
+    local escaped_file=$(json_escape "$file")
 
     # Check if it's a test file
     if [[ "$file" == *test* || "$file" == *spec* ]]; then
         local test_type=$(detect_test_type "$file")
         local framework=$(detect_framework "$file")
 
-        local hook_data=$(cat <<EOF
-{
-    "targetFile": "$file",
-    "testType": "$test_type",
-    "framework": "$framework",
-    "language": "typescript",
-    "success": $success,
-    "domain": "$domain"
-}
-EOF
-)
+        # Build JSON without heredoc to avoid escaping issues
+        local hook_data="{\"targetFile\":\"${escaped_file}\",\"testType\":\"${test_type}\",\"framework\":\"${framework}\",\"language\":\"typescript\",\"success\":${success},\"domain\":\"${domain}\"}"
+
+        debug "File edit hook data: $hook_data"
 
         if [[ "$success" == "true" ]]; then
             invoke_qe_hook "qe:post-test-generation" "$hook_data"
@@ -230,7 +273,7 @@ EOF
 
     # Store file edit pattern
     store_pattern_fallback "file-edits" "edit-$(date +%s)" \
-        "{\"file\":\"$file\",\"domain\":\"$domain\",\"success\":$success}"
+        "{\"file\":\"${escaped_file}\",\"domain\":\"${domain}\",\"success\":${success}}"
 }
 
 # Handle command execution hook
@@ -242,32 +285,20 @@ handle_command_exec() {
         return
     fi
 
+    local escaped_command=$(json_escape "$command")
+    local run_id="run-$(date +%s)"
+
     # Detect if it's a test command
     if [[ "$command" == *"npm test"* || "$command" == *"vitest"* || "$command" == *"jest"* ]]; then
-        local hook_data=$(cat <<EOF
-{
-    "runId": "run-$(date +%s)",
-    "command": "$command",
-    "success": $success,
-    "passed": 0,
-    "failed": 0,
-    "duration": 0
-}
-EOF
-)
+        local hook_data="{\"runId\":\"${run_id}\",\"command\":\"${escaped_command}\",\"success\":${success},\"passed\":0,\"failed\":0,\"duration\":0}"
+        debug "Test execution hook data: $hook_data"
         invoke_qe_hook "qe:test-execution-result" "$hook_data"
     fi
 
     # Detect if it's a coverage command
     if [[ "$command" == *"coverage"* || "$command" == *"nyc"* || "$command" == *"istanbul"* ]]; then
-        local hook_data=$(cat <<EOF
-{
-    "targetPath": ".",
-    "command": "$command",
-    "success": $success
-}
-EOF
-)
+        local hook_data="{\"targetPath\":\".\",\"command\":\"${escaped_command}\",\"success\":${success}}"
+        debug "Coverage hook data: $hook_data"
         invoke_qe_hook "qe:post-coverage-analysis" "$hook_data"
     fi
 }
@@ -283,21 +314,17 @@ handle_task_complete() {
         return
     fi
 
-    local hook_data=$(cat <<EOF
-{
-    "agentType": "$agent_type",
-    "taskId": "$task_id",
-    "success": $success,
-    "duration": $duration
-}
-EOF
-)
+    local escaped_task_id=$(json_escape "$task_id")
+    local escaped_agent_type=$(json_escape "$agent_type")
+
+    local hook_data="{\"agentType\":\"${escaped_agent_type}\",\"taskId\":\"${escaped_task_id}\",\"success\":${success},\"duration\":${duration}}"
+    debug "Task complete hook data: $hook_data"
 
     invoke_qe_hook "qe:agent-completion" "$hook_data"
 
     # Also store in memory for cross-session learning
-    store_pattern_fallback "task-completions" "$task_id" \
-        "{\"agent\":\"$agent_type\",\"success\":$success,\"duration\":$duration}"
+    store_pattern_fallback "task-completions" "$escaped_task_id" \
+        "{\"agent\":\"${escaped_agent_type}\",\"success\":${success},\"duration\":${duration}}"
 }
 
 # Handle agent routing hook
@@ -309,15 +336,11 @@ handle_agent_routing() {
         return
     fi
 
-    local hook_data=$(cat <<EOF
-{
-    "task": "$task",
-    "taskType": "$task_type",
-    "capabilities": [],
-    "context": {}
-}
-EOF
-)
+    local escaped_task=$(json_escape "$task")
+    local escaped_task_type=$(json_escape "$task_type")
+
+    local hook_data="{\"task\":\"${escaped_task}\",\"taskType\":\"${escaped_task_type}\",\"capabilities\":[],\"context\":{}}"
+    debug "Agent routing hook data: $hook_data"
 
     invoke_qe_hook "qe:agent-routing" "$hook_data"
 }
@@ -329,15 +352,12 @@ handle_pattern_learned() {
     local domain="${3:-}"
     local confidence="${4:-0.5}"
 
-    local hook_data=$(cat <<EOF
-{
-    "patternId": "$pattern_id",
-    "patternType": "$pattern_type",
-    "domain": "$domain",
-    "confidence": $confidence
-}
-EOF
-)
+    local escaped_pattern_id=$(json_escape "$pattern_id")
+    local escaped_pattern_type=$(json_escape "$pattern_type")
+    local escaped_domain=$(json_escape "$domain")
+
+    local hook_data="{\"patternId\":\"${escaped_pattern_id}\",\"patternType\":\"${escaped_pattern_type}\",\"domain\":\"${escaped_domain}\",\"confidence\":${confidence}}"
+    debug "Pattern learned hook data: $hook_data"
 
     invoke_qe_hook "qe:pattern-learned" "$hook_data"
 }
@@ -348,16 +368,14 @@ handle_quality_score() {
     local coverage="${2:-0}"
     local test_quality="${3:-0}"
 
-    local hook_data=$(cat <<EOF
-{
-    "score": $score,
-    "coverageScore": $coverage,
-    "testQualityScore": $test_quality,
-    "threshold": 0.8,
-    "passed": $([ "$(echo "$score >= 0.8" | bc -l)" = "1" ] && echo "true" || echo "false")
-}
-EOF
-)
+    # Calculate passed status (avoid bc dependency)
+    local passed="false"
+    if [[ $(awk "BEGIN {print ($score >= 0.8) ? 1 : 0}") == "1" ]]; then
+        passed="true"
+    fi
+
+    local hook_data="{\"score\":${score},\"coverageScore\":${coverage},\"testQualityScore\":${test_quality},\"threshold\":0.8,\"passed\":${passed}}"
+    debug "Quality score hook data: $hook_data"
 
     invoke_qe_hook "qe:quality-score" "$hook_data"
 }

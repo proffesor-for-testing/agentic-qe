@@ -1,12 +1,16 @@
 /**
  * Agentic QE v3 - Learning Consolidation Worker
  * ADR-014: Background Workers for QE Monitoring
+ * Phase 7: Continuous Learning Loop
  *
  * Consolidates learning patterns across domains including:
  * - Cross-domain pattern aggregation
  * - Strategy optimization
  * - Knowledge distillation
  * - Pattern pruning and deduplication
+ * - Experience-based pattern extraction (Phase 7)
+ * - Pattern promotion/deprecation lifecycle (Phase 7)
+ * - Quality feedback loops (Phase 7)
  */
 
 import { BaseWorker } from '../base-worker';
@@ -20,6 +24,13 @@ import {
 import { DomainName, ALL_DOMAINS } from '../../shared/types';
 import { LearningOptimizationAPI } from '../../domains/learning-optimization/plugin';
 import { DreamEngine, type EngineResult as DreamCycleResult, type PatternImportData } from '../../learning/dream/index.js';
+import {
+  PatternLifecycleManager,
+  createPatternLifecycleManager,
+  type PatternCandidate,
+  type PatternLifecycleStats,
+} from '../../learning/pattern-lifecycle.js';
+import { getUnifiedMemory } from '../../kernel/unified-memory.js';
 
 const CONFIG: WorkerConfig = {
   id: 'learning-consolidation',
@@ -55,25 +66,92 @@ interface ConsolidationResult {
   /** ADR-046: Dream cycle insights */
   dreamInsights: number;
   dreamPatternsCreated: number;
+  /** Phase 7: Continuous Learning Loop metrics */
+  experiencesProcessed: number;
+  patternCandidatesFound: number;
+  patternsPromoted: number;
+  patternsDeprecated: number;
+  confidenceDecayApplied: number;
 }
 
 export class LearningConsolidationWorker extends BaseWorker {
+  private lifecycleManager: PatternLifecycleManager | null = null;
+  private lastRunTimestamp: number = 0;
+
   constructor() {
     super(CONFIG);
   }
 
+  /**
+   * Initialize or get the pattern lifecycle manager
+   */
+  private async getLifecycleManager(): Promise<PatternLifecycleManager | null> {
+    if (this.lifecycleManager) {
+      return this.lifecycleManager;
+    }
+
+    try {
+      const unifiedMemory = getUnifiedMemory();
+      await unifiedMemory.initialize();
+      const db = unifiedMemory.getDatabase();
+      this.lifecycleManager = createPatternLifecycleManager(db, {
+        promotionRewardThreshold: 0.7,
+        promotionMinOccurrences: 2,
+        promotionMinSuccessRate: 0.7,
+        deprecationFailureThreshold: 3,
+        staleDaysThreshold: 30,
+        confidenceDecayRate: 0.01,
+        minActiveConfidence: 0.3,
+      });
+      return this.lifecycleManager;
+    } catch (error) {
+      console.warn('[LearningConsolidation] Failed to initialize lifecycle manager:', error);
+      return null;
+    }
+  }
+
   protected async doExecute(context: WorkerContext): Promise<WorkerResult> {
     const startTime = Date.now();
-    context.logger.info('Starting learning consolidation');
+    context.logger.info('Starting learning consolidation (Phase 7: Continuous Learning Loop)');
 
     const findings: WorkerFinding[] = [];
     const recommendations: WorkerRecommendation[] = [];
+
+    // Initialize Phase 7 metrics
+    let experiencesProcessed = 0;
+    let patternCandidatesFound = 0;
+    let patternsPromoted = 0;
+    let patternsDeprecated = 0;
+    let confidenceDecayApplied = 0;
+
+    // Phase 7: Run continuous learning loop
+    const lifecycleManager = await this.getLifecycleManager();
+    if (lifecycleManager) {
+      const lifecycleResult = await this.runContinuousLearningLoop(
+        context,
+        lifecycleManager,
+        findings,
+        recommendations
+      );
+      experiencesProcessed = lifecycleResult.experiencesProcessed;
+      patternCandidatesFound = lifecycleResult.patternCandidatesFound;
+      patternsPromoted = lifecycleResult.patternsPromoted;
+      patternsDeprecated = lifecycleResult.patternsDeprecated;
+      confidenceDecayApplied = lifecycleResult.confidenceDecayApplied;
+    }
 
     // Collect patterns from all domains
     const patterns = await this.collectPatterns(context);
 
     // Consolidate and analyze
     const result = await this.consolidatePatterns(context, patterns);
+
+    // Add Phase 7 metrics to result
+    result.experiencesProcessed = experiencesProcessed;
+    result.patternCandidatesFound = patternCandidatesFound;
+    result.patternsPromoted = patternsPromoted;
+    result.patternsDeprecated = patternsDeprecated;
+    result.confidenceDecayApplied = confidenceDecayApplied;
 
     // Identify cross-domain patterns
     this.identifyCrossDomainPatterns(patterns, findings, recommendations);
@@ -93,21 +171,28 @@ export class LearningConsolidationWorker extends BaseWorker {
     await context.memory.set('learning:lastConsolidation', result);
     await context.memory.set('learning:consolidatedPatterns', patterns);
 
+    // Update last run timestamp for decay calculation
+    this.lastRunTimestamp = Date.now();
+
     const healthScore = this.calculateHealthScore(result, patterns);
 
     context.logger.info('Learning consolidation complete', {
       healthScore,
       patternsAnalyzed: result.patternsAnalyzed,
       newInsights: result.newInsights,
+      // Phase 7 metrics
+      experiencesProcessed,
+      patternsPromoted,
+      patternsDeprecated,
     });
 
     return this.createResult(
       Date.now() - startTime,
       {
         itemsAnalyzed: result.patternsAnalyzed,
-        issuesFound: result.patternsPruned,
+        issuesFound: result.patternsPruned + result.patternsDeprecated,
         healthScore,
-        trend: 'stable',
+        trend: this.determineTrend(result),
         domainMetrics: {
           patternsAnalyzed: result.patternsAnalyzed,
           patternsPruned: result.patternsPruned,
@@ -117,11 +202,287 @@ export class LearningConsolidationWorker extends BaseWorker {
           // ADR-046: Dream cycle metrics
           dreamInsights: result.dreamInsights,
           dreamPatternsCreated: result.dreamPatternsCreated,
+          // Phase 7: Continuous Learning Loop metrics
+          experiencesProcessed: result.experiencesProcessed,
+          patternCandidatesFound: result.patternCandidatesFound,
+          patternsPromoted: result.patternsPromoted,
+          patternsDeprecated: result.patternsDeprecated,
+          confidenceDecayApplied: result.confidenceDecayApplied,
         },
       },
       findings,
       recommendations
     );
+  }
+
+  /**
+   * Phase 7: Run the continuous learning loop
+   *
+   * Architecture:
+   * Task Execution -> Experience Capture -> Pattern Extraction -> Pattern Promotion -> Pattern Utilization -> Improved Routing
+   */
+  private async runContinuousLearningLoop(
+    context: WorkerContext,
+    lifecycleManager: PatternLifecycleManager,
+    findings: WorkerFinding[],
+    recommendations: WorkerRecommendation[]
+  ): Promise<{
+    experiencesProcessed: number;
+    patternCandidatesFound: number;
+    patternsPromoted: number;
+    patternsDeprecated: number;
+    confidenceDecayApplied: number;
+  }> {
+    context.logger.info('Running continuous learning loop (Phase 7)');
+
+    let experiencesProcessed = 0;
+    let patternCandidatesFound = 0;
+    let patternsPromoted = 0;
+    let patternsDeprecated = 0;
+    let confidenceDecayApplied = 0;
+
+    try {
+      // Step 1: Extract patterns from recent experiences
+      const experiences = lifecycleManager.getRecentExperiences({
+        minReward: 0.7,
+        limit: 100,
+        sinceDays: 7,
+      });
+      experiencesProcessed = experiences.length;
+
+      if (experiences.length > 0) {
+        context.logger.debug('Processing recent experiences', { count: experiences.length });
+
+        // Step 2: Identify pattern candidates
+        const candidates = lifecycleManager.findPatternCandidates(experiences);
+        patternCandidatesFound = candidates.length;
+
+        if (candidates.length > 0) {
+          // Create patterns from candidates
+          const createdCount = await this.createPatternsFromCandidates(candidates);
+
+          findings.push({
+            type: 'pattern-extraction',
+            severity: 'info',
+            domain: 'learning-optimization',
+            title: 'New Patterns Extracted from Experiences',
+            description: `${createdCount} new patterns extracted from ${experiencesProcessed} high-reward experiences`,
+            context: {
+              candidatesFound: patternCandidatesFound,
+              patternsCreated: createdCount,
+              topCandidate: candidates[0]?.name,
+            },
+          });
+        }
+      }
+
+      // Step 3: Promote eligible patterns
+      const promotionResult = lifecycleManager.promoteEligiblePatterns();
+      patternsPromoted = promotionResult.promoted;
+
+      if (patternsPromoted > 0) {
+        findings.push({
+          type: 'pattern-promotion',
+          severity: 'info',
+          domain: 'learning-optimization',
+          title: 'Patterns Promoted to Long-Term',
+          description: `${patternsPromoted} patterns promoted after meeting quality thresholds`,
+          context: {
+            checked: promotionResult.checked,
+            promoted: patternsPromoted,
+          },
+        });
+      }
+
+      // Step 4: Deprecate underperforming patterns
+      const deprecationResult = lifecycleManager.deprecateStalePatterns();
+      patternsDeprecated = deprecationResult.deprecated;
+
+      if (patternsDeprecated > 0) {
+        findings.push({
+          type: 'pattern-deprecation',
+          severity: 'low',
+          domain: 'learning-optimization',
+          title: 'Underperforming Patterns Deprecated',
+          description: `${patternsDeprecated} patterns deprecated due to failures, staleness, or low confidence`,
+          context: {
+            checked: deprecationResult.checked,
+            deprecated: patternsDeprecated,
+          },
+        });
+
+        recommendations.push({
+          priority: 'p3',
+          domain: 'learning-optimization',
+          action: 'Review Deprecated Patterns',
+          description: `${patternsDeprecated} patterns were deprecated. Review for potential recovery or permanent removal.`,
+          estimatedImpact: 'low',
+          effort: 'low',
+          autoFixable: false,
+        });
+      }
+
+      // Step 5: Apply confidence decay
+      const daysSinceLastRun = this.lastRunTimestamp > 0
+        ? (Date.now() - this.lastRunTimestamp) / (1000 * 60 * 60 * 24)
+        : 1;
+
+      if (daysSinceLastRun >= 0.5) { // Apply decay at least twice per day
+        const decayResult = lifecycleManager.applyConfidenceDecay(Math.min(daysSinceLastRun, 7));
+        confidenceDecayApplied = decayResult.decayed;
+      }
+
+      // Step 6: Generate lifecycle statistics finding
+      const stats = lifecycleManager.getStats();
+      this.addLifecycleStatsFinding(stats, findings, recommendations);
+
+      context.logger.info('Continuous learning loop complete', {
+        experiencesProcessed,
+        patternCandidatesFound,
+        patternsPromoted,
+        patternsDeprecated,
+        confidenceDecayApplied,
+      });
+    } catch (error) {
+      context.logger.warn('Continuous learning loop partially failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return {
+      experiencesProcessed,
+      patternCandidatesFound,
+      patternsPromoted,
+      patternsDeprecated,
+      confidenceDecayApplied,
+    };
+  }
+
+  /**
+   * Create patterns from pattern candidates
+   */
+  private async createPatternsFromCandidates(candidates: PatternCandidate[]): Promise<number> {
+    let created = 0;
+
+    try {
+      const unifiedMemory = getUnifiedMemory();
+      const db = unifiedMemory.getDatabase();
+
+      for (const candidate of candidates) {
+        try {
+          const { v4: uuidv4 } = await import('uuid');
+          const patternId = uuidv4();
+
+          db.prepare(`
+            INSERT INTO qe_patterns (
+              id, pattern_type, qe_domain, domain, name, description,
+              confidence, usage_count, success_rate, quality_score, tier,
+              template_json, context_json, created_at, successful_uses
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+          `).run(
+            patternId,
+            candidate.patternType,
+            candidate.domain,
+            candidate.domain, // AQE domain same as QE domain
+            candidate.name,
+            `Auto-extracted pattern from ${candidate.sourceExperiences} experiences. Avg reward: ${candidate.avgReward.toFixed(3)}`,
+            candidate.confidence,
+            candidate.sourceExperiences,
+            candidate.successRate,
+            candidate.confidence * 0.3 + (Math.min(candidate.sourceExperiences, 100) / 100) * 0.2 + candidate.successRate * 0.5,
+            'short-term',
+            JSON.stringify({
+              type: 'workflow',
+              content: candidate.templateContent,
+              variables: [],
+            }),
+            JSON.stringify({
+              tags: candidate.actions,
+              sourceType: 'experience-extraction',
+              extractedAt: new Date().toISOString(),
+            }),
+            Math.round(candidate.sourceExperiences * candidate.successRate)
+          );
+
+          created++;
+        } catch (error) {
+          // Skip duplicates or other errors
+          console.debug('[LearningConsolidation] Failed to create pattern:', error);
+        }
+      }
+    } catch (error) {
+      console.warn('[LearningConsolidation] Pattern creation batch failed:', error);
+    }
+
+    return created;
+  }
+
+  /**
+   * Add lifecycle statistics finding
+   */
+  private addLifecycleStatsFinding(
+    stats: PatternLifecycleStats,
+    findings: WorkerFinding[],
+    recommendations: WorkerRecommendation[]
+  ): void {
+    findings.push({
+      type: 'lifecycle-stats',
+      severity: 'info',
+      domain: 'learning-optimization',
+      title: 'Pattern Lifecycle Statistics',
+      description: `Active: ${stats.activePatterns}, Promoted: ${stats.promotedPatterns}, Deprecated: ${stats.deprecatedPatterns}`,
+      context: {
+        total: stats.totalPatterns,
+        active: stats.activePatterns,
+        shortTerm: stats.shortTermPatterns,
+        longTerm: stats.longTermPatterns,
+        deprecated: stats.deprecatedPatterns,
+        avgConfidence: stats.avgConfidence.toFixed(3),
+        avgSuccessRate: stats.avgSuccessRate.toFixed(3),
+        nearDeprecation: stats.patternsNearDeprecation,
+      },
+    });
+
+    if (stats.patternsNearDeprecation > 0) {
+      recommendations.push({
+        priority: 'p2',
+        domain: 'learning-optimization',
+        action: 'Review At-Risk Patterns',
+        description: `${stats.patternsNearDeprecation} patterns are near deprecation threshold. Consider improving their usage or archiving them.`,
+        estimatedImpact: 'medium',
+        effort: 'low',
+        autoFixable: false,
+      });
+    }
+
+    if (stats.avgSuccessRate < 0.6) {
+      recommendations.push({
+        priority: 'p2',
+        domain: 'learning-optimization',
+        action: 'Improve Pattern Quality',
+        description: `Average success rate (${(stats.avgSuccessRate * 100).toFixed(1)}%) is below target. Focus on quality over quantity.`,
+        estimatedImpact: 'high',
+        effort: 'medium',
+        autoFixable: false,
+      });
+    }
+  }
+
+  /**
+   * Determine trend based on results
+   */
+  private determineTrend(result: ConsolidationResult): 'improving' | 'stable' | 'degrading' {
+    const promotionRatio = result.patternsPromoted / Math.max(1, result.patternsAnalyzed);
+    const deprecationRatio = result.patternsDeprecated / Math.max(1, result.patternsAnalyzed);
+    const extractionRatio = result.patternCandidatesFound / Math.max(1, result.experiencesProcessed);
+
+    if (promotionRatio > 0.1 && extractionRatio > 0.2) {
+      return 'improving';
+    }
+    if (deprecationRatio > 0.2 || result.patternsPruned > result.newInsights) {
+      return 'degrading';
+    }
+    return 'stable';
   }
 
   private async collectPatterns(context: WorkerContext): Promise<LearningPattern[]> {
@@ -254,6 +615,12 @@ export class LearningConsolidationWorker extends BaseWorker {
       crossDomainPatterns: crossDomain.length,
       dreamInsights: 0, // Will be updated by runDreamCycle
       dreamPatternsCreated: 0, // Will be updated by runDreamCycle
+      // Phase 7 metrics - will be updated by runContinuousLearningLoop
+      experiencesProcessed: 0,
+      patternCandidatesFound: 0,
+      patternsPromoted: 0,
+      patternsDeprecated: 0,
+      confidenceDecayApplied: 0,
     };
   }
 

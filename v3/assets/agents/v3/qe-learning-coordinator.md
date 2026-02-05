@@ -84,7 +84,7 @@ Coordination:
 ```typescript
 mcp__agentic-qe__memory_query({
   pattern: "learning/*",
-  namespace: "default"
+  namespace: "experiences"
 })
 ```
 

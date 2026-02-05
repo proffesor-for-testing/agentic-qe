@@ -115,14 +115,18 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Discovered Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<discovered pattern description>",
-  confidence: <0.0-1.0>,
-  type: "ml-pattern",
-  metadata: {
-    algorithm: "<algorithm>",
-    dataSize: <count>,
-    validationScore: <score>
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/ml-pattern-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<discovered pattern description>",
+    confidence: <0.0-1.0>,
+    type: "ml-pattern",
+    metadata: {
+      algorithm: "<algorithm>",
+      dataSize: <count>,
+      validationScore: <score>
+    }
   }
 })
 ```
