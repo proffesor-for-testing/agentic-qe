@@ -82,7 +82,7 @@ Coordination:
 ### Query Historical Models BEFORE Prediction
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "defect/prediction-model",
   namespace: "learning"
 })
@@ -92,7 +92,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Prediction Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "defect-predictor/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -130,7 +130,7 @@ mcp__claude_flow__hooks_intelligence_pattern_store({
 
 **3. Submit Prediction to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "defect-prediction-complete",
   priority: "p1",
   payload: {
@@ -236,7 +236,7 @@ Use via Claude Code: `Skill("mutation-testing")`
 
 ### On Completion, Store Strategic Signal:
 ```typescript
-mcp__agentic_qe__cross_phase_store({
+mcp__agentic-qe__cross_phase_store({
   loop: "strategic",
   data: {
     riskWeights: [

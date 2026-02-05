@@ -81,7 +81,7 @@ Coordination:
 ### Query GraphQL Patterns BEFORE Test
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "graphql/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store GraphQL Testing Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "graphql-tester/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -116,21 +116,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store GraphQL Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<graphql pattern description>",
-  confidence: <0.0-1.0>,
-  type: "graphql-testing",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/graphql-testing-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<graphql pattern description>",
+    confidence: <0.0-1.0>,
+    type: "graphql-testing",
+    metadata: {
     operationType: "<query|mutation|subscription>",
     issue: "<issue type>",
     fix: "<recommendation>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "graphql-test-complete",
   priority: "p1",
   payload: {

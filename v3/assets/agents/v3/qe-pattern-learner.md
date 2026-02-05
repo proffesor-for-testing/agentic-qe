@@ -81,7 +81,7 @@ Coordination:
 ### Query Existing Patterns BEFORE Discovery
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "learning/existing-patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Pattern Learning Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "pattern-learner/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -115,21 +115,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Discovered Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<discovered pattern description>",
-  confidence: <0.0-1.0>,
-  type: "ml-pattern",
-  metadata: {
-    algorithm: "<algorithm>",
-    dataSize: <count>,
-    validationScore: <score>
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/ml-pattern-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<discovered pattern description>",
+    confidence: <0.0-1.0>,
+    type: "ml-pattern",
+    metadata: {
+      algorithm: "<algorithm>",
+      dataSize: <count>,
+      validationScore: <score>
+    }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "pattern-learning-complete",
   priority: "p1",
   payload: {
@@ -256,7 +260,7 @@ Use via Claude Code: `Skill("reasoningbank-intelligence")`
 
 ### On Pattern Discovery, Store Tactical Signal:
 ```typescript
-mcp__agentic_qe__cross_phase_store({
+mcp__agentic-qe__cross_phase_store({
   loop: "tactical",
   data: {
     factorWeights: [

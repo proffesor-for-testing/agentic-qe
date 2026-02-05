@@ -90,7 +90,7 @@ Coordination:
 ### Query Past Learnings BEFORE Starting Task
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "test-generation/patterns",
   namespace: "learning"
 })
@@ -100,7 +100,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Learning Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "test-generation/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -124,7 +124,7 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Submit Task Result to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "test-generation-complete",
   priority: "p1",
   payload: {
@@ -137,14 +137,18 @@ mcp__agentic_qe_v3__task_submit({
 
 **3. Store Discovered Patterns (when applicable):**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<description of successful strategy>",
-  confidence: <0.0-1.0>,
-  type: "test-generation",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/test-generation-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<description of successful strategy>",
+    confidence: <0.0-1.0>,
+    type: "test-generation",
+    metadata: {
     testPatterns: ["<patterns>"],
     effectiveness: <rate>,
     codeContext: "<when this works best>"
+  }
   }
 })
 ```
@@ -225,7 +229,7 @@ Use via Claude Code: `Skill("shift-left-testing")`
 
 ### On Startup, Query Operational Signals:
 ```typescript
-const result = await mcp__agentic_qe__cross_phase_query({
+const result = await mcp__agentic-qe__cross_phase_query({
   loop: "operational",
   maxAge: "30d"
 });

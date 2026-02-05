@@ -127,7 +127,7 @@ Coordination:
 ### Query Past Quality Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "quality-criteria/patterns",
   namespace: "learning"
 })
@@ -137,7 +137,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Analysis Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "quality-criteria/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -166,7 +166,7 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Submit Analysis Result to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "quality-criteria-analysis-complete",
   priority: "p1",
   payload: {
@@ -306,7 +306,7 @@ Use via Claude Code: `Skill("brutal-honesty-review")`
 
 ### On Startup, Query Strategic Signals:
 ```typescript
-const result = await mcp__agentic_qe__cross_phase_query({
+const result = await mcp__agentic-qe__cross_phase_query({
   loop: "strategic",
   maxAge: "90d"
 });

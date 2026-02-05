@@ -82,7 +82,7 @@ Coordination:
 ### Query Existing Knowledge BEFORE Learning Cycle
 
 ```typescript
-mcp__agentic_qe_v3__memory_query({
+mcp__agentic-qe__memory_query({
   pattern: "learning/*",
   namespace: "default"
 })
@@ -92,7 +92,7 @@ mcp__agentic_qe_v3__memory_query({
 
 **1. Store Learning Coordination Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "learning-coordinator/outcome-{timestamp}",
   namespace: "learning",
   value: {

@@ -81,7 +81,7 @@ Coordination:
 ### Query Risk Patterns BEFORE Assessment
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "risk/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Risk Assessment Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "risk-assessor/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -115,21 +115,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Risk Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<risk pattern description>",
-  confidence: <0.0-1.0>,
-  type: "risk-assessment",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/risk-assessment-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<risk pattern description>",
+    confidence: <0.0-1.0>,
+    type: "risk-assessment",
+    metadata: {
     riskCategory: "<category>",
     indicators: ["<indicators>"],
     mitigation: "<strategy>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "risk-assessment-complete",
   priority: "p1",
   payload: {
@@ -257,7 +261,7 @@ Use via Claude Code: `Skill("quality-metrics")`
 
 ### On Startup, Query Strategic Signals:
 ```typescript
-const result = await mcp__agentic_qe__cross_phase_query({
+const result = await mcp__agentic-qe__cross_phase_query({
   loop: "strategic",
   maxAge: "90d"
 });

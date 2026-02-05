@@ -81,7 +81,7 @@ Coordination:
 ### Query Regression Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "regression/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Regression Analysis Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "regression-analyzer/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -116,21 +116,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Regression Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<regression pattern description>",
-  confidence: <0.0-1.0>,
-  type: "regression-analysis",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/regression-analysis-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<regression pattern description>",
+    confidence: <0.0-1.0>,
+    type: "regression-analysis",
+    metadata: {
     changeType: "<type>",
     riskLevel: "<level>",
     testStrategy: "<strategy>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "regression-analysis-complete",
   priority: "p0",
   payload: {

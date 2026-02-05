@@ -81,7 +81,7 @@ Coordination:
 ### Query KG Patterns BEFORE Building
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "kg/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store KG Building Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "kg-builder/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -115,21 +115,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store KG Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<graph pattern description>",
-  confidence: <0.0-1.0>,
-  type: "knowledge-graph",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/knowledge-graph-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<graph pattern description>",
+    confidence: <0.0-1.0>,
+    type: "knowledge-graph",
+    metadata: {
     patternType: "<type>",
     frequency: <count>,
     languages: ["<languages>"]
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "kg-build-complete",
   priority: "p1",
   payload: {

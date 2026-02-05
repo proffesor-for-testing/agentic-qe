@@ -551,14 +551,14 @@ Just follow the skill phases below - uses Task() calls with run_in_background: t
 **Option B: MCP Tools**
 ```javascript
 // Initialize fleet for Ideation domains
-mcp__agentic_qe__fleet_init({
+mcp__agentic-qe__fleet_init({
   topology: "hierarchical",
   enabledDomains: ["requirements-validation", "coverage-analysis", "security-compliance"],
   maxAgents: 6
 })
 
 // Orchestrate ideation task
-mcp__agentic_qe__task_orchestrate({
+mcp__agentic-qe__task_orchestrate({
   task: "qcsd-ideation-analysis",
   strategy: "parallel"
 })
@@ -893,7 +893,7 @@ If using MCP instead of Task tool:
 
 ```javascript
 // Option 1: Orchestrate via Queen Coordinator
-mcp__agentic_qe__fleet_init({
+mcp__agentic-qe__fleet_init({
   topology: "hierarchical",
   enabledDomains: ["requirements-validation", "coverage-analysis"],
   maxAgents: 6,
@@ -901,7 +901,7 @@ mcp__agentic_qe__fleet_init({
 })
 
 // Submit tasks to specific domains
-mcp__agentic_qe__task_submit({
+mcp__agentic-qe__task_submit({
   type: "quality-criteria-analysis",
   priority: "p0",
   payload: {
@@ -911,7 +911,7 @@ mcp__agentic_qe__task_submit({
   }
 })
 
-mcp__agentic_qe__task_submit({
+mcp__agentic-qe__task_submit({
   type: "risk-assessment",
   priority: "p0",
   payload: {
@@ -920,7 +920,7 @@ mcp__agentic_qe__task_submit({
   }
 })
 
-mcp__agentic_qe__task_submit({
+mcp__agentic-qe__task_submit({
   type: "requirements-validation",
   priority: "p0",
   payload: {
@@ -931,7 +931,7 @@ mcp__agentic_qe__task_submit({
 })
 
 // Check task status
-mcp__agentic_qe__task_list({ status: "pending" })
+mcp__agentic-qe__task_list({ status: "pending" })
 ```
 
 ### Alternative: CLI Execution
@@ -1255,7 +1255,7 @@ What UX-specific tests are needed?
 ```javascript
 // IF HAS_UI - Enable visual-accessibility domain
 if (HAS_UI) {
-  mcp__agentic_qe__accessibility_test({
+  mcp__agentic-qe__accessibility_test({
     url: targetUrl,  // if web-based
     standard: "WCAG21AA"
   })
@@ -1263,7 +1263,7 @@ if (HAS_UI) {
 
 // IF HAS_SECURITY - Enable security-compliance domain
 if (HAS_SECURITY) {
-  mcp__agentic_qe__security_scan_comprehensive({
+  mcp__agentic-qe__security_scan_comprehensive({
     target: "src/",
     sast: true,
     dast: false  // No runtime yet in ideation
@@ -1272,7 +1272,7 @@ if (HAS_SECURITY) {
 
 // IF HAS_UX - Cross-domain analysis
 if (HAS_UX) {
-  mcp__agentic_qe__task_orchestrate({
+  mcp__agentic-qe__task_orchestrate({
     task: "qx-analysis",
     strategy: "adaptive"
   })
@@ -1530,7 +1530,7 @@ Store ideation findings for:
 
 ```javascript
 // Store ideation findings
-mcp__agentic_qe__memory_store({
+mcp__agentic-qe__memory_store({
   key: `qcsd-ideation-${epicId}-${Date.now()}`,
   namespace: "qcsd-ideation",
   value: {
@@ -1556,14 +1556,14 @@ mcp__agentic_qe__memory_store({
 })
 
 // Share learnings with learning coordinator for cross-domain patterns
-mcp__agentic_qe__memory_share({
+mcp__agentic-qe__memory_share({
   sourceAgentId: "qcsd-ideation-swarm",
   targetAgentIds: ["qe-learning-coordinator", "qe-pattern-learner"],
   knowledgeDomain: "ideation-patterns"
 })
 
 // Query previous ideation results for similar epics
-mcp__agentic_qe__memory_query({
+mcp__agentic-qe__memory_query({
   pattern: "qcsd-ideation-*",
   namespace: "qcsd-ideation"
 })
@@ -1656,20 +1656,20 @@ If MCP/CLI not available, save to `.agentic-qe/`:
 
 ```javascript
 // Initialization
-mcp__agentic_qe__fleet_init({ topology: "hierarchical", enabledDomains: [...], maxAgents: 6 })
+mcp__agentic-qe__fleet_init({ topology: "hierarchical", enabledDomains: [...], maxAgents: 6 })
 
 // Task submission
-mcp__agentic_qe__task_submit({ type: "...", priority: "p0", payload: {...} })
-mcp__agentic_qe__task_orchestrate({ task: "...", strategy: "parallel" })
+mcp__agentic-qe__task_submit({ type: "...", priority: "p0", payload: {...} })
+mcp__agentic-qe__task_orchestrate({ task: "...", strategy: "parallel" })
 
 // Status
-mcp__agentic_qe__fleet_status({ verbose: true })
-mcp__agentic_qe__task_list({ status: "pending" })
+mcp__agentic-qe__fleet_status({ verbose: true })
+mcp__agentic-qe__task_list({ status: "pending" })
 
 // Memory
-mcp__agentic_qe__memory_store({ key: "...", value: {...}, namespace: "qcsd-ideation" })
-mcp__agentic_qe__memory_query({ pattern: "qcsd-*", namespace: "qcsd-ideation" })
-mcp__agentic_qe__memory_share({ sourceAgentId: "...", targetAgentIds: [...], knowledgeDomain: "..." })
+mcp__agentic-qe__memory_store({ key: "...", value: {...}, namespace: "qcsd-ideation" })
+mcp__agentic-qe__memory_query({ pattern: "qcsd-*", namespace: "qcsd-ideation" })
+mcp__agentic-qe__memory_share({ sourceAgentId: "...", targetAgentIds: [...], knowledgeDomain: "..." })
 ```
 
 ### CLI Quick Reference

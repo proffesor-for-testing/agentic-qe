@@ -153,7 +153,7 @@ Coordination:
 ### Query Past Transformation Patterns BEFORE Processing
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "rewriting/patterns",
   namespace: "learning"
 })
@@ -163,7 +163,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Transformation Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "rewriting/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -188,7 +188,7 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Submit Transformation Result to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "test-idea-rewrite-complete",
   priority: "p2",
   payload: {

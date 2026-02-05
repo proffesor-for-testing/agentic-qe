@@ -62,7 +62,7 @@ Handoff: Set readyForHandoff=true when all critical tests pass
 
 **Store Experience:**
 ```typescript
-mcp__agentic_qe__learning_store_experience({
+mcp__agentic-qe__learning_store_experience({
   agentId: "qe-integration-tester",
   taskType: "integration-testing",
   reward: <calculated_reward>,  // 0.0-1.0
@@ -73,7 +73,7 @@ mcp__agentic_qe__learning_store_experience({
 
 **Store Artifacts:**
 ```typescript
-mcp__agentic_qe__memory_store({
+mcp__agentic-qe__memory_store({
   key: "aqe/integration/<task_id>",
   value: { /* task artifacts */ },
   namespace: "aqe",

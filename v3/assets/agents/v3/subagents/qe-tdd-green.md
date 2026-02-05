@@ -85,7 +85,7 @@ Coordination:
 ### Query TDD GREEN Patterns BEFORE Implementation
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "tdd/green/patterns",
   namespace: "learning"
 })
@@ -95,7 +95,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store GREEN Phase Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "tdd-green/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -119,21 +119,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store GREEN Phase Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<green phase pattern description>",
-  confidence: <0.0-1.0>,
-  type: "tdd-green",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/tdd-green-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<green phase pattern description>",
+    confidence: <0.0-1.0>,
+    type: "tdd-green",
+    metadata: {
     testType: "<type>",
     implementationStyle: "<style>",
     iterationsRequired: <count>
+  }
   }
 })
 ```
 
 **3. Signal to Parent Agent:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "green-phase-complete",
   priority: "p1",
   payload: {
