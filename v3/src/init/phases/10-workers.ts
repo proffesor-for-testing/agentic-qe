@@ -251,11 +251,14 @@ fi
         if (daemonStarted) {
           context.services.log(`  MCP daemon started (PID: ${daemonPid})`);
         } else if (daemonError) {
-          context.services.log(`  MCP daemon failed: ${daemonError}`);
+          // Non-blocking: MCP will be started by Claude Code via .mcp.json
+          context.services.log(`  MCP daemon: skipped (will start via Claude Code)`);
+          context.services.log(`    Note: ${daemonError}`);
         }
       } catch (error) {
+        // Non-blocking error - MCP works fine when Claude Code starts it
         daemonError = error instanceof Error ? error.message : 'Unknown error';
-        context.services.log(`  MCP daemon error: ${daemonError}`);
+        context.services.log(`  MCP daemon: skipped (Claude Code will start it)`);
       }
     }
 

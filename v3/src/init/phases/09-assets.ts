@@ -3,6 +3,8 @@
  * Installs skills and agents
  */
 
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import {
   BasePhase,
   type InitContext,
@@ -33,8 +35,12 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     const config = context.config as AQEInitConfig;
     const { projectRoot, options } = context;
 
-    // Determine overwrite mode: --upgrade flag OR config setting
-    const shouldOverwrite = options.upgrade || config.skills.overwrite;
+    // Auto-upgrade if version differs (v3.5.3+)
+    const isVersionUpgrade = this.detectVersionUpgrade(context);
+
+    // Determine overwrite mode: --upgrade flag, config setting, OR auto-mode with version change
+    const shouldOverwrite = options.upgrade || config.skills.overwrite ||
+      (options.autoMode && isVersionUpgrade);
 
     let skillsInstalled = 0;
     let agentsInstalled = 0;
@@ -43,6 +49,8 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
 
     if (options.upgrade) {
       context.services.log(`  Upgrade mode: overwriting existing files`);
+    } else if (options.autoMode && isVersionUpgrade) {
+      context.services.log(`  Version upgrade detected: updating skills and agents`);
     }
 
     // Install skills
@@ -109,6 +117,29 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       n8nAgents,
       n8nSkills,
     };
+  }
+
+  /**
+   * Detect if this is a version upgrade by comparing existing config version
+   * with the new version being installed
+   */
+  private detectVersionUpgrade(context: InitContext): boolean {
+    const configPath = join(context.projectRoot, '.agentic-qe', 'config.yaml');
+    if (!existsSync(configPath)) {
+      return false;
+    }
+
+    try {
+      const content = readFileSync(configPath, 'utf-8');
+      const versionMatch = content.match(/version:\s*"?([^"\n]+)"?/);
+      const existingVersion = versionMatch?.[1];
+      const newVersion = (context.config as AQEInitConfig).version;
+
+      // If versions differ, this is an upgrade
+      return existingVersion !== undefined && existingVersion !== newVersion;
+    } catch {
+      return false;
+    }
   }
 }
 
