@@ -219,5 +219,4 @@ scripts/n8n-predeploy-check.sh
 L2C Documents/
 v3/.test-evals/
 
-# Enterprise client demo (large demo with dependencies, not for git)
-v3/demo/adidas-order-to-cash/
+# Enterprise client demo lives in gitignored "Agentic QCSD/" folder
