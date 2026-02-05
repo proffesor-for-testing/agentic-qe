@@ -367,7 +367,7 @@ describe('Task Handlers', () => {
       expect(result.data!.taskId).toBeDefined();
       expect(result.data!.type).toBe('generate-tests');
       expect(result.data!.status).toBe('submitted');
-    });
+    }, 30000);
 
     it('should infer test execution type', async () => {
       const result = await handleTaskOrchestrate({

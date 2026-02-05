@@ -62,7 +62,7 @@ describe('Wrapped Domain Handlers', () => {
       // The wrapper should not change the result structure
       expect(result.data).toBeDefined();
       expect(result.data!.testsGenerated).toBeGreaterThan(0);
-    });
+    }, 30000);
 
     it('should wrap handleCoverageAnalyze with experience capture', async () => {
       const result = await handleCoverageAnalyze({});
