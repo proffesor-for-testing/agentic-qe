@@ -240,6 +240,10 @@ const DOMAIN_KEYWORDS: Record<DomainName, string[]> = {
     'learning', 'optimize', 'ml', 'pattern', 'improve', 'recommendation',
     'adaptive', 'experience', 'reinforcement',
   ],
+  'enterprise-integration': [
+    'enterprise', 'integration', 'soap', 'wsdl', 'odata', 'sap', 'rfc', 'bapi',
+    'idoc', 'esb', 'middleware', 'message broker', 'sod', 'segregation of duties',
+  ],
   'coordination': [
     'coordinate', 'orchestrate', 'swarm', 'fleet', 'distributed', 'consensus',
     'agent', 'multi-agent', 'queen', 'worker', 'byzantine', 'raft',

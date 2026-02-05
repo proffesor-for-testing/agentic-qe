@@ -621,6 +621,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
         'quality-assessment',
         'defect-intelligence',
       ],
+      'enterprise-integration': ['contract-testing', 'security-compliance', 'quality-assessment'],
       'coordination': ALL_DOMAINS.filter((d) => d !== 'coordination'),
     };
 

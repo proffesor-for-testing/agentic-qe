@@ -48,6 +48,17 @@
     }
   },
   "postCreateCommand": "bash .devcontainer/install-tools.sh",
+  "forwardPorts": [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008],
+  "portsAttributes": {
+    "3001": { "label": "Storefront", "onAutoForward": "notify" },
+    "3002": { "label": "API Tester", "onAutoForward": "notify" },
+    "3003": { "label": "OMNI", "onAutoForward": "silent" },
+    "3004": { "label": "IIB ESB", "onAutoForward": "silent" },
+    "3005": { "label": "WMS", "onAutoForward": "silent" },
+    "3006": { "label": "SAP S/4", "onAutoForward": "silent" },
+    "3007": { "label": "Kibana", "onAutoForward": "notify" },
+    "3008": { "label": "Message Broker", "onAutoForward": "silent" }
+  },
   "shutdownAction": "none",
   "mounts": [],
   "capAdd": [

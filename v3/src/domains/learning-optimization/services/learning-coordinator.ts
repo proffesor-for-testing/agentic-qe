@@ -557,6 +557,7 @@ Provide:
         'visual-accessibility': 0,
         'chaos-resilience': 0,
         'learning-optimization': 0,
+        'enterprise-integration': 0,
         'coordination': 0,
       };
 

@@ -1,0 +1,197 @@
+{
+  "timestamp": "2026-02-03T11:45:31.912Z",
+  "version": "3.0.0",
+  "results": [
+    {
+      "component": "AgentBooster",
+      "operation": "simple-function-replace",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.047862550000004944,
+      "minLatencyMs": 0.01783299999999599,
+      "maxLatencyMs": 0.5465000000000373,
+      "errors": []
+    },
+    {
+      "component": "AgentBooster",
+      "operation": "var-to-const",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.014949999999996067,
+      "minLatencyMs": 0.010958000000016455,
+      "maxLatencyMs": 0.047916999999984,
+      "errors": []
+    },
+    {
+      "component": "AgentBooster",
+      "operation": "add-type-annotations",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.07493759999999838,
+      "minLatencyMs": 0.01858399999997573,
+      "maxLatencyMs": 1.0769579999999905,
+      "errors": []
+    },
+    {
+      "component": "AgentBooster",
+      "operation": "add-test-assertion",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.048501950000002125,
+      "minLatencyMs": 0.016792000000009466,
+      "maxLatencyMs": 0.5968330000000037,
+      "errors": []
+    },
+    {
+      "component": "AgentBooster",
+      "operation": "sync-to-async",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.018774999999990882,
+      "minLatencyMs": 0.015625,
+      "maxLatencyMs": 0.03849999999999909,
+      "errors": []
+    },
+    {
+      "component": "ModelRouter",
+      "operation": "route-decision",
+      "totalRuns": 30,
+      "successfulRuns": 30,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.04182776666666731,
+      "minLatencyMs": 0.000666999999964446,
+      "maxLatencyMs": 0.8574580000000083,
+      "errors": []
+    },
+    {
+      "component": "ModelRouter",
+      "operation": "complexity-analysis",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.010670850000002475,
+      "minLatencyMs": 0.0007079999999746178,
+      "maxLatencyMs": 0.18954199999996035,
+      "errors": []
+    },
+    {
+      "component": "ModelRouter",
+      "operation": "booster-eligibility",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.009187449999993191,
+      "minLatencyMs": 0.0007079999999746178,
+      "maxLatencyMs": 0.06116700000001174,
+      "errors": []
+    },
+    {
+      "component": "ONNXEmbeddings",
+      "operation": "generate-embedding",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.051847900000012714,
+      "minLatencyMs": 0.0008750000000077307,
+      "maxLatencyMs": 0.7527919999999995,
+      "errors": []
+    },
+    {
+      "component": "ONNXEmbeddings",
+      "operation": "similarity-compare",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.021229149999996366,
+      "minLatencyMs": 0.0025829999999587017,
+      "maxLatencyMs": 0.14825000000001864,
+      "errors": []
+    },
+    {
+      "component": "ONNXEmbeddings",
+      "operation": "search",
+      "totalRuns": 10,
+      "successfulRuns": 10,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.02384999999999877,
+      "minLatencyMs": 0.0035829999999918982,
+      "maxLatencyMs": 0.10358300000001464,
+      "errors": []
+    },
+    {
+      "component": "ReasoningBank",
+      "operation": "store-pattern",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 20.8113125,
+      "minLatencyMs": 4.231959000000074,
+      "maxLatencyMs": 299.901583,
+      "errors": []
+    },
+    {
+      "component": "ReasoningBank",
+      "operation": "search-pattern-hnsw",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.3640999500000078,
+      "minLatencyMs": 0.1949170000000322,
+      "maxLatencyMs": 2.161542000000054,
+      "errors": []
+    },
+    {
+      "component": "ReasoningBank",
+      "operation": "route-task",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 0.41168124999999806,
+      "minLatencyMs": 0.16545800000005784,
+      "maxLatencyMs": 4.793124999999918,
+      "errors": []
+    },
+    {
+      "component": "ReasoningBank",
+      "operation": "record-outcome",
+      "totalRuns": 20,
+      "successfulRuns": 20,
+      "failedRuns": 0,
+      "successRate": 1,
+      "avgLatencyMs": 1.7147687500000075,
+      "minLatencyMs": 1.034917000000064,
+      "maxLatencyMs": 10.464165999999977,
+      "errors": []
+    }
+  ],
+  "summary": {
+    "totalOperations": 300,
+    "overallSuccessRate": 1,
+    "avgLatencyMs": 1.5777001777777784,
+    "componentRates": {
+      "AgentBooster": 1,
+      "ModelRouter": 1,
+      "ONNXEmbeddings": 1,
+      "ReasoningBank": 1
+    }
+  }
+}

@@ -891,6 +891,7 @@ export class LearningConsolidationProtocol {
       'visual-accessibility': ['quality-assessment'],
       'chaos-resilience': ['test-execution', 'quality-assessment'],
       'learning-optimization': ALL_DOMAINS.filter((d) => d !== 'learning-optimization'),
+      'enterprise-integration': ['contract-testing', 'security-compliance', 'quality-assessment'],
       'coordination': ALL_DOMAINS.filter((d) => d !== 'coordination'),
     };
 
