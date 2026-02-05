@@ -130,13 +130,13 @@ export class LearningMetricsTracker {
   }
 
   /**
-   * Ensure the learning_metrics table exists
+   * Ensure the learning_daily_snapshots table exists
    */
   private ensureMetricsTable(): void {
     if (!this.db) return;
 
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS learning_metrics (
+      CREATE TABLE IF NOT EXISTS learning_daily_snapshots (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         snapshot_date TEXT NOT NULL UNIQUE,
         total_patterns INTEGER DEFAULT 0,
@@ -154,7 +154,7 @@ export class LearningMetricsTracker {
         domain_coverage_json TEXT,
         created_at TEXT DEFAULT (datetime('now'))
       );
-      CREATE INDEX IF NOT EXISTS idx_learning_metrics_date ON learning_metrics(snapshot_date DESC);
+      CREATE INDEX IF NOT EXISTS idx_learning_daily_snapshots_date ON learning_daily_snapshots(snapshot_date DESC);
     `);
   }
 
@@ -466,9 +466,9 @@ export class LearningMetricsTracker {
 
     const history: LearningMetricsSnapshot[] = [];
 
-    // Check if learning_metrics table exists
+    // Check if learning_daily_snapshots table exists
     const tableExists = this.db.prepare(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='learning_metrics'`
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='learning_daily_snapshots'`
     ).get();
 
     if (!tableExists) {
@@ -477,7 +477,7 @@ export class LearningMetricsTracker {
 
     const rows = this.db.prepare(`
       SELECT *
-      FROM learning_metrics
+      FROM learning_daily_snapshots
       ORDER BY snapshot_date DESC
       LIMIT ?
     `).all(days) as Array<{
@@ -541,7 +541,7 @@ export class LearningMetricsTracker {
     const today = new Date().toISOString().split('T')[0];
 
     this.db.prepare(`
-      INSERT OR REPLACE INTO learning_metrics (
+      INSERT OR REPLACE INTO learning_daily_snapshots (
         snapshot_date,
         total_patterns,
         patterns_created_today,

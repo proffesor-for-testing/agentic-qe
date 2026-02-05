@@ -1430,8 +1430,12 @@ Examples:
           qualityScore: m.pattern.qualityScore,
           template: m.pattern.template,
           context: m.pattern.context,
-          createdAt: m.pattern.createdAt?.toISOString(),
-          lastUsedAt: m.pattern.lastUsedAt?.toISOString(),
+          createdAt: m.pattern.createdAt instanceof Date
+            ? m.pattern.createdAt.toISOString()
+            : m.pattern.createdAt || undefined,
+          lastUsedAt: m.pattern.lastUsedAt instanceof Date
+            ? m.pattern.lastUsedAt.toISOString()
+            : m.pattern.lastUsedAt || undefined,
         }));
 
         const exportData: LearningExportData = {
