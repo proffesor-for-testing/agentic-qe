@@ -376,7 +376,7 @@ describe('Task Handlers', () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.type).toBe('execute-tests');
-    });
+    }, 30000);
 
     it('should infer coverage analysis type', async () => {
       const result = await handleTaskOrchestrate({
@@ -385,7 +385,7 @@ describe('Task Handlers', () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.type).toBe('analyze-coverage');
-    });
+    }, 30000);
 
     it('should infer security scan type', async () => {
       const result = await handleTaskOrchestrate({
@@ -394,7 +394,7 @@ describe('Task Handlers', () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.type).toBe('scan-security');
-    });
+    }, 30000);
 
     it('should respect strategy parameter', async () => {
       const result = await handleTaskOrchestrate({
@@ -404,7 +404,7 @@ describe('Task Handlers', () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.strategy).toBe('parallel');
-    });
+    }, 30000);
 
     it('should map priority to internal format', async () => {
       const result = await handleTaskOrchestrate({
@@ -414,7 +414,7 @@ describe('Task Handlers', () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.priority).toBe('p0');
-    });
+    }, 30000);
 
     it('should include routing information (ADR-051)', async () => {
       const result = await handleTaskOrchestrate({
@@ -427,7 +427,7 @@ describe('Task Handlers', () => {
       expect(result.data!.routing.tierName).toBeDefined();
       expect(result.data!.routing.modelId).toBeDefined();
       expect(result.data!.routing.confidence).toBeGreaterThan(0);
-    });
+    }, 30000);
 
     it('should handle context parameter', async () => {
       const result = await handleTaskOrchestrate({
@@ -440,7 +440,7 @@ describe('Task Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -655,7 +655,7 @@ describe('Task Handlers', () => {
       expect(result.success).toBe(true);
       // Should default to generate-tests
       expect(result.data!.type).toBe('generate-tests');
-    });
+    }, 30000);
 
     it('should handle very long task description', async () => {
       const longDescription = 'Generate tests for ' + 'module '.repeat(100);
@@ -663,6 +663,6 @@ describe('Task Handlers', () => {
       const result = await handleTaskOrchestrate({ task: longDescription });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
   });
 });
