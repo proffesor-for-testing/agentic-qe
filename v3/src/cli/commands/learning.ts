@@ -720,10 +720,7 @@ Examples:
                     ],
                   },
                   context: {
-                    sourceCount: p.sourceCount,
-                    avgReward: p.avgReward,
-                    extractedAt: new Date().toISOString(),
-                    tags: [p.domain, p.patternType],
+                    tags: [p.domain, p.patternType, `sources:${p.sourceCount}`, `reward:${p.avgReward.toFixed(2)}`],
                   },
                 });
 
