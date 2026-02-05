@@ -85,7 +85,7 @@ Coordination:
 ### Query Refactoring Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "tdd/refactor/patterns",
   namespace: "learning"
 })
@@ -95,7 +95,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store REFACTOR Phase Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "tdd-refactor/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -133,7 +133,7 @@ mcp__claude_flow__hooks_intelligence_pattern_store({
 
 **3. Signal to Parent Agent:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "refactor-phase-complete",
   priority: "p1",
   payload: {

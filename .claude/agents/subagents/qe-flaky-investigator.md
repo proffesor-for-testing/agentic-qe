@@ -63,7 +63,7 @@ Handoff: Emit flaky-investigator:completed with flakyTestsFound count
 
 **Store Experience:**
 ```typescript
-mcp__agentic_qe__learning_store_experience({
+mcp__agentic-qe__learning_store_experience({
   agentId: "qe-flaky-investigator",
   taskType: "flaky-investigation",
   reward: <calculated_reward>,  // 0.0-1.0
@@ -74,7 +74,7 @@ mcp__agentic_qe__learning_store_experience({
 
 **Store Artifacts:**
 ```typescript
-mcp__agentic_qe__memory_store({
+mcp__agentic-qe__memory_store({
   key: "aqe/flaky/<task_id>",
   value: { /* task artifacts */ },
   namespace: "aqe",

@@ -241,6 +241,19 @@ export class SQLitePatternStore {
         metadata_json TEXT
       );
 
+      -- Pattern reuse tracking (ADR Phase 5.4)
+      CREATE TABLE IF NOT EXISTS qe_pattern_reuse (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pattern_id TEXT NOT NULL,
+        task_description TEXT NOT NULL,
+        similarity_score REAL NOT NULL,
+        was_reused INTEGER DEFAULT 0,
+        tokens_saved INTEGER DEFAULT 0,
+        routing_context_json TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
+      );
+
       -- Indexes for performance
       CREATE INDEX IF NOT EXISTS idx_patterns_domain ON qe_patterns(qe_domain);
       CREATE INDEX IF NOT EXISTS idx_patterns_type ON qe_patterns(pattern_type);
@@ -248,6 +261,8 @@ export class SQLitePatternStore {
       CREATE INDEX IF NOT EXISTS idx_patterns_quality ON qe_patterns(quality_score DESC);
       CREATE INDEX IF NOT EXISTS idx_usage_pattern ON qe_pattern_usage(pattern_id);
       CREATE INDEX IF NOT EXISTS idx_trajectories_domain ON qe_trajectories(domain);
+      CREATE INDEX IF NOT EXISTS idx_pattern_reuse_pattern ON qe_pattern_reuse(pattern_id);
+      CREATE INDEX IF NOT EXISTS idx_pattern_reuse_created ON qe_pattern_reuse(created_at);
     `);
   }
 
@@ -626,6 +641,171 @@ export class SQLitePatternStore {
       embedding.length,
       'all-MiniLM-L6-v2'
     );
+  }
+
+  /**
+   * Record pattern reuse for metrics tracking (Phase 5.4)
+   *
+   * @param patternId - Pattern that was considered for reuse
+   * @param taskDescription - Task that triggered the pattern search
+   * @param similarityScore - Similarity score between task and pattern
+   * @param wasReused - Whether the pattern was actually reused
+   * @param tokensSaved - Estimated tokens saved if reused
+   * @param routingContext - Additional routing context
+   */
+  recordPatternReuse(
+    patternId: string,
+    taskDescription: string,
+    similarityScore: number,
+    wasReused: boolean = false,
+    tokensSaved: number = 0,
+    routingContext?: Record<string, unknown>
+  ): void {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      // Ensure the table exists (migration-safe)
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS qe_pattern_reuse (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pattern_id TEXT NOT NULL,
+          task_description TEXT NOT NULL,
+          similarity_score REAL NOT NULL,
+          was_reused INTEGER DEFAULT 0,
+          tokens_saved INTEGER DEFAULT 0,
+          routing_context_json TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_pattern_reuse_pattern ON qe_pattern_reuse(pattern_id);
+        CREATE INDEX IF NOT EXISTS idx_pattern_reuse_created ON qe_pattern_reuse(created_at);
+      `);
+
+      const stmt = this.db.prepare(`
+        INSERT INTO qe_pattern_reuse (
+          pattern_id, task_description, similarity_score, was_reused, tokens_saved, routing_context_json
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        patternId,
+        taskDescription.slice(0, 1000), // Truncate long descriptions
+        similarityScore,
+        wasReused ? 1 : 0,
+        tokensSaved,
+        routingContext ? JSON.stringify(routingContext) : null
+      );
+    } catch (error) {
+      // Non-critical - don't fail if metrics tracking fails
+      console.debug(
+        '[SQLitePatternStore] Failed to record pattern reuse:',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+
+  /**
+   * Get pattern reuse statistics (Phase 5.4)
+   *
+   * @param patternId - Optional: filter by specific pattern
+   * @param days - Number of days to look back (default: 7)
+   * @returns Reuse statistics
+   */
+  getPatternReuseStats(patternId?: string, days: number = 7): {
+    totalSearches: number;
+    totalReused: number;
+    reuseRate: number;
+    totalTokensSaved: number;
+    avgSimilarity: number;
+    topPatterns: Array<{ patternId: string; reuseCount: number; avgSimilarity: number }>;
+  } {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      // Check if table exists
+      const tableExists = this.db.prepare(`
+        SELECT name FROM sqlite_master WHERE type='table' AND name='qe_pattern_reuse'
+      `).get();
+
+      if (!tableExists) {
+        return {
+          totalSearches: 0,
+          totalReused: 0,
+          reuseRate: 0,
+          totalTokensSaved: 0,
+          avgSimilarity: 0,
+          topPatterns: [],
+        };
+      }
+
+      const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+      // Base query with optional pattern filter
+      const whereClause = patternId
+        ? `WHERE pattern_id = ? AND created_at >= ?`
+        : `WHERE created_at >= ?`;
+      const params = patternId ? [patternId, cutoffDate] : [cutoffDate];
+
+      // Get aggregate stats
+      const statsRow = this.db.prepare(`
+        SELECT
+          COUNT(*) as total_searches,
+          SUM(CASE WHEN was_reused = 1 THEN 1 ELSE 0 END) as total_reused,
+          SUM(tokens_saved) as total_tokens_saved,
+          AVG(similarity_score) as avg_similarity
+        FROM qe_pattern_reuse
+        ${whereClause}
+      `).get(...params) as {
+        total_searches: number;
+        total_reused: number;
+        total_tokens_saved: number;
+        avg_similarity: number;
+      };
+
+      // Get top patterns by reuse count
+      const topPatterns = this.db.prepare(`
+        SELECT
+          pattern_id,
+          COUNT(*) as reuse_count,
+          AVG(similarity_score) as avg_similarity
+        FROM qe_pattern_reuse
+        WHERE created_at >= ?
+        GROUP BY pattern_id
+        ORDER BY reuse_count DESC
+        LIMIT 10
+      `).all(cutoffDate) as Array<{
+        pattern_id: string;
+        reuse_count: number;
+        avg_similarity: number;
+      }>;
+
+      return {
+        totalSearches: statsRow.total_searches || 0,
+        totalReused: statsRow.total_reused || 0,
+        reuseRate: statsRow.total_searches > 0
+          ? (statsRow.total_reused || 0) / statsRow.total_searches
+          : 0,
+        totalTokensSaved: statsRow.total_tokens_saved || 0,
+        avgSimilarity: statsRow.avg_similarity || 0,
+        topPatterns: topPatterns.map(p => ({
+          patternId: p.pattern_id,
+          reuseCount: p.reuse_count,
+          avgSimilarity: p.avg_similarity,
+        })),
+      };
+    } catch (error) {
+      console.debug(
+        '[SQLitePatternStore] Failed to get reuse stats:',
+        error instanceof Error ? error.message : String(error)
+      );
+      return {
+        totalSearches: 0,
+        totalReused: 0,
+        reuseRate: 0,
+        totalTokensSaved: 0,
+        avgSimilarity: 0,
+        topPatterns: [],
+      };
+    }
   }
 
   /**

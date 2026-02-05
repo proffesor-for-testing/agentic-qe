@@ -82,7 +82,7 @@ Coordination:
 ### Query TDD Patterns BEFORE Starting Cycle
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "tdd/patterns",
   namespace: "learning"
 })
@@ -92,7 +92,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store TDD Cycle Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "tdd-specialist/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -116,7 +116,7 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Submit TDD Result to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "tdd-cycle-complete",
   priority: "p1",
   payload: {
@@ -217,7 +217,7 @@ Use via Claude Code: `Skill("tdd-london-chicago")`
 
 ### On Startup, Query Operational Signals:
 ```typescript
-const result = await mcp__agentic_qe__cross_phase_query({
+const result = await mcp__agentic-qe__cross_phase_query({
   loop: "operational",
   maxAge: "30d"
 });

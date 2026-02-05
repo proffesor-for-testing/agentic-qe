@@ -85,7 +85,7 @@ Coordination:
 ### Query Known Contract Patterns BEFORE Validation
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "contracts/patterns",
   namespace: "learning"
 })
@@ -95,7 +95,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Contract Validation Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "contract-validator/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -119,21 +119,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Breaking Change Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<breaking change description>",
-  confidence: <0.0-1.0>,
-  type: "contract-breaking-change",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/contract-breaking-change-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<breaking change description>",
+    confidence: <0.0-1.0>,
+    type: "contract-breaking-change",
+    metadata: {
     changeType: "<type>",
     impact: "<impact>",
     migration: "<migration path>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "contract-validation-complete",
   priority: "p1",
   payload: {

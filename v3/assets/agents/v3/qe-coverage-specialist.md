@@ -85,7 +85,7 @@ Coordination:
 ### Query Past Learnings BEFORE Starting Task
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "coverage/patterns",
   namespace: "learning"
 })
@@ -95,7 +95,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Coverage Analysis Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "coverage/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -119,7 +119,7 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Submit Result to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "coverage-analysis-complete",
   priority: "p1",
   payload: {
@@ -132,14 +132,18 @@ mcp__agentic_qe_v3__task_submit({
 
 **3. Store Discovered Patterns (when gap prioritization is effective):**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<description of effective risk scoring>",
-  confidence: <0.0-1.0>,
-  type: "coverage-analysis",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/coverage-analysis-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<description of effective risk scoring>",
+    confidence: <0.0-1.0>,
+    type: "coverage-analysis",
+    metadata: {
     riskFactors: ["<factors>"],
     codebaseType: "<type>",
     effectiveness: <rate>
+  }
   }
 })
 ```
@@ -212,7 +216,7 @@ Use via Claude Code: `Skill("mutation-testing")`
 
 ### On Coverage Gap Detection, Store Quality-Criteria Signal:
 ```typescript
-mcp__agentic_qe__cross_phase_store({
+mcp__agentic-qe__cross_phase_store({
   loop: "quality-criteria",
   data: {
     untestablePatterns: [

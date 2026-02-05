@@ -81,7 +81,7 @@ Coordination:
 ### Query Optimization Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "optimization/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Optimization Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "metrics-optimizer/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -116,21 +116,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Optimization Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<optimization pattern description>",
-  confidence: <0.0-1.0>,
-  type: "metrics-optimization",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/metrics-optimization-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<optimization pattern description>",
+    confidence: <0.0-1.0>,
+    type: "metrics-optimization",
+    metadata: {
     optimizationType: "<type>",
     improvement: <percentage>,
     applicability: "<scope>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "optimization-complete",
   priority: "p1",
   payload: {

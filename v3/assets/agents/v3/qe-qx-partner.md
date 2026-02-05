@@ -99,7 +99,7 @@ Coordination:
 ### Query QX Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "qx/patterns",
   namespace: "learning"
 })
@@ -109,7 +109,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store QX Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "qx-partner/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -135,21 +135,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store QX Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<qx pattern description>",
-  confidence: <0.0-1.0>,
-  type: "quality-experience",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/quality-experience-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<qx pattern description>",
+    confidence: <0.0-1.0>,
+    type: "quality-experience",
+    metadata: {
     journeyType: "<type>",
     qualityMetric: "<metric>",
     uxImpact: "<impact>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "qx-analysis-complete",
   priority: "p1",
   payload: {

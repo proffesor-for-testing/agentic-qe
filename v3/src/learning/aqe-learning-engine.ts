@@ -391,13 +391,26 @@ export class AQELearningEngine {
    * Route a task to optimal agent
    *
    * When Claude Flow is available, combines local routing with CF patterns.
+   * Searches for similar patterns and includes them as context in the routing result.
    */
   async routeTask(request: QERoutingRequest): Promise<Result<QERoutingResult>> {
     if (!this.initialized || !this.reasoningBank) {
       return err(new Error('Engine not initialized'));
     }
 
-    // Use local routing
+    // Search for similar patterns before routing (Phase 5.1 & 5.3)
+    const patternSearchResult = await this.searchPatternsForTask(request.task, {
+      limit: 5,
+      minConfidence: 0.4,
+      domain: request.domain,
+    });
+
+    // Track pattern usage for found patterns (Phase 5.4)
+    if (patternSearchResult.success && patternSearchResult.value.length > 0) {
+      await this.trackPatternSearch(request.task, patternSearchResult.value);
+    }
+
+    // Use local routing with pattern context
     const localResult = await this.reasoningBank.routeTask(request);
 
     // Enhance with Claude Flow if available
@@ -409,6 +422,15 @@ export class AQELearningEngine {
       // For now, just return local result
     }
 
+    // Enhance routing result with pattern context (Phase 5.2)
+    if (localResult.success && patternSearchResult.success) {
+      const enhancedResult = this.enhanceRoutingWithPatterns(
+        localResult.value,
+        patternSearchResult.value
+      );
+      return ok(enhancedResult);
+    }
+
     return localResult;
   }
 
@@ -418,6 +440,134 @@ export class AQELearningEngine {
   async route(task: string, context?: QERoutingRequest['context']): Promise<QERoutingResult | null> {
     const result = await this.routeTask({ task, context });
     return result.success ? result.value : null;
+  }
+
+  /**
+   * Search for patterns relevant to a task
+   *
+   * @param task - Task description to search for
+   * @param options - Search options
+   * @returns Pattern search results
+   */
+  private async searchPatternsForTask(
+    task: string,
+    options: {
+      limit?: number;
+      minConfidence?: number;
+      domain?: QEDomain;
+    } = {}
+  ): Promise<Result<PatternSearchResult[]>> {
+    if (!this.reasoningBank) {
+      return ok([]);
+    }
+
+    try {
+      return await this.reasoningBank.searchPatterns(task, {
+        limit: options.limit || 5,
+        minConfidence: options.minConfidence || 0.4,
+        domain: options.domain,
+        useVectorSearch: true,
+      });
+    } catch (error) {
+      console.warn(
+        '[AQELearningEngine] Pattern search failed:',
+        error instanceof Error ? error.message : String(error)
+      );
+      return ok([]);
+    }
+  }
+
+  /**
+   * Track pattern searches for usage metrics (Phase 5.4)
+   *
+   * @param task - Task that triggered the search
+   * @param results - Pattern search results
+   */
+  private async trackPatternSearch(
+    task: string,
+    results: PatternSearchResult[]
+  ): Promise<void> {
+    // Store pattern search event for metrics
+    const searchEvent = {
+      timestamp: Date.now(),
+      task: task.slice(0, 500),
+      patternsFound: results.length,
+      patternIds: results.map(r => r.pattern.id),
+      avgSimilarity: results.length > 0
+        ? results.reduce((sum, r) => sum + r.similarity, 0) / results.length
+        : 0,
+    };
+
+    try {
+      // Store in memory backend for tracking
+      const key = `pattern-usage:search:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      await this.memory.set(key, searchEvent, {
+        persist: true,
+        ttl: 7 * 24 * 60 * 60 * 1000, // 7 days retention
+      });
+    } catch (error) {
+      // Non-critical - don't fail if tracking fails
+      console.debug(
+        '[AQELearningEngine] Failed to track pattern search:',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+
+  /**
+   * Enhance routing result with pattern context (Phase 5.2)
+   *
+   * Adds relevant patterns as actionable hints to the routing result.
+   *
+   * @param routingResult - Original routing result
+   * @param patterns - Found patterns
+   * @returns Enhanced routing result
+   */
+  private enhanceRoutingWithPatterns(
+    routingResult: QERoutingResult,
+    patterns: PatternSearchResult[]
+  ): QERoutingResult {
+    // Filter to high-quality patterns only
+    const relevantPatterns = patterns.filter(
+      p => p.similarity >= 0.5 && p.pattern.qualityScore >= 0.3
+    );
+
+    if (relevantPatterns.length === 0) {
+      return routingResult;
+    }
+
+    // Generate pattern hints for agent prompts
+    const patternHints = relevantPatterns.map(result => {
+      const pattern = result.pattern;
+      return `[Pattern: ${pattern.name}] ${pattern.description} (confidence: ${(pattern.confidence * 100).toFixed(0)}%, similarity: ${(result.similarity * 100).toFixed(0)}%)`;
+    });
+
+    // Add pattern-based guidance to existing guidance
+    const enhancedGuidance = [
+      ...routingResult.guidance,
+      '--- Relevant Patterns ---',
+      ...patternHints,
+    ];
+
+    // Include pattern objects in result for downstream use
+    const enhancedPatterns = [
+      ...routingResult.patterns,
+      ...relevantPatterns.map(r => r.pattern),
+    ];
+
+    // Build enhanced reasoning
+    const patternReasoning = relevantPatterns.length > 0
+      ? `; Found ${relevantPatterns.length} relevant pattern(s) with avg similarity ${(relevantPatterns.reduce((sum, p) => sum + p.similarity, 0) / relevantPatterns.length * 100).toFixed(0)}%`
+      : '';
+
+    return {
+      ...routingResult,
+      patterns: enhancedPatterns,
+      guidance: enhancedGuidance,
+      reasoning: routingResult.reasoning + patternReasoning,
+      // Boost confidence slightly when relevant patterns are found
+      confidence: Math.min(1, routingResult.confidence + relevantPatterns.length * 0.02),
+    };
   }
 
   // ==========================================================================

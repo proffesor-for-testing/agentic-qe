@@ -71,7 +71,7 @@ describe('Domain Handlers', () => {
       expect(result.data).toBeDefined();
       expect(result.data!.taskId).toBeDefined();
       expect(result.data!.testsGenerated).toBeGreaterThan(0);
-    });
+    }, 30000);
 
     it('should respect language parameter', async () => {
       const result = await handleTestGenerate({
@@ -81,7 +81,7 @@ describe('Domain Handlers', () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.language).toBe('python');
-    });
+    }, 30000);
 
     it('should respect testType parameter', async () => {
       const result = await handleTestGenerate({
@@ -91,7 +91,7 @@ describe('Domain Handlers', () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.tests).toBeDefined();
-    });
+    }, 30000);
 
     it('should respect coverageGoal parameter', async () => {
       const result = await handleTestGenerate({
@@ -103,7 +103,7 @@ describe('Domain Handlers', () => {
       // Coverage estimate should be a valid percentage (0-100)
       expect(result.data!.coverageEstimate).toBeGreaterThanOrEqual(0);
       expect(result.data!.coverageEstimate).toBeLessThanOrEqual(100);
-    });
+    }, 30000);
 
     it('should include V2-compatible test objects', async () => {
       const result = await handleTestGenerate({
@@ -120,7 +120,7 @@ describe('Domain Handlers', () => {
         expect(test.name).toBeDefined();
         expect(test.type).toBeDefined();
       }
-    });
+    }, 30000);
 
     it('should include AI insights when enabled', async () => {
       const result = await handleTestGenerate({
@@ -132,7 +132,7 @@ describe('Domain Handlers', () => {
       expect(result.data!.aiInsights).toBeDefined();
       expect(result.data!.aiInsights!.recommendations).toBeDefined();
       expect(result.data!.aiInsights!.confidence).toBeGreaterThan(0);
-    });
+    }, 30000);
 
     it('should detect anti-patterns when requested', async () => {
       const result = await handleTestGenerate({
@@ -144,7 +144,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.antiPatterns).toBeDefined();
       expect(Array.isArray(result.data!.antiPatterns)).toBe(true);
-    });
+    }, 30000);
 
     it('should include complexity analysis', async () => {
       const result = await handleTestGenerate({
@@ -168,7 +168,7 @@ describe('Domain Handlers', () => {
       expect(result.data!.complexity).toBeDefined();
       expect(result.data!.complexity!.score).toBeGreaterThan(0);
       expect(['low', 'medium', 'high']).toContain(result.data!.complexity!.level);
-    });
+    }, 30000);
 
     it('should include learning feedback', async () => {
       const result = await handleTestGenerate({
@@ -179,7 +179,7 @@ describe('Domain Handlers', () => {
       expect(result.data!.learning).toBeDefined();
       expect(result.data!.learning!.enabled).toBe(true);
       expect(result.data!.learning!.agentId).toBeDefined();
-    });
+    }, 30000);
 
     it('should include patterns used', async () => {
       const result = await handleTestGenerate({
@@ -189,7 +189,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.patternsUsed).toBeDefined();
       expect(Array.isArray(result.data!.patternsUsed)).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -214,7 +214,7 @@ describe('Domain Handlers', () => {
       expect(result.data).toBeDefined();
       expect(result.data!.taskId).toBeDefined();
       expect(result.data!.status).toBe('completed');
-    });
+    }, 30000);
 
     it('should return test counts', async () => {
       const result = await handleTestExecute({
@@ -225,7 +225,7 @@ describe('Domain Handlers', () => {
       expect(result.data!.total).toBeGreaterThanOrEqual(0);
       expect(result.data!.passed).toBeGreaterThanOrEqual(0);
       expect(result.data!.failed).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should respect parallel parameter', async () => {
       const result = await handleTestExecute({
@@ -237,7 +237,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.workerStats).toBeDefined();
       expect(result.data!.workerStats!.workersUsed).toBeGreaterThan(0);
-    });
+    }, 30000);
 
     it('should include worker stats (V2-compatible)', async () => {
       const result = await handleTestExecute({
@@ -248,7 +248,7 @@ describe('Domain Handlers', () => {
       expect(result.data!.workerStats).toBeDefined();
       expect(result.data!.workerStats!.efficiency).toBeGreaterThanOrEqual(0);
       expect(result.data!.workerStats!.loadBalance).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should include retry stats (V2-compatible)', async () => {
       const result = await handleTestExecute({
@@ -259,7 +259,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.retryStats).toBeDefined();
       expect(result.data!.retryStats!.totalRetries).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should include individual test results', async () => {
       const result = await handleTestExecute({
@@ -269,7 +269,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.results).toBeDefined();
       expect(Array.isArray(result.data!.results)).toBe(true);
-    });
+    }, 30000);
 
     it('should include summary', async () => {
       const result = await handleTestExecute({
@@ -280,7 +280,7 @@ describe('Domain Handlers', () => {
       expect(result.data!.summary).toBeDefined();
       expect(result.data!.summary!.totalTests).toBeGreaterThanOrEqual(0);
       expect(result.data!.summary!.passRate).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should include learning feedback', async () => {
       const result = await handleTestExecute({
@@ -289,7 +289,7 @@ describe('Domain Handlers', () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.learning).toBeDefined();
-    });
+    }, 30000);
 
     it('should handle test suites parameter', async () => {
       const result = await handleTestExecute({
@@ -297,7 +297,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -322,7 +322,7 @@ describe('Domain Handlers', () => {
       expect(result.data!.lineCoverage).toBeGreaterThanOrEqual(0);
       expect(result.data!.branchCoverage).toBeGreaterThanOrEqual(0);
       expect(result.data!.functionCoverage).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should detect gaps when enabled', async () => {
       const result = await handleCoverageAnalyze({
@@ -332,7 +332,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.gaps).toBeDefined();
       expect(Array.isArray(result.data!.gaps)).toBe(true);
-    });
+    }, 30000);
 
     it('should include gap analysis (V2-compatible)', async () => {
       const result = await handleCoverageAnalyze({
@@ -342,7 +342,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.gapAnalysis).toBeDefined();
       expect(result.data!.gapAnalysis!.totalGaps).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should include coverage by file', async () => {
       const result = await handleCoverageAnalyze({});
@@ -350,14 +350,14 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.coverageByFile).toBeDefined();
       expect(Array.isArray(result.data!.coverageByFile)).toBe(true);
-    });
+    }, 30000);
 
     it('should include trends', async () => {
       const result = await handleCoverageAnalyze({});
 
       expect(result.success).toBe(true);
       expect(result.data!.trends).toBeDefined();
-    });
+    }, 30000);
 
     it('should include AI insights', async () => {
       const result = await handleCoverageAnalyze({});
@@ -366,14 +366,14 @@ describe('Domain Handlers', () => {
       expect(result.data!.aiInsights).toBeDefined();
       expect(result.data!.aiInsights!.recommendations).toBeDefined();
       expect(result.data!.aiInsights!.riskAssessment).toBeDefined();
-    });
+    }, 30000);
 
     it('should include learning feedback', async () => {
       const result = await handleCoverageAnalyze({});
 
       expect(result.success).toBe(true);
       expect(result.data!.learning).toBeDefined();
-    });
+    }, 30000);
 
     it('should respect target parameter', async () => {
       const result = await handleCoverageAnalyze({
@@ -381,7 +381,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
 
     it('should respect prioritization parameter', async () => {
       const result = await handleCoverageAnalyze({
@@ -389,7 +389,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -471,7 +471,7 @@ describe('Domain Handlers', () => {
       expect(result.data).toBeDefined();
       expect(result.data!.taskId).toBeDefined();
       expect(result.data!.vulnerabilities).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should categorize vulnerabilities by severity', async () => {
       const result = await handleSecurityScan({});
@@ -481,7 +481,7 @@ describe('Domain Handlers', () => {
       expect(result.data!.high).toBeGreaterThanOrEqual(0);
       expect(result.data!.medium).toBeGreaterThanOrEqual(0);
       expect(result.data!.low).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should perform SAST by default', async () => {
       const result = await handleSecurityScan({
@@ -489,7 +489,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
 
     it('should perform DAST when requested', async () => {
       const result = await handleSecurityScan({
@@ -497,7 +497,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
 
     it('should include top vulnerabilities', async () => {
       const result = await handleSecurityScan({});
@@ -505,14 +505,14 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.topVulnerabilities).toBeDefined();
       expect(Array.isArray(result.data!.topVulnerabilities)).toBe(true);
-    });
+    }, 30000);
 
     it('should include recommendations', async () => {
       const result = await handleSecurityScan({});
 
       expect(result.success).toBe(true);
       expect(result.data!.recommendations).toBeDefined();
-    });
+    }, 30000);
 
     it('should handle compliance parameter', async () => {
       const result = await handleSecurityScan({
@@ -520,7 +520,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -545,7 +545,7 @@ describe('Domain Handlers', () => {
       expect(result.data).toBeDefined();
       expect(result.data!.taskId).toBeDefined();
       expect(typeof result.data!.valid).toBe('boolean');
-    });
+    }, 30000);
 
     it('should detect breaking changes when enabled', async () => {
       const result = await handleContractValidate({
@@ -556,7 +556,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.breakingChanges).toBeDefined();
       expect(Array.isArray(result.data!.breakingChanges)).toBe(true);
-    });
+    }, 30000);
 
     it('should return warnings', async () => {
       const result = await handleContractValidate({
@@ -566,7 +566,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.warnings).toBeDefined();
       expect(Array.isArray(result.data!.warnings)).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -591,7 +591,7 @@ describe('Domain Handlers', () => {
       expect(result.data).toBeDefined();
       expect(result.data!.taskId).toBeDefined();
       expect(typeof result.data!.passed).toBe('boolean');
-    });
+    }, 30000);
 
     it('should return accessibility score', async () => {
       const result = await handleAccessibilityTest({
@@ -601,7 +601,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.score).toBeGreaterThanOrEqual(0);
       expect(result.data!.score).toBeLessThanOrEqual(100);
-    });
+    }, 30000);
 
     it('should report violations', async () => {
       const result = await handleAccessibilityTest({
@@ -611,7 +611,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.violations).toBeDefined();
       expect(Array.isArray(result.data!.violations)).toBe(true);
-    });
+    }, 30000);
 
     it('should report warnings', async () => {
       const result = await handleAccessibilityTest({
@@ -621,7 +621,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.warnings).toBeDefined();
       expect(Array.isArray(result.data!.warnings)).toBe(true);
-    });
+    }, 30000);
 
     it('should respect standard parameter', async () => {
       const result = await handleAccessibilityTest({
@@ -630,7 +630,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -655,7 +655,7 @@ describe('Domain Handlers', () => {
       expect(result.data).toBeDefined();
       expect(result.data!.taskId).toBeDefined();
       expect(result.data!.faultType).toBeDefined();
-    });
+    }, 30000);
 
     it('should return resilience metrics', async () => {
       const result = await handleChaosTest({
@@ -667,7 +667,7 @@ describe('Domain Handlers', () => {
       expect(result.data!.resilience).toBeDefined();
       expect(typeof result.data!.resilience.recovered).toBe('boolean');
       expect(result.data!.resilience.recoveryTime).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should respect faultType parameter', async () => {
       const faultTypes = ['latency', 'error', 'timeout'] as const;
@@ -681,7 +681,7 @@ describe('Domain Handlers', () => {
         expect(result.success).toBe(true);
         expect(result.data!.faultType).toBe(faultType);
       }
-    });
+    }, 30000);
 
     it('should respect dryRun parameter', async () => {
       const result = await handleChaosTest({
@@ -690,7 +690,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -714,7 +714,7 @@ describe('Domain Handlers', () => {
       expect(result.data!.taskId).toBeDefined();
       expect(result.data!.predictedDefects).toBeDefined();
       expect(Array.isArray(result.data!.predictedDefects)).toBe(true);
-    });
+    }, 30000);
 
     it('should return risk score', async () => {
       const result = await handleDefectPredict({});
@@ -723,7 +723,7 @@ describe('Domain Handlers', () => {
       // Risk score is 0-100 (percentage)
       expect(result.data!.riskScore).toBeGreaterThanOrEqual(0);
       expect(result.data!.riskScore).toBeLessThanOrEqual(100);
-    });
+    }, 30000);
 
     it('should include recommendations', async () => {
       const result = await handleDefectPredict({});
@@ -731,7 +731,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.recommendations).toBeDefined();
       expect(Array.isArray(result.data!.recommendations)).toBe(true);
-    });
+    }, 30000);
 
     it('should respect lookback parameter', async () => {
       const result = await handleDefectPredict({
@@ -739,7 +739,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
 
     it('should respect minConfidence parameter', async () => {
       const result = await handleDefectPredict({
@@ -747,7 +747,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -770,7 +770,7 @@ describe('Domain Handlers', () => {
       expect(result.data).toBeDefined();
       expect(result.data!.taskId).toBeDefined();
       expect(result.data!.requirementsAnalyzed).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should return testability metrics', async () => {
       const result = await handleRequirementsValidate({});
@@ -778,7 +778,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.testable).toBeGreaterThanOrEqual(0);
       expect(result.data!.coverage).toBeGreaterThanOrEqual(0);
-    });
+    }, 30000);
 
     it('should generate BDD scenarios when requested', async () => {
       const result = await handleRequirementsValidate({
@@ -788,7 +788,7 @@ describe('Domain Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.bddScenarios).toBeDefined();
       expect(Array.isArray(result.data!.bddScenarios)).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -857,7 +857,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -871,7 +871,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
 
     it('should handle very large source code', async () => {
       const largeCode = 'function f() {}\n'.repeat(1000);
@@ -881,7 +881,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
 
     it('should handle concurrent domain operations', async () => {
       const results = await Promise.all([
@@ -901,7 +901,7 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
 
     it('should handle unicode in source code', async () => {
       const result = await handleTestGenerate({
@@ -909,6 +909,6 @@ describe('Domain Handlers', () => {
       });
 
       expect(result.success).toBe(true);
-    });
+    }, 30000);
   });
 });

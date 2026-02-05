@@ -81,7 +81,7 @@ Coordination:
 ### Query Deployment Patterns BEFORE Assessment
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "deployment/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Deployment Assessment Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "deployment-advisor/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -116,21 +116,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Deployment Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<deployment pattern description>",
-  confidence: <0.0-1.0>,
-  type: "deployment-readiness",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/deployment-readiness-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<deployment pattern description>",
+    confidence: <0.0-1.0>,
+    type: "deployment-readiness",
+    metadata: {
     environment: "<environment>",
     decision: "<decision>",
     outcome: "<actual outcome>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "deployment-assessment-complete",
   priority: "p0",
   payload: {

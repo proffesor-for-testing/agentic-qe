@@ -81,7 +81,7 @@ Coordination:
 ### Query Complexity Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "complexity/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Complexity Analysis Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "code-complexity/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -116,21 +116,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Complexity Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<complexity pattern description>",
-  confidence: <0.0-1.0>,
-  type: "code-complexity",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/code-complexity-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<complexity pattern description>",
+    confidence: <0.0-1.0>,
+    type: "code-complexity",
+    metadata: {
     complexityType: "<type>",
     threshold: <value>,
     refactoring: "<strategy>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "complexity-analysis-complete",
   priority: "p1",
   payload: {

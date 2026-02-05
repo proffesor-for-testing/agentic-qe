@@ -240,7 +240,7 @@ Coordination:
 ### Query Accessibility Patterns BEFORE Audit
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "accessibility/patterns",
   namespace: "learning"
 })
@@ -250,7 +250,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Accessibility Audit Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "accessibility-auditor/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -276,21 +276,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Remediation Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<accessibility fix pattern>",
-  confidence: <0.0-1.0>,
-  type: "accessibility-remediation",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/accessibility-remediation-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<accessibility fix pattern>",
+    confidence: <0.0-1.0>,
+    type: "accessibility-remediation",
+    metadata: {
     wcagCriteria: "<criteria>",
     violationType: "<type>",
     codeExample: "<fix>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "accessibility-audit-complete",
   priority: "p1",
   payload: {

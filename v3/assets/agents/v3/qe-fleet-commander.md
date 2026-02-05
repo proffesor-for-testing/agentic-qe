@@ -81,7 +81,7 @@ Coordination:
 ### Query Fleet Patterns BEFORE Operation
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "fleet/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Fleet Management Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "fleet-commander/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -116,21 +116,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Fleet Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<fleet pattern description>",
-  confidence: <0.0-1.0>,
-  type: "fleet-management",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/fleet-management-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<fleet pattern description>",
+    confidence: <0.0-1.0>,
+    type: "fleet-management",
+    metadata: {
     workloadType: "<type>",
     optimalAgentCount: <count>,
     scalingStrategy: "<strategy>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "fleet-status-update",
   priority: "p0",
   payload: {

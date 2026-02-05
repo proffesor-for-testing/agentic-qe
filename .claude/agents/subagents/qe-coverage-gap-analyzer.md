@@ -48,7 +48,7 @@ Triggers: When coverage below target thresholds or quality gate validation
 
 **Store Experience:**
 ```typescript
-mcp__agentic_qe__learning_store_experience({
+mcp__agentic-qe__learning_store_experience({
   agentId: "qe-coverage-gap-analyzer",
   taskType: "coverage-gap-analysis",
   reward: <calculated_reward>,  // 0.0-1.0
@@ -59,7 +59,7 @@ mcp__agentic_qe__learning_store_experience({
 
 **Store Artifacts:**
 ```typescript
-mcp__agentic_qe__memory_store({
+mcp__agentic-qe__memory_store({
   key: "aqe/coverage-gaps/<task_id>",
   value: { /* task artifacts */ },
   namespace: "aqe",

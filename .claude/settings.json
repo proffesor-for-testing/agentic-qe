@@ -228,9 +228,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx @claude-flow/cli@latest hooks session-end --export-metrics 2>/dev/null || true",
-            "timeout": 5000,
-            "continueOnError": true
+            "command": "echo '{\"ok\": true}'"
           }
         ]
       },
@@ -269,8 +267,7 @@
       "Bash(npx claude-flow:*)",
       "Bash(npx @claude-flow/cli:*)",
       "mcp__claude-flow__:*",
-      "mcp__agentic_qe__*",
-      "mcp__agentic-qe-v3__*"
+      "mcp__agentic_qe__*"
     ],
     "deny": [
       "Bash(rm -rf /)"
@@ -278,7 +275,7 @@
   },
   "includeCoAuthoredBy": true,
   "enabledMcpjsonServers": [
-    "agentic-qe-v3",
+    "agentic-qe",
     "claude-flow"
   ],
   "claudeFlow": {
@@ -325,6 +322,25 @@
         "consolidate": {
           "interval": "2h",
           "priority": "low"
+        },
+        "document": {
+          "interval": "1h",
+          "priority": "normal",
+          "triggers": [
+            "adr-update",
+            "api-change"
+          ]
+        },
+        "deepdive": {
+          "interval": "4h",
+          "priority": "normal",
+          "triggers": [
+            "complex-change"
+          ]
+        },
+        "ultralearn": {
+          "interval": "1h",
+          "priority": "normal"
         }
       }
     },
@@ -335,7 +351,27 @@
         "coordination",
         "optimization",
         "prediction"
-      ]
+      ],
+      "retention": {
+        "shortTerm": "24h",
+        "longTerm": "30d"
+      }
+    },
+    "adr": {
+      "autoGenerate": true,
+      "directory": "/v3/implementation/adrs",
+      "template": "madr"
+    },
+    "ddd": {
+      "trackDomains": true,
+      "validateBoundedContexts": true,
+      "directory": "/v3/implementation/ddd"
+    },
+    "security": {
+      "autoScan": true,
+      "scanOnEdit": true,
+      "cveCheck": true,
+      "threatModel": true
     }
   },
   "v3Configuration": {

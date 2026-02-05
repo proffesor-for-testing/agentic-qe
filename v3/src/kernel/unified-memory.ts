@@ -38,25 +38,56 @@ import {
 
 /**
  * Find the project root by walking up the directory tree.
- * Looks for package.json or .git directory as project markers.
- * Falls back to current working directory if no markers found.
+ *
+ * Priority order:
+ * 1. AQE_PROJECT_ROOT environment variable (set by MCP config or init)
+ * 2. Walk up looking for .agentic-qe directory (existing AQE project)
+ * 3. Walk up looking for .git directory (git repo root)
+ * 4. Walk up looking for package.json WITHOUT node_modules sibling (monorepo root)
+ * 5. Fallback to current working directory
  *
  * This ensures ALL V3 systems persist to the same database regardless
- * of which subdirectory they are run from.
+ * of which subdirectory they are run from (especially in monorepos).
  */
 export function findProjectRoot(startDir: string = process.cwd()): string {
+  // Priority 1: Environment variable (set by MCP config)
+  if (process.env.AQE_PROJECT_ROOT) {
+    return process.env.AQE_PROJECT_ROOT;
+  }
+
   let dir = startDir;
   const root = path.parse(dir).root;
 
-  while (dir !== root) {
-    // Check for project markers
-    if (
-      fs.existsSync(path.join(dir, 'package.json')) ||
-      fs.existsSync(path.join(dir, '.git'))
-    ) {
-      return dir;
+  // Priority 2: Look for existing .agentic-qe directory (AQE project marker)
+  let checkDir = dir;
+  while (checkDir !== root) {
+    if (fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
+      return checkDir;
     }
-    dir = path.dirname(dir);
+    checkDir = path.dirname(checkDir);
+  }
+
+  // Priority 3: Look for .git directory (repo root)
+  checkDir = dir;
+  while (checkDir !== root) {
+    if (fs.existsSync(path.join(checkDir, '.git'))) {
+      return checkDir;
+    }
+    checkDir = path.dirname(checkDir);
+  }
+
+  // Priority 4: Look for root package.json (skip monorepo subdirectories)
+  // A root package.json typically has workspaces or is not inside node_modules
+  checkDir = dir;
+  let lastPackageJson: string | null = null;
+  while (checkDir !== root) {
+    if (fs.existsSync(path.join(checkDir, 'package.json'))) {
+      lastPackageJson = checkDir;
+    }
+    checkDir = path.dirname(checkDir);
+  }
+  if (lastPackageJson) {
+    return lastPackageJson;
   }
 
   // Fallback to current working directory

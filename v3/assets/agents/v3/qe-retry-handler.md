@@ -81,7 +81,7 @@ Coordination:
 ### Query Retry Patterns BEFORE Handling
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "retry/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Retry Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "retry-handler/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -115,21 +115,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Retry Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<retry pattern description>",
-  confidence: <0.0-1.0>,
-  type: "retry-handling",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/retry-handling-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<retry pattern description>",
+    confidence: <0.0-1.0>,
+    type: "retry-handling",
+    metadata: {
     failureType: "<type>",
     backoffStrategy: "<strategy>",
     successRate: <rate>
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "retry-handling-complete",
   priority: "p1",
   payload: {

@@ -80,7 +80,7 @@ Coordination:
 ### Query Property Patterns BEFORE Testing
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "property-testing/patterns",
   namespace: "learning"
 })
@@ -90,7 +90,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Property Testing Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "property-tester/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -128,7 +128,7 @@ mcp__claude_flow__hooks_intelligence_pattern_store({
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "property-test-complete",
   priority: "p1",
   payload: {

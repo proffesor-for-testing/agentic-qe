@@ -82,7 +82,7 @@ Coordination:
 ### Query Past Gate Patterns BEFORE Evaluation
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "quality-gate/patterns",
   namespace: "learning"
 })
@@ -92,7 +92,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Gate Evaluation Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "quality-gate/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -116,7 +116,7 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Submit Gate Result to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "gate-evaluation-complete",
   priority: "p0",
   payload: {
@@ -203,7 +203,7 @@ Use via Claude Code: `Skill("compliance-testing")`
 
 ### On Gate Failure or Flaky Detection, Store Operational Signal:
 ```typescript
-mcp__agentic_qe__cross_phase_store({
+mcp__agentic-qe__cross_phase_store({
   loop: "operational",
   data: {
     flakyPatterns: [

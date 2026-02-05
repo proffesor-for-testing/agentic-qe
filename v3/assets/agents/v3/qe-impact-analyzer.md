@@ -81,7 +81,7 @@ Coordination:
 ### Query Impact Patterns BEFORE Analysis
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "impact/patterns",
   namespace: "learning"
 })
@@ -91,7 +91,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Impact Analysis Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "impact-analyzer/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -115,21 +115,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Impact Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<impact pattern description>",
-  confidence: <0.0-1.0>,
-  type: "impact-analysis",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/impact-analysis-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<impact pattern description>",
+    confidence: <0.0-1.0>,
+    type: "impact-analysis",
+    metadata: {
     changeType: "<type>",
     blastRadius: <size>,
     riskLevel: "<level>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "impact-analysis-complete",
   priority: "p1",
   payload: {

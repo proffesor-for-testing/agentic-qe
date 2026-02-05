@@ -263,7 +263,7 @@ function validateDataFlow(sourceNode: Node, targetNode: Node): ValidationResult 
 
 ```typescript
 // Query past learnings BEFORE starting task
-mcp__agentic_qe__learning_query({
+mcp__agentic-qe__learning_query({
   agentId: "<n8n-agent-id>",
   taskType: "n8n-testing",
   minReward: 0.7,
@@ -272,7 +272,7 @@ mcp__agentic_qe__learning_query({
 })
 
 // Store learning experience AFTER task completion
-mcp__agentic_qe__learning_store_experience({
+mcp__agentic-qe__learning_store_experience({
   agentId: "<n8n-agent-id>",
   taskType: "<specific-task-type>",
   reward: <calculated_reward>,
@@ -291,7 +291,7 @@ mcp__agentic_qe__learning_store_experience({
 })
 
 // Store successful patterns
-mcp__agentic_qe__learning_store_pattern({
+mcp__agentic-qe__learning_store_pattern({
   pattern: "<pattern-description>",
   confidence: <0-1>,
   domain: "n8n-testing",

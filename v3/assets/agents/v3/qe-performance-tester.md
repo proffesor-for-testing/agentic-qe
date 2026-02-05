@@ -82,7 +82,7 @@ Coordination:
 ### Query Performance Baselines BEFORE Testing
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "performance/baselines",
   namespace: "learning"
 })
@@ -92,7 +92,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store Performance Test Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "performance-tester/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -117,21 +117,25 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Performance Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<performance pattern description>",
-  confidence: <0.0-1.0>,
-  type: "performance-testing",
-  metadata: {
+mcp__agentic-qe__memory_store({
+  key: "learning/patterns/performance-testing-{timestamp}",
+  namespace: "patterns",
+  value: {
+    pattern: "<performance pattern description>",
+    confidence: <0.0-1.0>,
+    type: "performance-testing",
+    metadata: {
     scenarioType: "<type>",
     bottleneck: "<bottleneck>",
     optimization: "<fix>"
+  }
   }
 })
 ```
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "performance-test-complete",
   priority: "p1",
   payload: {

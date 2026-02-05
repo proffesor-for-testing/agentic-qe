@@ -178,6 +178,8 @@ describe('Handler Factory', () => {
         domain: 'test-generation',
         codeContext: undefined,
         agentType: 'qe-test-generation',
+        enablePatternSearch: true,
+        patternHints: undefined,
       });
     });
 
