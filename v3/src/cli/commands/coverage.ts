@@ -28,6 +28,7 @@ export function createCoverageCommand(
     .option('--threshold <percent>', 'Coverage threshold percentage', '80')
     .option('--sensitivity <level>', 'Gap detection sensitivity (low|medium|high)', 'medium')
     .option('--wizard', 'Run interactive coverage analysis wizard')
+    .option('--ghost', 'Include ghost intent coverage analysis (detect untested behavioral intents)')
     .action(async (target: string, options) => {
       let analyzeTarget = target;
       let includeRisk = options.risk;
@@ -70,6 +71,7 @@ export function createCoverageCommand(
           analyze(request: { coverageData: { files: Array<{ path: string; lines: { covered: number; total: number }; branches: { covered: number; total: number }; functions: { covered: number; total: number }; statements: { covered: number; total: number }; uncoveredLines: number[]; uncoveredBranches: number[] }>; summary: { line: number; branch: number; function: number; statement: number; files: number } }; threshold?: number; includeFileDetails?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           detectGaps(request: { coverageData: { files: Array<{ path: string; lines: { covered: number; total: number }; branches: { covered: number; total: number }; functions: { covered: number; total: number }; statements: { covered: number; total: number }; uncoveredLines: number[]; uncoveredBranches: number[] }>; summary: { line: number; branch: number; function: number; statement: number; files: number } }; minCoverage?: number; prioritize?: string }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           calculateRisk(request: { file: string; uncoveredLines: number[] }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+          analyzeGhostCoverage(existingTests: string[], codeContext: string): Promise<{ success: boolean; value?: { gaps: Array<{ id: string; category: string; description: string; confidence: number; severity: string; suggestedTest: string }>; totalGhostScore: number; coverageCompleteness: number; computedAt: Date }; error?: Error }>;
         }>('coverage-analysis');
 
         if (!coverageAPI) {
@@ -204,6 +206,37 @@ export function createCoverageCommand(
             if (gaps.gaps.length > 8) {
               console.log(chalk.gray(`    ... and ${gaps.gaps.length - 8} more gaps`));
             }
+          }
+        }
+
+        // Ghost intent coverage analysis (ADR-059)
+        if (options.ghost || detectGaps) {
+          console.log(chalk.cyan('\n  Ghost Intent Coverage (ADR-059):'));
+
+          try {
+            const testPaths = files.map(f => f.path);
+            const ghostResult = await coverageAPI.analyzeGhostCoverage(testPaths, analyzeTarget);
+
+            if (ghostResult.success && ghostResult.value) {
+              const ghost = ghostResult.value;
+
+              console.log(chalk.gray(`    Phantom gaps detected: ${ghost.gaps.length}`));
+              console.log(chalk.gray(`    Ghost score: ${(ghost.totalGhostScore * 100).toFixed(1)}%`));
+              console.log(chalk.gray(`    Coverage completeness: ${(ghost.coverageCompleteness * 100).toFixed(1)}%\n`));
+
+              for (const gap of ghost.gaps.slice(0, 8)) {
+                const severityColor = gap.severity === 'critical' ? chalk.red : gap.severity === 'high' ? chalk.red : gap.severity === 'medium' ? chalk.yellow : chalk.gray;
+                console.log(`    ${severityColor(`[${gap.severity}]`)} ${chalk.white(gap.category)}`);
+                console.log(chalk.gray(`        ${gap.description}`));
+              }
+              if (ghost.gaps.length > 8) {
+                console.log(chalk.gray(`    ... and ${ghost.gaps.length - 8} more phantom gaps`));
+              }
+            } else {
+              console.log(chalk.dim('    Ghost analysis not available (requires HNSW index)'));
+            }
+          } catch {
+            console.log(chalk.dim('    Ghost analysis skipped (analyzer not initialized)'));
           }
         }
 

@@ -83,6 +83,7 @@ export interface CoverageGapsParams {
   minRisk?: number;
   limit?: number;
   prioritization?: 'complexity' | 'criticality' | 'change-frequency' | 'ml-confidence';
+  includeGhost?: boolean;
   [key: string]: unknown;
 }
 
@@ -91,6 +92,7 @@ export interface CoverageGapsResult {
   totalGaps: number;
   criticalGaps: number;
   suggestedTests: TestSuggestion[];
+  ghostGaps?: Array<{ category: string; severity: string; description: string; confidence: number }>;
 }
 
 export interface CoverageGap {
@@ -551,6 +553,33 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
         priority: idx + 1,
       }));
 
+      // ADR-059: Include ghost coverage analysis if requested
+      let ghostGaps: Array<{ category: string; severity: string; description: string; confidence: number }> | undefined;
+      if (params.includeGhost) {
+        try {
+          const kernel = (context as any).kernel;
+          if (kernel) {
+            const coordAPI = await kernel.getDomainAPIAsync('coverage-analysis');
+            if (coordAPI?.analyzeGhostCoverage) {
+              const ghostResult = await coordAPI.analyzeGhostCoverage(
+                domainFiles.map((f: DomainFileCoverage) => f.path),
+                target,
+              );
+              if (ghostResult?.success && ghostResult.value) {
+                ghostGaps = (ghostResult.value.gaps || []).map((g: { category: string; severity: string; description: string; confidence: number }) => ({
+                  category: g.category,
+                  severity: g.severity,
+                  description: g.description,
+                  confidence: g.confidence,
+                }));
+              }
+            }
+          }
+        } catch {
+          // Ghost analysis is optional, don't fail the tool
+        }
+      }
+
       this.emitStream(context, {
         status: 'complete',
         message: `Found ${gaps.length} coverage gaps (${detectedGaps.totalUncoveredLines} uncovered lines)`,
@@ -564,6 +593,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
           totalGaps: detectedGaps.gaps.length,
           criticalGaps: gaps.filter((g) => g.severity === 'critical').length,
           suggestedTests,
+          ...(ghostGaps ? { ghostGaps } : {}),
         },
       };
     } catch (error) {
@@ -727,6 +757,11 @@ const COVERAGE_GAPS_SCHEMA: MCPToolSchema = {
       description: 'Gap prioritization strategy',
       enum: ['complexity', 'criticality', 'change-frequency', 'ml-confidence'],
       default: 'complexity',
+    },
+    includeGhost: {
+      type: 'boolean',
+      description: 'Include ADR-059 ghost intent coverage analysis (detect untested behavioral intents)',
+      default: false,
     },
   },
 };

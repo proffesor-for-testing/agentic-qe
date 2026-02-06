@@ -134,6 +134,26 @@ export class CoverageAnalysisPlugin extends BaseDomainPlugin {
           this.updateAgentMetrics();
         }
       }],
+
+      // ADR-059: Ghost coverage analysis task
+      ['analyze-ghost-coverage', async (payload): Promise<Result<unknown, Error>> => {
+        const existingTests = payload.existingTests as string[] | undefined;
+        const codeContext = payload.codeContext as string | undefined;
+
+        if (!existingTests || !codeContext) {
+          return err(new Error('Invalid analyze-ghost-coverage payload: missing existingTests or codeContext'));
+        }
+
+        this._activeAnalyses++;
+        this.updateAgentMetrics();
+
+        try {
+          return await this.coordinator.analyzeGhostCoverage(existingTests, codeContext);
+        } finally {
+          this._activeAnalyses--;
+          this.updateAgentMetrics();
+        }
+      }],
     ]);
   }
 

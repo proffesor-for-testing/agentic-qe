@@ -443,6 +443,16 @@ Examples:
           console.log(`  HNSW Native: ${stats.patternStoreStats.hnswStats.nativeAvailable ? chalk.green('✓') : chalk.dim('○')}`);
           console.log(`  Vector Count: ${stats.patternStoreStats.hnswStats.vectorCount}`);
 
+          // ADR-061: Asymmetric Learning Metrics
+          const asymmetricStats = (stats as any).asymmetricLearning;
+          if (asymmetricStats) {
+            console.log(chalk.bold('\nAsymmetric Learning (ADR-061):'));
+            console.log(`  Failure Penalty Ratio: ${asymmetricStats.failurePenaltyRatio || '10:1'}`);
+            console.log(`  Quarantined Patterns: ${asymmetricStats.quarantinedPatterns || 0}`);
+            console.log(`  Rehabilitated: ${asymmetricStats.rehabilitatedPatterns || 0}`);
+            console.log(`  Avg Confidence Delta: ${((asymmetricStats.avgConfidenceDelta || 0) * 100).toFixed(1)}%`);
+          }
+
           if (options.detailed) {
             console.log(chalk.bold('\nBy Pattern Type:'));
             for (const [type, count] of Object.entries(stats.patternStoreStats.byType)) {

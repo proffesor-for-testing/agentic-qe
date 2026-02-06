@@ -5,6 +5,24 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.5] - 2026-02-06
+
+### Added
+
+- **Ghost Intent Coverage Analysis (ADR-059)** - Detect untested behavioral intents ("phantom gaps") that traditional line/branch coverage misses. Surfaces hidden coverage gaps in error handling, edge cases, and implicit behavioral contracts.
+- **Semantic Anti-Drift Middleware (ADR-060)** - Event pipeline middleware that attaches semantic fingerprints to domain events and verifies payload integrity across agent-hop boundaries using cosine similarity checks.
+- **Asymmetric Learning Rates (ADR-061)** - 10:1 penalty-to-reward ratio for learning from failures vs successes. Failed patterns are quarantined with exponential confidence decay; successful patterns earn gradual trust through consecutive wins.
+
+### Fixed
+
+- **Dynamic package version in init** - `aqe init --auto` now reads version from package.json instead of hardcoded `3.0.0` (#240)
+- **Init upgrade path** - Resolved issues with `aqe init --auto` when upgrading existing projects (#239)
+
+### Changed
+
+- **CLAUDE.md** - Added insights-driven rules and custom skills for improved agent coordination
+- **Release workflow** - Updated `/release` skill with artifact verification gates and working-branch-first PR flow
+
 ## [3.5.2] - 2026-02-05
 
 ### Added

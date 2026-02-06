@@ -12,7 +12,7 @@ import {
   DomainName,
   EventHandler,
 } from '../shared/types';
-import { EventBus, Subscription, EventFilter } from './interfaces';
+import { EventBus, Subscription, EventFilter, EventMiddleware } from './interfaces';
 import { CircularBuffer } from '../shared/utils/circular-buffer';
 import { EVENT_BUS_CONSTANTS } from './constants.js';
 
@@ -37,20 +37,60 @@ export class InMemoryEventBus implements EventBus {
   private maxHistorySize = EVENT_BUS_CONSTANTS.MAX_HISTORY_SIZE;
   private subscriptionCounter = 0;
 
+  // ADR-060: Middleware chain for event processing
+  private middlewares: EventMiddleware[] = [];
+
   constructor(maxHistorySize = EVENT_BUS_CONSTANTS.MAX_HISTORY_SIZE) {
     this.maxHistorySize = maxHistorySize;
     this.eventHistory = new CircularBuffer<DomainEvent>(maxHistorySize);
   }
 
+  /**
+   * ADR-060: Register an event middleware
+   * Middlewares are sorted by priority (lower runs first)
+   */
+  registerMiddleware(middleware: EventMiddleware): void {
+    this.middlewares.push(middleware);
+    this.middlewares.sort((a, b) => a.priority - b.priority);
+  }
+
+  /**
+   * ADR-060: Remove an event middleware by name
+   */
+  removeMiddleware(name: string): boolean {
+    const idx = this.middlewares.findIndex(m => m.name === name);
+    if (idx >= 0) {
+      this.middlewares.splice(idx, 1);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * ADR-060: Get registered middlewares
+   */
+  getMiddlewares(): readonly EventMiddleware[] {
+    return this.middlewares;
+  }
+
   async publish<T>(event: DomainEvent<T>): Promise<void> {
+    // ADR-060: Run onEmit middleware chain
+    let processedEvent: DomainEvent<T> | null = event;
+    for (const mw of this.middlewares) {
+      if (mw.onEmit && processedEvent) {
+        processedEvent = await mw.onEmit(processedEvent) as DomainEvent<T> | null;
+        if (!processedEvent) return; // Middleware rejected the event
+      }
+    }
+
     // Store in history - O(1) with CircularBuffer (auto-evicts oldest)
-    this.eventHistory.push(event);
+    this.eventHistory.push(processedEvent);
 
     // Collect matching subscriptions using O(1) index lookups
     const matchingIds = new Set<string>();
 
     // Add subscriptions for this specific event type - O(1) lookup
-    const typeSubscriptions = this.subscriptionsByEventType.get(event.type);
+    const typeSubscriptions = this.subscriptionsByEventType.get(processedEvent.type);
     if (typeSubscriptions) {
       for (const id of typeSubscriptions) {
         matchingIds.add(id);
@@ -58,7 +98,7 @@ export class InMemoryEventBus implements EventBus {
     }
 
     // Add channel subscriptions for this source - O(1) lookup
-    const channelSubscriptions = this.subscriptionsByChannel.get(event.source);
+    const channelSubscriptions = this.subscriptionsByChannel.get(processedEvent.source);
     if (channelSubscriptions) {
       for (const id of channelSubscriptions) {
         matchingIds.add(id);
@@ -77,17 +117,26 @@ export class InMemoryEventBus implements EventBus {
       if (!sub || !sub.active) continue;
 
       // Verify channel match for channel subscriptions
-      if (sub.channel && sub.channel !== event.source) continue;
+      if (sub.channel && sub.channel !== processedEvent.source) continue;
 
       // Verify event type match for type subscriptions
-      if (sub.eventType !== '*' && sub.eventType !== event.type) continue;
+      if (sub.eventType !== '*' && sub.eventType !== processedEvent.type) continue;
 
       matchingSubscriptions.push(sub);
     }
 
+    // ADR-060: Run onReceive middleware chain for each handler
+    let receivedEvent: DomainEvent<T> | null = processedEvent;
+    for (const mw of this.middlewares) {
+      if (mw.onReceive && receivedEvent) {
+        receivedEvent = await mw.onReceive(receivedEvent) as DomainEvent<T> | null;
+        if (!receivedEvent) return; // Middleware rejected on receive
+      }
+    }
+
     // Execute handlers concurrently
     await Promise.allSettled(
-      matchingSubscriptions.map((sub) => sub.handler(event))
+      matchingSubscriptions.map((sub) => sub.handler(receivedEvent!))
     );
   }
 
@@ -192,5 +241,6 @@ export class InMemoryEventBus implements EventBus {
     this.subscriptionsByChannel.clear();
     this.wildcardSubscriptions.clear();
     this.eventHistory.clear();
+    this.middlewares = []; // ADR-060: Clear middlewares
   }
 }

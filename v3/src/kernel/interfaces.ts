@@ -344,3 +344,45 @@ export interface KernelConfig {
   /** Data directory for persistent storage (default: .agentic-qe relative to project root) */
   dataDir?: string;
 }
+
+// ============================================================================
+// ADR-060: Semantic Anti-Drift Protocol
+// ============================================================================
+
+/**
+ * Event middleware interface for anti-drift and other event processing (ADR-060)
+ */
+export interface EventMiddleware {
+  /** Middleware name for identification */
+  readonly name: string;
+  /** Priority — lower runs first */
+  readonly priority: number;
+  /** Process event before publish (can modify or reject) */
+  onEmit?(event: DomainEvent): Promise<DomainEvent | null>;
+  /** Process event after receive (can modify or reject) */
+  onReceive?(event: DomainEvent): Promise<DomainEvent | null>;
+}
+
+/**
+ * Configuration for anti-drift middleware (ADR-060)
+ */
+export interface AntiDriftConfig {
+  /** Drift threshold per event type (default: 0.05) */
+  readonly thresholds: Record<string, number>;
+  /** Whether to block events that drift too much */
+  readonly blockOnDrift: boolean;
+  /** Maximum history entries for drift tracking */
+  readonly maxHistorySize: number;
+}
+
+/**
+ * Drift check result from anti-drift middleware (ADR-060)
+ */
+export interface DriftCheckResult {
+  readonly eventType: string;
+  readonly driftScore: number;
+  readonly threshold: number;
+  readonly passed: boolean;
+  readonly hopCount: number;
+  readonly checkedAt: number;
+}

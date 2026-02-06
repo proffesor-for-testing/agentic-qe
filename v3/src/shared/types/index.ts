@@ -71,6 +71,26 @@ export interface DomainEvent<T = unknown> {
   readonly source: DomainName;
   readonly correlationId?: string;
   readonly payload: T;
+  /** Semantic anti-drift fingerprint (ADR-060) — optional, backward compatible */
+  readonly semanticFingerprint?: SemanticFingerprint;
+}
+
+/**
+ * Semantic fingerprint for anti-drift detection (ADR-060).
+ * Attached to domain events at emission time, verified at each agent boundary.
+ * Inspired by AISP 5.1 Anti-Drift Protocol: Mean(s) === Mean_0(s).
+ */
+export interface SemanticFingerprint {
+  /** HNSW embedding of event payload at emission time */
+  readonly embedding: readonly number[];
+  /** Cosine distance threshold for drift detection */
+  readonly driftThreshold: number;
+  /** Source agent that originally emitted this event */
+  readonly sourceAgentId: string;
+  /** Hop count — incremented at each agent boundary */
+  readonly hopCount: number;
+  /** Timestamp of original emission (epoch ms) */
+  readonly emittedAt: number;
 }
 
 export type EventHandler<T = unknown> = (event: DomainEvent<T>) => Promise<void>;
