@@ -27,7 +27,9 @@ export default defineConfig({
     // fileParallelism is ON (default) so multiple files run concurrently
     // across forked workers — safe because each fork has its own HNSW instance.
     pool: 'forks',
-    maxForks: 6,       // 6 parallel forked processes (8 cores available)
+    // CI uses 1GB heap — keep sequential to avoid OOM. Local dev uses parallel forks.
+    fileParallelism: !process.env.CI,
+    maxForks: process.env.CI ? 2 : 6,
     minForks: 1,
     isolate: true,     // Full process isolation prevents native module conflicts
     // Fail fast on OOM-prone environments
