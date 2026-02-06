@@ -207,3 +207,55 @@ export interface PrioritizedTest {
   action: CoverageQLAction;
   confidence: number;
 }
+
+// ============================================================================
+// ADR-059: Ghost Intent Coverage Analysis
+// ============================================================================
+
+/**
+ * Phantom gap category (ADR-059)
+ * Classifies gaps by what's MISSING rather than what EXISTS
+ */
+export type PhantomGapCategory =
+  | 'missing-error-handler'
+  | 'missing-edge-case'
+  | 'missing-integration-boundary'
+  | 'missing-security-check'
+  | 'missing-concurrency-guard'
+  | 'missing-state-transition'
+  | 'missing-cleanup'
+  | 'missing-validation'
+  | 'missing-negative-test'
+  | 'missing-boundary-test'
+  | 'uncategorized';
+
+/**
+ * A single phantom gap — something that SHOULD exist but DOESN'T
+ */
+export interface PhantomGap {
+  readonly id: string;
+  readonly category: PhantomGapCategory;
+  readonly description: string;
+  readonly confidence: number;
+  readonly severity: Severity;
+  readonly suggestedTest: string;
+}
+
+/**
+ * The phantom test surface — the full set of missing coverage
+ */
+export interface PhantomSurface {
+  readonly gaps: readonly PhantomGap[];
+  readonly totalGhostScore: number;
+  readonly coverageCompleteness: number;
+  readonly computedAt: Date;
+}
+
+/**
+ * Ghost Coverage Analyzer API (ADR-059)
+ */
+export interface GhostCoverageAnalyzerAPI {
+  computePhantomSurface(existingTests: string[], codeContext: string): Promise<PhantomSurface>;
+  detectPhantomGaps(codeContext: string, existingPatterns: number[][]): Promise<PhantomGap[]>;
+  rankPhantomGaps(gaps: PhantomGap[]): PhantomGap[];
+}

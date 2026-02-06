@@ -38,6 +38,9 @@ import {
   GapDetectorService,
   RiskScorerService,
 } from './services';
+import { GhostCoverageAnalyzerService, type GhostCoverageAnalyzerDependencies } from './services/ghost-coverage-analyzer';
+import { createHNSWIndex } from './services/hnsw-index';
+import { createCoverageEmbedder } from './services/coverage-embedder';
 import { QLearningAlgorithm } from '../../integrations/rl-suite/algorithms/q-learning';
 import type {
   RLState,
@@ -131,6 +134,9 @@ export interface ICoverageAnalysisCoordinator extends CoverageAnalysisAPI {
   /** Get Q-Learning prediction for specific coverage gap */
   predictQL(gap: CoverageGap): Promise<CoverageQLPrediction>;
 
+  /** ADR-059: Analyze ghost coverage (what's MISSING) */
+  analyzeGhostCoverage(existingTests: string[], codeContext: string): Promise<Result<import('./interfaces').PhantomSurface, Error>>;
+
   // MinCut integration methods (ADR-047)
   setMinCutBridge(bridge: QueenMinCutBridge): void;
   isTopologyHealthy(): boolean;
@@ -152,6 +158,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
   private readonly coverageAnalyzer: CoverageAnalyzerService;
   private readonly gapDetector: GapDetectorService;
   private readonly riskScorer: RiskScorerService;
+  private ghostAnalyzer: GhostCoverageAnalyzerService | null = null;
   private readonly qLearning: QLearningAlgorithm;
   private _initialized = false;
 
@@ -234,6 +241,8 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
         console.warn(`[${this.domainName}] Continuing without consensus verification`);
       }
     }
+
+    // ADR-059: Initialize ghost coverage analyzer (lazy — created on first use)
 
     this._initialized = true;
   }
@@ -804,6 +813,79 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
         patterns,
         searchTime,
       });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * ADR-059: Analyze ghost coverage — compute what tests are MISSING
+   * Uses HNSW vector subtraction to find phantom test surfaces
+   */
+  async analyzeGhostCoverage(
+    existingTests: string[],
+    codeContext: string
+  ): Promise<Result<import('./interfaces').PhantomSurface, Error>> {
+    try {
+      if (!this.ghostAnalyzer) {
+        // Lazy init with available dependencies
+        const deps: GhostCoverageAnalyzerDependencies = {
+          hnswIndex: createHNSWIndex(this.memory),
+          embedder: createCoverageEmbedder(),
+        };
+        this.ghostAnalyzer = new GhostCoverageAnalyzerService(deps);
+        await this.ghostAnalyzer.initialize();
+      }
+
+      // Build CoverageData from existing test paths
+      const coverageData = {
+        files: existingTests.map(testPath => ({
+          path: testPath,
+          lines: { covered: 0, total: 100 },
+          branches: { covered: 0, total: 10 },
+          functions: { covered: 0, total: 5 },
+          statements: { covered: 0, total: 100 },
+          uncoveredLines: [] as number[],
+          uncoveredBranches: [] as number[],
+        })),
+        summary: { line: 0, branch: 0, function: 0, statement: 0, files: existingTests.length },
+      };
+
+      const projectContext = {
+        name: codeContext,
+        sourcePatterns: existingTests,
+      };
+
+      const surfaceResult = await this.ghostAnalyzer.computePhantomSurface(coverageData, projectContext);
+
+      if (!surfaceResult.success) {
+        return err(surfaceResult.error);
+      }
+
+      const rawSurface = surfaceResult.value;
+
+      // Detect phantom gaps from the computed surface
+      const gapsResult = await this.ghostAnalyzer.detectPhantomGaps(rawSurface);
+      const rawGaps = gapsResult.success ? gapsResult.value : [];
+
+      // Map service types to interface PhantomSurface
+      const phantomSurface: import('./interfaces').PhantomSurface = {
+        gaps: rawGaps.map(g => ({
+          id: g.id,
+          category: g.category as unknown as import('./interfaces').PhantomGapCategory,
+          description: g.description,
+          confidence: g.confidence,
+          severity: g.severity,
+          suggestedTest: g.suggestedLines.length > 0
+            ? `Add test covering lines ${g.suggestedLines.join(', ')} in ${g.file}`
+            : `Add ${g.category} test for ${g.file}`,
+        })),
+        totalGhostScore: rawSurface.phantomRatio,
+        coverageCompleteness: 1 - rawSurface.phantomRatio,
+        computedAt: new Date(rawSurface.computedAt),
+      };
+
+      return ok(phantomSurface);
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }

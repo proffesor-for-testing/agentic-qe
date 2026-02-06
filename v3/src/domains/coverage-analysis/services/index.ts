@@ -59,3 +59,16 @@ export {
   createSublinearAnalyzer,
   DEFAULT_ANALYZER_CONFIG,
 } from './sublinear-analyzer';
+
+// ============================================================================
+// ADR-059: Ghost Intent Coverage Analysis
+// ============================================================================
+
+export {
+  GhostCoverageAnalyzerService,
+  createGhostCoverageAnalyzer,
+  type GhostCoverageConfig,
+  type PhantomGap as GhostPhantomGap,
+  type PhantomSurface as GhostPhantomSurface,
+  type GhostCoverageAnalyzerDependencies,
+} from './ghost-coverage-analyzer';

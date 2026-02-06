@@ -11,6 +11,7 @@
 
 import type { Database as DatabaseType } from 'better-sqlite3';
 import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
+import { AsymmetricLearningEngine, type AsymmetricLearningConfig } from './asymmetric-learning.js';
 
 // ============================================================================
 // Configuration
@@ -43,6 +44,9 @@ export interface PatternLifecycleConfig {
 
   /** Maximum age in days before automatic deprecation review */
   maxAgeForActivePatterns: number;
+
+  /** ADR-061: Asymmetric learning config */
+  asymmetricLearning: Partial<AsymmetricLearningConfig>;
 }
 
 /**
@@ -57,6 +61,7 @@ export const DEFAULT_LIFECYCLE_CONFIG: PatternLifecycleConfig = {
   confidenceDecayRate: 0.01, // 1% per day
   minActiveConfidence: 0.3,
   maxAgeForActivePatterns: 90,
+  asymmetricLearning: {},
 };
 
 // ============================================================================
@@ -145,12 +150,14 @@ export interface PatternLifecycleStats {
  */
 export class PatternLifecycleManager {
   private readonly config: PatternLifecycleConfig;
+  private readonly asymmetricEngine: AsymmetricLearningEngine;
 
   constructor(
     private readonly db: DatabaseType,
     config: Partial<PatternLifecycleConfig> = {}
   ) {
     this.config = { ...DEFAULT_LIFECYCLE_CONFIG, ...config };
+    this.asymmetricEngine = new AsymmetricLearningEngine(this.config.asymmetricLearning);
     this.ensureSchema();
   }
 
@@ -712,6 +719,99 @@ Pattern extracted from ${exp.count} successful experiences.`;
       SET quality_score = confidence * 0.3 + (MIN(usage_count, 100) / 100.0) * 0.2 + success_rate * 0.5
       WHERE id = ?
     `).run(patternId);
+  }
+
+  // ============================================================================
+  // ADR-061: Asymmetric Learning — Quarantine & Rehabilitation
+  // ============================================================================
+
+  /**
+   * Record pattern outcome with asymmetric learning (ADR-061)
+   * A single failure costs 10x more confidence than a success gains.
+   */
+  recordAsymmetricOutcome(patternId: string, success: boolean, domain?: string): void {
+    const pattern = this.getPattern(patternId);
+    if (!pattern) return;
+
+    const currentConfidence = pattern.confidence;
+    const newConfidence = this.asymmetricEngine.computeConfidenceUpdate(
+      currentConfidence,
+      success ? 'success' : 'failure',
+      domain
+    );
+
+    // Update confidence with asymmetric rate
+    this.db.prepare(`
+      UPDATE qe_patterns
+      SET confidence = ?,
+          usage_count = usage_count + 1,
+          successful_uses = CASE WHEN ? THEN successful_uses + 1 ELSE successful_uses END,
+          consecutive_failures = CASE WHEN ? THEN 0 ELSE consecutive_failures + 1 END,
+          success_rate = CAST(CASE WHEN ? THEN successful_uses + 1 ELSE successful_uses END AS REAL) / CAST(usage_count + 1 AS REAL),
+          last_used_at = datetime('now'),
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).run(newConfidence, success ? 1 : 0, success ? 1 : 0, success ? 1 : 0, patternId);
+
+    // Check if pattern should be quarantined
+    const decision = this.asymmetricEngine.shouldQuarantine(newConfidence, domain);
+    if (decision.shouldQuarantine) {
+      this.quarantinePattern(patternId);
+    }
+  }
+
+  /**
+   * Quarantine a pattern — removes it from active use (ADR-061)
+   */
+  quarantinePattern(patternId: string): boolean {
+    const result = this.db.prepare(`
+      UPDATE qe_patterns
+      SET deprecated_at = datetime('now'),
+          updated_at = datetime('now')
+      WHERE id = ? AND deprecated_at IS NULL
+    `).run(patternId);
+
+    if (result.changes > 0) {
+      console.log(`[PatternLifecycle] Quarantined pattern ${patternId} (asymmetric confidence drop)`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Check if a quarantined pattern can be rehabilitated (ADR-061)
+   * Requires 10 consecutive successes (configurable) from similar patterns
+   */
+  checkRehabilitation(patternId: string, consecutiveSuccesses: number): boolean {
+    const result = this.asymmetricEngine.checkRehabilitation(consecutiveSuccesses);
+    return result.canRehabilitate;
+  }
+
+  /**
+   * Rehabilitate a quarantined pattern — return it to active use (ADR-061)
+   */
+  rehabilitatePattern(patternId: string): boolean {
+    const result = this.db.prepare(`
+      UPDATE qe_patterns
+      SET deprecated_at = NULL,
+          consecutive_failures = 0,
+          confidence = 0.5,
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).run(patternId);
+
+    if (result.changes > 0) {
+      console.log(`[PatternLifecycle] Rehabilitated pattern ${patternId} (10+ consecutive successes)`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Get the asymmetric learning engine for external use (ADR-061)
+   */
+  getAsymmetricEngine(): AsymmetricLearningEngine {
+    return this.asymmetricEngine;
   }
 
   // ============================================================================

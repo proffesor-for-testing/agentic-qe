@@ -50,6 +50,7 @@ import {
   generateGuidanceContext,
   checkAntiPatterns,
 } from './qe-guidance.js';
+import { AsymmetricLearningEngine } from './asymmetric-learning.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { CircularBuffer } from '../shared/utils/circular-buffer.js';
@@ -192,6 +193,13 @@ export interface RealQEReasoningBankStats {
   transformerAvailable: boolean;
   embeddingDimension: number;
   sqliteDbPath: string;
+  /** ADR-061: Asymmetric learning metrics */
+  asymmetricLearning?: {
+    failurePenaltyRatio: string;
+    quarantinedPatterns: number;
+    rehabilitatedPatterns: number;
+    avgConfidenceDelta: number;
+  };
 }
 
 // ============================================================================
@@ -226,6 +234,9 @@ export class RealQEReasoningBank {
   // Separate CircularBuffer for routing latencies - prevents O(n) shift() calls
   // and bounds memory to exactly 1000 entries
   private routingLatencies = new CircularBuffer<number>(1000);
+
+  // ADR-061: Asymmetric learning engine
+  private readonly asymmetricEngine: AsymmetricLearningEngine;
 
   // QE Agent capability mapping
   private readonly agentCapabilities: Record<string, {
@@ -296,6 +307,7 @@ export class RealQEReasoningBank {
   ) {
     this.qeConfig = { ...DEFAULT_REAL_CONFIG, ...config };
     this.sqliteStore = createSQLitePatternStore(this.qeConfig.sqlite);
+    this.asymmetricEngine = new AsymmetricLearningEngine();
   }
 
   /**
@@ -740,11 +752,32 @@ export class RealQEReasoningBank {
         this.stats.successfulOutcomes++;
       }
 
-      // Check if pattern should be promoted (with coherence gate)
+      // ADR-061: Apply asymmetric confidence update (10:1 failure penalty)
       const pattern = this.sqliteStore.getPattern(outcome.patternId);
-      if (pattern && await this.checkPatternPromotionWithCoherence(pattern)) {
-        this.sqliteStore.promotePattern(outcome.patternId);
-        console.log(`[RealQEReasoningBank] Pattern promoted to long-term: ${pattern.name}`);
+      if (pattern) {
+        const domain = pattern.qeDomain;
+        const newConfidence = this.asymmetricEngine.computeConfidenceUpdate(
+          pattern.confidence,
+          outcome.success ? 'success' : 'failure',
+          domain
+        );
+
+        // Check for quarantine
+        const quarantineDecision = this.asymmetricEngine.shouldQuarantine(newConfidence, domain);
+        if (quarantineDecision.shouldQuarantine) {
+          console.log(`[RealQEReasoningBank] Pattern quarantined (asymmetric drop): ${pattern.name}`);
+        }
+
+        // Apply the asymmetric confidence update
+        this.sqliteStore.updatePattern(outcome.patternId, {
+          confidence: newConfidence,
+        });
+
+        // Check if pattern should be promoted (with coherence gate)
+        if (await this.checkPatternPromotionWithCoherence(pattern)) {
+          this.sqliteStore.promotePattern(outcome.patternId);
+          console.log(`[RealQEReasoningBank] Pattern promoted to long-term: ${pattern.name}`);
+        }
       }
 
       return ok(undefined);
@@ -887,6 +920,17 @@ export class RealQEReasoningBank {
       transformerAvailable: isTransformerAvailable(),
       embeddingDimension: getEmbeddingDimension(),
       sqliteDbPath: this.qeConfig.sqlite.dbPath || '.agentic-qe/memory.db',
+      // ADR-061: Asymmetric learning stats
+      asymmetricLearning: {
+        failurePenaltyRatio: '10:1',
+        quarantinedPatterns: this.sqliteStore.getPatterns({ limit: 10000 })
+          .filter(p => (p as any).quarantined === true).length,
+        rehabilitatedPatterns: this.sqliteStore.getPatterns({ limit: 10000 })
+          .filter(p => (p as any).quarantined === false && (p as any).quarantinedAt).length,
+        avgConfidenceDelta: this.stats.learningOutcomes > 0
+          ? (this.stats.successfulOutcomes / this.stats.learningOutcomes) - 0.5
+          : 0,
+      },
     };
   }
 
