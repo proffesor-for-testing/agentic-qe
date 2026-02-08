@@ -5,14 +5,14 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 13 Bounded Contexts, 58 Specialized QE Agents, 74 QE Skills, and ReasoningBank Learning
+> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 13 Bounded Contexts, 59 Specialized QE Agents, 75 QE Skills, and ReasoningBank Learning
 
 ### Key Features
 
 | Feature | Description |
 |---------|-------------|
-| **74 QE Skills** | Quality engineering skills with 4-tier trust validation system |
-| **58 QE Agents** | Specialized agents for test generation, security, coverage, enterprise integration, and more |
+| **75 QE Skills** | Quality engineering skills with 4-tier trust validation system |
+| **59 QE Agents** | Specialized agents for test generation, security, coverage, enterprise integration, and more |
 | **13 DDD Domains** | Modular bounded contexts for all quality engineering needs |
 | **MCP Integration** | Full Claude Code integration via Model Context Protocol |
 | **AG-UI/A2A Protocols** | Industry-standard agent streaming and interoperability |
@@ -48,8 +48,8 @@ npx aqe test generate src/
 
 ## Why Agentic QE?
 
-- **58 Specialized QE Agents** - Domain-focused quality engineering agents (51 main + 7 subagents)
-- **74 QE Skills** - 46 Tier 3 verified + 28 additional (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
+- **59 Specialized QE Agents** - Domain-focused quality engineering agents (52 main + 7 subagents)
+- **75 QE Skills** - 46 Tier 3 verified + 29 additional (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 - **13 DDD Bounded Contexts** - Modular, extensible architecture
 - **TinyDancer Model Routing** - 3-tier intelligent routing for cost optimization
 - **O(log n) Coverage Analysis** - Sublinear performance with HNSW indexing
@@ -632,8 +632,8 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Module System | CommonJS | ESM |
 | Memory | SQLite only | HNSW + SQLite hybrid |
 | Learning | Basic patterns | ReasoningBank + SONA + Dream Cycles |
-| Agents | 32 | 58 QE agents (51 main + 7 subagents) |
-| Skills | 35 | 74 QE skills (46 Tier 3 + 28 additional) |
+| Agents | 32 | 59 QE agents (52 main + 7 subagents) |
+| Skills | 35 | 75 QE skills (46 Tier 3 + 29 additional) |
 | Coverage | O(n) | O(log n) |
 | Pattern Search | Linear | O(log n) HNSW indexing |
 | Coordination | Sequential | Queen + Work Stealing + Consensus |
@@ -706,9 +706,9 @@ See the [Migration Guide](./docs/MIGRATION-GUIDE.md) for detailed instructions a
 }
 ```
 
-## 58 QE Agents
+## 59 QE Agents
 
-Agentic QE includes 58 specialized quality engineering agents (51 main + 7 subagents) organized by domain:
+Agentic QE includes 59 specialized quality engineering agents (52 main + 7 subagents) organized by domain:
 
 ### Test Generation Domain
 `qe-test-architect`, `qe-tdd-specialist`, `qe-tdd-red`, `qe-tdd-green`, `qe-tdd-refactor`, `qe-property-tester`, `qe-mutation-tester`, `qe-bdd-generator`
@@ -752,9 +752,9 @@ Agentic QE includes 58 specialized quality engineering agents (51 main + 7 subag
 ### Enterprise Integration Domain (New in v3.5.6)
 `qe-soap-tester`, `qe-sap-rfc-tester`, `qe-sap-idoc-tester`, `qe-middleware-validator`, `qe-odata-contract-tester`, `qe-message-broker-tester`, `qe-sod-analyzer`
 
-## 74 QE Skills
+## 75 QE Skills
 
-Agentic QE includes **74 QE skills** with a 4-tier trust validation system (ADR-056):
+Agentic QE includes **75 QE skills** with a 4-tier trust validation system (ADR-056):
 
 | Trust Tier | Skills | Validation Level |
 |------------|--------|------------------|
@@ -766,7 +766,7 @@ Agentic QE includes **74 QE skills** with a 4-tier trust validation system (ADR-
 Agents automatically apply relevant skills:
 
 <details>
-<summary><b>View All 74 QE Skills</b></summary>
+<summary><b>View All 75 QE Skills</b></summary>
 
 ### Core Testing & Methodologies (12)
 - `agentic-quality-engineering` - Core PACT principles for AI-powered QE

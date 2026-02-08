@@ -63,6 +63,7 @@ const V3_DOMAIN_SKILLS = [
   'qe-requirements-validation', // BDD scenarios, acceptance criteria
   'qe-code-intelligence',       // Knowledge graphs, 80% token reduction
   'qe-security-compliance',     // OWASP, CVE detection
+  'pentest-validation',         // Graduated exploit validation (Shannon-inspired)
   'qe-contract-testing',        // Pact, schema validation
   'qe-visual-accessibility',    // Visual regression, WCAG
   'qe-chaos-resilience',        // Fault injection, resilience

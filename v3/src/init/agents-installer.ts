@@ -96,6 +96,7 @@ const V3_QE_AGENTS = [
   // Security Compliance Domain
   'qe-security-scanner',
   'qe-security-auditor',
+  'qe-pentest-validator',
 
   // Contract Testing Domain
   'qe-contract-validator',
@@ -545,6 +546,7 @@ export class AgentsInstaller {
       'dependency-mapper': 'code-intelligence',
       'security-scanner': 'security-compliance',
       'security-auditor': 'security-compliance',
+      'pentest-validator': 'security-compliance',
       'contract-validator': 'contract-testing',
       'graphql-tester': 'contract-testing',
       'visual-tester': 'visual-accessibility',

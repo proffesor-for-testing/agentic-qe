@@ -5,6 +5,21 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0] - 2026-02-08
+
+### Added
+
+- **Pentest Validation (Shannon-Inspired)** — Graduated exploit validation with "No Exploit, No Report" quality gate. Transforms security findings from theoretical risks into proven vulnerabilities with PoC evidence. Based on Six Thinking Hats analysis of Shannon (KeygraphHQ) pentesting concepts.
+- **`qe-pentest-validator` Agent** — New agent in security-compliance domain with 3-tier graduated exploitation (pattern proof, payload test, full exploit), parallel per-vulnerability-type pipelines (injection, XSS, auth, SSRF), exploit playbook memory with ReasoningBank learning, and cost optimization via 3-tier model routing.
+- **`pentest-validation` Skill (Tier 3)** — Orchestration skill with 4-phase pipeline (recon → analysis → validation → report), full eval suite (15 test cases), JSON schema validation, and bash validator script. Trust tier 3 with comprehensive validation infrastructure.
+- **Init Fixes** — Templates directory support in agents-installer, 5 skills synced between .claude/ and v3/assets/, SKILL.md casing fixes, 'release' added to EXCLUDED_SKILLS.
+
+### Changed
+
+- **Skill Count** — 74 → 75 QE skills (46 Tier 3 + 29 additional)
+- **Agent Count** — 58 → 59 specialized QE agents (52 agents + 7 subagents)
+- **Version Bump** — v3.5.6 → v3.6.0 (minor version bump for new agent/skill/capabilities)
+
 ## [3.5.6] - 2026-02-08
 
 ### Added
