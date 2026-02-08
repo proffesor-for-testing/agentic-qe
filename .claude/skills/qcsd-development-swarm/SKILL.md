@@ -21,15 +21,17 @@ domains:
       agents: [qe-performance-tester]
     - domain: test-generation
       agents: [qe-mutation-tester]
+    - domain: enterprise-integration
+      agents: [qe-message-broker-tester, qe-sap-idoc-tester, qe-sod-analyzer]
   analysis:
     - domain: defect-intelligence
       agents: [qe-defect-predictor]
 # Agent Inventory
 agents:
   core: [qe-tdd-specialist, qe-code-complexity, qe-coverage-specialist]
-  conditional: [qe-security-scanner, qe-performance-tester, qe-mutation-tester]
+  conditional: [qe-security-scanner, qe-performance-tester, qe-mutation-tester, qe-message-broker-tester, qe-sap-idoc-tester, qe-sod-analyzer]
   analysis: [qe-defect-predictor]
-  total: 7
+  total: 10
   sub_agents: 0
 skills: [tdd-london-chicago, mutation-testing, performance-testing, security-testing]
 # Execution Models (Task Tool is PRIMARY)
@@ -76,10 +78,10 @@ Development Swarm asks "Is the code quality sufficient to ship?"
 | Dimension | Refinement Swarm | Development Swarm |
 |-----------|------------------|-------------------|
 | Framework | SFDIPOT (7 factors) | TDD + Complexity + Coverage |
-| Agents | 7 (3 core + 3 conditional + 1 transformation) | 7 (3 core + 3 conditional + 1 analysis) |
+| Agents | 10 (3 core + 6 conditional + 1 transformation) | 10 (3 core + 6 conditional + 1 analysis) |
 | Core Output | BDD Gherkin scenarios | Code quality assessment |
 | Decision | READY / CONDITIONAL / NOT-READY | SHIP / CONDITIONAL / HOLD |
-| Flags | HAS_API, HAS_REFACTORING, HAS_DEPENDENCIES, HAS_SECURITY | HAS_SECURITY_CODE, HAS_PERFORMANCE_CODE, HAS_CRITICAL_CODE |
+| Flags | HAS_API, HAS_REFACTORING, HAS_DEPENDENCIES, HAS_SECURITY, HAS_MIDDLEWARE, HAS_SAP_INTEGRATION, HAS_AUTHORIZATION | HAS_SECURITY_CODE, HAS_PERFORMANCE_CODE, HAS_CRITICAL_CODE, HAS_MIDDLEWARE, HAS_SAP_INTEGRATION, HAS_AUTHORIZATION |
 | Phase | Sprint Refinement | During Sprint Development |
 | Input | User stories + acceptance criteria | Source code + test files |
 | Final Step | Test idea rewriter transformation | Defect prediction analysis |
@@ -129,7 +131,7 @@ Development Swarm asks "Is the code quality sufficient to ship?"
 
 Scan the source code, test files, and story context to SET these flags. Do not skip any flag.
 
-### Flag Detection (Check ALL THREE)
+### Flag Detection (Check ALL SIX)
 
 ```
 HAS_SECURITY_CODE = FALSE
@@ -151,6 +153,19 @@ HAS_CRITICAL_CODE = FALSE
   patient, diagnosis, compliance, audit, regulatory, financial,
   accounting, tax, legal, contract, SLA, insurance, claim,
   safety-critical, life-critical
+
+HAS_MIDDLEWARE = FALSE
+  Set TRUE if code contains ANY of: middleware, ESB, message broker, MQ,
+  Kafka, RabbitMQ, integration bus, API gateway, message queue, pub/sub
+
+HAS_SAP_INTEGRATION = FALSE
+  Set TRUE if code contains ANY of: SAP, RFC, BAPI, IDoc, OData,
+  S/4HANA, EWM, ECC, ABAP, CDS view, Fiori
+
+HAS_AUTHORIZATION = FALSE
+  Set TRUE if code contains ANY of: SoD, segregation of duties,
+  role conflict, authorization object, T-code, user role,
+  access control matrix, GRC
 ```
 
 ### Validation Checkpoint
@@ -160,7 +175,7 @@ Before proceeding to Phase 2, confirm:
 ```
 +-- I have read the source code files under analysis
 +-- I have read the associated test files
-+-- I have evaluated ALL THREE flags
++-- I have evaluated ALL SIX flags
 +-- I have recorded which flags are TRUE
 +-- I understand which conditional agents will be needed
 ```
@@ -183,6 +198,15 @@ You MUST output flag detection results before proceeding:
 |  Evidence:             [what triggered it - specific code]  |
 |                                                             |
 |  HAS_CRITICAL_CODE:    [TRUE/FALSE]                         |
+|  Evidence:             [what triggered it - specific code]  |
+|                                                             |
+|  HAS_MIDDLEWARE:       [TRUE/FALSE]                         |
+|  Evidence:             [what triggered it - specific code]  |
+|                                                             |
+|  HAS_SAP_INTEGRATION: [TRUE/FALSE]                         |
+|  Evidence:             [what triggered it - specific code]  |
+|                                                             |
+|  HAS_AUTHORIZATION:   [TRUE/FALSE]                         |
 |  Evidence:             [what triggered it - specific code]  |
 |                                                             |
 |  EXPECTED AGENTS:                                           |
@@ -638,9 +662,12 @@ Output extracted metrics:
 +-------------------------------------------------------------+
 |  IF A FLAG IS TRUE, YOU MUST SPAWN THAT AGENT                |
 |                                                              |
-|  HAS_SECURITY_CODE = TRUE    -> MUST spawn qe-security-scanner  |
-|  HAS_PERFORMANCE_CODE = TRUE -> MUST spawn qe-performance-tester |
-|  HAS_CRITICAL_CODE = TRUE    -> MUST spawn qe-mutation-tester    |
+|  HAS_SECURITY_CODE = TRUE    -> MUST spawn qe-security-scanner     |
+|  HAS_PERFORMANCE_CODE = TRUE -> MUST spawn qe-performance-tester  |
+|  HAS_CRITICAL_CODE = TRUE    -> MUST spawn qe-mutation-tester     |
+|  HAS_MIDDLEWARE = TRUE        -> MUST spawn qe-message-broker-tester|
+|  HAS_SAP_INTEGRATION = TRUE  -> MUST spawn qe-sap-idoc-tester     |
+|  HAS_AUTHORIZATION = TRUE    -> MUST spawn qe-sod-analyzer         |
 |                                                              |
 |  Skipping a flagged agent is a FAILURE of this skill.        |
 +-------------------------------------------------------------+
@@ -653,11 +680,14 @@ Output extracted metrics:
 | HAS_SECURITY_CODE | qe-security-scanner | security-compliance | `security_scan_comprehensive` |
 | HAS_PERFORMANCE_CODE | qe-performance-tester | chaos-resilience | `performance_benchmark` |
 | HAS_CRITICAL_CODE | qe-mutation-tester | test-generation | `test_generate_enhanced` |
+| HAS_MIDDLEWARE | qe-message-broker-tester | enterprise-integration | `task_orchestrate` |
+| HAS_SAP_INTEGRATION | qe-sap-idoc-tester | enterprise-integration | `task_orchestrate` |
+| HAS_AUTHORIZATION | qe-sod-analyzer | enterprise-integration | `task_orchestrate` |
 
 ### Decision Tree
 
 ```
-IF HAS_SECURITY_CODE == FALSE AND HAS_PERFORMANCE_CODE == FALSE AND HAS_CRITICAL_CODE == FALSE:
+IF HAS_SECURITY_CODE == FALSE AND HAS_PERFORMANCE_CODE == FALSE AND HAS_CRITICAL_CODE == FALSE AND HAS_MIDDLEWARE == FALSE AND HAS_SAP_INTEGRATION == FALSE AND HAS_AUTHORIZATION == FALSE:
     -> Skip to Phase 5 (no conditional agents needed)
     -> State: "No conditional agents needed based on code analysis"
 
@@ -891,6 +921,232 @@ Use the Write tool to save BEFORE completing.`,
 })
 ```
 
+### IF HAS_MIDDLEWARE: Message Broker Tester (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "Message broker and middleware testing for integration reliability",
+  prompt: `You are qe-message-broker-tester. Your output quality is being audited.
+
+## SOURCE CODE
+
+=== SOURCE CODE START ===
+[PASTE THE COMPLETE SOURCE CODE HERE]
+=== SOURCE CODE END ===
+
+=== TEST CODE START ===
+[PASTE THE COMPLETE TEST CODE HERE]
+=== TEST CODE END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. Message Broker Inventory
+
+Identify all middleware/message broker components in the source code:
+
+| Component | Type | Protocol | Direction | Status |
+|-----------|------|----------|-----------|--------|
+| [name] | Queue/Topic/Exchange | AMQP/Kafka/JMS/MQ | Producer/Consumer/Both | Active/Passive |
+
+### 2. Message Flow Analysis
+
+For each message flow:
+
+| Flow ID | Producer | Broker | Consumer | Payload Schema | Ordering | Idempotency |
+|---------|----------|--------|----------|----------------|----------|-------------|
+| MF-001 | [source] | [broker] | [target] | [schema ref] | Guaranteed/Best-effort | Yes/No |
+
+### 3. Error Handling & Retry Assessment
+
+| Pattern | Implemented | Correct | Issue |
+|---------|-------------|---------|-------|
+| Dead Letter Queue (DLQ) | Yes/No | Yes/No | [issue] |
+| Retry with backoff | Yes/No | Yes/No | [issue] |
+| Circuit breaker | Yes/No | Yes/No | [issue] |
+| Poison message handling | Yes/No | Yes/No | [issue] |
+| Duplicate detection | Yes/No | Yes/No | [issue] |
+
+### 4. Pub/Sub Verification
+
+| Topic/Exchange | Publishers | Subscribers | Fan-out | Filtering | Test Coverage |
+|----------------|------------|-------------|---------|-----------|---------------|
+| [name] | [count] | [count] | [type] | [rules] | [%] |
+
+### 5. Message Contract Validation
+
+| Contract | Schema Validation | Versioning | Backward Compatible | Breaking Changes |
+|----------|-------------------|------------|---------------------|------------------|
+| [name] | Yes/No | [strategy] | Yes/No | [list] |
+
+### 6. Recommendations
+
+| Priority | Action | Impact | Effort |
+|----------|--------|--------|--------|
+| P0 | [critical middleware issues] | [what risk] | [effort] |
+| P1 | [important improvements] | [what risk] | [effort] |
+
+**MIDDLEWARE HEALTH SCORE: X/50**
+
+## OUTPUT FORMAT
+
+Save to: $\{OUTPUT_FOLDER}/10-middleware-testing.md
+Use the Write tool to save BEFORE completing.`,
+  subagent_type: "qe-message-broker-tester",
+  run_in_background: true
+})
+```
+
+### IF HAS_SAP_INTEGRATION: SAP IDoc Tester (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "SAP IDoc processing and BAPI testing for data flow validation",
+  prompt: `You are qe-sap-idoc-tester. Your output quality is being audited.
+
+## SOURCE CODE
+
+=== SOURCE CODE START ===
+[PASTE THE COMPLETE SOURCE CODE HERE]
+=== SOURCE CODE END ===
+
+=== TEST CODE START ===
+[PASTE THE COMPLETE TEST CODE HERE]
+=== TEST CODE END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. SAP Integration Inventory
+
+Identify all SAP integration points in the source code:
+
+| Integration Point | Type | Direction | SAP System | Protocol | Status |
+|-------------------|------|-----------|------------|----------|--------|
+| [name] | RFC/BAPI/IDoc/OData/CDS | Inbound/Outbound | S/4HANA/ECC/EWM | [protocol] | Active/Passive |
+
+### 2. IDoc Processing Analysis
+
+For each IDoc type:
+
+| IDoc Type | Message Type | Direction | Segments | Partner Profile | Error Handling | Test Coverage |
+|-----------|-------------|-----------|----------|-----------------|----------------|---------------|
+| [type] | [msg type] | In/Out | [count] | [profile] | [strategy] | [%] |
+
+### 3. BAPI/RFC Call Assessment
+
+| BAPI/RFC | Parameters | Commit Handling | Error Codes | Rollback | Idempotency |
+|----------|------------|-----------------|-------------|----------|-------------|
+| [name] | In:[n] Out:[n] | BAPI_TRANSACTION_COMMIT? | [handled codes] | Yes/No | Yes/No |
+
+### 4. Data Flow Validation
+
+| Flow | Source | Mapping | Target | Transformation | Validation Rules | Gaps |
+|------|--------|---------|--------|----------------|------------------|------|
+| [name] | [field map] | [logic] | [SAP field] | [rules] | [validation] | [gaps] |
+
+### 5. SAP-Specific Test Coverage
+
+| Test Type | Coverage | Critical Gaps |
+|-----------|----------|---------------|
+| IDoc parsing/generation | [%] | [gaps] |
+| BAPI call/response | [%] | [gaps] |
+| RFC error handling | [%] | [gaps] |
+| Data mapping accuracy | [%] | [gaps] |
+| Transaction integrity | [%] | [gaps] |
+
+### 6. Recommendations
+
+| Priority | Action | Impact | Effort |
+|----------|--------|--------|--------|
+| P0 | [critical SAP integration issues] | [what risk] | [effort] |
+| P1 | [important improvements] | [what risk] | [effort] |
+
+**SAP INTEGRATION HEALTH SCORE: X/50**
+
+## OUTPUT FORMAT
+
+Save to: $\{OUTPUT_FOLDER}/11-sap-idoc-testing.md
+Use the Write tool to save BEFORE completing.`,
+  subagent_type: "qe-sap-idoc-tester",
+  run_in_background: true
+})
+```
+
+### IF HAS_AUTHORIZATION: SoD Analyzer (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "Segregation of duties and authorization conflict analysis",
+  prompt: `You are qe-sod-analyzer. Your output quality is being audited.
+
+## SOURCE CODE
+
+=== SOURCE CODE START ===
+[PASTE THE COMPLETE SOURCE CODE HERE]
+=== SOURCE CODE END ===
+
+=== TEST CODE START ===
+[PASTE THE COMPLETE TEST CODE HERE]
+=== TEST CODE END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. Authorization Model Inventory
+
+Identify all authorization constructs in the source code:
+
+| Component | Type | Mechanism | Granularity | Status |
+|-----------|------|-----------|-------------|--------|
+| [name] | Role/Permission/Policy | RBAC/ABAC/ACL | Resource/Action/Field | Active/Passive |
+
+### 2. Segregation of Duties Matrix
+
+| Function A | Function B | Conflict Type | Risk Level | Mitigating Control | Test Coverage |
+|------------|------------|---------------|------------|-------------------|---------------|
+| [create order] | [approve order] | SoD violation | Critical/High/Med | [control] | [%] |
+
+### 3. Role Conflict Detection
+
+| Role | Permissions | Conflicts With | Conflict Type | Remediation |
+|------|-------------|---------------|---------------|-------------|
+| [role] | [permissions list] | [conflicting role] | [SoD/privilege escalation] | [action] |
+
+### 4. Authorization Test Coverage
+
+| Test Type | Coverage | Critical Gaps |
+|-----------|----------|---------------|
+| Positive access tests | [%] | [gaps] |
+| Negative access tests | [%] | [gaps] |
+| Cross-role access | [%] | [gaps] |
+| Privilege escalation | [%] | [gaps] |
+| SoD enforcement | [%] | [gaps] |
+
+### 5. Access Control Code Quality
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Authorization checks per endpoint | [ratio] | >= 1.0 | PASS/FAIL |
+| Hardcoded roles/permissions | [count] | 0 | PASS/FAIL |
+| Missing access control | [count] | 0 | PASS/FAIL |
+| Default-allow patterns | [count] | 0 | PASS/FAIL |
+
+### 6. Recommendations
+
+| Priority | Action | Impact | Effort |
+|----------|--------|--------|--------|
+| P0 | [critical authorization issues] | [what risk] | [effort] |
+| P1 | [important improvements] | [what risk] | [effort] |
+
+**AUTHORIZATION HEALTH SCORE: X/50**
+
+## OUTPUT FORMAT
+
+Save to: $\{OUTPUT_FOLDER}/12-sod-analysis.md
+Use the Write tool to save BEFORE completing.`,
+  subagent_type: "qe-sod-analyzer",
+  run_in_background: true
+})
+```
+
 ### Agent Count Validation
 
 **Before proceeding, verify agent count:**
@@ -909,6 +1165,9 @@ Use the Write tool to save BEFORE completing.`,
 |    [ ] qe-security-scanner - SPAWNED? [Y/N] (HAS_SECURITY)  |
 |    [ ] qe-performance-tester - SPAWNED? [Y/N] (HAS_PERF)    |
 |    [ ] qe-mutation-tester - SPAWNED? [Y/N] (HAS_CRITICAL)   |
+|    [ ] qe-message-broker-tester - SPAWNED? [Y/N] (HAS_MIDDLEWARE)  |
+|    [ ] qe-sap-idoc-tester - SPAWNED? [Y/N] (HAS_SAP_INTEG)        |
+|    [ ] qe-sod-analyzer - SPAWNED? [Y/N] (HAS_AUTHORIZATION)       |
 |                                                              |
 |  VALIDATION:                                                 |
 |    Expected agents: [3 + count of TRUE flags]                |
@@ -934,6 +1193,12 @@ I've launched [N] conditional agent(s) in parallel:
                           - Algorithm complexity, bottleneck detection, resource analysis
 [IF HAS_CRITICAL_CODE]    qe-mutation-tester [Domain: test-generation]
                           - Mutation testing, surviving mutant analysis, test effectiveness
+[IF HAS_MIDDLEWARE]       qe-message-broker-tester [Domain: enterprise-integration]
+                          - Message broker testing, queue validation, pub/sub verification
+[IF HAS_SAP_INTEGRATION] qe-sap-idoc-tester [Domain: enterprise-integration]
+                          - IDoc processing, BAPI testing, SAP data flow validation
+[IF HAS_AUTHORIZATION]    qe-sod-analyzer [Domain: enterprise-integration]
+                          - Segregation of duties, role conflict, authorization analysis
 
   WAITING for conditional agents to complete...
 ```
@@ -1105,6 +1370,15 @@ If recommendation is HOLD, provide mandatory remediation:
 ### Mutation Analysis (IF HAS_CRITICAL_CODE)
 [Full output from qe-mutation-tester]
 
+### Middleware Testing (IF HAS_MIDDLEWARE)
+[Full output from qe-message-broker-tester]
+
+### SAP IDoc Testing (IF HAS_SAP_INTEGRATION)
+[Full output from qe-sap-idoc-tester]
+
+### SoD Analysis (IF HAS_AUTHORIZATION)
+[Full output from qe-sod-analyzer]
+
 ---
 
 ## Recommended Actions
@@ -1204,7 +1478,10 @@ mcp__agentic-qe__memory_store({
     flags: {
       HAS_SECURITY_CODE: HAS_SECURITY_CODE,
       HAS_PERFORMANCE_CODE: HAS_PERFORMANCE_CODE,
-      HAS_CRITICAL_CODE: HAS_CRITICAL_CODE
+      HAS_CRITICAL_CODE: HAS_CRITICAL_CODE,
+      HAS_MIDDLEWARE: HAS_MIDDLEWARE,
+      HAS_SAP_INTEGRATION: HAS_SAP_INTEGRATION,
+      HAS_AUTHORIZATION: HAS_AUTHORIZATION
     },
     agentsInvoked: agentList,
     timestamp: new Date().toISOString()
@@ -1251,7 +1528,10 @@ Contents:
   "flags": {
     "HAS_SECURITY_CODE": true/false,
     "HAS_PERFORMANCE_CODE": true/false,
-    "HAS_CRITICAL_CODE": true/false
+    "HAS_CRITICAL_CODE": true/false,
+    "HAS_MIDDLEWARE": true/false,
+    "HAS_SAP_INTEGRATION": true/false,
+    "HAS_AUTHORIZATION": true/false
   },
   "agentsInvoked": ["list", "of", "agents"],
   "crossPhaseSignals": {
@@ -1466,6 +1746,12 @@ Use the Write tool to save BEFORE completing.
 |  +-- Performance Score:     __/40                                     |
 |  [IF HAS_CRITICAL_CODE]                                               |
 |  +-- Mutation Score:        __%                                       |
+|  [IF HAS_MIDDLEWARE]                                                  |
+|  +-- Middleware Health:     __/50                                     |
+|  [IF HAS_SAP_INTEGRATION]                                            |
+|  +-- SAP Integration:      __/50                                     |
+|  [IF HAS_AUTHORIZATION]                                              |
+|  +-- Authorization Health:  __/50                                     |
 |                                                                      |
 |  RECOMMENDATION: [SHIP / CONDITIONAL / HOLD]                          |
 |  REASON: [1-2 sentence rationale]                                     |
@@ -1481,6 +1767,12 @@ Use the Write tool to save BEFORE completing.
 |  +-- 06-performance-profile.md                                        |
 |  [IF HAS_CRITICAL_CODE]                                               |
 |  +-- 07-mutation-analysis.md                                          |
+|  [IF HAS_MIDDLEWARE]                                                  |
+|  +-- 10-middleware-testing.md                                         |
+|  [IF HAS_SAP_INTEGRATION]                                            |
+|  +-- 11-sap-idoc-testing.md                                          |
+|  [IF HAS_AUTHORIZATION]                                              |
+|  +-- 12-sod-analysis.md                                              |
 |  +-- 08-defect-prediction.md                                          |
 |  +-- 09-learning-persistence.json                                     |
 |                                                                      |
@@ -1541,6 +1833,9 @@ Use the Write tool to save BEFORE completing.
 | qe-security-scanner | `05-security-scan.md` | Batch 2 (conditional) |
 | qe-performance-tester | `06-performance-profile.md` | Batch 2 (conditional) |
 | qe-mutation-tester | `07-mutation-analysis.md` | Batch 2 (conditional) |
+| qe-message-broker-tester | `10-middleware-testing.md` | Batch 2 (conditional) |
+| qe-sap-idoc-tester | `11-sap-idoc-testing.md` | Batch 2 (conditional) |
+| qe-sod-analyzer | `12-sod-analysis.md` | Batch 2 (conditional) |
 | qe-defect-predictor | `08-defect-prediction.md` | Batch 3 (analysis) |
 | Learning Persistence | `09-learning-persistence.json` | Phase 7 (auto-execute) |
 | Synthesis | `01-executive-summary.md` | Phase 6 |
@@ -1549,7 +1844,7 @@ Use the Write tool to save BEFORE completing.
 
 ## DDD Domain Integration
 
-This swarm operates across **3 primary domains**, **3 conditional domains**,
+This swarm operates across **3 primary domains**, **4 conditional domains**,
 and **1 analysis domain**:
 
 ```
@@ -1582,6 +1877,14 @@ and **1 analysis domain**:
 |  | [IF HAS_SECURITY_CODE]|  |  tester               |  | tester           | |
 |  |                       |  |  [IF HAS_PERF_CODE]   |  | [IF HAS_CRITICAL]| |
 |  +-----------------------+  +-----------------------+  +------------------+ |
+|                                                                              |
+|  +-----------------------------------------------------------------------+  |
+|  |                  enterprise-integration                                |  |
+|  |  -----------------------------------------------------------------   |  |
+|  |  - qe-message-broker-tester [IF HAS_MIDDLEWARE]                      |  |
+|  |  - qe-sap-idoc-tester [IF HAS_SAP_INTEGRATION]                      |  |
+|  |  - qe-sod-analyzer [IF HAS_AUTHORIZATION]                           |  |
+|  +-----------------------------------------------------------------------+  |
 |                                                                              |
 |  ANALYSIS DOMAIN (Always Active)                                             |
 |  +-----------------------------------------------------------------------+  |
@@ -1650,7 +1953,7 @@ npx @claude-flow/cli@latest agent spawn --type qe-coverage-specialist
 
 | Phase | Must Do | Failure Condition |
 |-------|---------|-------------------|
-| 1 | Check ALL 3 flags | Missing flag evaluation |
+| 1 | Check ALL 6 flags | Missing flag evaluation |
 | 2 | Spawn ALL 3 core agents in ONE message | Fewer than 3 Task calls |
 | 3 | WAIT for completion | Proceeding before results |
 | 4 | Spawn ALL flagged conditional agents | Skipping a TRUE flag |
@@ -1679,6 +1982,9 @@ npx @claude-flow/cli@latest agent spawn --type qe-coverage-specialist
 | security-compliance | qe-security-scanner | Conditional (HAS_SECURITY_CODE) | 2 |
 | chaos-resilience | qe-performance-tester | Conditional (HAS_PERFORMANCE_CODE) | 2 |
 | test-generation | qe-mutation-tester | Conditional (HAS_CRITICAL_CODE) | 2 |
+| enterprise-integration | qe-message-broker-tester | Conditional (HAS_MIDDLEWARE) | 2 |
+| enterprise-integration | qe-sap-idoc-tester | Conditional (HAS_SAP_INTEGRATION) | 2 |
+| enterprise-integration | qe-sod-analyzer | Conditional (HAS_AUTHORIZATION) | 2 |
 | defect-intelligence | qe-defect-predictor | Analysis (ALWAYS) | 3 |
 
 ### Execution Model Quick Reference
@@ -1769,6 +2075,15 @@ npx @claude-flow/cli@latest memory list --namespace qcsd-development
     |-----------| |------------| |--------------|
     | sec-compl | | chaos-res  | | test-gen     |
     +-----------+ +------------+ +--------------+
+          +-------------+---+-------------+
+          |             |                 |
+    +-----v------+ +---v--------+ +------v-------+
+    | Msg Broker | | SAP IDoc   | | SoD          |
+    | Tester     | | Tester     | | Analyzer     |
+    | [IF MIDW]  | | [IF SAP]   | | [IF AUTH]    |
+    |------------| |------------| |--------------|
+    | ent-integ  | | ent-integ  | | ent-integ    |
+    +------------+ +------------+ +--------------+
                          |
                   [SYNTHESIS]
                          |
@@ -1801,10 +2116,10 @@ npx @claude-flow/cli@latest memory list --namespace qcsd-development
 
 | Resource Type | Count | Primary | Conditional | Analysis |
 |---------------|:-----:|:-------:|:-----------:|:--------:|
-| **Agents** | 7 | 3 | 3 | 1 |
+| **Agents** | 10 | 3 | 6 | 1 |
 | **Sub-agents** | 0 | - | - | - |
 | **Skills** | 4 | 4 | - | - |
-| **Domains** | 6 | 3 | 3 | 1 |
+| **Domains** | 8 | 3 | 4 | 1 |
 | **Parallel Batches** | 3 | 1 | 1 | 1 |
 
 **Skills Used:**

@@ -219,3 +219,5 @@ scripts/n8n-predeploy-check.sh
 L2C Documents/
 v3/.test-evals/
 v3/docs/reports/
+
+# Enterprise client demo lives in gitignored "Agentic QCSD/" folder

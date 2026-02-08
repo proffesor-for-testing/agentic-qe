@@ -5,7 +5,8 @@
  * Extracted from TestGeneratorService to follow Single Responsibility Principle
  */
 
-import { faker } from '@faker-js/faker';
+import { Faker, faker as fakerEN, allLocales, base, en } from '@faker-js/faker';
+import type { LocaleDefinition } from '@faker-js/faker';
 import { TestDataRequest, TestData } from '../interfaces';
 
 /**
@@ -31,9 +32,31 @@ export interface ITestDataGeneratorService {
 
 /**
  * Test Data Generator Service
- * Generates realistic test data based on schemas
+ * Generates realistic test data based on schemas with locale support
  */
 export class TestDataGeneratorService implements ITestDataGeneratorService {
+  private fakerCache = new Map<string, Faker>();
+
+  /**
+   * Get or create a Faker instance for the given locale.
+   * Caches instances to avoid repeated construction.
+   */
+  private getFaker(locale: string): Faker {
+    const cached = this.fakerCache.get(locale);
+    if (cached) return cached;
+
+    const localeData = (allLocales as Record<string, LocaleDefinition>)[locale];
+    let instance: Faker;
+    if (localeData && locale !== 'en') {
+      instance = new Faker({ locale: [localeData, en, base] });
+    } else {
+      instance = fakerEN;
+    }
+
+    this.fakerCache.set(locale, instance);
+    return instance;
+  }
+
   /**
    * Generate test data based on schema
    */
@@ -41,15 +64,16 @@ export class TestDataGeneratorService implements ITestDataGeneratorService {
     const { schema, count, locale = 'en', preserveRelationships = false } = request;
 
     const seed = Date.now();
+    const f = this.getFaker(locale);
     const records: unknown[] = [];
 
     for (let i = 0; i < count; i++) {
-      const record = this.generateRecordFromSchema(schema, seed + i, locale);
+      const record = this.generateRecordFromSchema(f, schema, seed + i);
       records.push(record);
     }
 
     if (preserveRelationships) {
-      this.linkRelatedRecords(records, schema);
+      this.linkRelatedRecords(f, records, schema);
     }
 
     return {
@@ -60,44 +84,42 @@ export class TestDataGeneratorService implements ITestDataGeneratorService {
   }
 
   private generateRecordFromSchema(
+    f: Faker,
     schema: Record<string, unknown>,
     seed: number,
-    locale: string
   ): Record<string, unknown> {
-    faker.seed(seed);
-    if (locale && locale !== 'en') {
-      // Note: faker v8+ uses different locale handling
-    }
+    f.seed(seed);
 
     const record: Record<string, unknown> = {};
     for (const [key, fieldDef] of Object.entries(schema)) {
-      record[key] = this.generateValueForField(key, fieldDef, seed);
+      record[key] = this.generateValueForField(f, key, fieldDef);
     }
 
     return record;
   }
 
   private generateValueForField(
+    f: Faker,
     fieldName: string,
     fieldDef: unknown,
-    _seed: number
   ): unknown {
     if (typeof fieldDef === 'string') {
-      return this.generateValueForType(fieldDef, fieldName);
+      return this.generateValueForType(f, fieldDef, fieldName);
     }
 
     if (typeof fieldDef === 'object' && fieldDef !== null) {
       const field = fieldDef as SchemaField;
       if (field.faker) {
-        return this.callFakerMethod(field.faker);
+        return this.callFakerMethod(f, field.faker);
       }
-      return this.generateValueForType(field.type, fieldName, field);
+      return this.generateValueForType(f, field.type, fieldName, field);
     }
 
     return null;
   }
 
   private generateValueForType(
+    f: Faker,
     type: string,
     fieldName: string,
     options?: SchemaField
@@ -105,130 +127,130 @@ export class TestDataGeneratorService implements ITestDataGeneratorService {
     const normalizedType = type.toLowerCase();
 
     switch (normalizedType) {
-      case 'string': return this.generateStringValue(fieldName, options);
+      case 'string': return this.generateStringValue(f, fieldName, options);
       case 'number':
       case 'int':
-      case 'integer': return this.generateNumberValue(options);
+      case 'integer': return this.generateNumberValue(f, options);
       case 'float':
-      case 'decimal': return faker.number.float({ min: options?.min ?? 0, max: options?.max ?? 1000, fractionDigits: 2 });
+      case 'decimal': return f.number.float({ min: options?.min ?? 0, max: options?.max ?? 1000, fractionDigits: 2 });
       case 'boolean':
-      case 'bool': return faker.datatype.boolean();
+      case 'bool': return f.datatype.boolean();
       case 'date':
-      case 'datetime': return faker.date.recent().toISOString();
-      case 'email': return faker.internet.email();
+      case 'datetime': return f.date.recent().toISOString();
+      case 'email': return f.internet.email();
       case 'uuid':
-      case 'id': return faker.string.uuid();
-      case 'url': return faker.internet.url();
-      case 'phone': return faker.phone.number();
-      case 'address': return this.generateAddress();
+      case 'id': return f.string.uuid();
+      case 'url': return f.internet.url();
+      case 'phone': return f.phone.number();
+      case 'address': return this.generateAddress(f);
       case 'name':
-      case 'fullname': return faker.person.fullName();
-      case 'firstname': return faker.person.firstName();
-      case 'lastname': return faker.person.lastName();
-      case 'username': return faker.internet.username();
-      case 'password': return faker.internet.password();
-      case 'company': return faker.company.name();
-      case 'jobtitle': return faker.person.jobTitle();
+      case 'fullname': return f.person.fullName();
+      case 'firstname': return f.person.firstName();
+      case 'lastname': return f.person.lastName();
+      case 'username': return f.internet.username();
+      case 'password': return f.internet.password();
+      case 'company': return f.company.name();
+      case 'jobtitle': return f.person.jobTitle();
       case 'text':
-      case 'paragraph': return faker.lorem.paragraph();
-      case 'sentence': return faker.lorem.sentence();
+      case 'paragraph': return f.lorem.paragraph();
+      case 'sentence': return f.lorem.sentence();
       case 'word':
-      case 'words': return faker.lorem.word();
+      case 'words': return f.lorem.word();
       case 'avatar':
-      case 'image': return faker.image.avatar();
-      case 'color': return faker.color.rgb();
+      case 'image': return f.image.avatar();
+      case 'color': return f.color.rgb();
       case 'ipaddress':
-      case 'ip': return faker.internet.ipv4();
-      case 'mac': return faker.internet.mac();
-      case 'latitude': return faker.location.latitude();
-      case 'longitude': return faker.location.longitude();
-      case 'country': return faker.location.country();
-      case 'city': return faker.location.city();
+      case 'ip': return f.internet.ipv4();
+      case 'mac': return f.internet.mac();
+      case 'latitude': return f.location.latitude();
+      case 'longitude': return f.location.longitude();
+      case 'country': return f.location.country();
+      case 'city': return f.location.city();
       case 'zipcode':
-      case 'postalcode': return faker.location.zipCode();
-      case 'creditcard': return faker.finance.creditCardNumber();
-      case 'currency': return faker.finance.currencyCode();
+      case 'postalcode': return f.location.zipCode();
+      case 'creditcard': return f.finance.creditCardNumber();
+      case 'currency': return f.finance.currencyCode();
       case 'amount':
-      case 'price': return faker.finance.amount();
+      case 'price': return f.finance.amount();
       case 'json':
-      case 'object': return { key: faker.lorem.word(), value: faker.lorem.sentence() };
-      case 'array': return [faker.lorem.word(), faker.lorem.word(), faker.lorem.word()];
+      case 'object': return { key: f.lorem.word(), value: f.lorem.sentence() };
+      case 'array': return [f.lorem.word(), f.lorem.word(), f.lorem.word()];
       case 'enum':
         if (options?.enum && options.enum.length > 0) {
-          return faker.helpers.arrayElement(options.enum);
+          return f.helpers.arrayElement(options.enum);
         }
-        return faker.lorem.word();
+        return f.lorem.word();
       default:
-        return this.inferValueFromFieldName(fieldName);
+        return this.inferValueFromFieldName(f, fieldName);
     }
   }
 
-  private generateStringValue(fieldName: string, options?: SchemaField): string {
+  private generateStringValue(f: Faker, fieldName: string, options?: SchemaField): string {
     const lowerName = fieldName.toLowerCase();
 
-    if (lowerName.includes('email')) return faker.internet.email();
-    if (lowerName.includes('name') && lowerName.includes('first')) return faker.person.firstName();
-    if (lowerName.includes('name') && lowerName.includes('last')) return faker.person.lastName();
-    if (lowerName.includes('name')) return faker.person.fullName();
-    if (lowerName.includes('phone')) return faker.phone.number();
-    if (lowerName.includes('address')) return faker.location.streetAddress();
-    if (lowerName.includes('city')) return faker.location.city();
-    if (lowerName.includes('country')) return faker.location.country();
-    if (lowerName.includes('zip') || lowerName.includes('postal')) return faker.location.zipCode();
-    if (lowerName.includes('url') || lowerName.includes('website')) return faker.internet.url();
-    if (lowerName.includes('username') || lowerName.includes('user')) return faker.internet.username();
-    if (lowerName.includes('password')) return faker.internet.password();
-    if (lowerName.includes('description') || lowerName.includes('bio')) return faker.lorem.paragraph();
-    if (lowerName.includes('title')) return faker.lorem.sentence();
-    if (lowerName.includes('company')) return faker.company.name();
-    if (lowerName.includes('job')) return faker.person.jobTitle();
-    if (lowerName.includes('avatar') || lowerName.includes('image')) return faker.image.avatar();
+    if (lowerName.includes('email')) return f.internet.email();
+    if (lowerName.includes('name') && lowerName.includes('first')) return f.person.firstName();
+    if (lowerName.includes('name') && lowerName.includes('last')) return f.person.lastName();
+    if (lowerName.includes('name')) return f.person.fullName();
+    if (lowerName.includes('phone')) return f.phone.number();
+    if (lowerName.includes('address')) return f.location.streetAddress();
+    if (lowerName.includes('city')) return f.location.city();
+    if (lowerName.includes('country')) return f.location.country();
+    if (lowerName.includes('zip') || lowerName.includes('postal')) return f.location.zipCode();
+    if (lowerName.includes('url') || lowerName.includes('website')) return f.internet.url();
+    if (lowerName.includes('username') || lowerName.includes('user')) return f.internet.username();
+    if (lowerName.includes('password')) return f.internet.password();
+    if (lowerName.includes('description') || lowerName.includes('bio')) return f.lorem.paragraph();
+    if (lowerName.includes('title')) return f.lorem.sentence();
+    if (lowerName.includes('company')) return f.company.name();
+    if (lowerName.includes('job')) return f.person.jobTitle();
+    if (lowerName.includes('avatar') || lowerName.includes('image')) return f.image.avatar();
 
     if (options?.pattern) {
-      return faker.helpers.fromRegExp(options.pattern);
+      return f.helpers.fromRegExp(options.pattern);
     }
 
-    return faker.lorem.words(3);
+    return f.lorem.words(3);
   }
 
-  private generateNumberValue(options?: SchemaField): number {
+  private generateNumberValue(f: Faker, options?: SchemaField): number {
     const min = options?.min ?? 0;
     const max = options?.max ?? 10000;
-    return faker.number.int({ min, max });
+    return f.number.int({ min, max });
   }
 
-  private generateAddress(): Record<string, string> {
+  private generateAddress(f: Faker): Record<string, string> {
     return {
-      street: faker.location.streetAddress(),
-      city: faker.location.city(),
-      state: faker.location.state(),
-      zipCode: faker.location.zipCode(),
-      country: faker.location.country(),
+      street: f.location.streetAddress(),
+      city: f.location.city(),
+      state: f.location.state(),
+      zipCode: f.location.zipCode(),
+      country: f.location.country(),
     };
   }
 
-  private inferValueFromFieldName(fieldName: string): unknown {
+  private inferValueFromFieldName(f: Faker, fieldName: string): unknown {
     const lowerName = fieldName.toLowerCase();
 
-    if (lowerName.includes('id')) return faker.string.uuid();
-    if (lowerName.includes('email')) return faker.internet.email();
-    if (lowerName.includes('name')) return faker.person.fullName();
-    if (lowerName.includes('phone')) return faker.phone.number();
-    if (lowerName.includes('date') || lowerName.includes('time')) return faker.date.recent().toISOString();
-    if (lowerName.includes('url')) return faker.internet.url();
-    if (lowerName.includes('count') || lowerName.includes('amount')) return faker.number.int({ min: 0, max: 100 });
-    if (lowerName.includes('price')) return faker.finance.amount();
+    if (lowerName.includes('id')) return f.string.uuid();
+    if (lowerName.includes('email')) return f.internet.email();
+    if (lowerName.includes('name')) return f.person.fullName();
+    if (lowerName.includes('phone')) return f.phone.number();
+    if (lowerName.includes('date') || lowerName.includes('time')) return f.date.recent().toISOString();
+    if (lowerName.includes('url')) return f.internet.url();
+    if (lowerName.includes('count') || lowerName.includes('amount')) return f.number.int({ min: 0, max: 100 });
+    if (lowerName.includes('price')) return f.finance.amount();
     if (lowerName.includes('active') || lowerName.includes('enabled') || lowerName.includes('is')) {
-      return faker.datatype.boolean();
+      return f.datatype.boolean();
     }
 
-    return faker.lorem.word();
+    return f.lorem.word();
   }
 
-  private callFakerMethod(methodPath: string): unknown {
+  private callFakerMethod(f: Faker, methodPath: string): unknown {
     try {
       const parts = methodPath.split('.');
-      let result: unknown = faker;
+      let result: unknown = f;
 
       for (const part of parts) {
         if (result && typeof result === 'object' && part in result) {
@@ -239,17 +261,18 @@ export class TestDataGeneratorService implements ITestDataGeneratorService {
             result = next;
           }
         } else {
-          return faker.lorem.word();
+          return f.lorem.word();
         }
       }
 
       return result;
     } catch {
-      return faker.lorem.word();
+      return f.lorem.word();
     }
   }
 
   private linkRelatedRecords(
+    f: Faker,
     records: unknown[],
     schema: Record<string, unknown>
   ): void {
@@ -270,9 +293,9 @@ export class TestDataGeneratorService implements ITestDataGeneratorService {
         for (const { field, reference } of referenceFields) {
           if (i > 0 && reference === 'id') {
             const prevRecord = records[Math.floor(Math.random() * i)] as Record<string, unknown>;
-            record[field] = prevRecord['id'] ?? faker.string.uuid();
+            record[field] = prevRecord['id'] ?? f.string.uuid();
           } else {
-            record[field] = faker.string.uuid();
+            record[field] = f.string.uuid();
           }
         }
       }

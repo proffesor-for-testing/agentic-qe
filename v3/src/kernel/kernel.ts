@@ -39,6 +39,7 @@ import { createVisualAccessibilityPlugin } from '../domains/visual-accessibility
 import { createChaosResiliencePlugin } from '../domains/chaos-resilience/plugin';
 import { createLearningOptimizationPlugin } from '../domains/learning-optimization/plugin';
 import { createCoordinationPlugin } from '../coordination/plugin';
+import { createEnterpriseIntegrationPlugin } from '../domains/enterprise-integration/plugin';
 
 // Domain factory map - returns plugin instances (not Promises)
 type PluginFactoryFn = (eventBus: EventBus, memory: MemoryBackend, coordinator: AgentCoordinator) => import('./interfaces').DomainPlugin;
@@ -56,6 +57,7 @@ const DOMAIN_FACTORIES: Record<DomainName, PluginFactoryFn> = {
   'visual-accessibility': (eb, m, c) => createVisualAccessibilityPlugin(eb, m, c),
   'chaos-resilience': (eb, m, c) => createChaosResiliencePlugin(eb, m, c),
   'learning-optimization': (eb, m, c) => createLearningOptimizationPlugin(eb, m, c),
+  'enterprise-integration': (eb, m, c) => createEnterpriseIntegrationPlugin(eb, m, c),
   'coordination': (eb, m, c) => createCoordinationPlugin(eb, m, c),
 };
 

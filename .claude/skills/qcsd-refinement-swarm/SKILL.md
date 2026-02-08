@@ -15,15 +15,17 @@ domains:
       agents: [qe-contract-validator]
     - domain: code-intelligence
       agents: [qe-impact-analyzer, qe-dependency-mapper]
+    - domain: enterprise-integration
+      agents: [qe-middleware-validator, qe-odata-contract-tester, qe-sod-analyzer]
   transformation:
     - domain: test-generation
       agents: [qe-test-idea-rewriter]
 # Agent Inventory
 agents:
   core: [qe-product-factors-assessor, qe-bdd-generator, qe-requirements-validator]
-  conditional: [qe-contract-validator, qe-impact-analyzer, qe-dependency-mapper]
+  conditional: [qe-contract-validator, qe-impact-analyzer, qe-dependency-mapper, qe-middleware-validator, qe-odata-contract-tester, qe-sod-analyzer]
   transformation: [qe-test-idea-rewriter]
-  total: 7
+  total: 10
   sub_agents: 0
 skills: [context-driven-testing, testability-scoring, risk-based-testing]
 # Execution Models (Task Tool is PRIMARY)
@@ -61,10 +63,10 @@ this?" using SFDIPOT product factors, BDD scenarios, and INVEST validation.
 | Dimension | Ideation Swarm | Refinement Swarm |
 |-----------|---------------|------------------|
 | Framework | HTSM v6.3 (10 categories) | SFDIPOT (7 factors, 37 subcategories) |
-| Agents | 6 (3 core + 3 conditional) | 7 (3 core + 3 conditional + 1 transformation) |
+| Agents | 9 (3 core + 6 conditional) | 10 (3 core + 6 conditional + 1 transformation) |
 | Core Output | Quality Criteria HTML report | BDD Gherkin scenarios |
 | Decision | GO / CONDITIONAL / NO-GO | READY / CONDITIONAL / NOT-READY |
-| Flags | HAS_UI, HAS_SECURITY, HAS_UX | HAS_API, HAS_REFACTORING, HAS_DEPENDENCIES, HAS_SECURITY |
+| Flags | HAS_UI, HAS_SECURITY, HAS_UX, HAS_MIDDLEWARE, HAS_SAP_INTEGRATION, HAS_AUTHORIZATION | HAS_API, HAS_REFACTORING, HAS_DEPENDENCIES, HAS_SECURITY, HAS_MIDDLEWARE, HAS_SAP_INTEGRATION, HAS_AUTHORIZATION |
 | Phase | PI Planning / Sprint Planning | Sprint Refinement |
 | Final Step | Report generation | Test idea rewriter transformation |
 
@@ -105,7 +107,7 @@ this?" using SFDIPOT product factors, BDD scenarios, and INVEST validation.
 
 Scan the story content and SET these flags. Do not skip any flag.
 
-### Flag Detection (Check ALL FOUR)
+### Flag Detection (Check ALL SEVEN)
 
 ```
 HAS_API = FALSE
@@ -127,6 +129,19 @@ HAS_SECURITY = FALSE
   Set TRUE if story contains ANY of: auth, security, credential, token,
   encrypt, PII, compliance, password, login, session, OAuth, JWT,
   permission, role, access control, RBAC, sensitive, private
+
+HAS_MIDDLEWARE = FALSE
+  Set TRUE if story contains ANY of: middleware, ESB, message broker, MQ,
+  Kafka, RabbitMQ, integration bus, API gateway, message queue, pub/sub
+
+HAS_SAP_INTEGRATION = FALSE
+  Set TRUE if story contains ANY of: SAP, RFC, BAPI, IDoc, OData,
+  S/4HANA, EWM, ECC, ABAP, CDS view, Fiori
+
+HAS_AUTHORIZATION = FALSE
+  Set TRUE if story contains ANY of: SoD, segregation of duties,
+  role conflict, authorization object, T-code, user role,
+  access control matrix, GRC
 ```
 
 ### Validation Checkpoint
@@ -135,7 +150,7 @@ Before proceeding to Phase 2, confirm:
 
 ```
 +-- I have read the entire story content
-+-- I have evaluated ALL FOUR flags
++-- I have evaluated ALL SEVEN flags
 +-- I have recorded which flags are TRUE
 +-- I understand which conditional agents will be needed
 ```
@@ -162,6 +177,15 @@ You MUST output flag detection results before proceeding:
 |                                                             |
 |  HAS_SECURITY:     [TRUE/FALSE]                             |
 |  Evidence:         [what triggered it - specific patterns]  |
+|                                                             |
+|  HAS_MIDDLEWARE:       [TRUE/FALSE]                         |
+|  Evidence:             [what triggered it - specific]       |
+|                                                             |
+|  HAS_SAP_INTEGRATION: [TRUE/FALSE]                         |
+|  Evidence:             [what triggered it - specific]       |
+|                                                             |
+|  HAS_AUTHORIZATION:   [TRUE/FALSE]                         |
+|  Evidence:             [what triggered it - specific]       |
 |                                                             |
 |  EXPECTED AGENTS:                                           |
 |  - Core: 3 (always)                                         |
@@ -782,9 +806,12 @@ Output extracted metrics:
 +-------------------------------------------------------------+
 |  IF A FLAG IS TRUE, YOU MUST SPAWN THAT AGENT                |
 |                                                              |
-|  HAS_API = TRUE          -> MUST spawn qe-contract-validator |
-|  HAS_REFACTORING = TRUE  -> MUST spawn qe-impact-analyzer   |
-|  HAS_DEPENDENCIES = TRUE -> MUST spawn qe-dependency-mapper  |
+|  HAS_API = TRUE              -> MUST spawn qe-contract-validator    |
+|  HAS_REFACTORING = TRUE      -> MUST spawn qe-impact-analyzer      |
+|  HAS_DEPENDENCIES = TRUE     -> MUST spawn qe-dependency-mapper     |
+|  HAS_MIDDLEWARE = TRUE        -> MUST spawn qe-middleware-validator  |
+|  HAS_SAP_INTEGRATION = TRUE  -> MUST spawn qe-odata-contract-tester|
+|  HAS_AUTHORIZATION = TRUE    -> MUST spawn qe-sod-analyzer          |
 |                                                              |
 |  Skipping a flagged agent is a FAILURE of this skill.        |
 +-------------------------------------------------------------+
@@ -797,11 +824,14 @@ Output extracted metrics:
 | HAS_API | qe-contract-validator | contract-testing | `contract_test` |
 | HAS_REFACTORING | qe-impact-analyzer | code-intelligence | `coverage_analyze_sublinear` |
 | HAS_DEPENDENCIES | qe-dependency-mapper | code-intelligence | `defect_predict` |
+| HAS_MIDDLEWARE | qe-middleware-validator | enterprise-integration | `task_orchestrate` |
+| HAS_SAP_INTEGRATION | qe-odata-contract-tester | enterprise-integration | `task_orchestrate` |
+| HAS_AUTHORIZATION | qe-sod-analyzer | enterprise-integration | `task_orchestrate` |
 
 ### Decision Tree
 
 ```
-IF HAS_API == FALSE AND HAS_REFACTORING == FALSE AND HAS_DEPENDENCIES == FALSE:
+IF HAS_API == FALSE AND HAS_REFACTORING == FALSE AND HAS_DEPENDENCIES == FALSE AND HAS_MIDDLEWARE == FALSE AND HAS_SAP_INTEGRATION == FALSE AND HAS_AUTHORIZATION == FALSE:
     -> Skip to Phase 5 (no conditional agents needed)
     -> State: "No conditional agents needed based on story analysis"
 
@@ -1037,6 +1067,209 @@ Use the Write tool to save BEFORE completing.`,
 })
 ```
 
+### IF HAS_MIDDLEWARE: Middleware Validator (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "Middleware routing, transformation, and ESB flow validation",
+  prompt: `You are qe-middleware-validator. Your output quality is being audited.
+
+## STORY CONTENT
+
+=== STORY CONTENT START ===
+[PASTE THE COMPLETE STORY CONTENT HERE]
+=== STORY CONTENT END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. Middleware Topology Inventory
+
+Map ALL middleware components mentioned or implied:
+
+| Component | Type | Protocol | Direction | SLA |
+|-----------|------|----------|-----------|-----|
+| ... | ESB/MQ/Gateway/Broker | AMQP/MQTT/HTTP/gRPC | Inbound/Outbound/Bidirectional | [latency/throughput] |
+
+### 2. Message Flow Analysis
+
+For each message flow:
+
+| Flow | Source | Middleware | Target | Transform? | Error Handling |
+|------|--------|-----------|--------|------------|----------------|
+| ... | [producer] | [broker/ESB] | [consumer] | Yes/No | DLQ/Retry/Drop |
+
+### 3. Transformation Validation
+
+| Transform | Input Format | Output Format | Validation Rules | Risk |
+|-----------|-------------|---------------|-----------------|------|
+| ... | JSON/XML/CSV | JSON/XML/CSV | [schema rules] | High/Medium/Low |
+
+### 4. Middleware Testing Recommendations
+
+| Test Type | Tool | Priority | Scenarios |
+|-----------|------|----------|-----------|
+| Message routing | WireMock/Testcontainers | P0/P1/P2 | [scenarios] |
+| Transform accuracy | Schema validators | P0/P1/P2 | [scenarios] |
+| Dead letter queue | DLQ monitors | P0/P1/P2 | [scenarios] |
+| Throughput | Load generators | P0/P1/P2 | [scenarios] |
+
+### 5. Middleware Risk Score
+
+| Dimension | Score (0-10) | Notes |
+|-----------|-------------|-------|
+| Routing complexity | X/10 | ... |
+| Transform accuracy | X/10 | ... |
+| Error handling coverage | X/10 | ... |
+| Throughput risk | X/10 | ... |
+
+**MIDDLEWARE RISK SCORE: X/40**
+
+**MINIMUM: Identify at least 3 middleware-related findings**
+
+## OUTPUT FORMAT
+
+Save to: ${"$"}{OUTPUT_FOLDER}/10-middleware-validation.md
+Use the Write tool to save BEFORE completing.`,
+  subagent_type: "qe-middleware-validator",
+  run_in_background: true
+})
+```
+
+### IF HAS_SAP_INTEGRATION: OData Contract Tester (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "OData contract and SAP service validation",
+  prompt: `You are qe-odata-contract-tester. Your output quality is being audited.
+
+## STORY CONTENT
+
+=== STORY CONTENT START ===
+[PASTE THE COMPLETE STORY CONTENT HERE]
+=== STORY CONTENT END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. SAP Service Inventory
+
+Map ALL SAP services and OData endpoints mentioned or implied:
+
+| Service | Type | Protocol | Entity Set | Operations |
+|---------|------|----------|-----------|------------|
+| ... | OData V2/V4/RFC/BAPI | HTTP/RFC | [entity] | CRUD/Custom |
+
+### 2. OData Contract Assessment
+
+For each OData service:
+
+| Endpoint | $metadata Available? | Schema Validated? | Breaking Change Risk | Pagination |
+|----------|---------------------|------------------|---------------------|------------|
+| ... | Yes/No | Yes/No/Partial | High/Medium/Low | Server/Client/None |
+
+### 3. SAP Integration Points
+
+| Integration | Source System | Target System | IDoc Type | Direction |
+|-------------|-------------|---------------|-----------|-----------|
+| ... | ECC/S4/EWM | [target] | [type] | Inbound/Outbound |
+
+### 4. Contract Testing Recommendations
+
+| Test Type | Tool | Priority | Scenarios |
+|-----------|------|----------|-----------|
+| OData $metadata | OData validator | P0/P1/P2 | [scenarios] |
+| Entity CRUD | SAP Gateway test | P0/P1/P2 | [scenarios] |
+| Deep entity | Integration suite | P0/P1/P2 | [scenarios] |
+| Error responses | Negative testing | P0/P1/P2 | [scenarios] |
+
+### 5. SAP Integration Risk Score
+
+| Dimension | Score (0-10) | Notes |
+|-----------|-------------|-------|
+| Contract completeness | X/10 | ... |
+| Schema stability | X/10 | ... |
+| Error handling | X/10 | ... |
+| Authorization coverage | X/10 | ... |
+
+**SAP INTEGRATION RISK SCORE: X/40**
+
+**MINIMUM: Identify at least 3 SAP integration findings**
+
+## OUTPUT FORMAT
+
+Save to: ${"$"}{OUTPUT_FOLDER}/11-odata-contract-validation.md
+Use the Write tool to save BEFORE completing.`,
+  subagent_type: "qe-odata-contract-tester",
+  run_in_background: true
+})
+```
+
+### IF HAS_AUTHORIZATION: SoD Analyzer (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "Segregation of duties and authorization conflict analysis",
+  prompt: `You are qe-sod-analyzer. Your output quality is being audited.
+
+## STORY CONTENT
+
+=== STORY CONTENT START ===
+[PASTE THE COMPLETE STORY CONTENT HERE]
+=== STORY CONTENT END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. Authorization Object Inventory
+
+Map ALL authorization objects, roles, and T-codes mentioned or implied:
+
+| Auth Object | Field | Values | Role Assignment | Risk Level |
+|-------------|-------|--------|----------------|------------|
+| ... | [field] | [allowed values] | [role] | Critical/High/Medium/Low |
+
+### 2. Segregation of Duties Matrix
+
+| Function A | Function B | Conflict Type | Risk | Mitigation |
+|-----------|-----------|---------------|------|------------|
+| [create PO] | [approve PO] | SoD violation | Critical | [control] |
+| ... | ... | ... | ... | ... |
+
+### 3. Role Conflict Detection
+
+| Role | Conflicting Role | Shared Users | Violation Type | GRC Status |
+|------|-----------------|-------------|----------------|------------|
+| ... | ... | [count] | SoD/Excessive/Toxic | Detected/Mitigated/Open |
+
+### 4. Authorization Testing Recommendations
+
+| Test Type | Tool | Priority | Scenarios |
+|-----------|------|----------|-----------|
+| SoD simulation | GRC Access Risk | P0/P1/P2 | [scenarios] |
+| Role testing | SU53/SUIM | P0/P1/P2 | [scenarios] |
+| Negative auth | Auth trace | P0/P1/P2 | [scenarios] |
+| Privilege escalation | Pentest suite | P0/P1/P2 | [scenarios] |
+
+### 5. Authorization Risk Score
+
+| Dimension | Score (0-10) | Notes |
+|-----------|-------------|-------|
+| SoD compliance | X/10 | ... |
+| Role design quality | X/10 | ... |
+| Toxic combination risk | X/10 | ... |
+| Audit trail coverage | X/10 | ... |
+
+**AUTHORIZATION RISK SCORE: X/40**
+
+**MINIMUM: Identify at least 3 authorization findings**
+
+## OUTPUT FORMAT
+
+Save to: ${"$"}{OUTPUT_FOLDER}/12-sod-analysis.md
+Use the Write tool to save BEFORE completing.`,
+  subagent_type: "qe-sod-analyzer",
+  run_in_background: true
+})
+```
+
 ### Alternative: MCP Tools for Conditional Agents
 
 ```javascript
@@ -1070,6 +1303,45 @@ if (HAS_DEPENDENCIES) {
     detectCircular: true
   })
 }
+
+// IF HAS_MIDDLEWARE - Enable enterprise-integration domain
+if (HAS_MIDDLEWARE) {
+  mcp__agentic_qe__task_orchestrate({
+    task: "middleware-routing-validation",
+    strategy: "parallel",
+    payload: {
+      storyContent: storyContent,
+      validateRouting: true,
+      validateTransforms: true
+    }
+  })
+}
+
+// IF HAS_SAP_INTEGRATION - Enable enterprise-integration domain
+if (HAS_SAP_INTEGRATION) {
+  mcp__agentic_qe__task_orchestrate({
+    task: "odata-contract-validation",
+    strategy: "parallel",
+    payload: {
+      storyContent: storyContent,
+      validateMetadata: true,
+      validateSchema: true
+    }
+  })
+}
+
+// IF HAS_AUTHORIZATION - Enable enterprise-integration domain
+if (HAS_AUTHORIZATION) {
+  mcp__agentic_qe__task_orchestrate({
+    task: "sod-authorization-analysis",
+    strategy: "parallel",
+    payload: {
+      storyContent: storyContent,
+      detectSoD: true,
+      detectToxicCombos: true
+    }
+  })
+}
 ```
 
 ### Alternative: CLI for Conditional Agents
@@ -1096,6 +1368,27 @@ if [ "$HAS_DEPENDENCIES" = "TRUE" ]; then
     --task "Coupling metrics and circular detection" &
 fi
 
+# IF HAS_MIDDLEWARE
+if [ "$HAS_MIDDLEWARE" = "TRUE" ]; then
+  npx @claude-flow/cli@latest agent spawn \
+    --type qe-middleware-validator \
+    --task "Middleware routing and ESB flow validation" &
+fi
+
+# IF HAS_SAP_INTEGRATION
+if [ "$HAS_SAP_INTEGRATION" = "TRUE" ]; then
+  npx @claude-flow/cli@latest agent spawn \
+    --type qe-odata-contract-tester \
+    --task "OData contract and SAP service validation" &
+fi
+
+# IF HAS_AUTHORIZATION
+if [ "$HAS_AUTHORIZATION" = "TRUE" ]; then
+  npx @claude-flow/cli@latest agent spawn \
+    --type qe-sod-analyzer \
+    --task "Segregation of duties analysis" &
+fi
+
 # Wait for conditional agents
 wait
 ```
@@ -1118,6 +1411,9 @@ wait
 |    [ ] qe-contract-validator - SPAWNED? [Y/N] (HAS_API)     |
 |    [ ] qe-impact-analyzer - SPAWNED? [Y/N] (HAS_REFACTORING)|
 |    [ ] qe-dependency-mapper - SPAWNED? [Y/N] (HAS_DEPS)     |
+|    [ ] qe-middleware-validator - SPAWNED? [Y/N] (HAS_MIDDLEWARE)    |
+|    [ ] qe-odata-contract-tester - SPAWNED? [Y/N] (HAS_SAP_INTEG)  |
+|    [ ] qe-sod-analyzer - SPAWNED? [Y/N] (HAS_AUTHORIZATION)       |
 |                                                              |
 |  VALIDATION:                                                 |
 |    Expected agents: [3 + count of TRUE flags]                |
@@ -1137,12 +1433,18 @@ wait
 ```
 I've launched [N] conditional agent(s) in parallel:
 
-[IF HAS_API]       qe-contract-validator [Domain: contract-testing]
-                   - Consumer-driven contracts, breaking changes
-[IF HAS_REFACTORING] qe-impact-analyzer [Domain: code-intelligence]
-                   - Blast radius, affected tests, regression risk
-[IF HAS_DEPENDENCIES] qe-dependency-mapper [Domain: code-intelligence]
-                   - Coupling metrics Ca/Ce/I, circular detection
+[IF HAS_API]             qe-contract-validator [Domain: contract-testing]
+                         - Consumer-driven contracts, breaking changes
+[IF HAS_REFACTORING]     qe-impact-analyzer [Domain: code-intelligence]
+                         - Blast radius, affected tests, regression risk
+[IF HAS_DEPENDENCIES]    qe-dependency-mapper [Domain: code-intelligence]
+                         - Coupling metrics Ca/Ce/I, circular detection
+[IF HAS_MIDDLEWARE]      qe-middleware-validator [Domain: enterprise-integration]
+                         - Middleware routing, transformation, ESB flow validation
+[IF HAS_SAP_INTEGRATION] qe-odata-contract-tester [Domain: enterprise-integration]
+                         - OData contract, SAP service, $metadata validation
+[IF HAS_AUTHORIZATION]   qe-sod-analyzer [Domain: enterprise-integration]
+                         - Segregation of duties, role conflict, authorization analysis
 
   WAITING for conditional agents to complete...
 ```
@@ -1432,7 +1734,10 @@ mcp__agentic-qe__memory_store({
       HAS_API: HAS_API,
       HAS_REFACTORING: HAS_REFACTORING,
       HAS_DEPENDENCIES: HAS_DEPENDENCIES,
-      HAS_SECURITY: HAS_SECURITY
+      HAS_SECURITY: HAS_SECURITY,
+      HAS_MIDDLEWARE: HAS_MIDDLEWARE,
+      HAS_SAP_INTEGRATION: HAS_SAP_INTEGRATION,
+      HAS_AUTHORIZATION: HAS_AUTHORIZATION
     },
     agentsInvoked: agentList,
     timestamp: new Date().toISOString()
@@ -1487,7 +1792,10 @@ Contents:
     "HAS_API": true/false,
     "HAS_REFACTORING": true/false,
     "HAS_DEPENDENCIES": true/false,
-    "HAS_SECURITY": true/false
+    "HAS_SECURITY": true/false,
+    "HAS_MIDDLEWARE": true/false,
+    "HAS_SAP_INTEGRATION": true/false,
+    "HAS_AUTHORIZATION": true/false
   },
   "agentsInvoked": ["list", "of", "agents"],
   "crossPhaseSignals": {
@@ -1795,7 +2103,7 @@ Use the Write tool to save BEFORE completing.
 
 ## DDD Domain Integration
 
-This swarm operates across **1 primary domain**, **2 conditional domains**,
+This swarm operates across **1 primary domain**, **3 conditional domains**,
 and **1 transformation domain**:
 
 ```
@@ -1821,6 +2129,17 @@ and **1 transformation domain**:
 |  |  [IF HAS_API]         |  |  [IF HAS_REFACTORING  |                        |
 |  |                       |  |   or HAS_DEPENDENCIES]|                        |
 |  +-----------------------+  +-----------------------+                        |
+|                                                                              |
+|  +------------------------------------------+                                |
+|  |  enterprise-integration                   |                                |
+|  |  ---------------------------------------- |                                |
+|  |  qe-middleware-validator                  |                                |
+|  |    [IF HAS_MIDDLEWARE]                    |                                |
+|  |  qe-odata-contract-tester                |                                |
+|  |    [IF HAS_SAP_INTEGRATION]              |                                |
+|  |  qe-sod-analyzer                         |                                |
+|  |    [IF HAS_AUTHORIZATION]                |                                |
+|  +------------------------------------------+                                |
 |                                                                              |
 |  TRANSFORMATION DOMAIN (Always Active)                                       |
 |  +-----------------------------------------------------------------------+  |
@@ -1889,7 +2208,7 @@ npx @claude-flow/cli@latest agent spawn --type qe-requirements-validator
 
 | Phase | Must Do | Failure Condition |
 |-------|---------|-------------------|
-| 1 | Check ALL 4 flags | Missing flag evaluation |
+| 1 | Check ALL 7 flags | Missing flag evaluation |
 | 2 | Spawn ALL 3 core agents in ONE message | Fewer than 3 Task calls |
 | 3 | WAIT for completion | Proceeding before results |
 | 4 | Spawn ALL flagged conditional agents | Skipping a TRUE flag |
@@ -1918,6 +2237,9 @@ npx @claude-flow/cli@latest agent spawn --type qe-requirements-validator
 | contract-testing | qe-contract-validator | Conditional (HAS_API) | 2 |
 | code-intelligence | qe-impact-analyzer | Conditional (HAS_REFACTORING) | 2 |
 | code-intelligence | qe-dependency-mapper | Conditional (HAS_DEPENDENCIES) | 2 |
+| enterprise-integration | qe-middleware-validator | Conditional (HAS_MIDDLEWARE) | 2 |
+| enterprise-integration | qe-odata-contract-tester | Conditional (HAS_SAP_INTEGRATION) | 2 |
+| enterprise-integration | qe-sod-analyzer | Conditional (HAS_AUTHORIZATION) | 2 |
 | test-generation | qe-test-idea-rewriter | Transformation (ALWAYS) | 3 |
 
 ### Execution Model Quick Reference
@@ -2040,10 +2362,10 @@ npx @claude-flow/cli@latest memory list --namespace qcsd-refinement
 
 | Resource Type | Count | Primary | Conditional | Transformation |
 |---------------|:-----:|:-------:|:-----------:|:--------------:|
-| **Agents** | 7 | 3 | 3 | 1 |
+| **Agents** | 10 | 3 | 6 | 1 |
 | **Sub-agents** | 0 | - | - | - |
 | **Skills** | 3 | 3 | - | - |
-| **Domains** | 4 | 1 | 2 | 1 |
+| **Domains** | 5 | 1 | 3 | 1 |
 | **Parallel Batches** | 3 | 1 | 1 | 1 |
 
 **Skills Used:**
