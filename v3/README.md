@@ -5,15 +5,15 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 12 Bounded Contexts, 51 Specialized QE Agents, 67 QE Skills, and ReasoningBank Learning
+> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 13 Bounded Contexts, 58 Specialized QE Agents, 71 QE Skills, and ReasoningBank Learning
 
 ### Key Features
 
 | Feature | Description |
 |---------|-------------|
-| **67 QE Skills** | Quality engineering skills with 4-tier trust validation system |
-| **51 QE Agents** | Specialized agents for test generation, security, coverage, and more |
-| **12 DDD Domains** | Modular bounded contexts for all quality engineering needs |
+| **71 QE Skills** | Quality engineering skills with 4-tier trust validation system |
+| **58 QE Agents** | Specialized agents for test generation, security, coverage, enterprise integration, and more |
+| **13 DDD Domains** | Modular bounded contexts for all quality engineering needs |
 | **MCP Integration** | Full Claude Code integration via Model Context Protocol |
 | **AG-UI/A2A Protocols** | Industry-standard agent streaming and interoperability |
 | **O(log n) Analysis** | Sublinear coverage analysis with HNSW vector indexing |
@@ -48,9 +48,9 @@ npx aqe test generate src/
 
 ## Why Agentic QE?
 
-- **51 Specialized QE Agents** - Domain-focused quality engineering agents (44 main + 7 subagents)
-- **67 QE Skills** - 46 Tier 3 verified + 21 additional (QCSD swarms, n8n testing, qe-* domains)
-- **12 DDD Bounded Contexts** - Modular, extensible architecture
+- **58 Specialized QE Agents** - Domain-focused quality engineering agents (51 main + 7 subagents)
+- **71 QE Skills** - 46 Tier 3 verified + 25 additional (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
+- **13 DDD Bounded Contexts** - Modular, extensible architecture
 - **TinyDancer Model Routing** - 3-tier intelligent routing for cost optimization
 - **O(log n) Coverage Analysis** - Sublinear performance with HNSW indexing
 - **Fast Pattern Search** - O(log n) HNSW-indexed vector storage
@@ -627,13 +627,13 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 
 | Feature | v2 | v3 |
 |---------|----|----|
-| Architecture | Monolithic | 12 DDD Bounded Contexts |
+| Architecture | Monolithic | 13 DDD Bounded Contexts |
 | Test Framework | Jest | Vitest |
 | Module System | CommonJS | ESM |
 | Memory | SQLite only | HNSW + SQLite hybrid |
 | Learning | Basic patterns | ReasoningBank + SONA + Dream Cycles |
-| Agents | 32 | 51 QE agents (44 main + 7 subagents) |
-| Skills | 35 | 67 QE skills (46 Tier 3 + 21 additional) |
+| Agents | 32 | 58 QE agents (51 main + 7 subagents) |
+| Skills | 35 | 71 QE skills (46 Tier 3 + 25 additional) |
 | Coverage | O(n) | O(log n) |
 | Pattern Search | Linear | O(log n) HNSW indexing |
 | Coordination | Sequential | Queen + Work Stealing + Consensus |
@@ -706,9 +706,9 @@ See the [Migration Guide](./docs/MIGRATION-GUIDE.md) for detailed instructions a
 }
 ```
 
-## 51 QE Agents
+## 58 QE Agents
 
-Agentic QE includes 51 specialized quality engineering agents (44 main + 7 subagents) organized by domain:
+Agentic QE includes 58 specialized quality engineering agents (51 main + 7 subagents) organized by domain:
 
 ### Test Generation Domain
 `qe-test-architect`, `qe-tdd-specialist`, `qe-tdd-red`, `qe-tdd-green`, `qe-tdd-refactor`, `qe-property-tester`, `qe-mutation-tester`, `qe-bdd-generator`
@@ -749,9 +749,12 @@ Agentic QE includes 51 specialized quality engineering agents (44 main + 7 subag
 ### Additional Agents (New in v3)
 `qe-product-factors-assessor` (SFDIPOT analysis), `qe-quality-criteria-recommender` (HTSM v6.3 Quality Criteria), `qe-test-idea-rewriter` (passive→active test transforms)
 
-## 67 QE Skills
+### Enterprise Integration Domain (New in v3.5.6)
+`qe-soap-tester`, `qe-sap-rfc-tester`, `qe-sap-idoc-tester`, `qe-middleware-validator`, `qe-odata-contract-tester`, `qe-message-broker-tester`, `qe-sod-analyzer`
 
-Agentic QE includes **67 QE skills** with a 4-tier trust validation system (ADR-056):
+## 71 QE Skills
+
+Agentic QE includes **71 QE skills** with a 4-tier trust validation system (ADR-056):
 
 | Trust Tier | Skills | Validation Level |
 |------------|--------|------------------|
@@ -763,7 +766,7 @@ Agentic QE includes **67 QE skills** with a 4-tier trust validation system (ADR-
 Agents automatically apply relevant skills:
 
 <details>
-<summary><b>View All 67 QE Skills</b></summary>
+<summary><b>View All 71 QE Skills</b></summary>
 
 ### Core Testing & Methodologies (12)
 - `agentic-quality-engineering` - Core PACT principles for AI-powered QE

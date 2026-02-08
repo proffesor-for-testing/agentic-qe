@@ -11,13 +11,13 @@
 
 **V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> **V3** brings Domain-Driven Design architecture, 12 bounded contexts, 51 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 12 domains, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
+> **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 58 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
 ### What's New in v3.5.0
 
 - **Governance ON by Default** - @claude-flow/guidance integration with 7 unbreakable QE invariants (ADR-058)
 - **QCSD 2.0 Complete Lifecycle** - All 4 phases: Ideation → Refinement → Development → CI/CD Verification
-- **67 QE Skills** - 4 new in v3.5.0 (QCSD Refinement, Development, CI/CD swarms + compatibility-testing)
+- **71 QE Skills** - 4 new enterprise integration skills in v3.5.6
 - **Infrastructure Self-Healing Enterprise** - 12 enterprise error signatures (SAP, Salesforce, Payment Gateway)
 
 ### What's New in v3.4.2
@@ -31,7 +31,7 @@
 - **A2A Protocol** - Google's agent-to-agent interoperability standard for cross-tool communication
 - **A2UI Components** - Unified UI combining AG-UI streaming with A2A event handling
 
-🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **12 Bounded Contexts** | 📚 **67 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance** 
+🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **13 Bounded Contexts** | 📚 **71 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance**
 
 </div>
 
@@ -79,8 +79,8 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 ```
 
 **What V3 provides:**
-- ✅ **12 DDD Bounded Contexts**: Organized by business domain (test-generation, coverage-analysis, security-compliance, etc.)
-- ✅ **51 QE Agents**: Including Queen Coordinator for hierarchical orchestration (44 main + 7 TDD subagents)
+- ✅ **13 DDD Bounded Contexts**: Organized by business domain (test-generation, coverage-analysis, security-compliance, enterprise-integration, etc.)
+- ✅ **58 QE Agents**: Including Queen Coordinator for hierarchical orchestration (51 main + 7 TDD subagents)
 - ✅ **TinyDancer Model Routing**: 3-tier intelligent routing (Haiku/Sonnet/Opus) for cost optimization
 - ✅ **ReasoningBank Learning**: HNSW-indexed pattern storage with experience replay
 - ✅ **O(log n) Coverage Analysis**: Sublinear algorithms for efficient gap detection
@@ -88,7 +88,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
-- ✅ **67 QE Skills**: 46 Tier 3 verified + 21 additional QE skills (QCSD swarms, n8n testing, qe-* domains)
+- ✅ **71 QE Skills**: 46 Tier 3 verified + 25 additional QE skills (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 
 ---
 
@@ -98,7 +98,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 # 1. Install
 npm install -g agentic-qe
 
-# 2. Initialize (auto-detects your project, enables all 12 domains)
+# 2. Initialize (auto-detects your project, enables all 13 domains)
 cd your-project && aqe init --auto
 
 # 3. Generate tests immediately
@@ -126,7 +126,7 @@ claude "Assess code quality and provide deployment recommendation"
 | **AI testing tools are expensive** | TinyDancer 3-tier model routing reduces costs by matching task complexity to appropriate model |
 | **No memory between test runs—every analysis starts from scratch** | ReasoningBank remembers patterns, strategies, and what works for your codebase |
 | **Agents waste tokens reading irrelevant code** | Code Intelligence provides token reduction with semantic search and knowledge graphs |
-| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 51 agents across 12 domains with consensus and MinCut topology |
+| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 58 agents across 13 domains with consensus and MinCut topology |
 | **Tools don't understand your testing frameworks** | Works with Jest, Cypress, Playwright, Vitest, Mocha, Jasmine, AVA |
 
 ---
@@ -135,7 +135,7 @@ claude "Assess code quality and provide deployment recommendation"
 
 ### 🏗️ Domain-Driven Design Architecture
 
-V3 is built on **12 DDD Bounded Contexts**, each with dedicated agents and clear responsibilities:
+V3 is built on **13 DDD Bounded Contexts**, each with dedicated agents and clear responsibilities:
 
 | Domain | Purpose | Key Agents |
 |--------|---------|------------|
@@ -151,12 +151,13 @@ V3 is built on **12 DDD Bounded Contexts**, each with dedicated agents and clear
 | **visual-accessibility** | Visual regression & a11y | qe-visual-tester, qe-accessibility-auditor |
 | **chaos-resilience** | Chaos engineering & load | qe-chaos-engineer, qe-load-tester |
 | **learning-optimization** | Cross-domain learning | qe-learning-coordinator, qe-pattern-learner |
+| **enterprise-integration** | SOAP, SAP, ESB, OData | qe-soap-tester, qe-sap-rfc-tester, qe-sod-analyzer |
 
 ---
 
 ### ✅ Skill Trust Tiers (v3.4.2)
 
-AQE includes **67 QE skills** (46 Tier 3 verified + 21 additional). Trust tiers apply to core QE skills:
+AQE includes **71 QE skills** (46 Tier 3 verified + 25 additional). Trust tiers apply to core QE skills:
 
 | Tier | Badge | Count | Description |
 |------|-------|-------|-------------|
@@ -231,7 +232,7 @@ The **qe-queen-coordinator** manages the entire fleet with intelligent task dist
 ```
 
 **Capabilities:**
-- Orchestrate 51 QE agents concurrently across 12 domains
+- Orchestrate 58 QE agents concurrently across 13 domains
 - TinyDancer 3-tier model routing (Haiku/Sonnet/Opus) with confidence-based decisions
 - Byzantine fault-tolerant consensus for critical quality decisions
 - MinCut graph-based topology optimization for self-healing coordination
@@ -457,11 +458,11 @@ npx @claude-flow/cli@latest agent spawn -t qe-test-architect --name test-gen
 
 ---
 
-### 📊 51 Specialized QE Agents
+### 📊 58 Specialized QE Agents
 
 | Category | Count | Highlights |
 |----------|-------|------------|
-| **Main QE Agents** | 44 | Test generation, coverage, security, performance, accessibility |
+| **Main QE Agents** | 51 | Test generation, coverage, security, performance, accessibility, enterprise integration |
 | **TDD Subagents** | 7 | RED/GREEN/REFACTOR with code review |
 
 **V2 Backward Compatibility**: All V2 agents map to V3 equivalents automatically.
@@ -600,12 +601,12 @@ claude "Coordinate security audit across the monorepo:
 
 ---
 
-## 🎓 67 QE Skills
+## 🎓 71 QE Skills
 
 V3 agents automatically apply relevant skills from the comprehensive QE skill library.
 
 <details>
-<summary><b>View All 67 QE Skills</b></summary>
+<summary><b>View All 71 QE Skills</b></summary>
 
 **Core Testing & Methodologies (12)**
 - agentic-quality-engineering - Core PACT principles for AI-powered QE

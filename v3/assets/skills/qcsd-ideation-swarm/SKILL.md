@@ -19,11 +19,13 @@ domains:
       agents: [qe-accessibility-auditor]
     - domain: cross-domain
       agents: [qe-qx-partner]
+    - domain: enterprise-integration
+      agents: [qe-middleware-validator, qe-sap-rfc-tester, qe-sod-analyzer]
 # Agent Inventory
 agents:
   core: [qe-quality-criteria-recommender, qe-risk-assessor, qe-requirements-validator]
-  conditional: [qe-accessibility-auditor, qe-security-auditor, qe-qx-partner]
-  total: 6
+  conditional: [qe-accessibility-auditor, qe-security-auditor, qe-qx-partner, qe-middleware-validator, qe-sap-rfc-tester, qe-sod-analyzer]
+  total: 9
   sub_agents: 0
 skills: [testability-scoring, risk-based-testing, context-driven-testing, holistic-testing-pact]
 # Execution Models (Task Tool is PRIMARY)
@@ -40,6 +42,12 @@ last_updated: 2026-01-28
 html_output: true
 enforcement_level: strict
 tags: [qcsd, ideation, htsm, quality-criteria, risk-storming, testability, swarm, parallel, ddd]
+trust_tier: 3
+validation:
+  schema_path: schemas/output.json
+  validator_path: scripts/validate.sh
+  eval_path: evals/qcsd-ideation-swarm.yaml
+
 ---
 
 # QCSD Ideation Swarm v7.0
@@ -167,6 +175,25 @@ const HAS_VIDEO = (
   /\.mp4|\.webm|\.m3u8/i.test(content) ||
   /data-video-url|data-mobile-url|data-desktop-url/i.test(content)
 );
+
+// Detect HAS_MIDDLEWARE
+const HAS_MIDDLEWARE = (
+  /middleware|ESB|message.?broker|MQ|Kafka|RabbitMQ/i.test(content) ||
+  /integration.?bus|API.?gateway|message.?queue|pub.?sub/i.test(content)
+);
+
+// Detect HAS_SAP_INTEGRATION
+const HAS_SAP_INTEGRATION = (
+  /\bSAP\b|RFC|BAPI|IDoc|OData|S\/4HANA/i.test(content) ||
+  /\bEWM\b|\bECC\b|\bABAP\b|CDS.?view|Fiori/i.test(content)
+);
+
+// Detect HAS_AUTHORIZATION
+const HAS_AUTHORIZATION = (
+  /\bSoD\b|segregation.?of.?duties|role.?conflict/i.test(content) ||
+  /authorization.?object|T-?code|user.?role/i.test(content) ||
+  /access.?control.?matrix|\bGRC\b/i.test(content)
+);
 ```
 
 **You MUST output flag detection results before proceeding:**
@@ -187,6 +214,15 @@ const HAS_VIDEO = (
 │                                                             │
 │  HAS_VIDEO:    [TRUE/FALSE]                                 │
 │  Evidence:     [video URLs found - for a11y follow-up]      │
+│                                                             │
+│  HAS_MIDDLEWARE: [TRUE/FALSE]                               │
+│  Evidence:     [what triggered it - specific patterns]      │
+│                                                             │
+│  HAS_SAP_INTEGRATION: [TRUE/FALSE]                          │
+│  Evidence:     [what triggered it - specific patterns]      │
+│                                                             │
+│  HAS_AUTHORIZATION: [TRUE/FALSE]                            │
+│  Evidence:     [what triggered it - specific patterns]      │
 │                                                             │
 │  EXPECTED AGENTS:                                           │
 │  - Core: 3 (always)                                         │
@@ -329,6 +365,66 @@ Map key user flows and identify UX risks.
   subagent_type: "qe-qx-partner",
   run_in_background: true
 })
+
+// IF HAS_MIDDLEWARE === TRUE
+Task({
+  description: "QCSD Middleware Integration Quality Criteria",
+  prompt: `You are qe-middleware-validator analyzing ${URL}.
+
+## WEBSITE CONTENT
+${content}
+
+## ANALYSIS REQUIREMENTS
+Assess middleware and integration bus quality criteria.
+Identify message routing risks, transformation issues, and integration patterns.
+Evaluate ESB, message broker, API gateway, and pub/sub quality concerns.
+
+## OUTPUT REQUIREMENTS (MANDATORY)
+1. Write your complete analysis to: ${OUTPUT_FOLDER}/09-middleware-quality.md
+2. Use the Write tool to save BEFORE completing`,
+  subagent_type: "qe-middleware-validator",
+  run_in_background: true
+})
+
+// IF HAS_SAP_INTEGRATION === TRUE
+Task({
+  description: "QCSD SAP Integration Quality Criteria",
+  prompt: `You are qe-sap-rfc-tester analyzing ${URL}.
+
+## WEBSITE CONTENT
+${content}
+
+## ANALYSIS REQUIREMENTS
+Assess SAP-specific quality criteria including RFC, BAPI, IDoc, OData, and Fiori concerns.
+Identify S/4HANA integration risks, CDS view dependencies, and ABAP quality issues.
+Evaluate SAP interface stability, data consistency, and transport risks.
+
+## OUTPUT REQUIREMENTS (MANDATORY)
+1. Write your complete analysis to: ${OUTPUT_FOLDER}/10-sap-quality.md
+2. Use the Write tool to save BEFORE completing`,
+  subagent_type: "qe-sap-rfc-tester",
+  run_in_background: true
+})
+
+// IF HAS_AUTHORIZATION === TRUE
+Task({
+  description: "QCSD Authorization Quality Criteria",
+  prompt: `You are qe-sod-analyzer analyzing ${URL}.
+
+## WEBSITE CONTENT
+${content}
+
+## ANALYSIS REQUIREMENTS
+Assess authorization and segregation of duties quality criteria.
+Identify SoD conflicts, role misconfigurations, and access control matrix gaps.
+Evaluate T-code restrictions, authorization object coverage, and GRC compliance risks.
+
+## OUTPUT REQUIREMENTS (MANDATORY)
+1. Write your complete analysis to: ${OUTPUT_FOLDER}/11-authorization-quality.md
+2. Use the Write tool to save BEFORE completing`,
+  subagent_type: "qe-sod-analyzer",
+  run_in_background: true
+})
 ```
 
 ### PHASE URL-5: Agent Count Validation
@@ -349,6 +445,9 @@ Map key user flows and identify UX risks.
 │    □ qe-accessibility-auditor - SPAWNED? [Y/N] (HAS_UI)     │
 │    □ qe-security-auditor - SPAWNED? [Y/N] (HAS_SECURITY)    │
 │    □ qe-qx-partner - SPAWNED? [Y/N] (HAS_UX)                │
+│    □ qe-middleware-validator - SPAWNED? [Y/N] (HAS_MIDDLEWARE)│
+│    □ qe-sap-rfc-tester - SPAWNED? [Y/N] (HAS_SAP_INTEG)     │
+│    □ qe-sod-analyzer - SPAWNED? [Y/N] (HAS_AUTHORIZATION)   │
 │                                                             │
 │  VALIDATION:                                                │
 │    Expected agents: [3 + count of TRUE flags]               │
@@ -627,6 +726,20 @@ Scan the epic content and SET these flags. Do not skip any flag.
   Set TRUE if epic contains ANY of: user experience, UX, journey,
   usability, satisfaction, user flow, persona, user research,
   friction, delight, onboarding, retention, engagement
+
+□ HAS_MIDDLEWARE = FALSE
+  Set TRUE if epic contains ANY of: middleware, ESB, message broker,
+  MQ, Kafka, RabbitMQ, integration bus, API gateway, message queue,
+  pub/sub
+
+□ HAS_SAP_INTEGRATION = FALSE
+  Set TRUE if epic contains ANY of: SAP, RFC, BAPI, IDoc, OData,
+  S/4HANA, EWM, ECC, ABAP, CDS view, Fiori
+
+□ HAS_AUTHORIZATION = FALSE
+  Set TRUE if epic contains ANY of: SoD, segregation of duties,
+  role conflict, authorization object, T-code, user role,
+  access control matrix, GRC
 ```
 
 ### Validation Checkpoint
@@ -634,7 +747,7 @@ Scan the epic content and SET these flags. Do not skip any flag.
 Before proceeding to Phase 2, confirm:
 ```
 ✓ I have read the entire epic content
-✓ I have evaluated ALL THREE flags
+✓ I have evaluated ALL SIX flags
 ✓ I have recorded which flags are TRUE
 ✓ I understand which conditional agents will be needed
 ```
@@ -1048,9 +1161,12 @@ From qe-requirements-validator:
 ┌─────────────────────────────────────────────────────────────────┐
 │  IF A FLAG IS TRUE, YOU MUST SPAWN THAT AGENT                  │
 │                                                                 │
-│  HAS_UI = TRUE     → MUST spawn qe-accessibility-auditor       │
-│  HAS_SECURITY = TRUE → MUST spawn qe-security-auditor          │
-│  HAS_UX = TRUE     → MUST spawn qe-qx-partner                  │
+│  HAS_UI = TRUE           → MUST spawn qe-accessibility-auditor  │
+│  HAS_SECURITY = TRUE     → MUST spawn qe-security-auditor      │
+│  HAS_UX = TRUE           → MUST spawn qe-qx-partner            │
+│  HAS_MIDDLEWARE = TRUE   → MUST spawn qe-middleware-validator   │
+│  HAS_SAP_INTEGRATION = TRUE → MUST spawn qe-sap-rfc-tester     │
+│  HAS_AUTHORIZATION = TRUE → MUST spawn qe-sod-analyzer         │
 │                                                                 │
 │  Skipping a flagged agent is a FAILURE of this skill.          │
 └─────────────────────────────────────────────────────────────────┘
@@ -1063,11 +1179,14 @@ From qe-requirements-validator:
 | HAS_UI | qe-accessibility-auditor | visual-accessibility | `accessibility_test` |
 | HAS_SECURITY | qe-security-auditor | security-compliance | `security_scan_comprehensive` |
 | HAS_UX | qe-qx-partner | cross-domain | `task_orchestrate` |
+| HAS_MIDDLEWARE | qe-middleware-validator | enterprise-integration | `task_orchestrate` |
+| HAS_SAP_INTEGRATION | qe-sap-rfc-tester | enterprise-integration | `task_orchestrate` |
+| HAS_AUTHORIZATION | qe-sod-analyzer | enterprise-integration | `task_orchestrate` |
 
 ### Decision Tree
 
 ```
-IF HAS_UI == FALSE AND HAS_SECURITY == FALSE AND HAS_UX == FALSE:
+IF HAS_UI == FALSE AND HAS_SECURITY == FALSE AND HAS_UX == FALSE AND HAS_MIDDLEWARE == FALSE AND HAS_SAP_INTEGRATION == FALSE AND HAS_AUTHORIZATION == FALSE:
     → Skip to Phase 5 (no conditional agents needed)
     → State: "No conditional agents needed based on epic analysis"
 
@@ -1246,6 +1365,142 @@ What UX-specific tests are needed?
 
 **MINIMUM: Identify 3 QX risks or explicit "No QX risks after thorough analysis"**`,
   subagent_type: "qe-qx-partner",
+  run_in_background: true
+})
+```
+
+### IF HAS_MIDDLEWARE: Middleware Validator (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "Middleware integration quality criteria",
+  prompt: `You are qe-middleware-validator. Your output quality is being audited.
+
+## EPIC CONTENT
+
+=== EPIC CONTENT START ===
+[PASTE THE COMPLETE EPIC CONTENT HERE]
+=== EPIC CONTENT END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. Middleware Component Inventory
+
+List EVERY middleware/integration component mentioned or implied:
+| Component | Type | Quality Risk Level |
+|-----------|------|-------------------|
+
+### 2. Message Flow Quality Assessment
+
+For each integration flow:
+- Message routing reliability
+- Transformation accuracy
+- Dead letter queue handling
+- Protocol mediation risks
+- Retry and idempotency concerns
+
+### 3. Integration Pattern Risks
+
+| Pattern | Risk | Impact | Recommendation |
+|---------|------|--------|----------------|
+
+### 4. Quality Criteria Recommendations
+
+What middleware-specific quality criteria MUST be validated?
+
+**MINIMUM: 3 findings or explicit "No middleware quality risks after thorough analysis"**`,
+  subagent_type: "qe-middleware-validator",
+  run_in_background: true
+})
+```
+
+### IF HAS_SAP_INTEGRATION: SAP RFC Tester (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "SAP-specific quality criteria",
+  prompt: `You are qe-sap-rfc-tester. Your output quality is being audited.
+
+## EPIC CONTENT
+
+=== EPIC CONTENT START ===
+[PASTE THE COMPLETE EPIC CONTENT HERE]
+=== EPIC CONTENT END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. SAP Interface Inventory
+
+List EVERY SAP interface mentioned or implied:
+| Interface | Type (RFC/BAPI/IDoc/OData) | Direction | Quality Risk |
+|-----------|---------------------------|-----------|-------------|
+
+### 2. SAP-Specific Quality Criteria
+
+Assess quality concerns for:
+- RFC/BAPI call reliability and error handling
+- IDoc processing and status monitoring
+- OData service contract stability
+- S/4HANA migration compatibility
+- CDS view dependencies and performance
+- Fiori UI quality concerns (if applicable)
+
+### 3. SAP Transport and Data Consistency
+
+| Concern | Risk | Impact | Recommendation |
+|---------|------|--------|----------------|
+
+### 4. Quality Criteria Recommendations
+
+What SAP-specific quality criteria MUST be validated?
+
+**MINIMUM: 3 findings or explicit "No SAP quality risks after thorough analysis"**`,
+  subagent_type: "qe-sap-rfc-tester",
+  run_in_background: true
+})
+```
+
+### IF HAS_AUTHORIZATION: SoD Analyzer (MANDATORY WHEN FLAGGED)
+
+```
+Task({
+  description: "Authorization and SoD quality criteria",
+  prompt: `You are qe-sod-analyzer. Your output quality is being audited.
+
+## EPIC CONTENT
+
+=== EPIC CONTENT START ===
+[PASTE THE COMPLETE EPIC CONTENT HERE]
+=== EPIC CONTENT END ===
+
+## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
+
+### 1. Authorization Scope Inventory
+
+List EVERY authorization concern mentioned or implied:
+| Concern | Type | Risk Level |
+|---------|------|-----------|
+
+### 2. Segregation of Duties Assessment
+
+For each SoD concern:
+- Role conflict identification
+- Authorization object coverage
+- T-code restriction analysis
+- Access control matrix completeness
+- GRC compliance requirements
+
+### 3. Authorization Risk Matrix
+
+| Risk | Probability | Impact | Mitigation |
+|------|------------|--------|------------|
+
+### 4. Quality Criteria Recommendations
+
+What authorization-specific quality criteria MUST be validated?
+
+**MINIMUM: 3 findings or explicit "No authorization quality risks after thorough analysis"**`,
+  subagent_type: "qe-sod-analyzer",
   run_in_background: true
 })
 ```
@@ -1727,10 +1982,10 @@ npx @claude-flow/cli@latest memory list --namespace qcsd-ideation
 
 | Resource Type | Count | Primary | Conditional |
 |---------------|:-----:|:-------:|:-----------:|
-| **Agents** | 6 | 3 | 3 |
+| **Agents** | 9 | 3 | 6 |
 | **Sub-agents** | 0 | - | - |
 | **Skills** | 4 | 4 | - |
-| **Domains** | 5 | 2 | 3 |
+| **Domains** | 6 | 2 | 4 |
 
 **Skills Used:**
 1. `testability-scoring` - 10 testability principles
