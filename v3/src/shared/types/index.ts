@@ -42,6 +42,7 @@ export type DomainName =
   | 'visual-accessibility'
   | 'chaos-resilience'
   | 'learning-optimization'
+  | 'enterprise-integration'
   | 'coordination';
 
 export const ALL_DOMAINS: readonly DomainName[] = [
@@ -57,6 +58,7 @@ export const ALL_DOMAINS: readonly DomainName[] = [
   'visual-accessibility',
   'chaos-resilience',
   'learning-optimization',
+  'enterprise-integration',
   'coordination',
 ] as const;
 

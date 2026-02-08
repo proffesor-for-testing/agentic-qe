@@ -682,6 +682,7 @@ export async function getDomainRuVectorServices(
     'visual-accessibility': 'test-similarity',
     'chaos-resilience': 'test-similarity',
     'learning-optimization': 'pattern-adaptation',
+    'enterprise-integration': 'test-similarity',
     'coordination': 'pattern-adaptation',
   };
 
