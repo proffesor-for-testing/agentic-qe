@@ -308,7 +308,7 @@ export class SoapWsdlService {
   // ============================================================================
 
   private detectSoapVersion(wsdlContent: string): '1.1' | '1.2' {
-    if (wsdlContent.includes('http://www.w3.org/2003/05/soap-envelope') ||
+    if (/xmlns(?::\w+)?=["']http:\/\/www\.w3\.org\/2003\/05\/soap-envelope["']/.test(wsdlContent) ||
         wsdlContent.includes('soap12:')) {
       return '1.2';
     }
@@ -603,8 +603,9 @@ export class SoapWsdlService {
       return;
     }
 
-    // Check for correct namespace
-    if (!responseXml.includes(expectedNamespace)) {
+    // Check for correct namespace (anchor to xmlns attribute context)
+    const nsPattern = new RegExp(`xmlns(?::\\w+)?=["']${expectedNamespace.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`);
+    if (!nsPattern.test(responseXml)) {
       errors.push({
         type: 'envelope',
         path: '/soap:Envelope/@xmlns',
@@ -721,7 +722,7 @@ export class SoapWsdlService {
 
     // Validate that the response element matches the expected output type
     if (operation.output) {
-      const expectedElement = operation.output.replace(/Response$/, 'Response');
+      const expectedElement = operation.output;
       const hasExpectedElement = new RegExp(
         `<(?:\\w+:)?${expectedElement.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
         'i'
