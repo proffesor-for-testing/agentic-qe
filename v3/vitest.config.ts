@@ -9,6 +9,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    env: {
+      // Ensure all test processes use the repo root database, not v3/.agentic-qe/
+      AQE_PROJECT_ROOT: path.resolve(__dirname, '..'),
+    },
     include: ['tests/**/*.test.ts'],
     benchmark: {
       include: ['tests/**/*.bench.ts'],

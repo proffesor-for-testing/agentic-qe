@@ -74,7 +74,7 @@ const path = require('path');
 
 const projectRoot = process.env.PROJECT_ROOT || process.cwd();
 const claudeFlowPath = path.join(projectRoot, '.claude-flow', 'memory', 'store.json');
-const aqeDbPath = path.join(projectRoot, 'v3', '.agentic-qe', 'memory.db');
+const aqeDbPath = path.join(projectRoot, '.agentic-qe', 'memory.db');
 
 try {
   const store = JSON.parse(fs.readFileSync(claudeFlowPath, 'utf-8'));

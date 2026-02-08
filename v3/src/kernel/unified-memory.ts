@@ -844,12 +844,45 @@ export class UnifiedMemoryManager {
 
       this.initialized = true;
       console.log(`[UnifiedMemory] Initialized: ${this.config.dbPath}`);
+
+      // Guard: warn if duplicate .agentic-qe/memory.db files exist in project tree
+      this.warnIfDuplicateDatabases();
     } catch (error) {
       // Allow retry on failure by clearing the promise
       this.initPromise = null;
       throw new Error(
         `Failed to initialize UnifiedMemoryManager: ${error instanceof Error ? error.message : String(error)}`
       );
+    }
+  }
+
+  /**
+   * Warn if multiple .agentic-qe/memory.db files exist in the project tree.
+   * This prevents silent data splits where different modules write to different DBs.
+   */
+  private warnIfDuplicateDatabases(): void {
+    try {
+      const projectRoot = findProjectRoot();
+      const canonicalDb = path.resolve(this.config.dbPath);
+      const candidates = [
+        path.join(projectRoot, '.agentic-qe', 'memory.db'),
+        path.join(projectRoot, 'v3', '.agentic-qe', 'memory.db'),
+      ];
+
+      const duplicates = candidates
+        .map(p => path.resolve(p))
+        .filter(p => p !== canonicalDb && fs.existsSync(p));
+
+      if (duplicates.length > 0) {
+        console.warn(
+          `[UnifiedMemory] WARNING: Duplicate database(s) detected!\n` +
+          `  Canonical: ${canonicalDb}\n` +
+          `  Duplicates: ${duplicates.join(', ')}\n` +
+          `  This can cause data splits. Remove duplicates or set AQE_PROJECT_ROOT.`
+        );
+      }
+    } catch {
+      // Non-critical: don't fail initialization if guard check fails
     }
   }
 
