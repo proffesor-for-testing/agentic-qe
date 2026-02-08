@@ -2,7 +2,7 @@
  * Agentic QE v3 - Enterprise Integration Services
  * Service layer exports for the enterprise-integration domain
  *
- * ADR-059: Enterprise Integration Testing Gap Closure
+ * ADR-063: Enterprise Integration Testing Gap Closure
  */
 
 export {

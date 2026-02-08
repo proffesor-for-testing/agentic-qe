@@ -19,6 +19,7 @@ import { DefaultAgentCoordinator } from './agent-coordinator';
 import { DefaultPluginLoader } from './plugin-loader';
 import { InMemoryBackend } from './memory-backend';
 import { HybridMemoryBackend } from './hybrid-backend';
+import { SemanticAntiDriftMiddleware } from './anti-drift-middleware.js';
 import { AGENT_CONSTANTS, MEMORY_CONSTANTS } from './constants.js';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -177,6 +178,12 @@ export class QEKernelImpl implements QEKernel {
     // Initialize memory backend
     await this._memory.initialize();
 
+    // ADR-060: Register semantic anti-drift middleware for event integrity
+    const antiDriftMiddleware = new SemanticAntiDriftMiddleware({
+      agentId: 'qe-kernel',
+    });
+    (this._eventBus as InMemoryEventBus).registerMiddleware(antiDriftMiddleware);
+
     // Load plugins based on configuration
     if (!this._config.lazyLoading) {
       await this._plugins.loadAll();
@@ -310,6 +317,11 @@ export class QEKernelImpl implements QEKernel {
       memUsed = 0; // Could query DB size if needed
     }
 
+    // ADR-060: Anti-drift middleware stats
+    const middlewares = (this._eventBus as InMemoryEventBus).getMiddlewares();
+    const antiDrift = middlewares.find(m => m.name === 'semantic-anti-drift') as SemanticAntiDriftMiddleware | undefined;
+    const antiDriftStats = antiDrift ? antiDrift.getStats() : undefined;
+
     return {
       status: this.determineOverallStatus(domains),
       uptime: Date.now() - this._startTime.getTime(),
@@ -323,6 +335,7 @@ export class QEKernelImpl implements QEKernel {
         used: memUsed,
         available: memAvailable,
       },
+      ...(antiDriftStats ? { antiDrift: antiDriftStats } : {}),
     };
   }
 

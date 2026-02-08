@@ -1,4 +1,4 @@
-# ADR-059: Enterprise Integration Testing Gap Closure
+# ADR-063: Enterprise Integration Testing Gap Closure
 
 **Status:** Implemented
 **Date:** 2026-02-04

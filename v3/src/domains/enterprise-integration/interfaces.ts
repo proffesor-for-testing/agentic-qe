@@ -5,7 +5,7 @@
  * Responsibility: SOAP/WSDL, message broker, SAP RFC/BAPI/IDoc/OData,
  *                 ESB routing/transformation, WMS, and observability testing
  *
- * ADR-059: Enterprise Integration Testing Gap Closure
+ * ADR-063: Enterprise Integration Testing Gap Closure
  */
 
 import type { Result } from '../../shared/types/index.js';

@@ -510,6 +510,28 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
           });
         }
 
+        // ADR-061: Record asymmetric learning outcomes for test patterns
+        try {
+          if (this.eventBus) {
+            await this.eventBus.publish(createEvent(
+              'AsymmetricLearningOutcome' as any,
+              'test-execution',
+              {
+                runId: result.value.runId,
+                totalPassed: result.value.passed,
+                totalFailed: result.value.failed,
+                failedTests: result.value.failedTests.map(f => ({
+                  testId: f.testId,
+                  error: f.error?.substring(0, 200),
+                })),
+              },
+              result.value.runId
+            ));
+          }
+        } catch {
+          // Non-critical: don't fail test execution if learning event fails
+        }
+
         // ADR-057: Feed failed test errors to infra-healing observer
         if (this.config.infraHealing && result.value.failedTests.length > 0) {
           this.feedInfraHealingFromFailures(result.value.failedTests);
@@ -628,6 +650,28 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
               }
             );
           }
+        }
+
+        // ADR-061: Record asymmetric learning outcomes for test patterns
+        try {
+          if (this.eventBus) {
+            await this.eventBus.publish(createEvent(
+              'AsymmetricLearningOutcome' as any,
+              'test-execution',
+              {
+                runId: result.value.runId,
+                totalPassed: result.value.passed,
+                totalFailed: result.value.failed,
+                failedTests: result.value.failedTests.map(f => ({
+                  testId: f.testId,
+                  error: f.error?.substring(0, 200),
+                })),
+              },
+              result.value.runId
+            ));
+          }
+        } catch {
+          // Non-critical: don't fail test execution if learning event fails
         }
 
         // ADR-057: Feed failed test errors to infra-healing observer

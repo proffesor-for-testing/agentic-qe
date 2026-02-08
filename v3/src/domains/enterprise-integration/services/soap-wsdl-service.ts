@@ -3,7 +3,7 @@
  * Parses WSDL definitions, generates SOAP test requests,
  * and validates SOAP responses against schema.
  *
- * ADR-059: Enterprise Integration Testing Gap Closure
+ * ADR-063: Enterprise Integration Testing Gap Closure
  */
 
 import { Result, ok, err } from '../../../shared/types/index.js';

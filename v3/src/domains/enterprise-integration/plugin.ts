@@ -2,7 +2,7 @@
  * Agentic QE v3 - Enterprise Integration Domain Plugin
  * Integrates the enterprise integration domain into the kernel
  *
- * ADR-059: Enterprise Integration Testing Gap Closure
+ * ADR-063: Enterprise Integration Testing Gap Closure
  */
 
 import { DomainName, DomainEvent, Result, err } from '../../shared/types/index.js';

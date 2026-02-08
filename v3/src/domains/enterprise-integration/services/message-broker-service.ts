@@ -3,7 +3,7 @@
  * Tests message publish/consume flows, validates message schemas,
  * and tests dead-letter queue (DLQ) behavior.
  *
- * ADR-059: Enterprise Integration Testing Gap Closure
+ * ADR-063: Enterprise Integration Testing Gap Closure
  */
 
 import { Result, ok, err } from '../../../shared/types/index.js';

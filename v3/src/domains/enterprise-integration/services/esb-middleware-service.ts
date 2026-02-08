@@ -3,7 +3,7 @@
  * Tests message routing rules, validates transformations,
  * and tests flow execution paths in ESB/middleware systems.
  *
- * ADR-059: Enterprise Integration Testing Gap Closure
+ * ADR-063: Enterprise Integration Testing Gap Closure
  */
 
 import { Result, ok, err } from '../../../shared/types/index.js';

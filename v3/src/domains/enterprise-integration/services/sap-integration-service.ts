@@ -2,7 +2,7 @@
  * Agentic QE v3 - SAP Integration Testing Service
  * Tests SAP RFC/BAPI calls and validates IDoc structure and segments.
  *
- * ADR-059: Enterprise Integration Testing Gap Closure
+ * ADR-063: Enterprise Integration Testing Gap Closure
  */
 
 import { Result, ok, err } from '../../../shared/types/index.js';

@@ -38,6 +38,19 @@
 - **HNSW**: Enabled
 - **Neural**: Enabled
 
+## AQE Project Scope
+
+- This project contains ~63 AQE/QE skills and separate Claude Flow platform skills
+- When working with skills, ALWAYS distinguish between AQE/QE skills and Claude Flow platform skills
+- Only count/modify AQE skills unless explicitly told otherwise — do NOT include Claude Flow platform skills
+- AQE skills live under `.claude/skills/` but exclude platform infrastructure skills (v3-*, flow-nexus-*, agentdb-*, reasoningbank-*, swarm-*)
+
+## Database Architecture
+
+- v2 database tables are LEGACY — do NOT use them. All work must target v3 tables only
+- Unified persistence system: all data goes through v3 SQLite (better-sqlite3) — one DB, one schema
+- If you encounter v2 table references in code, flag them for migration to v3
+
 ## Build & Test
 
 ```bash
@@ -53,6 +66,29 @@ npm run lint
 
 - ALWAYS run tests after making code changes
 - ALWAYS verify build succeeds before committing
+- NEVER simulate or mock tests when asked to run tests — always run real commands against the actual codebase unless explicitly told to simulate
+- When debugging, always reproduce with real commands first — do not guess at root causes
+- Use `/debug-loop` skill for hypothesis-driven autonomous debugging
+
+## Production Safety
+
+- Before modifying adapter code or any module used in production, explain the change and its production impact before applying it
+- Wait for user confirmation on changes that could affect live users or published packages
+- When fixing bugs, grep for ALL instances of the problematic pattern across the entire codebase before patching — never assume a value only appears in one place
+
+## Releases & Publishing
+
+- When bumping versions or referencing version strings, grep the entire codebase for hardcoded version numbers (e.g., '3.0.0', '3.5.0') and update ALL occurrences
+- Never assume version is only in package.json — always read version from package.json as the source of truth
+- Release workflow: version grep -> update -> build -> real tests -> dry-run publish -> publish -> verify
+- Use `/release` skill for the full release workflow
+
+## PR & Git Conventions
+
+- PR descriptions should be user-friendly and outcome-focused, not overly technical
+- Focus on what changed and why, not implementation internals
+- Trust tier assignments: tier 3 = has eval infrastructure, tier 2 = tested but no eval, tier 1 = untested
+- Use `/pr-review` skill for structured PR reviews
 
 ## Security Rules
 

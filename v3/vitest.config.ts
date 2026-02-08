@@ -21,22 +21,17 @@ export default defineConfig({
       exclude: ['src/**/*.d.ts', 'src/**/index.ts'],
     },
     testTimeout: 10000,
+    hookTimeout: 15000,  // Prevent beforeEach/afterEach hangs (e.g., fleet init)
     // OOM & Segfault Prevention for DevPod/Codespaces (Vitest 4 format)
-    // Problems:
-    // 1. 286 test files × HNSW (100MB) + WASM (20MB) = OOM
-    // 2. Concurrent HNSW native module access = segfault
-    // Solution: Use forks pool with limited workers for process isolation
+    // Process isolation via forks prevents HNSW native module segfaults.
+    // fileParallelism is ON (default) so multiple files run concurrently
+    // across forked workers — safe because each fork has its own HNSW instance.
     pool: 'forks',
-    // Vitest 4: poolOptions moved to top-level
-    maxForks: 2,       // Limit to 2 parallel processes
+    // CI uses 1GB heap — keep sequential to avoid OOM. Local dev uses parallel forks.
+    fileParallelism: !process.env.CI,
+    maxForks: process.env.CI ? 2 : 6,
     minForks: 1,
     isolate: true,     // Full process isolation prevents native module conflicts
-    // Disable file parallelism - run one test file at a time per worker
-    fileParallelism: false,
-    // Sequence heavy integration tests
-    sequence: {
-      shuffle: false,
-    },
     // Fail fast on OOM-prone environments
     bail: process.env.CI ? 5 : 0,
   },

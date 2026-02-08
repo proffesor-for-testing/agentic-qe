@@ -178,6 +178,22 @@ export interface QEPattern {
 
   /** Total tokens saved across all reuses */
   readonly totalTokensSaved?: number;
+
+  // ============================================================================
+  // ADR-061: Asymmetric Learning / Quarantine Fields
+  // ============================================================================
+
+  /** Whether this pattern is quarantined due to low confidence (ADR-061) */
+  readonly quarantined?: boolean;
+
+  /** When the pattern was quarantined (ADR-061) */
+  readonly quarantinedAt?: Date;
+
+  /** Consecutive success count for rehabilitation tracking (ADR-061) */
+  readonly consecutiveSuccesses?: number;
+
+  /** Asymmetric failure penalty ratio applied (ADR-061) */
+  readonly asymmetryRatio?: number;
 }
 
 /**
