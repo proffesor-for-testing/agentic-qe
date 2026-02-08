@@ -105,11 +105,11 @@ jobs:
             ```
 
             ### What's New
-            - 12 DDD Bounded Contexts
+            - 13 DDD Bounded Contexts
             - 3178+ tests passing
             - O(log n) coverage analysis with HNSW
             - ReasoningBank pattern learning
-            - 78 specialized QE agents
+            - 58 specialized QE agents
 
             See [CHANGELOG](./v3/CHANGELOG.md) for details.
           prerelease: true

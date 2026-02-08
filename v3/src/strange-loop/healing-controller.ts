@@ -294,6 +294,19 @@ export class SelfHealingController {
           result = await this.executeRebalanceTopology(action);
           break;
 
+        // ADR-062: Loop detection steering action
+        case 'steer_loop': {
+          const steerStartTime = Date.now();
+          result = {
+            action,
+            success: true,
+            message: `Loop steering applied for ${action.targetAgentId ?? 'unknown'}: suggest alternative approaches`,
+            durationMs: Date.now() - steerStartTime,
+            executedAt: steerStartTime,
+          };
+          break;
+        }
+
         // ADR-057: Infrastructure actions — delegated to executor.
         // When wired via createStrangeLoopWithInfraHealing(), the executor
         // is CompositeActionExecutor which routes to InfraActionExecutor.

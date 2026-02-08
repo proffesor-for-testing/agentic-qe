@@ -21,6 +21,7 @@ import {
   TokenUsage,
   Timeframe,
   TokenEfficiencyReport,
+  formatDashboardSummary,
 } from '../../learning/token-tracker.js';
 import { TokenOptimizerService } from '../../optimization/token-optimizer-service.js';
 import * as fs from 'fs';
@@ -34,6 +35,7 @@ interface TokenUsageOptions {
   byAgent?: boolean;
   byDomain?: boolean;
   recommendations?: boolean;
+  dashboard?: boolean;
   export?: string;
   json?: boolean;
   verbose?: boolean;
@@ -54,6 +56,7 @@ export function createTokenUsageCommand(): Command {
     .option('-d, --by-domain', 'Group usage by domain')
     .option('-r, --recommendations', 'Show optimization recommendations')
     .option('-e, --export <file>', 'Export to CSV file')
+    .option('--dashboard', 'Show compact token budget dashboard summary')
     .option('--json', 'Output as JSON')
     .option('-v, --verbose', 'Show detailed output')
     .action(async (options: TokenUsageOptions) => {
@@ -70,7 +73,9 @@ async function executeTokenUsage(options: TokenUsageOptions): Promise<void> {
   const timeframe = parseTimeframe(options.period);
 
   try {
-    if (options.byAgent) {
+    if (options.dashboard) {
+      console.log(formatDashboardSummary());
+    } else if (options.byAgent) {
       await showByAgent(timeframe, options);
     } else if (options.byDomain) {
       await showByDomain(timeframe, options);

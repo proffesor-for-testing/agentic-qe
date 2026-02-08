@@ -935,6 +935,54 @@ export class RealQEReasoningBank {
   }
 
   // ============================================================================
+  // ADR-062: Loop Detection Pattern Storage
+  // ============================================================================
+
+  /**
+   * Store a loop pattern as an anti-pattern for fleet learning.
+   *
+   * Records the tool call loop signature so that future agents can
+   * be steered away from the same repetitive pattern.
+   *
+   * @param pattern - Loop pattern data to store
+   * @returns Success indicator with optional pattern ID
+   */
+  async storeLoopPattern(pattern: {
+    toolCallSignature: string;
+    agentId: string;
+    taskType: string;
+    steeringUsed: string;
+    resolved: boolean;
+  }): Promise<{ success: boolean; patternId?: string; error?: string }> {
+    try {
+      const result = await this.storeQEPattern({
+        patternType: 'anti-pattern' as QEPatternType,
+        name: `loop-detection:${pattern.toolCallSignature}`,
+        description: `Tool call loop detected for agent ${pattern.agentId} during ${pattern.taskType}. Steering: ${pattern.steeringUsed}. Resolved: ${pattern.resolved}`,
+        template: {
+          type: 'prompt',
+          content: pattern.steeringUsed,
+          variables: [],
+        },
+        context: {
+          tags: ['anti-pattern', 'loop-detection', 'learning-optimization', pattern.taskType],
+        },
+      });
+
+      if (result.success) {
+        return { success: true, patternId: result.value.id };
+      }
+
+      return { success: false, error: result.error?.message ?? 'Unknown error' };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  // ============================================================================
   // Feedback Loop Methods (ADR-023)
   // ============================================================================
 

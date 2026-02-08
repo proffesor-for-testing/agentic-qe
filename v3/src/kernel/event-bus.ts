@@ -16,6 +16,25 @@ import { EventBus, Subscription, EventFilter, EventMiddleware } from './interfac
 import { CircularBuffer } from '../shared/utils/circular-buffer';
 import { EVENT_BUS_CONSTANTS } from './constants.js';
 
+// ============================================================================
+// ADR-062: Loop Detection Event Types
+// ============================================================================
+
+/**
+ * Event type constants for loop detection (ADR-062).
+ *
+ * - `loop.warning`  - Emitted on strike 2 (second identical tool call in window)
+ * - `loop.detected` - Emitted on strike 3+ (loop confirmed, steering injected)
+ *
+ * Payload shape: LoopDetectionResult from anti-drift-middleware.ts
+ */
+export const LOOP_EVENT_TYPES = {
+  /** Emitted on strike 2: second identical tool call within the sliding window. */
+  LOOP_WARNING: 'loop.warning' as const,
+  /** Emitted on strike 3+: loop confirmed, steering message injected. */
+  LOOP_DETECTED: 'loop.detected' as const,
+};
+
 interface SubscriptionEntry {
   id: string;
   eventType: string | '*';

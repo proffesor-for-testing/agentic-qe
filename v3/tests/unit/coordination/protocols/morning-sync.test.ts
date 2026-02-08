@@ -183,7 +183,7 @@ describe('MorningSyncProtocol', () => {
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.size).toBe(13); // All 13 domains
+        expect(result.value.size).toBe(14); // All 14 domains (13 user-facing + coordination)
       }
     });
 

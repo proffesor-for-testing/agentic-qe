@@ -10,6 +10,7 @@ import { DomainName } from '../../shared/types';
 import { ToolResult, ToolResultMetadata } from '../types';
 import { MemoryBackend } from '../../kernel/interfaces';
 import { HybridMemoryBackend } from '../../kernel/hybrid-backend';
+import { findProjectRoot } from '../../kernel/unified-memory.js';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -19,23 +20,6 @@ import * as fs from 'fs';
 
 let sharedMemoryBackend: MemoryBackend | null = null;
 let memoryInitPromise: Promise<MemoryBackend> | null = null;
-
-/**
- * Find the project root by looking for package.json or .git
- */
-function findProjectRoot(): string {
-  let dir = process.cwd();
-  const root = path.parse(dir).root;
-
-  while (dir !== root) {
-    if (fs.existsSync(path.join(dir, 'package.json')) ||
-        fs.existsSync(path.join(dir, '.git'))) {
-      return dir;
-    }
-    dir = path.dirname(dir);
-  }
-  return process.cwd();
-}
 
 /**
  * Get or create the shared memory backend for MCP tools.

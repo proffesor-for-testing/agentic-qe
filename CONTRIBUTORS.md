@@ -28,7 +28,7 @@ We use the [All Contributors](https://allcontributors.org/) specification to rec
 
 | Avatar | Name | Contributions | PRs |
 |--------|------|---------------|-----|
-| <img src="https://github.com/fndlalit.png" width="50" height="50" style="border-radius:50%"/> | **[@fndlalit](https://github.com/fndlalit)** | QX Partner Agent, Testability Scoring skill, 15 n8n Workflow Testing Agents | [#104](https://github.com/proffesor-for-testing/agentic-qe/pull/104), [#110](https://github.com/proffesor-for-testing/agentic-qe/pull/110), [#151](https://github.com/proffesor-for-testing/agentic-qe/pull/151) |
+| <img src="https://github.com/fndlalit.png" width="50" height="50" style="border-radius:50%"/> | **[@fndlalit](https://github.com/fndlalit)** | QX Partner Agent, Testability Scoring skill, 15 n8n Workflow Testing Agents, a11y-ally Agent, Vibium Browser Integration, Enterprise Integration Domain (ADR-063), 7 Enterprise QE Agents, 4 Enterprise Skills, QCSD CI/CD Swarm, Infrastructure Self-Healing (ADR-057), QX HTML Report Template, Faker locale fix | [#98](https://github.com/proffesor-for-testing/agentic-qe/pull/98), [#104](https://github.com/proffesor-for-testing/agentic-qe/pull/104), [#110](https://github.com/proffesor-for-testing/agentic-qe/pull/110), [#129](https://github.com/proffesor-for-testing/agentic-qe/pull/129), [#135](https://github.com/proffesor-for-testing/agentic-qe/pull/135), [#151](https://github.com/proffesor-for-testing/agentic-qe/pull/151), [#224](https://github.com/proffesor-for-testing/agentic-qe/pull/224), [#233](https://github.com/proffesor-for-testing/agentic-qe/pull/233), [#236](https://github.com/proffesor-for-testing/agentic-qe/pull/236) |
 | <img src="https://github.com/shaal.png" width="50" height="50" style="border-radius:50%"/> | **[@shaal](https://github.com/shaal)** | Core development, Testing infrastructure | - |
 | <img src="https://github.com/mondweep.png" width="50" height="50" style="border-radius:50%"/> | **[@mondweep](https://github.com/mondweep)** | Core development, Architecture | - |
 
@@ -81,9 +81,9 @@ When you contribute, you'll be:
 | Metric | Value |
 |--------|-------|
 | Total Contributors | 4 |
-| Total PRs Merged | 110+ |
-| Total Issues Closed | 100+ |
-| Lines of Code | 50,000+ |
+| Total PRs Merged | 240+ |
+| Total Issues Closed | 150+ |
+| Lines of Code | 280,000+ |
 
 ---
 
@@ -103,7 +103,7 @@ Special thanks to the QE community for inspiration and support.
 
 | Contributor | Achievement |
 |-------------|-------------|
-| [@fndlalit](https://github.com/fndlalit) | First community contributor - QX Partner Agent, Testability Scoring & 15 n8n Agents |
+| [@fndlalit](https://github.com/fndlalit) | First community contributor - QX Partner Agent, Testability Scoring, 15 n8n Agents, a11y-ally, Enterprise Integration Domain (7 agents + 4 skills), QCSD CI/CD Swarm, Infrastructure Self-Healing |
 
 ---
 

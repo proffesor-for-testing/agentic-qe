@@ -382,7 +382,9 @@ export type SelfHealingActionType =
   | 'scale_down'
   | 'rebalance_topology'
   // ADR-057: Infrastructure self-healing action type
-  | 'restart_service';
+  | 'restart_service'
+  // ADR-062: Loop detection steering action
+  | 'steer_loop';
 
 /**
  * Priority levels for healing actions
@@ -759,7 +761,9 @@ export type StrangeLoopEventType =
   | 'coherence_restored'
   | 'consensus_invalid'
   | 'collapse_predicted'
-  | 'belief_reconciled';
+  | 'belief_reconciled'
+  // ADR-062: Loop detection events
+  | 'loop_detected';
 
 /**
  * Event payload for strange loop events

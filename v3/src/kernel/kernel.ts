@@ -21,6 +21,7 @@ import { InMemoryBackend } from './memory-backend';
 import { HybridMemoryBackend } from './hybrid-backend';
 import { SemanticAntiDriftMiddleware } from './anti-drift-middleware.js';
 import { AGENT_CONSTANTS, MEMORY_CONSTANTS } from './constants.js';
+import { findProjectRoot } from './unified-memory.js';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -59,26 +60,6 @@ const DOMAIN_FACTORIES: Record<DomainName, PluginFactoryFn> = {
   'enterprise-integration': (eb, m, c) => createEnterpriseIntegrationPlugin(eb, m, c),
   'coordination': (eb, m, c) => createCoordinationPlugin(eb, m, c),
 };
-
-/**
- * Find the project root by looking for package.json or .git
- */
-function findProjectRoot(): string {
-  let dir = process.cwd();
-  const root = path.parse(dir).root;
-
-  while (dir !== root) {
-    // Check for project markers
-    if (fs.existsSync(path.join(dir, 'package.json')) ||
-        fs.existsSync(path.join(dir, '.git'))) {
-      return dir;
-    }
-    dir = path.dirname(dir);
-  }
-
-  // Fallback to cwd if no project root found
-  return process.cwd();
-}
 
 const DEFAULT_CONFIG: KernelConfig = {
   maxConcurrentAgents: AGENT_CONSTANTS.MAX_CONCURRENT_AGENTS,

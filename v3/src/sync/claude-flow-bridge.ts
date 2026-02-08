@@ -18,6 +18,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import secureJsonParse from 'secure-json-parse';
+import { findProjectRoot } from '../kernel/unified-memory.js';
 
 /**
  * Memory entry from Claude Flow store.json
@@ -57,33 +58,6 @@ export interface SyncOptions {
   dryRun?: boolean;
   /** Verbose logging */
   verbose?: boolean;
-}
-
-/** Maximum directory depth to traverse when finding project root */
-const MAX_PROJECT_ROOT_DEPTH = 50;
-
-/**
- * Find project root by looking for package.json or .git
- * Includes depth limit to prevent potential DoS from deep directory traversal
- */
-function findProjectRoot(startDir: string = process.cwd()): string {
-  let dir = startDir;
-  let depth = 0;
-
-  while (dir !== path.dirname(dir) && depth < MAX_PROJECT_ROOT_DEPTH) {
-    if (fs.existsSync(path.join(dir, 'package.json')) ||
-        fs.existsSync(path.join(dir, '.git'))) {
-      return dir;
-    }
-    dir = path.dirname(dir);
-    depth++;
-  }
-
-  if (depth >= MAX_PROJECT_ROOT_DEPTH) {
-    console.warn(`[Claude Flow Bridge] Max depth (${MAX_PROJECT_ROOT_DEPTH}) reached when finding project root`);
-  }
-
-  return startDir;
 }
 
 /**
@@ -166,7 +140,7 @@ export async function syncClaudeFlowToAQE(options: SyncOptions = {}): Promise<Sy
   const projectRoot = options.projectRoot || findProjectRoot();
 
   const claudeFlowPath = path.join(projectRoot, '.claude-flow', 'memory', 'store.json');
-  const aqeDbPath = path.join(projectRoot, 'v3', '.agentic-qe', 'memory.db');
+  const aqeDbPath = path.join(projectRoot, '.agentic-qe', 'memory.db');
 
   const result: SyncResult = {
     success: false,
@@ -376,7 +350,7 @@ export async function getSyncStatus(projectRoot?: string): Promise<{
   const root = projectRoot || findProjectRoot();
 
   const claudeFlowPath = path.join(root, '.claude-flow', 'memory', 'store.json');
-  const aqeDbPath = path.join(root, 'v3', '.agentic-qe', 'memory.db');
+  const aqeDbPath = path.join(root, '.agentic-qe', 'memory.db');
 
   let claudeFlowEntries = 0;
   let lastClaudeFlowUpdate: Date | null = null;

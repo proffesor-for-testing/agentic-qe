@@ -5,6 +5,45 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0] - 2026-02-08
+
+### Added
+
+- **Pentest Validation (Shannon-Inspired)** — Graduated exploit validation with "No Exploit, No Report" quality gate. Transforms security findings from theoretical risks into proven vulnerabilities with PoC evidence. Based on Six Thinking Hats analysis of Shannon (KeygraphHQ) pentesting concepts.
+- **`qe-pentest-validator` Agent** — New agent in security-compliance domain with 3-tier graduated exploitation (pattern proof, payload test, full exploit), parallel per-vulnerability-type pipelines (injection, XSS, auth, SSRF), exploit playbook memory with ReasoningBank learning, and cost optimization via 3-tier model routing.
+- **`pentest-validation` Skill (Tier 3)** — Orchestration skill with 4-phase pipeline (recon → analysis → validation → report), full eval suite (15 test cases), JSON schema validation, and bash validator script. Trust tier 3 with comprehensive validation infrastructure.
+- **Init Fixes** — Templates directory support in agents-installer, 5 skills synced between .claude/ and v3/assets/, SKILL.md casing fixes, 'release' added to EXCLUDED_SKILLS.
+
+### Changed
+
+- **Skill Count** — 74 → 75 QE skills (46 Tier 3 + 29 additional)
+- **Agent Count** — 58 → 59 specialized QE agents (52 agents + 7 subagents)
+- **Version Bump** — v3.5.6 → v3.6.0 (minor version bump for new agent/skill/capabilities)
+
+## [3.5.6] - 2026-02-08
+
+### Added
+
+- **Enterprise Integration Domain (ADR-063)** — 14th DDD bounded context covering SOAP/WSDL, SAP RFC/BAPI/IDoc, OData, ESB/middleware, message broker, and Segregation of Duties testing. Full coordinator, interfaces, plugin, and 6 production services (4,575 lines). 87 unit tests.
+- **7 New QE Agents** — `qe-soap-tester`, `qe-sap-rfc-tester`, `qe-sap-idoc-tester`, `qe-middleware-validator`, `qe-odata-contract-tester`, `qe-message-broker-tester`, `qe-sod-analyzer`
+- **4 New Skills** — `enterprise-integration-testing`, `middleware-testing-patterns`, `wms-testing-patterns`, `observability-testing-patterns`
+- **QCSD Swarm Enhancements** — All 4 swarm phases (ideation, development, refinement, cicd) updated with 3 enterprise integration flags (`HAS_MIDDLEWARE`, `HAS_SAP_INTEGRATION`, `HAS_AUTHORIZATION`) and conditional agent mappings
+- **QX Partner HTML Report Template** — Mandatory HTML generation with 11 required sections, 23+ heuristics with scoring, 6-8 creativity domains, and auto-collapse JS
+- **StrongDM Software Factory Integration (ADR-062)** — Tier 1 loop detection + token dashboard for software delivery governance
+- **Self-Healing Infrastructure Docs** — Design docs for DB recovery patterns, Strange Loop capabilities, and infrastructure extension design
+- **V3 Technical Architecture Glossary** — Comprehensive glossary of v3 architecture terms
+
+### Fixed
+
+- **Dual-database data splits** — Unified `findProjectRoot` to prevent SQLite databases from being created in wrong directories
+- **Test data generator locale** — Faker now correctly applies locale parameter instead of always generating English data
+- **OOM in Codespaces** — Capped `NODE_OPTIONS` heap to 1GB to prevent out-of-memory crashes in constrained environments
+
+### Changed
+
+- **Benchmark reports cleanup** — Removed ~6k lines of auto-generated reports from `v3/docs/reports/`
+- **ADR numbering** — Renumbered enterprise integration ADR from 059 to 063 to avoid conflict with ghost-intent-coverage ADR-059
+
 ## [3.5.5] - 2026-02-06
 
 ### Added
