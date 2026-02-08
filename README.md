@@ -118,7 +118,7 @@ claude "Assess code quality and provide deployment recommendation"
 
 **What happens:**
 1. **Auto-configuration** detects your tech stack (TypeScript/JS, testing framework, CI setup)
-2. **All 12 DDD domains** enabled automatically - no "No factory registered" errors
+2. **All 13 DDD domains** enabled automatically - no "No factory registered" errors
 3. **Pattern learning** kicks in - your project's test patterns are learned and reused
 4. **AI agents** generate tests, analyze coverage, and provide actionable recommendations
 
@@ -373,7 +373,7 @@ await a2a.sendTask({
 
 ### 🔐 Consensus & MinCut Coordination (v3.3.3)
 
-V3.3.3 achieves **full MinCut/Consensus integration across all 12 domains**:
+V3.3.3 achieves **full MinCut/Consensus integration across all 13 domains**:
 
 | Feature | Description |
 |---------|-------------|
@@ -381,7 +381,7 @@ V3.3.3 achieves **full MinCut/Consensus integration across all 12 domains**:
 | **MinCut Topology** | Graph-based self-healing agent coordination |
 | **Multi-Model Voting** | Aggregate decisions from multiple model tiers |
 | **Claim Verification** | Cryptographic verification of agent work claims |
-| **12/12 Domain Integration** | All domains use `verifyFinding()` for consensus |
+| **13/13 Domain Integration** | All domains use `verifyFinding()` for consensus |
 | **Topology-Aware Routing** | Routes tasks avoiding weak network vertices |
 | **Self-Healing Triggers** | `shouldPauseOperations()` for automatic recovery |
 
@@ -476,7 +476,7 @@ npx @claude-flow/cli@latest agent spawn -t qe-test-architect --name test-gen
 **V2 Backward Compatibility**: All V2 agents map to V3 equivalents automatically.
 
 <details>
-<summary><b>📋 View All Main QE Agents (44)</b></summary>
+<summary><b>📋 View All Main QE Agents (52)</b></summary>
 
 | Agent | Domain | Purpose |
 |-------|--------|---------|
@@ -785,7 +785,7 @@ agentic-qe/
 ├── v3/                      # V3 DDD Implementation (Main Version)
 │   ├── src/
 │   │   ├── kernel/          # Shared kernel
-│   │   ├── domains/         # 12 bounded contexts
+│   │   ├── domains/         # 13 bounded contexts
 │   │   │   ├── test-generation/
 │   │   │   ├── coverage-analysis/
 │   │   │   ├── quality-assessment/
@@ -794,7 +794,7 @@ agentic-qe/
 │   │   ├── mcp/             # MCP server
 │   │   └── cli/             # V3 CLI
 │   ├── tests/               # 5,600+ tests
-│   └── assets/agents/       # 51 QE agent definitions (44 main + 7 subagents)
+│   └── assets/agents/       # 59 QE agent definitions (52 main + 7 subagents)
 ├── v2/                      # V2 Implementation (Legacy)
 │   ├── src/                 # V2 source code
 │   ├── tests/               # V2 tests

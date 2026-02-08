@@ -58,7 +58,7 @@ npx aqe test generate src/
 - **Queen-led Coordination** - 3-5x throughput with work stealing and consensus
 - **MinCut Topology** - Graph-based self-healing agent coordination
 - **Coherence Verification** - Mathematical proof of belief consistency using WASM engines
-- **MinCut/Consensus Integration** - Full 12/12 domain integration with self-healing
+- **MinCut/Consensus Integration** - Full 13/13 domain integration with self-healing
 - **Cross-Phase Memory Unification** - Unified SQLite storage for QCSD feedback loops
 - **Zero-Breaking-Changes Migration** - Full v2 backward compatibility
 - **Browser Automation** - @claude-flow/browser integration with 9 workflow templates
@@ -67,7 +67,7 @@ npx aqe test generate src/
 ## Get Value Fast
 
 ```bash
-# Install and auto-configure (all 12 domains enabled)
+# Install and auto-configure (all 13 domains enabled)
 npm install -g agentic-qe
 cd your-project && aqe init --auto
 
@@ -154,7 +154,7 @@ Background neural consolidation for continuous improvement:
 
 ### Consensus & MinCut Coordination
 
-Advanced coordination for reliable multi-agent decisions with **full 12/12 domain integration**:
+Advanced coordination for reliable multi-agent decisions with **full 13/13 domain integration**:
 
 - **Byzantine Consensus**: Fault-tolerant voting for critical quality decisions
 - **MinCut Topology**: Graph-based self-healing agent coordination
@@ -202,7 +202,7 @@ Agentic QE uses a **Domain-Driven Design (DDD)** architecture with a microkernel
 │  │ EventBus │  │ AgentCoord.  │  │ PluginLoader│  │ Memory (HNSW+SQLite) │  │
 │  └──────────┘  └──────────────┘  └─────────────┘  └──────────────────────┘  │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                          12 Bounded Contexts                                 │
+│                          13 Bounded Contexts                                 │
 │  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐   │
 │  │ Test          │ │ Test          │ │ Coverage      │ │ Quality       │   │
 │  │ Generation    │ │ Execution     │ │ Analysis      │ │ Assessment    │   │
@@ -218,7 +218,7 @@ Agentic QE uses a **Domain-Driven Design (DDD)** architecture with a microkernel
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 12 DDD Bounded Contexts
+## 13 DDD Bounded Contexts
 
 | Domain | Description | Key Features |
 |--------|-------------|--------------|
