@@ -31,9 +31,12 @@ export default defineConfig({
     // fileParallelism is ON (default) so multiple files run concurrently
     // across forked workers — safe because each fork has its own HNSW instance.
     pool: 'forks',
-    // CI uses 1GB heap — keep sequential to avoid OOM. Local dev uses parallel forks.
+    // OOM Prevention: Container cgroup = 8GB. NODE_OPTIONS=--max-old-space-size=2048 is
+    // inherited by EVERY fork, so 3 processes × 2GB = 6GB for tests alone — leaving no
+    // room for VS Code (~2GB) + Claude (~5GB). Fix: npm test script overrides NODE_OPTIONS
+    // to --max-old-space-size=1024, capping ALL processes (main + forks) to 1GB each.
     fileParallelism: !process.env.CI,
-    maxForks: process.env.CI ? 2 : 6,
+    maxForks: 2,
     minForks: 1,
     isolate: true,     // Full process isolation prevents native module conflicts
     // Fail fast on OOM-prone environments
