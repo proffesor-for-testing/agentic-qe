@@ -339,8 +339,8 @@ describe('CLI Commands', () => {
 
   describe('Domain Command', () => {
     describe('List Subcommand', () => {
-      it('should list all 13 domains', () => {
-        expect(ALL_DOMAINS.length).toBe(13);
+      it('should list all 14 domains', () => {
+        expect(ALL_DOMAINS.length).toBe(14);
       });
     });
 

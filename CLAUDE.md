@@ -80,8 +80,22 @@ npm run lint
 
 - When bumping versions or referencing version strings, grep the entire codebase for hardcoded version numbers (e.g., '3.0.0', '3.5.0') and update ALL occurrences
 - Never assume version is only in package.json — always read version from package.json as the source of truth
-- Release workflow: version grep -> update -> build -> real tests -> dry-run publish -> publish -> verify
 - Use `/release` skill for the full release workflow
+
+### npm Publish Process (MUST FOLLOW)
+
+1. **Merge PR** to main
+2. **Checkout main** and pull latest
+3. **Build** (`npm run build`) — verify success
+4. **Create GitHub Release** with `gh release create vX.Y.Z --target main` — this triggers the `npm-publish.yml` workflow automatically
+5. **Monitor** `npm-publish.yml` workflow (NOT `publish-v3-alpha.yml` — that is for alpha/beta only)
+6. **Verify** on npmjs.com after workflow succeeds
+
+- **CRITICAL**: The production publish workflow is `.github/workflows/npm-publish.yml` — triggered by `on: release: [published]`
+- **DO NOT** use `publish-v3-alpha.yml` for production releases — it publishes `@agentic-qe/v3` (scoped alpha), not `agentic-qe` (root package)
+- **DO NOT** run `npm publish` locally or attempt manual publish steps
+- **DO NOT** run local tests in Codespace if they OOM — CI tests in the workflow are sufficient
+- If publish fails due to test assertions, fix tests, push to main, delete release + tag, recreate both
 
 ## PR & Git Conventions
 

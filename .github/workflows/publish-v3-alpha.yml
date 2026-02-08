@@ -79,7 +79,7 @@ jobs:
 
       - name: Update version (if manual trigger)
         if: github.event_name == 'workflow_dispatch'
-        run: npm version ${{ inputs.version }} --no-git-tag-version
+        run: npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Publish to NPM
         run: |
