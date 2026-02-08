@@ -49,7 +49,7 @@ export interface AgentsInstallerOptions {
 // ============================================================================
 
 /**
- * V3 QE domain agents (mapped to 12 DDD bounded contexts)
+ * V3 QE domain agents (mapped to 13 DDD bounded contexts)
  * NOTE: Per ADR-045, we use version-agnostic naming (qe-*) not v3-qe-*.
  * Core agents like adr-architect, memory-specialist, etc. are claude-flow agents, NOT AQE agents.
  */
@@ -116,6 +116,15 @@ const V3_QE_AGENTS = [
   'qe-pattern-learner',
   'qe-metrics-optimizer',
   'qe-transfer-specialist',
+
+  // Enterprise Integration Domain (ADR-063)
+  'qe-soap-tester',
+  'qe-sap-rfc-tester',
+  'qe-sap-idoc-tester',
+  'qe-odata-contract-tester',
+  'qe-middleware-validator',
+  'qe-message-broker-tester',
+  'qe-sod-analyzer',
 
   // Fleet Coordination
   'qe-fleet-commander',
@@ -262,6 +271,9 @@ export class AgentsInstaller {
 
     // Copy helpers directory (agent-specific reference files)
     await this.copyHelpersDirectory(targetAgentsDir);
+
+    // Copy templates directory (agent-specific templates like QX report)
+    await this.copyTemplatesDirectory(targetAgentsDir);
 
     // Get list of available agents
     const availableAgents = this.getAvailableAgents();
@@ -461,6 +473,18 @@ export class AgentsInstaller {
   }
 
   /**
+   * Copy templates directory (agent-specific templates like QX Partner report)
+   */
+  private async copyTemplatesDirectory(targetAgentsDir: string): Promise<void> {
+    const sourceTemplatesDir = join(this.sourceAgentsDir, 'templates');
+    const targetTemplatesDir = join(targetAgentsDir, 'templates');
+
+    if (existsSync(sourceTemplatesDir)) {
+      this.copyDirectoryRecursive(sourceTemplatesDir, targetTemplatesDir);
+    }
+  }
+
+  /**
    * Extract description from agent markdown file
    */
   private getAgentDescription(agentFile: string): string | undefined {
@@ -533,10 +557,17 @@ export class AgentsInstaller {
       'pattern-learner': 'learning-optimization',
       'metrics-optimizer': 'learning-optimization',
       'transfer-specialist': 'learning-optimization',
+      'soap-tester': 'enterprise-integration',
+      'sap-rfc-tester': 'enterprise-integration',
+      'sap-idoc-tester': 'enterprise-integration',
+      'odata-contract-tester': 'enterprise-integration',
+      'middleware-validator': 'enterprise-integration',
+      'message-broker-tester': 'enterprise-integration',
+      'sod-analyzer': 'enterprise-integration',
     };
 
-    // Extract the key part of the agent name (remove v3-qe- prefix)
-    const key = agentName.replace('v3-qe-', '');
+    // Extract the key part of the agent name (remove qe- or v3-qe- prefix)
+    const key = agentName.replace(/^(v3-)?qe-/, '');
     return domainMap[key];
   }
 

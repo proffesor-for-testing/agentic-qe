@@ -5,13 +5,13 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 13 Bounded Contexts, 58 Specialized QE Agents, 71 QE Skills, and ReasoningBank Learning
+> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 13 Bounded Contexts, 58 Specialized QE Agents, 74 QE Skills, and ReasoningBank Learning
 
 ### Key Features
 
 | Feature | Description |
 |---------|-------------|
-| **71 QE Skills** | Quality engineering skills with 4-tier trust validation system |
+| **74 QE Skills** | Quality engineering skills with 4-tier trust validation system |
 | **58 QE Agents** | Specialized agents for test generation, security, coverage, enterprise integration, and more |
 | **13 DDD Domains** | Modular bounded contexts for all quality engineering needs |
 | **MCP Integration** | Full Claude Code integration via Model Context Protocol |
@@ -49,7 +49,7 @@ npx aqe test generate src/
 ## Why Agentic QE?
 
 - **58 Specialized QE Agents** - Domain-focused quality engineering agents (51 main + 7 subagents)
-- **71 QE Skills** - 46 Tier 3 verified + 25 additional (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
+- **74 QE Skills** - 46 Tier 3 verified + 28 additional (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 - **13 DDD Bounded Contexts** - Modular, extensible architecture
 - **TinyDancer Model Routing** - 3-tier intelligent routing for cost optimization
 - **O(log n) Coverage Analysis** - Sublinear performance with HNSW indexing
@@ -633,7 +633,7 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Memory | SQLite only | HNSW + SQLite hybrid |
 | Learning | Basic patterns | ReasoningBank + SONA + Dream Cycles |
 | Agents | 32 | 58 QE agents (51 main + 7 subagents) |
-| Skills | 35 | 71 QE skills (46 Tier 3 + 25 additional) |
+| Skills | 35 | 74 QE skills (46 Tier 3 + 28 additional) |
 | Coverage | O(n) | O(log n) |
 | Pattern Search | Linear | O(log n) HNSW indexing |
 | Coordination | Sequential | Queen + Work Stealing + Consensus |
@@ -752,9 +752,9 @@ Agentic QE includes 58 specialized quality engineering agents (51 main + 7 subag
 ### Enterprise Integration Domain (New in v3.5.6)
 `qe-soap-tester`, `qe-sap-rfc-tester`, `qe-sap-idoc-tester`, `qe-middleware-validator`, `qe-odata-contract-tester`, `qe-message-broker-tester`, `qe-sod-analyzer`
 
-## 71 QE Skills
+## 74 QE Skills
 
-Agentic QE includes **71 QE skills** with a 4-tier trust validation system (ADR-056):
+Agentic QE includes **74 QE skills** with a 4-tier trust validation system (ADR-056):
 
 | Trust Tier | Skills | Validation Level |
 |------------|--------|------------------|
@@ -766,7 +766,7 @@ Agentic QE includes **71 QE skills** with a 4-tier trust validation system (ADR-
 Agents automatically apply relevant skills:
 
 <details>
-<summary><b>View All 71 QE Skills</b></summary>
+<summary><b>View All 74 QE Skills</b></summary>
 
 ### Core Testing & Methodologies (12)
 - `agentic-quality-engineering` - Core PACT principles for AI-powered QE

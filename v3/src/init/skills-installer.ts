@@ -50,7 +50,7 @@ export interface SkillsInstallerOptions {
 // ============================================================================
 
 /**
- * V3 QE domain skills - 12 bounded contexts + migration/iteration utilities
+ * V3 QE domain skills - 13 bounded contexts + migration/iteration utilities
  * These are QE-specific skills for v3's DDD architecture
  */
 const V3_DOMAIN_SKILLS = [
@@ -129,6 +129,8 @@ const EXCLUDED_SKILLS = [
   'skill-builder',
   // Claude Flow integration skill (not pure QE)
   'qe-agentic-flow-integration',
+  // Internal release workflow skill
+  'release',
 ];
 
 // ============================================================================

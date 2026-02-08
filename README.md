@@ -17,7 +17,7 @@
 
 - **Governance ON by Default** - @claude-flow/guidance integration with 7 unbreakable QE invariants (ADR-058)
 - **QCSD 2.0 Complete Lifecycle** - All 4 phases: Ideation → Refinement → Development → CI/CD Verification
-- **71 QE Skills** - 4 new enterprise integration skills in v3.5.6
+- **74 QE Skills** - 4 new enterprise integration skills in v3.5.6
 - **Infrastructure Self-Healing Enterprise** - 12 enterprise error signatures (SAP, Salesforce, Payment Gateway)
 
 ### What's New in v3.4.2
@@ -31,7 +31,7 @@
 - **A2A Protocol** - Google's agent-to-agent interoperability standard for cross-tool communication
 - **A2UI Components** - Unified UI combining AG-UI streaming with A2A event handling
 
-🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **13 Bounded Contexts** | 📚 **71 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance**
+🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **13 Bounded Contexts** | 📚 **74 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance**
 
 </div>
 
@@ -88,7 +88,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
-- ✅ **71 QE Skills**: 46 Tier 3 verified + 25 additional QE skills (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
+- ✅ **74 QE Skills**: 46 Tier 3 verified + 28 additional QE skills (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 
 ---
 
@@ -157,7 +157,7 @@ V3 is built on **13 DDD Bounded Contexts**, each with dedicated agents and clear
 
 ### ✅ Skill Trust Tiers (v3.4.2)
 
-AQE includes **71 QE skills** (46 Tier 3 verified + 25 additional). Trust tiers apply to core QE skills:
+AQE includes **74 QE skills** (46 Tier 3 verified + 28 additional). Trust tiers apply to core QE skills:
 
 | Tier | Badge | Count | Description |
 |------|-------|-------|-------------|
@@ -601,12 +601,12 @@ claude "Coordinate security audit across the monorepo:
 
 ---
 
-## 🎓 71 QE Skills
+## 🎓 74 QE Skills
 
 V3 agents automatically apply relevant skills from the comprehensive QE skill library.
 
 <details>
-<summary><b>View All 71 QE Skills</b></summary>
+<summary><b>View All 74 QE Skills</b></summary>
 
 **Core Testing & Methodologies (12)**
 - agentic-quality-engineering - Core PACT principles for AI-powered QE
