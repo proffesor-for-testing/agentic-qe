@@ -566,6 +566,40 @@ export class StrangeLoopOrchestrator {
   }
 
   // ============================================================================
+  // ADR-062: Loop Detection Integration
+  // ============================================================================
+
+  /**
+   * Handle a loop.detected event by triggering the Observe-Model-Decide-Act cycle.
+   *
+   * When a tool call loop is detected, this method emits a `loop_detected` event
+   * and can trigger appropriate healing actions (steering the agent away from the loop).
+   *
+   * @param loopData - The loop detection result data
+   */
+  handleLoopDetected(loopData: {
+    agentId: string;
+    toolName: string;
+    callCount: number;
+    steeringMessage?: string;
+  }): void {
+    this.emit('loop_detected', {
+      agentId: loopData.agentId,
+      toolName: loopData.toolName,
+      callCount: loopData.callCount,
+      steeringMessage: loopData.steeringMessage,
+      timestamp: Date.now(),
+    });
+
+    if (this.config.verboseLogging) {
+      console.log(
+        `[StrangeLoop] Loop detected for agent ${loopData.agentId}: ` +
+        `${loopData.toolName} called ${loopData.callCount} times`
+      );
+    }
+  }
+
+  // ============================================================================
   // Private Methods
   // ============================================================================
 

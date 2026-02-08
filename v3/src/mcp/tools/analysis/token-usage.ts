@@ -21,6 +21,7 @@ import {
   TokenUsage,
   AgentTokenMetrics,
   formatCostUsd,
+  formatDashboardSummary,
 } from '../../../learning/token-tracker.js';
 
 // ============================================================================
@@ -28,7 +29,7 @@ import {
 // ============================================================================
 
 export interface TokenUsageParams {
-  operation: 'session' | 'agent' | 'domain' | 'task' | 'efficiency';
+  operation: 'session' | 'agent' | 'domain' | 'task' | 'efficiency' | 'dashboard';
   timeframe?: Timeframe;
   agentId?: string;
   domain?: string;
@@ -136,6 +137,26 @@ export class TokenUsageTool extends MCPToolBase<TokenUsageParams, TokenUsageResu
         case 'efficiency':
           result = this.getEfficiencyReport(timeframe);
           break;
+        case 'dashboard':
+          return {
+            success: true,
+            data: {
+              operation: 'dashboard',
+              timeframe: timeframe || 'all',
+              summary: {
+                totalTokens: 0,
+                totalCost: '$0.00',
+                tokensSaved: 0,
+                savingsPercentage: 0,
+              },
+              optimization: {
+                patternsReused: 0,
+                cacheHits: 0,
+                earlyExits: 0,
+                recommendations: [formatDashboardSummary()],
+              },
+            },
+          };
         default:
           return { success: false, error: `Unknown operation: ${operation}` };
       }
@@ -559,7 +580,7 @@ const TOKEN_USAGE_SCHEMA: MCPToolSchema = {
     operation: {
       type: 'string',
       description: 'Type of analysis to perform',
-      enum: ['session', 'agent', 'domain', 'task', 'efficiency'],
+      enum: ['session', 'agent', 'domain', 'task', 'efficiency', 'dashboard'],
     },
     timeframe: {
       type: 'string',
@@ -599,7 +620,7 @@ export const tokenUsageTool = {
     properties: {
       operation: {
         type: 'string',
-        enum: ['session', 'agent', 'domain', 'task', 'efficiency'],
+        enum: ['session', 'agent', 'domain', 'task', 'efficiency', 'dashboard'],
         description: 'Scope of analysis',
       },
       timeframe: {

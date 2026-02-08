@@ -73,6 +73,7 @@
 | [ADR-059](./ADR-059-ghost-intent-coverage.md) | Ghost Intent Coverage Analysis | **Proposed** | 2026-02-06 | Phantom test surface detection via HNSW ghost vectors (inspired by AISP ψ_g) |
 | [ADR-060](./ADR-060-semantic-anti-drift.md) | Semantic Anti-Drift Protocol | **Proposed** | 2026-02-06 | HNSW semantic fingerprinting on domain events for drift detection (inspired by AISP anti-drift) |
 | [ADR-061](./ADR-061-asymmetric-learning-rates.md) | Asymmetric Learning Rates for ReasoningBank | **Proposed** | 2026-02-06 | 10:1 Hebbian failure penalty + pattern quarantine (inspired by AISP Hebbian learning) |
+| [ADR-062](./ADR-062-strongdm-software-factory.md) | StrongDM Software Factory Integration | **Accepted** | 2026-02-08 | 6 actions across 3 tiers: loop detection, token dashboard, holdout testing, gate ratcheting, progressive context, meta-learning |
 
 ---
 

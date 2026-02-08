@@ -505,6 +505,61 @@ export class BudgetEnforcer implements IBudgetEnforcer {
       now.getUTCFullYear() !== lastReset.getUTCFullYear()
     );
   }
+
+  // ============================================================================
+  // Session Cost Summary (ADR-062: Token Budget Dashboard)
+  // ============================================================================
+
+  /**
+   * Get a summary of session costs across all tiers.
+   *
+   * Returns total spent, daily limit, utilization percentage,
+   * and per-tier breakdown with spent, limit, and request counts.
+   */
+  getSessionCostSummary(): {
+    totalSpentUsd: number;
+    dailyLimitUsd: number;
+    utilizationPercent: number;
+    byTier: Record<string, { spent: number; limit: number; requests: number }>;
+  } {
+    this.autoReset();
+
+    const dailyLimitUsd = this.config.maxDailyCostUsd;
+    let totalSpentUsd = 0;
+    const byTier: Record<string, { spent: number; limit: number; requests: number }> = {};
+
+    const tierNames: Record<number, string> = {
+      0: 'AgentBooster',
+      1: 'Haiku',
+      2: 'Sonnet',
+      3: 'SonnetExtended',
+      4: 'Opus',
+    };
+
+    for (const [tier, tracker] of this.trackers.entries()) {
+      const tierBudget = this.config.tierBudgets[tier];
+      const tierName = tierNames[tier] ?? `Tier${tier}`;
+
+      totalSpentUsd += tracker.costSpentTodayUsd;
+
+      byTier[tierName] = {
+        spent: tracker.costSpentTodayUsd,
+        limit: tierBudget?.maxDailyCostUsd ?? 0,
+        requests: tracker.requestsToday,
+      };
+    }
+
+    const utilizationPercent = dailyLimitUsd > 0
+      ? Math.round((totalSpentUsd / dailyLimitUsd) * 100)
+      : 0;
+
+    return {
+      totalSpentUsd,
+      dailyLimitUsd,
+      utilizationPercent,
+      byTier,
+    };
+  }
 }
 
 // ============================================================================

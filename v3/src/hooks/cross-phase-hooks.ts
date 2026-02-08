@@ -50,7 +50,7 @@ interface HookDefinition {
 }
 
 interface HookTrigger {
-  event: 'agent-complete' | 'phase-start' | 'phase-end' | 'manual';
+  event: 'agent-complete' | 'phase-start' | 'phase-end' | 'manual' | 'loop-detected';
   agent?: string;
   phase?: string;
   conditions?: string[];

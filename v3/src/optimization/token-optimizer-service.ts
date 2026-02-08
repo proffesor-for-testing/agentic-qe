@@ -8,7 +8,7 @@
 
 import { EarlyExitTokenOptimizer, EarlyExitConfig, EarlyExitResult, EarlyExitTask, ReuseStats, DEFAULT_EARLY_EXIT_CONFIG } from './early-exit-token-optimizer.js';
 import { PatternStore, createPatternStore } from '../learning/pattern-store.js';
-import { TokenMetricsCollector } from '../learning/token-tracker.js';
+import { TokenMetricsCollector, formatDashboardSummary } from '../learning/token-tracker.js';
 import type { MemoryBackend } from '../kernel/interfaces.js';
 import type { QEPattern, QEDomain } from '../learning/qe-patterns.js';
 
@@ -206,6 +206,16 @@ class TokenOptimizerServiceImpl {
    */
   getConfig(): Readonly<TokenOptimizerServiceConfig> {
     return { ...this.config };
+  }
+
+  /**
+   * Get a compact, terminal-friendly token budget dashboard summary.
+   * Delegates to the formatDashboardSummary utility from the token tracker.
+   *
+   * @returns Multi-line dashboard string
+   */
+  getDashboardSummary(): string {
+    return formatDashboardSummary();
   }
 
   /**

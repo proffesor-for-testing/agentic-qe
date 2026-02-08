@@ -987,6 +987,101 @@ class TokenMetricsCollectorImpl {
 }
 
 // ============================================================================
+// Dashboard Summary (ADR-062: Token Budget Dashboard)
+// ============================================================================
+
+/**
+ * Input metrics for the dashboard summary formatter.
+ */
+export interface DashboardSummaryMetrics {
+  totalTokens?: number;
+  totalCostUsd?: number;
+  savedTokens?: number;
+  savedCostUsd?: number;
+  budgetLimitUsd?: number;
+  tierSplit?: Record<string, number>;
+}
+
+/**
+ * Format a number with comma separators (e.g. 1234567 -> "1,234,567").
+ */
+function formatWithCommas(n: number): string {
+  return n.toLocaleString('en-US');
+}
+
+/**
+ * Format a compact, terminal-friendly token budget dashboard summary.
+ *
+ * Feature flag: respects `process.env.AQE_TOKEN_DASHBOARD_ENABLED`.
+ * When set to 'false', returns a disabled notice.
+ *
+ * @param metrics - Optional metrics to display. When omitted, pulls from
+ *   the live singleton session data.
+ * @returns Multi-line dashboard string suitable for terminal output.
+ */
+export function formatDashboardSummary(metrics?: DashboardSummaryMetrics): string {
+  // Feature flag check
+  if (process.env.AQE_TOKEN_DASHBOARD_ENABLED === 'false') {
+    return 'Token dashboard disabled (AQE_TOKEN_DASHBOARD_ENABLED=false)';
+  }
+
+  // If no explicit metrics provided, pull from the live collector
+  if (!metrics) {
+    const session = TokenMetricsCollector.getSessionSummary();
+    const totalTokens = session.totalUsage.totalTokens;
+    const totalCostUsd = session.totalUsage.estimatedCostUsd ?? 0;
+    const savedTokens = session.optimizationStats.tokensSaved;
+    // Estimate saved cost proportionally
+    const costPerToken = totalTokens > 0 ? totalCostUsd / totalTokens : 0;
+    const savedCostUsd = savedTokens * costPerToken;
+
+    metrics = {
+      totalTokens,
+      totalCostUsd,
+      savedTokens,
+      savedCostUsd,
+    };
+  }
+
+  const totalTokens = metrics.totalTokens ?? 0;
+  const totalCostUsd = metrics.totalCostUsd ?? 0;
+  const savedTokens = metrics.savedTokens ?? 0;
+  const savedCostUsd = metrics.savedCostUsd ?? 0;
+  const budgetLimitUsd = metrics.budgetLimitUsd;
+
+  if (totalTokens === 0 && savedTokens === 0) {
+    return 'Token Dashboard: No data available';
+  }
+
+  // Line 1: Usage and savings
+  let line1 = `Token Usage: ${formatWithCommas(totalTokens)} tokens ($${totalCostUsd.toFixed(2)})`;
+  if (savedTokens > 0) {
+    line1 += ` | Saved: ${formatWithCommas(savedTokens)} tokens ($${savedCostUsd.toFixed(2)}) via pattern reuse`;
+  }
+
+  // Line 2: Budget and tier split
+  const parts: string[] = [];
+
+  if (budgetLimitUsd !== undefined && budgetLimitUsd > 0) {
+    const utilPct = Math.round((totalCostUsd / budgetLimitUsd) * 100);
+    parts.push(`Budget: $${totalCostUsd.toFixed(2)} / $${budgetLimitUsd.toFixed(2)} (${utilPct}%)`);
+  }
+
+  if (metrics.tierSplit && Object.keys(metrics.tierSplit).length > 0) {
+    const tierParts = Object.entries(metrics.tierSplit)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, pct]) => `${name} ${pct}%`);
+    parts.push(`Tier split: ${tierParts.join(' | ')}`);
+  }
+
+  if (parts.length === 0) {
+    return line1;
+  }
+
+  return `${line1}\n${parts.join(' | ')}`;
+}
+
+// ============================================================================
 // Singleton Export
 // ============================================================================
 

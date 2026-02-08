@@ -12,6 +12,198 @@ import type { DomainEvent, SemanticFingerprint, Result } from '../shared/types/i
 import { ok, err } from '../shared/types/index.js';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
 
+// ============================================================================
+// ADR-062: Loop Detection Types & Implementation
+// ============================================================================
+
+/** Signature of a single tool call for loop detection. */
+export interface ToolCallSignature {
+  readonly hash: string;           // FNV-1a hash of tool name + args
+  readonly toolName: string;
+  readonly argsFingerprint: string; // truncated hash of serialized args
+  readonly timestamp: number;
+}
+
+/** Configuration for the loop detection system. */
+export interface LoopDetectionConfig {
+  readonly maxIdenticalCalls: number;    // default: 3 (3-strike rule)
+  readonly windowMs: number;             // default: 30000 (30 seconds)
+  readonly steeringMessage: string;      // injected after 3 identical calls
+  readonly enableFleetLearning: boolean; // store patterns in HNSW
+}
+
+/** Result of a loop detection check. */
+export interface LoopDetectionResult {
+  readonly isLoop: boolean;
+  readonly callCount: number;
+  readonly signature: ToolCallSignature;
+  readonly action: 'allow' | 'warn' | 'steer';
+  readonly steeringMessage?: string;
+}
+
+/** Metrics from the loop detection tracker. */
+export interface LoopDetectionMetrics {
+  readonly totalCallsTracked: number;
+  readonly loopsDetected: number;
+}
+
+/** Default loop detection configuration. */
+const DEFAULT_LOOP_DETECTION_CONFIG: LoopDetectionConfig = {
+  maxIdenticalCalls: 3,
+  windowMs: 30000,
+  steeringMessage: 'Loop detected: the same tool call has been repeated multiple times. Consider an alternative approach or different parameters.',
+  enableFleetLearning: false,
+};
+
+/**
+ * FNV-1a hash implementation for tool call signature hashing.
+ * Produces a deterministic 32-bit hash as a hex string.
+ *
+ * @param input - The string to hash
+ * @returns Hex string representation of the FNV-1a hash
+ */
+function fnv1aHash(input: string): string {
+  let hash = 0x811c9dc5; // FNV offset basis
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193); // FNV prime
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * ToolCallSignatureTracker - ADR-062 Loop Detection
+ *
+ * Maintains a sliding window of recent tool calls per agent and detects
+ * repetitive loops using a 3-strike rule:
+ * - Strike 1: allow (logged internally)
+ * - Strike 2: warn
+ * - Strike 3+: steer (inject steering message)
+ *
+ * Feature flag: `process.env.AQE_LOOP_DETECTION_ENABLED !== 'false'`
+ */
+export class ToolCallSignatureTracker {
+  private readonly config: LoopDetectionConfig;
+  private readonly callHistory: Map<string, ToolCallSignature[]> = new Map();
+  private totalCallsTracked = 0;
+  private loopsDetected = 0;
+
+  constructor(config?: Partial<LoopDetectionConfig>) {
+    this.config = { ...DEFAULT_LOOP_DETECTION_CONFIG, ...config };
+  }
+
+  /**
+   * Track a tool call and check for loops.
+   *
+   * @param agentId - The agent making the call
+   * @param toolName - Name of the tool being called
+   * @param args - Arguments to the tool call
+   * @returns Loop detection result with action recommendation
+   */
+  trackCall(agentId: string, toolName: string, args: unknown): LoopDetectionResult {
+    // Feature flag check
+    if (process.env.AQE_LOOP_DETECTION_ENABLED === 'false') {
+      const signature = this.createSignature(toolName, args);
+      return {
+        isLoop: false,
+        callCount: 1,
+        signature,
+        action: 'allow',
+      };
+    }
+
+    const signature = this.createSignature(toolName, args);
+    this.totalCallsTracked++;
+
+    // Get or create history for this agent
+    if (!this.callHistory.has(agentId)) {
+      this.callHistory.set(agentId, []);
+    }
+    const history = this.callHistory.get(agentId)!;
+
+    // Add current call to history
+    history.push(signature);
+
+    // Prune calls outside the sliding window
+    const cutoff = Date.now() - this.config.windowMs;
+    const pruneIndex = history.findIndex(s => s.timestamp >= cutoff);
+    if (pruneIndex > 0) {
+      history.splice(0, pruneIndex);
+    } else if (pruneIndex === -1) {
+      // All entries are expired
+      history.length = 0;
+      history.push(signature);
+    }
+
+    // Count identical calls within the window
+    const identicalCount = history.filter(s => s.hash === signature.hash).length;
+
+    // Determine action based on strike count
+    if (identicalCount >= this.config.maxIdenticalCalls) {
+      this.loopsDetected++;
+      return {
+        isLoop: true,
+        callCount: identicalCount,
+        signature,
+        action: 'steer',
+        steeringMessage: this.config.steeringMessage,
+      };
+    }
+
+    if (identicalCount === this.config.maxIdenticalCalls - 1) {
+      return {
+        isLoop: false,
+        callCount: identicalCount,
+        signature,
+        action: 'warn',
+      };
+    }
+
+    return {
+      isLoop: false,
+      callCount: identicalCount,
+      signature,
+      action: 'allow',
+    };
+  }
+
+  /**
+   * Get metrics about loop detection activity.
+   */
+  getMetrics(): LoopDetectionMetrics {
+    return {
+      totalCallsTracked: this.totalCallsTracked,
+      loopsDetected: this.loopsDetected,
+    };
+  }
+
+  /**
+   * Clear all tracking state.
+   */
+  clear(): void {
+    this.callHistory.clear();
+    this.totalCallsTracked = 0;
+    this.loopsDetected = 0;
+  }
+
+  /**
+   * Create a ToolCallSignature from tool name and arguments.
+   */
+  private createSignature(toolName: string, args: unknown): ToolCallSignature {
+    const serializedArgs = JSON.stringify(args ?? '');
+    const argsFingerprint = fnv1aHash(serializedArgs);
+    const combinedInput = `${toolName}:${serializedArgs}`;
+    const hash = fnv1aHash(combinedInput);
+
+    return {
+      hash,
+      toolName,
+      argsFingerprint,
+      timestamp: Date.now(),
+    };
+  }
+}
+
 /** Generic middleware contract for the EventBus pipeline. */
 export interface EventMiddleware {
   readonly name: string;
