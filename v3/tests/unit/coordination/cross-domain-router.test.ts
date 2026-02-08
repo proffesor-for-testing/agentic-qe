@@ -112,8 +112,8 @@ describe('CrossDomainEventRouter', () => {
     it('should subscribe to all domains', async () => {
       await router.initialize();
 
-      // Should have called subscribeToChannel for all 13 domains
-      expect(mockEventBus.subscribeToChannel).toHaveBeenCalledTimes(13);
+      // Should have called subscribeToChannel for all 14 domains (13 user-facing + coordination)
+      expect(mockEventBus.subscribeToChannel).toHaveBeenCalledTimes(14);
     });
 
     it('should subscribe to wildcard events', async () => {
@@ -126,8 +126,8 @@ describe('CrossDomainEventRouter', () => {
       await router.initialize();
       await router.initialize();
 
-      // Should still only subscribe once per domain
-      expect(mockEventBus.subscribeToChannel).toHaveBeenCalledTimes(13);
+      // Should still only subscribe once per domain (14 = 13 user-facing + coordination)
+      expect(mockEventBus.subscribeToChannel).toHaveBeenCalledTimes(14);
     });
   });
 
