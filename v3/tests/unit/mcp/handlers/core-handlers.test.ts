@@ -93,9 +93,9 @@ describe('Core Handlers', () => {
       expect(result.data!.topology).toBe('hierarchical');
       expect(result.data!.maxAgents).toBe(15);
       expect(result.data!.status).toBe('initialized');
-      // User-facing domains should be 12 (excludes 'coordination')
+      // User-facing domains should be 13 (excludes 'coordination')
       expect(result.data!.enabledDomains).toBeDefined();
-      expect(result.data!.enabledDomains.length).toBe(12);
+      expect(result.data!.enabledDomains.length).toBe(13);
       expect(result.data!.enabledDomains).not.toContain('coordination');
     });
 
