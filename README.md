@@ -15,9 +15,12 @@
 
 ### What's New in v3.6.0
 
-- **Pentest Validation** - Shannon-inspired graduated exploit validation with "No Exploit, No Report" quality gate
-- **`qe-pentest-validator` Agent** - 3-tier exploitation (pattern proof → payload test → full exploit) with exploit playbook memory
-- **75 QE Skills** - New `pentest-validation` Tier 3 skill with full eval suite
+- **Enterprise Integration Domain** — SOAP/WSDL, SAP RFC/BAPI/IDoc, OData, ESB/middleware, message broker, and Segregation of Duties testing (contributed by [@fndlalit](https://github.com/fndlalit))
+- **8 New Agents** — `qe-soap-tester`, `qe-sap-rfc-tester`, `qe-sap-idoc-tester`, `qe-middleware-validator`, `qe-odata-contract-tester`, `qe-message-broker-tester`, `qe-sod-analyzer`, `qe-pentest-validator`
+- **5 New Skills** — `enterprise-integration-testing`, `middleware-testing-patterns`, `wms-testing-patterns`, `observability-testing-patterns`, `pentest-validation` (Tier 3)
+- **Pentest Validation** — Shannon-inspired graduated exploit validation with "No Exploit, No Report" quality gate and 3-tier exploitation
+- **StrongDM Tier 1** — Loop detection + token dashboard for software delivery governance (ADR-062)
+- **Fleet: 59 agents, 75 skills across 13 domains**
 
 ### What's New in v3.5.0
 
@@ -85,7 +88,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 
 **What V3 provides:**
 - ✅ **13 DDD Bounded Contexts**: Organized by business domain (test-generation, coverage-analysis, security-compliance, enterprise-integration, etc.)
-- ✅ **58 QE Agents**: Including Queen Coordinator for hierarchical orchestration (51 main + 7 TDD subagents)
+- ✅ **59 QE Agents**: Including Queen Coordinator for hierarchical orchestration (52 main + 7 TDD subagents)
 - ✅ **TinyDancer Model Routing**: 3-tier intelligent routing (Haiku/Sonnet/Opus) for cost optimization
 - ✅ **ReasoningBank Learning**: HNSW-indexed pattern storage with experience replay
 - ✅ **O(log n) Coverage Analysis**: Sublinear algorithms for efficient gap detection
@@ -237,7 +240,7 @@ The **qe-queen-coordinator** manages the entire fleet with intelligent task dist
 ```
 
 **Capabilities:**
-- Orchestrate 58 QE agents concurrently across 13 domains
+- Orchestrate 59 QE agents concurrently across 13 domains
 - TinyDancer 3-tier model routing (Haiku/Sonnet/Opus) with confidence-based decisions
 - Byzantine fault-tolerant consensus for critical quality decisions
 - MinCut graph-based topology optimization for self-healing coordination
@@ -463,11 +466,11 @@ npx @claude-flow/cli@latest agent spawn -t qe-test-architect --name test-gen
 
 ---
 
-### 📊 58 Specialized QE Agents
+### 📊 59 Specialized QE Agents
 
 | Category | Count | Highlights |
 |----------|-------|------------|
-| **Main QE Agents** | 51 | Test generation, coverage, security, performance, accessibility, enterprise integration |
+| **Main QE Agents** | 52 | Test generation, coverage, security, performance, accessibility, enterprise integration, pentest validation |
 | **TDD Subagents** | 7 | RED/GREEN/REFACTOR with code review |
 
 **V2 Backward Compatibility**: All V2 agents map to V3 equivalents automatically.
