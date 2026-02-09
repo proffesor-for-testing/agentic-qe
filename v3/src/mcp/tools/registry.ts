@@ -33,6 +33,7 @@ import {
   EmbeddingStatsTool,
 } from './embeddings';
 import { COHERENCE_TOOLS, COHERENCE_TOOL_NAMES } from './coherence';
+import { QXAnalyzeTool } from './qx-analysis/analyze';
 
 // ============================================================================
 // Tool Names (ADR-010 Naming Convention)
@@ -99,6 +100,9 @@ export const QE_TOOL_NAMES = {
 
   // Coherence Tools (ADR-052)
   ...COHERENCE_TOOL_NAMES,
+
+  // QX Analysis (Quality Experience)
+  QX_ANALYZE: 'qe/qx/analyze',
 } as const;
 
 // ============================================================================
@@ -169,6 +173,9 @@ export const QE_TOOLS: MCPToolBase[] = [
 
   // Coherence Tools (ADR-052)
   ...COHERENCE_TOOLS,
+
+  // QX Analysis (Quality Experience)
+  new QXAnalyzeTool(),
 ];
 
 // ============================================================================

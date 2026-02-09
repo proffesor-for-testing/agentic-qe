@@ -7,7 +7,7 @@
  * Tool naming convention: qe/<domain>/<action>
  * Example: qe/tests/generate, qe/coverage/analyze
  *
- * 19 Tools across 13 DDD Domains:
+ * 20 Tools across 14 DDD Domains:
  * 1. qe/tests/generate       - Test generation (AI-powered)
  * 2. qe/tests/execute        - Test execution (parallel, retry, flaky detection)
  * 3. qe/coverage/analyze     - Coverage analysis
@@ -278,6 +278,32 @@ export {
   type CoherenceCollapseParams,
   type CoherenceCollapseResult,
 } from './coherence';
+
+// ============================================================================
+// QX Analysis Domain (Quality Experience)
+// ============================================================================
+
+export {
+  QXAnalyzeTool,
+  qxAnalyzeTool,
+  QXHeuristicsEngine,
+  OracleDetector,
+  ImpactAnalyzer,
+  getHeuristicsByCategory,
+  type QXAnalyzeParams,
+  type QXAnalysisResult,
+  type QXContext,
+  type QXHeuristic,
+  type QXHeuristicResult,
+  type ProblemAnalysis,
+  type UserNeedsAnalysis,
+  type BusinessNeedsAnalysis,
+  type CreativityAnalysis,
+  type DesignAnalysis,
+  type OracleProblem,
+  type ImpactAnalysis,
+  type QXRecommendation,
+} from './qx-analysis';
 
 // ============================================================================
 // Registry and Registration
