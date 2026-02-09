@@ -614,7 +614,7 @@ describe('TokenUsageTool', () => {
         totalTokens: 150,
         cached: true,
         patternReused: true,
-        timestamp: new Date(),
+        timestamp: now,
       });
 
       const result = await tool.invoke({
@@ -622,7 +622,7 @@ describe('TokenUsageTool', () => {
         sessionId: 'session-1',
         timeframe: {
           start: hourAgo.toISOString(),
-          end: now.toISOString(),
+          end: new Date(now.getTime() + 1000).toISOString(),
         },
       });
 
