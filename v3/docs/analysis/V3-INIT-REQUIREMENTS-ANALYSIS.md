@@ -58,7 +58,7 @@ V2 slash commands are replaced by MCP tools:
 
 **Conclusion:** V3 does NOT need `.claude/commands/` directory.
 
-#### 2. Agent Definitions (V2: 24 agents vs V3: 59 agents)
+#### 2. Agent Definitions (V2: 24 agents vs V3: 60 agents)
 
 V2 created agent markdown files in `.claude/agents/`. **V3 also needs agents** but with a new structure:
 

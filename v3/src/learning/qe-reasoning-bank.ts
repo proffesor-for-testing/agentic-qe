@@ -721,9 +721,21 @@ Check for:
    * @param patternId - Pattern ID to promote
    */
   private async promotePattern(patternId: string): Promise<void> {
-    // This would be implemented by the pattern store
-    // For now, we'll just log it
-    console.log(`[QEReasoningBank] Promoting pattern ${patternId} to long-term`);
+    const result = await this.patternStore.promote(patternId);
+    if (result.success) {
+      console.log(`[QEReasoningBank] Promoted pattern ${patternId} to long-term`);
+      if (this.eventBus) {
+        await this.eventBus.publish({
+          id: `pattern-promoted-${patternId}`,
+          type: 'pattern:promoted',
+          timestamp: new Date(),
+          source: 'learning-optimization',
+          payload: { patternId, newTier: 'long-term' },
+        });
+      }
+    } else {
+      console.error(`[QEReasoningBank] Failed to promote pattern ${patternId}: ${result.error.message}`);
+    }
   }
 
   /**

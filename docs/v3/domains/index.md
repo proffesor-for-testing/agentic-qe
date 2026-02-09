@@ -1,6 +1,6 @@
 # Domain Index
 
-Agentic QE v3 organizes quality engineering into 12 DDD bounded contexts.
+Agentic QE v3 organizes quality engineering into 13 DDD bounded contexts.
 
 ## Domain Overview
 
@@ -9,7 +9,7 @@ Agentic QE v3 organizes quality engineering into 12 DDD bounded contexts.
 | 1 | [Test Generation](test-generation.md) | 5 | P0 | AI-powered test creation |
 | 2 | [Test Execution](test-execution.md) | 4 | P0 | Parallel execution, retry |
 | 3 | [Coverage Analysis](coverage-analysis.md) | 4 | P0 | O(log n) gap detection |
-| 4 | [Quality Assessment](quality-assessment.md) | 4 | P0 | Quality gates, metrics |
+| 4 | [Quality Assessment](quality-assessment.md) | 5 | P0 | Quality gates, metrics, adversarial review |
 | 5 | [Defect Intelligence](defect-intelligence.md) | 4 | P0 | Prediction, RCA |
 | 6 | [Code Intelligence](code-intelligence.md) | 4 | P0 | Knowledge graph, semantic |
 | 7 | [Requirements Validation](requirements-validation.md) | 4 | P1 | BDD, testability |
@@ -18,8 +18,9 @@ Agentic QE v3 organizes quality engineering into 12 DDD bounded contexts.
 | 10 | [Visual Accessibility](visual-accessibility.md) | 4 | P2 | Visual, a11y |
 | 11 | [Chaos Resilience](chaos-resilience.md) | 4 | P2 | Chaos, load testing |
 | 12 | [Learning Optimization](learning-optimization.md) | 5 | P0 | Transfer learning |
+| 13 | Enterprise Integration | 7 | P1 | SOAP, SAP, OData, ESB, MQ, SoD |
 
-**Total**: 50 domain agents + 2 cross-domain + 7 subagents = **59 agents**
+**Total**: 51 domain agents + 2 cross-domain + 7 subagents = **60 agents**
 
 ## Domain Categories
 

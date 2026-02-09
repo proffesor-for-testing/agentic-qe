@@ -5,14 +5,14 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 13 Bounded Contexts, 59 Specialized QE Agents, 75 QE Skills, and ReasoningBank Learning
+> Domain-Driven Quality Engineering with Mathematical Coherence Verification, 13 Bounded Contexts, 60 Specialized QE Agents, 75 QE Skills, and ReasoningBank Learning
 
 ### Key Features
 
 | Feature | Description |
 |---------|-------------|
 | **75 QE Skills** | Quality engineering skills with 4-tier trust validation system |
-| **59 QE Agents** | Specialized agents for test generation, security, coverage, enterprise integration, and more |
+| **60 QE Agents** | Specialized agents for test generation, security, coverage, enterprise integration, and more |
 | **13 DDD Domains** | Modular bounded contexts for all quality engineering needs |
 | **MCP Integration** | Full Claude Code integration via Model Context Protocol |
 | **AG-UI/A2A Protocols** | Industry-standard agent streaming and interoperability |
@@ -48,7 +48,7 @@ npx aqe test generate src/
 
 ## Why Agentic QE?
 
-- **59 Specialized QE Agents** - Domain-focused quality engineering agents (52 main + 7 subagents)
+- **60 Specialized QE Agents** - Domain-focused quality engineering agents (53 main + 7 subagents)
 - **75 QE Skills** - 46 Tier 3 verified + 29 additional (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 - **13 DDD Bounded Contexts** - Modular, extensible architecture
 - **TinyDancer Model Routing** - 3-tier intelligent routing for cost optimization
@@ -632,7 +632,7 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Module System | CommonJS | ESM |
 | Memory | SQLite only | HNSW + SQLite hybrid |
 | Learning | Basic patterns | ReasoningBank + SONA + Dream Cycles |
-| Agents | 32 | 59 QE agents (52 main + 7 subagents) |
+| Agents | 32 | 60 QE agents (53 main + 7 subagents) |
 | Skills | 35 | 75 QE skills (46 Tier 3 + 29 additional) |
 | Coverage | O(n) | O(log n) |
 | Pattern Search | Linear | O(log n) HNSW indexing |
@@ -706,9 +706,9 @@ See the [Migration Guide](./docs/MIGRATION-GUIDE.md) for detailed instructions a
 }
 ```
 
-## 59 QE Agents
+## 60 QE Agents
 
-Agentic QE includes 59 specialized quality engineering agents (52 main + 7 subagents) organized by domain:
+Agentic QE includes 60 specialized quality engineering agents (53 main + 7 subagents) organized by domain:
 
 ### Test Generation Domain
 `qe-test-architect`, `qe-tdd-specialist`, `qe-tdd-red`, `qe-tdd-green`, `qe-tdd-refactor`, `qe-property-tester`, `qe-mutation-tester`, `qe-bdd-generator`
@@ -720,7 +720,7 @@ Agentic QE includes 59 specialized quality engineering agents (52 main + 7 subag
 `qe-coverage-specialist`, `qe-gap-detector`, `qe-risk-analyzer`
 
 ### Quality Assessment Domain
-`qe-quality-gate`, `qe-metrics-optimizer`, `qe-deployment-advisor`
+`qe-quality-gate`, `qe-metrics-optimizer`, `qe-deployment-advisor`, `qe-devils-advocate`
 
 ### Defect Intelligence Domain
 `qe-defect-intelligence`, `qe-regression-analyzer`, `qe-root-cause-analyzer`
