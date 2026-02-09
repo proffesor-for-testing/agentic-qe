@@ -302,12 +302,12 @@ export class ODataService {
   // ============================================================================
 
   private detectVersion(metadataXml: string): 'v2' | 'v4' {
-    if (metadataXml.includes('http://docs.oasis-open.org/odata/ns/edm') ||
+    if (/xmlns(?::\w+)?=["']http:\/\/docs\.oasis-open\.org\/odata\/ns\/edm["']/.test(metadataXml) ||
         metadataXml.includes('Version="4.0"')) {
       return 'v4';
     }
-    if (metadataXml.includes('http://schemas.microsoft.com/ado/2008/09/edm') ||
-        metadataXml.includes('http://schemas.microsoft.com/ado/2009/11/edm')) {
+    if (/xmlns(?::\w+)?=["']http:\/\/schemas\.microsoft\.com\/ado\/2008\/09\/edm["']/.test(metadataXml) ||
+        /xmlns(?::\w+)?=["']http:\/\/schemas\.microsoft\.com\/ado\/2009\/11\/edm["']/.test(metadataXml)) {
       return 'v2';
     }
     return this.config.defaultVersion;

@@ -24,6 +24,36 @@ export * from './kernel';
 // Coordination Layer - export coordination components
 export * from './coordination';
 
+// Hooks Layer - cross-phase hooks and ADR-064 agent team hooks
+export {
+  CrossPhaseHookExecutor,
+  getCrossPhaseHookExecutor,
+  resetCrossPhaseHookExecutor,
+  TeammateIdleHook,
+  createTeammateIdleHook,
+  TaskCompletedHook,
+  createTaskCompletedHook,
+  QualityGateEnforcer,
+  createQualityGateEnforcer,
+  ReasoningBankPatternStore,
+  createReasoningBankPatternStore,
+} from './hooks';
+export type {
+  TeammateIdleHookConfig,
+  TaskQueue,
+  PendingTask,
+  TeammateIdleStats,
+  TaskCompletedHookConfig,
+  ExtractedPattern,
+  PatternStore,
+  CompletionAction,
+  CompletionHandler,
+  GateCheckResult,
+} from './hooks';
+
+// Agents Layer - specialized QE agents (namespaced to avoid collisions)
+export { DevilsAdvocate, ClaimVerifier } from './agents';
+
 // Domain Interfaces - export as namespaces
 export * from './domains';
 

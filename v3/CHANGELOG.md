@@ -5,6 +5,39 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.1] - 2026-02-09
+
+### Added
+
+- **Agent Teams Integration (ADR-064)** — Hybrid fleet architecture layering Claude Code Agent Teams communication patterns on the existing Queen Coordinator. 4-phase implementation: Foundation, Hybrid Architecture, Learning & Observability, Advanced Patterns.
+- **Agent Teams Adapter** — Direct mailbox messaging between agents with domain-scoped teams (2-4 agents per domain), team lead/teammate model, and subscription-based event delivery.
+- **Fleet Tier Selector** — Tiered fleet activation (smoke/standard/deep/crisis) that controls agent count and token costs based on trigger context (commit, PR, release, incident).
+- **Task Dependency DAG** — Topological ordering with cycle detection for multi-step task workflows. DAGScheduler for automated execution of ready tasks.
+- **TeammateIdle Hook** — Auto-assigns pending tasks to idle agents, reducing Queen bottleneck for task distribution.
+- **TaskCompleted Hook** — Extracts patterns from completed tasks and trains them into ReasoningBank automatically. Quality gate validation with exit code 2 rejection.
+- **Domain Circuit Breakers** — Per-domain fault isolation with configurable failure thresholds, half-open recovery probing, and criticality-based configs.
+- **Domain Team Manager** — Creates and manages domain-scoped agent teams with health monitoring, scaling, and rebalancing.
+- **HNSW Graph Construction** — Real O(log n) HNSW insert and search in unified memory, replacing the O(n) linear scan stub.
+- **Distributed Tracing** — TraceCollector with W3C-style TraceContext propagation encoded into AgentMessage correlationId fields. Queen traces full task lifecycles.
+- **Competing Hypotheses** — HypothesisManager for multi-agent root cause investigation with evidence scoring, confidence tracking, and convergence (evidence-scoring, unanimous, majority, timeout). Auto-triggered on p0/p1 task failures.
+- **Cross-Fleet Federation** — FederationMailbox with service registry, domain-based routing, health monitoring via heartbeats, and graceful degradation for unreachable services.
+- **Dynamic Agent Scaling** — DynamicScaler with workload metrics collection, configurable scaling policies (queue depth, idle ratio, error rate thresholds), cooldown enforcement, and executor callbacks. Wired into Queen's metrics loop.
+- **ReasoningBank Pattern Store Adapter** — Bridges TaskCompletedHook pattern extraction to QEReasoningBank storage with domain detection, type mapping, and confidence propagation.
+- **promotePattern() Implementation** — Completes the ReasoningBank promotion stub: delegates to PatternStore.promote() and publishes pattern:promoted events.
+- **Devil's Advocate Agent** — `qe-devils-advocate` agent that challenges other agents' outputs by finding gaps and questioning assumptions.
+- **397+ New Tests** — 282 coordination tests, 67 hook tests, 48 learning tests covering all ADR-064 phases including adapter tracing integration and latency benchmarks.
+
+### Fixed
+
+- **6 CodeQL Alerts** — Resolved security alerts in enterprise-integration services (input validation, type safety).
+- **Pattern Training Pipeline** — Connected the disconnected TaskCompletedHook → ReasoningBank pipeline so patterns are automatically trained on task completion.
+- **Queen Operational Wiring** — All Phase 3+4 modules (tracing, dynamic scaler, hypotheses) are now called by Queen's operational flow, not just initialized as shelf-ware.
+
+### Changed
+
+- **Queen Coordinator** — Extended with tracing (startTrace on submitTask, completeSpan/failSpan on completion/failure), dynamic scaling (metrics feed + evaluate + execute in metrics loop), and competing hypotheses (auto-investigation on critical failures).
+- **Agent Teams Adapter** — sendMessage() and broadcast() now encode TraceContext into correlationId when provided, enabling end-to-end distributed tracing.
+
 ## [3.6.0] - 2026-02-08
 
 ### Added

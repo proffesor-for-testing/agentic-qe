@@ -590,7 +590,7 @@ export class PatternStore implements IPatternStore {
       domain: mapQEDomainToAQE(this.detectDomainFromType(options.patternType)),
       name: options.name,
       description: options.description,
-      confidence: 0.5, // Initial confidence
+      confidence: options.confidence ?? 0.5, // Use provided or default
       usageCount: 0,
       successRate: 0,
       qualityScore: 0.25, // Initial quality

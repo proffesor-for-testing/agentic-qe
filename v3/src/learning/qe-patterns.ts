@@ -276,6 +276,8 @@ export interface CreateQEPatternOptions {
   template: Omit<QEPatternTemplate, 'example'>;
   context?: Partial<QEPatternContext>;
   embedding?: number[];
+  /** Initial confidence score (0-1). Defaults to 0.5 if not provided. */
+  confidence?: number;
 }
 
 /**
