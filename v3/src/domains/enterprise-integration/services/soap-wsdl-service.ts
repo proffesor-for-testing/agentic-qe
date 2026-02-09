@@ -592,6 +592,11 @@ export class SoapWsdlService {
       ? 'http://www.w3.org/2003/05/soap-envelope'
       : 'http://schemas.xmlsoap.org/soap/envelope/';
 
+    // Regex-safe namespace with dots escaped (CodeQL: explicit escaping)
+    const escapedNamespace = version === '1.2'
+      ? 'http://www\\.w3\\.org/2003/05/soap-envelope'
+      : 'http://schemas\\.xmlsoap\\.org/soap/envelope/';
+
     // Check for Envelope element
     if (!/<(?:\w+:)?Envelope/i.test(responseXml)) {
       errors.push({
@@ -604,7 +609,7 @@ export class SoapWsdlService {
     }
 
     // Check for correct namespace (anchor to xmlns attribute context)
-    const nsPattern = new RegExp(`xmlns(?::\\w+)?=["']${expectedNamespace.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`);
+    const nsPattern = new RegExp(`xmlns(?::\\w+)?=["']${escapedNamespace}["']`);
     if (!nsPattern.test(responseXml)) {
       errors.push({
         type: 'envelope',
