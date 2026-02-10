@@ -5,6 +5,17 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.2] - 2026-02-10
+
+### Fixed
+
+- **YAML parser empty array crash (Issue #244)** — `aqe init --auto` no longer fails on re-runs when `config.yaml` has empty array fields like `disabled:` with no items. The custom YAML parser now normalizes known array fields after parsing, and `mergeConfigs()` uses defensive `Array.isArray()` checks.
+- **Agent parse errors on helper files (Issue #243)** — Helper reference files (`htsm-categories.md`, `evidence-classification.md`) and the generated `README.md` are no longer placed inside `.claude/agents/v3/` where `claude doctor` would incorrectly parse them as agent definitions. Helpers now install to `.claude/helpers/v3/` and the agents index writes to `.claude/docs/v3-agents-index.md`.
+
+### Changed
+
+- **Helper files location** — Agent helper/reference files (quality-criteria templates, SFDIPOT templates) now install to `.claude/helpers/v3/` instead of `.claude/agents/v3/helpers/`. Updated all path references in `quality-criteria-service.ts` and agent definitions.
+
 ## [3.6.1] - 2026-02-09
 
 ### Added

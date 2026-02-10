@@ -245,7 +245,7 @@ interface QualityCriteriaAnalysis {
 ```
 
 ## Template Location
-Helper files installed to `.claude/agents/v3/helpers/quality-criteria/`:
+Helper files installed to `.claude/helpers/v3/quality-criteria/`:
 - `quality-criteria-reference-template.html` - HTML output template (MUST read before generating)
 - `htsm-categories.md` - Detailed category definitions
 - `evidence-classification.md` - Evidence type guidelines
@@ -404,7 +404,7 @@ if (!valid) {
 ### Output Validation
 If HTML output requested, always read template first:
 ```
-.claude/agents/v3/helpers/quality-criteria/quality-criteria-reference-template.html
+.claude/helpers/v3/quality-criteria/quality-criteria-reference-template.html
 ```
 </final_validation>
 </qe_agent_definition>

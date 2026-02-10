@@ -44,6 +44,30 @@ domains:
       expect(result.domains?.disabled).toContain('chaos-resilience');
     });
 
+    it('should return [] not {} for empty array fields (Issue #244)', () => {
+      const yaml = `
+domains:
+  enabled:
+    - "test-generation"
+  disabled:
+
+workers:
+  enabled:
+`;
+      const result = phase.parseYAML(yaml);
+
+      // disabled: with no items must be [] not {}
+      expect(Array.isArray(result.domains?.disabled)).toBe(true);
+      expect(result.domains?.disabled).toEqual([]);
+
+      // workers.enabled: with no items must be [] not {}
+      expect(Array.isArray(result.workers?.enabled)).toBe(true);
+      expect(result.workers?.enabled).toEqual([]);
+
+      // enabled with items should still work
+      expect(result.domains?.enabled).toContain('test-generation');
+    });
+
     it('should parse numeric and boolean values correctly', () => {
       const yaml = `
 agents:
@@ -138,6 +162,24 @@ workers:
 
       expect(result.domains.enabled).not.toContain('coverage-analysis');
       expect(result.domains.disabled).toContain('coverage-analysis');
+    });
+
+    it('should handle non-array disabled field without crashing (Issue #244)', () => {
+      const newConfig = createBaseConfig();
+      // Simulate the bug: parser returned {} for disabled
+      const existing = {
+        domains: {
+          enabled: ['test-generation'],
+          disabled: {} as unknown as string[],
+        },
+      };
+
+      // Should not throw TypeError: object is not iterable
+      const result = phase.mergeConfigs(newConfig, existing);
+
+      expect(result.domains.enabled).toContain('test-generation');
+      // disabled should remain as newConfig default since existing was invalid
+      expect(Array.isArray(result.domains.disabled)).toBe(true);
     });
 
     it('should preserve learning.enabled preference', () => {

@@ -73,6 +73,18 @@ export class IAPTunnelManager implements TunnelManager {
       return this.connection;
     }
 
+    // Check if an external tunnel is already listening on the port
+    const alreadyListening = await this.checkPort('localhost', this.config.tunnelPort);
+    if (alreadyListening) {
+      console.log(`[TunnelManager] External tunnel detected on port ${this.config.tunnelPort}, reusing`);
+      this.connection = {
+        host: 'localhost',
+        port: this.config.tunnelPort,
+        startedAt: new Date(),
+      };
+      return this.connection;
+    }
+
     return new Promise((resolve, reject) => {
       const args = [
         'compute',

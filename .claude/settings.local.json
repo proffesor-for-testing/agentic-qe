@@ -4,7 +4,8 @@
       "mcp__ruv-swarm",
       "mcp__claude-flow@alpha",
       "mcp__flow-nexus",
-      "mcp__agentic-qe"
+      "mcp__agentic-qe",
+      "Bash(gcloud:*)"
     ],
     "deny": []
   }
