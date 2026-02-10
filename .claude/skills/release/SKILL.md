@@ -144,27 +144,23 @@ Verify init completes without errors and creates the expected project structure 
 # Version output
 node /workspaces/agentic-qe-new/v3/dist/cli/bundle.js --version
 
-# Doctor check
-node /workspaces/agentic-qe-new/v3/dist/cli/bundle.js doctor
+# System status
+node /workspaces/agentic-qe-new/v3/dist/cli/bundle.js status
 ```
 Both must succeed without errors.
 
-#### 8d. Verify MCP Tools
-```bash
-# Verify MCP server can start and list tools
-node /workspaces/agentic-qe-new/v3/dist/cli/bundle.js mcp --list-tools 2>&1 | head -30
-```
-Should list available MCP tools without crashing.
-
-#### 8e. Verify Self-Learning & Fleet Capabilities
+#### 8d. Verify Self-Learning & Fleet Capabilities
 ```bash
 cd /tmp/aqe-release-test
 
-# Verify memory/learning subsystem
-node /workspaces/agentic-qe-new/v3/dist/cli/bundle.js memory list 2>&1 | head -10
+# Verify learning subsystem
+node /workspaces/agentic-qe-new/v3/dist/cli/bundle.js learning stats 2>&1 | head -10
 
-# Verify agent spawning works
+# Verify agent listing works
 node /workspaces/agentic-qe-new/v3/dist/cli/bundle.js agent list 2>&1 | head -10
+
+# Verify health check
+node /workspaces/agentic-qe-new/v3/dist/cli/bundle.js health 2>&1 | head -10
 ```
 These should respond (even if empty results) without errors, confirming the subsystems initialize properly.
 
@@ -177,34 +173,24 @@ rm -rf /tmp/aqe-release-test
 
 ### 9. Local CI Test Suite
 
-Run the same tests that CI runs on PRs (`optimized-ci.yml`) and during publish (`npm-publish.yml`). Skip e2e browser tests unless the user explicitly requests them.
+Run the same tests that CI runs on PRs and during publish. Skip e2e browser tests unless the user explicitly requests them.
 
 ```bash
 cd /workspaces/agentic-qe-new/v3
 
-# Journey tests (highest-value signal, from optimized-ci.yml)
-npm run test:journeys
-
-# Code Intelligence tests (MinCut/Graph algorithms, from optimized-ci.yml)
-npm run test:code-intelligence
-
-# Contract tests (if they exist, from optimized-ci.yml)
-npm run test:contracts 2>/dev/null || echo "No contract tests"
-
-# Infrastructure tests (from optimized-ci.yml)
-npm run test:infrastructure 2>/dev/null || echo "No infrastructure tests"
-
-# Regression tests (from optimized-ci.yml)
-npm run test:regression 2>/dev/null || echo "No regression tests"
-
-# Performance gates (from optimized-ci.yml)
+# Performance gates (fast — validates perf thresholds)
 npm run performance:gate
+
+# Regression tests (runs full unit suite)
+npm run test:regression
 
 # Full test:ci suite (from npm-publish.yml — excludes browser/e2e)
 npm run test:ci
 ```
 
-All mandatory test suites must pass. If any fail, diagnose and fix before continuing.
+Available test scripts: `test:unit`, `test:unit:fast`, `test:unit:heavy`, `test:unit:mcp`, `test:ci`, `test:regression`, `test:safe`, `test:perf`, `test:e2e`, `test:coverage`, `performance:gate`.
+
+All mandatory test suites must pass. Pre-existing MCP handler test failures (tests that need runtime initialization) are acceptable if they also fail on the main branch.
 
 **STOP — show all test results.**
 

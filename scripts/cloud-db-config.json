@@ -19,7 +19,7 @@
     }
   },
   "sync": {
-    "enabled": false,
+    "enabled": true,
     "mode": "incremental",
     "interval": "5m",
     "tables": [

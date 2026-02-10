@@ -651,49 +651,382 @@ interface HNSWNode {
 }
 
 /**
- * Simple in-memory HNSW index built from SQLite vectors on startup.
- * Provides O(log n) search performance for loaded vectors.
+ * In-memory HNSW (Hierarchical Navigable Small World) index built from
+ * SQLite vectors on startup. Provides O(log n) approximate nearest
+ * neighbor search via a multi-layer navigable small-world graph.
+ *
+ * Algorithm reference: Malkov & Yashunin, "Efficient and robust approximate
+ * nearest neighbor search using Hierarchical Navigable Small World graphs",
+ * IEEE TPAMI 2018.
  */
 class InMemoryHNSWIndex {
   private nodes: Map<string, HNSWNode> = new Map();
   private readonly M: number = HNSW_CONSTANTS.M_CONNECTIONS;
+  private readonly Mmax0: number = HNSW_CONSTANTS.M_CONNECTIONS * 2;
   private readonly efConstruction: number = HNSW_CONSTANTS.EF_CONSTRUCTION;
   private readonly efSearch: number = HNSW_CONSTANTS.EF_SEARCH;
+  private readonly mL: number = 1 / Math.log(HNSW_CONSTANTS.M_CONNECTIONS);
+  private readonly maxLevel: number = 16;
+
+  private entryPoint: string | null = null;
+  private currentMaxLevel: number = -1;
 
   /**
-   * Add a vector to the index
+   * Assign a random layer for a new node using a geometric distribution.
+   * level = floor(-ln(uniform_random) * mL), capped at maxLevel.
+   */
+  private randomLevel(): number {
+    return Math.min(
+      Math.floor(-Math.log(Math.random()) * this.mL),
+      this.maxLevel
+    );
+  }
+
+  /**
+   * Compute cosine similarity between a query vector and a stored node.
+   */
+  private similarity(query: number[], nodeId: string): number {
+    const node = this.nodes.get(nodeId);
+    if (!node) return -1;
+    return cosineSimilarity(query, node.embedding);
+  }
+
+  /**
+   * Greedy search at a single layer: starting from a single entry point,
+   * greedily move to the neighbor closest to the query until no improvement.
+   * Returns the closest node found.
+   */
+  private searchLayer(
+    query: number[],
+    entryId: string,
+    level: number
+  ): string {
+    let current = entryId;
+    let currentDist = this.similarity(query, current);
+    let improved = true;
+
+    while (improved) {
+      improved = false;
+      const node = this.nodes.get(current);
+      if (!node) break;
+
+      const neighbors = node.neighbors.get(level) ?? [];
+      for (const neighborId of neighbors) {
+        if (!this.nodes.has(neighborId)) continue;
+        const dist = this.similarity(query, neighborId);
+        if (dist > currentDist) {
+          current = neighborId;
+          currentDist = dist;
+          improved = true;
+        }
+      }
+    }
+
+    return current;
+  }
+
+  /**
+   * Beam search at a single layer: starting from an entry point, explore
+   * up to `ef` candidates and return the `ef` closest found.
+   * Uses a candidate set (max-heap behavior via sorted array) and a result
+   * set. Returns results sorted by descending similarity.
+   */
+  private searchLayerBeam(
+    query: number[],
+    entryIds: string[],
+    level: number,
+    ef: number
+  ): Array<{ id: string; score: number }> {
+    const visited = new Set<string>(entryIds);
+
+    // Candidates: sorted descending by score (best first)
+    const candidates: Array<{ id: string; score: number }> = entryIds
+      .filter(id => this.nodes.has(id))
+      .map(id => ({ id, score: this.similarity(query, id) }));
+    candidates.sort((a, b) => b.score - a.score);
+
+    // Results: the ef-closest seen so far, sorted descending by score
+    const results: Array<{ id: string; score: number }> = [...candidates];
+
+    while (candidates.length > 0) {
+      const closest = candidates.shift()!;
+
+      // If the closest candidate is worse than the worst in results
+      // and we already have ef results, stop
+      if (results.length >= ef && closest.score < results[results.length - 1].score) {
+        break;
+      }
+
+      const node = this.nodes.get(closest.id);
+      if (!node) continue;
+
+      const neighbors = node.neighbors.get(level) ?? [];
+      for (const neighborId of neighbors) {
+        if (visited.has(neighborId)) continue;
+        visited.add(neighborId);
+
+        if (!this.nodes.has(neighborId)) continue;
+
+        const score = this.similarity(query, neighborId);
+        const worstResult = results.length >= ef ? results[results.length - 1].score : -Infinity;
+
+        if (results.length < ef || score > worstResult) {
+          // Insert into candidates in sorted position
+          const candidateEntry = { id: neighborId, score };
+          let inserted = false;
+          for (let i = 0; i < candidates.length; i++) {
+            if (score > candidates[i].score) {
+              candidates.splice(i, 0, candidateEntry);
+              inserted = true;
+              break;
+            }
+          }
+          if (!inserted) candidates.push(candidateEntry);
+
+          // Insert into results in sorted position
+          inserted = false;
+          for (let i = 0; i < results.length; i++) {
+            if (score > results[i].score) {
+              results.splice(i, 0, candidateEntry);
+              inserted = true;
+              break;
+            }
+          }
+          if (!inserted) results.push(candidateEntry);
+
+          // Trim results to ef
+          if (results.length > ef) {
+            results.pop();
+          }
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Select the M best neighbors from candidates for a node, using the
+   * simple heuristic (closest M by similarity).
+   */
+  private selectNeighbors(
+    query: number[],
+    candidates: Array<{ id: string; score: number }>,
+    maxConnections: number
+  ): string[] {
+    return candidates
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxConnections)
+      .map(c => c.id);
+  }
+
+  /**
+   * Get max connections allowed at a given level.
+   * Level 0 allows Mmax0 (= 2*M), higher levels allow M.
+   */
+  private getMaxConnections(level: number): number {
+    return level === 0 ? this.Mmax0 : this.M;
+  }
+
+  /**
+   * Add a vector to the HNSW index with proper graph construction.
+   * O(log n) amortized via hierarchical layer structure.
    */
   add(id: string, embedding: number[]): void {
-    this.nodes.set(id, {
+    // Handle duplicate: remove old node first
+    if (this.nodes.has(id)) {
+      this.remove(id);
+    }
+
+    const nodeLevel = this.randomLevel();
+    const newNode: HNSWNode = {
       id,
       embedding,
       neighbors: new Map(),
-    });
-    // TODO: Implement proper HNSW graph construction
-    // For now, just store in map - search will be O(n)
-  }
+    };
 
-  /**
-   * Remove a vector from the index
-   */
-  remove(id: string): boolean {
-    return this.nodes.delete(id);
-  }
-
-  /**
-   * Search for k nearest neighbors
-   */
-  search(query: number[], k: number): Array<{ id: string; score: number }> {
-    const results: Array<{ id: string; score: number }> = [];
-
-    for (const [id, node] of this.nodes.entries()) {
-      const similarity = cosineSimilarity(query, node.embedding);
-      results.push({ id, score: similarity });
+    // Initialize neighbor lists for each layer
+    for (let l = 0; l <= nodeLevel; l++) {
+      newNode.neighbors.set(l, []);
     }
 
-    return results
-      .sort((a, b) => b.score - a.score)
-      .slice(0, k);
+    this.nodes.set(id, newNode);
+
+    // First node: set as entry point
+    if (this.entryPoint === null) {
+      this.entryPoint = id;
+      this.currentMaxLevel = nodeLevel;
+      return;
+    }
+
+    let currentEntry = this.entryPoint;
+
+    // Phase 1: Traverse layers above the new node's level (greedy descent)
+    for (let l = this.currentMaxLevel; l > nodeLevel; l--) {
+      currentEntry = this.searchLayer(embedding, currentEntry, l);
+    }
+
+    // Phase 2: For each layer from nodeLevel down to 0, find neighbors and link
+    for (let l = Math.min(nodeLevel, this.currentMaxLevel); l >= 0; l--) {
+      const maxConn = this.getMaxConnections(l);
+
+      // Beam search to find efConstruction nearest neighbors at this layer
+      const nearest = this.searchLayerBeam(embedding, [currentEntry], l, this.efConstruction);
+
+      // Select M best neighbors
+      const selectedIds = this.selectNeighbors(embedding, nearest, maxConn);
+
+      // Set the new node's neighbors at this layer
+      newNode.neighbors.set(l, [...selectedIds]);
+
+      // Add bidirectional connections and prune if over capacity
+      for (const neighborId of selectedIds) {
+        const neighbor = this.nodes.get(neighborId);
+        if (!neighbor) continue;
+
+        const neighborList = neighbor.neighbors.get(l) ?? [];
+        neighborList.push(id);
+
+        // Prune if neighbor has too many connections
+        if (neighborList.length > maxConn) {
+          // Keep the maxConn closest neighbors
+          const scored = neighborList
+            .filter(nId => this.nodes.has(nId))
+            .map(nId => ({
+              id: nId,
+              score: cosineSimilarity(neighbor.embedding, this.nodes.get(nId)!.embedding),
+            }));
+          scored.sort((a, b) => b.score - a.score);
+          neighbor.neighbors.set(l, scored.slice(0, maxConn).map(s => s.id));
+        } else {
+          neighbor.neighbors.set(l, neighborList);
+        }
+      }
+
+      // Update entry for next layer down
+      if (nearest.length > 0) {
+        currentEntry = nearest[0].id;
+      }
+    }
+
+    // Update entry point if new node's level exceeds current max
+    if (nodeLevel > this.currentMaxLevel) {
+      this.entryPoint = id;
+      this.currentMaxLevel = nodeLevel;
+    }
+  }
+
+  /**
+   * Remove a node from the HNSW index and repair connections.
+   * Orphaned neighbors are reconnected to the removed node's other neighbors.
+   */
+  remove(id: string): boolean {
+    const node = this.nodes.get(id);
+    if (!node) return false;
+
+    // For each layer the node exists in, remove from neighbor lists and repair
+    for (const [level, neighbors] of node.neighbors.entries()) {
+      for (const neighborId of neighbors) {
+        const neighbor = this.nodes.get(neighborId);
+        if (!neighbor) continue;
+
+        const neighborList = neighbor.neighbors.get(level);
+        if (!neighborList) continue;
+
+        // Remove the deleted node from this neighbor's list
+        const idx = neighborList.indexOf(id);
+        if (idx !== -1) {
+          neighborList.splice(idx, 1);
+        }
+
+        // Try to reconnect: for each of the deleted node's other neighbors,
+        // add a connection if capacity allows and not already connected
+        const maxConn = this.getMaxConnections(level);
+        if (neighborList.length < maxConn) {
+          for (const otherNeighborId of neighbors) {
+            if (
+              otherNeighborId !== neighborId &&
+              otherNeighborId !== id &&
+              this.nodes.has(otherNeighborId) &&
+              !neighborList.includes(otherNeighborId)
+            ) {
+              neighborList.push(otherNeighborId);
+              // Add reverse connection too
+              const otherNeighbor = this.nodes.get(otherNeighborId);
+              if (otherNeighbor) {
+                const otherList = otherNeighbor.neighbors.get(level) ?? [];
+                if (!otherList.includes(neighborId) && otherList.length < maxConn) {
+                  otherList.push(neighborId);
+                  otherNeighbor.neighbors.set(level, otherList);
+                }
+              }
+              if (neighborList.length >= maxConn) break;
+            }
+          }
+        }
+
+        neighbor.neighbors.set(level, neighborList);
+      }
+    }
+
+    // Delete the node
+    this.nodes.delete(id);
+
+    // If the entry point was removed, pick a replacement
+    if (this.entryPoint === id) {
+      if (this.nodes.size === 0) {
+        this.entryPoint = null;
+        this.currentMaxLevel = -1;
+      } else {
+        // Find the node with the highest level to be the new entry point
+        let bestId: string | null = null;
+        let bestLevel = -1;
+        for (const [nodeId, n] of this.nodes.entries()) {
+          let maxNodeLevel = -1;
+          for (const l of n.neighbors.keys()) {
+            if (l > maxNodeLevel) maxNodeLevel = l;
+          }
+          if (maxNodeLevel > bestLevel) {
+            bestLevel = maxNodeLevel;
+            bestId = nodeId;
+          }
+        }
+        this.entryPoint = bestId;
+        this.currentMaxLevel = bestLevel;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Search for k approximate nearest neighbors using HNSW traversal.
+   * O(log n) via hierarchical layer descent + beam search at base layer.
+   */
+  search(query: number[], k: number): Array<{ id: string; score: number }> {
+    if (this.nodes.size === 0 || this.entryPoint === null) {
+      return [];
+    }
+
+    // Single node shortcut
+    if (this.nodes.size === 1) {
+      const node = this.nodes.get(this.entryPoint)!;
+      return [{ id: node.id, score: cosineSimilarity(query, node.embedding) }];
+    }
+
+    let currentEntry = this.entryPoint;
+
+    // Phase 1: Greedily traverse layers above base to find local minimum
+    for (let l = this.currentMaxLevel; l > 0; l--) {
+      currentEntry = this.searchLayer(query, currentEntry, l);
+    }
+
+    // Phase 2: Beam search at layer 0 with efSearch candidates
+    const ef = Math.max(this.efSearch, k);
+    const results = this.searchLayerBeam(query, [currentEntry], 0, ef);
+
+    // Return top-k results sorted by descending similarity
+    return results.slice(0, k);
   }
 
   /**
@@ -704,10 +1037,12 @@ class InMemoryHNSWIndex {
   }
 
   /**
-   * Clear the index
+   * Clear the index and reset entry point
    */
   clear(): void {
     this.nodes.clear();
+    this.entryPoint = null;
+    this.currentMaxLevel = -1;
   }
 }
 

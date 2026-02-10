@@ -64,7 +64,7 @@ export class QualityCriteriaService implements IQualityCriteriaService {
   private findTemplatePath(): string {
     const possiblePaths = [
       // Relative to v3 package
-      join(process.cwd(), '.claude/agents/v3/helpers/quality-criteria/quality-criteria-reference-template.html'),
+      join(process.cwd(), '.claude/helpers/v3/quality-criteria/quality-criteria-reference-template.html'),
       // In node_modules
       join(process.cwd(), 'node_modules/@agentic-qe/v3/assets/agents/v3/helpers/quality-criteria/quality-criteria-reference-template.html'),
       // Development path

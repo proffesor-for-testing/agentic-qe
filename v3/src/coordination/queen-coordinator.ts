@@ -67,6 +67,29 @@ import {
   type TaskGovernanceDecision,
 } from '../governance/index.js';
 
+// ADR-064 Integration: Agent Teams, Circuit Breakers, Fleet Tiers
+import { createAgentTeamsAdapter, AgentTeamsAdapter } from './agent-teams/index.js';
+import { DomainTeamManager, createDomainTeamManager } from './agent-teams/domain-team-manager.js';
+import { DomainBreakerRegistry, createDomainBreakerRegistry, DomainCircuitOpenError } from './circuit-breaker/index.js';
+import { TierSelector, createTierSelector } from './fleet-tiers/index.js';
+import type { FleetTier, TierSelectionContext } from './fleet-tiers/index.js';
+
+// ADR-064 Phase 3: Learning & Observability - Pattern training from completed tasks
+import type { IQEReasoningBank } from '../learning/qe-reasoning-bank.js';
+import { TaskCompletedHook } from '../hooks/task-completed-hook.js';
+import type { TaskResult, TaskMetrics } from '../hooks/quality-gate-enforcer.js';
+import { ReasoningBankPatternStore } from '../hooks/reasoning-bank-pattern-store.js';
+
+// ADR-064 Phase 3: Distributed Tracing
+import { TraceCollector, createTraceCollector, encodeTraceContext } from './agent-teams/tracing.js';
+import type { TraceContext } from './agent-teams/tracing.js';
+
+// ADR-064 Phase 4: Competing Hypotheses, Federation, Dynamic Scaling
+import { HypothesisManager, createHypothesisManager } from './competing-hypotheses/index.js';
+import { FederationMailbox, createFederationMailbox } from './federation/index.js';
+import { DynamicScaler, createDynamicScaler } from './dynamic-scaling/index.js';
+import type { WorkloadMetrics, ScalingDecision } from './dynamic-scaling/index.js';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -171,6 +194,12 @@ export interface QueenConfig {
   routing?: QueenRouterConfig;
   /** Enable intelligent model routing (default: true) */
   enableRouting?: boolean;
+  /** ADR-064: Enable domain circuit breakers (default: true) */
+  enableCircuitBreakers?: boolean;
+  /** ADR-064: Enable domain team management (default: true) */
+  enableDomainTeams?: boolean;
+  /** ADR-064: Enable fleet tier selection (default: true) */
+  enableFleetTiers?: boolean;
 }
 
 /**
@@ -236,6 +265,22 @@ export interface IQueenCoordinator {
   // ADR-047: MinCut Integration
   getMinCutBridge(): QueenMinCutBridge | null;
   injectMinCutBridgeIntoDomain(domainName: DomainName): boolean;
+
+  // ADR-064: Domain Teams, Circuit Breakers, Fleet Tiers
+  getDomainBreakerRegistry(): DomainBreakerRegistry | null;
+  getDomainTeamManager(): DomainTeamManager | null;
+  getTierSelector(): TierSelector | null;
+
+  // ADR-064 Phase 3: Learning & Observability
+  connectReasoningBank(bank: IQEReasoningBank): void;
+
+  // ADR-064 Phase 3: Distributed Tracing
+  getTraceCollector(): TraceCollector | null;
+
+  // ADR-064 Phase 4: Advanced Patterns
+  getHypothesisManager(): HypothesisManager | null;
+  getFederationMailbox(): FederationMailbox | null;
+  getDynamicScaler(): DynamicScaler | null;
 }
 
 export interface TaskFilter {
@@ -372,6 +417,24 @@ export class QueenCoordinator implements IQueenCoordinator {
   // V3 Integration: TinyDancer intelligent model routing (TD-004, TD-005, TD-006)
   private tinyDancerRouter: QueenRouterAdapter | null = null;
 
+  // ADR-064 Integration: Domain-level circuit breakers
+  private domainBreakerRegistry: DomainBreakerRegistry | null = null;
+  // ADR-064 Integration: Domain team management
+  private domainTeamManager: DomainTeamManager | null = null;
+  private agentTeamsAdapter: AgentTeamsAdapter | null = null;
+  // ADR-064 Integration: Fleet tier selector
+  private tierSelector: TierSelector | null = null;
+  // ADR-064 Phase 3: TaskCompletedHook for pattern training
+  private taskCompletedHook: TaskCompletedHook | null = null;
+  // ADR-064 Phase 3: Distributed Tracing
+  private traceCollector: TraceCollector | null = null;
+  // ADR-064 Phase 3: Track trace contexts for tasks
+  private readonly taskTraceContexts = new Map<string, TraceContext>();
+  // ADR-064 Phase 4: Advanced Patterns
+  private hypothesisManager: HypothesisManager | null = null;
+  private federationMailbox: FederationMailbox | null = null;
+  private dynamicScaler: DynamicScaler | null = null;
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly agentCoordinator: AgentCoordinator,
@@ -475,6 +538,56 @@ export class QueenCoordinator implements IQueenCoordinator {
       console.warn('[QueenCoordinator] Governance initialization failed (continuing):', govError);
     }
 
+    // ADR-064: Initialize domain circuit breakers
+    if (this.config.enableCircuitBreakers !== false) {
+      try {
+        this.domainBreakerRegistry = createDomainBreakerRegistry();
+        console.log('[QueenCoordinator] Domain circuit breaker registry initialized');
+      } catch (breakerError) {
+        console.warn('[QueenCoordinator] Circuit breaker initialization failed (continuing):', breakerError);
+      }
+    }
+
+    // ADR-064: Initialize agent teams and domain team manager
+    if (this.config.enableDomainTeams !== false) {
+      try {
+        this.agentTeamsAdapter = createAgentTeamsAdapter();
+        this.agentTeamsAdapter.initialize();
+        this.domainTeamManager = createDomainTeamManager(this.agentTeamsAdapter);
+        console.log('[QueenCoordinator] Domain team manager initialized');
+      } catch (teamError) {
+        console.warn('[QueenCoordinator] Domain team manager initialization failed (continuing):', teamError);
+      }
+    }
+
+    // ADR-064: Initialize fleet tier selector
+    if (this.config.enableFleetTiers !== false) {
+      try {
+        this.tierSelector = createTierSelector();
+        console.log('[QueenCoordinator] Fleet tier selector initialized');
+      } catch (tierError) {
+        console.warn('[QueenCoordinator] Tier selector initialization failed (continuing):', tierError);
+      }
+    }
+
+    // ADR-064 Phase 3: Initialize distributed tracing
+    try {
+      this.traceCollector = createTraceCollector();
+      console.log('[QueenCoordinator] Trace collector initialized');
+    } catch (traceError) {
+      console.warn('[QueenCoordinator] Trace collector initialization failed (continuing):', traceError);
+    }
+
+    // ADR-064 Phase 4: Initialize advanced patterns
+    try {
+      this.hypothesisManager = createHypothesisManager();
+      this.federationMailbox = createFederationMailbox();
+      this.dynamicScaler = createDynamicScaler();
+      console.log('[QueenCoordinator] Phase 4 modules initialized (hypotheses, federation, scaling)');
+    } catch (phase4Error) {
+      console.warn('[QueenCoordinator] Phase 4 initialization failed (continuing):', phase4Error);
+    }
+
     // Publish initialization event
     await this.publishEvent('QueenInitialized', {
       timestamp: new Date(),
@@ -505,6 +618,36 @@ export class QueenCoordinator implements IQueenCoordinator {
     if (this.minCutBridge) {
       await this.minCutBridge.dispose();
       this.minCutBridge = null;
+    }
+
+    // ADR-064: Dispose domain team manager and circuit breakers
+    if (this.domainTeamManager) {
+      this.domainTeamManager.dispose();
+      this.domainTeamManager = null;
+    }
+    if (this.agentTeamsAdapter) {
+      this.agentTeamsAdapter.shutdown();
+      this.agentTeamsAdapter = null;
+    }
+    this.domainBreakerRegistry = null;
+    this.tierSelector = null;
+
+    // ADR-064 Phase 3+4: Dispose tracing and advanced patterns
+    if (this.traceCollector) {
+      this.traceCollector.dispose();
+      this.traceCollector = null;
+    }
+    if (this.hypothesisManager) {
+      this.hypothesisManager.dispose();
+      this.hypothesisManager = null;
+    }
+    if (this.federationMailbox) {
+      this.federationMailbox.dispose();
+      this.federationMailbox = null;
+    }
+    if (this.dynamicScaler) {
+      this.dynamicScaler.dispose();
+      this.dynamicScaler = null;
     }
 
     // Save state
@@ -615,6 +758,41 @@ export class QueenCoordinator implements IQueenCoordinator {
 
       // SEC-003 Simplified: Log task submission
       this.auditLogger.logSubmit(taskId, { type: task.type, priority: task.priority });
+
+      // ADR-064: Use fleet tier selector to determine activation scope
+      let selectedTier: FleetTier | undefined;
+      if (this.tierSelector) {
+        try {
+          const tierContext: TierSelectionContext = {
+            trigger: task.payload?.trigger as TierSelectionContext['trigger'] ?? 'manual',
+            changedFiles: task.payload?.changedFiles as number | undefined,
+            affectedDomains: task.targetDomains,
+            severity: task.priority === 'p0' ? 'critical' : task.priority === 'p1' ? 'high' : undefined,
+            isHotfix: task.payload?.isHotfix as boolean | undefined,
+          };
+          const tierResult = this.tierSelector.selectTier(tierContext);
+          selectedTier = tierResult.selectedTier;
+          console.log(`[Queen] Fleet tier: ${selectedTier} (${tierResult.reason})`);
+        } catch (tierError) {
+          // Non-fatal: log but continue with default behavior
+          console.warn('[QueenCoordinator] Tier selection error (continuing):', tierError);
+        }
+      }
+
+      // ADR-064 Phase 3: Start a trace for this task
+      if (this.traceCollector) {
+        try {
+          const { context } = this.traceCollector.startTrace({
+            operationName: task.type,
+            agentId: task.requester || 'queen',
+            domain: task.targetDomains[0] || 'test-generation',
+            tags: { taskId, priority: task.priority, tier: selectedTier || 'unknown' },
+          });
+          this.taskTraceContexts.set(taskId, context);
+        } catch (traceError) {
+          console.warn('[QueenCoordinator] Trace start error (continuing):', traceError);
+        }
+      }
 
       // Assign task to appropriate domain(s)
       const assignResult = await this.assignTask(task);
@@ -1041,6 +1219,74 @@ export class QueenCoordinator implements IQueenCoordinator {
     return this.tinyDancerRouter;
   }
 
+  /**
+   * Get domain circuit breaker registry
+   * ADR-064: Allows external components to query breaker state
+   */
+  getDomainBreakerRegistry(): DomainBreakerRegistry | null {
+    return this.domainBreakerRegistry;
+  }
+
+  /**
+   * Get domain team manager
+   * ADR-064: Allows external components to manage domain teams
+   */
+  getDomainTeamManager(): DomainTeamManager | null {
+    return this.domainTeamManager;
+  }
+
+  /**
+   * Get fleet tier selector
+   * ADR-064: Allows external components to query/select fleet tiers
+   */
+  getTierSelector(): TierSelector | null {
+    return this.tierSelector;
+  }
+
+  /**
+   * Connect a QEReasoningBank for automatic pattern training.
+   * ADR-064 Phase 3: Creates the adapter and TaskCompletedHook pipeline.
+   *
+   * @param bank - The QEReasoningBank to train patterns into
+   */
+  connectReasoningBank(bank: IQEReasoningBank): void {
+    const adapter = new ReasoningBankPatternStore(bank);
+    this.taskCompletedHook = new TaskCompletedHook({}, adapter);
+    console.log('[QueenCoordinator] ReasoningBank connected for pattern training');
+  }
+
+  /**
+   * Get the distributed trace collector
+   * ADR-064 Phase 3: Allows external components to trace agent operations
+   */
+  getTraceCollector(): TraceCollector | null {
+    return this.traceCollector;
+  }
+
+  /**
+   * Get the competing hypotheses manager
+   * ADR-064 Phase 4A: Multi-agent investigation coordination
+   */
+  getHypothesisManager(): HypothesisManager | null {
+    return this.hypothesisManager;
+  }
+
+  /**
+   * Get the cross-fleet federation mailbox
+   * ADR-064 Phase 4B: Multi-service communication
+   */
+  getFederationMailbox(): FederationMailbox | null {
+    return this.federationMailbox;
+  }
+
+  /**
+   * Get the dynamic agent scaler
+   * ADR-064 Phase 4C: Workload-based auto-scaling
+   */
+  getDynamicScaler(): DynamicScaler | null {
+    return this.dynamicScaler;
+  }
+
   // ============================================================================
   // Protocol & Workflow
   // ============================================================================
@@ -1208,10 +1454,101 @@ export class QueenCoordinator implements IQueenCoordinator {
       } catch (govError) {
         console.warn('[QueenCoordinator] Governance tracking error:', govError);
       }
+
+      // ADR-064: Record success in domain circuit breaker
+      if (this.domainBreakerRegistry && execution.assignedDomain) {
+        this.domainBreakerRegistry.getBreaker(execution.assignedDomain).recordSuccess();
+      }
+
+      // ADR-064 Phase 3: Complete the trace span for this task
+      if (this.traceCollector) {
+        const traceCtx = this.taskTraceContexts.get(taskId);
+        if (traceCtx) {
+          this.traceCollector.completeSpan(traceCtx.spanId);
+          this.taskTraceContexts.delete(taskId);
+        }
+      }
+
+      // ADR-064 Phase 3: Train patterns from completed tasks
+      if (this.taskCompletedHook) {
+        try {
+          const resultObj = (typeof result === 'object' && result !== null)
+            ? result as Record<string, unknown>
+            : null;
+
+          if (resultObj === null) {
+            console.error(
+              `[QueenCoordinator] Pattern training skipped for task ${taskId}: ` +
+              `result is not an object (got ${typeof result})`
+            );
+          } else {
+            const metrics = this.extractTaskMetrics(resultObj, taskId);
+            if (metrics) {
+              const taskResult: TaskResult = {
+                taskId,
+                agentId: execution.assignedAgents[0] || 'unknown',
+                domain: execution.assignedDomain || 'test-generation',
+                type: execution.task.type,
+                status: 'completed',
+                output: resultObj,
+                metrics,
+                duration,
+                timestamp: Date.now(),
+              };
+              // Fire-and-forget: don't await to avoid blocking task completion
+              this.taskCompletedHook.onTaskCompleted(taskResult).catch(hookErr => {
+                console.warn('[QueenCoordinator] Pattern training error:', hookErr);
+              });
+            }
+          }
+        } catch (hookError) {
+          console.warn('[QueenCoordinator] Pattern training setup error:', hookError);
+        }
+      }
     }
 
     // Process queue for next task
     await this.processQueue();
+  }
+
+  /**
+   * Extract TaskMetrics from a task result object.
+   * Returns null and logs an error if the result shape is unrecognized.
+   */
+  private extractTaskMetrics(
+    resultObj: Record<string, unknown>,
+    taskId: string,
+  ): TaskMetrics | null {
+    // Check for metrics at the top level
+    if ('metrics' in resultObj && typeof resultObj.metrics === 'object' && resultObj.metrics !== null) {
+      const m = resultObj.metrics as Record<string, unknown>;
+      return {
+        testsPassed: typeof m.testsPassed === 'number' ? m.testsPassed : undefined,
+        testsFailed: typeof m.testsFailed === 'number' ? m.testsFailed : undefined,
+        coverageChange: typeof m.coverageChange === 'number' ? m.coverageChange : undefined,
+        securityIssues: typeof m.securityIssues === 'number' ? m.securityIssues : undefined,
+        performanceMs: typeof m.performanceMs === 'number' ? m.performanceMs : undefined,
+        linesChanged: typeof m.linesChanged === 'number' ? m.linesChanged : undefined,
+      };
+    }
+
+    // Check for flat metric fields directly on the result
+    if ('testsPassed' in resultObj || 'testsFailed' in resultObj) {
+      return {
+        testsPassed: typeof resultObj.testsPassed === 'number' ? resultObj.testsPassed : undefined,
+        testsFailed: typeof resultObj.testsFailed === 'number' ? resultObj.testsFailed : undefined,
+        coverageChange: typeof resultObj.coverageChange === 'number' ? resultObj.coverageChange : undefined,
+        securityIssues: typeof resultObj.securityIssues === 'number' ? resultObj.securityIssues : undefined,
+        performanceMs: typeof resultObj.performanceMs === 'number' ? resultObj.performanceMs : undefined,
+        linesChanged: typeof resultObj.linesChanged === 'number' ? resultObj.linesChanged : undefined,
+      };
+    }
+
+    console.error(
+      `[QueenCoordinator] Pattern training skipped for task ${taskId}: ` +
+      `result object has no recognizable metrics shape (keys: ${Object.keys(resultObj).join(', ')})`
+    );
+    return null;
   }
 
   private async handleTaskFailed(event: DomainEvent): Promise<void> {
@@ -1223,6 +1560,22 @@ export class QueenCoordinator implements IQueenCoordinator {
       // Only decrement if task was running (not already queued)
       if (execution.status === 'running' || execution.status === 'assigned') {
         this.runningTaskCounter = Math.max(0, this.runningTaskCounter - 1);
+      }
+
+      // ADR-064: Record failure in domain circuit breaker
+      if (this.domainBreakerRegistry && execution.assignedDomain) {
+        this.domainBreakerRegistry.getBreaker(execution.assignedDomain).recordFailure(
+          new Error(error || 'Task failed')
+        );
+      }
+
+      // ADR-064 Phase 3: Fail the trace span for this task
+      if (this.traceCollector) {
+        const traceCtx = this.taskTraceContexts.get(taskId);
+        if (traceCtx) {
+          this.traceCollector.failSpan(traceCtx.spanId, error || 'Task failed');
+          this.taskTraceContexts.delete(taskId);
+        }
       }
 
       // Check if we should retry
@@ -1274,6 +1627,35 @@ export class QueenCoordinator implements IQueenCoordinator {
           );
         } catch (govError) {
           console.warn('[QueenCoordinator] Governance tracking error:', govError);
+        }
+
+        // ADR-064 Phase 4A: Create competing hypotheses investigation for
+        // permanent failures in critical domains (p0/p1 priority)
+        if (this.hypothesisManager && (execution.task.priority === 'p0' || execution.task.priority === 'p1')) {
+          try {
+            const domain = execution.assignedDomain || 'test-generation';
+            const investigation = this.hypothesisManager.createInvestigation(
+              taskId,
+              domain,
+              `Root cause analysis for ${execution.task.type} failure: ${error}`,
+            );
+            // Seed with two competing hypotheses
+            this.hypothesisManager.addHypothesis(
+              investigation.id,
+              `Infrastructure failure in domain '${domain}' caused task ${taskId} to fail`,
+              'log-analysis',
+              `${domain}-lead`,
+            );
+            this.hypothesisManager.addHypothesis(
+              investigation.id,
+              `Logic/configuration error in task payload caused ${execution.task.type} to fail: ${error}`,
+              'code-analysis',
+              execution.assignedAgents[0] || 'unknown',
+            );
+            console.log(`[QueenCoordinator] Competing hypotheses investigation created: ${investigation.id}`);
+          } catch (hypothesisError) {
+            console.warn('[QueenCoordinator] Hypothesis creation error:', hypothesisError);
+          }
         }
       }
     }
@@ -1405,6 +1787,28 @@ export class QueenCoordinator implements IQueenCoordinator {
       // Log routing decision for observability
       if (this.config.enableMetrics) {
         console.log(`[Queen] TinyDancer routing: ${task.type} → tier=${routeDecision.tier}, model=${routeDecision.model}, cost=$${routeDecision.estimatedCost.toFixed(4)}`);
+      }
+    }
+
+    // ADR-064: Check domain circuit breaker before assigning task
+    if (this.domainBreakerRegistry) {
+      if (!this.domainBreakerRegistry.canExecuteInDomain(domain)) {
+        return err(new Error(`Domain '${domain}' circuit breaker is open — too many recent failures`));
+      }
+    }
+
+    // ADR-064: Ensure a domain team exists for this domain via DomainTeamManager
+    if (this.domainTeamManager) {
+      try {
+        const existingTeam = this.domainTeamManager.getDomainTeam(domain);
+        if (!existingTeam) {
+          // Auto-create a team with a lead agent for this domain
+          const leadId = `${domain}-lead`;
+          this.domainTeamManager.createDomainTeam(domain, leadId);
+        }
+      } catch (teamError) {
+        // Non-fatal: domain teams are optional enhancement
+        console.warn(`[Queen] Domain team setup for '${domain}' failed (continuing):`, teamError);
       }
     }
 
@@ -1644,6 +2048,41 @@ export class QueenCoordinator implements IQueenCoordinator {
         ttl: 86400000, // 24 hours
         namespace: 'queen-coordinator',
       });
+
+      // ADR-064 Phase 4C: Feed workload metrics to dynamic scaler
+      if (this.dynamicScaler) {
+        try {
+          const agents = this.agentCoordinator.listAgents();
+          const activeAgents = agents.filter(a => a.status === 'running').length;
+          const idleAgents = agents.filter(a => a.status === 'idle').length;
+          const avgDuration = this.taskDurations.average();
+
+          const workloadMetrics: WorkloadMetrics = {
+            queueDepth: this.getQueuedTaskCount(),
+            activeAgents,
+            idleAgents,
+            avgTaskDurationMs: avgDuration,
+            errorRate: this.tasksReceived > 0
+              ? this.tasksFailed / this.tasksReceived
+              : 0,
+            throughput: metrics.uptime > 0
+              ? (this.tasksCompleted / (metrics.uptime / 1000)) // tasks/sec
+              : 0,
+            timestamp: Date.now(),
+          };
+
+          this.dynamicScaler.recordMetrics(workloadMetrics);
+          const decision = this.dynamicScaler.evaluate();
+          if (decision && decision.action !== 'maintain') {
+            console.log(`[QueenCoordinator] Dynamic scaler: ${decision.action} to ${decision.targetAgents} agents — ${decision.reason}`);
+            this.dynamicScaler.execute(decision).catch(scaleErr => {
+              console.warn('[QueenCoordinator] Dynamic scaling execution error:', scaleErr);
+            });
+          }
+        } catch (scaleError) {
+          console.warn('[QueenCoordinator] Dynamic scaler metrics error:', scaleError);
+        }
+      }
     }, this.config.metricsInterval);
   }
 

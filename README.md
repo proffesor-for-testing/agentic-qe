@@ -9,35 +9,9 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Release Notes](docs/releases/README.md) | [Changelog](v3/CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 59 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
-
-### What's New in v3.6.0
-
-- **Enterprise Integration Domain** — SOAP/WSDL, SAP RFC/BAPI/IDoc, OData, ESB/middleware, message broker, and Segregation of Duties testing (contributed by [@fndlalit](https://github.com/fndlalit))
-- **8 New Agents** — `qe-soap-tester`, `qe-sap-rfc-tester`, `qe-sap-idoc-tester`, `qe-middleware-validator`, `qe-odata-contract-tester`, `qe-message-broker-tester`, `qe-sod-analyzer`, `qe-pentest-validator`
-- **5 New Skills** — `enterprise-integration-testing`, `middleware-testing-patterns`, `wms-testing-patterns`, `observability-testing-patterns`, `pentest-validation` (Tier 3)
-- **Pentest Validation** — Shannon-inspired graduated exploit validation with "No Exploit, No Report" quality gate and 3-tier exploitation
-- **StrongDM Tier 1** — Loop detection + token dashboard for software delivery governance (ADR-062)
-- **Fleet: 59 agents, 75 skills across 13 domains**
-
-### What's New in v3.5.0
-
-- **Governance ON by Default** - @claude-flow/guidance integration with 7 unbreakable QE invariants (ADR-058)
-- **QCSD 2.0 Complete Lifecycle** - All 4 phases: Ideation → Refinement → Development → CI/CD Verification
-- **Infrastructure Self-Healing Enterprise** - 12 enterprise error signatures (SAP, Salesforce, Payment Gateway)
-
-### What's New in v3.4.2
-
-- **Skill Validation System** - 4-layer trust tiers with schemas, validators, and evaluation suites (ADR-056)
-- **CLI Validation Commands** - `aqe skill report`, `aqe eval run`, regression detection
-
-### What's New in v3.4.0
-
-- **AG-UI Protocol** - Anthropic's streaming agent-to-user interface with real-time progress updates
-- **A2A Protocol** - Google's agent-to-agent interoperability standard for cross-tool communication
-- **A2UI Components** - Unified UI combining AG-UI streaming with A2A event handling
+> **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 60 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
 🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **13 Bounded Contexts** | 📚 **75 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance**
 
@@ -88,7 +62,7 @@ claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flak
 
 **What V3 provides:**
 - ✅ **13 DDD Bounded Contexts**: Organized by business domain (test-generation, coverage-analysis, security-compliance, enterprise-integration, etc.)
-- ✅ **59 QE Agents**: Including Queen Coordinator for hierarchical orchestration (52 main + 7 TDD subagents)
+- ✅ **60 QE Agents**: Including Queen Coordinator for hierarchical orchestration (53 main + 7 TDD subagents)
 - ✅ **TinyDancer Model Routing**: 3-tier intelligent routing (Haiku/Sonnet/Opus) for cost optimization
 - ✅ **ReasoningBank Learning**: HNSW-indexed pattern storage with experience replay
 - ✅ **O(log n) Coverage Analysis**: Sublinear algorithms for efficient gap detection
@@ -134,7 +108,7 @@ claude "Assess code quality and provide deployment recommendation"
 | **AI testing tools are expensive** | TinyDancer 3-tier model routing reduces costs by matching task complexity to appropriate model |
 | **No memory between test runs—every analysis starts from scratch** | ReasoningBank remembers patterns, strategies, and what works for your codebase |
 | **Agents waste tokens reading irrelevant code** | Code Intelligence provides token reduction with semantic search and knowledge graphs |
-| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 59 agents across 13 domains with consensus and MinCut topology |
+| **Quality engineering requires complex coordination** | Queen Coordinator orchestrates 60 agents across 13 domains with consensus and MinCut topology |
 | **Tools don't understand your testing frameworks** | Works with Jest, Cypress, Playwright, Vitest, Mocha, Jasmine, AVA |
 
 ---
@@ -240,7 +214,7 @@ The **qe-queen-coordinator** manages the entire fleet with intelligent task dist
 ```
 
 **Capabilities:**
-- Orchestrate 59 QE agents concurrently across 13 domains
+- Orchestrate 60 QE agents concurrently across 13 domains
 - TinyDancer 3-tier model routing (Haiku/Sonnet/Opus) with confidence-based decisions
 - Byzantine fault-tolerant consensus for critical quality decisions
 - MinCut graph-based topology optimization for self-healing coordination
@@ -249,6 +223,34 @@ The **qe-queen-coordinator** manages the entire fleet with intelligent task dist
 
 ```bash
 claude "Use qe-queen-coordinator to orchestrate release validation for v2.1.0 with 90% coverage target"
+```
+
+---
+
+### 🤝 Agent Teams & Fleet Coordination
+
+The Queen Coordinator is extended with **Agent Teams** (ADR-064) for hybrid fleet communication:
+
+| Feature | Description |
+|---------|-------------|
+| **Mailbox Messaging** | Direct agent-to-agent and domain-scoped broadcast messaging |
+| **Distributed Tracing** | TraceContext propagation across messages for end-to-end task visibility |
+| **Dynamic Scaling** | Workload-based auto-scaling with configurable policies and cooldowns |
+| **Competing Hypotheses** | Multi-agent root cause investigation with evidence scoring, auto-triggered on critical failures |
+| **Federation** | Cross-service routing with health monitoring and service discovery |
+| **Circuit Breakers** | Per-domain fault isolation with automatic recovery |
+| **Task DAG** | Topological ordering with cycle detection for multi-step workflows |
+
+**Fleet Tiers** — Activate the level of coordination your project needs:
+
+| Tier | Agents | Best For |
+|------|--------|----------|
+| **Lite** | 1-4 | Small projects, focused tasks |
+| **Standard** | 5-10 | Team projects, multi-domain coordination |
+| **Full** | 11-15 | Enterprise, cross-fleet federation |
+
+```bash
+claude "Use qe-queen-coordinator with agent teams to investigate flaky test failures across test-execution and defect-intelligence domains"
 ```
 
 ---
@@ -466,17 +468,17 @@ npx @claude-flow/cli@latest agent spawn -t qe-test-architect --name test-gen
 
 ---
 
-### 📊 59 Specialized QE Agents
+### 📊 60 Specialized QE Agents
 
 | Category | Count | Highlights |
 |----------|-------|------------|
-| **Main QE Agents** | 52 | Test generation, coverage, security, performance, accessibility, enterprise integration, pentest validation |
+| **Main QE Agents** | 53 | Test generation, coverage, security, performance, accessibility, enterprise integration, pentest validation |
 | **TDD Subagents** | 7 | RED/GREEN/REFACTOR with code review |
 
 **V2 Backward Compatibility**: All V2 agents map to V3 equivalents automatically.
 
 <details>
-<summary><b>📋 View All Main QE Agents (52)</b></summary>
+<summary><b>📋 View All Main QE Agents (53)</b></summary>
 
 | Agent | Domain | Purpose |
 |-------|--------|---------|
@@ -524,6 +526,7 @@ npx @claude-flow/cli@latest agent spawn -t qe-test-architect --name test-gen
 | qe-product-factors-assessor | quality-assessment | SFDIPOT product factors analysis |
 | qe-test-idea-rewriter | test-generation | Transform passive tests to active actions |
 | qe-quality-criteria-recommender | quality-assessment | HTSM v6.3 Quality Criteria analysis |
+| qe-devils-advocate | quality-assessment | Adversarial review of agent outputs |
 
 </details>
 
@@ -794,7 +797,7 @@ agentic-qe/
 │   │   ├── mcp/             # MCP server
 │   │   └── cli/             # V3 CLI
 │   ├── tests/               # 5,600+ tests
-│   └── assets/agents/       # 59 QE agent definitions (52 main + 7 subagents)
+│   └── assets/agents/       # 60 QE agent definitions (53 main + 7 subagents)
 ├── v2/                      # V2 Implementation (Legacy)
 │   ├── src/                 # V2 source code
 │   ├── tests/               # V2 tests

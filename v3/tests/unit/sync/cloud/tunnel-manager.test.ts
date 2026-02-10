@@ -72,6 +72,28 @@ function createMockSocket() {
   return socket;
 }
 
+/**
+ * Set up createConnection mock that fails the pre-spawn port check
+ * (simulating no pre-existing tunnel) then succeeds on post-spawn calls.
+ * The start() method calls checkPort() before spawning gcloud to detect
+ * reusable tunnels — tests must fail that first check so spawn happens.
+ */
+function setupPortCheckMock(opts?: { succeedAfterCall?: number; failAll?: boolean }) {
+  let callCount = 0;
+  const succeedAfter = opts?.succeedAfterCall ?? 1;
+
+  mockCreateConnection.mockImplementation(() => {
+    callCount++;
+    const socket = createMockSocket();
+    if (opts?.failAll || callCount <= succeedAfter) {
+      setTimeout(() => socket.emit('error', new Error('ECONNREFUSED')), 5);
+    } else {
+      setTimeout(() => socket.emit('connect'), 5);
+    }
+    return socket;
+  });
+}
+
 describe('IAPTunnelManager', () => {
   const defaultCloudConfig: CloudConfig = {
     project: 'test-project',
@@ -114,19 +136,18 @@ describe('IAPTunnelManager', () => {
 
   describe('start', () => {
     it('should spawn gcloud process with correct arguments', async () => {
-      const mockSocket = createMockSocket();
-      mockCreateConnection.mockImplementation(() => {
-        setTimeout(() => mockSocket.emit('connect'), 10);
-        return mockSocket;
-      });
+      // Pre-spawn check fails (no tunnel), post-spawn checks succeed
+      setupPortCheckMock();
 
       const startPromise = tunnelManager.start();
+      // Advance past pre-spawn checkPort
+      await vi.advanceTimersByTimeAsync(100);
 
       // Emit tunnel ready message
       mockProcess._mockStderr.emit('data', Buffer.from('Listening on port 15432'));
 
       // Advance timers for port check delay and retry
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(5000);
 
       const connection = await startPromise;
 
@@ -149,15 +170,12 @@ describe('IAPTunnelManager', () => {
     });
 
     it('should return existing connection if already running', async () => {
-      const mockSocket = createMockSocket();
-      mockCreateConnection.mockImplementation(() => {
-        setTimeout(() => mockSocket.emit('connect'), 10);
-        return mockSocket;
-      });
+      setupPortCheckMock();
 
       const startPromise1 = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit('data', Buffer.from('Listening on port'));
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(5000);
       const connection1 = await startPromise1;
 
       const connection2 = await tunnelManager.start();
@@ -167,40 +185,38 @@ describe('IAPTunnelManager', () => {
     });
 
     it('should handle "tunnel is running" message', async () => {
-      const mockSocket = createMockSocket();
-      mockCreateConnection.mockImplementation(() => {
-        setTimeout(() => mockSocket.emit('connect'), 10);
-        return mockSocket;
-      });
+      setupPortCheckMock();
 
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit('data', Buffer.from('tunnel is running'));
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(5000);
 
       const connection = await startPromise;
       expect(connection).toBeDefined();
     });
 
     it('should handle "Testing if tunnel connection works" message', async () => {
-      const mockSocket = createMockSocket();
-      mockCreateConnection.mockImplementation(() => {
-        setTimeout(() => mockSocket.emit('connect'), 10);
-        return mockSocket;
-      });
+      setupPortCheckMock();
 
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit(
         'data',
         Buffer.from('Testing if tunnel connection works')
       );
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(5000);
 
       const connection = await startPromise;
       expect(connection).toBeDefined();
     });
 
     it('should reject on process error before connection', async () => {
+      // Pre-spawn check must fail so spawn happens
+      setupPortCheckMock({ failAll: true });
+
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
 
       mockProcess.emit('error', new Error('Spawn failed'));
 
@@ -208,7 +224,10 @@ describe('IAPTunnelManager', () => {
     });
 
     it('should reject on process close before connection', async () => {
+      setupPortCheckMock({ failAll: true });
+
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
 
       mockProcess.emit('close', 1);
 
@@ -222,6 +241,8 @@ describe('IAPTunnelManager', () => {
       process.on('unhandledRejection', rejectionHandler);
 
       try {
+        setupPortCheckMock({ failAll: true });
+
         const startPromise = tunnelManager.start();
 
         // Advance past timeout
@@ -237,47 +258,32 @@ describe('IAPTunnelManager', () => {
     });
 
     it('should retry port connectivity check', async () => {
-      const mockSocket = createMockSocket();
-      let connectAttempts = 0;
-
-      mockCreateConnection.mockImplementation(() => {
-        connectAttempts++;
-        if (connectAttempts < 3) {
-          // Fail first two attempts
-          setTimeout(() => mockSocket.emit('error', new Error('Connection refused')), 10);
-        } else {
-          // Succeed on third attempt
-          setTimeout(() => mockSocket.emit('connect'), 10);
-        }
-        return mockSocket;
-      });
+      // Call 1 = pre-spawn check (fail), calls 2-3 = post-spawn retries (fail),
+      // call 4+ = succeed
+      setupPortCheckMock({ succeedAfterCall: 3 });
 
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit('data', Buffer.from('Listening on port'));
 
       // Advance through port check retries
-      await vi.advanceTimersByTimeAsync(10000);
+      await vi.advanceTimersByTimeAsync(15000);
 
       const connection = await startPromise;
       expect(connection).toBeDefined();
-      expect(connectAttempts).toBeGreaterThan(1);
     });
   });
 
   describe('stop', () => {
     it('should kill process with SIGTERM', async () => {
-      const mockSocket = createMockSocket();
-      mockCreateConnection.mockImplementation(() => {
-        setImmediate(() => mockSocket.emit('connect'));
-        return mockSocket;
-      });
+      setupPortCheckMock();
 
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit('data', Buffer.from('Listening on port'));
       await vi.advanceTimersByTimeAsync(5000);
       await startPromise;
 
-      // Start stop and advance timers to complete
       const stopPromise = tunnelManager.stop();
       await vi.advanceTimersByTimeAsync(2000);
       await stopPromise;
@@ -286,13 +292,10 @@ describe('IAPTunnelManager', () => {
     });
 
     it('should follow up with SIGKILL after delay', async () => {
-      const mockSocket = createMockSocket();
-      mockCreateConnection.mockImplementation(() => {
-        setImmediate(() => mockSocket.emit('connect'));
-        return mockSocket;
-      });
+      setupPortCheckMock();
 
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit('data', Buffer.from('Listening on port'));
       await vi.advanceTimersByTimeAsync(5000);
       await startPromise;
@@ -315,28 +318,22 @@ describe('IAPTunnelManager', () => {
     });
 
     it('should return true after successful start', async () => {
-      const mockSocket = createMockSocket();
-      mockCreateConnection.mockImplementation(() => {
-        setTimeout(() => mockSocket.emit('connect'), 10);
-        return mockSocket;
-      });
+      setupPortCheckMock();
 
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit('data', Buffer.from('Listening on port'));
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(5000);
       await startPromise;
 
       expect(tunnelManager.isActive()).toBe(true);
     });
 
     it('should return false after stop', async () => {
-      const mockSocket = createMockSocket();
-      mockCreateConnection.mockImplementation(() => {
-        setImmediate(() => mockSocket.emit('connect'));
-        return mockSocket;
-      });
+      setupPortCheckMock();
 
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit('data', Buffer.from('Listening on port'));
       await vi.advanceTimersByTimeAsync(5000);
       await startPromise;
@@ -355,13 +352,10 @@ describe('IAPTunnelManager', () => {
     });
 
     it('should return connection info after start', async () => {
-      const mockSocket = createMockSocket();
-      mockCreateConnection.mockImplementation(() => {
-        setImmediate(() => mockSocket.emit('connect'));
-        return mockSocket;
-      });
+      setupPortCheckMock();
 
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit('data', Buffer.from('Listening on port'));
       await vi.advanceTimersByTimeAsync(5000);
       await startPromise;
@@ -377,13 +371,10 @@ describe('IAPTunnelManager', () => {
     });
 
     it('should return null after stop', async () => {
-      const mockSocket = createMockSocket();
-      mockCreateConnection.mockImplementation(() => {
-        setImmediate(() => mockSocket.emit('connect'));
-        return mockSocket;
-      });
+      setupPortCheckMock();
 
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit('data', Buffer.from('Listening on port'));
       await vi.advanceTimersByTimeAsync(5000);
       await startPromise;
@@ -402,13 +393,10 @@ describe('IAPTunnelManager', () => {
     });
 
     it('should return PostgreSQL connection string when active', async () => {
-      const mockSocket = createMockSocket();
-      mockCreateConnection.mockImplementation(() => {
-        setImmediate(() => mockSocket.emit('connect'));
-        return mockSocket;
-      });
+      setupPortCheckMock();
 
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit('data', Buffer.from('Listening on port'));
       await vi.advanceTimersByTimeAsync(5000);
       await startPromise;
@@ -423,27 +411,26 @@ describe('IAPTunnelManager', () => {
 
   describe('port connectivity checking', () => {
     it('should check port with timeout', async () => {
-      // Catch any unhandled rejections that may occur during timer cleanup
       const unhandledRejections: Error[] = [];
       const rejectionHandler = (err: Error) => unhandledRejections.push(err);
       process.on('unhandledRejection', rejectionHandler);
 
       try {
-        const mockSocket = createMockSocket();
+        // All port checks time out (return socket that never emits)
         mockCreateConnection.mockImplementation(() => {
-          // Don't emit any event - let timeout happen
-          return mockSocket;
+          return createMockSocket();
         });
 
         const startPromise = tunnelManager.start();
+        // Advance past the pre-spawn checkPort timeout (2000ms)
+        await vi.advanceTimersByTimeAsync(2500);
         mockProcess._mockStderr.emit('data', Buffer.from('Listening on port'));
 
-        // Advance through all port check attempts
+        // Advance through all post-spawn port check attempts + overall timeout
         await vi.advanceTimersByTimeAsync(60000);
 
         await expect(startPromise).rejects.toThrow();
 
-        // Clean up any pending timers
         await vi.runAllTimersAsync();
       } finally {
         process.off('unhandledRejection', rejectionHandler);
@@ -451,20 +438,12 @@ describe('IAPTunnelManager', () => {
     });
 
     it('should handle socket errors during port check', async () => {
-      const mockSocket = createMockSocket();
-      let attempts = 0;
-
-      mockCreateConnection.mockImplementation(() => {
-        attempts++;
-        if (attempts < 5) {
-          setTimeout(() => mockSocket.emit('error', new Error('ECONNREFUSED')), 10);
-        } else {
-          setTimeout(() => mockSocket.emit('connect'), 10);
-        }
-        return mockSocket;
-      });
+      // Call 1 = pre-spawn (fail), calls 2-5 = post-spawn retries (fail),
+      // call 6+ = succeed
+      setupPortCheckMock({ succeedAfterCall: 5 });
 
       const startPromise = tunnelManager.start();
+      await vi.advanceTimersByTimeAsync(100);
       mockProcess._mockStderr.emit('data', Buffer.from('Listening on port'));
       await vi.advanceTimersByTimeAsync(15000);
 

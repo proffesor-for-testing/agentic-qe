@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 13 In Progress (Enterprise Integration - ADR-063)
+**Status:** Phase 14 Complete (Agent Teams Integration - ADR-064)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-02-04 (ADR-001-063: 57 Implemented, 101 skills with trust tiers, 657 tests passing)
+**Last Verified:** 2026-02-09 (ADR-001-064: 58 Implemented, 101 skills with trust tiers, 397+ coordination tests passing)
 
 ---
 
@@ -75,6 +75,7 @@
 | [ADR-061](./ADR-061-asymmetric-learning-rates.md) | Asymmetric Learning Rates for ReasoningBank | **Proposed** | 2026-02-06 | 10:1 Hebbian failure penalty + pattern quarantine (inspired by AISP Hebbian learning) |
 | [ADR-062](./ADR-062-strongdm-software-factory.md) | StrongDM Software Factory Integration | **Accepted** | 2026-02-08 | 6 actions across 3 tiers: loop detection, token dashboard, holdout testing, gate ratcheting, progressive context, meta-learning |
 | [ADR-063](./ADR-063-enterprise-integration-testing.md) | Enterprise Integration Testing Gap Closure | **Implemented** | 2026-02-04 | ✅ 7 new agents + 4 new skills + enterprise-integration bounded context (13th domain) + QCSD flag extensions |
+| [ADR-064](./ADR-064-agentic-teams-integration.md) | Agent Teams Integration for AQE Fleet | **Implemented** | 2026-02-09 | ✅ All 4 phases: mailbox messaging, fleet tiers, task DAG, circuit breakers, tracing, competing hypotheses, federation, dynamic scaling. 397+ tests. |
 
 ---
 

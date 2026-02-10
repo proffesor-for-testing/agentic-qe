@@ -317,6 +317,185 @@ export {
 } from './mincut';
 
 // ============================================================================
+// Agent Teams (ADR-064: Inter-Agent Communication)
+// ============================================================================
+
+export {
+  MailboxService,
+  createMailboxService,
+  AgentTeamsAdapter,
+  createAgentTeamsAdapter,
+} from './agent-teams';
+
+export type {
+  AgentMessageType,
+  AgentMessage,
+  AgentMailbox,
+  DomainTeamConfig,
+  MessageHandler,
+  BroadcastHandler,
+  AgentTeamsAdapterConfig,
+  TeamStatus,
+  SendMessageOptions,
+  BroadcastOptions,
+} from './agent-teams';
+
+export {
+  DomainTeamManager,
+  createDomainTeamManager,
+  DEFAULT_DOMAIN_TEAM_MANAGER_CONFIG,
+} from './agent-teams/domain-team-manager';
+
+export type {
+  DomainTeamManagerConfig,
+  DomainTeam,
+  DomainTeamHealth,
+  ScaleResult,
+  RebalanceResult,
+} from './agent-teams/domain-team-manager';
+
+// ============================================================================
+// Fleet Tiers (ADR-064: Tiered Fleet Activation)
+// ============================================================================
+
+export {
+  TierSelector,
+  createTierSelector,
+  ALL_USER_FACING_DOMAINS,
+  CORE_PRIORITY_DOMAINS,
+  DEFAULT_DOMAIN_AGENT_MAP,
+  DEFAULT_TIER_CONFIGS,
+  getDefaultTierConfig,
+  validateTierConfig,
+  FLEET_TIER_ORDER,
+} from './fleet-tiers';
+
+export type {
+  FleetTier,
+  TierConfig,
+  TierSelectionContext,
+  AgentAllocation,
+  TierSelectionResult,
+  TierSelectionRecord,
+  TierSelectionStats,
+} from './fleet-tiers';
+
+// ============================================================================
+// Task Dependency DAG (ADR-064: DAG-Based Task Scheduling)
+// ============================================================================
+
+export {
+  TaskDAG,
+  DAGScheduler,
+  createTaskDAG,
+  createDAGScheduler,
+} from './task-dag';
+
+export type {
+  DAGTaskStatus,
+  DAGTask,
+  AddTaskInput,
+  DAGStats,
+  DAGEventType,
+  DAGEvent,
+  DAGSchedulerConfig,
+  DAGEventHandler,
+} from './task-dag';
+
+// ============================================================================
+// Domain Circuit Breakers (ADR-064: Domain-Level Fault Isolation)
+// ============================================================================
+
+export {
+  DomainCircuitBreaker,
+  DomainCircuitOpenError,
+  DEFAULT_DOMAIN_BREAKER_CONFIG,
+  DomainBreakerRegistry,
+  DOMAIN_CRITICALITY_CONFIGS,
+  DOMAIN_CRITICALITY,
+  createDomainCircuitBreaker,
+  createDomainBreakerRegistry,
+} from './circuit-breaker';
+
+export type {
+  DomainBreakerState,
+  DomainCircuitBreakerConfig,
+  DomainBreakerStats,
+  DomainBreakerEvent,
+  DomainBreakerStateChangeHandler,
+  DomainCriticalityConfig,
+  DomainCriticalityLevel,
+  DomainBreakerHealthSummary,
+} from './circuit-breaker';
+
+// ============================================================================
+// Competing Hypotheses (ADR-064 Phase 4A: Multi-Agent Investigation)
+// ============================================================================
+
+export {
+  HypothesisManager,
+  createHypothesisManager,
+  DEFAULT_COMPETING_HYPOTHESES_CONFIG,
+} from './competing-hypotheses';
+
+export type {
+  Hypothesis,
+  HypothesisStatus,
+  Evidence,
+  EvidenceType,
+  Investigation,
+  InvestigationStatus,
+  InvestigationStrategy,
+  ConvergenceResult,
+  ConvergenceMethod,
+  CompetingHypothesesConfig,
+} from './competing-hypotheses';
+
+// ============================================================================
+// Cross-Fleet Federation (ADR-064 Phase 4B: Multi-Service Communication)
+// ============================================================================
+
+export {
+  FederationMailbox,
+  createFederationMailbox,
+  DEFAULT_FEDERATION_CONFIG,
+} from './federation';
+
+export type {
+  FleetId,
+  FederatedService,
+  FederatedMessage,
+  FederatedMessageType,
+  FederationRoute,
+  FederationHealth,
+  FederationConfig,
+  ServiceStatus,
+  FederatedMessageHandler,
+} from './federation';
+
+// ============================================================================
+// Dynamic Agent Scaling (ADR-064 Phase 4C: Workload-Based Auto-Scaling)
+// ============================================================================
+
+export {
+  DynamicScaler,
+  createDynamicScaler,
+  DEFAULT_SCALING_POLICY,
+  DEFAULT_DYNAMIC_SCALING_CONFIG,
+} from './dynamic-scaling';
+
+export type {
+  WorkloadMetrics,
+  ScalingDecision,
+  ScalingAction,
+  ScalingPolicy,
+  ScalingEvent,
+  ScalerStats,
+  DynamicScalingConfig,
+  ScaleExecutor,
+} from './dynamic-scaling';
+
+// ============================================================================
 // Coordination Mixins (CONSENSUS-MIXIN-001)
 // ============================================================================
 
