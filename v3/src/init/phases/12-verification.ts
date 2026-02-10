@@ -267,6 +267,19 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
         }
       }
 
+      // Normalize known array fields that the parser may have set to {}
+      const arrayFields: [string, string][] = [
+        ['domains', 'enabled'],
+        ['domains', 'disabled'],
+        ['workers', 'enabled'],
+      ];
+      for (const [section, field] of arrayFields) {
+        const sec = result[section] as Record<string, unknown> | undefined;
+        if (sec && field in sec && !Array.isArray(sec[field])) {
+          sec[field] = [];
+        }
+      }
+
       return result as Partial<AQEInitConfig>;
     } catch {
       return null;
@@ -307,7 +320,9 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
       }
 
       // Remove any domains that were explicitly disabled
-      const disabledDomains = new Set(existing.domains?.disabled || []);
+      const disabledDomains = new Set(
+        Array.isArray(existing.domains?.disabled) ? existing.domains.disabled : []
+      );
       newConfig.domains.enabled = Array.from(existingDomains).filter(d => !disabledDomains.has(d));
     }
 
