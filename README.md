@@ -34,31 +34,31 @@ aqe init --wizard
 # Or with auto-configuration
 aqe init --auto
 
-# Add MCP server to Claude Code (pick one)
-# Option 1: Global install (recommended after npm install -g)
-claude mcp add aqe -- aqe-mcp
+# Start MCP server (agent-agnostic)
+aqe-mcp
 
-# Option 2: Via npx (no global install needed)
-claude mcp add aqe -- npx agentic-qe mcp
-
-# Verify connection
-claude mcp list
+# Or without global install
+npx agentic-qe mcp
 ```
 
-### Use from Claude Code CLI
+### Use from MCP-compatible agent clients (Claude, Codex, others)
 
-Ask Claude to use QE agents directly from your terminal:
+AQE is exposed as an MCP server and can be used from any client that supports MCP tool connections.
 
 ```bash
-# Generate comprehensive tests with learning
-claude "Use qe-test-architect to create tests for src/services/user-service.ts with 95% coverage"
+# 1) Start MCP server
+npx agentic-qe mcp
 
-# Run full quality pipeline with Queen coordination
-claude "Use qe-queen-coordinator to orchestrate: test generation, coverage analysis, security scan, and quality gate"
+# 2) Register/connect from your MCP-capable client
+#    (Claude Code, Codex-compatible client, or other MCP hosts)
 
-# Detect flaky tests with root cause analysis
-claude "Use qe-flaky-hunter to analyze the last 100 test runs and stabilize flaky tests"
+# 3) Ask the client to invoke AQE agents/tools, e.g.:
+#    - qe-test-architect for test generation
+#    - qe-queen-coordinator for orchestration
+#    - qe-flaky-hunter for flaky analysis
 ```
+
+For client-specific setup examples, see `docs/integration/mcp-clients.md`.
 
 **What V3 provides:**
 - ✅ **13 DDD Bounded Contexts**: Organized by business domain (test-generation, coverage-analysis, security-compliance, enterprise-integration, etc.)
@@ -83,11 +83,11 @@ npm install -g agentic-qe
 # 2. Initialize (auto-detects your project, enables all 13 domains)
 cd your-project && aqe init --auto
 
-# 3. Generate tests immediately
-claude "Generate comprehensive tests for src/services/"
+# 3. Start AQE MCP server
+npx agentic-qe mcp
 
-# 4. Run quality assessment
-claude "Assess code quality and provide deployment recommendation"
+# 4. Use your MCP-capable client to run test generation and quality assessment
+# (see docs/integration/mcp-clients.md)
 ```
 
 **What happens:**
