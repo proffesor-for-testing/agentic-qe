@@ -19,6 +19,7 @@
         "AQE_PROJECT_ROOT": "/workspaces/agentic-qe-new",
         "AQE_LEARNING_ENABLED": "true",
         "AQE_WORKERS_ENABLED": "true",
+        "AQE_CLOUD_SYNC_ENABLED": "true",
         "NODE_ENV": "production"
       }
     },
