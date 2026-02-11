@@ -636,7 +636,7 @@ Edit `config.json`:
 ## Available Scripts
 - `scripts/setup.sh` - Initial setup
 - `scripts/generate.sh` - Code generation
-- `scripts/validate.sh` - Validation
+- `scripts/validate-config.json` - Validation
 
 ## Resources
 - Templates: `resources/templates/`
@@ -744,7 +744,7 @@ See [CI/CD Guide](docs/CICD.md)
 |--------|---------|-------|
 | `install.sh` | Install dependencies | `./scripts/install.sh` |
 | `generate.sh` | Generate code | `./scripts/generate.sh [name]` |
-| `validate.sh` | Validate output | `./scripts/validate.sh` |
+| `validate-config.json` | Validate output | `./scripts/validate-config.json` |
 | `deploy.sh` | Deploy to environment | `./scripts/deploy.sh [env]` |
 
 ---

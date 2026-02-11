@@ -27,7 +27,7 @@ Current State                          Goal State
 |  - Multi-model behavior comparison                         |
 |  - Success criteria verification                           |
 +-----------------------------------------------------------+
-|  Level 2: Executable Validator (scripts/validate.sh)      |
+|  Level 2: Executable Validator (scripts/validate-skill.cjs)      |
 |  - Runtime output verification                             |
 |  - Tool availability checks                                |
 |  - Graceful degradation                                    |
@@ -75,7 +75,7 @@ name: security-testing
 trust_tier: 2
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/security-testing.yaml
   last_validated: 2026-02-02
   validation_status: passing
@@ -140,7 +140,7 @@ validation:
 
 **Deliverables**:
 - `docs/templates/validate.template.sh` - Validator script template
-- `docs/templates/validator-lib.sh` - Shared validation functions
+- `docs/templates/validator-lib.cjs` - Shared validation functions
 
 **Success Criteria**:
 - [ ] Template includes tool availability checks
@@ -152,13 +152,13 @@ validation:
 ```bash
 #!/bin/bash
 # Skill Validator Template
-# Usage: ./validate.sh <output-file> [options]
+# Usage: node validate-skill.cjs <output-file> [options]
 
 set -euo pipefail
 
 # Source shared library
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../../../docs/templates/validator-lib.sh"
+const validatorLib = require("../../../docs/templates/validator-lib.cjs");
 
 # =============================================================================
 # Configuration
@@ -359,7 +359,7 @@ success_criteria:
 
 **Deliverables**:
 - `.claude/skills/security-testing/schemas/output.json`
-- `.claude/skills/security-testing/scripts/validate.sh`
+- `.claude/skills/security-testing/scripts/validate-skill.cjs`
 - `.claude/skills/security-testing/evals/security-testing.yaml`
 - Updated SKILL.md with trust_tier: 3
 
@@ -390,7 +390,7 @@ aqe/skill-validation/security-testing/
 
 **Deliverables**:
 - `.claude/skills/accessibility-testing/schemas/output.json`
-- `.claude/skills/accessibility-testing/scripts/validate.sh`
+- `.claude/skills/accessibility-testing/scripts/validate-skill.cjs`
 - `.claude/skills/accessibility-testing/evals/accessibility-testing.yaml`
 - Updated SKILL.md with trust_tier: 3
 
@@ -412,7 +412,7 @@ aqe/skill-validation/security-testing/
 
 **Deliverables**:
 - `.claude/skills/api-testing-patterns/schemas/output.json`
-- `.claude/skills/api-testing-patterns/scripts/validate.sh`
+- `.claude/skills/api-testing-patterns/scripts/validate-skill.cjs`
 - `.claude/skills/api-testing-patterns/evals/api-testing-patterns.yaml`
 - Updated SKILL.md with trust_tier: 3
 
@@ -434,7 +434,7 @@ aqe/skill-validation/security-testing/
 
 **Deliverables**:
 - `.claude/skills/compliance-testing/schemas/output.json`
-- `.claude/skills/compliance-testing/scripts/validate.sh`
+- `.claude/skills/compliance-testing/scripts/validate-skill.cjs`
 - `.claude/skills/compliance-testing/evals/compliance-testing.yaml`
 - Updated SKILL.md with trust_tier: 3
 
@@ -456,7 +456,7 @@ aqe/skill-validation/security-testing/
 
 **Deliverables**:
 - `.claude/skills/mutation-testing/schemas/output.json`
-- `.claude/skills/mutation-testing/scripts/validate.sh`
+- `.claude/skills/mutation-testing/scripts/validate-skill.cjs`
 - `.claude/skills/mutation-testing/evals/mutation-testing.yaml`
 - Updated SKILL.md with trust_tier: 3
 
@@ -628,7 +628,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run Validator
         run: |
-          VALIDATOR=".claude/skills/${{ matrix.skill }}/scripts/validate.sh"
+          VALIDATOR=".claude/skills/${{ matrix.skill }}/scripts/validate-skill.cjs"
           if [ -f "$VALIDATOR" ]; then
             chmod +x "$VALIDATOR"
             "$VALIDATOR" --self-test || exit $?

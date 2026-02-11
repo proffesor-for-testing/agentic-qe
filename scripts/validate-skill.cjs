@@ -155,19 +155,6 @@ if (!skillDir) {
 
 const config = loadConfig(skillDir);
 if (!config) {
-  // Fallback: try to run the .sh validator via bash
-  const shPath = path.join(skillDir, 'scripts', 'validate.sh');
-  if (fs.existsSync(shPath) && lib.commandExists('bash')) {
-    lib.warn('No validate-config.json found, falling back to validate.sh via bash');
-    const bashArgs = selfTest ? '--self-test' : outputFile || '';
-    try {
-      const { execSync } = require('child_process');
-      execSync(`bash "${shPath}" ${bashArgs}`, { cwd: PROJECT_ROOT, stdio: 'inherit' });
-      process.exit(0);
-    } catch (e) {
-      process.exit(e.status || 1);
-    }
-  }
   lib.error(`No validate-config.json found for ${skillName}. Run: node scripts/migrate-validators.cjs`);
   process.exit(1);
 }

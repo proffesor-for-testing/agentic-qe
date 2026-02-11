@@ -7,7 +7,7 @@
 # polling strategies, and trigger failure handling.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/n8n-trigger-testing-strategies/scripts/validate.sh
+# Validator: .claude/skills/n8n-trigger-testing-strategies/scripts/validate-config.json
 #
 # Coverage:
 # - Webhook payload validation

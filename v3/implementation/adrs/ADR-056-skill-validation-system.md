@@ -76,7 +76,7 @@ A Six Thinking Hats analysis revealed that AQE's 63 skills bundle relies 100% on
 |                              v                                     |
 |  Layer 2: Correctness (Executable Validation)                      |
 |  +----------------------------------------------------------+     |
-|  | scripts/validate.sh - Deterministic output verification   |     |
+|  | scripts/validate-skill.cjs - Deterministic output verification   |     |
 |  +----------------------------------------------------------+     |
 |                              |                                     |
 |                              v                                     |
@@ -99,7 +99,7 @@ version: 1.0.0
 trust_tier: verified  # advisory | structured | validated | verified | certified
 validation:
   schema: schemas/output.json
-  script: scripts/validate.sh
+  script: scripts/validate-skill.cjs
   evaluations: 5
 last_validated: 2026-02-02
 validation_history:
@@ -165,7 +165,7 @@ validation_history:
 }
 ```
 
-#### Layer 2: Executable Validator (scripts/validate.sh)
+#### Layer 2: Executable Validator (scripts/validate-skill.cjs)
 
 ```bash
 #!/bin/bash
@@ -556,7 +556,7 @@ npx aqe skill compare --current results/ --baseline .baseline/ --threshold 0.05
 - [x] Add tier badge generation (TRUST-TIERS.md)
 
 **Phase 2: Executable Validators (Week 2-3)** ✅ COMPLETE
-- [x] Create validate.sh scripts for 52 skills
+- [x] Create validate-skill.cjs scripts for 52 skills
 - [x] Implement validator runner in CLI (`aqe skill report`)
 - [x] Add validation results to skill output
 - [x] Update P0 skills to "validated" tier

@@ -7,7 +7,7 @@
 # type safety, performance optimization, and security vulnerability detection.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/n8n-expression-testing/scripts/validate.sh
+# Validator: .claude/skills/n8n-expression-testing/scripts/validate-config.json
 #
 # Coverage:
 # - JavaScript expression syntax validation

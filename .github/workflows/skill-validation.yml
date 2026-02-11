@@ -239,7 +239,7 @@ jobs:
         id: validator
         run: |
           SKILL="${{ matrix.skill }}"
-          VALIDATOR=".claude/skills/$SKILL/scripts/validate.sh"
+          VALIDATOR=".claude/skills/$SKILL/scripts/validate-skill.cjs"
 
           echo "=== Tier 3 Validator Self-Test: $SKILL ==="
 
@@ -323,7 +323,7 @@ jobs:
         continue-on-error: true
         run: |
           SKILL="${{ matrix.skill }}"
-          VALIDATOR=".claude/skills/$SKILL/scripts/validate.sh"
+          VALIDATOR=".claude/skills/$SKILL/scripts/validate-skill.cjs"
 
           echo "=== Tier 2 Validator Self-Test: $SKILL ==="
 

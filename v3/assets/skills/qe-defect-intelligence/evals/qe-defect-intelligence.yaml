@@ -7,7 +7,7 @@
 # root cause analysis, and proactive quality management.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/qe-defect-intelligence/scripts/validate.sh
+# Validator: .claude/skills/qe-defect-intelligence/scripts/validate-config.json
 #
 # Coverage:
 # - Change-based defect prediction

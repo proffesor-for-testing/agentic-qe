@@ -94,7 +94,7 @@ When creating a new skill:
 
 1. **Start with SKILL.md** (Trust Tier 0)
 2. **Add output schema** in `your-skill/schemas/output.schema.json` (Trust Tier 1)
-3. **Add validator script** in `your-skill/validate.sh` (Trust Tier 2)
+3. **Add validator script** in `your-skill/scripts/validate-config.json` (Trust Tier 2)
 4. **Add eval suite** in `your-skill/eval.yaml` (Trust Tier 3)
 5. **Enable CI + MCP learning** (Trust Tier 4)
 

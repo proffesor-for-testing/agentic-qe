@@ -29,7 +29,7 @@ aqe eval status --skill security-testing
 # Skill: security-testing
 # Trust Tier: 3 (Verified)
 # Schema: ✓ schemas/output.json
-# Validator: ✓ scripts/validate.sh
+# Validator: ✓ scripts/validate-skill.cjs
 # Eval Suite: ✓ evals/security-testing.yaml (8 test cases)
 ```
 
@@ -51,7 +51,7 @@ aqe eval report --skill security-testing --format markdown
 ```bash
 # Validate output against schema
 cd .claude/skills/security-testing
-./scripts/validate.sh output.json
+node scripts/validate-skill.cjs output.json
 
 # Output: PASS: All validations passed
 ```
@@ -110,7 +110,7 @@ These skills have complete validation infrastructure and are recommended for pro
 │ Layer 1: schemas/output.json (Structure)            │
 │ - JSON Schema validation                            │
 ├─────────────────────────────────────────────────────┤
-│ Layer 2: scripts/validate.sh (Correctness)          │
+│ Layer 2: scripts/validate-skill.cjs (Correctness)          │
 │ - Deterministic output verification                 │
 ├─────────────────────────────────────────────────────┤
 │ Layer 3: evals/*.yaml (Behavior)                    │
@@ -135,8 +135,8 @@ cp .claude/skills/.validation/templates/skill-output.template.json \
 ```bash
 mkdir -p .claude/skills/my-skill/scripts
 cp .claude/skills/.validation/templates/validate.template.sh \
-   .claude/skills/my-skill/scripts/validate.sh
-chmod +x .claude/skills/my-skill/scripts/validate.sh
+   .claude/skills/my-skill/scripts/validate-skill.cjs
+chmod +x .claude/skills/my-skill/scripts/validate-skill.cjs
 ```
 
 **Tier 2 → Tier 3 (Add Evals):**
@@ -155,7 +155,7 @@ Add trust tier to your SKILL.md:
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/my-skill.yaml
 ---
 ```

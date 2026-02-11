@@ -7,7 +7,7 @@
 # properties, and query performance analysis across multiple database types.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/database-testing/scripts/validate.sh
+# Validator: .claude/skills/database-testing/scripts/validate-config.json
 #
 # Coverage:
 # - Schema validation (tables, columns, constraints, indexes)

@@ -7,7 +7,7 @@
 # quality, and cross-model consistency.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/security-testing/scripts/validate.sh
+# Validator: .claude/skills/security-testing/scripts/validate-config.json
 #
 # Coverage:
 # - OWASP A01:2021 - Broken Access Control

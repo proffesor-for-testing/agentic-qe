@@ -194,7 +194,7 @@ priority: critical
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/security-testing.yaml
   last_validated: 2026-02-02
   validation_status: passing
@@ -232,7 +232,7 @@ description: "A skill with trust_tier 3 but no evals"
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
 ---`,
     expectValid: false,
     expectedError: 'trust_tier >= 3 requires validation.eval_path'

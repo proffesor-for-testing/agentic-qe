@@ -7,7 +7,7 @@
 # and audio descriptions across multiple accessibility standards.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/a11y-ally/scripts/validate.sh
+# Validator: .claude/skills/a11y-ally/scripts/validate-config.json
 #
 # =============================================================================
 

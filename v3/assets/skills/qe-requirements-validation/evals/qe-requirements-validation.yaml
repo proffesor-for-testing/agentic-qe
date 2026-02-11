@@ -7,7 +7,7 @@
 # scenario generation, and coverage gap identification.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/qe-requirements-validation/scripts/validate.sh
+# Validator: .claude/skills/qe-requirements-validation/scripts/validate-config.json
 #
 # Coverage:
 # - Acceptance criteria validation (SMART criteria)

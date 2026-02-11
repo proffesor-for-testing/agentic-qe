@@ -7,7 +7,7 @@
 # control, recovery time measurement, and resilience scoring.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/chaos-engineering-resilience/scripts/validate.sh
+# Validator: .claude/skills/chaos-engineering-resilience/scripts/validate-config.json
 #
 # Coverage:
 # - Network chaos (latency, packet loss, partition)

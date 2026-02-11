@@ -7,7 +7,7 @@
 # data anonymization, test data isolation, and batch generation.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/test-data-management/scripts/validate.sh
+# Validator: .claude/skills/test-data-management/scripts/validate-config.json
 #
 # Coverage:
 # - Synthetic data generation with faker

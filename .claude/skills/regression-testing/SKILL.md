@@ -14,7 +14,7 @@ tags: [regression, test-selection, impact-analysis, ci-cd, change-based, risk-ba
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/regression-testing.yaml
 
 ---

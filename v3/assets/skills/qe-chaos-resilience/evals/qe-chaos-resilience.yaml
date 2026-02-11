@@ -7,7 +7,7 @@
 # circuit breaker testing, and SLA validation capabilities.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/qe-chaos-resilience/scripts/validate.sh
+# Validator: .claude/skills/qe-chaos-resilience/scripts/validate-config.json
 #
 # Coverage:
 # - Fault Injection (latency, packet loss, CPU stress, memory pressure)

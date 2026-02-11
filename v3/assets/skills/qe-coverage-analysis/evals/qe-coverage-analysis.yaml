@@ -7,7 +7,7 @@
 # coverage, test prioritization, and coverage trend analysis.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/qe-coverage-analysis/scripts/validate.sh
+# Validator: .claude/skills/qe-coverage-analysis/scripts/validate-config.json
 #
 # Coverage:
 # - Sublinear gap detection (O(log n) complexity)

@@ -267,7 +267,7 @@ function extractSkillInfo(skillDir: string, skillName: string): SkillManifestEnt
 
   // Check for validator script
   const validatorPaths = [
-    join(skillDir, 'scripts', 'validate.sh'),
+    join(skillDir, 'scripts', 'validate-config.json'),
     join(skillDir, 'scripts', 'validate.ts'),
     join(skillDir, 'scripts', 'validate.js')
   ];
@@ -531,7 +531,7 @@ To upgrade a skill to a higher trust tier:
 3. Run \`npx tsx scripts/update-skill-manifest.ts\`
 
 ### Tier 1 -> Tier 2 (Add Validator)
-1. Create \`{skill}/scripts/validate.sh\` (or .ts/.js)
+1. Create \`{skill}/scripts/validate-config.json\` (or .ts/.js)
 2. Add \`trust_tier: 2\` and validation paths to frontmatter
 3. Run \`npx tsx scripts/update-skill-manifest.ts\`
 
@@ -553,7 +553,7 @@ Add this to your GitHub Actions workflow:
 - name: Check Tier 3 Skills Pass
   run: |
     for skill in api-testing-patterns security-testing performance-testing; do
-      .claude/skills/\$skill/scripts/validate.sh --self-test
+      .claude/skills/\$skill/scripts/validate-skill.cjs --self-test
     done
 \`\`\`
 

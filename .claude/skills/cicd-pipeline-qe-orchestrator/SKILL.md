@@ -14,7 +14,7 @@ tags: [cicd, pipeline, orchestration, quality-gates, shift-left, shift-right, fl
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/cicd-pipeline-qe-orchestrator.yaml
 
 ---

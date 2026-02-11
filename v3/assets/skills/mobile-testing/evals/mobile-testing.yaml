@@ -7,7 +7,7 @@
 # mobile-specific scenarios, and performance metrics on iOS and Android.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/mobile-testing/scripts/validate.sh
+# Validator: .claude/skills/mobile-testing/scripts/validate-config.json
 #
 # Coverage:
 # - Device matrix planning (Tier 1/2/3 coverage)

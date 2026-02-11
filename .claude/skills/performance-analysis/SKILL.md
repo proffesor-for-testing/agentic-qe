@@ -8,7 +8,7 @@ author: Claude Flow Team
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/performance-analysis.yaml
 
 ---

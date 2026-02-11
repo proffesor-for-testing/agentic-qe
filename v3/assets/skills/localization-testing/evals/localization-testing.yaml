@@ -7,7 +7,7 @@
 # Unicode support, and hardcoded string detection across multiple languages.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/localization-testing/scripts/validate.sh
+# Validator: .claude/skills/localization-testing/scripts/validate-config.json
 #
 # Coverage:
 # - Translation coverage validation

@@ -7,7 +7,7 @@
 # and intelligent context retrieval with 80% token reduction.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/qe-code-intelligence/scripts/validate.sh
+# Validator: .claude/skills/qe-code-intelligence/scripts/validate-config.json
 #
 # Coverage:
 # - Codebase indexing and knowledge graph construction

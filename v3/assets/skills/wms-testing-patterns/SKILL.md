@@ -14,7 +14,7 @@ tags: [wms, warehouse, inventory, edi, pick-pack-ship, blue-yonder, manhattan, s
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/wms-testing-patterns.yaml
 ---
 

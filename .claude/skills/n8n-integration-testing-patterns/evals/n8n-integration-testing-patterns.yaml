@@ -7,7 +7,7 @@
 # response handling, and cross-service data consistency.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/n8n-integration-testing-patterns/scripts/validate.sh
+# Validator: .claude/skills/n8n-integration-testing-patterns/scripts/validate-config.json
 #
 # Coverage:
 # - API contract validation (request/response schemas)
