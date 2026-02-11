@@ -5,6 +5,27 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.3] - 2026-02-11
+
+### Added
+
+- **QX (Quality Experience) Analysis Tool** — New MCP tool `qe/analysis/qx_analysis` bridging QA and UX by analyzing user journeys, experience impact, and quality-experience correlation.
+- **SFDIPOT Product Factors Assessment** — `qe-product-factors-assessor` agent implementing James Bach's HTSM v6.3 framework for comprehensive test strategy generation.
+
+### Fixed
+
+- **Cross-platform compatibility** — Replaced all bash-only `.sh` scripts with cross-platform Node.js (`.cjs`) equivalents. Windows, macOS, and Linux now fully supported for skill validation, daemon management, and project initialization.
+- **Stop hook hanging on exit** — Session-end hook no longer initializes the full database/HNSW/memory system just to print shutdown stats. Added `unref()` to all cleanup intervals so Node.js process exits cleanly.
+- **Cross-platform daemon scripts** — `start-daemon.cjs` and `stop-daemon.cjs` replace bash scripts, using `process.kill()` and `spawn()` with `detached: true` for portable process management.
+- **TypeScript shell type in execSync** — Fixed `ExecSyncOptionsWithStringEncoding` overload conflict by using platform-specific shell string instead of `shell: true` boolean.
+- **Tunnel manager test stability** — Pre-spawn port availability check prevents flaky failures from port conflicts.
+
+### Changed
+
+- **QE agents use only AQE MCP** — All 46 QE agent definitions now reference `agentic-qe` MCP tools exclusively, removing any Claude Flow MCP dependencies.
+- **Skill validation is now declarative** — `validate-config.json` + `validate-skill.cjs` replaces all 104 `validate.sh` scripts. Validators are fully cross-platform with no bash dependency.
+- **Registry tool count** — MCP tool registry updated from 32 to 33 tools to include QX Analysis.
+
 ## [3.6.2] - 2026-02-10
 
 ### Fixed
