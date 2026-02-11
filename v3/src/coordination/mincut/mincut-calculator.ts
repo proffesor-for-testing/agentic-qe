@@ -123,8 +123,11 @@ export class MinCutCalculator {
     }
     const stdDev = Math.sqrt(variance / vertices.length);
 
-    // Find minimum degree for comparison
-    const minDegree = Math.min(...degrees.values());
+    // Find minimum degree for comparison (iterative to avoid stack overflow at >10K vertices)
+    let minDegree = Infinity;
+    for (const d of degrees.values()) {
+      if (d < minDegree) minDegree = d;
+    }
 
     // Determine threshold
     const effectiveThreshold = threshold ?? meanDegree - stdDev;

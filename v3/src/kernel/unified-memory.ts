@@ -24,6 +24,39 @@ import { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { HYPERGRAPH_SCHEMA } from '../migrations/20260120_add_hypergraph_tables.js';
 import { MEMORY_CONSTANTS, HNSW_CONSTANTS } from './constants.js';
 
+// ============================================================================
+// SQL Table Name Allowlist (defense-in-depth against SQL injection)
+// ============================================================================
+
+/**
+ * Allowlist of valid table names used in this module.
+ * Any table name interpolated into SQL must be validated against this set.
+ */
+const ALLOWED_TABLE_NAMES = new Set([
+  'schema_version', 'kv_store', 'vectors', 'rl_q_values',
+  'goap_goals', 'goap_actions', 'goap_plans', 'goap_execution_steps', 'goap_plan_signatures',
+  'concept_nodes', 'concept_edges', 'dream_cycles', 'dream_insights',
+  'qe_patterns', 'qe_pattern_embeddings', 'qe_pattern_usage', 'qe_trajectories',
+  'embeddings', 'execution_results', 'executed_steps',
+  'mincut_snapshots', 'mincut_history', 'mincut_weak_vertices',
+  'mincut_alerts', 'mincut_healing_actions', 'mincut_observations',
+  'sona_patterns',
+  // Hypergraph tables
+  'hypergraph_vertices', 'hypergraph_hyperedges', 'hypergraph_edge_vertices',
+  'hypergraph_vertex_properties', 'hypergraph_edge_properties',
+]);
+
+/**
+ * Validate a table name against the allowlist before interpolating into SQL.
+ * Throws if the name is not in the allowlist, preventing SQL injection.
+ */
+export function validateTableName(tableName: string): string {
+  if (!ALLOWED_TABLE_NAMES.has(tableName)) {
+    throw new Error(`Invalid table name: "${tableName}" is not in the allowlist`);
+  }
+  return tableName;
+}
+
 // CRDT imports for distributed state synchronization
 import {
   createCRDTStore,
@@ -644,6 +677,76 @@ const SONA_PATTERNS_SCHEMA = `
 // In-Memory HNSW Index for Fast Vector Search
 // ============================================================================
 
+/**
+ * Binary min/max heap for O(log n) insertion and extraction.
+ * Replaces sorted arrays with O(n) splice in HNSW beam search.
+ */
+class BinaryHeap<T> {
+  private data: T[] = [];
+  private compareFn: (a: T, b: T) => number;
+
+  constructor(compareFn: (a: T, b: T) => number) {
+    this.compareFn = compareFn;
+  }
+
+  push(item: T): void {
+    this.data.push(item);
+    this.bubbleUp(this.data.length - 1);
+  }
+
+  pop(): T | undefined {
+    if (this.data.length === 0) return undefined;
+    const top = this.data[0];
+    const last = this.data.pop()!;
+    if (this.data.length > 0) {
+      this.data[0] = last;
+      this.sinkDown(0);
+    }
+    return top;
+  }
+
+  peek(): T | undefined {
+    return this.data[0];
+  }
+
+  size(): number {
+    return this.data.length;
+  }
+
+  private bubbleUp(i: number): void {
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (this.compareFn(this.data[i], this.data[parent]) < 0) {
+        [this.data[i], this.data[parent]] = [this.data[parent], this.data[i]];
+        i = parent;
+      } else {
+        break;
+      }
+    }
+  }
+
+  private sinkDown(i: number): void {
+    const n = this.data.length;
+    while (true) {
+      let smallest = i;
+      const left = 2 * i + 1;
+      const right = 2 * i + 2;
+      if (left < n && this.compareFn(this.data[left], this.data[smallest]) < 0) {
+        smallest = left;
+      }
+      if (right < n && this.compareFn(this.data[right], this.data[smallest]) < 0) {
+        smallest = right;
+      }
+      if (smallest !== i) {
+        [this.data[i], this.data[smallest]] = [this.data[smallest], this.data[i]];
+        i = smallest;
+      } else {
+        break;
+      }
+    }
+  }
+}
+
 interface HNSWNode {
   id: string;
   embedding: number[];
@@ -728,8 +831,9 @@ class InMemoryHNSWIndex {
   /**
    * Beam search at a single layer: starting from an entry point, explore
    * up to `ef` candidates and return the `ef` closest found.
-   * Uses a candidate set (max-heap behavior via sorted array) and a result
-   * set. Returns results sorted by descending similarity.
+   * Uses a max-heap for candidates and a min-heap for results to achieve
+   * O(log n) insertion instead of O(n) Array.splice.
+   * Returns results sorted by descending similarity.
    */
   private searchLayerBeam(
     query: number[],
@@ -739,21 +843,30 @@ class InMemoryHNSWIndex {
   ): Array<{ id: string; score: number }> {
     const visited = new Set<string>(entryIds);
 
-    // Candidates: sorted descending by score (best first)
-    const candidates: Array<{ id: string; score: number }> = entryIds
+    const initial = entryIds
       .filter(id => this.nodes.has(id))
       .map(id => ({ id, score: this.similarity(query, id) }));
-    candidates.sort((a, b) => b.score - a.score);
 
-    // Results: the ef-closest seen so far, sorted descending by score
-    const results: Array<{ id: string; score: number }> = [...candidates];
+    // Max-heap for candidates (best score = highest priority)
+    const candidateHeap = new BinaryHeap<{ id: string; score: number }>(
+      (a, b) => b.score - a.score // max-heap: highest score first
+    );
+    // Min-heap for results (worst score at top for fast eviction)
+    const resultHeap = new BinaryHeap<{ id: string; score: number }>(
+      (a, b) => a.score - b.score // min-heap: lowest score first
+    );
 
-    while (candidates.length > 0) {
-      const closest = candidates.shift()!;
+    for (const entry of initial) {
+      candidateHeap.push(entry);
+      resultHeap.push(entry);
+    }
+
+    while (candidateHeap.size() > 0) {
+      const closest = candidateHeap.pop()!;
 
       // If the closest candidate is worse than the worst in results
       // and we already have ef results, stop
-      if (results.length >= ef && closest.score < results[results.length - 1].score) {
+      if (resultHeap.size() >= ef && closest.score < resultHeap.peek()!.score) {
         break;
       }
 
@@ -768,40 +881,27 @@ class InMemoryHNSWIndex {
         if (!this.nodes.has(neighborId)) continue;
 
         const score = this.similarity(query, neighborId);
-        const worstResult = results.length >= ef ? results[results.length - 1].score : -Infinity;
+        const worstResult = resultHeap.size() >= ef ? resultHeap.peek()!.score : -Infinity;
 
-        if (results.length < ef || score > worstResult) {
-          // Insert into candidates in sorted position
-          const candidateEntry = { id: neighborId, score };
-          let inserted = false;
-          for (let i = 0; i < candidates.length; i++) {
-            if (score > candidates[i].score) {
-              candidates.splice(i, 0, candidateEntry);
-              inserted = true;
-              break;
-            }
-          }
-          if (!inserted) candidates.push(candidateEntry);
+        if (resultHeap.size() < ef || score > worstResult) {
+          const entry = { id: neighborId, score };
+          candidateHeap.push(entry);
+          resultHeap.push(entry);
 
-          // Insert into results in sorted position
-          inserted = false;
-          for (let i = 0; i < results.length; i++) {
-            if (score > results[i].score) {
-              results.splice(i, 0, candidateEntry);
-              inserted = true;
-              break;
-            }
-          }
-          if (!inserted) results.push(candidateEntry);
-
-          // Trim results to ef
-          if (results.length > ef) {
-            results.pop();
+          // Evict worst result if over capacity
+          if (resultHeap.size() > ef) {
+            resultHeap.pop();
           }
         }
       }
     }
 
+    // Drain result heap into array sorted descending by score
+    const results: Array<{ id: string; score: number }> = [];
+    while (resultHeap.size() > 0) {
+      results.push(resultHeap.pop()!);
+    }
+    results.reverse(); // min-heap drains ascending, reverse for descending
     return results;
   }
 
@@ -1227,7 +1327,8 @@ export class UnifiedMemoryManager {
   private columnExists(tableName: string, columnName: string): boolean {
     if (!this.db) return false;
     try {
-      const info = this.db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+      const safeName = validateTableName(tableName);
+      const info = this.db.prepare(`PRAGMA table_info(${safeName})`).all() as Array<{ name: string }>;
       return info.some(col => col.name === columnName);
     } catch {
       return false;
@@ -1269,7 +1370,7 @@ export class UnifiedMemoryManager {
       if (tableExists && !this.columnExists(table, requiredColumn)) {
         console.log(`[UnifiedMemory] Upgrading v2 table: ${table} (missing ${requiredColumn})`);
         // Drop the old table - will be recreated with v3 schema
-        this.db.exec(`DROP TABLE IF EXISTS ${table}`);
+        this.db.exec(`DROP TABLE IF EXISTS ${validateTableName(table)}`);
       }
     }
   }
@@ -1517,7 +1618,8 @@ export class UnifiedMemoryManager {
   }
 
   /**
-   * Search for similar vectors
+   * Search for similar vectors.
+   * Uses batch SQL query instead of N+1 individual queries for metadata enrichment.
    */
   async vectorSearch(
     query: number[],
@@ -1529,22 +1631,28 @@ export class UnifiedMemoryManager {
     // Use in-memory HNSW index for fast search
     const results = this.vectorIndex.search(query, k * 2); // Get extra for namespace filtering
 
-    // If namespace filter, post-filter results
+    if (results.length === 0) return [];
+
+    // Batch fetch metadata for all result IDs in a single query (fixes N+1)
+    const ids = results.map(r => r.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = this.db!.prepare(
+      `SELECT id, namespace, metadata FROM vectors WHERE id IN (${placeholders})`
+    ).all(...ids) as Array<{ id: string; namespace: string; metadata: string | null }>;
+
+    const metadataMap = new Map(rows.map(row => [row.id, row]));
+
     if (namespace) {
       const filteredResults: Array<{ id: string; score: number; metadata?: unknown }> = [];
 
       for (const result of results) {
-        const row = this.db!.prepare(
-          'SELECT namespace, metadata FROM vectors WHERE id = ?'
-        ).get(result.id) as { namespace: string; metadata: string | null } | undefined;
-
+        const row = metadataMap.get(result.id);
         if (row && row.namespace === namespace) {
           filteredResults.push({
             id: result.id,
             score: result.score,
             metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
           });
-
           if (filteredResults.length >= k) break;
         }
       }
@@ -1554,10 +1662,7 @@ export class UnifiedMemoryManager {
 
     // No namespace filter, just enrich with metadata
     return results.slice(0, k).map(result => {
-      const row = this.db!.prepare(
-        'SELECT metadata FROM vectors WHERE id = ?'
-      ).get(result.id) as { metadata: string | null } | undefined;
-
+      const row = metadataMap.get(result.id);
       return {
         id: result.id,
         score: result.score,

@@ -12,6 +12,25 @@ import { EventEmitter } from 'events';
 import { CircularBuffer } from '../shared/utils/index.js';
 
 // ============================================================================
+// Prototype Pollution Guard
+// ============================================================================
+
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Safe alternative to Object.assign for pooled objects.
+ * Prevents prototype pollution by rejecting dangerous keys.
+ */
+function safeAssignPooled<T extends Record<string, unknown>>(target: T, source: Record<string, unknown>): T {
+  for (const key of Object.keys(source)) {
+    if (!DANGEROUS_KEYS.has(key)) {
+      target[key as keyof T] = source[key] as T[keyof T];
+    }
+  }
+  return target;
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -544,7 +563,7 @@ export class PerformanceOptimizer {
 
     const event = this.eventPool.acquire() as T;
     (event as Record<string, unknown>)['type'] = type;
-    Object.assign(event, data);
+    safeAssignPooled(event, data);
     return event;
   }
 
@@ -607,7 +626,7 @@ export class PerformanceOptimizer {
     }
 
     const message = this.messagePool.acquire() as T;
-    Object.assign(message, data);
+    safeAssignPooled(message, data);
     return message;
   }
 
@@ -683,7 +702,7 @@ export class PerformanceOptimizer {
     }
 
     const component = this.componentPool.acquire() as T;
-    Object.assign(component, data);
+    safeAssignPooled(component, data);
     return component;
   }
 

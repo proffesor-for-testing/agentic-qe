@@ -182,7 +182,7 @@ export class OAuth21Provider {
   private readonly clients: Map<string, OAuth21Client>;
   private readonly authorizationCodes: Map<string, AuthorizationCode>;
   private readonly tokens: Map<string, TokenData>;
-  private readonly revokedTokens: Set<string>;
+  private readonly revokedTokens: Map<string, number>; // hash -> revocation timestamp
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(config: OAuth21ProviderConfig) {
@@ -190,7 +190,7 @@ export class OAuth21Provider {
     this.clients = new Map();
     this.authorizationCodes = new Map();
     this.tokens = new Map();
-    this.revokedTokens = new Set();
+    this.revokedTokens = new Map();
 
     // Start cleanup timer
     this.startCleanup();
@@ -230,7 +230,7 @@ export class OAuth21Provider {
     // Revoke all tokens for this client
     for (const [hash, token] of this.tokens) {
       if (token.clientId === clientId) {
-        this.revokedTokens.add(hash);
+        this.revokedTokens.set(hash, Date.now());
         this.tokens.delete(hash);
       }
     }
@@ -445,7 +445,7 @@ export class OAuth21Provider {
     }
 
     // Revoke old refresh token (rotation)
-    this.revokedTokens.add(tokenHash);
+    this.revokedTokens.set(tokenHash, Date.now());
     this.tokens.delete(tokenHash);
 
     // Generate new tokens
@@ -494,7 +494,7 @@ export class OAuth21Provider {
     const expiresIn = client.accessTokenTTL || this.config.defaultAccessTokenTTL;
 
     this.tokens.set(accessTokenHash, {
-      token: accessToken,
+      token: '',
       tokenHash: accessTokenHash,
       type: 'access_token',
       clientId: client.clientId,
@@ -588,14 +588,14 @@ export class OAuth21Provider {
       return false;
     }
 
-    this.revokedTokens.add(tokenHash);
+    this.revokedTokens.set(tokenHash, Date.now());
     this.tokens.delete(tokenHash);
 
     // If revoking refresh token, also revoke associated access tokens
     if (tokenData.type === 'refresh_token') {
       for (const [hash, data] of this.tokens) {
         if (data.refreshTokenHash === tokenHash) {
-          this.revokedTokens.add(hash);
+          this.revokedTokens.set(hash, Date.now());
           this.tokens.delete(hash);
         }
       }
@@ -611,7 +611,7 @@ export class OAuth21Provider {
     let count = 0;
     for (const [hash, data] of this.tokens) {
       if (data.userId === userId) {
-        this.revokedTokens.add(hash);
+        this.revokedTokens.set(hash, Date.now());
         this.tokens.delete(hash);
         count++;
       }
@@ -686,9 +686,9 @@ export class OAuth21Provider {
     const refreshToken = this.generateToken(32);
     const refreshTokenHash = this.hashToken(refreshToken);
 
-    // Store access token
+    // Store access token (hash only — raw token never stored)
     this.tokens.set(accessTokenHash, {
-      token: accessToken,
+      token: '',
       tokenHash: accessTokenHash,
       type: 'access_token',
       clientId: client.clientId,
@@ -699,9 +699,9 @@ export class OAuth21Provider {
       refreshTokenHash,
     });
 
-    // Store refresh token
+    // Store refresh token (hash only — raw token never stored)
     this.tokens.set(refreshTokenHash, {
-      token: refreshToken,
+      token: '',
       tokenHash: refreshTokenHash,
       type: 'refresh_token',
       clientId: client.clientId,
@@ -733,10 +733,15 @@ export class OAuth21Provider {
   }
 
   private timingSafeCompare(a: string, b: string): boolean {
-    if (a.length !== b.length) {
+    // Pad to equal length to prevent timing leak on string length
+    const maxLen = Math.max(a.length, b.length);
+    const paddedA = a.padEnd(maxLen, '\0');
+    const paddedB = b.padEnd(maxLen, '\0');
+    try {
+      return timingSafeEqual(Buffer.from(paddedA), Buffer.from(paddedB));
+    } catch {
       return false;
     }
-    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
   }
 
   private createError(error: OAuthErrorCode, description?: string): Error {
@@ -770,7 +775,11 @@ export class OAuth21Provider {
 
       // Cleanup old revoked tokens (keep for 24 hours)
       const dayAgo = now - 24 * 60 * 60 * 1000;
-      // Note: In production, we'd track revocation time
+      for (const [hash, revokedAt] of this.revokedTokens) {
+        if (revokedAt < dayAgo) {
+          this.revokedTokens.delete(hash);
+        }
+      }
     }, 5 * 60 * 1000);
   }
 }
