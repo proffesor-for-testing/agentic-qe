@@ -6,6 +6,7 @@
 
 import * as readline from 'readline';
 import { Readable, Writable } from 'stream';
+import { safeJsonParse } from '../../cli/helpers/safe-json.js';
 
 // ============================================================================
 // Types
@@ -197,7 +198,7 @@ export class StdioTransport {
     // Parse JSON
     let message: JSONRPCRequest;
     try {
-      message = JSON.parse(line);
+      message = safeJsonParse<JSONRPCRequest>(line);
     } catch {
       this.metrics.errors++;
       await this.sendError(null, JSON_RPC_ERRORS.PARSE_ERROR, 'Parse error');

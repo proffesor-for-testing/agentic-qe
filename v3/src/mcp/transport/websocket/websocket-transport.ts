@@ -7,6 +7,7 @@
 
 import { EventEmitter } from 'events';
 import { v4 as uuid } from 'uuid';
+import { safeJsonParse } from '../../../cli/helpers/safe-json.js';
 import type { IncomingMessage, Server as HttpServer } from 'http';
 import type { Socket } from 'net';
 import type { WebSocket as WS, WebSocketServer as WSServer, RawData } from 'ws';
@@ -269,7 +270,7 @@ export class WebSocketTransport extends EventEmitter {
 
     try {
       const messageStr = data.toString();
-      const message: WebSocketClientMessage = JSON.parse(messageStr);
+      const message: WebSocketClientMessage = safeJsonParse<WebSocketClientMessage>(messageStr);
 
       // Record message received
       if (!connectionId.startsWith('pending_')) {

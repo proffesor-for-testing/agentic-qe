@@ -15,6 +15,7 @@ import { createServer, type Server } from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { safeJsonParse } from '../cli/helpers/safe-json.js';
 
 // AG-UI imports
 import {
@@ -925,7 +926,7 @@ class HTTPServerImpl implements HTTPServer {
             resolve({});
             return;
           }
-          resolve(JSON.parse(body));
+          resolve(safeJsonParse(body));
         } catch (error) {
           reject(new Error('Invalid JSON in request body'));
         }

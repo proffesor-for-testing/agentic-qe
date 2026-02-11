@@ -9,6 +9,8 @@
  * - Schema caching for performance
  */
 
+import { createSafeRegex, isRegexSafe } from './validators/regex-safety-validator.js';
+
 // ============================================================================
 // Types and Interfaces
 // ============================================================================
@@ -174,12 +176,8 @@ const BUILTIN_FORMATS: Record<string, FormatValidator> = {
   },
 
   'regex': (value) => {
-    try {
-      new RegExp(value);
-      return true;
-    } catch {
-      return false;
-    }
+    // Validate pattern is both syntactically valid and safe from ReDoS
+    return isRegexSafe(value).safe && createSafeRegex(value) !== null;
   },
 
   'json-pointer': (value) => {
@@ -490,8 +488,15 @@ export class SchemaValidator {
     }
 
     if (schema.pattern !== undefined) {
-      const regex = new RegExp(schema.pattern);
-      if (!regex.test(data)) {
+      const regex = createSafeRegex(schema.pattern);
+      if (regex === null) {
+        errors.push({
+          path,
+          message: `Unsafe or invalid pattern: ${schema.pattern}`,
+          keyword: 'pattern',
+          schemaPath: `${schemaPath}/pattern`,
+        });
+      } else if (!regex.test(data)) {
         errors.push({
           path,
           message: `String must match pattern: ${schema.pattern}`,
