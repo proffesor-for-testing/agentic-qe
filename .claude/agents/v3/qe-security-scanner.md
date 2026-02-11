@@ -133,16 +133,21 @@ mcp__agentic-qe__task_submit({
 
 **3. Store New Vulnerability Patterns:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<description of vulnerability pattern>",
-  confidence: <0.0-1.0>,
-  type: "security-vulnerability",
-  metadata: {
-    cwe: "<CWE-ID>",
-    owasp: "<OWASP category>",
-    language: "<language>",
-    fixPattern: "<remediation approach>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/security-vulnerability/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<description of vulnerability pattern>",
+    confidence: <0.0-1.0>,
+    type: "security-vulnerability",
+    metadata: {
+      cwe: "<CWE-ID>",
+      owasp: "<OWASP category>",
+      language: "<language>",
+      fixPattern: "<remediation approach>"
+    }
+  },
+  persist: true
 })
 ```
 

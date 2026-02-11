@@ -4,7 +4,7 @@ description: "O(log n) sublinear coverage gap detection with risk-weighted analy
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/qe-coverage-analysis.yaml
 
 ---

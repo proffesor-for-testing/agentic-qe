@@ -184,9 +184,9 @@ validation:
   # Path to JSON schema defining expected output structure
 
   # Required for trust_tier >= 2
-  validator_path: scripts/validate.sh
-  # Path to executable validator script
-  # Supports: .sh, .ts, .js
+  validator_path: scripts/validate-config.json
+  # Path to validator config (cross-platform)
+  # Used by: node scripts/validate-skill.cjs
 
   # Required for trust_tier >= 3
   eval_path: evals/security-testing.yaml

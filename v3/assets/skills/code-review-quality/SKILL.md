@@ -14,7 +14,7 @@ tags: [code-review, feedback, quality, testability, maintainability, pr-review]
 trust_tier: 2
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
 
 ---
 

@@ -45,7 +45,7 @@ tags: [qcsd, ideation, htsm, quality-criteria, risk-storming, testability, swarm
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/qcsd-ideation-swarm.yaml
 
 ---

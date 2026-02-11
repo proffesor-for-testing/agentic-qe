@@ -127,11 +127,14 @@ export class HybridMemoryBackend implements MemoryBackend {
     this.unifiedMemory = getUnifiedMemory(unifiedConfig);
     await this.unifiedMemory.initialize();
 
-    // Start cleanup interval
+    // Start cleanup interval (unref so it doesn't block process exit)
     this.cleanupInterval = setInterval(
       () => this.cleanup(),
       this.config.cleanupInterval
     );
+    if (this.cleanupInterval.unref) {
+      this.cleanupInterval.unref();
+    }
 
     this.initialized = true;
     console.log(`[HybridBackend] Initialized with unified memory: ${this.unifiedMemory.getDbPath()}`);

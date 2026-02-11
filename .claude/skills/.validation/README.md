@@ -16,7 +16,7 @@ This directory contains the validation infrastructure for AQE skills - ensuring 
 │   └── skill-eval.schema.json           # Evaluation suite schema
 ├── templates/                # Templates for skill authors
 │   ├── validate.template.sh             # Bash validator template
-│   ├── validator-lib.sh                 # Shared validation utilities
+│   ├── validator-lib.cjs                 # Shared validation utilities
 │   ├── eval.template.yaml               # Evaluation suite template
 │   ├── security-testing-eval.template.yaml  # Domain-specific example
 │   └── skill-frontmatter.example.yaml   # Frontmatter example
@@ -94,7 +94,7 @@ When creating a new skill:
 
 1. **Start with SKILL.md** (Trust Tier 0)
 2. **Add output schema** in `your-skill/schemas/output.schema.json` (Trust Tier 1)
-3. **Add validator script** in `your-skill/validate.sh` (Trust Tier 2)
+3. **Add validator script** in `your-skill/validate-skill.cjs` (Trust Tier 2)
 4. **Add eval suite** in `your-skill/eval.yaml` (Trust Tier 3)
 5. **Enable CI + MCP learning** (Trust Tier 4)
 

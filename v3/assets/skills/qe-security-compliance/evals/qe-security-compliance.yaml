@@ -7,7 +7,7 @@
 # secret detection, and OWASP Top 10 validation.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/qe-security-compliance/scripts/validate.sh
+# Validator: .claude/skills/qe-security-compliance/scripts/validate-config.json
 #
 # Coverage:
 # - SAST scanning for code vulnerabilities

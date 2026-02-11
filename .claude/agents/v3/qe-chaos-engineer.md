@@ -128,16 +128,21 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Discovered Weakness:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<weakness description>",
-  confidence: <0.0-1.0>,
-  type: "resilience-weakness",
-  metadata: {
-    service: "<service>",
-    faultType: "<type>",
-    impact: "<impact>",
-    remediation: "<fix>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/resilience-weakness/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<weakness description>",
+    confidence: <0.0-1.0>,
+    type: "resilience-weakness",
+    metadata: {
+      service: "<service>",
+      faultType: "<type>",
+      impact: "<impact>",
+      remediation: "<fix>"
+    }
+  },
+  persist: true
 })
 ```
 

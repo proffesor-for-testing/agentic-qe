@@ -784,14 +784,14 @@ Examples:
       try {
         const sessionId = state.sessionId || 'unknown';
 
-        // Initialize hooks system to get final stats
-        // BUG FIX: Must call getHooksSystem() to initialize, not check state.initialized
+        // Get final stats if system is already initialized (don't init just for shutdown)
         let stats = null;
-        try {
-          const { reasoningBank } = await getHooksSystem();
-          stats = await reasoningBank.getStats();
-        } catch {
-          // Ignore - system may not be available during shutdown
+        if (state.initialized && state.reasoningBank) {
+          try {
+            stats = await state.reasoningBank.getStats();
+          } catch {
+            // Ignore - system may not be available during shutdown
+          }
         }
 
         if (options.json) {

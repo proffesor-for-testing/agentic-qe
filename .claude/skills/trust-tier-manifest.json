@@ -25,7 +25,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/a11y-ally.yaml"
         },
         "file": "a11y-ally/SKILL.md"
@@ -36,7 +36,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/accessibility-testing.yaml"
         },
         "file": "accessibility-testing/SKILL.md"
@@ -47,7 +47,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/api-testing-patterns.yaml"
         },
         "file": "api-testing-patterns/SKILL.md"
@@ -58,7 +58,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/chaos-engineering-resilience.yaml"
         },
         "file": "chaos-engineering-resilience/SKILL.md"
@@ -69,7 +69,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/cicd-pipeline-qe-orchestrator.yaml"
         },
         "file": "cicd-pipeline-qe-orchestrator/SKILL.md"
@@ -80,7 +80,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/compatibility-testing.yaml"
         },
         "file": "compatibility-testing/SKILL.md"
@@ -91,7 +91,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/compliance-testing.yaml"
         },
         "file": "compliance-testing/SKILL.md"
@@ -102,7 +102,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/contract-testing.yaml"
         },
         "file": "contract-testing/SKILL.md"
@@ -113,7 +113,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/database-testing.yaml"
         },
         "file": "database-testing/SKILL.md"
@@ -124,7 +124,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/localization-testing.yaml"
         },
         "file": "localization-testing/SKILL.md"
@@ -135,7 +135,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/mobile-testing.yaml"
         },
         "file": "mobile-testing/SKILL.md"
@@ -146,7 +146,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/mutation-testing.yaml"
         },
         "file": "mutation-testing/SKILL.md"
@@ -157,7 +157,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/n8n-expression-testing.yaml"
         },
         "file": "n8n-expression-testing/SKILL.md"
@@ -168,7 +168,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/n8n-integration-testing-patterns.yaml"
         },
         "file": "n8n-integration-testing-patterns/SKILL.md"
@@ -179,7 +179,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/n8n-security-testing.yaml"
         },
         "file": "n8n-security-testing/SKILL.md"
@@ -190,7 +190,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/n8n-trigger-testing-strategies.yaml"
         },
         "file": "n8n-trigger-testing-strategies/SKILL.md"
@@ -201,7 +201,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/n8n-workflow-testing-fundamentals.yaml"
         },
         "file": "n8n-workflow-testing-fundamentals/SKILL.md"
@@ -212,7 +212,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/performance-analysis.yaml"
         },
         "file": "performance-analysis/SKILL.md"
@@ -223,7 +223,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/performance-testing.yaml"
         },
         "file": "performance-testing/SKILL.md"
@@ -234,7 +234,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qcsd-ideation-swarm.yaml"
         },
         "file": "qcsd-ideation-swarm/SKILL.md"
@@ -244,7 +244,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-chaos-resilience.yaml"
         },
         "file": "qe-chaos-resilience/SKILL.md"
@@ -254,7 +254,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-code-intelligence.yaml"
         },
         "file": "qe-code-intelligence/SKILL.md"
@@ -264,7 +264,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-contract-testing.yaml"
         },
         "file": "qe-contract-testing/SKILL.md"
@@ -274,7 +274,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-coverage-analysis.yaml"
         },
         "file": "qe-coverage-analysis/SKILL.md"
@@ -284,7 +284,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-defect-intelligence.yaml"
         },
         "file": "qe-defect-intelligence/SKILL.md"
@@ -294,7 +294,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-learning-optimization.yaml"
         },
         "file": "qe-learning-optimization/SKILL.md"
@@ -304,7 +304,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-quality-assessment.yaml"
         },
         "file": "qe-quality-assessment/SKILL.md"
@@ -314,7 +314,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-requirements-validation.yaml"
         },
         "file": "qe-requirements-validation/SKILL.md"
@@ -324,7 +324,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-security-compliance.yaml"
         },
         "file": "qe-security-compliance/SKILL.md"
@@ -334,7 +334,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-test-execution.yaml"
         },
         "file": "qe-test-execution/SKILL.md"
@@ -344,7 +344,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-test-generation.yaml"
         },
         "file": "qe-test-generation/SKILL.md"
@@ -354,7 +354,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/qe-visual-accessibility.yaml"
         },
         "file": "qe-visual-accessibility/SKILL.md"
@@ -365,7 +365,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/quality-metrics.yaml"
         },
         "file": "quality-metrics/SKILL.md"
@@ -376,7 +376,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/regression-testing.yaml"
         },
         "file": "regression-testing/SKILL.md"
@@ -387,7 +387,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/risk-based-testing.yaml"
         },
         "file": "risk-based-testing/SKILL.md"
@@ -398,7 +398,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/security-testing.yaml"
         },
         "file": "security-testing/SKILL.md"
@@ -409,7 +409,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/security-visual-testing.yaml"
         },
         "file": "security-visual-testing/SKILL.md"
@@ -420,7 +420,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/shift-left-testing.yaml"
         },
         "file": "shift-left-testing/SKILL.md"
@@ -431,7 +431,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/shift-right-testing.yaml"
         },
         "file": "shift-right-testing/SKILL.md"
@@ -442,7 +442,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/test-automation-strategy.yaml"
         },
         "file": "test-automation-strategy/SKILL.md"
@@ -453,7 +453,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/test-data-management.yaml"
         },
         "file": "test-data-management/SKILL.md"
@@ -464,7 +464,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/test-design-techniques.yaml"
         },
         "file": "test-design-techniques/SKILL.md"
@@ -475,7 +475,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/test-reporting-analytics.yaml"
         },
         "file": "test-reporting-analytics/SKILL.md"
@@ -486,7 +486,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/testability-scoring.yaml"
         },
         "file": "testability-scoring/SKILL.md"
@@ -497,7 +497,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/verification-quality.yaml"
         },
         "file": "verification-quality/SKILL.md"
@@ -508,7 +508,7 @@
         "validation": {
           "status": "passing",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh",
+          "validatorPath": "scripts/validate-config.json",
           "evalPath": "evals/visual-testing-advanced.yaml"
         },
         "file": "visual-testing-advanced/SKILL.md"
@@ -521,7 +521,7 @@
         "validation": {
           "status": "unknown",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh"
+          "validatorPath": "scripts/validate-config.json"
         },
         "file": "brutal-honesty-review/SKILL.md"
       },
@@ -531,7 +531,7 @@
         "validation": {
           "status": "unknown",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh"
+          "validatorPath": "scripts/validate-config.json"
         },
         "file": "bug-reporting-excellence/SKILL.md"
       },
@@ -541,7 +541,7 @@
         "validation": {
           "status": "unknown",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh"
+          "validatorPath": "scripts/validate-config.json"
         },
         "file": "code-review-quality/SKILL.md"
       },
@@ -550,7 +550,7 @@
         "validation": {
           "status": "unknown",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh"
+          "validatorPath": "scripts/validate-config.json"
         },
         "file": "qe-iterative-loop/SKILL.md"
       },
@@ -560,7 +560,7 @@
         "validation": {
           "status": "unknown",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh"
+          "validatorPath": "scripts/validate-config.json"
         },
         "file": "refactoring-patterns/SKILL.md"
       },
@@ -570,7 +570,7 @@
         "validation": {
           "status": "unknown",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh"
+          "validatorPath": "scripts/validate-config.json"
         },
         "file": "sherlock-review/SKILL.md"
       },
@@ -580,7 +580,7 @@
         "validation": {
           "status": "unknown",
           "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate.sh"
+          "validatorPath": "scripts/validate-config.json"
         },
         "file": "tdd-london-chicago/SKILL.md"
       }
@@ -815,7 +815,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/a11y-ally.yaml"
       },
       "file": "a11y-ally/SKILL.md",
@@ -848,7 +848,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/accessibility-testing.yaml"
       },
       "file": "accessibility-testing/SKILL.md",
@@ -871,7 +871,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/api-testing-patterns.yaml"
       },
       "file": "api-testing-patterns/SKILL.md",
@@ -894,7 +894,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/chaos-engineering-resilience.yaml"
       },
       "file": "chaos-engineering-resilience/SKILL.md",
@@ -916,7 +916,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/cicd-pipeline-qe-orchestrator.yaml"
       },
       "file": "cicd-pipeline-qe-orchestrator/SKILL.md",
@@ -939,7 +939,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/compatibility-testing.yaml"
       },
       "file": "compatibility-testing/SKILL.md",
@@ -961,7 +961,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/compliance-testing.yaml"
       },
       "file": "compliance-testing/SKILL.md",
@@ -985,7 +985,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/contract-testing.yaml"
       },
       "file": "contract-testing/SKILL.md",
@@ -1007,7 +1007,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/database-testing.yaml"
       },
       "file": "database-testing/SKILL.md",
@@ -1030,7 +1030,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/localization-testing.yaml"
       },
       "file": "localization-testing/SKILL.md",
@@ -1053,7 +1053,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/mobile-testing.yaml"
       },
       "file": "mobile-testing/SKILL.md",
@@ -1076,7 +1076,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/mutation-testing.yaml"
       },
       "file": "mutation-testing/SKILL.md",
@@ -1098,7 +1098,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/n8n-expression-testing.yaml"
       },
       "file": "n8n-expression-testing/SKILL.md",
@@ -1119,7 +1119,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/n8n-integration-testing-patterns.yaml"
       },
       "file": "n8n-integration-testing-patterns/SKILL.md",
@@ -1142,7 +1142,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/n8n-security-testing.yaml"
       },
       "file": "n8n-security-testing/SKILL.md",
@@ -1165,7 +1165,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/n8n-trigger-testing-strategies.yaml"
       },
       "file": "n8n-trigger-testing-strategies/SKILL.md",
@@ -1188,7 +1188,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/n8n-workflow-testing-fundamentals.yaml"
       },
       "file": "n8n-workflow-testing-fundamentals/SKILL.md",
@@ -1210,7 +1210,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/performance-analysis.yaml"
       },
       "file": "performance-analysis/SKILL.md",
@@ -1230,7 +1230,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/performance-testing.yaml"
       },
       "file": "performance-testing/SKILL.md",
@@ -1252,7 +1252,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qcsd-ideation-swarm.yaml"
       },
       "file": "qcsd-ideation-swarm/SKILL.md",
@@ -1275,7 +1275,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-chaos-resilience.yaml"
       },
       "file": "qe-chaos-resilience/SKILL.md"
@@ -1285,7 +1285,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-code-intelligence.yaml"
       },
       "file": "qe-code-intelligence/SKILL.md"
@@ -1295,7 +1295,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-contract-testing.yaml"
       },
       "file": "qe-contract-testing/SKILL.md"
@@ -1305,7 +1305,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-coverage-analysis.yaml"
       },
       "file": "qe-coverage-analysis/SKILL.md"
@@ -1315,7 +1315,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-defect-intelligence.yaml"
       },
       "file": "qe-defect-intelligence/SKILL.md"
@@ -1325,7 +1325,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-learning-optimization.yaml"
       },
       "file": "qe-learning-optimization/SKILL.md"
@@ -1335,7 +1335,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-quality-assessment.yaml"
       },
       "file": "qe-quality-assessment/SKILL.md"
@@ -1345,7 +1345,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-requirements-validation.yaml"
       },
       "file": "qe-requirements-validation/SKILL.md"
@@ -1355,7 +1355,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-security-compliance.yaml"
       },
       "file": "qe-security-compliance/SKILL.md"
@@ -1365,7 +1365,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-test-execution.yaml"
       },
       "file": "qe-test-execution/SKILL.md"
@@ -1375,7 +1375,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-test-generation.yaml"
       },
       "file": "qe-test-generation/SKILL.md"
@@ -1385,7 +1385,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/qe-visual-accessibility.yaml"
       },
       "file": "qe-visual-accessibility/SKILL.md"
@@ -1397,7 +1397,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/quality-metrics.yaml"
       },
       "file": "quality-metrics/SKILL.md",
@@ -1419,7 +1419,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/regression-testing.yaml"
       },
       "file": "regression-testing/SKILL.md",
@@ -1441,7 +1441,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/risk-based-testing.yaml"
       },
       "file": "risk-based-testing/SKILL.md",
@@ -1462,7 +1462,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/security-testing.yaml"
       },
       "file": "security-testing/SKILL.md",
@@ -1485,7 +1485,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/security-visual-testing.yaml"
       },
       "file": "security-visual-testing/SKILL.md",
@@ -1508,7 +1508,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/shift-left-testing.yaml"
       },
       "file": "shift-left-testing/SKILL.md",
@@ -1530,7 +1530,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/shift-right-testing.yaml"
       },
       "file": "shift-right-testing/SKILL.md",
@@ -1552,7 +1552,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/test-automation-strategy.yaml"
       },
       "file": "test-automation-strategy/SKILL.md",
@@ -1574,7 +1574,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/test-data-management.yaml"
       },
       "file": "test-data-management/SKILL.md",
@@ -1597,7 +1597,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/test-design-techniques.yaml"
       },
       "file": "test-design-techniques/SKILL.md",
@@ -1619,7 +1619,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/test-reporting-analytics.yaml"
       },
       "file": "test-reporting-analytics/SKILL.md",
@@ -1641,7 +1641,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/testability-scoring.yaml"
       },
       "file": "testability-scoring/SKILL.md",
@@ -1665,7 +1665,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/verification-quality.yaml"
       },
       "file": "verification-quality/SKILL.md",
@@ -1685,7 +1685,7 @@
       "validation": {
         "status": "passing",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh",
+        "validatorPath": "scripts/validate-config.json",
         "evalPath": "evals/visual-testing-advanced.yaml"
       },
       "file": "visual-testing-advanced/SKILL.md",
@@ -1708,7 +1708,7 @@
       "validation": {
         "status": "unknown",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh"
+        "validatorPath": "scripts/validate-config.json"
       },
       "file": "brutal-honesty-review/SKILL.md",
       "tokenEstimate": 1200,
@@ -1728,7 +1728,7 @@
       "validation": {
         "status": "unknown",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh"
+        "validatorPath": "scripts/validate-config.json"
       },
       "file": "bug-reporting-excellence/SKILL.md",
       "tokenEstimate": 900,
@@ -1748,7 +1748,7 @@
       "validation": {
         "status": "unknown",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh"
+        "validatorPath": "scripts/validate-config.json"
       },
       "file": "code-review-quality/SKILL.md",
       "tokenEstimate": 900,
@@ -1767,7 +1767,7 @@
       "validation": {
         "status": "unknown",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh"
+        "validatorPath": "scripts/validate-config.json"
       },
       "file": "qe-iterative-loop/SKILL.md"
     },
@@ -1778,7 +1778,7 @@
       "validation": {
         "status": "unknown",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh"
+        "validatorPath": "scripts/validate-config.json"
       },
       "file": "refactoring-patterns/SKILL.md",
       "tokenEstimate": 1000,
@@ -1798,7 +1798,7 @@
       "validation": {
         "status": "unknown",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh"
+        "validatorPath": "scripts/validate-config.json"
       },
       "file": "sherlock-review/SKILL.md",
       "tokenEstimate": 1100,
@@ -1818,7 +1818,7 @@
       "validation": {
         "status": "unknown",
         "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate.sh"
+        "validatorPath": "scripts/validate-config.json"
       },
       "file": "tdd-london-chicago/SKILL.md",
       "tokenEstimate": 1100,

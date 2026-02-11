@@ -7,7 +7,7 @@
 # error handling, trigger configuration, and execution performance.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/n8n-workflow-testing-fundamentals/scripts/validate.sh
+# Validator: .claude/skills/n8n-workflow-testing-fundamentals/scripts/validate-config.json
 #
 # Coverage:
 # - Workflow structure validation

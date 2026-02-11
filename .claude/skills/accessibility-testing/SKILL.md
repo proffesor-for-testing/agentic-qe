@@ -16,7 +16,7 @@ tags: [accessibility, wcag, a11y, screen-reader, ada, section-508, inclusive]
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/accessibility-testing.yaml
 ---
 

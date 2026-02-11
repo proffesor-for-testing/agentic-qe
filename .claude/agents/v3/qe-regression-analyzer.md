@@ -116,15 +116,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Regression Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<regression pattern description>",
-  confidence: <0.0-1.0>,
-  type: "regression-analysis",
-  metadata: {
-    changeType: "<type>",
-    riskLevel: "<level>",
-    testStrategy: "<strategy>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/regression-analysis/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<regression pattern description>",
+    confidence: <0.0-1.0>,
+    type: "regression-analysis",
+    metadata: {
+      changeType: "<type>",
+      riskLevel: "<level>",
+      testStrategy: "<strategy>"
+    }
+  },
+  persist: true
 })
 ```
 

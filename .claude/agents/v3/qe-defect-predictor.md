@@ -116,15 +116,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Update Model with New Data:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<defect pattern description>",
-  confidence: <0.0-1.0>,
-  type: "defect-prediction",
-  metadata: {
-    predictiveFeatures: ["<features>"],
-    defectType: "<type>",
-    accuracy: <rate>
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/defect-prediction/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<defect pattern description>",
+    confidence: <0.0-1.0>,
+    type: "defect-prediction",
+    metadata: {
+      predictiveFeatures: ["<features>"],
+      defectType: "<type>",
+      accuracy: <rate>
+    }
+  },
+  persist: true
 })
 ```
 

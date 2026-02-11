@@ -36,7 +36,7 @@ export class PretrainBridge {
   private async checkClaudeFlow(): Promise<boolean> {
     try {
       const { execSync } = await import('child_process');
-      execSync('npx @claude-flow/cli@latest hooks pretrain --help 2>/dev/null', {
+      execSync('npx @claude-flow/cli@latest hooks pretrain --help', {
         encoding: 'utf-8',
         timeout: 5000,
         cwd: this.options.projectRoot,
@@ -67,7 +67,7 @@ export class PretrainBridge {
       try {
         const { execSync } = await import('child_process');
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks pretrain --path ${this.escapeArg(targetPath)} --depth ${depth} 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks pretrain --path ${this.escapeArg(targetPath)} --depth ${depth}`,
           { encoding: 'utf-8', timeout: 120000, cwd: this.options.projectRoot }
         );
 
@@ -112,7 +112,7 @@ export class PretrainBridge {
       try {
         const { execSync } = await import('child_process');
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks build-agents --format ${format} 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks build-agents --format ${format}`,
           { encoding: 'utf-8', timeout: 60000, cwd: this.options.projectRoot }
         );
 
@@ -143,7 +143,7 @@ export class PretrainBridge {
       try {
         const { execSync } = await import('child_process');
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks transfer --source-path ${this.escapeArg(sourcePath)} --min-confidence ${minConfidence} 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks transfer --source-path ${this.escapeArg(sourcePath)} --min-confidence ${minConfidence}`,
           { encoding: 'utf-8', timeout: 60000, cwd: this.options.projectRoot }
         );
 

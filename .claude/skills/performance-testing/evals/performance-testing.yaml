@@ -7,7 +7,7 @@
 # throughput calculation, SLA validation, and bottleneck identification.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/performance-testing/scripts/validate.sh
+# Validator: .claude/skills/performance-testing/scripts/validate-config.json
 #
 # Coverage:
 # - Load Testing: k6, Artillery, JMeter scenarios

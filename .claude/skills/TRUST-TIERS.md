@@ -38,52 +38,52 @@ These skills have complete validation infrastructure: JSON schema, validator scr
 
 | Skill | Category | Schema | Validator | Eval Suite | Status |
 |-------|----------|--------|-----------|------------|--------|
-| a11y-ally | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/a11y-ally.yaml` | Passing |
-| accessibility-testing | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/accessibility-testing.yaml` | Passing |
-| api-testing-patterns | testing-methodologies | `schemas/output.json` | `scripts/validate.sh` | `evals/api-testing-patterns.yaml` | Passing |
-| chaos-engineering-resilience | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/chaos-engineering-resilience.yaml` | Passing |
-| cicd-pipeline-qe-orchestrator | infrastructure | `schemas/output.json` | `scripts/validate.sh` | `evals/cicd-pipeline-qe-orchestrator.yaml` | Passing |
-| compatibility-testing | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/compatibility-testing.yaml` | Passing |
-| compliance-testing | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/compliance-testing.yaml` | Passing |
-| contract-testing | testing-methodologies | `schemas/output.json` | `scripts/validate.sh` | `evals/contract-testing.yaml` | Passing |
-| database-testing | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/database-testing.yaml` | Passing |
-| localization-testing | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/localization-testing.yaml` | Passing |
-| mobile-testing | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/mobile-testing.yaml` | Passing |
-| mutation-testing | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/mutation-testing.yaml` | Passing |
-| n8n-expression-testing | n8n-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/n8n-expression-testing.yaml` | Passing |
-| n8n-integration-testing-patterns | n8n-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/n8n-integration-testing-patterns.yaml` | Passing |
-| n8n-security-testing | n8n-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/n8n-security-testing.yaml` | Passing |
-| n8n-trigger-testing-strategies | n8n-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/n8n-trigger-testing-strategies.yaml` | Passing |
-| n8n-workflow-testing-fundamentals | n8n-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/n8n-workflow-testing-fundamentals.yaml` | Passing |
-| performance-analysis | monitoring | `schemas/output.json` | `scripts/validate.sh` | `evals/performance-analysis.yaml` | Passing |
-| performance-testing | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/performance-testing.yaml` | Passing |
-| qcsd-ideation-swarm | qcsd-phases | `schemas/output.json` | `scripts/validate.sh` | `evals/qcsd-ideation-swarm.yaml` | Passing |
-| qe-chaos-resilience | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-chaos-resilience.yaml` | Passing |
-| qe-code-intelligence | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-code-intelligence.yaml` | Passing |
-| qe-contract-testing | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-contract-testing.yaml` | Passing |
-| qe-coverage-analysis | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-coverage-analysis.yaml` | Passing |
-| qe-defect-intelligence | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-defect-intelligence.yaml` | Passing |
-| qe-learning-optimization | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-learning-optimization.yaml` | Passing |
-| qe-quality-assessment | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-quality-assessment.yaml` | Passing |
-| qe-requirements-validation | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-requirements-validation.yaml` | Passing |
-| qe-security-compliance | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-security-compliance.yaml` | Passing |
-| qe-test-execution | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-test-execution.yaml` | Passing |
-| qe-test-generation | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-test-generation.yaml` | Passing |
-| qe-visual-accessibility | - | `schemas/output.json` | `scripts/validate.sh` | `evals/qe-visual-accessibility.yaml` | Passing |
-| quality-metrics | testing-methodologies | `schemas/output.json` | `scripts/validate.sh` | `evals/quality-metrics.yaml` | Passing |
-| regression-testing | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/regression-testing.yaml` | Passing |
-| risk-based-testing | testing-methodologies | `schemas/output.json` | `scripts/validate.sh` | `evals/risk-based-testing.yaml` | Passing |
-| security-testing | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/security-testing.yaml` | Passing |
-| security-visual-testing | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/security-visual-testing.yaml` | Passing |
-| shift-left-testing | testing-methodologies | `schemas/output.json` | `scripts/validate.sh` | `evals/shift-left-testing.yaml` | Passing |
-| shift-right-testing | testing-methodologies | `schemas/output.json` | `scripts/validate.sh` | `evals/shift-right-testing.yaml` | Passing |
-| test-automation-strategy | testing-methodologies | `schemas/output.json` | `scripts/validate.sh` | `evals/test-automation-strategy.yaml` | Passing |
-| test-data-management | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/test-data-management.yaml` | Passing |
-| test-design-techniques | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/test-design-techniques.yaml` | Passing |
-| test-reporting-analytics | analytics | `schemas/output.json` | `scripts/validate.sh` | `evals/test-reporting-analytics.yaml` | Passing |
-| testability-scoring | testing-methodologies | `schemas/output.json` | `scripts/validate.sh` | `evals/testability-scoring.yaml` | Passing |
-| verification-quality | quality-assurance | `schemas/output.json` | `scripts/validate.sh` | `evals/verification-quality.yaml` | Passing |
-| visual-testing-advanced | specialized-testing | `schemas/output.json` | `scripts/validate.sh` | `evals/visual-testing-advanced.yaml` | Passing |
+| a11y-ally | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/a11y-ally.yaml` | Passing |
+| accessibility-testing | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/accessibility-testing.yaml` | Passing |
+| api-testing-patterns | testing-methodologies | `schemas/output.json` | `scripts/validate-config.json` | `evals/api-testing-patterns.yaml` | Passing |
+| chaos-engineering-resilience | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/chaos-engineering-resilience.yaml` | Passing |
+| cicd-pipeline-qe-orchestrator | infrastructure | `schemas/output.json` | `scripts/validate-config.json` | `evals/cicd-pipeline-qe-orchestrator.yaml` | Passing |
+| compatibility-testing | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/compatibility-testing.yaml` | Passing |
+| compliance-testing | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/compliance-testing.yaml` | Passing |
+| contract-testing | testing-methodologies | `schemas/output.json` | `scripts/validate-config.json` | `evals/contract-testing.yaml` | Passing |
+| database-testing | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/database-testing.yaml` | Passing |
+| localization-testing | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/localization-testing.yaml` | Passing |
+| mobile-testing | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/mobile-testing.yaml` | Passing |
+| mutation-testing | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/mutation-testing.yaml` | Passing |
+| n8n-expression-testing | n8n-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/n8n-expression-testing.yaml` | Passing |
+| n8n-integration-testing-patterns | n8n-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/n8n-integration-testing-patterns.yaml` | Passing |
+| n8n-security-testing | n8n-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/n8n-security-testing.yaml` | Passing |
+| n8n-trigger-testing-strategies | n8n-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/n8n-trigger-testing-strategies.yaml` | Passing |
+| n8n-workflow-testing-fundamentals | n8n-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/n8n-workflow-testing-fundamentals.yaml` | Passing |
+| performance-analysis | monitoring | `schemas/output.json` | `scripts/validate-config.json` | `evals/performance-analysis.yaml` | Passing |
+| performance-testing | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/performance-testing.yaml` | Passing |
+| qcsd-ideation-swarm | qcsd-phases | `schemas/output.json` | `scripts/validate-config.json` | `evals/qcsd-ideation-swarm.yaml` | Passing |
+| qe-chaos-resilience | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-chaos-resilience.yaml` | Passing |
+| qe-code-intelligence | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-code-intelligence.yaml` | Passing |
+| qe-contract-testing | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-contract-testing.yaml` | Passing |
+| qe-coverage-analysis | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-coverage-analysis.yaml` | Passing |
+| qe-defect-intelligence | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-defect-intelligence.yaml` | Passing |
+| qe-learning-optimization | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-learning-optimization.yaml` | Passing |
+| qe-quality-assessment | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-quality-assessment.yaml` | Passing |
+| qe-requirements-validation | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-requirements-validation.yaml` | Passing |
+| qe-security-compliance | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-security-compliance.yaml` | Passing |
+| qe-test-execution | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-test-execution.yaml` | Passing |
+| qe-test-generation | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-test-generation.yaml` | Passing |
+| qe-visual-accessibility | - | `schemas/output.json` | `scripts/validate-config.json` | `evals/qe-visual-accessibility.yaml` | Passing |
+| quality-metrics | testing-methodologies | `schemas/output.json` | `scripts/validate-config.json` | `evals/quality-metrics.yaml` | Passing |
+| regression-testing | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/regression-testing.yaml` | Passing |
+| risk-based-testing | testing-methodologies | `schemas/output.json` | `scripts/validate-config.json` | `evals/risk-based-testing.yaml` | Passing |
+| security-testing | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/security-testing.yaml` | Passing |
+| security-visual-testing | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/security-visual-testing.yaml` | Passing |
+| shift-left-testing | testing-methodologies | `schemas/output.json` | `scripts/validate-config.json` | `evals/shift-left-testing.yaml` | Passing |
+| shift-right-testing | testing-methodologies | `schemas/output.json` | `scripts/validate-config.json` | `evals/shift-right-testing.yaml` | Passing |
+| test-automation-strategy | testing-methodologies | `schemas/output.json` | `scripts/validate-config.json` | `evals/test-automation-strategy.yaml` | Passing |
+| test-data-management | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/test-data-management.yaml` | Passing |
+| test-design-techniques | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/test-design-techniques.yaml` | Passing |
+| test-reporting-analytics | analytics | `schemas/output.json` | `scripts/validate-config.json` | `evals/test-reporting-analytics.yaml` | Passing |
+| testability-scoring | testing-methodologies | `schemas/output.json` | `scripts/validate-config.json` | `evals/testability-scoring.yaml` | Passing |
+| verification-quality | quality-assurance | `schemas/output.json` | `scripts/validate-config.json` | `evals/verification-quality.yaml` | Passing |
+| visual-testing-advanced | specialized-testing | `schemas/output.json` | `scripts/validate-config.json` | `evals/visual-testing-advanced.yaml` | Passing |
 
 ---
 
@@ -93,13 +93,13 @@ These skills have a validator script but no evaluation test suite yet.
 
 | Skill | Category | Schema | Validator | Status |
 |-------|----------|--------|-----------|--------|
-| brutal-honesty-review | quality-review | `schemas/output.json` | `scripts/validate.sh` | Unknown |
-| bug-reporting-excellence | quality-communication | `schemas/output.json` | `scripts/validate.sh` | Unknown |
-| code-review-quality | development-practices | `schemas/output.json` | `scripts/validate.sh` | Unknown |
-| qe-iterative-loop | - | `schemas/output.json` | `scripts/validate.sh` | Unknown |
-| refactoring-patterns | development-practices | `schemas/output.json` | `scripts/validate.sh` | Unknown |
-| sherlock-review | quality-review | `schemas/output.json` | `scripts/validate.sh` | Unknown |
-| tdd-london-chicago | development-practices | `schemas/output.json` | `scripts/validate.sh` | Unknown |
+| brutal-honesty-review | quality-review | `schemas/output.json` | `scripts/validate-config.json` | Unknown |
+| bug-reporting-excellence | quality-communication | `schemas/output.json` | `scripts/validate-config.json` | Unknown |
+| code-review-quality | development-practices | `schemas/output.json` | `scripts/validate-config.json` | Unknown |
+| qe-iterative-loop | - | `schemas/output.json` | `scripts/validate-config.json` | Unknown |
+| refactoring-patterns | development-practices | `schemas/output.json` | `scripts/validate-config.json` | Unknown |
+| sherlock-review | quality-review | `schemas/output.json` | `scripts/validate-config.json` | Unknown |
+| tdd-london-chicago | development-practices | `schemas/output.json` | `scripts/validate-config.json` | Unknown |
 
 ---
 
@@ -127,7 +127,7 @@ To upgrade a skill to a higher trust tier:
 3. Run `npx tsx scripts/update-skill-manifest.ts`
 
 ### Tier 1 -> Tier 2 (Add Validator)
-1. Create `{skill}/scripts/validate.sh` (or .ts/.js)
+1. Create `{skill}/scripts/validate-skill.cjs` (or .ts/.js)
 2. Add `trust_tier: 2` and validation paths to frontmatter
 3. Run `npx tsx scripts/update-skill-manifest.ts`
 
@@ -149,7 +149,7 @@ Add this to your GitHub Actions workflow:
 - name: Check Tier 3 Skills Pass
   run: |
     for skill in api-testing-patterns security-testing performance-testing; do
-      .claude/skills/$skill/scripts/validate.sh --self-test
+      .claude/skills/$skill/scripts/validate-skill.cjs --self-test
     done
 ```
 

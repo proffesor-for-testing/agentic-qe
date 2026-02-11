@@ -14,7 +14,7 @@ tags: [n8n, integration, api, authentication, oauth, rate-limiting, testing]
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/n8n-integration-testing-patterns.yaml
 
 ---

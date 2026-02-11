@@ -14,7 +14,7 @@ tags: [automation, test-pyramid, page-object, first-principles, ci-cd, flaky-tes
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/test-automation-strategy.yaml
 
 ---

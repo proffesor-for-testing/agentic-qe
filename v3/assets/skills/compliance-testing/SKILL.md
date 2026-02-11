@@ -16,7 +16,7 @@ tags: [compliance, gdpr, hipaa, pci-dss, ccpa, soc2, privacy, audit]
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/compliance-testing.yaml
 ---
 

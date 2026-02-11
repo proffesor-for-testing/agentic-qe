@@ -7,7 +7,7 @@
 # readiness evaluation, and quality scoring.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/qe-quality-assessment/scripts/validate.sh
+# Validator: .claude/skills/qe-quality-assessment/scripts/validate-config.json
 #
 # Coverage:
 # - Code quality metrics (complexity, maintainability, duplication)

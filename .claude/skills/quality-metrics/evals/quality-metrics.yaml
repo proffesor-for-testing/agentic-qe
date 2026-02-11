@@ -7,7 +7,7 @@
 # bug escape rate calculation, and actionable KPI definition.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/quality-metrics/scripts/validate.sh
+# Validator: .claude/skills/quality-metrics/scripts/validate-config.json
 #
 # Coverage:
 # - DORA metrics (Deployment Frequency, Lead Time, MTTD, MTTR, CFR)

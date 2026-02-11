@@ -7,7 +7,7 @@
 # management, data sanitization, and sensitive data logging prevention.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/n8n-security-testing/scripts/validate.sh
+# Validator: .claude/skills/n8n-security-testing/scripts/validate-config.json
 #
 # Coverage:
 # - Credential exposure detection

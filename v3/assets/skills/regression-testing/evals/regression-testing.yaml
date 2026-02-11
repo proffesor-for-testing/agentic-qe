@@ -7,7 +7,7 @@
 # regression strategies, suite optimization, and flaky test detection.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/regression-testing/scripts/validate.sh
+# Validator: .claude/skills/regression-testing/scripts/validate-config.json
 #
 # Coverage:
 # - Test selection based on code changes

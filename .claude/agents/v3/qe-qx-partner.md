@@ -206,15 +206,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store QX Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<qx pattern description>",
-  confidence: <0.0-1.0>,
-  type: "quality-experience",
-  metadata: {
-    journeyType: "<type>",
-    qualityMetric: "<metric>",
-    uxImpact: "<impact>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/quality-experience/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<qx pattern description>",
+    confidence: <0.0-1.0>,
+    type: "quality-experience",
+    metadata: {
+      journeyType: "<type>",
+      qualityMetric: "<metric>",
+      uxImpact: "<impact>"
+    }
+  },
+  persist: true
 })
 ```
 

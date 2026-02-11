@@ -129,15 +129,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store New Flaky Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<flaky pattern description>",
-  confidence: <0.0-1.0>,
-  type: "flaky-test",
-  metadata: {
-    rootCause: "<cause>",
-    fix: "<remediation>",
-    testType: "<type>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/flaky-test/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<flaky pattern description>",
+    confidence: <0.0-1.0>,
+    type: "flaky-test",
+    metadata: {
+      rootCause: "<cause>",
+      fix: "<remediation>",
+      testType: "<type>"
+    }
+  },
+  persist: true
 })
 ```
 

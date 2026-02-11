@@ -7,7 +7,7 @@
 # and API versioning verification for REST, GraphQL, and event-driven systems.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/qe-contract-testing/scripts/validate.sh
+# Validator: .claude/skills/qe-contract-testing/scripts/validate-config.json
 #
 # Coverage:
 # - Consumer-driven contract testing (Pact)

@@ -183,7 +183,7 @@ async function runSkillEval(skill: string, model: string) {
 Bash validators should call the MCP tools via the CLI wrapper:
 
 ```bash
-# In validate.sh after validation
+# In validate-skill.cjs after validation
 store_validation_result() {
   local skill="$1"
   local result="$2"

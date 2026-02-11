@@ -119,15 +119,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store GREEN Phase Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<green phase pattern description>",
-  confidence: <0.0-1.0>,
-  type: "tdd-green",
-  metadata: {
-    testType: "<type>",
-    implementationStyle: "<style>",
-    iterationsRequired: <count>
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/tdd-green/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<green phase pattern description>",
+    confidence: <0.0-1.0>,
+    type: "tdd-green",
+    metadata: {
+      testType: "<type>",
+      implementationStyle: "<style>",
+      iterationsRequired: <count>
+    }
+  },
+  persist: true
 })
 ```
 

@@ -36,7 +36,7 @@ export class TrajectoryBridge {
   private async checkClaudeFlow(): Promise<boolean> {
     try {
       const { execSync } = await import('child_process');
-      execSync('npx @claude-flow/cli@latest hooks metrics --period 1h 2>/dev/null', {
+      execSync('npx @claude-flow/cli@latest hooks metrics --period 1h', {
         encoding: 'utf-8',
         timeout: 5000,
         cwd: this.options.projectRoot,
@@ -58,7 +58,7 @@ export class TrajectoryBridge {
         const { execSync } = await import('child_process');
         const agentArg = agent ? `--agent ${this.escapeArg(agent)}` : '';
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks intelligence trajectory-start --task ${this.escapeArg(task)} ${agentArg} 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks intelligence trajectory-start --task ${this.escapeArg(task)} ${agentArg}`,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
 
@@ -101,7 +101,7 @@ export class TrajectoryBridge {
         const qualityArg = quality !== undefined ? `--quality ${quality}` : '';
 
         execSync(
-          `npx @claude-flow/cli@latest hooks intelligence trajectory-step --trajectory-id ${this.escapeArg(trajectoryId)} --action ${this.escapeArg(action)} ${resultArg} ${qualityArg} 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks intelligence trajectory-step --trajectory-id ${this.escapeArg(trajectoryId)} --action ${this.escapeArg(action)} ${resultArg} ${qualityArg}`,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
         return;
@@ -138,7 +138,7 @@ export class TrajectoryBridge {
         const feedbackArg = feedback ? `--feedback ${this.escapeArg(feedback)}` : '';
 
         execSync(
-          `npx @claude-flow/cli@latest hooks intelligence trajectory-end --trajectory-id ${this.escapeArg(trajectoryId)} --success ${success} ${feedbackArg} 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks intelligence trajectory-end --trajectory-id ${this.escapeArg(trajectoryId)} --success ${success} ${feedbackArg}`,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
       } catch {

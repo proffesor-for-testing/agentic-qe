@@ -115,15 +115,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Failure Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<failure pattern description>",
-  confidence: <0.0-1.0>,
-  type: "root-cause",
-  metadata: {
-    category: "<category>",
-    technique: "<analysis technique>",
-    prevention: "<recommended prevention>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/root-cause/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<failure pattern description>",
+    confidence: <0.0-1.0>,
+    type: "root-cause",
+    metadata: {
+      category: "<category>",
+      technique: "<analysis technique>",
+      prevention: "<recommended prevention>"
+    }
+  },
+  persist: true
 })
 ```
 

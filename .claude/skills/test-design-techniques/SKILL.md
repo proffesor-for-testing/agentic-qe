@@ -14,7 +14,7 @@ tags: [test-design, bva, equivalence-partitioning, decision-tables, pairwise, st
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
   eval_path: evals/test-design-techniques.yaml
 
 ---

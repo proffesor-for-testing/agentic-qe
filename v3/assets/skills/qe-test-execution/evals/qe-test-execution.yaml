@@ -7,7 +7,7 @@
 # flaky test handling, and comprehensive result aggregation.
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Validator: .claude/skills/qe-test-execution/scripts/validate.sh
+# Validator: .claude/skills/qe-test-execution/scripts/validate-config.json
 #
 # Coverage:
 # - Parallel execution with intelligent distribution

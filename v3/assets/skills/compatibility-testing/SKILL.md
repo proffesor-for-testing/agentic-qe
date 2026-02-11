@@ -14,7 +14,7 @@ tags: [compatibility, cross-browser, responsive, browserstack, playwright, devic
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
+  validator_path: scripts/validate-config.json
 ---
 
 # Compatibility Testing
