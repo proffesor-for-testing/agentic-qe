@@ -21,7 +21,10 @@
     "MAX_CONCURRENT_AGENTS": "10",
     "ENABLE_AGENT_QUEUE": "true",
     "MEMORY_PRESSURE_THRESHOLD": "0.85",
-    "FORCE_GC_INTERVAL": "60000"
+    "FORCE_GC_INTERVAL": "60000",
+    "AQE_MAX_AGENTS": "10",
+    "AQE_MEMORY_LIMIT_MB": "512",
+    "AQE_TOPOLOGY": "sequential"
   },
   "remoteUser": "vscode",
   "features": {
@@ -41,23 +44,54 @@
         "vsls-contrib.gistfs",
         "github.copilot",
         "github.copilot-chat",
-        "anthropic.claude-code",
-        "codeflow-studio.claude-code-extension",
         "suzuki0430.ccusage-vscode"
       ]
     }
   },
   "postCreateCommand": "bash .devcontainer/install-tools.sh",
-  "forwardPorts": [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008],
+  "forwardPorts": [
+    3001,
+    3002,
+    3003,
+    3004,
+    3005,
+    3006,
+    3007,
+    3008
+  ],
   "portsAttributes": {
-    "3001": { "label": "Storefront", "onAutoForward": "notify" },
-    "3002": { "label": "API Tester", "onAutoForward": "notify" },
-    "3003": { "label": "OMNI", "onAutoForward": "silent" },
-    "3004": { "label": "IIB ESB", "onAutoForward": "silent" },
-    "3005": { "label": "WMS", "onAutoForward": "silent" },
-    "3006": { "label": "SAP S/4", "onAutoForward": "silent" },
-    "3007": { "label": "Kibana", "onAutoForward": "notify" },
-    "3008": { "label": "Message Broker", "onAutoForward": "silent" }
+    "3001": {
+      "label": "Storefront",
+      "onAutoForward": "notify"
+    },
+    "3002": {
+      "label": "API Tester",
+      "onAutoForward": "notify"
+    },
+    "3003": {
+      "label": "OMNI",
+      "onAutoForward": "silent"
+    },
+    "3004": {
+      "label": "IIB ESB",
+      "onAutoForward": "silent"
+    },
+    "3005": {
+      "label": "WMS",
+      "onAutoForward": "silent"
+    },
+    "3006": {
+      "label": "SAP S/4",
+      "onAutoForward": "silent"
+    },
+    "3007": {
+      "label": "Kibana",
+      "onAutoForward": "notify"
+    },
+    "3008": {
+      "label": "Message Broker",
+      "onAutoForward": "silent"
+    }
   },
   "shutdownAction": "none",
   "mounts": [],
