@@ -6,6 +6,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
+import { createSafeRegex } from '../../../mcp/security/validators/regex-safety-validator.js';
 import type {
   ISchemaValidationService,
   SchemaDefinition,
@@ -540,8 +541,8 @@ export class SchemaValidatorService implements ISchemaValidationService {
       });
     }
     if (typeof schema.pattern === 'string') {
-      const regex = new RegExp(schema.pattern);
-      if (!regex.test(value)) {
+      const regex = createSafeRegex(schema.pattern);
+      if (regex && !regex.test(value)) {
         errors.push({
           path,
           keyword: 'pattern',
@@ -549,6 +550,7 @@ export class SchemaValidatorService implements ISchemaValidationService {
           params: { pattern: schema.pattern },
         });
       }
+      // If regex is null (unsafe/invalid pattern), skip validation
     }
 
     // Validate format

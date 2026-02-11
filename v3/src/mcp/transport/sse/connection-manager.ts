@@ -53,6 +53,7 @@ const DEFAULT_CONFIG: Required<ConnectionManagerConfig> = {
 export class ConnectionManager {
   private readonly config: Required<ConnectionManagerConfig>;
   private readonly connections: Map<string, SSEConnection> = new Map();
+  private readonly threadIndex: Map<string, Set<string>> = new Map(); // threadId → connection IDs
   private readonly closedConnections: SSEConnection[] = []; // Keep closed connections for metrics
   private readonly keepAliveTimers: Map<string, ReturnType<typeof setInterval>> = new Map();
   private readonly timeoutTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
@@ -100,6 +101,15 @@ export class ConnectionManager {
     };
 
     this.connections.set(id, connection);
+
+    // Maintain threadId index for O(1) lookup
+    let threadConns = this.threadIndex.get(threadId);
+    if (!threadConns) {
+      threadConns = new Set();
+      this.threadIndex.set(threadId, threadConns);
+    }
+    threadConns.add(id);
+
     this.startKeepAlive(id);
     this.startTimeout(id);
 
@@ -117,11 +127,13 @@ export class ConnectionManager {
    * Get connection by thread ID
    */
   getConnectionByThreadId(threadId: string): SSEConnection | undefined {
-    const connections = Array.from(this.connections.values());
-    for (const connection of connections) {
-      if (connection.threadId === threadId) {
-        return connection;
-      }
+    const connIds = this.threadIndex.get(threadId);
+    if (!connIds) return undefined;
+
+    // Return first active connection for this thread
+    for (const id of connIds) {
+      const conn = this.connections.get(id);
+      if (conn) return conn;
     }
     return undefined;
   }
@@ -212,6 +224,15 @@ export class ConnectionManager {
       this.closedConnections.shift();
     }
 
+    // Remove from thread index
+    const threadConns = this.threadIndex.get(connection.threadId);
+    if (threadConns) {
+      threadConns.delete(id);
+      if (threadConns.size === 0) {
+        this.threadIndex.delete(connection.threadId);
+      }
+    }
+
     this.connections.delete(id);
   }
 
@@ -219,11 +240,13 @@ export class ConnectionManager {
    * Close all connections for a thread
    */
   closeThreadConnections(threadId: string, reason?: string): void {
-    const connections = Array.from(this.connections.values());
-    for (const connection of connections) {
-      if (connection.threadId === threadId) {
-        this.closeConnection(connection.id, reason);
-      }
+    const connIds = this.threadIndex.get(threadId);
+    if (!connIds) return;
+
+    // Copy IDs since closeConnection modifies the index
+    const ids = Array.from(connIds);
+    for (const id of ids) {
+      this.closeConnection(id, reason);
     }
   }
 

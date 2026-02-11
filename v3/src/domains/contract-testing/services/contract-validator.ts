@@ -6,6 +6,7 @@
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
 import type { HybridRouter, ChatResponse } from '../../../shared/llm/index.js';
+import { createSafeRegex } from '../../../mcp/security/validators/regex-safety-validator.js';
 import type {
   IContractValidationService,
   ApiContract,
@@ -1584,19 +1585,16 @@ Provide:
     }
 
     if (pattern) {
-      try {
-        const regex = new RegExp(pattern);
-        if (!regex.test(data)) {
-          errors.push({
-            path,
-            keyword: 'pattern',
-            message: `String must match pattern: ${pattern}`,
-            params: { pattern },
-          });
-        }
-      } catch {
-        // Invalid regex pattern, skip validation
+      const regex = createSafeRegex(pattern);
+      if (regex && !regex.test(data)) {
+        errors.push({
+          path,
+          keyword: 'pattern',
+          message: `String must match pattern: ${pattern}`,
+          params: { pattern },
+        });
       }
+      // If regex is null (unsafe/invalid pattern), skip validation
     }
   }
 

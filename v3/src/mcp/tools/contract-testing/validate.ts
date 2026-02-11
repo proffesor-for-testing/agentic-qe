@@ -11,6 +11,7 @@
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base.js';
 import { ToolResult } from '../../types.js';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
+import { safeJsonParse } from '../../../cli/helpers/safe-json.js';
 import { Version } from '../../../shared/value-objects/index.js';
 import { ContractValidatorService } from '../../../domains/contract-testing/services/contract-validator.js';
 import { ApiCompatibilityService } from '../../../domains/contract-testing/services/api-compatibility.js';
@@ -374,7 +375,7 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
     // Parse content based on format
     if (format === 'openapi') {
       try {
-        const parsed = JSON.parse(content);
+        const parsed = safeJsonParse<Record<string, unknown>>(content);
 
         // Extract schemas from components
         const components = parsed.components as Record<string, unknown> | undefined;
@@ -419,7 +420,7 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
       });
     } else if (format === 'pact') {
       try {
-        const parsed = JSON.parse(content);
+        const parsed = safeJsonParse<Record<string, unknown>>(content);
         const interactions = (parsed.interactions as Array<Record<string, unknown>>) || [];
 
         for (const interaction of interactions) {
