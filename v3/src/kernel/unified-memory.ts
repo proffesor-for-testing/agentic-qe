@@ -28,34 +28,9 @@ import { MEMORY_CONSTANTS, HNSW_CONSTANTS } from './constants.js';
 // SQL Table Name Allowlist (defense-in-depth against SQL injection)
 // ============================================================================
 
-/**
- * Allowlist of valid table names used in this module.
- * Any table name interpolated into SQL must be validated against this set.
- */
-const ALLOWED_TABLE_NAMES = new Set([
-  'schema_version', 'kv_store', 'vectors', 'rl_q_values',
-  'goap_goals', 'goap_actions', 'goap_plans', 'goap_execution_steps', 'goap_plan_signatures',
-  'concept_nodes', 'concept_edges', 'dream_cycles', 'dream_insights',
-  'qe_patterns', 'qe_pattern_embeddings', 'qe_pattern_usage', 'qe_trajectories',
-  'embeddings', 'execution_results', 'executed_steps',
-  'mincut_snapshots', 'mincut_history', 'mincut_weak_vertices',
-  'mincut_alerts', 'mincut_healing_actions', 'mincut_observations',
-  'sona_patterns',
-  // Hypergraph tables
-  'hypergraph_vertices', 'hypergraph_hyperedges', 'hypergraph_edge_vertices',
-  'hypergraph_vertex_properties', 'hypergraph_edge_properties',
-]);
-
-/**
- * Validate a table name against the allowlist before interpolating into SQL.
- * Throws if the name is not in the allowlist, preventing SQL injection.
- */
-export function validateTableName(tableName: string): string {
-  if (!ALLOWED_TABLE_NAMES.has(tableName)) {
-    throw new Error(`Invalid table name: "${tableName}" is not in the allowlist`);
-  }
-  return tableName;
-}
+// Re-export from shared module for backward compatibility
+export { validateTableName, ALLOWED_TABLE_NAMES } from '../shared/sql-safety.js';
+import { validateTableName } from '../shared/sql-safety.js';
 
 // CRDT imports for distributed state synchronization
 import {

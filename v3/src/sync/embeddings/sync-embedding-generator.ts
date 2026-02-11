@@ -12,6 +12,7 @@ import { SQLiteReader } from '../readers/sqlite-reader.js';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
+import { validateTableName } from '../../shared/sql-safety.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -134,19 +135,20 @@ export class SyncEmbeddingGenerator {
 
     try {
       // Check if embedding column exists
-      const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as { name: string }[];
+      const columns = db.prepare(`PRAGMA table_info(${validateTableName(tableName)})`).all() as { name: string }[];
       const hasEmbeddingColumn = columns.some((col) => col.name === 'embedding');
 
       if (!hasEmbeddingColumn) {
         // Add embedding column
-        db.prepare(`ALTER TABLE ${tableName} ADD COLUMN embedding TEXT`).run();
+        db.prepare(`ALTER TABLE ${validateTableName(tableName)} ADD COLUMN embedding TEXT`).run();
         console.log(`[SyncEmbedding] Added embedding column to ${tableName}`);
       }
 
       // Get patterns
+      const validTable = validateTableName(tableName);
       const query = options.force
-        ? `SELECT * FROM ${tableName}`
-        : `SELECT * FROM ${tableName} WHERE embedding IS NULL OR embedding = ''`;
+        ? `SELECT * FROM ${validTable}`
+        : `SELECT * FROM ${validTable} WHERE embedding IS NULL OR embedding = ''`;
 
       const patterns = db.prepare(query).all() as PatternRecord[];
       stats.totalPatterns = patterns.length;
@@ -157,12 +159,12 @@ export class SyncEmbeddingGenerator {
 
       // Count existing embeddings
       const existingCount = db
-        .prepare(`SELECT COUNT(*) as count FROM ${tableName} WHERE embedding IS NOT NULL AND embedding != ''`)
+        .prepare(`SELECT COUNT(*) as count FROM ${validTable} WHERE embedding IS NOT NULL AND embedding != ''`)
         .get() as { count: number };
       stats.patternsWithEmbeddings = existingCount.count;
 
       // Prepare update statement
-      const updateStmt = db.prepare(`UPDATE ${tableName} SET embedding = ? WHERE id = ?`);
+      const updateStmt = db.prepare(`UPDATE ${validTable} SET embedding = ? WHERE id = ?`);
 
       // Process in batches
       const batchSize = options.batchSize || 50;
@@ -226,7 +228,7 @@ export class SyncEmbeddingGenerator {
 
     try {
       const patterns = db
-        .prepare(`SELECT * FROM ${tableName} WHERE embedding IS NOT NULL AND embedding != ''`)
+        .prepare(`SELECT * FROM ${validateTableName(tableName)} WHERE embedding IS NOT NULL AND embedding != ''`)
         .all() as PatternRecord[];
 
       // Calculate similarities
