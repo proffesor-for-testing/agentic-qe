@@ -74,7 +74,8 @@ export function createCompletionsCommand(
 
       // For Fish, write directly to completions directory
       if (shellInfo.name === 'fish') {
-        const fishCompletionsDir = `${process.env.HOME}/.config/fish/completions`;
+        const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+        const fishCompletionsDir = path.join(homeDir, '.config', 'fish', 'completions');
         try {
           fs.mkdirSync(fishCompletionsDir, { recursive: true });
           const completionFile = path.join(fishCompletionsDir, 'aqe.fish');

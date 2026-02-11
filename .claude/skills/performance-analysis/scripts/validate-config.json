@@ -1,0 +1,36 @@
+{
+  "skillName": "performance-analysis",
+  "skillVersion": "1.0.0",
+  "requiredTools": [
+    "jq"
+  ],
+  "optionalTools": [
+    "npm",
+    "python3"
+  ],
+  "schemaPath": "schemas/output.json",
+  "requiredFields": [
+    "skillName",
+    "status",
+    "output"
+  ],
+  "requiredNonEmptyFields": [
+    "output.summary"
+  ],
+  "mustContainTerms": [
+    "performance",
+    "metric"
+  ],
+  "mustNotContainTerms": [
+    "TODO",
+    "placeholder"
+  ],
+  "enumValidations": {
+    ".status": [
+      "success",
+      "partial",
+      "failed",
+      "skipped"
+    ]
+  }
+}

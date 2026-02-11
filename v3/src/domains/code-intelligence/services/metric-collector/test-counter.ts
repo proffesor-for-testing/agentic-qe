@@ -206,7 +206,7 @@ function countVitestTests(
     // Use vitest list for safe enumeration (NO execution)
     // --reporter=json gives structured output we can parse
     const output = execSync(
-      'npx vitest list --reporter=json 2>/dev/null',
+      'npx vitest list --reporter=json',
       {
         cwd: projectPath,
         encoding: 'utf-8',
@@ -296,7 +296,7 @@ function countJestTests(
   try {
     // Use jest --listTests for safe enumeration (NO execution)
     const output = execSync(
-      'npx jest --listTests 2>/dev/null',
+      'npx jest --listTests',
       {
         cwd: projectPath,
         encoding: 'utf-8',
@@ -338,7 +338,7 @@ function countCargoTests(
 ): TestMetrics {
   try {
     const output = execSync(
-      'cargo test --list 2>/dev/null || echo ""',
+      'cargo test --list',
       {
         cwd: projectPath,
         encoding: 'utf-8',
@@ -385,7 +385,7 @@ function countPytestTests(
 ): TestMetrics {
   try {
     const output = execSync(
-      'pytest --collect-only -q 2>/dev/null || echo ""',
+      'pytest --collect-only -q',
       {
         cwd: projectPath,
         encoding: 'utf-8',
@@ -438,7 +438,7 @@ function countGoTests(
 ): TestMetrics {
   try {
     const output = execSync(
-      'go test -list ".*" ./... 2>/dev/null || echo ""',
+      'go test -list ".*" ./...',
       {
         cwd: projectPath,
         encoding: 'utf-8',

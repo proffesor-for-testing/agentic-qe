@@ -30,7 +30,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     try {
       // Try to call a simple MCP tool via CLI
       const { execSync } = await import('child_process');
-      execSync('npx @claude-flow/cli@latest hooks metrics --period 1h 2>/dev/null', {
+      execSync('npx @claude-flow/cli@latest hooks metrics --period 1h', {
         encoding: 'utf-8',
         timeout: 10000,
       });
@@ -48,7 +48,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
   async getVersion(): Promise<string | undefined> {
     try {
       const { execSync } = await import('child_process');
-      const result = execSync('npx @claude-flow/cli@latest --version 2>/dev/null', {
+      const result = execSync('npx @claude-flow/cli@latest --version', {
         encoding: 'utf-8',
         timeout: 5000,
       });
@@ -113,7 +113,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
       const { execSync } = await import('child_process');
       const agentArg = agent ? `--agent "${agent}"` : '';
       const result = execSync(
-        `npx @claude-flow/cli@latest hooks intelligence trajectory-start --task "${task}" ${agentArg} 2>/dev/null`,
+        `npx @claude-flow/cli@latest hooks intelligence trajectory-start --task "${task}" ${agentArg}`,
         { encoding: 'utf-8', timeout: 10000 }
       );
 
@@ -142,7 +142,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
       const qualityArg = quality !== undefined ? `--quality ${quality}` : '';
 
       execSync(
-        `npx @claude-flow/cli@latest hooks intelligence trajectory-step --trajectory-id "${trajectoryId}" --action "${action}" ${resultArg} ${qualityArg} 2>/dev/null`,
+        `npx @claude-flow/cli@latest hooks intelligence trajectory-step --trajectory-id "${trajectoryId}" --action "${action}" ${resultArg} ${qualityArg}`,
         { encoding: 'utf-8', timeout: 10000 }
       );
     } catch (error) {
@@ -166,7 +166,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
       const feedbackArg = feedback ? `--feedback "${feedback}"` : '';
 
       execSync(
-        `npx @claude-flow/cli@latest hooks intelligence trajectory-end --trajectory-id "${trajectoryId}" --success ${success} ${feedbackArg} 2>/dev/null`,
+        `npx @claude-flow/cli@latest hooks intelligence trajectory-end --trajectory-id "${trajectoryId}" --success ${success} ${feedbackArg}`,
         { encoding: 'utf-8', timeout: 10000 }
       );
     } catch (error) {
@@ -187,7 +187,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     try {
       const { execSync } = await import('child_process');
       const result = execSync(
-        `npx @claude-flow/cli@latest hooks model-route --task "${task}" 2>/dev/null`,
+        `npx @claude-flow/cli@latest hooks model-route --task "${task}"`,
         { encoding: 'utf-8', timeout: 10000 }
       );
 
@@ -219,7 +219,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     try {
       const { execSync } = await import('child_process');
       execSync(
-        `npx @claude-flow/cli@latest hooks model-outcome --task "${task}" --model ${model} --outcome ${outcome} 2>/dev/null`,
+        `npx @claude-flow/cli@latest hooks model-outcome --task "${task}" --model ${model} --outcome ${outcome}`,
         { encoding: 'utf-8', timeout: 10000 }
       );
     } catch (error) {
@@ -242,7 +242,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     try {
       const { execSync } = await import('child_process');
       const result = execSync(
-        `npx @claude-flow/cli@latest hooks pretrain --path "${path}" --depth ${depth} 2>/dev/null`,
+        `npx @claude-flow/cli@latest hooks pretrain --path "${path}" --depth ${depth}`,
         { encoding: 'utf-8', timeout: 60000 }
       );
 
@@ -273,7 +273,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
       const metadataArg = metadata ? `--metadata '${JSON.stringify(metadata)}'` : '';
 
       execSync(
-        `npx @claude-flow/cli@latest hooks intelligence pattern-store --pattern "${pattern}" --type ${type} --confidence ${confidence} ${metadataArg} 2>/dev/null`,
+        `npx @claude-flow/cli@latest hooks intelligence pattern-store --pattern "${pattern}" --type ${type} --confidence ${confidence} ${metadataArg}`,
         { encoding: 'utf-8', timeout: 10000 }
       );
     } catch (error) {
@@ -296,7 +296,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     try {
       const { execSync } = await import('child_process');
       const result = execSync(
-        `npx @claude-flow/cli@latest hooks intelligence pattern-search --query "${query}" --top-k ${topK} 2>/dev/null`,
+        `npx @claude-flow/cli@latest hooks intelligence pattern-search --query "${query}" --top-k ${topK}`,
         { encoding: 'utf-8', timeout: 10000 }
       );
 

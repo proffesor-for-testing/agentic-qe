@@ -1632,10 +1632,12 @@ export function detectShell(): ShellInfo {
     };
   }
 
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+
   if (shell.includes('bash')) {
     return {
       name: 'bash',
-      configFile: `${process.env.HOME}/.bashrc`,
+      configFile: `${homeDir}/.bashrc`,
       detected: true,
     };
   }
@@ -1643,7 +1645,7 @@ export function detectShell(): ShellInfo {
   if (shell.includes('zsh')) {
     return {
       name: 'zsh',
-      configFile: `${process.env.HOME}/.zshrc`,
+      configFile: `${homeDir}/.zshrc`,
       detected: true,
     };
   }
@@ -1651,7 +1653,7 @@ export function detectShell(): ShellInfo {
   if (shell.includes('fish')) {
     return {
       name: 'fish',
-      configFile: `${process.env.HOME}/.config/fish/completions/aqe.fish`,
+      configFile: `${homeDir}/.config/fish/completions/aqe.fish`,
       detected: true,
     };
   }

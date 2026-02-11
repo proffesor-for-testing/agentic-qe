@@ -37,7 +37,7 @@ async function detectClaudeFlow(): Promise<DetectionResult> {
   try {
     // Check if claude-flow CLI is available
     const { execSync } = await import('child_process');
-    const result = execSync('npx @claude-flow/cli@latest --version 2>/dev/null', {
+    const result = execSync('npx @claude-flow/cli@latest --version', {
       encoding: 'utf-8',
       timeout: 5000,
     });
@@ -86,7 +86,7 @@ async function detectRuVector(): Promise<DetectionResult> {
     // Check if Docker container is running
     try {
       const { execSync } = await import('child_process');
-      const result = execSync('docker ps --filter "name=ruvector" --format "{{.Names}}" 2>/dev/null', {
+      const result = execSync('docker ps --filter "name=ruvector" --format "{{.Names}}"', {
         encoding: 'utf-8',
         timeout: 5000,
       });

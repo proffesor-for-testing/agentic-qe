@@ -37,22 +37,42 @@ function success(msg) {
 }
 
 function findExistingAqeBinary() {
-  // Try 'which' command first
+  // Cross-platform binary lookup: use 'where' on Windows, 'which' elsewhere
+  const isWindows = process.platform === 'win32';
+  const lookupCmd = isWindows ? 'where' : 'which';
+
   try {
-    const result = spawnSync('which', ['aqe'], { encoding: 'utf-8' });
+    const result = spawnSync(lookupCmd, ['aqe'], {
+      encoding: 'utf-8',
+      shell: isWindows,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
     if (result.status === 0 && result.stdout.trim()) {
-      return result.stdout.trim();
+      // 'where' on Windows may return multiple lines; take the first
+      return result.stdout.trim().split(/\r?\n/)[0];
     }
   } catch {
-    // which command failed
+    // Lookup command failed
   }
 
   // Try to find via npm prefix
   try {
-    const prefix = execSync('npm config get prefix', { encoding: 'utf-8' }).trim();
-    const binPath = join(prefix, 'bin', 'aqe');
+    const prefix = execSync('npm config get prefix', {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    // On Windows, global bins are in prefix directly; on Unix, prefix/bin
+    const binName = isWindows ? 'aqe.cmd' : 'aqe';
+    const binPath = isWindows ? join(prefix, binName) : join(prefix, 'bin', binName);
     if (existsSync(binPath)) {
       return binPath;
+    }
+    // Also check without .cmd extension on Windows
+    if (isWindows) {
+      const altPath = join(prefix, 'aqe');
+      if (existsSync(altPath)) {
+        return altPath;
+      }
     }
   } catch {
     // Ignore
@@ -63,7 +83,7 @@ function findExistingAqeBinary() {
 
 function checkPackageInstalled(packageName) {
   try {
-    const result = execSync(`npm list -g ${packageName} --depth=0 2>/dev/null`, {
+    const result = execSync(`npm list -g ${packageName} --depth=0`, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe']
     });
@@ -75,7 +95,7 @@ function checkPackageInstalled(packageName) {
 
 function getPackageVersion(packageName) {
   try {
-    const result = execSync(`npm list -g ${packageName} --depth=0 2>/dev/null`, {
+    const result = execSync(`npm list -g ${packageName} --depth=0`, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe']
     });

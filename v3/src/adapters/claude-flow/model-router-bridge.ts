@@ -51,7 +51,7 @@ export class ModelRouterBridge {
   private async checkClaudeFlow(): Promise<boolean> {
     try {
       const { execSync } = await import('child_process');
-      execSync('npx @claude-flow/cli@latest hooks model-stats 2>/dev/null', {
+      execSync('npx @claude-flow/cli@latest hooks model-stats', {
         encoding: 'utf-8',
         timeout: 5000,
         cwd: this.options.projectRoot,
@@ -70,7 +70,7 @@ export class ModelRouterBridge {
       try {
         const { execSync } = await import('child_process');
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks model-route --task ${this.escapeArg(task)} 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks model-route --task ${this.escapeArg(task)}`,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
 
@@ -112,7 +112,7 @@ export class ModelRouterBridge {
       try {
         const { execSync } = await import('child_process');
         execSync(
-          `npx @claude-flow/cli@latest hooks model-outcome --task ${this.escapeArg(outcome.task)} --model ${outcome.model} --outcome ${outcome.outcome} 2>/dev/null`,
+          `npx @claude-flow/cli@latest hooks model-outcome --task ${this.escapeArg(outcome.task)} --model ${outcome.model} --outcome ${outcome.outcome}`,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
       } catch (error) {

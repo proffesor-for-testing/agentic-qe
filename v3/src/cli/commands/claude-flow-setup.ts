@@ -91,7 +91,7 @@ async function detectClaudeFlow(projectRoot: string, debug?: boolean): Promise<{
 
   // Method 2: Check for CLI availability
   try {
-    const result = execSync('npx @claude-flow/cli@latest --version 2>/dev/null', {
+    const result = execSync('npx @claude-flow/cli@latest --version', {
       encoding: 'utf-8',
       timeout: 10000,
       cwd: projectRoot,
@@ -145,7 +145,7 @@ async function detectFeatures(projectRoot: string): Promise<ClaudeFlowSetupResul
 
   for (const check of featureChecks) {
     try {
-      execSync(`npx @claude-flow/cli@latest ${check.command} 2>/dev/null`, {
+      execSync(`npx @claude-flow/cli@latest ${check.command}`, {
         encoding: 'utf-8',
         timeout: 5000,
         cwd: projectRoot,
@@ -248,7 +248,7 @@ async function runPretrainAnalysis(projectRoot: string, debug?: boolean): Promis
   try {
     if (debug) console.log('[ClaudeFlow] Running pretrain analysis...');
 
-    execSync('npx @claude-flow/cli@latest hooks pretrain --depth medium 2>/dev/null', {
+    execSync('npx @claude-flow/cli@latest hooks pretrain --depth medium', {
       encoding: 'utf-8',
       timeout: 120000, // 2 minutes
       cwd: projectRoot,

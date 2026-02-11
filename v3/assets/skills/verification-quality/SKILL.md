@@ -4,12 +4,6 @@ description: "Comprehensive truth scoring, code quality verification, and automa
 version: "2.0.0"
 category: "quality-assurance"
 tags: ["verification", "truth-scoring", "quality", "rollback", "metrics", "ci-cd"]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate.sh
-  eval_path: evals/verification-quality.yaml
-
 ---
 
 # Verification & Quality Assurance Skill

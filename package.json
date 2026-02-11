@@ -12,7 +12,7 @@
   },
   "scripts": {
     "preinstall": "node scripts/preinstall.cjs || true",
-    "postinstall": "test -f v3/package.json && cd v3 && npm install || true",
+    "postinstall": "node scripts/postinstall.cjs",
     "build": "cd v3 && npm run build",
     "test": "cd v3 && npm test -- --run",
     "test:dev": "cd v3 && npm run test:dev",
@@ -22,9 +22,9 @@
     "mcp:validate": "echo 'MCP validation: All tools registered in v3 MCP server' && exit 0",
     "mcp:report": "echo 'MCP Report: v3 uses vitest for test reporting' && exit 0",
     "test:code-intelligence": "cd v3 && npm test -- --run tests/unit/domains/code-intelligence/ tests/unit/coordination/mincut/",
-    "verify:counts": "echo 'Counts verification: PASS (v3 consolidation)' && mkdir -p reports && echo '{\"status\":\"pass\"}' > reports/verification-counts.json",
-    "verify:agent-skills": "echo 'Agent skills verification: PASS' && mkdir -p reports && echo '{\"status\":\"pass\"}' > reports/verification-agent-skills.json",
-    "verify:features": "echo 'Features verification: PASS' && mkdir -p reports && echo '{\"status\":\"pass\"}' > reports/verification-features.json",
+    "verify:counts": "node -e \"const fs=require('fs'),p=require('path');fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-counts.json'),JSON.stringify({status:'pass'}));console.log('Counts verification: PASS (v3 consolidation)')\"",
+    "verify:agent-skills": "node -e \"const fs=require('fs'),p=require('path');fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-agent-skills.json'),JSON.stringify({status:'pass'}));console.log('Agent skills verification: PASS')\"",
+    "verify:features": "node -e \"const fs=require('fs'),p=require('path');fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-features.json'),JSON.stringify({status:'pass'}));console.log('Features verification: PASS')\"",
     "test:contracts": "cd v3 && npm test -- --run tests/integration/",
     "test:infrastructure": "cd v3 && npm test -- --run tests/unit/kernel/ tests/unit/shared/",
     "test:regression": "cd v3 && npm test -- --run",
@@ -48,7 +48,7 @@
     "sync:cloud:config": "cd v3 && npm run sync:cloud:config",
     "skills:update-manifest": "npx tsx scripts/update-skill-manifest.ts",
     "skills:update-badges": "npx tsx scripts/update-skill-manifest.ts --generate-badges",
-    "skills:validate-tier3": "for skill in api-testing-patterns security-testing performance-testing; do .claude/skills/$skill/scripts/validate.sh --self-test; done",
+    "skills:validate-tier3": "node scripts/validate-tier3.cjs",
     "prepublishOnly": "cd v3 && npm run build"
   },
   "keywords": [
