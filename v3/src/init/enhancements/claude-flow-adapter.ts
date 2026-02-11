@@ -12,6 +12,10 @@
 
 import type { ClaudeFlowAdapter, ClaudeFlowFeatures } from './types.js';
 
+/** Shared execSync options for cross-platform CLI calls */
+const SHELL = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+const EXEC_OPTS = { encoding: 'utf-8' as const, shell: SHELL };
+
 /**
  * Claude Flow Adapter Implementation
  * Falls back gracefully when Claude Flow is not available
@@ -31,7 +35,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
       // Try to call a simple MCP tool via CLI
       const { execSync } = await import('child_process');
       execSync('npx @claude-flow/cli@latest hooks metrics --period 1h', {
-        encoding: 'utf-8',
+        ...EXEC_OPTS,
         timeout: 10000,
       });
       this.available = true;
@@ -49,7 +53,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     try {
       const { execSync } = await import('child_process');
       const result = execSync('npx @claude-flow/cli@latest --version', {
-        encoding: 'utf-8',
+        ...EXEC_OPTS,
         timeout: 5000,
       });
       return result.trim();
@@ -114,7 +118,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
       const agentArg = agent ? `--agent "${agent}"` : '';
       const result = execSync(
         `npx @claude-flow/cli@latest hooks intelligence trajectory-start --task "${task}" ${agentArg}`,
-        { encoding: 'utf-8', timeout: 10000 }
+        { ...EXEC_OPTS, timeout: 10000 }
       );
 
       // Parse trajectory ID from result
@@ -143,7 +147,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
 
       execSync(
         `npx @claude-flow/cli@latest hooks intelligence trajectory-step --trajectory-id "${trajectoryId}" --action "${action}" ${resultArg} ${qualityArg}`,
-        { encoding: 'utf-8', timeout: 10000 }
+        { ...EXEC_OPTS, timeout: 10000 }
       );
     } catch (error) {
       // Non-critical: trajectory tracking is optional
@@ -167,7 +171,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
 
       execSync(
         `npx @claude-flow/cli@latest hooks intelligence trajectory-end --trajectory-id "${trajectoryId}" --success ${success} ${feedbackArg}`,
-        { encoding: 'utf-8', timeout: 10000 }
+        { ...EXEC_OPTS, timeout: 10000 }
       );
     } catch (error) {
       // Non-critical: trajectory end is optional
@@ -188,7 +192,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
       const { execSync } = await import('child_process');
       const result = execSync(
         `npx @claude-flow/cli@latest hooks model-route --task "${task}"`,
-        { encoding: 'utf-8', timeout: 10000 }
+        { ...EXEC_OPTS, timeout: 10000 }
       );
 
       // Parse result
@@ -220,7 +224,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
       const { execSync } = await import('child_process');
       execSync(
         `npx @claude-flow/cli@latest hooks model-outcome --task "${task}" --model ${model} --outcome ${outcome}`,
-        { encoding: 'utf-8', timeout: 10000 }
+        { ...EXEC_OPTS, timeout: 10000 }
       );
     } catch (error) {
       // Non-critical: outcome recording is optional
@@ -243,7 +247,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
       const { execSync } = await import('child_process');
       const result = execSync(
         `npx @claude-flow/cli@latest hooks pretrain --path "${path}" --depth ${depth}`,
-        { encoding: 'utf-8', timeout: 60000 }
+        { ...EXEC_OPTS, timeout: 60000 }
       );
 
       // Try to parse JSON result
@@ -274,7 +278,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
 
       execSync(
         `npx @claude-flow/cli@latest hooks intelligence pattern-store --pattern "${pattern}" --type ${type} --confidence ${confidence} ${metadataArg}`,
-        { encoding: 'utf-8', timeout: 10000 }
+        { ...EXEC_OPTS, timeout: 10000 }
       );
     } catch (error) {
       // Non-critical: pattern storage is optional
@@ -297,7 +301,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
       const { execSync } = await import('child_process');
       const result = execSync(
         `npx @claude-flow/cli@latest hooks intelligence pattern-search --query "${query}" --top-k ${topK}`,
-        { encoding: 'utf-8', timeout: 10000 }
+        { ...EXEC_OPTS, timeout: 10000 }
       );
 
       // Try to parse JSON result

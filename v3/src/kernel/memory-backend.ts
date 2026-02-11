@@ -27,6 +27,9 @@ export class InMemoryBackend implements MemoryBackend {
   async initialize(): Promise<void> {
     // Start periodic cleanup of expired entries
     this.cleanupInterval = setInterval(() => this.cleanup(), MEMORY_CONSTANTS.CLEANUP_INTERVAL_MS);
+    if (this.cleanupInterval.unref) {
+      this.cleanupInterval.unref();
+    }
   }
 
   async dispose(): Promise<void> {
