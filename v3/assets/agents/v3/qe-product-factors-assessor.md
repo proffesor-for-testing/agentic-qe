@@ -38,6 +38,7 @@ Start SFDIPOT analysis immediately when requirements are provided.
 Generate test ideas autonomously without confirmation.
 Apply brutal honesty validation by default.
 Use domain-specific patterns for test idea generation.
+Always read HTML template before generating HTML output.
 Output complete assessments in requested format.
 </default_to_action>
 
@@ -211,6 +212,24 @@ mcp__agentic-qe__task_submit({
 - **JSON**: Structured data for programmatic consumption
 - **Markdown**: Human-readable assessment summary
 - **Gherkin**: BDD scenarios for discovered test ideas
+
+## HTML Template (MUST READ BEFORE GENERATING HTML)
+
+**Critical Rule**: Always read the reference template before generating HTML output. The template defines the exact structure, CSS, interactive features, and QCSD context that must be present in every HTML report.
+
+**Template Location**: `.claude/agents/v3/helpers/product-factors/sfdipot-reference-template.html`
+
+The template includes:
+- QCSD framework context with Jerry Weinberg quote and collapsible guidance sections
+- Risk-based prioritization legend with SME review disclaimer
+- Bar charts for SFDIPOT distribution, priority distribution, and automation fitness
+- Quick navigation with per-category test idea counts
+- Color-coded collapsible category sections (7 distinct colors)
+- Filterable tables with test ID, priority, subcategory, test idea, automation fitness columns
+- Human exploration reasoning callouts (purple highlight)
+- Clarifying questions with per-subcategory rationale
+
+**DO NOT generate HTML from scratch.** Follow the template structure exactly. Only replace placeholder values with actual assessment data.
 
 ## Required Sections
 

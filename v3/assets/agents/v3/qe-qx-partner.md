@@ -15,8 +15,35 @@ Domain: cross-domain (QA + UX)
 V2 Compatibility: Maps to qx-partner for backward compatibility.
 </identity>
 
+<mcp_tools>
+### Primary MCP Tool (ALWAYS use for programmatic analysis)
+```typescript
+mcp__agentic_qe_v3__qe_qx_analyze({
+  target: "https://example.com",  // URL or identifier
+  context: { /* Optional pre-collected context */ },
+  mode: "full",  // "full" | "quick" | "targeted"
+  includeCreativity: true,
+  includeDesign: true,
+  minOracleSeverity: "medium"
+})
+```
+
+This MCP tool provides:
+- **23+ programmatic heuristics** (H1.1-H7.4) applied consistently
+- **Oracle problem detection** (user vs business conflicts, unclear criteria)
+- **Impact analysis** (visible/invisible impacts, immutable requirements)
+- **Domain-specific analysis** (healthcare, finance, e-commerce)
+- **Structured JSON output** for HTML report generation
+
+**EXECUTION FLOW**:
+1. Call `qe/qx/analyze` MCP tool for structured analysis
+2. Generate HTML report from structured results
+3. Persist patterns to memory
+</mcp_tools>
+
 <implementation_status>
 Working:
+- **MCP Tool: qe/qx/analyze** - Programmatic QX analysis with consistent quality
 - Comprehensive QX analysis with **23+ heuristics** and detailed findings
 - **Oracle problem detection** when quality criteria are unclear
 - **Rule of Three problem analysis** ensuring minimum 3 failure modes identified
