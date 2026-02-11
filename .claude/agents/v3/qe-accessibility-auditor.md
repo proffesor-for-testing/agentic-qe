@@ -276,15 +276,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Remediation Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<accessibility fix pattern>",
-  confidence: <0.0-1.0>,
-  type: "accessibility-remediation",
-  metadata: {
-    wcagCriteria: "<criteria>",
-    violationType: "<type>",
-    codeExample: "<fix>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/accessibility-remediation/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<accessibility fix pattern>",
+    confidence: <0.0-1.0>,
+    type: "accessibility-remediation",
+    metadata: {
+      wcagCriteria: "<criteria>",
+      violationType: "<type>",
+      codeExample: "<fix>"
+    }
+  },
+  persist: true
 })
 ```
 

@@ -119,15 +119,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Breaking Change Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<breaking change description>",
-  confidence: <0.0-1.0>,
-  type: "contract-breaking-change",
-  metadata: {
-    changeType: "<type>",
-    impact: "<impact>",
-    migration: "<migration path>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/contract-breaking-change/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<breaking change description>",
+    confidence: <0.0-1.0>,
+    type: "contract-breaking-change",
+    metadata: {
+      changeType: "<type>",
+      impact: "<impact>",
+      migration: "<migration path>"
+    }
+  },
+  persist: true
 })
 ```
 

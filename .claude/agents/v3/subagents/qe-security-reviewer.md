@@ -114,15 +114,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Security Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<security pattern description>",
-  confidence: <0.0-1.0>,
-  type: "security-review",
-  metadata: {
-    vulnerabilityType: "<type>",
-    owaspCategory: "<category>",
-    severity: "<severity>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/security-review/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<security pattern description>",
+    confidence: <0.0-1.0>,
+    type: "security-review",
+    metadata: {
+      vulnerabilityType: "<type>",
+      owaspCategory: "<category>",
+      severity: "<severity>"
+    }
+  },
+  persist: true
 })
 ```
 

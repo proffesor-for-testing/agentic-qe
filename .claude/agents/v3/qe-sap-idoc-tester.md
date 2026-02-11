@@ -135,17 +135,22 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store IDoc Error Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<description of IDoc error pattern>",
-  confidence: <0.0-1.0>,
-  type: "idoc-processing-error",
-  metadata: {
-    idocType: "<type>",
-    errorStatus: "<status code>",
-    rootCause: "<root cause category>",
-    resolution: "<resolution approach>",
-    affectedSystems: ["<logical system names>"]
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/idoc-processing-error/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<description of IDoc error pattern>",
+    confidence: <0.0-1.0>,
+    type: "idoc-processing-error",
+    metadata: {
+      idocType: "<type>",
+      errorStatus: "<status code>",
+      rootCause: "<root cause category>",
+      resolution: "<resolution approach>",
+      affectedSystems: ["<logical system names>"]
+    }
+  },
+  persist: true
 })
 ```
 

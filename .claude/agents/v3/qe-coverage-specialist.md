@@ -132,15 +132,20 @@ mcp__agentic-qe__task_submit({
 
 **3. Store Discovered Patterns (when gap prioritization is effective):**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<description of effective risk scoring>",
-  confidence: <0.0-1.0>,
-  type: "coverage-analysis",
-  metadata: {
-    riskFactors: ["<factors>"],
-    codebaseType: "<type>",
-    effectiveness: <rate>
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/coverage-analysis/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<description of effective risk scoring>",
+    confidence: <0.0-1.0>,
+    type: "coverage-analysis",
+    metadata: {
+      riskFactors: ["<factors>"],
+      codebaseType: "<type>",
+      effectiveness: <rate>
+    }
+  },
+  persist: true
 })
 ```
 

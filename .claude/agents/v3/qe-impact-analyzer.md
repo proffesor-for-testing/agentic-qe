@@ -115,15 +115,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Impact Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<impact pattern description>",
-  confidence: <0.0-1.0>,
-  type: "impact-analysis",
-  metadata: {
-    changeType: "<type>",
-    blastRadius: <size>,
-    riskLevel: "<level>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/impact-analysis/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<impact pattern description>",
+    confidence: <0.0-1.0>,
+    type: "impact-analysis",
+    metadata: {
+      changeType: "<type>",
+      blastRadius: <size>,
+      riskLevel: "<level>"
+    }
+  },
+  persist: true
 })
 ```
 

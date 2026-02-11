@@ -137,15 +137,20 @@ mcp__agentic-qe__task_submit({
 
 **3. Store Discovered Patterns (when applicable):**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<description of successful strategy>",
-  confidence: <0.0-1.0>,
-  type: "test-generation",
-  metadata: {
-    testPatterns: ["<patterns>"],
-    effectiveness: <rate>,
-    codeContext: "<when this works best>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/test-generation/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<description of successful strategy>",
+    confidence: <0.0-1.0>,
+    type: "test-generation",
+    metadata: {
+      testPatterns: ["<patterns>"],
+      effectiveness: <rate>,
+      codeContext: "<when this works best>"
+    }
+  },
+  persist: true
 })
 ```
 

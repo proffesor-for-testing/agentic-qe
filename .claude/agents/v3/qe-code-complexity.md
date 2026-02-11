@@ -116,15 +116,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Complexity Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<complexity pattern description>",
-  confidence: <0.0-1.0>,
-  type: "code-complexity",
-  metadata: {
-    complexityType: "<type>",
-    threshold: <value>,
-    refactoring: "<strategy>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/code-complexity/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<complexity pattern description>",
+    confidence: <0.0-1.0>,
+    type: "code-complexity",
+    metadata: {
+      complexityType: "<type>",
+      threshold: <value>,
+      refactoring: "<strategy>"
+    }
+  },
+  persist: true
 })
 ```
 

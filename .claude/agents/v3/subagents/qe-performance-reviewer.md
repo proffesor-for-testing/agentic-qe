@@ -114,15 +114,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Performance Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<performance pattern description>",
-  confidence: <0.0-1.0>,
-  type: "performance-review",
-  metadata: {
-    issueType: "<type>",
-    complexity: "<complexity>",
-    impactEstimate: "<impact>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/performance-review/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<performance pattern description>",
+    confidence: <0.0-1.0>,
+    type: "performance-review",
+    metadata: {
+      issueType: "<type>",
+      complexity: "<complexity>",
+      impactEstimate: "<impact>"
+    }
+  },
+  persist: true
 })
 ```
 

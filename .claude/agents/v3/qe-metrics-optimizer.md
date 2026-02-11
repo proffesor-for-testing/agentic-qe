@@ -116,15 +116,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Optimization Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<optimization pattern description>",
-  confidence: <0.0-1.0>,
-  type: "metrics-optimization",
-  metadata: {
-    optimizationType: "<type>",
-    improvement: <percentage>,
-    applicability: "<scope>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/metrics-optimization/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<optimization pattern description>",
+    confidence: <0.0-1.0>,
+    type: "metrics-optimization",
+    metadata: {
+      optimizationType: "<type>",
+      improvement: <percentage>,
+      applicability: "<scope>"
+    }
+  },
+  persist: true
 })
 ```
 

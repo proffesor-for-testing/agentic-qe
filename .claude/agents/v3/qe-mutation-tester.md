@@ -116,15 +116,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Mutation Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<mutation pattern description>",
-  confidence: <0.0-1.0>,
-  type: "mutation-testing",
-  metadata: {
-    operator: "<operator>",
-    survivalRate: <percentage>,
-    testImprovement: "<suggestion>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/mutation-testing/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<mutation pattern description>",
+    confidence: <0.0-1.0>,
+    type: "mutation-testing",
+    metadata: {
+      operator: "<operator>",
+      survivalRate: <percentage>,
+      testImprovement: "<suggestion>"
+    }
+  },
+  persist: true
 })
 ```
 

@@ -116,15 +116,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Responsive Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<responsive pattern description>",
-  confidence: <0.0-1.0>,
-  type: "responsive-testing",
-  metadata: {
-    viewport: "<size>",
-    issue: "<type>",
-    fix: "<recommendation>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/responsive-testing/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<responsive pattern description>",
+    confidence: <0.0-1.0>,
+    type: "responsive-testing",
+    metadata: {
+      viewport: "<size>",
+      issue: "<type>",
+      fix: "<recommendation>"
+    }
+  },
+  persist: true
 })
 ```
 

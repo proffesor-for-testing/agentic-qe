@@ -115,15 +115,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Gap Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<gap pattern description>",
-  confidence: <0.0-1.0>,
-  type: "coverage-gap",
-  metadata: {
-    gapType: "<type>",
-    riskScore: <score>,
-    testType: "<recommended test>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/coverage-gap/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<gap pattern description>",
+    confidence: <0.0-1.0>,
+    type: "coverage-gap",
+    metadata: {
+      gapType: "<type>",
+      riskScore: <score>,
+      testType: "<recommended test>"
+    }
+  },
+  persist: true
 })
 ```
 

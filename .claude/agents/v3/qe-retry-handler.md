@@ -115,15 +115,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store Retry Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<retry pattern description>",
-  confidence: <0.0-1.0>,
-  type: "retry-handling",
-  metadata: {
-    failureType: "<type>",
-    backoffStrategy: "<strategy>",
-    successRate: <rate>
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/retry-handling/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<retry pattern description>",
+    confidence: <0.0-1.0>,
+    type: "retry-handling",
+    metadata: {
+      failureType: "<type>",
+      backoffStrategy: "<strategy>",
+      successRate: <rate>
+    }
+  },
+  persist: true
 })
 ```
 
