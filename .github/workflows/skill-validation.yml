@@ -239,19 +239,23 @@ jobs:
         id: validator
         run: |
           SKILL="${{ matrix.skill }}"
-          VALIDATOR=".claude/skills/$SKILL/scripts/validate-skill.cjs"
+          VALIDATOR="scripts/validate-skill.cjs"
+          CONFIG=".claude/skills/$SKILL/scripts/validate-config.json"
 
           echo "=== Tier 3 Validator Self-Test: $SKILL ==="
 
           if [ ! -f "$VALIDATOR" ]; then
-            echo "::error::Tier 3 skill '$SKILL' missing required validator"
+            echo "::error::Centralized validator 'scripts/validate-skill.cjs' not found"
             exit 1
           fi
 
-          chmod +x "$VALIDATOR"
+          if [ ! -f "$CONFIG" ]; then
+            echo "::error::Tier 3 skill '$SKILL' missing required validate-config.json"
+            exit 1
+          fi
 
           set +e
-          timeout 120 "$VALIDATOR" --self-test
+          timeout 120 node "$VALIDATOR" "$SKILL" --self-test
           EXIT_CODE=$?
           set -e
 
@@ -323,17 +327,17 @@ jobs:
         continue-on-error: true
         run: |
           SKILL="${{ matrix.skill }}"
-          VALIDATOR=".claude/skills/$SKILL/scripts/validate-skill.cjs"
+          VALIDATOR="scripts/validate-skill.cjs"
+          CONFIG=".claude/skills/$SKILL/scripts/validate-config.json"
 
           echo "=== Tier 2 Validator Self-Test: $SKILL ==="
 
-          if [ ! -f "$VALIDATOR" ]; then
-            echo "::warning::Tier 2 skill '$SKILL' missing validator"
+          if [ ! -f "$VALIDATOR" ] || [ ! -f "$CONFIG" ]; then
+            echo "::warning::Tier 2 skill '$SKILL' missing validator or config"
             exit 0
           fi
 
-          chmod +x "$VALIDATOR"
-          timeout 120 "$VALIDATOR" --self-test || echo "::warning::Validator failed for $SKILL"
+          timeout 120 node "$VALIDATOR" "$SKILL" --self-test || echo "::warning::Validator failed for $SKILL"
 
   # ===========================================================================
   # Job 4: Validate Tier 1 Skills (WARN ONLY)
