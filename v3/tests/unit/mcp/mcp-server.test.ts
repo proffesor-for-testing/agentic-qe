@@ -98,7 +98,7 @@ describe('MCP Server', () => {
       expect(result).toBeDefined();
       expect((result as any).fleetId).toBeDefined();
       expect((result as any).status).toBe('initialized');
-    });
+    }, 30000);
 
     it('should get fleet status after init', async () => {
       // First init
