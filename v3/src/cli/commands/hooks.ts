@@ -262,6 +262,142 @@ function printError(message: string): void {
   console.error(chalk.red('✗'), message);
 }
 
+// ============================================================================
+// Dream Scheduler State (persisted in kv_store between hook invocations)
+// ============================================================================
+
+const DREAM_STATE_KEY = 'dream-scheduler:hook-state';
+const DREAM_INTERVAL_MS = 3600000; // 1 hour between auto-dreams
+const DREAM_EXPERIENCE_THRESHOLD = 20; // experiences before triggering
+const DREAM_MIN_GAP_MS = 300000; // 5 minutes minimum between dreams
+
+interface DreamHookState {
+  lastDreamTime: string | null;
+  experienceCount: number;
+  sessionStartTime: string;
+  totalDreamsThisSession: number;
+}
+
+/**
+ * Check if a dream cycle should be triggered and run it if so.
+ * Called from post-task hook after recording each experience.
+ *
+ * Trigger conditions (any of):
+ * 1. Time-based: >1hr since last dream
+ * 2. Experience-based: >20 experiences since last dream
+ *
+ * Guard: minimum 5 minutes between dreams
+ */
+async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promise<{
+  triggered: boolean;
+  reason?: string;
+  insightsGenerated?: number;
+}> {
+  try {
+    // Load persisted dream state
+    const dreamState = await memoryBackend.get<DreamHookState>(DREAM_STATE_KEY);
+    if (!dreamState) {
+      return { triggered: false, reason: 'no-state' };
+    }
+
+    const now = Date.now();
+    const lastDreamTime = dreamState.lastDreamTime ? new Date(dreamState.lastDreamTime).getTime() : 0;
+    const timeSinceLastDream = now - lastDreamTime;
+
+    // Guard: minimum gap
+    if (timeSinceLastDream < DREAM_MIN_GAP_MS) {
+      return { triggered: false, reason: 'too-soon' };
+    }
+
+    // Check triggers
+    const timeTriggered = timeSinceLastDream >= DREAM_INTERVAL_MS;
+    const experienceTriggered = dreamState.experienceCount >= DREAM_EXPERIENCE_THRESHOLD;
+
+    if (!timeTriggered && !experienceTriggered) {
+      return { triggered: false, reason: 'conditions-not-met' };
+    }
+
+    const reason = timeTriggered ? 'time-interval' : 'experience-threshold';
+    console.log(chalk.dim(`[hooks] Dream trigger: ${reason} (${dreamState.experienceCount} experiences, ${Math.round(timeSinceLastDream / 60000)}min since last dream)`));
+
+    // Run a quick dream cycle
+    const { createDreamEngine } = await import('../../learning/dream/index.js');
+    const { createQEReasoningBank: createRB } = await import('../../learning/qe-reasoning-bank.js');
+
+    const engine = createDreamEngine({
+      maxDurationMs: 10000, // 10s for hook-triggered dreams
+      minConceptsRequired: 3,
+    });
+    await engine.initialize();
+
+    // Load patterns from ReasoningBank
+    const rb = createRB(memoryBackend, undefined, {
+      enableLearning: true,
+      enableGuidance: false,
+      enableRouting: false,
+      embeddingDimension: 128,
+      useONNXEmbeddings: false,
+    });
+    await rb.initialize();
+
+    const patternsResult = await rb.searchPatterns('', { limit: 100, minConfidence: 0.3 });
+    if (patternsResult.success && patternsResult.value.length > 0) {
+      const importPatterns = patternsResult.value.map(r => ({
+        id: r.pattern.id,
+        name: r.pattern.name,
+        description: r.pattern.description || `${r.pattern.patternType} pattern`,
+        domain: r.pattern.qeDomain || 'learning-optimization',
+        patternType: r.pattern.patternType,
+        confidence: r.pattern.confidence,
+        successRate: r.pattern.successRate || 0.5,
+      }));
+      await engine.loadPatternsAsConcepts(importPatterns);
+    }
+
+    const result = await engine.dream(10000);
+
+    // Update state
+    dreamState.lastDreamTime = new Date().toISOString();
+    dreamState.experienceCount = 0;
+    dreamState.totalDreamsThisSession++;
+    await memoryBackend.set(DREAM_STATE_KEY, dreamState);
+
+    await engine.close();
+
+    return {
+      triggered: true,
+      reason,
+      insightsGenerated: result.insights.length,
+    };
+  } catch (error) {
+    console.error(chalk.dim(`[hooks] Dream trigger failed: ${error instanceof Error ? error.message : 'unknown'}`));
+    return { triggered: false, reason: 'error' };
+  }
+}
+
+/**
+ * Increment the experience counter in dream state.
+ * Called from post-task hook.
+ */
+async function incrementDreamExperience(memoryBackend: MemoryBackend): Promise<number> {
+  try {
+    let dreamState = await memoryBackend.get<DreamHookState>(DREAM_STATE_KEY);
+    if (!dreamState) {
+      dreamState = {
+        lastDreamTime: null,
+        experienceCount: 0,
+        sessionStartTime: new Date().toISOString(),
+        totalDreamsThisSession: 0,
+      };
+    }
+    dreamState.experienceCount++;
+    await memoryBackend.set(DREAM_STATE_KEY, dreamState);
+    return dreamState.experienceCount;
+  } catch {
+    return 0;
+  }
+}
+
 function printGuidance(guidance: string[]): void {
   if (guidance.length === 0) {
     console.log(chalk.dim('  No specific guidance'));
@@ -352,6 +488,7 @@ Examples:
           console.log(chalk.bold('\n💡 Guidance:'));
           printGuidance(result.guidance || []);
         }
+        process.exit(0);
       } catch (error) {
         printError(`pre-edit failed: ${error instanceof Error ? error.message : 'unknown'}`);
         process.exit(1);
@@ -385,12 +522,24 @@ Examples:
 
         const result = results[0] || { success: true, patternsLearned: 0 };
 
+        // Record experience for dream scheduler
+        let dreamTriggered = false;
+        try {
+          const cwd = process.cwd();
+          const dataDir = path.join(cwd, '.agentic-qe');
+          const memoryBackend = await createHybridBackendWithTimeout(dataDir);
+          await incrementDreamExperience(memoryBackend);
+        } catch {
+          // best-effort
+        }
+
         if (options.json) {
           printJson({
             success: true,
             file: options.file,
             editSuccess: success,
             patternsLearned: result.patternsLearned || 0,
+            dreamTriggered,
           });
         } else {
           printSuccess(`Recorded edit outcome for ${options.file}`);
@@ -398,6 +547,7 @@ Examples:
             console.log(chalk.green(`  Patterns learned: ${result.patternsLearned}`));
           }
         }
+        process.exit(0);
       } catch (error) {
         printError(`post-edit failed: ${error instanceof Error ? error.message : 'unknown'}`);
         process.exit(1);
@@ -749,16 +899,49 @@ Examples:
         // Get initial stats for context
         const stats = await reasoningBank.getStats();
 
+        // Initialize dream scheduler state for this session
+        const cwd = process.cwd();
+        const dataDir = path.join(cwd, '.agentic-qe');
+        const memoryBackend = await createHybridBackendWithTimeout(dataDir);
+
+        // Load existing dream state or create fresh one
+        let dreamState = await memoryBackend.get<DreamHookState>(DREAM_STATE_KEY);
+        const isNewSession = !dreamState || !dreamState.sessionStartTime;
+
+        if (!dreamState) {
+          dreamState = {
+            lastDreamTime: null,
+            experienceCount: 0,
+            sessionStartTime: new Date().toISOString(),
+            totalDreamsThisSession: 0,
+          };
+        } else {
+          // Reset session counters but preserve lastDreamTime across sessions
+          dreamState.sessionStartTime = new Date().toISOString();
+          dreamState.totalDreamsThisSession = 0;
+          // Don't reset experienceCount — carry over unfulfilled experiences
+        }
+
+        await memoryBackend.set(DREAM_STATE_KEY, dreamState);
+
         if (options.json) {
           printJson({
             success: true,
             sessionId,
             initialized: true,
             patternsLoaded: stats.totalPatterns,
+            dreamScheduler: {
+              enabled: true,
+              lastDreamTime: dreamState.lastDreamTime,
+              pendingExperiences: dreamState.experienceCount,
+              intervalMs: DREAM_INTERVAL_MS,
+              experienceThreshold: DREAM_EXPERIENCE_THRESHOLD,
+            },
           });
         } else {
           printSuccess(`Session started: ${sessionId}`);
           console.log(chalk.dim(`  Patterns loaded: ${stats.totalPatterns}`));
+          console.log(chalk.dim(`  Dream scheduler: enabled (${dreamState.experienceCount} pending experiences)`));
         }
 
         process.exit(0);
@@ -893,6 +1076,8 @@ Examples:
         // Initialize hooks system and record learning outcome
         // BUG FIX: Must call getHooksSystem() FIRST to initialize, not check state.initialized
         let patternsLearned = 0;
+        let dreamResult: { triggered: boolean; reason?: string; insightsGenerated?: number } = { triggered: false };
+
         try {
           // Initialize system (creates ReasoningBank and HookRegistry)
           const { hookRegistry, reasoningBank } = await getHooksSystem();
@@ -918,6 +1103,17 @@ Examples:
               feedback: `Agent: ${options.agent}, Task: ${options.taskId}`,
             });
           }
+
+          // Record experience for dream scheduler and check if dream should trigger
+          const cwd = process.cwd();
+          const dataDir = path.join(cwd, '.agentic-qe');
+          const memoryBackend = await createHybridBackendWithTimeout(dataDir);
+          const expCount = await incrementDreamExperience(memoryBackend);
+
+          // Check if dream cycle should be triggered
+          // Always check — time-based triggers need every invocation, and the
+          // check itself is lightweight (just reads state + compares timestamps)
+          dreamResult = await checkAndTriggerDream(memoryBackend);
         } catch (initError) {
           // Log but don't fail - learning is best-effort
           console.error(chalk.dim(`[hooks] Learning init: ${initError instanceof Error ? initError.message : 'unknown'}`));
@@ -929,12 +1125,18 @@ Examples:
             taskId: options.taskId,
             taskSuccess: success,
             patternsLearned,
+            dreamTriggered: dreamResult.triggered,
+            dreamReason: dreamResult.reason,
+            dreamInsights: dreamResult.insightsGenerated,
           });
         } else {
           printSuccess(`Task completed: ${options.taskId || 'unknown'}`);
           console.log(chalk.dim(`  Success: ${success}`));
           if (patternsLearned > 0) {
             console.log(chalk.green(`  Patterns learned: ${patternsLearned}`));
+          }
+          if (dreamResult.triggered) {
+            console.log(chalk.blue(`  🌙 Dream cycle triggered (${dreamResult.reason}): ${dreamResult.insightsGenerated} insights`));
           }
         }
 
