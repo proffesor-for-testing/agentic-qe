@@ -32,8 +32,8 @@ try {
 
 const CONFIG = {
   // Targets
-  domainsTotal: 12,
-  v3QeTarget: 50,  // 47 after cleanup, target 50
+  domainsTotal: 13,
+  v3QeTarget: 60,
   coverageTarget: 90,
   learningTarget: 15,
   flashAttentionTarget: '2.49x-7.47x',
@@ -60,7 +60,8 @@ const CONFIG = {
     'test-generation', 'test-execution', 'coverage-analysis',
     'quality-assessment', 'defect-intelligence', 'requirements-validation',
     'code-intelligence', 'security-compliance', 'contract-testing',
-    'visual-accessibility', 'chaos-resilience', 'learning-optimization'
+    'visual-accessibility', 'chaos-resilience', 'learning-optimization',
+    'enterprise-integration'
   ],
 };
 
