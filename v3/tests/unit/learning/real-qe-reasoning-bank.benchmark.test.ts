@@ -24,10 +24,11 @@ import {
 } from '../../../src/learning/sqlite-persistence';
 import { QEDomain } from '../../../src/learning/qe-patterns';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
-// Test database path
-const TEST_DB_PATH = '.agentic-qe/test-benchmark.db';
+// Test database path — use os.tmpdir() to avoid polluting production .agentic-qe/memory.db
+const TEST_DB_PATH = path.join(os.tmpdir(), `aqe-benchmark-${process.pid}.db`);
 
 // NOTE: agentic-flow's SharedMemoryPool has a bug where it uses `new Database()`
 // without importing it. We polyfill globalThis.Database in real-qe-reasoning-bank.ts
@@ -42,7 +43,7 @@ describe('Real QE ReasoningBank Benchmarks', () => {
     }
 
     reasoningBank = createRealQEReasoningBank({
-      sqlite: { dbPath: TEST_DB_PATH },
+      sqlite: { dbPath: TEST_DB_PATH, useUnified: false },
     });
     await reasoningBank.initialize();
   }, 120000); // 2 minute timeout for model loading
@@ -311,8 +312,8 @@ describe('Real Embedding Benchmarks', () => {
 
 describe('SQLite Persistence Benchmarks', () => {
   let store: SQLitePatternStore;
-  // Use unique path per test run to avoid conflicts
-  const TEST_SQLITE_PATH = `.agentic-qe/test-sqlite-benchmark-${process.pid}-${Date.now()}.db`;
+  // Use temp dir to avoid polluting production .agentic-qe/
+  const TEST_SQLITE_PATH = path.join(os.tmpdir(), `aqe-sqlite-benchmark-${process.pid}-${Date.now()}.db`);
 
   beforeAll(async () => {
     // Clean up

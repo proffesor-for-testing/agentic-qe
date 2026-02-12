@@ -493,6 +493,42 @@ export function resetLearningEngine(): void {
 }
 
 // ============================================================================
+// Pattern Usage Recording
+// ============================================================================
+
+/**
+ * Record pattern usage asynchronously after task completion (Phase 5.3)
+ * Non-critical — fire-and-forget, must not break handler execution.
+ */
+async function recordPatternUsageAsync(
+  patternHints: readonly PatternHint[] | undefined,
+  success: boolean,
+  domain: string,
+  durationMs: number
+): Promise<void> {
+  if (!patternHints || patternHints.length === 0) return;
+
+  try {
+    const engine = await getLearningEngine();
+    if (!engine) return;
+
+    for (const hint of patternHints) {
+      if (!hint.patternId) continue;
+      await engine.recordOutcome({
+        patternId: hint.patternId,
+        success,
+        metrics: {
+          executionTimeMs: durationMs,
+        },
+        feedback: `Domain handler ${domain} execution ${success ? 'succeeded' : 'failed'}`,
+      });
+    }
+  } catch {
+    // Non-critical — don't fail handler if pattern usage recording fails
+  }
+}
+
+// ============================================================================
 // Handler Factory
 // ============================================================================
 
@@ -551,11 +587,13 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
 
     const { queen } = getFleetState();
 
+    let routingResult: TaskRoutingResult | null = null;
+
     try {
       // Step 2: Route task to optimal model tier (ADR-051)
       const taskDescription = buildTaskDescription(params);
       const codeContext = includeCodeContext?.(params);
-      const routingResult = await routeDomainTask(taskDescription, domain, codeContext);
+      routingResult = await routeDomainTask(taskDescription, domain, codeContext);
 
       // Step 3: Build payload and submit task
       const payload = mapToPayload(params, routingResult);
@@ -606,6 +644,14 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
         params
       );
 
+      // Step 5b: Record pattern usage on success (Phase 5.3 — fire-and-forget)
+      recordPatternUsageAsync(
+        routingResult?.patternHints,
+        true,
+        domain,
+        result.duration
+      );
+
       return {
         success: true,
         data: mappedResult,
@@ -613,6 +659,15 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
     } catch (error) {
       // Step 6: Error handling
       const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Record pattern usage on failure (Phase 5.3 — fire-and-forget)
+      recordPatternUsageAsync(
+        routingResult?.patternHints,
+        false,
+        domain,
+        0
+      );
+
       return {
         success: false,
         error: `Failed to ${taskType.replace(/-/g, ' ')}: ${errorMessage}`,

@@ -1,17 +1,5 @@
 {
   "mcpServers": {
-    "agentic-qe-v3": {
-      "command": "node",
-      "args": [
-        "./v3/dist/mcp/bundle.js"
-      ],
-      "env": {
-        "NODE_ENV": "production",
-        "NODE_NO_WARNINGS": "1",
-        "AQE_MEMORY_PATH": "v3/.agentic-qe/memory.db",
-        "AQE_LEARNING_ENABLED": "true"
-      }
-    },
     "agentic-qe": {
       "command": "aqe-mcp",
       "args": [],

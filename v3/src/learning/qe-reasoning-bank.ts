@@ -1345,6 +1345,23 @@ On promotion:
       outcome.success
     );
 
+    // Write to qe_pattern_usage table for analytics/feedback loop
+    try {
+      const { getUnifiedMemory } = await import('../kernel/unified-memory.js');
+      const db = getUnifiedMemory().getDatabase();
+      db.prepare(`
+        INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json, feedback)
+        VALUES (?, ?, ?, ?)
+      `).run(
+        outcome.patternId,
+        outcome.success ? 1 : 0,
+        outcome.metrics ? JSON.stringify(outcome.metrics) : null,
+        outcome.feedback || null
+      );
+    } catch {
+      // Non-critical — don't fail if analytics insert fails
+    }
+
     if (result.success) {
       this.stats.learningOutcomes++;
       if (outcome.success) {

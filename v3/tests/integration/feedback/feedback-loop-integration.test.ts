@@ -17,6 +17,8 @@ import {
 } from '../../../src/feedback/feedback-loop.js';
 import type { TestOutcome, CoverageSession } from '../../../src/feedback/types.js';
 import { existsSync, unlinkSync } from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 // ============================================================================
 // Test Helpers
@@ -69,7 +71,7 @@ function createCoverageSession(overrides: Partial<CoverageSession> = {}): Covera
 describe('FeedbackLoop Integration with ReasoningBank', () => {
   let reasoningBank: RealQEReasoningBank;
   let feedbackLoop: QualityFeedbackLoop;
-  const testDbPath = '.agentic-qe/test-feedback-integration.db';
+  const testDbPath = path.join(os.tmpdir(), `aqe-test-feedback-integration-${process.pid}.db`);
 
   beforeEach(async () => {
     // Clean up any existing test database
@@ -473,7 +475,7 @@ describe('FeedbackLoop Integration with ReasoningBank', () => {
 describe('FeedbackLoop with RoutingFeedback Integration', () => {
   let reasoningBank: RealQEReasoningBank;
   let feedbackLoop: QualityFeedbackLoop;
-  const testDbPath = '.agentic-qe/test-routing-feedback.db';
+  const testDbPath = path.join(os.tmpdir(), `aqe-test-routing-feedback-${process.pid}.db`);
 
   beforeEach(async () => {
     // Clean up any existing test database
