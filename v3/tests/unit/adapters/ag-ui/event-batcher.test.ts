@@ -104,16 +104,21 @@ describe('createEventBatcher', () => {
   });
 
   it('should create batcher with custom batch timeout', async () => {
-    const onFlush = vi.fn();
-    const batcher = createEventBatcher({ batchTimeout: 20, onFlush });
+    vi.useFakeTimers();
+    try {
+      const onFlush = vi.fn();
+      const batcher = createEventBatcher({ batchTimeout: 20, onFlush });
 
-    batcher.add(createContentEvent());
+      batcher.add(createContentEvent());
 
-    // Wait for timeout
-    await new Promise((r) => setTimeout(r, 30));
+      // Advance past the batch timeout deterministically
+      await vi.advanceTimersByTimeAsync(25);
 
-    expect(onFlush).toHaveBeenCalled();
-    batcher.dispose();
+      expect(onFlush).toHaveBeenCalled();
+      batcher.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('should create batcher with batching disabled', () => {
