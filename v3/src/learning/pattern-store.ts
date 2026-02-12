@@ -586,11 +586,12 @@ export class PatternStore implements IPatternStore {
   async create(options: CreateQEPatternOptions): Promise<Result<QEPattern>> {
     const now = new Date();
 
+    const resolvedDomain = options.qeDomain || this.detectDomainFromType(options.patternType);
     const pattern: QEPattern = {
       id: uuidv4(),
       patternType: options.patternType,
-      qeDomain: this.detectDomainFromType(options.patternType),
-      domain: mapQEDomainToAQE(this.detectDomainFromType(options.patternType)),
+      qeDomain: resolvedDomain,
+      domain: mapQEDomainToAQE(resolvedDomain),
       name: options.name,
       description: options.description,
       confidence: options.confidence ?? 0.5, // Use provided or default

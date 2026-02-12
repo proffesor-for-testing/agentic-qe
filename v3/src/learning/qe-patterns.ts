@@ -278,6 +278,8 @@ export interface CreateQEPatternOptions {
   embedding?: number[];
   /** Initial confidence score (0-1). Defaults to 0.5 if not provided. */
   confidence?: number;
+  /** Explicit QE domain override. When provided, bypasses auto-detection from patternType. */
+  qeDomain?: QEDomain;
 }
 
 /**

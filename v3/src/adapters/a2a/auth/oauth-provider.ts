@@ -327,8 +327,8 @@ export class OAuth2Provider {
     }
 
     // Confidential clients need a valid secret
-    if (credentials.confidential && !clientSecret) {
-      return false;
+    if (!clientSecret) {
+      return !credentials.confidential;
     }
 
     // Use timing-safe comparison to prevent timing attacks.
