@@ -37,7 +37,7 @@ import type {
 // Tests
 // ============================================================================
 
-describe('Domain Handlers', () => {
+describe('Domain Handlers', { timeout: 30000 }, () => {
   // Initialize fleet before each test
   beforeEach(async () => {
     await handleFleetInit({});

@@ -356,11 +356,11 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
     v2PatternsDb: '../v2/data/ruvector-patterns.db',
   },
   cloud: {
-    project: process.env.GCP_PROJECT || 'ferrous-griffin-480616-s9',
-    zone: process.env.GCP_ZONE || 'us-central1-a',
-    instance: process.env.GCP_INSTANCE || 'ruvector-postgres',
-    database: process.env.GCP_DATABASE || 'aqe_learning',
-    user: process.env.GCP_USER || 'ruvector',
+    project: process.env.GCP_PROJECT || '',
+    zone: process.env.GCP_ZONE || '',
+    instance: process.env.GCP_INSTANCE || '',
+    database: process.env.GCP_DATABASE || '',
+    user: process.env.GCP_USER || '',
     tunnelPort: parseInt(process.env.GCP_TUNNEL_PORT || '15432', 10),
   },
   sync: {

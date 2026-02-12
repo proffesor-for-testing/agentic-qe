@@ -12,6 +12,7 @@
  * @see https://datatracker.ietf.org/doc/html/rfc7636 (PKCE)
  */
 
+import { createHash, timingSafeEqual } from 'crypto';
 import { TokenStore, createTokenStore, type TokenStoreConfig } from './token-store.js';
 import {
   signAccessToken,
@@ -326,13 +327,17 @@ export class OAuth2Provider {
     }
 
     // Confidential clients need a valid secret
-    if (credentials.confidential && !clientSecret) {
-      return false;
+    if (!clientSecret) {
+      return !credentials.confidential;
     }
 
-    // Compare secrets
-    // Note: In production, use constant-time comparison and hashed secrets
-    return clientSecret === credentials.clientSecret;
+    // Use timing-safe comparison to prevent timing attacks.
+    // Supports both hashed and plaintext secrets for backward compatibility.
+    const storedSecret = credentials.secretHashed
+      ? credentials.clientSecret
+      : this.hashSecret(credentials.clientSecret);
+    const providedHash = this.hashSecret(clientSecret);
+    return this.timingSafeCompare(providedHash, storedSecret);
   }
 
   /**
@@ -754,6 +759,27 @@ export class OAuth2Provider {
   }
 
   /**
+   * Hash a secret using SHA-256
+   */
+  private hashSecret(secret: string): string {
+    return createHash('sha256').update(secret).digest('hex');
+  }
+
+  /**
+   * Timing-safe string comparison to prevent timing attacks
+   */
+  private timingSafeCompare(a: string, b: string): boolean {
+    const maxLen = Math.max(a.length, b.length);
+    const paddedA = a.padEnd(maxLen, '\0');
+    const paddedB = b.padEnd(maxLen, '\0');
+    try {
+      return timingSafeEqual(Buffer.from(paddedA), Buffer.from(paddedB));
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Generate a secure random code
    */
   private generateSecureCode(): string {
@@ -775,7 +801,7 @@ export class OAuth2Provider {
     method: 'S256' | 'plain'
   ): Promise<boolean> {
     if (method === 'plain') {
-      return codeVerifier === codeChallenge;
+      return this.timingSafeCompare(codeVerifier, codeChallenge);
     }
 
     // S256: SHA-256 hash of verifier
@@ -788,7 +814,7 @@ export class OAuth2Provider {
       .replace(/\//g, '_')
       .replace(/=/g, '');
 
-    return computed === codeChallenge;
+    return this.timingSafeCompare(computed, codeChallenge);
   }
 
   // ============================================================================

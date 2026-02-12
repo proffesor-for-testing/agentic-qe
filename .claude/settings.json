@@ -376,7 +376,7 @@
   },
   "v3Configuration": {
     "domains": {
-      "total": 12,
+      "total": 13,
       "names": [
         "test-generation",
         "test-execution",
@@ -389,11 +389,12 @@
         "security-compliance",
         "contract-testing",
         "visual-accessibility",
-        "chaos-resilience"
+        "chaos-resilience",
+        "enterprise-integration"
       ]
     },
     "swarm": {
-      "totalAgents": 34,
+      "totalAgents": 60,
       "topology": "hierarchical",
       "coordination": "queen-led"
     }

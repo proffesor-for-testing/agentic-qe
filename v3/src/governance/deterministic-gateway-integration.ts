@@ -11,6 +11,7 @@
 
 import { governanceFlags, isStrictMode, isDeterministicGatewayEnabled } from './feature-flags.js';
 import type { GovernanceFeatureFlags } from './feature-flags.js';
+import { createSafeRegex } from '../mcp/security/validators/regex-safety-validator.js';
 
 /**
  * Gateway decision result for tool calls
@@ -439,7 +440,8 @@ export class DeterministicGatewayIntegration {
           received: `length: ${value.length}`,
         });
       }
-      if (schema.pattern && !new RegExp(schema.pattern).test(value)) {
+      const patternRegex = schema.pattern ? createSafeRegex(schema.pattern) : null;
+      if (patternRegex && !patternRegex.test(value)) {
         errors.push({
           path,
           message: `${path} must match pattern ${schema.pattern}`,

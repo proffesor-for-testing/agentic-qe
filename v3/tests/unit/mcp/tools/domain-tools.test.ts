@@ -3,7 +3,7 @@
  * Tests for all 14 domain-specific MCP tools per ADR-010
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   TestGenerateTool,
   TestExecuteTool,
@@ -20,6 +20,25 @@ import {
   ChaosInjectTool,
   LearningOptimizeTool,
 } from '../../../../src/mcp/tools';
+
+// Mock shared memory backend to prevent real SQLite initialization in unit tests
+vi.mock('../../../../src/mcp/tools/base', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../../src/mcp/tools/base')>();
+  const mockMemory = {
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
+    search: vi.fn().mockResolvedValue([]),
+    list: vi.fn().mockResolvedValue([]),
+    initialize: vi.fn().mockResolvedValue(undefined),
+    dispose: vi.fn().mockResolvedValue(undefined),
+  };
+  return {
+    ...original,
+    getSharedMemoryBackend: vi.fn().mockResolvedValue(mockMemory),
+    getMemoryBackend: vi.fn().mockResolvedValue(mockMemory),
+  };
+});
 
 // ============================================================================
 // Test Generation Tool

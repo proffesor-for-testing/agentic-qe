@@ -9,6 +9,7 @@ import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { DataReader, SyncSource } from '../interfaces.js';
+import { validateTableName } from '../../shared/sql-safety.js';
 
 /**
  * SQLite reader configuration
@@ -83,7 +84,7 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
       throw new Error('Reader not initialized');
     }
 
-    const query = this.config.source.query || `SELECT * FROM ${this.getTableName()}`;
+    const query = this.config.source.query || `SELECT * FROM ${validateTableName(this.getTableName())}`;
 
     try {
       // Check if table exists
@@ -125,7 +126,7 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
     }
 
     const sinceStr = since.toISOString();
-    const query = `SELECT * FROM ${tableName} WHERE ${timestampCol} > ?`;
+    const query = `SELECT * FROM ${validateTableName(tableName)} WHERE ${timestampCol} > ?`;
 
     try {
       const stmt = this.db.prepare(query);
@@ -152,7 +153,7 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
     }
 
     try {
-      const stmt = this.db.prepare(`SELECT COUNT(*) as count FROM ${tableName}`);
+      const stmt = this.db.prepare(`SELECT COUNT(*) as count FROM ${validateTableName(tableName)}`);
       const result = stmt.get() as { count: number };
       return result.count;
     } catch (error) {
@@ -217,7 +218,7 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
     const candidates = ['updated_at', 'created_at', 'timestamp', 'last_used_at', 'modified_at'];
 
     try {
-      const stmt = this.db.prepare(`PRAGMA table_info(${tableName})`);
+      const stmt = this.db.prepare(`PRAGMA table_info(${validateTableName(tableName)})`);
       const columns = stmt.all() as { name: string }[];
       const columnNames = columns.map(c => c.name.toLowerCase());
 

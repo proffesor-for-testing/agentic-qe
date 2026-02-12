@@ -492,8 +492,10 @@ export class ConceptGraph {
   // ==========================================================================
 
   /**
-   * Load patterns into the concept graph as nodes
-   * @returns Number of patterns loaded
+   * Load patterns into the concept graph as nodes with edge discovery.
+   * Idempotent — skips patterns whose pattern_id already has a node.
+   * After loading, discovers co_occurrence and similarity edges.
+   * @returns Number of new patterns loaded
    */
   async loadFromPatterns(patterns: PatternImportData[]): Promise<number> {
     this.ensureInitialized();
@@ -502,7 +504,11 @@ export class ConceptGraph {
 
     for (const pattern of patterns) {
       try {
-        await this.addNode({
+        // Skip if a node for this pattern already exists (idempotent)
+        const existing = await this.findNodeByPatternId(pattern.id);
+        if (existing) continue;
+
+        const patternNodeId = await this.addNode({
           conceptType: 'pattern',
           content: `${pattern.name}: ${pattern.description}`,
           patternId: pattern.id,
@@ -516,13 +522,19 @@ export class ConceptGraph {
         loaded++;
 
         // Also add domain as a concept if not seen
-        const domainNode = await this.findDomainNode(pattern.domain);
+        let domainNode = await this.findDomainNode(pattern.domain);
         if (!domainNode) {
-          await this.addNode({
+          const domainNodeId = await this.addNode({
             conceptType: 'domain',
             content: pattern.domain,
             metadata: { patternCount: 1 },
           });
+          domainNode = await this.getNode(domainNodeId);
+        }
+
+        // Edge: pattern belongs to its domain
+        if (domainNode) {
+          await this.addEdge(patternNodeId, domainNode.id, 'co_occurrence', 0.8);
         }
       } catch (error) {
         if (this.config.debug) {
@@ -531,11 +543,61 @@ export class ConceptGraph {
       }
     }
 
-    if (this.config.debug) {
-      console.log(`[ConceptGraph] Loaded ${loaded} patterns`);
+    // Discover similarity edges between patterns in the same domain
+    if (loaded > 0) {
+      const edgesCreated = await this.discoverSameDomainEdges();
+      if (this.config.debug) {
+        console.log(`[ConceptGraph] Discovered ${edgesCreated} same-domain edges`);
+      }
     }
 
+    console.log(`[ConceptGraph] Loaded ${loaded} new patterns (${patterns.length - loaded} already existed)`);
+
     return loaded;
+  }
+
+  /**
+   * Discover similarity edges between pattern nodes in the same domain.
+   * Uses metadata.domain to group patterns, then creates bidirectional
+   * similarity edges between siblings. Idempotent (addEdge strengthens
+   * existing edges rather than duplicating).
+   * @returns Number of new edges created
+   */
+  async discoverSameDomainEdges(): Promise<number> {
+    this.ensureInitialized();
+    if (!this.db) return 0;
+
+    const patternNodes = this.db.prepare(
+      "SELECT * FROM concept_nodes WHERE concept_type = 'pattern'"
+    ).all() as NodeRow[];
+
+    // Group by domain
+    const domainGroups = new Map<string, NodeRow[]>();
+    for (const node of patternNodes) {
+      const metadata = node.metadata ? JSON.parse(node.metadata) : {};
+      const domain = metadata.domain || 'unknown';
+      if (!domainGroups.has(domain)) {
+        domainGroups.set(domain, []);
+      }
+      domainGroups.get(domain)!.push(node);
+    }
+
+    let edgesCreated = 0;
+
+    // Create similarity edges between patterns sharing a domain
+    for (const [, nodes] of domainGroups) {
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const existingEdge = await this.getEdgeBetween(nodes[i].id, nodes[j].id);
+          if (!existingEdge) {
+            await this.addEdge(nodes[i].id, nodes[j].id, 'similarity', 0.6);
+            edgesCreated++;
+          }
+        }
+      }
+    }
+
+    return edgesCreated;
   }
 
   // ==========================================================================
@@ -632,6 +694,18 @@ export class ConceptGraph {
       "SELECT * FROM concept_nodes WHERE concept_type = 'domain' AND content = ?"
     );
     const row = stmt.get(domain) as NodeRow | undefined;
+    if (!row) return null;
+
+    return this.rowToNode(row);
+  }
+
+  private async findNodeByPatternId(patternId: string): Promise<ConceptNode | null> {
+    if (!this.db) return null;
+
+    const stmt = this.db.prepare(
+      'SELECT * FROM concept_nodes WHERE pattern_id = ? LIMIT 1'
+    );
+    const row = stmt.get(patternId) as NodeRow | undefined;
     if (!row) return null;
 
     return this.rowToNode(row);

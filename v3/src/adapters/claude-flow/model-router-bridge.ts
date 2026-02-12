@@ -13,6 +13,7 @@
  */
 
 import type { ModelRoutingResult, ModelRoutingOutcome } from './types.js';
+import { detectClaudeFlow } from './detect.js';
 
 /**
  * Task complexity indicators
@@ -46,20 +47,10 @@ export class ModelRouterBridge {
   }
 
   /**
-   * Check if Claude Flow is available
+   * Check if Claude Flow is available (no npm auto-install)
    */
   private async checkClaudeFlow(): Promise<boolean> {
-    try {
-      const { execSync } = await import('child_process');
-      execSync('npx @claude-flow/cli@latest hooks model-stats', {
-        encoding: 'utf-8',
-        timeout: 5000,
-        cwd: this.options.projectRoot,
-      });
-      return true;
-    } catch {
-      return false;
-    }
+    return detectClaudeFlow(this.options.projectRoot).available;
   }
 
   /**
@@ -70,7 +61,7 @@ export class ModelRouterBridge {
       try {
         const { execSync } = await import('child_process');
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks model-route --task ${this.escapeArg(task)}`,
+          `npx --no-install @claude-flow/cli hooks model-route --task ${this.escapeArg(task)}`,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
 
@@ -112,7 +103,7 @@ export class ModelRouterBridge {
       try {
         const { execSync } = await import('child_process');
         execSync(
-          `npx @claude-flow/cli@latest hooks model-outcome --task ${this.escapeArg(outcome.task)} --model ${outcome.model} --outcome ${outcome.outcome}`,
+          `npx --no-install @claude-flow/cli hooks model-outcome --task ${this.escapeArg(outcome.task)} --model ${outcome.model} --outcome ${outcome.outcome}`,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
       } catch (error) {

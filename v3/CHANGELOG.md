@@ -5,6 +5,31 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.4] - 2026-02-12
+
+### Added
+
+- **Dream Scheduler** — Automated dream consolidation with configurable cron schedules, CLI subcommand (`aqe learning dream`), and schema migration for dream cycle persistence.
+- **QE Pattern Seeding** — 18 QE patterns seeded across 9 previously empty learning domains (chaos-resilience, code-intelligence, contract-testing, defect-intelligence, learning-optimization, quality-assessment, requirements-validation, security-compliance, visual-accessibility).
+- **Delta Scanning for Code Intelligence** — `aqe init` code intelligence phase now performs incremental delta scans instead of full re-scans, with expanded exclusion patterns for faster initialization.
+- **Concept Graph Edge Discovery** — `ConceptGraph.loadFromPatterns()` is now idempotent and automatically discovers co-occurrence and similarity edges between related patterns.
+- **Pattern Usage Recording** — Domain handler factory records pattern usage asynchronously after task completion, feeding the self-learning feedback loop.
+- **5 New Security Validator Test Suites** — Command, crypto, input sanitizer, path traversal, and regex safety validators with 150+ test cases.
+
+### Fixed
+
+- **Security Hardening (3 Sprints)** — OAuth provider PKCE enforcement, rate limiter bypass prevention, schema validator prototype pollution protection, SQL injection via table name interpolation, ReDoS-safe regex patterns, connection pool resource exhaustion guards.
+- **SQL Safety Module** — New `sql-safety.ts` shared module with table name allowlist applied consistently across all SQL interpolation sites.
+- **4 Flaky Test Suites Stabilized** — Retry queue, event batcher, queen coordinator race condition, and domain tools tests now use deterministic mocking instead of timing-dependent assertions.
+- **SONA Test Timeouts** — Learning optimization coordinator and plugin tests no longer time out during CI runs.
+- **Init Auto-Install Prevention** — `aqe init` no longer triggers `npx` auto-installation of `@claude-flow/cli` when the package isn't available.
+- **MCP Config Cleanup** — Removed duplicate `agentic-qe-v3` MCP server entry, keeping only the canonical `agentic-qe` entry.
+
+### Changed
+
+- **Performance Hardening** — Connection pool with bounded size limits, mincut calculator iteration caps, embedding generator batch size guards, and SSE/WebSocket/stdio transport resource cleanup improvements.
+- **Statusline Updated** — Reflects 13 domains and 60 agents in the fleet configuration.
+
 ## [3.6.3] - 2026-02-11
 
 ### Added

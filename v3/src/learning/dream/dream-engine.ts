@@ -309,6 +309,9 @@ export class DreamEngine {
       }
       this.db = this.persistence.getDatabase();
 
+      // Migrate legacy schema: rename 'duration' → 'duration_ms' if needed
+      this.migrateSchema();
+
       // Initialize concept graph (shares same unified persistence)
       this.graph = new ConceptGraph();
       await this.graph.initialize();
@@ -319,6 +322,56 @@ export class DreamEngine {
       throw new Error(
         `Failed to initialize DreamEngine: ${error instanceof Error ? error.message : String(error)}`
       );
+    }
+  }
+
+  /**
+   * Migrate legacy schema if needed.
+   * Handles the 'duration' → 'duration_ms' column rename in dream_cycles.
+   */
+  private migrateSchema(): void {
+    if (!this.db) return;
+    try {
+      // Migrate dream_cycles: rename 'duration' → 'duration_ms'
+      const cycleCols = this.db.prepare('PRAGMA table_info(dream_cycles)').all() as Array<{ name: string }>;
+      const hasDurationMs = cycleCols.some(c => c.name === 'duration_ms');
+      const hasDuration = cycleCols.some(c => c.name === 'duration');
+      if (!hasDurationMs && hasDuration) {
+        this.db.exec('ALTER TABLE dream_cycles RENAME COLUMN duration TO duration_ms');
+      }
+
+      // Migrate dream_insights: check for legacy 'type' column (should be 'insight_type')
+      const insightCols = this.db.prepare('PRAGMA table_info(dream_insights)').all() as Array<{ name: string }>;
+      const colNames = new Set(insightCols.map(c => c.name));
+      const hasInsightType = colNames.has('insight_type');
+      const hasSourceConcepts = colNames.has('source_concepts');
+
+      // If legacy schema lacks 'insight_type' or 'source_concepts', recreate the table
+      if (!hasInsightType || !hasSourceConcepts) {
+        this.db.exec('DROP TABLE IF EXISTS dream_insights');
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS dream_insights (
+            id TEXT PRIMARY KEY,
+            cycle_id TEXT NOT NULL,
+            insight_type TEXT NOT NULL,
+            source_concepts TEXT NOT NULL,
+            description TEXT NOT NULL,
+            novelty_score REAL DEFAULT 0.5,
+            confidence_score REAL DEFAULT 0.5,
+            actionable INTEGER DEFAULT 0,
+            applied INTEGER DEFAULT 0,
+            suggested_action TEXT,
+            pattern_id TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (cycle_id) REFERENCES dream_cycles(id) ON DELETE CASCADE
+          )
+        `);
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_cycle ON dream_insights(cycle_id)');
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_type ON dream_insights(insight_type)');
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_novelty ON dream_insights(novelty_score DESC)');
+      }
+    } catch {
+      // Ignore migration errors — table may not exist yet
     }
   }
 
@@ -583,8 +636,8 @@ export class DreamEngine {
     const stmt = this.db.prepare(`
       INSERT INTO dream_cycles
       (id, start_time, end_time, duration_ms, concepts_processed, associations_found,
-       insights_generated, status, error)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       insights_generated, status, error, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -596,7 +649,8 @@ export class DreamEngine {
       cycle.associationsFound,
       cycle.insightsGenerated,
       cycle.status,
-      cycle.error ?? null
+      cycle.error ?? null,
+      cycle.startTime.toISOString()
     );
   }
 

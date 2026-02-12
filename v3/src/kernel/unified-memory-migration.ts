@@ -11,6 +11,7 @@
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
+import { validateTableName } from '../shared/sql-safety.js';
 
 export interface MigrationResult {
   success: boolean;
@@ -133,7 +134,7 @@ export async function migrateToUnifiedMemory(
         }
 
         // Count rows
-        const countRow = sourceDb.prepare(`SELECT COUNT(*) as count FROM ${tableName}`).get() as { count: number };
+        const countRow = sourceDb.prepare(`SELECT COUNT(*) as count FROM ${validateTableName(tableName)}`).get() as { count: number };
         const rowCount = countRow.count;
 
         if (rowCount === 0) {
@@ -156,13 +157,13 @@ export async function migrateToUnifiedMemory(
         targetDb!.exec(schemaRow.sql);
 
         // Copy data
-        const rows = sourceDb.prepare(`SELECT * FROM ${tableName}`).all();
+        const rows = sourceDb.prepare(`SELECT * FROM ${validateTableName(tableName)}`).all();
 
         if (rows.length > 0) {
           const columns = Object.keys(rows[0] as object);
           const placeholders = columns.map(() => '?').join(', ');
           const insertStmt = targetDb!.prepare(`
-            INSERT OR REPLACE INTO ${tableName} (${columns.join(', ')})
+            INSERT OR REPLACE INTO ${validateTableName(tableName)} (${columns.join(', ')})
             VALUES (${placeholders})
           `);
 

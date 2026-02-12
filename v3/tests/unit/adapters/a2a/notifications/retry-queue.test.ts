@@ -411,23 +411,28 @@ describe('RetryQueue', () => {
 
   describe('auto processing', () => {
     it('should start and stop processing timer', async () => {
-      const queue2 = createRetryQueue({
-        enableAutoProcessing: true,
-        processingIntervalMs: 100,
-      });
+      vi.useFakeTimers();
+      try {
+        const queue2 = createRetryQueue({
+          enableAutoProcessing: true,
+          processingIntervalMs: 100,
+        });
 
-      const mockDeliveryFn = vi.fn().mockResolvedValue({ success: true });
-      queue2.setDeliveryFunction(mockDeliveryFn);
+        const mockDeliveryFn = vi.fn().mockResolvedValue({ success: true });
+        queue2.setDeliveryFunction(mockDeliveryFn);
 
-      queue2.enqueue(createDelivery());
+        queue2.enqueue(createDelivery());
 
-      // Wait for processing
-      await new Promise((resolve) => setTimeout(resolve, 200));
+        // Advance past the processing interval deterministically
+        await vi.advanceTimersByTimeAsync(150);
 
-      expect(mockDeliveryFn).toHaveBeenCalled();
+        expect(mockDeliveryFn).toHaveBeenCalled();
 
-      queue2.stopProcessing();
-      queue2.destroy();
+        queue2.stopProcessing();
+        queue2.destroy();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

@@ -18,6 +18,7 @@ import {
   createModularInitOrchestrator,
 } from '../../init/orchestrator.js';
 import { setupClaudeFlowIntegration, type ClaudeFlowSetupResult } from '../commands/claude-flow-setup.js';
+import { getClaudeFlowNotFoundMessage } from '../../adapters/claude-flow/detect.js';
 import { createPersistentScheduler } from '../scheduler/index.js';
 import type { VisualAccessibilityAPI } from '../../domains/visual-accessibility/plugin.js';
 import type { RequirementsValidationExtendedAPI } from '../../domains/requirements-validation/plugin.js';
@@ -141,9 +142,15 @@ export class InitHandler implements ICommandHandler {
             console.log(chalk.gray('    - Codebase pretrain analysis'));
           }
           console.log('');
+        } else {
+          // Show friendly message about standalone mode
+          console.log(chalk.gray(getClaudeFlowNotFoundMessage()));
+          console.log('');
         }
       } catch {
-        // Claude Flow not available - continue without it
+        // Claude Flow detection failed — show friendly standalone message
+        console.log(chalk.gray(getClaudeFlowNotFoundMessage()));
+        console.log('');
       }
     }
 

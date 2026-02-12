@@ -123,8 +123,11 @@ export class MinCutCalculator {
     }
     const stdDev = Math.sqrt(variance / vertices.length);
 
-    // Find minimum degree for comparison
-    const minDegree = Math.min(...degrees.values());
+    // Find minimum degree for comparison (iterative to avoid stack overflow at >10K vertices)
+    let minDegree = Infinity;
+    for (const d of degrees.values()) {
+      if (d < minDegree) minDegree = d;
+    }
 
     // Determine threshold
     const effectiveThreshold = threshold ?? meanDegree - stdDev;
@@ -215,12 +218,22 @@ export class MinCutCalculator {
 
   /**
    * Analyze graph for potential partitioning points
+   *
+   * Uses Tarjan's algorithm to find articulation points in O(V+E) time.
+   * Previous implementation cloned the entire graph per vertex — O(V*(V+E)).
    */
   findPartitioningPoints(graph: SwarmGraph): Array<{
     vertexId: string;
     localMinCut: number;
     wouldDisconnect: boolean;
   }> {
+    if (graph.isEmpty() || graph.vertexCount < 2) {
+      return [];
+    }
+
+    // Tarjan's algorithm for articulation points
+    const articulationPoints = this.findArticulationPoints(graph);
+
     const result: Array<{
       vertexId: string;
       localMinCut: number;
@@ -230,15 +243,10 @@ export class MinCutCalculator {
     for (const vertex of graph.getVertices()) {
       const localMinCut = this.getLocalMinCut(graph, vertex.id);
 
-      // Check if removing this vertex would disconnect the graph
-      const graphCopy = graph.clone();
-      graphCopy.removeVertex(vertex.id);
-      const wouldDisconnect = !graphCopy.isConnected() && graph.vertexCount > 2;
-
       result.push({
         vertexId: vertex.id,
         localMinCut,
-        wouldDisconnect,
+        wouldDisconnect: articulationPoints.has(vertex.id) && graph.vertexCount > 2,
       });
     }
 
@@ -246,6 +254,64 @@ export class MinCutCalculator {
     result.sort((a, b) => a.localMinCut - b.localMinCut);
 
     return result;
+  }
+
+  /**
+   * Tarjan's algorithm for finding articulation points in O(V+E)
+   */
+  private findArticulationPoints(graph: SwarmGraph): Set<string> {
+    const disc = new Map<string, number>();
+    const low = new Map<string, number>();
+    const parent = new Map<string, string | null>();
+    const ap = new Set<string>();
+    let timer = 0;
+
+    const vertices = graph.getVertexIds();
+    for (const v of vertices) {
+      disc.set(v, -1);
+      low.set(v, -1);
+      parent.set(v, null);
+    }
+
+    const dfs = (u: string): void => {
+      let children = 0;
+      disc.set(u, timer);
+      low.set(u, timer);
+      timer++;
+
+      for (const neighborId of graph.neighborIds(u)) {
+        if (disc.get(neighborId) === -1) {
+          children++;
+          parent.set(neighborId, u);
+          dfs(neighborId);
+
+          // Check if subtree rooted at neighbor has connection to ancestor of u
+          low.set(u, Math.min(low.get(u)!, low.get(neighborId)!));
+
+          // u is an articulation point if:
+          // 1) u is root of DFS tree and has 2+ children
+          if (parent.get(u) === null && children > 1) {
+            ap.add(u);
+          }
+          // 2) u is not root and low[neighbor] >= disc[u]
+          if (parent.get(u) !== null && low.get(neighborId)! >= disc.get(u)!) {
+            ap.add(u);
+          }
+        } else if (neighborId !== parent.get(u)) {
+          // Update low value for back edge
+          low.set(u, Math.min(low.get(u)!, disc.get(neighborId)!));
+        }
+      }
+    };
+
+    // Run DFS from each unvisited vertex (handles disconnected graphs)
+    for (const v of vertices) {
+      if (disc.get(v) === -1) {
+        dfs(v);
+      }
+    }
+
+    return ap;
   }
 
   /**

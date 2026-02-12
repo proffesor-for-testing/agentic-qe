@@ -1716,6 +1716,327 @@ Examples:
       }
     });
 
+  // -------------------------------------------------------------------------
+  // dream: Run dream cycles for pattern discovery
+  // -------------------------------------------------------------------------
+  learning
+    .command('dream')
+    .description('Run dream cycles for pattern discovery via spreading activation')
+    .option('--duration <ms>', 'Duration of dream cycle in milliseconds', '30000')
+    .option('--quick', 'Run a quick 5-second dream cycle')
+    .option('--full', 'Run a full 30-second dream cycle')
+    .option('--status', 'Show dream system status')
+    .option('--history', 'Show past dream cycles')
+    .option('--insights', 'Show pending insights from previous cycles')
+    .option('--apply <id>', 'Apply a specific insight by ID')
+    .option('--limit <n>', 'Maximum results for history/insights', '20')
+    .option('--min-patterns <n>', 'Minimum patterns required to dream', '10')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const {
+          createDreamEngine,
+        } = await import('../../learning/dream/index.js');
+
+        // Determine which action to run
+        if (options.status) {
+          // --- Status ---
+          const engine = createDreamEngine();
+          await engine.initialize();
+
+          const isDreaming = engine.isDreaming();
+          const history = await engine.getDreamHistory(100);
+          const pending = await engine.getPendingInsights(100);
+          const totalInsights = history.reduce((sum, c) => sum + c.insightsGenerated, 0);
+          const lastCycle = history[0];
+
+          if (options.json) {
+            printJson({
+              isDreaming,
+              totalCycles: history.length,
+              totalInsights,
+              pendingInsights: pending.length,
+              lastDreamTime: lastCycle?.startTime.toISOString() || null,
+            });
+          } else {
+            console.log(chalk.bold('\n🌙 Dream System Status\n'));
+            console.log(`  Currently dreaming: ${isDreaming ? chalk.green('Yes') : chalk.dim('No')}`);
+            console.log(`  Total dream cycles: ${history.length}`);
+            console.log(`  Total insights generated: ${totalInsights}`);
+            console.log(`  Pending insights: ${pending.length}`);
+            console.log(`  Last dream: ${lastCycle ? lastCycle.startTime.toISOString() : chalk.dim('never')}`);
+
+            // Show last 3 cycles summary
+            if (history.length > 0) {
+              console.log(chalk.bold('\n  Recent cycles:'));
+              for (const c of history.slice(0, 3)) {
+                const status = c.status === 'completed' ? chalk.green(c.status) : chalk.yellow(c.status);
+                console.log(`    ${c.id.slice(0, 8)} | ${status} | ${c.durationMs || 0}ms | ${c.insightsGenerated} insights`);
+              }
+            }
+            console.log('');
+          }
+
+          await engine.close();
+          process.exit(0);
+        }
+
+        if (options.history) {
+          // --- History ---
+          const limit = parseInt(options.limit, 10);
+          const engine = createDreamEngine();
+          await engine.initialize();
+
+          const cycles = await engine.getDreamHistory(limit);
+
+          if (options.json) {
+            printJson(cycles.map(c => ({
+              id: c.id,
+              startTime: c.startTime.toISOString(),
+              endTime: c.endTime?.toISOString(),
+              durationMs: c.durationMs,
+              status: c.status,
+              conceptsProcessed: c.conceptsProcessed,
+              associationsFound: c.associationsFound,
+              insightsGenerated: c.insightsGenerated,
+            })));
+          } else {
+            console.log(chalk.bold(`\n🌙 Dream Cycle History (${cycles.length} cycles)\n`));
+
+            if (cycles.length === 0) {
+              console.log(chalk.dim('  No dream cycles found. Run: aqe learning dream'));
+            } else {
+              for (const c of cycles) {
+                const status = c.status === 'completed' ? chalk.green('✓')
+                  : c.status === 'failed' ? chalk.red('✗')
+                  : chalk.yellow('⋯');
+                console.log(`  ${status} ${c.id.slice(0, 8)} | ${c.startTime.toISOString()}`);
+                console.log(chalk.dim(`    Duration: ${c.durationMs || 0}ms | Concepts: ${c.conceptsProcessed} | Associations: ${c.associationsFound} | Insights: ${c.insightsGenerated}`));
+              }
+            }
+            console.log('');
+          }
+
+          await engine.close();
+          process.exit(0);
+        }
+
+        if (options.insights) {
+          // --- Pending Insights ---
+          const limit = parseInt(options.limit, 10);
+          const engine = createDreamEngine();
+          await engine.initialize();
+
+          const pending = await engine.getPendingInsights(limit);
+
+          if (options.json) {
+            printJson(pending.map(i => ({
+              id: i.id,
+              type: i.type,
+              description: i.description,
+              noveltyScore: i.noveltyScore,
+              confidenceScore: i.confidenceScore,
+              actionable: i.actionable,
+              applied: i.applied || false,
+              suggestedAction: i.suggestedAction,
+              createdAt: i.createdAt?.toISOString(),
+            })));
+          } else {
+            console.log(chalk.bold(`\n💡 Pending Dream Insights (${pending.length})\n`));
+
+            if (pending.length === 0) {
+              console.log(chalk.dim('  No pending insights. Run a dream cycle first: aqe learning dream'));
+            } else {
+              for (const i of pending) {
+                const novelty = i.noveltyScore >= 0.7 ? chalk.green(`${(i.noveltyScore * 100).toFixed(0)}%`)
+                  : chalk.yellow(`${(i.noveltyScore * 100).toFixed(0)}%`);
+                const confidence = i.confidenceScore >= 0.7 ? chalk.green(`${(i.confidenceScore * 100).toFixed(0)}%`)
+                  : chalk.yellow(`${(i.confidenceScore * 100).toFixed(0)}%`);
+                console.log(`  ${chalk.cyan(i.id.slice(0, 8))} [${i.type}] ${i.actionable ? '⚡' : '  '}`);
+                console.log(`    ${i.description}`);
+                console.log(chalk.dim(`    Novelty: ${novelty} | Confidence: ${confidence}`));
+                if (i.suggestedAction) {
+                  console.log(chalk.dim(`    Action: ${i.suggestedAction}`));
+                }
+              }
+            }
+            console.log('');
+          }
+
+          await engine.close();
+          process.exit(0);
+        }
+
+        if (options.apply) {
+          // --- Apply Insight ---
+          const insightId = options.apply;
+          const engine = createDreamEngine();
+          await engine.initialize();
+
+          const pending = await engine.getPendingInsights(100);
+          const insight = pending.find(i => i.id === insightId || i.id.startsWith(insightId));
+
+          if (!insight) {
+            printError(`Insight not found: ${insightId}`);
+            await engine.close();
+            process.exit(1);
+          }
+
+          if (!insight.actionable) {
+            printError(`Insight ${insightId} is not actionable`);
+            await engine.close();
+            process.exit(1);
+          }
+
+          // Apply insight in engine
+          const result = await engine.applyInsight(insight.id);
+
+          // Also create a real pattern in ReasoningBank
+          const reasoningBank = await initializeLearningSystem();
+          const patternResult = await reasoningBank.storePattern({
+            patternType: 'test-template',
+            name: `Dream Insight: ${insight.type}`,
+            description: `${insight.description} (confidence: ${insight.confidenceScore.toFixed(2)})`,
+            template: {
+              type: 'workflow',
+              content: insight.suggestedAction || insight.description,
+              variables: [],
+            },
+            context: {
+              tags: ['dream-generated', insight.type, ...insight.sourceConcepts.slice(0, 3)],
+              complexity: 'medium',
+            },
+          });
+
+          if (options.json) {
+            printJson({
+              insightId: insight.id,
+              applied: result.success,
+              patternId: patternResult.success ? patternResult.value.id : null,
+              error: result.error || (patternResult.success ? null : patternResult.error?.message),
+            });
+          } else {
+            if (result.success) {
+              printSuccess(`Applied insight ${insight.id.slice(0, 8)}`);
+              if (patternResult.success) {
+                printSuccess(`Created pattern ${patternResult.value.id} in ReasoningBank`);
+              }
+            } else {
+              printError(`Failed to apply insight: ${result.error}`);
+            }
+          }
+
+          await engine.close();
+          process.exit(result.success ? 0 : 1);
+        }
+
+        // --- Run Dream Cycle ---
+        let durationMs = parseInt(options.duration, 10);
+        if (options.quick) durationMs = 5000;
+        if (options.full) durationMs = 30000;
+        durationMs = Math.min(durationMs, 60000); // Cap at 60s
+
+        const minPatterns = parseInt(options.minPatterns, 10);
+
+        printInfo(`Starting dream cycle (${durationMs}ms, min ${minPatterns} patterns)...`);
+
+        const engine = createDreamEngine({
+          maxDurationMs: durationMs,
+          minConceptsRequired: minPatterns,
+        });
+        await engine.initialize();
+
+        // Load patterns from ReasoningBank
+        const reasoningBank = await initializeLearningSystem();
+        const patternsResult = await reasoningBank.searchPatterns('', {
+          limit: 100,
+          minConfidence: 0.3,
+        });
+
+        let loaded = 0;
+        if (patternsResult.success && patternsResult.value.length > 0) {
+          const importPatterns = patternsResult.value.map(result => ({
+            id: result.pattern.id,
+            name: result.pattern.name,
+            description: result.pattern.description || `${result.pattern.patternType} pattern`,
+            domain: result.pattern.qeDomain || 'learning-optimization',
+            patternType: result.pattern.patternType,
+            confidence: result.pattern.confidence,
+            successRate: result.pattern.successRate || 0.5,
+          }));
+          loaded = await engine.loadPatternsAsConcepts(importPatterns);
+          printInfo(`Loaded ${loaded} patterns from ReasoningBank as concepts`);
+        } else {
+          printInfo('No patterns found in ReasoningBank — dreaming with existing concepts');
+        }
+
+        // Run the dream
+        const result = await engine.dream(durationMs);
+
+        if (options.json) {
+          printJson({
+            cycleId: result.cycle.id,
+            status: result.cycle.status,
+            durationMs: result.cycle.durationMs || 0,
+            conceptsProcessed: result.cycle.conceptsProcessed,
+            associationsFound: result.cycle.associationsFound,
+            insightsGenerated: result.cycle.insightsGenerated,
+            activationStats: result.activationStats,
+            patternsCreated: result.patternsCreated,
+            insights: result.insights.map(i => ({
+              id: i.id,
+              type: i.type,
+              description: i.description,
+              noveltyScore: i.noveltyScore,
+              confidenceScore: i.confidenceScore,
+              actionable: i.actionable,
+            })),
+          });
+        } else {
+          console.log(chalk.bold('\n🌙 Dream Cycle Complete\n'));
+          console.log(`  Cycle ID:       ${result.cycle.id.slice(0, 8)}`);
+          console.log(`  Status:         ${result.cycle.status === 'completed' ? chalk.green('completed') : chalk.yellow(result.cycle.status)}`);
+          console.log(`  Duration:       ${result.cycle.durationMs || 0}ms`);
+          console.log(`  Concepts:       ${result.cycle.conceptsProcessed}`);
+          console.log(`  Associations:   ${result.cycle.associationsFound}`);
+          console.log(`  Insights:       ${result.cycle.insightsGenerated}`);
+
+          if (result.activationStats) {
+            console.log(chalk.bold('\n  Activation Stats:'));
+            console.log(`    Iterations:   ${result.activationStats.totalIterations}`);
+            console.log(`    Peak level:   ${result.activationStats.peakActivation.toFixed(3)}`);
+            console.log(`    Nodes active: ${result.activationStats.nodesActivated}`);
+          }
+
+          if (result.insights.length > 0) {
+            console.log(chalk.bold('\n  Generated Insights:'));
+            for (const i of result.insights) {
+              const novelty = i.noveltyScore >= 0.7 ? chalk.green(`${(i.noveltyScore * 100).toFixed(0)}%`)
+                : chalk.yellow(`${(i.noveltyScore * 100).toFixed(0)}%`);
+              console.log(`    ${chalk.cyan(i.id.slice(0, 8))} [${i.type}] ${i.actionable ? '⚡ actionable' : ''}`);
+              console.log(`      ${i.description}`);
+              console.log(chalk.dim(`      Novelty: ${novelty} | Confidence: ${(i.confidenceScore * 100).toFixed(0)}%`));
+            }
+            console.log(chalk.dim(`\n  Apply insights with: aqe learning dream --apply <insight-id>`));
+          } else {
+            console.log(chalk.dim('\n  No insights generated this cycle.'));
+            console.log(chalk.dim('  Try loading more patterns or running a longer cycle.'));
+          }
+
+          console.log('');
+        }
+
+        await engine.close();
+        process.exit(0);
+      } catch (error) {
+        printError(`dream failed: ${error instanceof Error ? error.message : 'unknown'}`);
+        if (error instanceof Error && error.stack) {
+          console.error(chalk.dim(error.stack));
+        }
+        process.exit(1);
+      }
+    });
+
   return learning;
 }
 

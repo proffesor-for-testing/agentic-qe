@@ -7,7 +7,7 @@
  * semantic code search instead of full file reads.
  */
 
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { join } from 'path';
 
 import {
@@ -20,6 +20,38 @@ export interface CodeIntelligenceResult {
   status: 'indexed' | 'existing' | 'skipped' | 'error';
   entries: number;
 }
+
+/** Patterns to exclude from code intelligence scanning */
+const SCAN_IGNORE_PATTERNS = [
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/build/**',
+  '**/out/**',
+  '**/coverage/**',
+  '**/.agentic-qe/**',
+  '**/.git/**',
+  '**/.next/**',
+  '**/.nuxt/**',
+  '**/.output/**',
+  '**/__pycache__/**',
+  '**/.pytest_cache/**',
+  '**/target/**',
+  '**/vendor/**',
+  '**/.venv/**',
+  '**/venv/**',
+  '**/.tox/**',
+  '**/*.min.js',
+  '**/*.min.css',
+  '**/*.bundle.js',
+  '**/*.map',
+  '**/package-lock.json',
+  '**/yarn.lock',
+  '**/pnpm-lock.yaml',
+  '**/Pipfile.lock',
+  '**/poetry.lock',
+  '**/.env',
+  '**/.env.*',
+];
 
 /**
  * Code Intelligence phase - builds knowledge graph
@@ -34,18 +66,30 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
   protected async run(context: InitContext): Promise<CodeIntelligenceResult> {
     const { projectRoot } = context;
 
-    // Check for existing index
     const hasIndex = await this.checkCodeIntelligenceIndex(projectRoot);
 
-    if (hasIndex) {
+    if (!hasIndex) {
+      context.services.log('  Building knowledge graph...');
+      return await this.runCodeIntelligenceScan(projectRoot, context, false);
+    }
+
+    // Delta scan: check for files modified since last index
+    const lastIndexedAt = await this.getLastIndexedAt(projectRoot);
+    if (!lastIndexedAt) {
       const entryCount = await this.getKGEntryCount(projectRoot);
       context.services.log(`  Using existing index (${entryCount} entries)`);
       return { status: 'existing', entries: entryCount };
     }
 
-    // Run full scan
-    context.services.log('  Building knowledge graph...');
-    return await this.runCodeIntelligenceScan(projectRoot, context);
+    const changedFiles = await this.findChangedFiles(projectRoot, lastIndexedAt);
+    if (changedFiles.length === 0) {
+      const entryCount = await this.getKGEntryCount(projectRoot);
+      context.services.log(`  Index up to date (${entryCount} entries)`);
+      return { status: 'existing', entries: entryCount };
+    }
+
+    context.services.log(`  Delta scan: ${changedFiles.length} files changed since last index...`);
+    return await this.runCodeIntelligenceScan(projectRoot, context, true, changedFiles);
   }
 
   /**
@@ -102,14 +146,13 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
    */
   private async runCodeIntelligenceScan(
     projectRoot: string,
-    context: InitContext
+    context: InitContext,
+    incremental: boolean,
+    changedFiles?: string[]
   ): Promise<CodeIntelligenceResult> {
     try {
-      // Import knowledge graph service
       const { KnowledgeGraphService } = await import('../../domains/code-intelligence/services/knowledge-graph.js');
 
-      // FIXED: Use SQLite backend for PERSISTENCE instead of InMemoryBackend
-      // This ensures KG data survives init and is available to QE agents
       const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
       const memoryConfig: MemoryBackendConfig = {
         type: 'sqlite',
@@ -126,31 +169,33 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
         enableVectorEmbeddings: true,
       });
 
-      // Find source files
-      const glob = await import('fast-glob');
-      const files = await glob.default([
-        '**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'
-      ], {
-        cwd: projectRoot,
-        ignore: ['**/node_modules/**', '**/dist/**', '**/coverage/**', '**/.agentic-qe/**'],
-      });
+      let filesToIndex: string[];
+      if (changedFiles) {
+        filesToIndex = changedFiles;
+      } else {
+        const glob = await import('fast-glob');
+        const files = await glob.default([
+          '**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'
+        ], {
+          cwd: projectRoot,
+          ignore: SCAN_IGNORE_PATTERNS,
+        });
+        filesToIndex = files.map(f => join(projectRoot, f));
+      }
 
-      // Index files - this now persists to SQLite
       const result = await kgService.index({
-        paths: files.map(f => join(projectRoot, f)),
-        incremental: false,
+        paths: filesToIndex,
+        incremental,
         includeTests: true,
       });
 
-      // Clear caches but keep persisted data
       kgService.destroy();
-
-      // Dispose memory backend to flush writes
       await memory.dispose();
 
       if (result.success) {
         const entries = result.value.nodesCreated + result.value.edgesCreated;
-        context.services.log(`  Indexed ${entries} entries to ${dbPath}`);
+        const label = incremental ? 'Delta indexed' : 'Indexed';
+        context.services.log(`  ${label} ${entries} entries to ${dbPath}`);
         return { status: 'indexed', entries };
       }
 
@@ -159,6 +204,58 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
       context.services.warn(`Code intelligence scan warning: ${error}`);
       return { status: 'skipped', entries: 0 };
     }
+  }
+
+  /**
+   * Read the indexedAt timestamp from KG metadata
+   */
+  private async getLastIndexedAt(projectRoot: string): Promise<Date | null> {
+    const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
+    try {
+      const Database = (await import('better-sqlite3')).default;
+      const db = new Database(dbPath);
+      const row = db.prepare(`
+        SELECT value FROM kv_store
+        WHERE namespace = 'code-intelligence:kg'
+          AND key = 'metadata:index'
+      `).get() as { value: string } | undefined;
+      db.close();
+
+      if (!row) return null;
+      const metadata = JSON.parse(row.value);
+      if (!metadata.indexedAt) return null;
+      const date = new Date(metadata.indexedAt);
+      return isNaN(date.getTime()) ? null : date;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Find files modified since the given date
+   */
+  private async findChangedFiles(projectRoot: string, since: Date): Promise<string[]> {
+    const glob = await import('fast-glob');
+    const files = await glob.default([
+      '**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'
+    ], {
+      cwd: projectRoot,
+      ignore: SCAN_IGNORE_PATTERNS,
+    });
+
+    const sinceMs = since.getTime();
+    const changed: string[] = [];
+    for (const file of files) {
+      const fullPath = join(projectRoot, file);
+      try {
+        if (statSync(fullPath).mtimeMs > sinceMs) {
+          changed.push(fullPath);
+        }
+      } catch {
+        // File may have been deleted between glob and stat
+      }
+    }
+    return changed;
   }
 }
 

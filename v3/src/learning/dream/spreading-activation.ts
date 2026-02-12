@@ -21,6 +21,45 @@ import type {
 } from './types.js';
 
 // ============================================================================
+// Utility: Quickselect (O(n) average k-th smallest)
+// ============================================================================
+
+/**
+ * In-place quickselect: rearranges arr so arr[k] is the k-th smallest value.
+ * Returns arr[k]. Average O(n), worst O(n²) but rare with random pivot.
+ */
+function quickselect(arr: number[], k: number): number {
+  if (k < 0 || k >= arr.length) return arr[0] ?? 0;
+
+  let left = 0;
+  let right = arr.length - 1;
+
+  while (left < right) {
+    // Median-of-three pivot selection
+    const mid = (left + right) >> 1;
+    if (arr[mid] < arr[left]) { const t = arr[left]; arr[left] = arr[mid]; arr[mid] = t; }
+    if (arr[right] < arr[left]) { const t = arr[left]; arr[left] = arr[right]; arr[right] = t; }
+    if (arr[mid] < arr[right]) { const t = arr[mid]; arr[mid] = arr[right]; arr[right] = t; }
+    const pivot = arr[right];
+
+    let i = left;
+    for (let j = left; j < right; j++) {
+      if (arr[j] <= pivot) {
+        const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+        i++;
+      }
+    }
+    const t = arr[i]; arr[i] = arr[right]; arr[right] = t;
+
+    if (i === k) return arr[i];
+    if (i < k) left = i + 1;
+    else right = i - 1;
+  }
+
+  return arr[left];
+}
+
+// ============================================================================
 // History Bounds Constants (Milestone 3.3)
 // ============================================================================
 
@@ -403,10 +442,18 @@ export class SpreadingActivation {
     }>
   > {
     const threshold = minActivation ?? this.config.threshold;
-    const activeNodes = this.graph.getActiveNodes(threshold);
+    let activeNodes = this.graph.getActiveNodes(threshold);
 
     if (activeNodes.length < 2) {
       return [];
+    }
+
+    // Cap active nodes to avoid O(n²) pair enumeration (only top 10 results returned)
+    const MAX_ACTIVE_NODES = 200;
+    if (activeNodes.length > MAX_ACTIVE_NODES) {
+      activeNodes = activeNodes
+        .sort((a, b) => b.activationLevel - a.activationLevel)
+        .slice(0, MAX_ACTIVE_NODES);
     }
 
     const associations: Array<{
@@ -523,12 +570,20 @@ export class SpreadingActivation {
     const targetSize = Math.floor(MAX_COACTIVATION_ENTRIES * HISTORY_TRIM_TARGET_RATIO);
     const entriesToRemove = this.coActivationCounts.size - targetSize;
 
-    // Sort by count (ascending) to remove least-frequent pairs first
-    const sortedEntries = Array.from(this.coActivationCounts.entries())
-      .sort((a, b) => a[1] - b[1]);
+    // O(n) quickselect to find threshold instead of O(n log n) full sort
+    const values = Array.from(this.coActivationCounts.values());
+    const threshold = quickselect(values, entriesToRemove - 1);
 
-    for (let i = 0; i < entriesToRemove && i < sortedEntries.length; i++) {
-      this.coActivationCounts.delete(sortedEntries[i][0]);
+    // Remove entries at or below threshold
+    const toDelete: string[] = [];
+    for (const [key, count] of this.coActivationCounts) {
+      if (toDelete.length >= entriesToRemove) break;
+      if (count <= threshold) {
+        toDelete.push(key);
+      }
+    }
+    for (const key of toDelete) {
+      this.coActivationCounts.delete(key);
     }
   }
 

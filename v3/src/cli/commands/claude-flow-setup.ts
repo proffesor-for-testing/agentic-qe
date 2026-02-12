@@ -20,6 +20,10 @@
 import { existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
+import {
+  detectClaudeFlow as smartDetectClaudeFlow,
+  getClaudeFlowNotFoundMessage,
+} from '../../adapters/claude-flow/detect.js';
 
 // ============================================================================
 // Types
@@ -66,97 +70,59 @@ export interface ClaudeFlowSetupResult {
 // ============================================================================
 
 /**
- * Check if Claude Flow is available
+ * Check if Claude Flow is available.
+ * Uses smart detection that never triggers npm auto-install.
  */
 async function detectClaudeFlow(projectRoot: string, debug?: boolean): Promise<{
   available: boolean;
   version?: string;
   method?: 'mcp' | 'cli' | 'npm';
 }> {
-  // Method 1: Check for MCP server in Claude settings
-  const claudeSettingsPath = join(projectRoot, '.claude', 'settings.json');
-  if (existsSync(claudeSettingsPath)) {
-    try {
-      const settings = JSON.parse(readFileSync(claudeSettingsPath, 'utf-8'));
-      const mcpServers = settings.mcpServers || settings.mcp?.servers || {};
+  const detection = smartDetectClaudeFlow(projectRoot);
 
-      if (mcpServers['claude-flow'] || mcpServers['@anthropic/claude-flow']) {
-        if (debug) console.log('[ClaudeFlow] Detected via MCP settings');
-        return { available: true, method: 'mcp' };
-      }
-    } catch {
-      // Continue to other methods
-    }
+  if (debug && detection.available) {
+    console.log(`[ClaudeFlow] Detected via ${detection.method}${detection.version ? `: v${detection.version}` : ''}`);
   }
 
-  // Method 2: Check for CLI availability
-  try {
-    const result = execSync('npx @claude-flow/cli@latest --version', {
-      encoding: 'utf-8',
-      timeout: 10000,
-      cwd: projectRoot,
-    });
-    const version = result.trim().match(/\d+\.\d+\.\d+/)?.[0];
-    if (debug) console.log(`[ClaudeFlow] Detected via CLI: v${version}`);
-    return { available: true, version, method: 'cli' };
-  } catch {
-    // Continue to other methods
+  if (!detection.available) {
+    return { available: false };
   }
 
-  // Method 3: Check for npm package
-  try {
-    const packageJsonPath = join(projectRoot, 'package.json');
-    if (existsSync(packageJsonPath)) {
-      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-      const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  // Map detection method to legacy method names for compatibility
+  const methodMap: Record<string, 'mcp' | 'cli' | 'npm'> = {
+    'mcp-config': 'mcp',
+    'local-binary': 'cli',
+    'npx-cached': 'cli',
+    'npm-dependency': 'npm',
+  };
 
-      if (deps['@claude-flow/cli'] || deps['claude-flow']) {
-        if (debug) console.log('[ClaudeFlow] Detected via package.json');
-        return { available: true, method: 'npm' };
-      }
-    }
-  } catch {
-    // Continue
-  }
-
-  return { available: false };
+  return {
+    available: true,
+    version: detection.version,
+    method: detection.method ? methodMap[detection.method] : undefined,
+  };
 }
 
 /**
- * Check available Claude Flow features
+ * Check available Claude Flow features.
+ *
+ * When Claude Flow is detected locally, we assume all features are available
+ * (they ship as a bundle). Individual feature probing via shell commands is
+ * avoided because it is slow, noisy, and can trigger npm auto-install.
+ *
+ * If a specific feature fails at runtime, the bridges already fall back
+ * gracefully to local implementations.
  */
-async function detectFeatures(projectRoot: string): Promise<ClaudeFlowSetupResult['features']> {
-  const features = {
-    trajectories: false,
-    modelRouting: false,
-    pretrain: false,
-    workers: false,
-    patternSearch: false,
+async function detectFeatures(_projectRoot: string): Promise<ClaudeFlowSetupResult['features']> {
+  // All features ship together in Claude Flow — no need to probe each one.
+  // Runtime bridges handle individual fallbacks if a command is missing.
+  return {
+    trajectories: true,
+    modelRouting: true,
+    pretrain: true,
+    workers: true,
+    patternSearch: true,
   };
-
-  // Check each feature by running quick commands
-  const featureChecks: Array<{ feature: keyof typeof features; command: string }> = [
-    { feature: 'trajectories', command: 'hooks metrics --period 1h' },
-    { feature: 'modelRouting', command: 'hooks model-stats' },
-    { feature: 'pretrain', command: 'hooks pretrain --help' },
-    { feature: 'workers', command: 'hooks worker-list' },
-    { feature: 'patternSearch', command: 'hooks intelligence --show-status true' },
-  ];
-
-  for (const check of featureChecks) {
-    try {
-      execSync(`npx @claude-flow/cli@latest ${check.command}`, {
-        encoding: 'utf-8',
-        timeout: 5000,
-        cwd: projectRoot,
-      });
-      features[check.feature] = true;
-    } catch {
-      // Feature not available
-    }
-  }
-
-  return features;
 }
 
 // ============================================================================
@@ -242,22 +208,24 @@ function updateMCPConfig(projectRoot: string): void {
 }
 
 /**
- * Run initial pretrain analysis
+ * Run initial pretrain analysis.
+ * Uses --no-install to avoid triggering npm auto-install.
  */
 async function runPretrainAnalysis(projectRoot: string, debug?: boolean): Promise<void> {
   try {
     if (debug) console.log('[ClaudeFlow] Running pretrain analysis...');
 
-    execSync('npx @claude-flow/cli@latest hooks pretrain --depth medium', {
+    execSync('npx --no-install @claude-flow/cli hooks pretrain --depth medium', {
       encoding: 'utf-8',
       timeout: 120000, // 2 minutes
       cwd: projectRoot,
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     if (debug) console.log('[ClaudeFlow] Pretrain analysis complete');
   } catch (error) {
     if (debug) {
-      console.log('[ClaudeFlow] Pretrain analysis failed:', error instanceof Error ? error.message : String(error));
+      console.log('[ClaudeFlow] Pretrain analysis skipped:', error instanceof Error ? error.message : String(error));
     }
     // Non-critical, continue
   }

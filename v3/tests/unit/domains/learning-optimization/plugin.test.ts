@@ -26,6 +26,42 @@ import {
   expectError,
 } from '../plugin-test-utils';
 
+// Mock SONA persistence to avoid real SQLite dependency in unit tests
+vi.mock('../../../../src/integrations/ruvector/sona-persistence', () => ({
+  createPersistentSONAEngine: vi.fn().mockResolvedValue({
+    createPattern: vi.fn(),
+    adaptPattern: vi.fn().mockResolvedValue({ patterns: [], adapted: false }),
+    getStats: vi.fn().mockReturnValue({ totalPatterns: 0, typeBreakdown: {}, domainBreakdown: {} }),
+    getAllPatterns: vi.fn().mockReturnValue([]),
+    getPatternsByType: vi.fn().mockReturnValue([]),
+    getPatternsByDomain: vi.fn().mockReturnValue([]),
+    updatePattern: vi.fn(),
+    forceLearn: vi.fn().mockResolvedValue(undefined),
+    exportPatterns: vi.fn().mockReturnValue([]),
+    importPatterns: vi.fn(),
+    verifyPerformance: vi.fn().mockReturnValue({ avgTime: 0, accuracy: 1 }),
+    close: vi.fn().mockResolvedValue(undefined),
+  }),
+  PersistentSONAEngine: vi.fn(),
+}));
+
+// Mock dream engine to avoid real SQLite dependency (plugin uses default config with dream enabled)
+vi.mock('../../../../src/learning/dream/index', () => ({
+  createDreamEngine: vi.fn().mockResolvedValue({
+    initialize: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn().mockResolvedValue(undefined),
+    runCycle: vi.fn().mockResolvedValue({ insights: [], duration: 0 }),
+  }),
+  createDreamScheduler: vi.fn().mockReturnValue({
+    initialize: vi.fn().mockResolvedValue(undefined),
+    start: vi.fn(),
+    stop: vi.fn(),
+    dispose: vi.fn().mockResolvedValue(undefined),
+    getStatus: vi.fn().mockReturnValue({ state: 'idle', cyclesCompleted: 0 }),
+  }),
+  DreamScheduler: vi.fn(),
+}));
+
 describe('LearningOptimizationPlugin', () => {
   let plugin: LearningOptimizationPlugin;
   let eventBus: MockEventBus;

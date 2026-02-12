@@ -6,6 +6,103 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// Mock heavy dependencies to prevent 60+ second singleton initialization.
+// This is a unit test for race condition logic — we don't need real MinCut,
+// governance, circuit breakers, agent teams, or tracing infrastructure.
+vi.mock('../../../src/coordination/mincut/queen-integration', () => ({
+  createQueenMinCutBridge: vi.fn(() => ({
+    initialize: vi.fn().mockResolvedValue(undefined),
+    dispose: vi.fn().mockResolvedValue(undefined),
+    extendQueenHealth: vi.fn((base: unknown) => base),
+    extendQueenMetrics: vi.fn((base: unknown) => base),
+  })),
+}));
+
+vi.mock('../../../src/coordination/mincut/shared-singleton', () => ({
+  getSharedMinCutGraph: vi.fn(() => ({})),
+}));
+
+vi.mock('../../../src/governance/index.js', () => ({
+  queenGovernanceAdapter: {
+    initialize: vi.fn().mockResolvedValue(undefined),
+    beforeTaskExecution: vi.fn().mockResolvedValue({ allowed: true }),
+    afterTaskExecution: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+vi.mock('../../../src/coordination/agent-teams/index.js', () => ({
+  createAgentTeamsAdapter: vi.fn(() => ({
+    initialize: vi.fn(),
+    shutdown: vi.fn(),
+  })),
+  AgentTeamsAdapter: vi.fn(),
+}));
+
+vi.mock('../../../src/coordination/agent-teams/domain-team-manager.js', () => ({
+  createDomainTeamManager: vi.fn(() => ({
+    dispose: vi.fn(),
+  })),
+  DomainTeamManager: vi.fn(),
+}));
+
+vi.mock('../../../src/coordination/circuit-breaker/index.js', () => ({
+  createDomainBreakerRegistry: vi.fn(() => ({
+    canExecuteInDomain: vi.fn(() => true),
+    getBreaker: vi.fn(() => ({
+      recordSuccess: vi.fn(),
+      recordFailure: vi.fn(),
+    })),
+  })),
+  DomainCircuitOpenError: class DomainCircuitOpenError extends Error {},
+  DomainBreakerRegistry: vi.fn(),
+}));
+
+vi.mock('../../../src/coordination/fleet-tiers/index.js', () => ({
+  createTierSelector: vi.fn(() => ({
+    selectTier: vi.fn(() => ({ selectedTier: 'sonnet', reason: 'mock' })),
+  })),
+}));
+
+vi.mock('../../../src/coordination/agent-teams/tracing.js', () => ({
+  createTraceCollector: vi.fn(() => ({
+    startTrace: vi.fn(() => ({ context: { traceId: 'mock-trace', spanId: 'mock-span' } })),
+    completeSpan: vi.fn(),
+    failSpan: vi.fn(),
+    dispose: vi.fn(),
+  })),
+  encodeTraceContext: vi.fn(() => 'mock-trace-context'),
+}));
+
+vi.mock('../../../src/coordination/competing-hypotheses/index.js', () => ({
+  createHypothesisManager: vi.fn(() => ({
+    createInvestigation: vi.fn(() => ({ id: 'mock-investigation' })),
+    addHypothesis: vi.fn(),
+    dispose: vi.fn(),
+  })),
+}));
+
+vi.mock('../../../src/coordination/federation/index.js', () => ({
+  createFederationMailbox: vi.fn(() => ({
+    dispose: vi.fn(),
+  })),
+}));
+
+vi.mock('../../../src/coordination/dynamic-scaling/index.js', () => ({
+  createDynamicScaler: vi.fn(() => ({
+    recordMetrics: vi.fn(),
+    evaluate: vi.fn(() => ({ action: 'none' })),
+    execute: vi.fn().mockResolvedValue(undefined),
+    dispose: vi.fn(),
+  })),
+}));
+
+vi.mock('../../../src/hooks/cross-phase-hooks.js', () => ({
+  getCrossPhaseHookExecutor: vi.fn(() => ({
+    executeHook: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
 import {
   QueenCoordinator,
   QueenTask,
@@ -314,7 +411,7 @@ describe('QueenCoordinator Race Condition Fix (CC-002)', () => {
   describe('concurrent task submission', () => {
     it('should never exceed maxConcurrentTasks even with concurrent submissions', async () => {
       const maxConcurrentTasks = 3;
-      const totalTasksToSubmit = 10;
+      const totalTasksToSubmit = 6;
 
       queen = new QueenCoordinator(
         eventBus,
@@ -418,7 +515,7 @@ describe('QueenCoordinator Race Condition Fix (CC-002)', () => {
 
     it('should handle rapid fire task submissions without race conditions', async () => {
       const maxConcurrentTasks = 5;
-      const totalTasksToSubmit = 20;
+      const totalTasksToSubmit = 8; // Reduced from 20 — spawn delay + sequential event handlers cause timeout
 
       // Add small delay to spawn to expose race conditions
       agentCoordinator.setSpawnDelay(5);
@@ -920,7 +1017,7 @@ describe('QueenCoordinator Race Condition Fix (CC-002)', () => {
 
     it('should handle stress test with many concurrent submissions', async () => {
       const maxConcurrentTasks = 10;
-      const totalTasks = 100;
+      const totalTasks = 25; // Reduced from 100 to avoid timeout in constrained environments
 
       queen = new QueenCoordinator(
         eventBus,

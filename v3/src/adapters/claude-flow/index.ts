@@ -39,6 +39,13 @@ export {
   createPretrainBridge,
 } from './pretrain-bridge.js';
 
+export {
+  detectClaudeFlow,
+  clearDetectionCache,
+  getClaudeFlowNotFoundMessage,
+} from './detect.js';
+export type { ClaudeFlowDetection } from './detect.js';
+
 /**
  * Unified Claude Flow bridge that manages all sub-bridges
  */

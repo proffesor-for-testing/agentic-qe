@@ -454,14 +454,17 @@ export class PatternStore implements IPatternStore {
 
       const keys = await Promise.race([searchPromise, timeoutPromise]);
 
-      for (const key of keys) {
-        try {
-          const pattern = await this.memory.get<QEPattern>(key);
+      // Batch load patterns concurrently instead of N+1 sequential gets
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < keys.length; i += BATCH_SIZE) {
+        const batch = keys.slice(i, i + BATCH_SIZE);
+        const patterns = await Promise.all(
+          batch.map(key => this.memory.get<QEPattern>(key).catch(() => null))
+        );
+        for (const pattern of patterns) {
           if (pattern) {
             this.indexPattern(pattern);
           }
-        } catch {
-          // Skip invalid patterns
         }
       }
 
@@ -583,11 +586,12 @@ export class PatternStore implements IPatternStore {
   async create(options: CreateQEPatternOptions): Promise<Result<QEPattern>> {
     const now = new Date();
 
+    const resolvedDomain = options.qeDomain || this.detectDomainFromType(options.patternType);
     const pattern: QEPattern = {
       id: uuidv4(),
       patternType: options.patternType,
-      qeDomain: this.detectDomainFromType(options.patternType),
-      domain: mapQEDomainToAQE(this.detectDomainFromType(options.patternType)),
+      qeDomain: resolvedDomain,
+      domain: mapQEDomainToAQE(resolvedDomain),
       name: options.name,
       description: options.description,
       confidence: options.confidence ?? 0.5, // Use provided or default

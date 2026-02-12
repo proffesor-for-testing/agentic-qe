@@ -80,7 +80,7 @@ export interface PoolStats {
 
 class ConnectionPoolImpl {
   private readonly connections: Map<string, PoolConnection> = new Map();
-  private readonly connectionQueue: string[] = []; // FIFO queue for LRU-style eviction
+  private readonly idleConnections: Set<string> = new Set(); // O(1) acquire + release
   private readonly config: ConnectionPoolConfig;
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private initialized = false;
@@ -185,13 +185,14 @@ class ConnectionPoolImpl {
     const startTime = performance.now();
     this.totalRequests++;
 
-    // Find first healthy idle connection (not in use)
-    for (const connId of this.connectionQueue) {
+    // O(1) acquisition from idle set
+    for (const connId of this.idleConnections) {
       const conn = this.connections.get(connId);
-      if (conn && conn.isHealthy && !conn.inUse) {
-        // Mark as in use
+      if (conn && conn.isHealthy) {
+        // Mark as in use and remove from idle set
         conn.inUse = true;
         conn.lastUsedAt = Date.now();
+        this.idleConnections.delete(connId);
         this.cacheHits++;
 
         // Track acquisition time
@@ -200,6 +201,8 @@ class ConnectionPoolImpl {
 
         return conn;
       }
+      // Remove stale entries from idle set
+      this.idleConnections.delete(connId);
     }
 
     // No idle connection found - try to create new one if allowed
@@ -232,6 +235,10 @@ class ConnectionPoolImpl {
 
     conn.inUse = false;
     conn.lastUsedAt = Date.now();
+    // Return to idle set for O(1) re-acquisition
+    if (conn.isHealthy) {
+      this.idleConnections.add(connectionId);
+    }
   }
 
   /**
@@ -313,10 +320,7 @@ class ConnectionPoolImpl {
 
     for (const id of pruned) {
       this.connections.delete(id);
-      const idx = this.connectionQueue.indexOf(id);
-      if (idx >= 0) {
-        this.connectionQueue.splice(idx, 1);
-      }
+      this.idleConnections.delete(id); // O(1) removal from Set
     }
 
     // Ensure minimum connections
@@ -332,7 +336,7 @@ class ConnectionPoolImpl {
    */
   reset(): void {
     this.connections.clear();
-    this.connectionQueue.length = 0;
+    this.idleConnections.clear();
     this.totalRequests = 0;
     this.cacheHits = 0;
     this.acquisitionTimes = [];
@@ -348,7 +352,7 @@ class ConnectionPoolImpl {
     }
 
     this.connections.clear();
-    this.connectionQueue.length = 0;
+    this.idleConnections.clear();
     this.initialized = false;
   }
 
@@ -376,7 +380,7 @@ class ConnectionPoolImpl {
     };
 
     this.connections.set(id, connection);
-    this.connectionQueue.push(id);
+    this.idleConnections.add(id);
   }
 
   private createConnectionSync(): PoolConnection | null {
@@ -403,7 +407,7 @@ class ConnectionPoolImpl {
     };
 
     this.connections.set(id, connection);
-    this.connectionQueue.push(id);
+    this.idleConnections.add(id);
 
     return connection;
   }
@@ -431,8 +435,18 @@ class ConnectionPoolImpl {
       health -= Math.min(0.2, (avgLatency / 100) * 0.2);
 
       conn.health = Math.max(0, Math.min(1, health));
+      const wasHealthy = conn.isHealthy;
       conn.isHealthy = conn.health >= this.config.healthThreshold;
       conn.metrics.lastHealthCheck = now;
+
+      // Update idle set based on health changes
+      if (!conn.inUse) {
+        if (conn.isHealthy && !wasHealthy) {
+          this.idleConnections.add(conn.id);
+        } else if (!conn.isHealthy && wasHealthy) {
+          this.idleConnections.delete(conn.id);
+        }
+      }
     }
 
     // Auto-prune if enabled

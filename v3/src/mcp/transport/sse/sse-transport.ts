@@ -4,6 +4,7 @@
  */
 
 import { v4 as uuid } from 'uuid';
+import { safeJsonParse } from '../../../cli/helpers/safe-json.js';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { ConnectionManager, createConnectionManager } from './connection-manager.js';
 import type {
@@ -341,8 +342,8 @@ export class SSETransport {
             reject(new Error('Empty request body'));
             return;
           }
-          const parsed = JSON.parse(body);
-          resolve(parsed as AgentRequest);
+          const parsed = safeJsonParse<AgentRequest>(body);
+          resolve(parsed);
         } catch (error) {
           reject(new Error('Invalid JSON in request body'));
         }

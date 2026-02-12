@@ -92,6 +92,37 @@ Write user-friendly descriptions focused on value, not implementation details.
 
 **STOP — show changelog entry for review.**
 
+### 4b. Update Release Docs
+
+Create a release notes file at `docs/releases/v<version>.md` following the existing format:
+
+```markdown
+# v<version> Release Notes
+
+**Release Date:** YYYY-MM-DD
+
+## Highlights
+
+<1-2 sentence summary of the most important changes>
+
+## Added
+- ...
+
+## Fixed
+- ...
+
+## Changed
+- ...
+```
+
+Then update `docs/releases/README.md` — add a new row at the TOP of the table:
+
+```markdown
+| [v<version>](v<version>.md) | YYYY-MM-DD | <Short highlights> |
+```
+
+Use existing entries as formatting reference. Keep highlights concise (under 80 chars).
+
 ### 5. Build
 ```bash
 npm run build
@@ -198,8 +229,8 @@ All mandatory test suites must pass. Pre-existing MCP handler test failures (tes
 ```bash
 cd /workspaces/agentic-qe-new
 
-# Stage version bump + changelog
-git add package.json v3/package.json v3/CHANGELOG.md
+# Stage version bump + changelog + release docs
+git add package.json v3/package.json v3/CHANGELOG.md docs/releases/README.md docs/releases/v<version>.md
 # Also stage any files that were fixed during version audit
 git status
 

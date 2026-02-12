@@ -36,9 +36,9 @@ BRIGHT_BLUE='\033[1;34m'
 BRIGHT_PURPLE='\033[1;35m'
 BRIGHT_CYAN='\033[1;36m'
 
-# v3 Development Targets (12 DDD Domains, V3-QE agent fleet)
-DOMAINS_TOTAL=12
-V3_QE_TARGET=50   # V3-QE specific agents target (47 after cleanup)
+# v3 Development Targets (13 DDD Domains, V3-QE agent fleet)
+DOMAINS_TOTAL=13
+V3_QE_TARGET=60
 COVERAGE_TARGET=90
 LEARNING_TARGET=15  # % improvement per sprint
 QE_HOOKS_TOTAL=13  # Total QE hook events

@@ -9,6 +9,8 @@
  * - Configurable limits per endpoint
  */
 
+import { createSafeRegex } from './validators/regex-safety-validator.js';
+
 // ============================================================================
 // Types and Interfaces
 // ============================================================================
@@ -354,10 +356,10 @@ export class RateLimiter {
     for (let i = 0; i < this.endpointLimits.length; i++) {
       const limit = this.endpointLimits[i];
       const pattern = typeof limit.pattern === 'string'
-        ? new RegExp(limit.pattern)
+        ? createSafeRegex(limit.pattern)
         : limit.pattern;
 
-      if (pattern.test(endpoint)) {
+      if (pattern && pattern.test(endpoint)) {
         return `ep${i}`;
       }
     }
@@ -369,10 +371,10 @@ export class RateLimiter {
     if (endpoint) {
       for (const limit of this.endpointLimits) {
         const pattern = typeof limit.pattern === 'string'
-          ? new RegExp(limit.pattern)
+          ? createSafeRegex(limit.pattern)
           : limit.pattern;
 
-        if (pattern.test(endpoint)) {
+        if (pattern && pattern.test(endpoint)) {
           return {
             tokensPerSecond: limit.tokensPerSecond,
             maxBurst: limit.maxBurst,

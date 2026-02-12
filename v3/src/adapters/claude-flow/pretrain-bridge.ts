@@ -13,6 +13,7 @@
  */
 
 import type { PretrainResult } from './types.js';
+import { detectClaudeFlow } from './detect.js';
 
 /**
  * Pretrain Bridge for codebase analysis
@@ -31,20 +32,10 @@ export class PretrainBridge {
   }
 
   /**
-   * Check if Claude Flow is available
+   * Check if Claude Flow is available (no npm auto-install)
    */
   private async checkClaudeFlow(): Promise<boolean> {
-    try {
-      const { execSync } = await import('child_process');
-      execSync('npx @claude-flow/cli@latest hooks pretrain --help', {
-        encoding: 'utf-8',
-        timeout: 5000,
-        cwd: this.options.projectRoot,
-      });
-      return true;
-    } catch {
-      return false;
-    }
+    return detectClaudeFlow(this.options.projectRoot).available;
   }
 
   /**
@@ -67,7 +58,7 @@ export class PretrainBridge {
       try {
         const { execSync } = await import('child_process');
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks pretrain --path ${this.escapeArg(targetPath)} --depth ${depth}`,
+          `npx --no-install @claude-flow/cli hooks pretrain --path ${this.escapeArg(targetPath)} --depth ${depth}`,
           { encoding: 'utf-8', timeout: 120000, cwd: this.options.projectRoot }
         );
 
@@ -112,7 +103,7 @@ export class PretrainBridge {
       try {
         const { execSync } = await import('child_process');
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks build-agents --format ${format}`,
+          `npx --no-install @claude-flow/cli hooks build-agents --format ${format}`,
           { encoding: 'utf-8', timeout: 60000, cwd: this.options.projectRoot }
         );
 
@@ -143,7 +134,7 @@ export class PretrainBridge {
       try {
         const { execSync } = await import('child_process');
         const result = execSync(
-          `npx @claude-flow/cli@latest hooks transfer --source-path ${this.escapeArg(sourcePath)} --min-confidence ${minConfidence}`,
+          `npx --no-install @claude-flow/cli hooks transfer --source-path ${this.escapeArg(sourcePath)} --min-confidence ${minConfidence}`,
           { encoding: 'utf-8', timeout: 60000, cwd: this.options.projectRoot }
         );
 
