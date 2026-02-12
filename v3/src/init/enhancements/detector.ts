@@ -4,6 +4,7 @@
  */
 
 import type { EnhancementStatus } from '../phases/phase-interface.js';
+import { detectClaudeFlow as smartDetectClaudeFlow } from '../../adapters/claude-flow/detect.js';
 
 /**
  * Detect available enhancements
@@ -31,44 +32,14 @@ interface DetectionResult {
 }
 
 /**
- * Detect Claude Flow MCP availability
+ * Detect Claude Flow MCP availability (no npm auto-install)
  */
 async function detectClaudeFlow(): Promise<DetectionResult> {
-  try {
-    // Check if claude-flow CLI is available
-    const { execSync } = await import('child_process');
-    const result = execSync('npx @claude-flow/cli@latest --version', {
-      encoding: 'utf-8',
-      timeout: 5000,
-    });
-
-    const version = result.trim();
-    return {
-      available: true,
-      version,
-    };
-  } catch {
-    // Try checking if MCP server is configured
-    try {
-      const { existsSync, readFileSync } = await import('fs');
-      const { join } = await import('path');
-
-      const mcpPath = join(process.cwd(), '.claude', 'mcp.json');
-      if (existsSync(mcpPath)) {
-        const content = readFileSync(mcpPath, 'utf-8');
-        const config = JSON.parse(content);
-
-        if (config.mcpServers?.['claude-flow']) {
-          return { available: true };
-        }
-      }
-    } catch (error) {
-      // Non-critical: Claude Flow config read/parse errors
-      console.debug('[EnhancementDetector] Claude Flow config check failed:', error instanceof Error ? error.message : error);
-    }
-
-    return { available: false };
-  }
+  const detection = smartDetectClaudeFlow(process.cwd());
+  return {
+    available: detection.available,
+    version: detection.version,
+  };
 }
 
 /**
