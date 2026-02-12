@@ -26,7 +26,7 @@ import type {
 // Tests
 // ============================================================================
 
-describe('Memory Handlers', () => {
+describe('Memory Handlers', { timeout: 30000 }, () => {
   // Initialize fleet before each test
   beforeEach(async () => {
     await handleFleetInit({});

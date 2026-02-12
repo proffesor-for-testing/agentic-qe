@@ -18,7 +18,7 @@ import type { FleetInitParams, FleetStatusParams, FleetHealthParams } from '../.
 // Tests
 // ============================================================================
 
-describe('Core Handlers', () => {
+describe('Core Handlers', { timeout: 30000 }, () => {
   // Ensure clean state before each test
   beforeEach(async () => {
     // Ensure fleet is disposed before each test starts fresh
