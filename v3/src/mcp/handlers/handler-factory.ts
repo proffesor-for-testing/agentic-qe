@@ -355,11 +355,17 @@ export function getTaskExecutor(): DomainTaskExecutor {
 
 /**
  * Reset the task executor (call when fleet is reinitialized)
+ * Properly disposes the cached learning engine to prevent memory leaks.
  */
 export function resetTaskExecutor(): void {
   taskExecutor = null;
-  // Also reset the learning engine cache
-  cachedLearningEngine = null;
+  // Dispose learning engine to release DB connections and HNSW indices
+  if (cachedLearningEngine) {
+    const engine = cachedLearningEngine;
+    cachedLearningEngine = null;
+    // Fire-and-forget dispose — must not block reset
+    engine.dispose().catch(() => {});
+  }
 }
 
 // ============================================================================
@@ -487,9 +493,14 @@ async function routeDomainTask(
 
 /**
  * Reset the cached learning engine (call when fleet is reinitialized)
+ * Properly disposes the engine to release DB connections and HNSW indices.
  */
 export function resetLearningEngine(): void {
-  cachedLearningEngine = null;
+  if (cachedLearningEngine) {
+    const engine = cachedLearningEngine;
+    cachedLearningEngine = null;
+    engine.dispose().catch(() => {});
+  }
 }
 
 // ============================================================================
@@ -499,6 +510,7 @@ export function resetLearningEngine(): void {
 /**
  * Record pattern usage asynchronously after task completion (Phase 5.3)
  * Non-critical — fire-and-forget, must not break handler execution.
+ * Uses only the already-cached engine to avoid heavy lazy initialization.
  */
 async function recordPatternUsageAsync(
   patternHints: readonly PatternHint[] | undefined,
@@ -507,14 +519,13 @@ async function recordPatternUsageAsync(
   durationMs: number
 ): Promise<void> {
   if (!patternHints || patternHints.length === 0) return;
+  // Only use engine if already cached — don't trigger heavy init just for recording
+  if (!cachedLearningEngine) return;
 
   try {
-    const engine = await getLearningEngine();
-    if (!engine) return;
-
     for (const hint of patternHints) {
       if (!hint.patternId) continue;
-      await engine.recordOutcome({
+      await cachedLearningEngine.recordOutcome({
         patternId: hint.patternId,
         success,
         metrics: {
