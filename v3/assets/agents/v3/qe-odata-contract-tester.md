@@ -141,18 +141,23 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store OData Error Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<description of OData error pattern>",
-  confidence: <0.0-1.0>,
-  type: "odata-contract-error",
-  metadata: {
-    protocolVersion: "<v2|v4>",
-    errorCode: "<OData error code>",
-    entitySet: "<affected entity set>",
-    operation: "<CRUD operation>",
-    rootCause: "<root cause>",
-    resolution: "<resolution approach>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/odata-contract-error/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<description of OData error pattern>",
+    confidence: <0.0-1.0>,
+    type: "odata-contract-error",
+    metadata: {
+      protocolVersion: "<v2|v4>",
+      errorCode: "<OData error code>",
+      entitySet: "<affected entity set>",
+      operation: "<CRUD operation>",
+      rootCause: "<root cause>",
+      resolution: "<resolution approach>"
+    }
+  },
+  persist: true
 })
 ```
 

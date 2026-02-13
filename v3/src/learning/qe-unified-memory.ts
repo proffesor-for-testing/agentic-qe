@@ -25,6 +25,7 @@ import type { QEDomain } from './qe-patterns.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { migrateV2ToV3 } from './v2-to-v3-migration.js';
+import { EMBEDDING_CONFIG } from '../shared/embeddings/types.js';
 
 // Import HNSWIndex types - using proper import to avoid re-export issues
 import type {
@@ -97,7 +98,7 @@ export function memoryDomainToQEDomain(domain: QEMemoryDomain): QEDomain {
  */
 export const QE_DOMAIN_HNSW_CONFIGS: Record<QEMemoryDomain, HNSWIndexConfig> = {
   'test-suites': {
-    dimensions: 128,
+    dimensions: EMBEDDING_CONFIG.DIMENSIONS,
     M: 8,              // Low connectivity for fast lookup
     efConstruction: 100,
     efSearch: 50,
@@ -106,7 +107,7 @@ export const QE_DOMAIN_HNSW_CONFIGS: Record<QEMemoryDomain, HNSWIndexConfig> = {
     maxElements: 100000,
   },
   coverage: {
-    dimensions: 128,
+    dimensions: EMBEDDING_CONFIG.DIMENSIONS,
     M: 16,             // Balanced for gap detection
     efConstruction: 200,
     efSearch: 100,
@@ -115,7 +116,7 @@ export const QE_DOMAIN_HNSW_CONFIGS: Record<QEMemoryDomain, HNSWIndexConfig> = {
     maxElements: 100000,
   },
   defects: {
-    dimensions: 128,
+    dimensions: EMBEDDING_CONFIG.DIMENSIONS,
     M: 32,             // High connectivity for precision
     efConstruction: 400,
     efSearch: 200,     // Higher efSearch for better recall
@@ -124,7 +125,7 @@ export const QE_DOMAIN_HNSW_CONFIGS: Record<QEMemoryDomain, HNSWIndexConfig> = {
     maxElements: 100000,
   },
   quality: {
-    dimensions: 128,
+    dimensions: EMBEDDING_CONFIG.DIMENSIONS,
     M: 16,             // Balanced configuration
     efConstruction: 200,
     efSearch: 100,
@@ -133,7 +134,7 @@ export const QE_DOMAIN_HNSW_CONFIGS: Record<QEMemoryDomain, HNSWIndexConfig> = {
     maxElements: 100000,
   },
   learning: {
-    dimensions: 128,
+    dimensions: EMBEDDING_CONFIG.DIMENSIONS,
     M: 24,             // Higher recall for knowledge transfer
     efConstruction: 300,
     efSearch: 150,
@@ -142,7 +143,7 @@ export const QE_DOMAIN_HNSW_CONFIGS: Record<QEMemoryDomain, HNSWIndexConfig> = {
     maxElements: 100000,
   },
   coordination: {
-    dimensions: 64,     // Smaller vectors for agent state
+    dimensions: EMBEDDING_CONFIG.DIMENSIONS,
     M: 8,              // Fast lookup for coordination
     efConstruction: 100,
     efSearch: 50,
@@ -150,7 +151,7 @@ export const QE_DOMAIN_HNSW_CONFIGS: Record<QEMemoryDomain, HNSWIndexConfig> = {
     namespace: 'coordination-hnsw',
     maxElements: 50000, // Fewer entries needed
   },
-} as const;
+};
 
 // ============================================================================
 // Metadata Types for Each Domain
@@ -446,7 +447,7 @@ export const DEFAULT_QE_UNIFIED_MEMORY_CONFIG: Omit<QEUnifiedMemoryConfig, 'memo
   },
   defaultNamespace: 'qe-unified',
   enableCrossDomainSearch: true,
-  embeddingDimension: 128,
+  embeddingDimension: EMBEDDING_CONFIG.DIMENSIONS,
 };
 
 // ============================================================================

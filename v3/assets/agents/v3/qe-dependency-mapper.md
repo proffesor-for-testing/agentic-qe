@@ -116,18 +116,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Dependency Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/dependency-analysis-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/dependency-analysis/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<dependency pattern description>",
     confidence: <0.0-1.0>,
     type: "dependency-analysis",
     metadata: {
-    patternType: "<type>",
-    riskLevel: "<level>",
-    recommendation: "<fix>"
-  }
-  }
+      patternType: "<type>",
+      riskLevel: "<level>",
+      recommendation: "<fix>"
+    }
+  },
+  persist: true
 })
 ```
 

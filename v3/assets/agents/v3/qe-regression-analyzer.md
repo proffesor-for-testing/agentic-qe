@@ -117,18 +117,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Regression Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/regression-analysis-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/regression-analysis/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<regression pattern description>",
     confidence: <0.0-1.0>,
     type: "regression-analysis",
     metadata: {
-    changeType: "<type>",
-    riskLevel: "<level>",
-    testStrategy: "<strategy>"
-  }
-  }
+      changeType: "<type>",
+      riskLevel: "<level>",
+      testStrategy: "<strategy>"
+    }
+  },
+  persist: true
 })
 ```
 

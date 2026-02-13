@@ -118,18 +118,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Code Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/code-intelligence-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/code-intelligence/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<code pattern description>",
     confidence: <0.0-1.0>,
     type: "code-intelligence",
     metadata: {
-    patternType: "<type>",
-    language: "<language>",
-    frequency: <count>
-  }
-  }
+      patternType: "<type>",
+      language: "<language>",
+      frequency: <count>
+    }
+  },
+  persist: true
 })
 ```
 

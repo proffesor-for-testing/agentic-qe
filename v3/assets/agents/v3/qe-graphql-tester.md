@@ -117,18 +117,19 @@ mcp__agentic-qe__memory_store({
 **2. Store GraphQL Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/graphql-testing-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/graphql-testing/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<graphql pattern description>",
     confidence: <0.0-1.0>,
     type: "graphql-testing",
     metadata: {
-    operationType: "<query|mutation|subscription>",
-    issue: "<issue type>",
-    fix: "<recommendation>"
-  }
-  }
+      operationType: "<query|mutation|subscription>",
+      issue: "<issue type>",
+      fix: "<recommendation>"
+    }
+  },
+  persist: true
 })
 ```
 

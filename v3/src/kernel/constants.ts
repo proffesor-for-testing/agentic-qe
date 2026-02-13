@@ -35,7 +35,7 @@ export const MEMORY_CONSTANTS = {
    * Default vector embedding dimensions for HNSW index.
    * 384 dimensions matches common sentence transformers.
    */
-  DEFAULT_VECTOR_DIMENSIONS: 384,
+  DEFAULT_VECTOR_DIMENSIONS: 768,
 
   /**
    * Default search result limit for KV store queries.

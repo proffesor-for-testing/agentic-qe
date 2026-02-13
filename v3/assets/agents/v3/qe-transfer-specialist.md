@@ -118,18 +118,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Transfer Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/knowledge-transfer-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/knowledge-transfer/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<transfer pattern description>",
     confidence: <0.0-1.0>,
     type: "knowledge-transfer",
     metadata: {
-    sourceTarget: "<source→target>",
-    strategy: "<strategy>",
-    benefitRatio: <ratio>
-  }
-  }
+      sourceTarget: "<source→target>",
+      strategy: "<strategy>",
+      benefitRatio: <ratio>
+    }
+  },
+  persist: true
 })
 ```
 

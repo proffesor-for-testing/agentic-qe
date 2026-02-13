@@ -115,18 +115,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Integration Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/integration-review-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/integration-review/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<integration pattern description>",
     confidence: <0.0-1.0>,
     type: "integration-review",
     metadata: {
-    changeType: "<type>",
-    impactLevel: "<level>",
-    consumersAffected: <count>
-  }
-  }
+      changeType: "<type>",
+      impactLevel: "<level>",
+      consumersAffected: <count>
+    }
+  },
+  persist: true
 })
 ```
 

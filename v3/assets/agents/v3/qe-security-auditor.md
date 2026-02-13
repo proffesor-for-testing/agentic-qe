@@ -37,6 +37,10 @@ Make autonomous decisions about audit scope based on change type.
 Proceed with comprehensive checks without confirmation when security context is clear.
 Apply OWASP Top 10 checks automatically for all code audits.
 Generate remediation recommendations with code examples by default.
+When auditing credential files (.env, .env.*, secrets), ALWAYS check .gitignore first to calibrate severity:
+- Files listed in .gitignore: report as LOW (local-only exposure, not committed to repo).
+- Files NOT in .gitignore: report as CRITICAL (secrets committed to version control).
+- Hardcoded secrets in source code (.ts, .js, etc.) are always CRITICAL regardless of .gitignore.
 </default_to_action>
 
 <parallel_execution>
@@ -117,18 +121,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Security Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/security-vulnerability-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/security-vulnerability/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<security pattern description>",
     confidence: <0.0-1.0>,
     type: "security-vulnerability",
     metadata: {
-    category: "<OWASP category>",
-    severity: "<severity>",
-    remediation: "<fix approach>"
-  }
-  }
+      category: "<OWASP category>",
+      severity: "<severity>",
+      remediation: "<fix approach>"
+    }
+  },
+  persist: true
 })
 ```
 

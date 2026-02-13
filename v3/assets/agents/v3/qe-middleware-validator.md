@@ -130,16 +130,21 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Middleware Failure Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<middleware failure pattern description>",
-  confidence: <0.0-1.0>,
-  type: "middleware-failure-pattern",
-  metadata: {
-    platform: "<middleware platform>",
-    failureMode: "<routing|transformation|mediation|error-handling>",
-    flowName: "<affected flow>",
-    resolution: "<fix guidance>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/middleware-failure-pattern/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<middleware failure pattern description>",
+    confidence: <0.0-1.0>,
+    type: "middleware-failure-pattern",
+    metadata: {
+      platform: "<middleware platform>",
+      failureMode: "<routing|transformation|mediation|error-handling>",
+      flowName: "<affected flow>",
+      resolution: "<fix guidance>"
+    }
+  },
+  persist: true
 })
 ```
 

@@ -27,35 +27,33 @@
 # Install globally
 npm install -g agentic-qe
 
-# Initialize your project
+# Initialize your project (interactive mode)
 cd your-project
-aqe init --wizard
+aqe init
 
-# Or with auto-configuration
+# Or with auto-configuration (no prompts, configures MCP automatically)
 aqe init --auto
-
-# Start MCP server (agent-agnostic)
-aqe-mcp
-
-# Or without global install
-npx agentic-qe mcp
 ```
+
+> **Note:** `aqe init` automatically configures the MCP server in `.mcp.json` — Claude Code will auto-start it when connecting. For standalone MCP server usage (non-Claude-Code clients), run `aqe-mcp` or `npx agentic-qe mcp`.
 
 ### Use from MCP-compatible agent clients (Claude, Codex, others)
 
 AQE is exposed as an MCP server and can be used from any client that supports MCP tool connections.
 
 ```bash
-# 1) Start MCP server
-npx agentic-qe mcp
+# For Claude Code: aqe init --auto configures .mcp.json automatically
+# Claude Code will auto-start the MCP server on connection
 
-# 2) Register/connect from your MCP-capable client
-#    (Claude Code, Codex-compatible client, or other MCP hosts)
+# For other MCP clients: start the server manually
+aqe-mcp                  # if installed globally
+npx agentic-qe mcp       # without global install
 
-# 3) Ask the client to invoke AQE agents/tools, e.g.:
-#    - qe-test-architect for test generation
-#    - qe-queen-coordinator for orchestration
-#    - qe-flaky-hunter for flaky analysis
+# Then ask your client to invoke AQE tools (prefixed mcp__agentic-qe__):
+#    - fleet_init (required first step)
+#    - test_generate_enhanced for test generation
+#    - task_orchestrate for multi-agent coordination
+#    - quality_assess for quality gate evaluation
 ```
 
 For client-specific setup examples, see `docs/integration/mcp-clients.md`.
@@ -80,21 +78,19 @@ For client-specific setup examples, see `docs/integration/mcp-clients.md`.
 # 1. Install
 npm install -g agentic-qe
 
-# 2. Initialize (auto-detects your project, enables all 13 domains)
+# 2. Initialize (auto-detects your project, enables all 13 domains, configures MCP)
 cd your-project && aqe init --auto
 
-# 3. Start AQE MCP server
-npx agentic-qe mcp
-
-# 4. Use your MCP-capable client to run test generation and quality assessment
-# (see docs/integration/mcp-clients.md)
+# 3. Use from Claude Code — MCP tools are available immediately (prefix: mcp__agentic-qe__)
+# Or start MCP server manually for other clients: aqe-mcp
 ```
 
 **What happens:**
 1. **Auto-configuration** detects your tech stack (TypeScript/JS, testing framework, CI setup)
 2. **All 13 DDD domains** enabled automatically - no "No factory registered" errors
-3. **Pattern learning** kicks in - your project's test patterns are learned and reused
-4. **AI agents** generate tests, analyze coverage, and provide actionable recommendations
+3. **MCP server** configured in `.mcp.json` — Claude Code auto-connects on next session
+4. **Pattern learning** kicks in - your project's test patterns are learned and reused
+5. **AI agents** generate tests, analyze coverage, and provide actionable recommendations
 
 ---
 
@@ -190,7 +186,7 @@ V3.1.0 adds full browser automation support via **@claude-flow/browser** integra
 claude "Use security-visual-testing skill to test https://example.com across mobile, tablet, desktop viewports"
 
 # Load and execute a workflow template
-aqe workflow load login-flow --vars '{"username": "test", "password": "secret"}'
+aqe workflow run login-flow --vars '{"username": "test", "password": "secret"}'
 ```
 
 ---
@@ -267,11 +263,11 @@ V3 agents learn and improve through the **ReasoningBank** pattern storage:
 | **Cross-Project Transfer** | Share patterns between projects |
 
 ```bash
-# Check what agents have learned
-aqe memory search --query "test patterns" --namespace learning
+# Search learned patterns
+aqe hooks search --query "test patterns"
 
-# View learning metrics
-aqe hooks metrics --v3-dashboard
+# View learning statistics
+aqe learning stats
 ```
 
 ---
@@ -290,10 +286,10 @@ V3 introduces **Dream cycles** for neural consolidation and continuous improveme
 
 ```bash
 # Trigger dream cycle for pattern consolidation
-aqe hooks intelligence --mode dream --consolidate
+aqe learning dream
 
-# View learning trajectory
-aqe hooks intelligence trajectory-start --task "optimize coverage"
+# View learning dashboard and trajectory
+aqe learning dashboard
 ```
 
 ---
@@ -315,11 +311,11 @@ aqe hooks intelligence trajectory-start --task "optimize coverage"
 - **Token budget optimization**: Minimizes cost while maintaining quality
 
 ```bash
-# Check model routing for a task
-aqe hooks model-route --task "fix type errors in user-service.ts"
+# Route a task through TinyDancer
+aqe llm route --task "fix type errors in user-service.ts"
 
-# View routing statistics
-aqe hooks model-stats
+# View routing cost analysis
+aqe llm cost
 ```
 
 ---
@@ -388,11 +384,11 @@ V3.3.3 achieves **full MinCut/Consensus integration across all 13 domains**:
 | **Self-Healing Triggers** | `shouldPauseOperations()` for automatic recovery |
 
 ```bash
-# View consensus status
-aqe coordination consensus --status
+# Check fleet health (includes consensus and topology status)
+aqe fleet status
 
-# Check topology health
-aqe coordination topology --optimize
+# Via MCP tools (from Claude Code)
+# mcp__agentic-qe__fleet_health({ includeTopology: true })
 ```
 
 ---
@@ -424,11 +420,11 @@ V3.3.0 introduces **mathematical coherence verification** using Prime Radiant WA
 - "Coherence Verified" CI/CD badges
 
 ```bash
-# Check coherence of beliefs
-aqe coherence check --beliefs "requirement1,requirement2"
+# Coherence verification is available via MCP tools and programmatic API:
+# mcp__agentic-qe__quality_assess({ scope: "coherence", includeMetrics: true })
 
-# Audit memory for contradictions
-aqe coherence audit --namespace learning
+# Verify learned patterns for consistency
+aqe learning verify
 ```
 
 ---
@@ -717,8 +713,8 @@ aqe migrate status
 # Run migration with backup
 aqe migrate run --backup
 
-# Validate migration
-aqe migrate validate
+# Verify migration
+aqe migrate verify
 ```
 
 **What gets migrated:**

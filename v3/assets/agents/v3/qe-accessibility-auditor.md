@@ -277,18 +277,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Remediation Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/accessibility-remediation-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/accessibility-remediation/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<accessibility fix pattern>",
     confidence: <0.0-1.0>,
     type: "accessibility-remediation",
     metadata: {
-    wcagCriteria: "<criteria>",
-    violationType: "<type>",
-    codeExample: "<fix>"
-  }
-  }
+      wcagCriteria: "<criteria>",
+      violationType: "<type>",
+      codeExample: "<fix>"
+    }
+  },
+  persist: true
 })
 ```
 

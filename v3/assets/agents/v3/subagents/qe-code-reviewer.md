@@ -115,18 +115,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Review Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/code-review-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/code-review/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<review pattern description>",
     confidence: <0.0-1.0>,
     type: "code-review",
     metadata: {
-    issueType: "<type>",
-    severity: "<severity>",
-    frequency: <count>
-  }
-  }
+      issueType: "<type>",
+      severity: "<severity>",
+      frequency: <count>
+    }
+  },
+  persist: true
 })
 ```
 

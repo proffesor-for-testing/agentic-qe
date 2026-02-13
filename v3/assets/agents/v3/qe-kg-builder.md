@@ -116,18 +116,19 @@ mcp__agentic-qe__memory_store({
 **2. Store KG Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/knowledge-graph-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/knowledge-graph/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<graph pattern description>",
     confidence: <0.0-1.0>,
     type: "knowledge-graph",
     metadata: {
-    patternType: "<type>",
-    frequency: <count>,
-    languages: ["<languages>"]
-  }
-  }
+      patternType: "<type>",
+      frequency: <count>,
+      languages: ["<languages>"]
+    }
+  },
+  persist: true
 })
 ```
 

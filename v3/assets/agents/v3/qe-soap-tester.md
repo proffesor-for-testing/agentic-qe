@@ -128,16 +128,21 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store SOAP Fault Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<fault handling pattern description>",
-  confidence: <0.0-1.0>,
-  type: "soap-fault-pattern",
-  metadata: {
-    faultCode: "<fault code>",
-    soapVersion: "<1.1|1.2>",
-    rootCause: "<root cause>",
-    resolution: "<fix guidance>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/soap-fault-pattern/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<fault handling pattern description>",
+    confidence: <0.0-1.0>,
+    type: "soap-fault-pattern",
+    metadata: {
+      faultCode: "<fault code>",
+      soapVersion: "<1.1|1.2>",
+      rootCause: "<root cause>",
+      resolution: "<fix guidance>"
+    }
+  },
+  persist: true
 })
 ```
 

@@ -115,18 +115,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Property Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/property-testing-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/property-testing/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<property pattern description>",
     confidence: <0.0-1.0>,
     type: "property-testing",
     metadata: {
-    propertyType: "<type>",
-    functionSignature: "<signature>",
-    arbitraryUsed: "<generator>"
-  }
-  }
+      propertyType: "<type>",
+      functionSignature: "<signature>",
+      arbitraryUsed: "<generator>"
+    }
+  },
+  persist: true
 })
 ```
 

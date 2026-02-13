@@ -120,18 +120,19 @@ mcp__agentic-qe__memory_store({
 **2. Store RED Phase Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/tdd-red-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/tdd-red/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<red phase pattern description>",
     confidence: <0.0-1.0>,
     type: "tdd-red",
     metadata: {
-    behaviorType: "<type>",
-    testStructure: "<structure>",
-    assertionCount: <count>
-  }
-  }
+      behaviorType: "<type>",
+      testStructure: "<structure>",
+      assertionCount: <count>
+    }
+  },
+  persist: true
 })
 ```
 

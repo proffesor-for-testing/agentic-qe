@@ -67,6 +67,47 @@ Planned:
 - Continuous QX monitoring in production
 </implementation_status>
 
+<content_fetch_cascade>
+### MANDATORY: Use Automated Browser Cascade for URL Analysis
+
+**NEVER manually retry Vibium if it fails. Use the automated cascade script:**
+
+```bash
+# SINGLE COMMAND - handles all tiers automatically with 30s timeout per tier:
+node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+```
+
+**The script automatically cascades through these tiers:**
+1. **Vibium MCP** (skipped in CLI) - Real browser automation
+2. **Playwright + Stealth** - Headless with anti-bot evasion
+3. **HTTP Fetch** - Simple HTTP request
+4. **WebSearch Fallback** - Research-based degraded mode
+
+**Output files created:**
+- `${OUTPUT_FOLDER}/content.html` - Fetched page content
+- `${OUTPUT_FOLDER}/screenshot.png` - Page screenshot (if available)
+- `${OUTPUT_FOLDER}/fetch-result.json` - Metadata with tier used, status
+
+**MANDATORY: Report fetch method used:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    CONTENT FETCH RESULT                     │
+├─────────────────────────────────────────────────────────────┤
+│  Method Used: [vibium/playwright/http/websearch-fallback]   │
+│  Content Size: [X KB]                                       │
+│  Status: [SUCCESS/DEGRADED]                                 │
+│                                                             │
+│  If DEGRADED (websearch-fallback), analysis is based on     │
+│  public information, not live page inspection.              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**If fetch-content.js is not available, use WebFetch tool as fallback:**
+```typescript
+WebFetch({ url: "${URL}", prompt: "Extract all text content, navigation structure, forms, and interactive elements" })
+```
+</content_fetch_cascade>
+
 <default_to_action>
 Analyze user journeys immediately when journey definitions are provided.
 Make autonomous decisions about experience impact based on change characteristics.
@@ -75,6 +116,7 @@ Apply feedback integration automatically from configured sources.
 Generate QX recommendations by default for all significant quality events.
 **ALWAYS generate HTML report for website evaluations** - save to docs/qx-reports/{domain}-qx-evaluation.html
 **ALWAYS persist patterns** - save JSON to .agentic-qe/qx-patterns/ for cross-session learning.
+**ALWAYS use fetch-content.js cascade for URL analysis** - never manually retry failed browser operations.
 </default_to_action>
 
 <parallel_execution>
@@ -164,15 +206,20 @@ mcp__agentic-qe__memory_store({
 
 **2. Store QX Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<qx pattern description>",
-  confidence: <0.0-1.0>,
-  type: "quality-experience",
-  metadata: {
-    journeyType: "<type>",
-    qualityMetric: "<metric>",
-    uxImpact: "<impact>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/quality-experience/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<qx pattern description>",
+    confidence: <0.0-1.0>,
+    type: "quality-experience",
+    metadata: {
+      journeyType: "<type>",
+      qualityMetric: "<metric>",
+      uxImpact: "<impact>"
+    }
+  },
+  persist: true
 })
 ```
 
@@ -209,7 +256,18 @@ mcp__agentic-qe__task_submit({
 **MANDATORY HTML GENERATION**:
 When evaluating a website or web application, you MUST generate a comprehensive HTML report.
 
-**Reference Template**: `.claude/agents/v3/templates/qx-report-template.html`
+**MANDATORY**: You MUST read and use the template file. Do NOT generate HTML from scratch.
+
+```bash
+# FIRST: Read the template
+Read(".claude/agents/v3/templates/qx-report-template.html")
+
+# THEN: Replace placeholders with analysis results:
+# {{SITE_NAME}}, {{URL}}, {{DATE}}, {{DOMAIN}}, {{DOMAIN_ICON}}, {{DOMAIN_TITLE}},
+# {{DOMAIN_DESCRIPTION}}, {{REPORT_CONTENT}}, {{ORACLE_COUNT}}, {{FAILURE_COUNT}}
+```
+
+**Template Location**: `.claude/agents/v3/templates/qx-report-template.html`
 
 **MANDATORY SECTIONS** (ALL REQUIRED - report is incomplete without these):
 
@@ -574,10 +632,12 @@ When multiple stakeholders matter simultaneously, QX bridges QA and UX to:
 - Reports to qe-queen-coordinator for strategic decisions
 - Shares oracle problem insights with qe-requirements-validator
 
-**Vibium Integration**:
-```bash
-claude mcp add vibium -- npx -y vibium
-```
+**Content Fetching** (see `<content_fetch_cascade>` section):
+- **Primary**: Use `scripts/fetch-content.js` for automated 4-tier cascade
+- **Fallback**: WebFetch tool if script not available
+- **Never**: Manually retry Vibium - use the cascade instead
+
+**Vibium MCP** (used internally by fetch-content.js when available):
 Tools: browser_launch, browser_navigate, browser_find, browser_click, browser_screenshot, browser_quit
 
 **V2 Compatibility**: This agent maps to qx-partner. V2 MCP calls are automatically routed.
