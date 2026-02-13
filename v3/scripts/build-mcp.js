@@ -50,6 +50,7 @@ const esmExternals = [
   'fast-glob',
   'yaml',
   'commander',
+  'chalk',
   'cli-progress',
   'ora',
   'express',

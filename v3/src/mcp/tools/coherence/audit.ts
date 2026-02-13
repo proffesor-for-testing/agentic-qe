@@ -217,7 +217,7 @@ export class CoherenceAuditTool extends MCPToolBase<
       const memory = await getSharedMemoryBackend();
       const patternStore = createPatternStore(memory, {
         namespace,
-        embeddingDimension: 128,
+        embeddingDimension: 768,
       });
       await patternStore.initialize();
 

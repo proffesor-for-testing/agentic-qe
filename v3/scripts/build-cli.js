@@ -50,6 +50,7 @@ const esmExternals = [
   'fast-glob',
   'yaml',
   'commander',
+  'chalk',
   'cli-progress',
   'ora',
   'express',
@@ -81,10 +82,21 @@ const nativeRequirePlugin = {
         'const __require = createRequire(import.meta.url);',
         `const __mod = __require(${JSON.stringify(args.path)});`,
         'export default __mod;',
-        // Re-export all properties as named exports so destructured imports work
-        'const __keys = __mod && typeof __mod === "object" ? Object.keys(__mod) : [];',
-        'const __proxy = new Proxy(__mod || {}, { get: (t, k) => t[k] });',
-        'export const { pipeline, SonaEngine, HNSWIndex, AttentionEngine, GNNEngine } = __proxy;',
+        // Re-export all named exports used across the codebase.
+        // Each module only defines its own exports; the rest resolve to undefined
+        // which is fine since they are never imported from the wrong module.
+        'export const {',
+        '  // @ruvector/gnn',
+        '  RuvectorLayer, TensorCompress, differentiableSearch,',
+        '  hierarchicalForward, getCompressionLevel, init,',
+        '  // @ruvector/attention',
+        '  FlashAttention, DotProductAttention, MultiHeadAttention,',
+        '  HyperbolicAttention, LinearAttention, MoEAttention,',
+        '  // @ruvector/sona',
+        '  SonaEngine,',
+        '  // @xenova/transformers',
+        '  pipeline,',
+        '} = __mod || {};',
       ].join('\n'),
       loader: 'js',
     }));
@@ -103,9 +115,7 @@ try {
     define: {
       '__CLI_VERSION__': JSON.stringify(version),
     },
-    banner: {
-      js: '#!/usr/bin/env node',
-    },
+    // No banner — esbuild preserves the shebang from src/cli/index.ts automatically
   });
   console.log(`CLI bundle built successfully (v${version})`);
 } catch (error) {

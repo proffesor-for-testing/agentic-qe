@@ -77,7 +77,7 @@ async function initializeLearningSystem(): Promise<QEReasoningBank> {
     enableLearning: true,
     enableGuidance: true,
     enableRouting: true,
-    embeddingDimension: 128,
+    embeddingDimension: 768,
     useONNXEmbeddings: false,
   });
 
