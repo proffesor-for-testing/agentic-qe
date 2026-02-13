@@ -109,7 +109,7 @@ export interface PatternStoreConfig {
  */
 export const DEFAULT_PATTERN_STORE_CONFIG: PatternStoreConfig = {
   namespace: 'qe-patterns',
-  embeddingDimension: 128,
+  embeddingDimension: 768,
   hnsw: {
     M: 16,
     efConstruction: 200,
@@ -468,7 +468,9 @@ export class PatternStore implements IPatternStore {
         }
       }
 
-      console.log(`[PatternStore] Loaded ${this.patternCache.size} patterns`);
+      if (this.patternCache.size > 0) {
+        console.log(`[PatternStore] Loaded ${this.patternCache.size} patterns`);
+      }
     } catch (error) {
       // Database may be empty or uninitialized - that's OK, we'll start fresh
       console.log(`[PatternStore] Starting fresh (no existing patterns loaded): ${

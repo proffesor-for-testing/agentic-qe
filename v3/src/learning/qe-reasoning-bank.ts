@@ -95,7 +95,7 @@ export const DEFAULT_QE_REASONING_BANK_CONFIG: QEReasoningBankConfig = {
   enableLearning: true,
   enableGuidance: true,
   enableRouting: true,
-  embeddingDimension: 128,
+  embeddingDimension: 768,
   useONNXEmbeddings: true, // ADR-051: Enable ONNX embeddings by default
   maxRoutingCandidates: 10,
   routingWeights: {

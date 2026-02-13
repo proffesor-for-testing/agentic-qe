@@ -22,6 +22,10 @@ const { execSync, spawnSync } = require('child_process');
 let Database;
 try {
   Database = require('better-sqlite3');
+  // Verify native bindings actually work (require succeeds but constructor
+  // may throw if .node binary isn't compiled for this platform)
+  const testDb = new Database(':memory:');
+  testDb.close();
 } catch {
   Database = null; // Fallback to CLI if better-sqlite3 not available
 }

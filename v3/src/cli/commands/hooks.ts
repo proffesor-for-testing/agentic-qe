@@ -121,7 +121,7 @@ async function initializeHooksSystem(): Promise<void> {
       enableLearning: true,
       enableGuidance: true,
       enableRouting: true,
-      embeddingDimension: 128,
+      embeddingDimension: 768,
       useONNXEmbeddings: false, // Hash-based for ARM64 compatibility
     }, state.coherenceService ?? undefined);
 
@@ -335,7 +335,7 @@ async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promise<{
       enableLearning: true,
       enableGuidance: false,
       enableRouting: false,
-      embeddingDimension: 128,
+      embeddingDimension: 768,
       useONNXEmbeddings: false,
     });
     await rb.initialize();
