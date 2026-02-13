@@ -314,8 +314,7 @@ export class V2ToV3Migrator {
         success INTEGER NOT NULL,
         metrics_json TEXT,
         feedback TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
-        FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
+        created_at TEXT DEFAULT (datetime('now'))
       );
 
       CREATE INDEX IF NOT EXISTS idx_patterns_domain ON qe_patterns(qe_domain);

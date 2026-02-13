@@ -224,8 +224,7 @@ export class SQLitePatternStore {
         success INTEGER NOT NULL,
         metrics_json TEXT,
         feedback TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
-        FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
+        created_at TEXT DEFAULT (datetime('now'))
       );
 
       -- Learning trajectories

@@ -14,6 +14,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
+import { findProjectRoot } from '../../kernel/unified-memory.js';
 import { existsSync, writeFileSync, readFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { stat, unlink } from 'node:fs/promises';
@@ -54,8 +55,8 @@ async function initializeLearningSystem(): Promise<QEReasoningBank> {
     return state.reasoningBank;
   }
 
-  const cwd = process.cwd();
-  const dataDir = path.join(cwd, '.agentic-qe');
+  const projectRoot = findProjectRoot();
+  const dataDir = path.join(projectRoot, '.agentic-qe');
 
   // Create hybrid backend
   const backend = new HybridMemoryBackend({
@@ -231,8 +232,8 @@ function stripAnsi(text: string): string {
  * Get the learning database path
  */
 function getDbPath(): string {
-  const cwd = process.cwd();
-  return path.join(cwd, '.agentic-qe', 'memory.db');
+  const projectRoot = findProjectRoot();
+  return path.join(projectRoot, '.agentic-qe', 'memory.db');
 }
 
 /**
@@ -734,8 +735,8 @@ Examples:
           process.exit(0);
         }
 
-        const cwd = process.cwd();
-        const dataDir = path.join(cwd, '.agentic-qe');
+        const projectRoot = findProjectRoot();
+        const dataDir = path.join(projectRoot, '.agentic-qe');
 
         // List files that would be affected
         const filesToReset = [
@@ -778,8 +779,8 @@ Examples:
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
-        const cwd = process.cwd();
-        const dbPath = path.join(cwd, '.agentic-qe', 'memory.db');
+        const projectRoot = findProjectRoot();
+        const dbPath = path.join(projectRoot, '.agentic-qe', 'memory.db');
 
         if (!existsSync(dbPath)) {
           throw new Error('No memory database found. Run "aqe init --auto" first.');
@@ -1036,8 +1037,8 @@ Examples:
     .option('--save-snapshot', 'Save a daily metrics snapshot')
     .action(async (options) => {
       try {
-        const cwd = process.cwd();
-        const tracker = createLearningMetricsTracker(cwd);
+        const projectRoot = findProjectRoot();
+        const tracker = createLearningMetricsTracker(projectRoot);
         await tracker.initialize();
 
         if (options.saveSnapshot) {
@@ -1069,8 +1070,8 @@ Examples:
     .description('Show learning system configuration and paths')
     .action(async () => {
       try {
-        const cwd = process.cwd();
-        const dataDir = path.join(cwd, '.agentic-qe');
+        const projectRoot = findProjectRoot();
+        const dataDir = path.join(projectRoot, '.agentic-qe');
 
         console.log(chalk.bold('\n📋 AQE Learning System Info\n'));
 

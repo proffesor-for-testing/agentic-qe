@@ -312,9 +312,11 @@ function getLearningMetrics(projectDir) {
   const capturedExp = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM captured_experiences')) || 0;
   // Memory entries with learning data (MCP-stored experiences)
   const memoryLearning = parseInt(sqlite3Query(dbPath, "SELECT COUNT(*) FROM memory_entries WHERE key LIKE 'learning%' OR key LIKE 'phase2/learning%'")) || 0;
+  // QE pattern usage (hook-recorded outcomes from aqe hooks post-task/post-edit)
+  const patternUsage = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM qe_pattern_usage')) || 0;
 
   // Total experiences = all sources
-  const experiences = legacyExperiences + trajectories + capturedExp + memoryLearning;
+  const experiences = legacyExperiences + trajectories + capturedExp + memoryLearning + patternUsage;
 
   // Transfer learning count
   const transfers = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM transfer_registry')) || 0;
