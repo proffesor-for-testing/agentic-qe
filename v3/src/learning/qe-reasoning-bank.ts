@@ -95,7 +95,7 @@ export const DEFAULT_QE_REASONING_BANK_CONFIG: QEReasoningBankConfig = {
   enableLearning: true,
   enableGuidance: true,
   enableRouting: true,
-  embeddingDimension: 128,
+  embeddingDimension: 768,
   useONNXEmbeddings: true, // ADR-051: Enable ONNX embeddings by default
   maxRoutingCandidates: 10,
   routingWeights: {
@@ -1358,8 +1358,9 @@ On promotion:
         outcome.metrics ? JSON.stringify(outcome.metrics) : null,
         outcome.feedback || null
       );
-    } catch {
+    } catch (analyticsError) {
       // Non-critical — don't fail if analytics insert fails
+      console.warn(`[QEReasoningBank] Analytics write failed: ${analyticsError instanceof Error ? analyticsError.message : String(analyticsError)}`);
     }
 
     if (result.success) {

@@ -25,6 +25,7 @@ import {
 import { QEDomain } from '../../learning/qe-patterns.js';
 import { HybridMemoryBackend } from '../../kernel/hybrid-backend.js';
 import type { MemoryBackend } from '../../kernel/interfaces.js';
+import { findProjectRoot } from '../../kernel/unified-memory.js';
 import {
   wasmLoader,
   createCoherenceService,
@@ -98,9 +99,9 @@ async function initializeHooksSystem(): Promise<void> {
   if (state.initialized) return;
 
   try {
-    // Create memory backend
-    const cwd = process.cwd();
-    const dataDir = path.join(cwd, '.agentic-qe');
+    // Create memory backend — always resolve to project root DB
+    const projectRoot = findProjectRoot();
+    const dataDir = path.join(projectRoot, '.agentic-qe');
 
     // Use hybrid backend with timeout protection
     const memoryBackend = await createHybridBackendWithTimeout(dataDir);
@@ -121,7 +122,7 @@ async function initializeHooksSystem(): Promise<void> {
       enableLearning: true,
       enableGuidance: true,
       enableRouting: true,
-      embeddingDimension: 128,
+      embeddingDimension: 768,
       useONNXEmbeddings: false, // Hash-based for ARM64 compatibility
     }, state.coherenceService ?? undefined);
 
@@ -335,7 +336,7 @@ async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promise<{
       enableLearning: true,
       enableGuidance: false,
       enableRouting: false,
-      embeddingDimension: 128,
+      embeddingDimension: 768,
       useONNXEmbeddings: false,
     });
     await rb.initialize();
@@ -525,8 +526,8 @@ Examples:
         // Record experience for dream scheduler
         let dreamTriggered = false;
         try {
-          const cwd = process.cwd();
-          const dataDir = path.join(cwd, '.agentic-qe');
+          const projectRoot = findProjectRoot();
+          const dataDir = path.join(projectRoot, '.agentic-qe');
           const memoryBackend = await createHybridBackendWithTimeout(dataDir);
           await incrementDreamExperience(memoryBackend);
         } catch {
@@ -900,8 +901,8 @@ Examples:
         const stats = await reasoningBank.getStats();
 
         // Initialize dream scheduler state for this session
-        const cwd = process.cwd();
-        const dataDir = path.join(cwd, '.agentic-qe');
+        const projectRoot = findProjectRoot();
+        const dataDir = path.join(projectRoot, '.agentic-qe');
         const memoryBackend = await createHybridBackendWithTimeout(dataDir);
 
         // Load existing dream state or create fresh one
@@ -1092,21 +1093,22 @@ Examples:
           });
           patternsLearned = results.reduce((sum, r) => sum + (r.patternsLearned || 0), 0);
 
-          // Also record as learning experience directly if we have task details
-          if (options.taskId && options.agent) {
+          // Record as learning experience for every post-task invocation
+          if (options.taskId) {
+            const agent = options.agent || 'unknown';
             await reasoningBank.recordOutcome({
-              patternId: `task:${options.agent}:${options.taskId}`,
+              patternId: `task:${agent}:${options.taskId}`,
               success,
               metrics: {
                 executionTimeMs: options.duration ? parseInt(options.duration, 10) : 0,
               },
-              feedback: `Agent: ${options.agent}, Task: ${options.taskId}`,
+              feedback: `Agent: ${agent}, Task: ${options.taskId}`,
             });
           }
 
           // Record experience for dream scheduler and check if dream should trigger
-          const cwd = process.cwd();
-          const dataDir = path.join(cwd, '.agentic-qe');
+          const projectRoot = findProjectRoot();
+          const dataDir = path.join(projectRoot, '.agentic-qe');
           const memoryBackend = await createHybridBackendWithTimeout(dataDir);
           const expCount = await incrementDreamExperience(memoryBackend);
 

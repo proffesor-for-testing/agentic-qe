@@ -2,9 +2,13 @@
 /**
  * Build script for MCP bundle
  * Injects version from root package.json at build time
+ *
+ * Uses createRequire shim for native/CJS modules to fix ESM resolution
+ * in Node.js 22+ where legacyMainResolve fails for packages without
+ * an "exports" field (e.g. better-sqlite3 with main: "lib/index.js").
  */
 
-import { execSync } from 'child_process';
+import { build } from 'esbuild';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -18,10 +22,11 @@ const version = rootPkg.version;
 
 console.log(`Building MCP with version: ${version}`);
 
-// Native modules and packages that cannot be bundled
-// (native binaries, dynamic requires, or optional dependencies)
-const nativeExternals = [
-  // Native modules with platform-specific binaries
+// Native modules with CJS-only exports or native addons.
+// These fail with ESM static import in Node.js 22+ due to missing
+// "exports" field in their package.json — legacyMainResolve cannot
+// resolve the entry point. We intercept these and use createRequire().
+const nativeModules = [
   'better-sqlite3',
   'hnswlib-node',
   '@ruvector/attention',
@@ -35,36 +40,75 @@ const nativeExternals = [
   'vibium',
   '@claude-flow/browser',
   'prime-radiant-advanced-wasm',
-  // PostgreSQL driver (optional)
   'pg',
   'pg-native',
-  // CommonJS modules with dynamic requires (incompatible with ESM bundling)
+];
+
+// Pure JS externals that work fine with ESM import
+const esmExternals = [
   'typescript',
   'fast-glob',
+  'fast-json-patch',
   'yaml',
   'commander',
+  'chalk',
   'cli-progress',
   'ora',
-  // Optional dependencies
   'express',
 ];
 
-// Build MCP with version injected
-// Bundle pure JS dependencies inline, externalize only native modules
-const cmd = [
-  'esbuild',
-  'src/mcp/entry.ts',
-  '--bundle',
-  '--platform=node',
-  '--format=esm',
-  ...nativeExternals.map(pkg => `--external:${pkg}`),
-  '--outfile=dist/mcp/bundle.js',
-  `--define:__CLI_VERSION__='"${version}"'`,
-  "--banner:js='#!/usr/bin/env node'",
-].join(' ');
+/**
+ * esbuild plugin: Rewrite native/CJS module imports to use createRequire()
+ */
+const nativeRequirePlugin = {
+  name: 'native-require',
+  setup(build) {
+    const escapedNames = nativeModules.map(m =>
+      m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    );
+    const filter = new RegExp(`^(${escapedNames.join('|')})(\/.*)?$`);
+
+    build.onResolve({ filter }, (args) => ({
+      path: args.path,
+      namespace: 'native-require',
+    }));
+
+    build.onLoad({ filter: /.*/, namespace: 'native-require' }, (args) => ({
+      contents: [
+        'import { createRequire } from "module";',
+        'const __require = createRequire(import.meta.url);',
+        `const __mod = __require(${JSON.stringify(args.path)});`,
+        'export default __mod;',
+        // Re-export all named exports used across the codebase
+        'export const {',
+        '  RuvectorLayer, TensorCompress, differentiableSearch,',
+        '  hierarchicalForward, getCompressionLevel, init,',
+        '  FlashAttention, DotProductAttention, MultiHeadAttention,',
+        '  HyperbolicAttention, LinearAttention, MoEAttention,',
+        '  SonaEngine, pipeline,',
+        '} = __mod || {};',
+      ].join('\n'),
+      loader: 'js',
+    }));
+  },
+};
 
 try {
-  execSync(cmd, { stdio: 'inherit', cwd: join(__dirname, '..') });
+  await build({
+    entryPoints: [join(__dirname, '..', 'src/mcp/entry.ts')],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    external: esmExternals,
+    plugins: [nativeRequirePlugin],
+    outfile: join(__dirname, '..', 'dist/mcp/bundle.js'),
+    define: {
+      '__CLI_VERSION__': JSON.stringify(version),
+    },
+    banner: {
+      js: '#!/usr/bin/env node',
+    },
+  });
   console.log(`MCP bundle built successfully (v${version})`);
 } catch (error) {
   console.error('Build failed:', error.message);

@@ -22,6 +22,10 @@ const { execSync, spawnSync } = require('child_process');
 let Database;
 try {
   Database = require('better-sqlite3');
+  // Verify native bindings actually work (require succeeds but constructor
+  // may throw if .node binary isn't compiled for this platform)
+  const testDb = new Database(':memory:');
+  testDb.close();
 } catch {
   Database = null; // Fallback to CLI if better-sqlite3 not available
 }
@@ -308,9 +312,11 @@ function getLearningMetrics(projectDir) {
   const capturedExp = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM captured_experiences')) || 0;
   // Memory entries with learning data (MCP-stored experiences)
   const memoryLearning = parseInt(sqlite3Query(dbPath, "SELECT COUNT(*) FROM memory_entries WHERE key LIKE 'learning%' OR key LIKE 'phase2/learning%'")) || 0;
+  // QE pattern usage (hook-recorded outcomes from aqe hooks post-task/post-edit)
+  const patternUsage = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM qe_pattern_usage')) || 0;
 
   // Total experiences = all sources
-  const experiences = legacyExperiences + trajectories + capturedExp + memoryLearning;
+  const experiences = legacyExperiences + trajectories + capturedExp + memoryLearning + patternUsage;
 
   // Transfer learning count
   const transfers = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM transfer_registry')) || 0;

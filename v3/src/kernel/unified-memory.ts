@@ -424,15 +424,14 @@ const QE_PATTERNS_SCHEMA = `
     FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
   );
 
-  -- Pattern usage history
+  -- Pattern usage history (no FK — used as analytics log by hooks with synthetic IDs)
   CREATE TABLE IF NOT EXISTS qe_pattern_usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pattern_id TEXT NOT NULL,
     success INTEGER NOT NULL,
     metrics_json TEXT,
     feedback TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
+    created_at TEXT DEFAULT (datetime('now'))
   );
 
   -- Learning trajectories

@@ -30,7 +30,7 @@ import type {
 import Database from 'better-sqlite3';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { getUnifiedMemory, type UnifiedMemoryManager } from '../../../kernel/unified-memory.js';
+import { getUnifiedMemory, findProjectRoot, type UnifiedMemoryManager } from '../../../kernel/unified-memory.js';
 
 /**
  * Database row representation from SQLite
@@ -92,7 +92,7 @@ export class EmbeddingCache {
     this.compression = config.compression ?? true;
     this.useUnified = config.useUnified ?? true; // ADR-046: Default to unified
     this.storagePath = config.storagePath ||
-      join(process.cwd(), '.agentic-qe', 'embeddings-cache.db');
+      join(findProjectRoot(), '.agentic-qe', 'embeddings-cache.db');
 
     // Initialize memory cache with namespace separation
     this.memoryCache = new Map();
