@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.6.5](v3.6.5.md) | 2026-02-13 | Fix fleet_init dimension mismatch (#255), agent asset sync, README fixes |
 | [v3.6.4](v3.6.4.md) | 2026-02-12 | Security hardening, Dream Scheduler, QE pattern seeding, delta scanning |
 | [v3.6.3](v3.6.3.md) | 2026-02-11 | QX Analysis, SFDIPOT product factors, cross-platform compatibility |
 | [v3.6.2](v3.6.2.md) | 2026-02-10 | Init stability fixes (YAML parser, agent helper file placement) |

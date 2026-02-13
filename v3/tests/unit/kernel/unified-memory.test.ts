@@ -93,7 +93,7 @@ describe('UnifiedMemoryManager', () => {
     it('should use default config values', () => {
       expect(DEFAULT_UNIFIED_MEMORY_CONFIG.dbPath).toBe('.agentic-qe/memory.db');
       expect(DEFAULT_UNIFIED_MEMORY_CONFIG.walMode).toBe(true);
-      expect(DEFAULT_UNIFIED_MEMORY_CONFIG.vectorDimensions).toBe(384);
+      expect(DEFAULT_UNIFIED_MEMORY_CONFIG.vectorDimensions).toBe(768);
     });
   });
 
