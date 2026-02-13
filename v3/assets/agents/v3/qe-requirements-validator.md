@@ -132,18 +132,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Requirements Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/requirements-validation-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/requirements-validation/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<requirements pattern description>",
     confidence: <0.0-1.0>,
     type: "requirements-validation",
     metadata: {
-    issueType: "<type>",
-    fix: "<suggestion>",
-    testabilityImpact: <score>
-  }
-  }
+      issueType: "<type>",
+      fix: "<suggestion>",
+      testabilityImpact: <score>
+    }
+  },
+  persist: true
 })
 ```
 

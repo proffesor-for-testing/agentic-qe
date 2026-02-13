@@ -116,18 +116,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Failure Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/root-cause-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/root-cause/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<failure pattern description>",
     confidence: <0.0-1.0>,
     type: "root-cause",
     metadata: {
-    category: "<category>",
-    technique: "<analysis technique>",
-    prevention: "<recommended prevention>"
-  }
-  }
+      category: "<category>",
+      technique: "<analysis technique>",
+      prevention: "<recommended prevention>"
+    }
+  },
+  persist: true
 })
 ```
 

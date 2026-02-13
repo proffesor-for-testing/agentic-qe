@@ -130,16 +130,21 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store SAP RFC Error Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<RFC error pattern description>",
-  confidence: <0.0-1.0>,
-  type: "sap-rfc-error-pattern",
-  metadata: {
-    errorType: "<COMMUNICATION_FAILURE|SYSTEM_FAILURE|ABAP_RUNTIME_ERROR>",
-    functionModule: "<FM name>",
-    abapMessageClass: "<message class>",
-    resolution: "<fix guidance>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/sap-rfc-error-pattern/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<RFC error pattern description>",
+    confidence: <0.0-1.0>,
+    type: "sap-rfc-error-pattern",
+    metadata: {
+      errorType: "<COMMUNICATION_FAILURE|SYSTEM_FAILURE|ABAP_RUNTIME_ERROR>",
+      functionModule: "<FM name>",
+      abapMessageClass: "<message class>",
+      resolution: "<fix guidance>"
+    }
+  },
+  persist: true
 })
 ```
 

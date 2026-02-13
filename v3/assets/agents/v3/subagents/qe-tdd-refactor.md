@@ -120,18 +120,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Refactoring Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/tdd-refactor-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/tdd-refactor/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<refactoring pattern description>",
     confidence: <0.0-1.0>,
     type: "tdd-refactor",
     metadata: {
-    smellType: "<smell>",
-    refactoringApplied: "<pattern>",
-    designImprovement: "<improvement>"
-  }
-  }
+      smellType: "<smell>",
+      refactoringApplied: "<pattern>",
+      designImprovement: "<improvement>"
+    }
+  },
+  persist: true
 })
 ```
 

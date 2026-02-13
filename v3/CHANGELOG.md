@@ -5,6 +5,19 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.5] - 2026-02-13
+
+### Fixed
+
+- **Vector dimension mismatch (#255)** — `fleet_init` crashed with `Vector length mismatch: 128 vs 768` because QE domain HNSW indices were hardcoded to 128-dim while the embedding system produces 768-dim vectors. All 6 QE domain HNSW configs now derive dimensions from `EMBEDDING_CONFIG.DIMENSIONS` (768), and `DEFAULT_VECTOR_DIMENSIONS` aligned from 384 to 768. Coverage-analysis (128-dim custom feature vectors) remains unchanged.
+- **Agent asset learning protocol** — 48 agent templates in `v3/assets/agents/v3/` had broken learning persistence: wrong namespace (`"patterns"` instead of `"learning"`), missing `persist: true`, and malformed key formats. Synced all assets from the correct committed agent definitions.
+- **README CLI commands** — Fixed 13 incorrect CLI commands referencing non-existent flags/subcommands: `aqe init --wizard` → `aqe init`, `aqe memory search` → `aqe hooks search`, `aqe hooks metrics` → `aqe hooks stats`, `aqe hooks intelligence` → `aqe learning dream`, `aqe hooks model-route` → `aqe llm route`, `aqe coordination` → `aqe fleet status`, `aqe coherence` → MCP tools, `aqe migrate validate` → `aqe migrate verify`, `aqe workflow load` → `aqe workflow run`.
+
+### Changed
+
+- **CLAUDE.md init template** — `aqe init` now generates a CLAUDE.md with comprehensive MCP tool usage instructions including `fleet_init` requirement, tool examples with correct `mcp__agentic-qe__` prefix, and full tool reference table.
+- **README MCP setup flow** — Clarified that `aqe init --auto` configures `.mcp.json` automatically; Claude Code auto-starts the MCP server on connection. Manual `aqe-mcp` only needed for non-Claude-Code clients.
+
 ## [3.6.4] - 2026-02-12
 
 ### Added

@@ -116,18 +116,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Risk Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/risk-assessment-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/risk-assessment/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<risk pattern description>",
     confidence: <0.0-1.0>,
     type: "risk-assessment",
     metadata: {
-    riskCategory: "<category>",
-    indicators: ["<indicators>"],
-    mitigation: "<strategy>"
-  }
-  }
+      riskCategory: "<category>",
+      indicators: ["<indicators>"],
+      mitigation: "<strategy>"
+    }
+  },
+  persist: true
 })
 ```
 

@@ -117,18 +117,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Deployment Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/deployment-readiness-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/deployment-readiness/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<deployment pattern description>",
     confidence: <0.0-1.0>,
     type: "deployment-readiness",
     metadata: {
-    environment: "<environment>",
-    decision: "<decision>",
-    outcome: "<actual outcome>"
-  }
-  }
+      environment: "<environment>",
+      decision: "<decision>",
+      outcome: "<actual outcome>"
+    }
+  },
+  persist: true
 })
 ```
 

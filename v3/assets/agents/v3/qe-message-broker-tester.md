@@ -134,16 +134,21 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store Messaging Failure Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<messaging failure pattern description>",
-  confidence: <0.0-1.0>,
-  type: "messaging-failure-pattern",
-  metadata: {
-    brokerType: "<broker type>",
-    failureMode: "<ordering|delivery|transformation|transaction>",
-    rootCause: "<root cause>",
-    resolution: "<fix guidance>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/messaging-failure-pattern/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<messaging failure pattern description>",
+    confidence: <0.0-1.0>,
+    type: "messaging-failure-pattern",
+    metadata: {
+      brokerType: "<broker type>",
+      failureMode: "<ordering|delivery|transformation|transaction>",
+      rootCause: "<root cause>",
+      resolution: "<fix guidance>"
+    }
+  },
+  persist: true
 })
 ```
 

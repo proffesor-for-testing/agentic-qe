@@ -142,18 +142,23 @@ mcp__agentic_qe_v3__memory_store({
 
 **2. Store SoD Conflict Pattern:**
 ```typescript
-mcp__claude_flow__hooks_intelligence_pattern_store({
-  pattern: "<description of SoD conflict pattern>",
-  confidence: <0.0-1.0>,
-  type: "sod-conflict-pattern",
-  metadata: {
-    conflictCategory: "<financial|procurement|hr|basis>",
-    authObjects: ["<authorization objects involved>"],
-    transactions: ["<conflicting transaction codes>"],
-    riskLevel: "<critical|high|medium|low>",
-    remediationApproach: "<role split|org restriction|compensating control>",
-    complianceFramework: "<SOX|GDPR|both>"
-  }
+mcp__agentic-qe__memory_store({
+  key: "patterns/sod-conflict-pattern/{timestamp}",
+  namespace: "learning",
+  value: {
+    pattern: "<description of SoD conflict pattern>",
+    confidence: <0.0-1.0>,
+    type: "sod-conflict-pattern",
+    metadata: {
+      conflictCategory: "<financial|procurement|hr|basis>",
+      authObjects: ["<authorization objects involved>"],
+      transactions: ["<conflicting transaction codes>"],
+      riskLevel: "<critical|high|medium|low>",
+      remediationApproach: "<role split|org restriction|compensating control>",
+      complianceFramework: "<SOX|GDPR|both>"
+    }
+  },
+  persist: true
 })
 ```
 

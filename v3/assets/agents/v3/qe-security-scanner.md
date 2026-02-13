@@ -134,19 +134,20 @@ mcp__agentic-qe__task_submit({
 **3. Store New Vulnerability Patterns:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/security-vulnerability-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/security-vulnerability/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<description of vulnerability pattern>",
     confidence: <0.0-1.0>,
     type: "security-vulnerability",
     metadata: {
-    cwe: "<CWE-ID>",
-    owasp: "<OWASP category>",
-    language: "<language>",
-    fixPattern: "<remediation approach>"
-  }
-  }
+      cwe: "<CWE-ID>",
+      owasp: "<OWASP category>",
+      language: "<language>",
+      fixPattern: "<remediation approach>"
+    }
+  },
+  persist: true
 })
 ```
 

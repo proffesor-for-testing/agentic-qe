@@ -116,18 +116,19 @@ mcp__agentic-qe__memory_store({
 **2. Store BDD Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/bdd-generation-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/bdd-generation/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<BDD pattern description>",
     confidence: <0.0-1.0>,
     type: "bdd-generation",
     metadata: {
-    scenarioType: "<type>",
-    domain: "<domain>",
-    stepReuse: <percentage>
-  }
-  }
+      scenarioType: "<type>",
+      domain: "<domain>",
+      stepReuse: <percentage>
+    }
+  },
+  persist: true
 })
 ```
 

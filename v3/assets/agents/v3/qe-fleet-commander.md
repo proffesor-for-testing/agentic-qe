@@ -117,18 +117,19 @@ mcp__agentic-qe__memory_store({
 **2. Store Fleet Pattern:**
 ```typescript
 mcp__agentic-qe__memory_store({
-  key: "learning/patterns/fleet-management-{timestamp}",
-  namespace: "patterns",
+  key: "patterns/fleet-management/{timestamp}",
+  namespace: "learning",
   value: {
     pattern: "<fleet pattern description>",
     confidence: <0.0-1.0>,
     type: "fleet-management",
     metadata: {
-    workloadType: "<type>",
-    optimalAgentCount: <count>,
-    scalingStrategy: "<strategy>"
-  }
-  }
+      workloadType: "<type>",
+      optimalAgentCount: <count>,
+      scalingStrategy: "<strategy>"
+    }
+  },
+  persist: true
 })
 ```
 
