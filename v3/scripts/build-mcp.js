@@ -48,6 +48,7 @@ const nativeModules = [
 const esmExternals = [
   'typescript',
   'fast-glob',
+  'fast-json-patch',
   'yaml',
   'commander',
   'chalk',
@@ -78,6 +79,14 @@ const nativeRequirePlugin = {
         'const __require = createRequire(import.meta.url);',
         `const __mod = __require(${JSON.stringify(args.path)});`,
         'export default __mod;',
+        // Re-export all named exports used across the codebase
+        'export const {',
+        '  RuvectorLayer, TensorCompress, differentiableSearch,',
+        '  hierarchicalForward, getCompressionLevel, init,',
+        '  FlashAttention, DotProductAttention, MultiHeadAttention,',
+        '  HyperbolicAttention, LinearAttention, MoEAttention,',
+        '  SonaEngine, pipeline,',
+        '} = __mod || {};',
       ].join('\n'),
       loader: 'js',
     }));

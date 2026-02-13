@@ -5,6 +5,23 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.6] - 2026-02-13
+
+### Fixed
+
+- **Node 22+ crash on `npm install -g`** — `aqe --version` failed with `ERR_MODULE_NOT_FOUND: better-sqlite3` because Node 22's ESM resolver cannot handle packages without an `exports` field. Build scripts now use a `createRequire()` shim for all native modules, eliminating bare ESM imports that triggered `legacyMainResolve` failures.
+- **Hooks writing to wrong database** — Self-learning hooks used `process.cwd()` to find the database, which could resolve to the wrong `.agentic-qe/` directory in monorepos or subdirectories. All hooks and learning commands now use `findProjectRoot()` to always write to the project root database.
+- **Silent hook failures for 8+ days** — Removed 9 dead `npx @claude-flow/cli@latest` hooks and 3 `v3-qe-bridge.sh` hooks from settings.json that silently failed on every tool use. Each hook event now has exactly one working `aqe` handler.
+- **Vector dimension mismatch in hooks** — HNSW index initialized at 128 dimensions while database vectors were 768, causing fallback to in-memory mode. Fixed all `embeddingDimension` defaults across hooks, learning, pattern-store, reasoning-bank, and MCP audit to 768.
+- **Learning experiences not tracked** — `recordOutcome` in `post-task` hook only fired when both `--task-id` and `--agent` were passed, but hooks never pass `--agent`. Relaxed guard to only require `--task-id`, with agent defaulting to `"unknown"`.
+- **FK constraint blocking analytics** — `qe_pattern_usage` table had a foreign key to `qe_patterns`, but hooks write synthetic pattern IDs. Removed the FK constraint so analytics writes succeed.
+- **Statusline missing hook experiences** — Statusline experience count didn't include `qe_pattern_usage` table. Added it as a source, so hook-recorded learning now appears in metrics.
+- **Noisy `[PatternStore] Loaded 0 patterns` log** — Suppressed the zero-count log that printed on every CLI invocation.
+
+### Changed
+
+- **Build system modernized** — `build-cli.js` and `build-mcp.js` now use esbuild's JavaScript API with a `nativeRequirePlugin` instead of shelling out via `execSync`. Native modules (better-sqlite3, @ruvector/*, hnswlib-node, etc.) are shimmed with `createRequire()` for Node 22+ compatibility. `chalk` externalized to avoid CJS `require('os')` failures in ESM context.
+
 ## [3.6.5] - 2026-02-13
 
 ### Fixed

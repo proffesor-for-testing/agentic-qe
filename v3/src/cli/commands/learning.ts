@@ -752,7 +752,7 @@ Examples:
 
         for (const file of filesToReset) {
           if (existsSync(file)) {
-            console.log(chalk.dim(`  Removing: ${path.relative(cwd, file)}`));
+            console.log(chalk.dim(`  Removing: ${path.relative(projectRoot, file)}`));
             // Actual deletion would happen here
           }
         }
