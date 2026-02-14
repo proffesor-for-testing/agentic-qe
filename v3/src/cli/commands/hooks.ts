@@ -467,13 +467,23 @@ Examples:
         const result = results[0] || { success: true, guidance: [], routing: null };
 
         if (options.json) {
+          // Build additionalContext for Claude from guidance
+          const guidanceLines = result.guidance || [];
+          const agentHint = result.routing?.recommendedAgent
+            ? `Recommended agent: ${result.routing.recommendedAgent} (${(result.routing.confidence * 100).toFixed(0)}% confidence).`
+            : '';
+          const contextStr = [
+            agentHint,
+            ...guidanceLines.map((g: string) => g),
+          ].filter(Boolean).join(' ');
+
           printJson({
-            success: result.success,
+            hookSpecificOutput: {
+              hookEventName: 'PreToolUse',
+              additionalContext: contextStr || undefined,
+            },
             file: options.file,
             operation: options.operation,
-            guidance: result.guidance || [],
-            recommendedAgent: result.routing?.recommendedAgent,
-            confidence: result.routing?.confidence,
             patterns: result.routing?.patterns?.length || 0,
           });
         } else {
@@ -925,9 +935,34 @@ Examples:
 
         await memoryBackend.set(DREAM_STATE_KEY, dreamState);
 
+        // Build context injection for Claude
+        const contextParts: string[] = [];
+        contextParts.push(`AQE Learning: ${stats.totalPatterns} patterns loaded`);
+
+        // Top domains by pattern count
+        const domainEntries = Object.entries(stats.byDomain)
+          .filter(([, count]) => count > 0)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 5);
+        if (domainEntries.length > 0) {
+          contextParts.push(`Top domains: ${domainEntries.map(([d, c]) => `${d}(${c})`).join(', ')}`);
+        }
+
+        if (stats.patternSuccessRate > 0) {
+          contextParts.push(`Pattern success rate: ${(stats.patternSuccessRate * 100).toFixed(0)}%`);
+        }
+        if (stats.routingRequests > 0) {
+          contextParts.push(`Routing confidence: ${(stats.avgRoutingConfidence * 100).toFixed(0)}% across ${stats.routingRequests} requests`);
+        }
+
+        const additionalContext = contextParts.join('. ') + '.';
+
         if (options.json) {
           printJson({
-            success: true,
+            hookSpecificOutput: {
+              hookEventName: 'SessionStart',
+              additionalContext,
+            },
             sessionId,
             initialized: true,
             patternsLoaded: stats.totalPatterns,
@@ -935,8 +970,6 @@ Examples:
               enabled: true,
               lastDreamTime: dreamState.lastDreamTime,
               pendingExperiences: dreamState.experienceCount,
-              intervalMs: DREAM_INTERVAL_MS,
-              experienceThreshold: DREAM_EXPERIENCE_THRESHOLD,
             },
           });
         } else {
@@ -979,8 +1012,15 @@ Examples:
         }
 
         if (options.json) {
+          const summary = stats
+            ? `Session complete: ${stats.totalPatterns} patterns, ${stats.routingRequests} routings, ${(stats.patternSuccessRate * 100).toFixed(0)}% success rate`
+            : 'Session complete';
+
           printJson({
-            success: true,
+            hookSpecificOutput: {
+              hookEventName: 'Stop',
+              additionalContext: summary,
+            },
             sessionId,
             stateSaved: options.saveState || false,
             metricsExported: options.exportMetrics || false,
@@ -1152,6 +1192,74 @@ Examples:
     });
 
   // -------------------------------------------------------------------------
+  // guard: File guardian - block edits to protected files (PreToolUse)
+  // -------------------------------------------------------------------------
+  hooks
+    .command('guard')
+    .description('File guardian - block edits to protected files')
+    .requiredOption('-f, --file <path>', 'File path to check')
+    .option('--json', 'Output as JSON (required for hook API)')
+    .action(async (options) => {
+      try {
+        const filePath = options.file || '';
+        const normalizedPath = filePath.replace(/\\/g, '/');
+
+        // Protected file patterns
+        const protectedPatterns: Array<{ pattern: RegExp; reason: string }> = [
+          { pattern: /^\.env($|\.)/, reason: 'Environment file contains secrets' },
+          { pattern: /\.env\.[a-zA-Z]+$/, reason: 'Environment file contains secrets' },
+          { pattern: /\.lock$/, reason: 'Lock files are auto-generated' },
+          { pattern: /(^|\/)node_modules\//, reason: 'node_modules is managed by package manager' },
+          { pattern: /(^|\/)\.agentic-qe\/memory\.db/, reason: 'AQE memory database must not be directly edited' },
+          { pattern: /(^|\/)\.agentic-qe\/memory\.db-wal$/, reason: 'AQE WAL file must not be directly edited' },
+          { pattern: /(^|\/)\.agentic-qe\/memory\.db-shm$/, reason: 'AQE shared memory file must not be directly edited' },
+        ];
+
+        const match = protectedPatterns.find(p => p.pattern.test(normalizedPath));
+
+        if (match) {
+          // Deny - use Claude Code hookSpecificOutput API format
+          if (options.json) {
+            printJson({
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                permissionDecision: 'deny',
+                permissionDecisionReason: `Protected file: ${match.reason} (${filePath})`,
+              },
+            });
+          } else {
+            printError(`Blocked: ${match.reason} (${filePath})`);
+          }
+        } else {
+          // Allow
+          if (options.json) {
+            printJson({
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                permissionDecision: 'allow',
+              },
+            });
+          } else {
+            printSuccess(`Allowed: ${filePath}`);
+          }
+        }
+
+        process.exit(0);
+      } catch (error) {
+        // On error, allow (fail-open for non-critical guard)
+        if (options.json) {
+          printJson({
+            hookSpecificOutput: {
+              hookEventName: 'PreToolUse',
+              permissionDecision: 'allow',
+            },
+          });
+        }
+        process.exit(0);
+      }
+    });
+
+  // -------------------------------------------------------------------------
   // pre-command: Get guidance before Bash command (called by PreToolUse hook)
   // -------------------------------------------------------------------------
   hooks
@@ -1161,37 +1269,79 @@ Examples:
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
-        // Analyze command for potential issues
         const command = options.command || '';
-        const warnings: string[] = [];
 
-        // Check for dangerous patterns
-        if (command.includes('rm -rf /') || command.includes('rm -rf ~')) {
-          warnings.push('Dangerous recursive delete detected');
-        }
-        if (command.includes('> /dev/sd') || command.includes('dd if=')) {
-          warnings.push('Direct disk write detected');
-        }
-        if (command.includes('.agentic-qe') && command.includes('rm')) {
-          warnings.push('Deleting AQE data files');
-        }
+        // Dangerous command patterns that should be BLOCKED
+        const dangerousPatterns: Array<{ pattern: RegExp; reason: string }> = [
+          { pattern: /rm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+)?-[a-zA-Z]*r[a-zA-Z]*\s+\/(?!\w)/, reason: 'Recursive delete of root filesystem' },
+          { pattern: /rm\s+(-[a-zA-Z]*r[a-zA-Z]*\s+)?-[a-zA-Z]*f[a-zA-Z]*\s+\/(?!\w)/, reason: 'Recursive delete of root filesystem' },
+          { pattern: /rm\s+-rf\s+~/, reason: 'Recursive delete of home directory' },
+          { pattern: /DROP\s+(TABLE|DATABASE|SCHEMA)/i, reason: 'Destructive SQL operation' },
+          { pattern: /git\s+push\s+.*--force(?!-)/, reason: 'Force push can overwrite remote history' },
+          { pattern: /git\s+reset\s+--hard/, reason: 'Hard reset discards uncommitted changes' },
+          { pattern: />\s*\/dev\/sd[a-z]/, reason: 'Direct write to block device' },
+          { pattern: /dd\s+if=.*of=\/dev\/sd/, reason: 'Direct disk write via dd' },
+          { pattern: /chmod\s+777\s/, reason: 'World-writable permissions are a security risk' },
+          { pattern: /:\(\)\s*\{\s*:\|\s*:&\s*\}\s*;?\s*:/, reason: 'Fork bomb detected' },
+          { pattern: /mkfs\./, reason: 'Filesystem format operation' },
+          { pattern: />\s*\/dev\/null\s*2>&1\s*&\s*disown/, reason: 'Stealth background process' },
+        ];
 
-        if (options.json) {
-          printJson({
-            success: true,
-            command: command.substring(0, 100),
-            warnings,
-            safe: warnings.length === 0,
-          });
-        } else if (warnings.length > 0) {
-          console.log(chalk.yellow('\n⚠️  Command Warnings:'));
-          warnings.forEach(w => console.log(chalk.yellow(`  - ${w}`)));
+        // Warning patterns (inform but don't block)
+        const warningPatterns: Array<{ pattern: RegExp; reason: string }> = [
+          { pattern: /\.agentic-qe.*rm/, reason: 'Deleting AQE data files' },
+          { pattern: /rm\s+-rf\s/, reason: 'Recursive force delete' },
+          { pattern: /git\s+clean\s+-[a-zA-Z]*f/, reason: 'Force cleaning untracked files' },
+        ];
+
+        const dangerMatch = dangerousPatterns.find(p => p.pattern.test(command));
+        const warnings = warningPatterns
+          .filter(p => p.pattern.test(command))
+          .map(p => p.reason);
+
+        if (dangerMatch) {
+          // BLOCK the command
+          if (options.json) {
+            printJson({
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                permissionDecision: 'deny',
+                permissionDecisionReason: `Dangerous command blocked: ${dangerMatch.reason}`,
+              },
+            });
+          } else {
+            printError(`Blocked: ${dangerMatch.reason}`);
+          }
+        } else {
+          // Allow (with optional warnings as context)
+          if (options.json) {
+            const result: Record<string, unknown> = {
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                permissionDecision: 'allow',
+              },
+            };
+            if (warnings.length > 0) {
+              (result.hookSpecificOutput as Record<string, unknown>).additionalContext =
+                `Warnings: ${warnings.join('; ')}`;
+            }
+            printJson(result);
+          } else if (warnings.length > 0) {
+            console.log(chalk.yellow('\n⚠️  Command Warnings:'));
+            warnings.forEach(w => console.log(chalk.yellow(`  - ${w}`)));
+          }
         }
 
         process.exit(0);
       } catch (error) {
+        // Fail-open on error
         if (options.json) {
-          printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
+          printJson({
+            hookSpecificOutput: {
+              hookEventName: 'PreToolUse',
+              permissionDecision: 'allow',
+            },
+          });
         }
         process.exit(0);
       }

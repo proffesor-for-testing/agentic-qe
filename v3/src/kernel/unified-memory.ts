@@ -1143,6 +1143,7 @@ export class UnifiedMemoryManager {
   private db: DatabaseType | null = null;
   private readonly config: UnifiedMemoryConfig;
   private initialized = false;
+  private vectorsLoaded = false;
   private initPromise: Promise<void> | null = null;
   private preparedStatements: Map<string, Statement> = new Map();
   private vectorIndex: InMemoryHNSWIndex = new InMemoryHNSWIndex();
@@ -1248,8 +1249,8 @@ export class UnifiedMemoryManager {
       // Run migrations
       await this.runMigrations();
 
-      // Load vectors into HNSW index
-      await this.loadVectorIndex();
+      // Defer vector index loading until first search (startup optimization)
+      this.vectorsLoaded = false;
 
       this.initialized = true;
       console.log(`[UnifiedMemory] Initialized: ${this.config.dbPath}`);
@@ -1426,6 +1427,7 @@ export class UnifiedMemoryManager {
    * Load all vectors from SQLite into HNSW index
    */
   private async loadVectorIndex(): Promise<void> {
+    if (this.vectorsLoaded) return;
     if (!this.db) throw new Error('Database not initialized');
 
     this.vectorIndex.clear();
@@ -1439,6 +1441,7 @@ export class UnifiedMemoryManager {
       this.vectorIndex.add(row.id, embedding);
     }
 
+    this.vectorsLoaded = true;
     console.log(`[UnifiedMemory] Loaded ${rows.length} vectors into HNSW index`);
   }
 
@@ -1601,6 +1604,11 @@ export class UnifiedMemoryManager {
     namespace?: string
   ): Promise<Array<{ id: string; score: number; metadata?: unknown }>> {
     this.ensureInitialized();
+
+    // Lazy-load vectors on first search (deferred from startup for fast init)
+    if (!this.vectorsLoaded) {
+      await this.loadVectorIndex();
+    }
 
     // Use in-memory HNSW index for fast search
     const results = this.vectorIndex.search(query, k * 2); // Get extra for namespace filtering
