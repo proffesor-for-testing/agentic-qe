@@ -5,6 +5,34 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.7] - 2026-02-14
+
+### Fixed
+
+- **Database corruption from concurrent VACUUM** — Automated VACUUM in HybridBackend ran every 10 minutes while 3+ hook processes held concurrent SQLite connections, causing intermittent "database disk image is malformed" errors. Removed automated VACUUM entirely; SQLite WAL mode handles space reclamation safely without it.
+- **Dual-database split-brain** — `findProjectRoot()` found the first `.agentic-qe` directory walking up, which resolved to `v3/.agentic-qe` instead of root. Changed to find the topmost `.agentic-qe`, preventing shadow databases from forming.
+- **Vector table bloat (124MB)** — Every HNSW index insert wrote vectors to SQLite's `vectors` table via `storeVector()`, accumulating 30K+ rows (124MB). Removed persistence since the in-memory HNSW index is the source of truth for search.
+- **Cross-domain transfer re-running every session** — The seed flag (`reasoning-bank:cross-domain-seeded`) was set after `seedCrossDomainPatterns()`, but the 10-second hooks init timeout could fire mid-transfer, preventing the flag from ever being written. Moved the flag write before the transfer so it persists even on timeout.
+- **Stop hook JSON validation error** — Stop hook output included `hookSpecificOutput` with `hookEventName: "Stop"`, but Claude Code's hook schema only accepts this field for PreToolUse, UserPromptSubmit, and PostToolUse events. Simplified to plain JSON output.
+- **Hypergraph database path** — Code-intelligence coordinator used a relative path `.agentic-qe/hypergraph.db`, which created a shadow directory when run from `v3/`. Fixed to use `findProjectRoot()`.
+- **Seed flag namespace collision** — Graph-boundaries kv_store writes used wrong namespace, causing cross-domain seed flag to not persist correctly.
+
+### Added
+
+- **File guardian hook** — Pre-edit hook that protects critical files (database files, WAL files, config) from accidental modification.
+- **Command bouncer hook** — Pre-command hook that blocks dangerous shell commands (rm -rf on databases, VACUUM on live DB) with configurable rules.
+- **Context injection hook** — Injects relevant context (recent patterns, domain knowledge) into prompts via UserPromptSubmit hooks.
+- **Tier 2/3 kv_store persistence** — Learning experiences and routing feedback now persist to kv_store for cross-session retention.
+- **Coverage learner feedback loop** — Tracks test outcomes and coverage trends to improve future test generation.
+- **Token usage tracker** — Records token consumption per operation for cost analysis and optimization.
+- **Q-learning router** — Reinforcement learning-based routing that improves agent selection over time.
+- **RuVector WASM integrations** — AST complexity analyzer, coverage router, diff-risk classifier, and graph boundaries modules for fast local inference.
+
+### Changed
+
+- **Knowledge graph cache-only mode** — Code-intelligence knowledge graph no longer persists to PostgreSQL by default, preventing errors when PG is unavailable. Uses in-memory graph with SQLite-backed concept nodes/edges.
+- **Pattern store simplified** — Removed unused code paths and reduced complexity in pattern persistence layer.
+
 ## [3.6.6] - 2026-02-13
 
 ### Fixed
