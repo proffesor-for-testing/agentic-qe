@@ -67,12 +67,19 @@ export function findProjectRoot(startDir: string = process.cwd()): string {
   const root = path.parse(dir).root;
 
   // Priority 2: Look for existing .agentic-qe directory (AQE project marker)
+  // Walk ALL the way up and use the TOPMOST .agentic-qe found, not the first.
+  // This prevents subdirectories (e.g. v3/.agentic-qe) from shadowing the
+  // root project database, which caused a split-brain with two DBs growing.
   let checkDir = dir;
+  let topmostAqeDir: string | null = null;
   while (checkDir !== root) {
     if (fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
-      return checkDir;
+      topmostAqeDir = checkDir;
     }
     checkDir = path.dirname(checkDir);
+  }
+  if (topmostAqeDir) {
+    return topmostAqeDir;
   }
 
   // Priority 3: Look for .git directory (repo root)

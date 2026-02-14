@@ -399,13 +399,16 @@ export class QEReasoningBank implements IQEReasoningBank {
     this.initialized = true;
 
     // Run cross-domain transfer ONCE per DB lifetime (not every init)
+    // IMPORTANT: Set the flag BEFORE the transfer so that even if the transfer
+    // times out (hooks.ts has a 10s timeout on initialize()), the flag persists
+    // and we don't re-run on every session, causing unbounded DB growth.
     try {
       const SEED_FLAG_KEY = 'reasoning-bank:cross-domain-seeded';
       const alreadySeeded = await this.memory.get<boolean>(SEED_FLAG_KEY);
       if (!alreadySeeded) {
-        await this.seedCrossDomainPatterns();
-        // Store without namespace so get() (which uses defaultNamespace) can find it
+        // Set flag FIRST to prevent re-runs if transfer times out or process exits
         await this.memory.set(SEED_FLAG_KEY, true);
+        await this.seedCrossDomainPatterns();
       } else {
         const stats = await this.patternStore.getStats();
         console.log(`[QEReasoningBank] Cross-domain transfer already complete (${stats.totalPatterns} patterns)`);

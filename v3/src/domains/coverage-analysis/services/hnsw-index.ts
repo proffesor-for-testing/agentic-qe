@@ -358,9 +358,11 @@ export class HNSWIndex implements IHNSWIndex {
     // Also store vector locally for accurate similarity computation
     this.vectorStore.set(key, vector);
 
-    // Also store in memory backend for persistence
-    const fullKey = this.buildKey(key);
-    await this.memory.storeVector(fullKey, vector, metadata);
+    // NOTE: Vectors are NOT persisted to the DB here.
+    // The in-memory HNSW index is the source of truth for search.
+    // Persisting every vector to SQLite caused 124MB+ bloat (30K+ rows)
+    // because cross-domain transfer creates new patterns with embeddings
+    // on every session init, and each embedding was written to the vectors table.
 
     this.stats.insertOperations++;
     this.stats.vectorCount++;

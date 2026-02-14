@@ -398,11 +398,11 @@ export class HybridMemoryBackend implements MemoryBackend {
             // Non-critical — don't fail cleanup
           }
 
-          try {
-            db.exec('VACUUM');
-          } catch {
-            // VACUUM can fail if transactions are active — non-critical
-          }
+          // VACUUM removed — it requires exclusive DB access and corrupts
+          // the database when hook processes have concurrent connections open.
+          // Use incremental auto_vacuum instead (set at DB creation time).
+          // See root cause analysis: each tool call spawns 3+ hook processes
+          // that all open memory.db, making VACUUM unsafe at any time.
         }
       } catch (error) {
         console.warn('[HybridBackend] Cleanup failed:', error);

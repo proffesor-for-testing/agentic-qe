@@ -1016,11 +1016,9 @@ Examples:
             ? `Session complete: ${stats.totalPatterns} patterns, ${stats.routingRequests} routings, ${(stats.patternSuccessRate * 100).toFixed(0)}% success rate`
             : 'Session complete';
 
+          // Stop hooks don't support hookSpecificOutput — only simple fields
           printJson({
-            hookSpecificOutput: {
-              hookEventName: 'Stop',
-              additionalContext: summary,
-            },
+            continue: true,
             sessionId,
             stateSaved: options.saveState || false,
             metricsExported: options.exportMetrics || false,

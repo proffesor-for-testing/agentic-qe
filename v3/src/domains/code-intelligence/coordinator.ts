@@ -420,12 +420,15 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
       // Import better-sqlite3 dynamically to avoid issues in environments where it's not available
       const Database = (await import('better-sqlite3')).default;
 
-      // Use configured path or default
-      const dbPath = this.config.hypergraphDbPath || '.agentic-qe/hypergraph.db';
-
-      // Ensure directory exists
+      // Use configured path or default — resolve relative to project root
+      // to prevent creating shadow .agentic-qe directories in subdirectories
       const fs = await import('fs');
       const path = await import('path');
+      const { findProjectRoot } = await import('../../kernel/unified-memory.js');
+      const projectRoot = findProjectRoot();
+      const dbPath = this.config.hypergraphDbPath || path.join(projectRoot, '.agentic-qe', 'hypergraph.db');
+
+      // Ensure directory exists
       const dir = path.dirname(dbPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
