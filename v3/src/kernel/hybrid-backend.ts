@@ -364,11 +364,42 @@ export class HybridMemoryBackend implements MemoryBackend {
     if (this.unifiedMemory?.isInitialized()) {
       try {
         await this.unifiedMemory.kvCleanupExpired();
+
+        const db = this.unifiedMemory.getDatabase();
+
+        // Expire TTL'd entries
+        try {
+          const expired = db.prepare('DELETE FROM kv_store WHERE expires_at IS NOT NULL AND expires_at < ?').run(Date.now());
+          if (expired.changes > 0) {
+            console.log(`[HybridBackend] Expired ${expired.changes} kv_store entries`);
+          }
+        } catch (e) {
+          // Non-critical
+        }
+
         this.cleanupCount++;
         // Run VACUUM every 10th cleanup to reclaim space (Issue #258)
         if (this.cleanupCount % 10 === 0) {
+          // Enforce kv_store retention — prevent unbounded growth
           try {
-            this.unifiedMemory.getDatabase().exec('VACUUM');
+            const kvCount = db.prepare('SELECT COUNT(*) as cnt FROM kv_store').get() as { cnt: number };
+            if (kvCount.cnt > 5000) {
+              // Keep only 5000 most recent entries (by rowid as proxy for insertion order)
+              const deleted = db.prepare(`
+                DELETE FROM kv_store WHERE rowid NOT IN (
+                  SELECT rowid FROM kv_store ORDER BY rowid DESC LIMIT 5000
+                )
+              `).run();
+              if (deleted.changes > 0) {
+                console.log(`[HybridBackend] kv_store retention: pruned ${deleted.changes} rows (kept 5000)`);
+              }
+            }
+          } catch (e) {
+            // Non-critical — don't fail cleanup
+          }
+
+          try {
+            db.exec('VACUUM');
           } catch {
             // VACUUM can fail if transactions are active — non-critical
           }

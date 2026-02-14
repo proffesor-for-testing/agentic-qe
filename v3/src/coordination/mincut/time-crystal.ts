@@ -26,6 +26,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { DomainEvent, DomainName } from '../../shared/types';
 import { EventBus } from '../../kernel/interfaces';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../../kernel/unified-memory.js';
 import type { StrangeLoopController } from './strange-loop';
 import type { MinCutHealthMonitor } from './mincut-health-monitor';
 import type { TestFailureCausalGraph } from './causal-discovery';
@@ -473,6 +474,14 @@ export class TimeCrystalController {
   private readonly phaseExecutor: PhaseExecutor;
   private cpgStartPromise: Promise<void> | null = null;
 
+  // kv_store persistence
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly KV_NAMESPACE = 'time-crystal-metrics';
+  private static readonly KV_KEY = 'time-crystal-snapshot';
+  private static readonly KV_TTL = 86400; // 24 hours
+  private static readonly PERSIST_INTERVAL = 20; // every 20 state changes
+
   // State
   private running = false;
   private observationTimer: NodeJS.Timeout | null = null;
@@ -734,6 +743,9 @@ export class TimeCrystalController {
     }
 
     await this.emitEvent('crystal.observation', { observation });
+
+    // Track state change for kv_store persistence
+    this.maybePeristToKv();
 
     return observation;
   }
@@ -1527,6 +1539,111 @@ export class TimeCrystalController {
    */
   getConfig(): TimeCrystalConfig {
     return { ...this.config };
+  }
+
+  // ==========================================================================
+  // kv_store Persistence
+  // ==========================================================================
+
+  /**
+   * Initialize kv_store persistence and restore snapshot if available
+   */
+  async initializeDb(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn('[TimeCrystalController] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
+  }
+
+  /**
+   * Persist current state snapshot to kv_store
+   */
+  private async persistToKv(): Promise<void> {
+    if (!this.db) return;
+
+    const snapshot = {
+      observations: this.observations.slice(-100),
+      phases: Array.from(this.phases.entries()),
+      metricsHistory: this.metricsHistory.slice(-100),
+      currentAttractor: this.currentAttractor,
+      stats: this.stats,
+      savedAt: Date.now(),
+    };
+
+    await this.db.kvSet(
+      TimeCrystalController.KV_KEY,
+      snapshot,
+      TimeCrystalController.KV_NAMESPACE,
+      TimeCrystalController.KV_TTL
+    );
+  }
+
+  /**
+   * Load state snapshot from kv_store
+   */
+  private async loadFromKv(): Promise<void> {
+    if (!this.db) return;
+
+    const snapshot = await this.db.kvGet<{
+      observations: CrystalObservation[];
+      phases: [string, TimeCrystalPhase][];
+      metricsHistory: ExecutionMetrics[];
+      currentAttractor: TemporalAttractor;
+      stats: { totalObservations: number; totalOptimizations: number; avgThroughput: number; avgResourceUtilization: number; lastOptimizationTime: number | null; attractorTransitions: number; anomaliesDetected: number; predictionsCorrect: number; predictionsTotal: number; predictionAccuracy: number };
+      savedAt: number;
+    }>(TimeCrystalController.KV_KEY, TimeCrystalController.KV_NAMESPACE);
+
+    if (!snapshot) return;
+
+    // Restore observations (convert Date strings back to Date objects)
+    if (snapshot.observations?.length) {
+      this.observations = snapshot.observations.map(obs => ({
+        ...obs,
+        timestamp: new Date(obs.timestamp),
+        metrics: { ...obs.metrics, timestamp: new Date(obs.metrics.timestamp) },
+      }));
+    }
+
+    // Restore phases Map
+    if (snapshot.phases?.length) {
+      for (const [key, phase] of snapshot.phases) {
+        this.phases.set(key, {
+          ...phase,
+          lastActivation: phase.lastActivation ? new Date(phase.lastActivation) : undefined,
+        });
+      }
+    }
+
+    // Restore metrics history
+    if (snapshot.metricsHistory?.length) {
+      this.metricsHistory = snapshot.metricsHistory.map(m => ({
+        ...m,
+        timestamp: new Date(m.timestamp),
+      }));
+    }
+
+    // Restore attractor and stats
+    if (snapshot.currentAttractor) {
+      this.currentAttractor = snapshot.currentAttractor;
+    }
+    if (snapshot.stats) {
+      Object.assign(this.stats, snapshot.stats);
+    }
+  }
+
+  /**
+   * Track state changes and persist periodically
+   */
+  private maybePeristToKv(): void {
+    this.persistCount++;
+    if (this.persistCount >= TimeCrystalController.PERSIST_INTERVAL) {
+      this.persistCount = 0;
+      this.persistToKv().catch(() => {});
+    }
   }
 
   // ==========================================================================

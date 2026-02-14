@@ -398,9 +398,17 @@ export class QEReasoningBank implements IQEReasoningBank {
 
     this.initialized = true;
 
-    // Run cross-domain transfer after initialization to enrich related domains
+    // Run cross-domain transfer ONCE per DB lifetime (not every init)
     try {
-      await this.seedCrossDomainPatterns();
+      const SEED_FLAG_KEY = 'reasoning-bank:cross-domain-seeded';
+      const alreadySeeded = await this.memory.get<boolean>(SEED_FLAG_KEY);
+      if (!alreadySeeded) {
+        await this.seedCrossDomainPatterns();
+        await this.memory.set(SEED_FLAG_KEY, true, { namespace: 'reasoning-bank' });
+      } else {
+        const stats = await this.patternStore.getStats();
+        console.log(`[QEReasoningBank] Cross-domain transfer already complete (${stats.totalPatterns} patterns)`);
+      }
     } catch (error) {
       console.warn('[QEReasoningBank] Cross-domain seeding failed (non-fatal):', error);
     }

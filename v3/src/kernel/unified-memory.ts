@@ -158,6 +158,25 @@ export function getResolvedDefaultConfig(): UnifiedMemoryConfig {
 }
 
 // ============================================================================
+// Empty Tables Audit (Issue #260, 2026-02-14)
+// ============================================================================
+// The following 10 tables exist in the schema but have ZERO production writes.
+// They are candidates for removal in a future schema migration:
+//   - artifacts, baselines, consensus_state, learning_history,
+//     memory_acl, nervous_system_state, pattern_versions,
+//     sessions, transfer_test_results, transfer_validations
+//
+// Tables actively wired (DO NOT remove):
+//   - embeddings, executed_steps, execution_results,
+//     goap_execution_steps, goap_goals, goap_plan_signatures,
+//     hypergraph_edges, hypergraph_nodes
+//
+// Tables partially wired (in allowlist, need INSERT code):
+//   - learning_metrics, ooda_cycles, performance_metrics,
+//     workflow_state, experience_applications
+// ============================================================================
+
+// ============================================================================
 // Schema Version for Migrations
 // ============================================================================
 

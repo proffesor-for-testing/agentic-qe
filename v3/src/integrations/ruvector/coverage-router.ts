@@ -14,6 +14,7 @@ import type {
 } from './interfaces';
 import { FallbackCoverageRouter } from './fallback';
 import type { AgentType, DomainName, Severity, Priority } from '../../shared/types';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../../kernel/unified-memory.js';
 
 // ============================================================================
 // Coverage Configuration
@@ -58,6 +59,11 @@ export class RuVectorCoverageRouter implements CoverageRouter {
   private readonly fallback: FallbackCoverageRouter;
   private readonly thresholds: CoverageThresholds;
   private readonly cache: Map<string, { result: CoverageRoutingResult; timestamp: number }> = new Map();
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly PERSIST_INTERVAL = 25;
+  private static readonly NAMESPACE = 'coverage-routing-cache';
+  private static readonly TTL_SECONDS = 43200;
 
   constructor(
     private readonly config: RuVectorConfig,
@@ -65,6 +71,41 @@ export class RuVectorCoverageRouter implements CoverageRouter {
   ) {
     this.fallback = new FallbackCoverageRouter();
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
+  }
+
+  async initialize(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn('[RuVectorCoverageRouter] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
+  }
+
+  private async loadFromKv(): Promise<void> {
+    if (!this.db) return;
+    const data = await this.db.kvGet<Record<string, { result: CoverageRoutingResult; timestamp: number }>>('cache', RuVectorCoverageRouter.NAMESPACE);
+    if (data) {
+      for (const [key, entry] of Object.entries(data)) {
+        this.cache.set(key, entry);
+      }
+      console.log(`[RuVectorCoverageRouter] Loaded ${Object.keys(data).length} cached entries from DB`);
+    }
+  }
+
+  private persistCache(): void {
+    if (!this.db) return;
+    this.persistCount++;
+    if (this.persistCount % RuVectorCoverageRouter.PERSIST_INTERVAL !== 0) return;
+    try {
+      const entries = Array.from(this.cache.entries()).slice(-200);
+      const snapshot = Object.fromEntries(entries);
+      this.db.kvSet('cache', snapshot, RuVectorCoverageRouter.NAMESPACE, RuVectorCoverageRouter.TTL_SECONDS).catch(() => {});
+    } catch (error) {
+      console.warn('[RuVectorCoverageRouter] Persist failed:', error instanceof Error ? error.message : String(error));
+    }
   }
 
   /**
@@ -93,6 +134,7 @@ export class RuVectorCoverageRouter implements CoverageRouter {
       // Cache result
       if (this.config.cacheEnabled) {
         this.cache.set(cacheKey, { result, timestamp: Date.now() });
+        this.persistCache();
       }
 
       return result;

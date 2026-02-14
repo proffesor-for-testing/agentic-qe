@@ -18,6 +18,7 @@
 
 import { governanceFlags, isStrictMode } from './feature-flags.js';
 import type { GovernanceFeatureFlags } from './feature-flags.js';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -339,6 +340,13 @@ export class EvolutionPipelineIntegration {
   private taskOutcomes: Map<string, TaskOutcome> = new Map();
   private initialized = false;
 
+  // KV persistence
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly NAMESPACE = 'rule-evolution';
+  private static readonly TTL_SECONDS = 604800; // 7 days
+  private static readonly PERSIST_INTERVAL = 10;
+
   // Statistics
   private stats = {
     autoPromotions: 0,
@@ -358,6 +366,16 @@ export class EvolutionPipelineIntegration {
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
+
+    // Initialize KV persistence
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn('[EvolutionPipeline] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
 
     // Initialize with some default rules if needed
     this.initialized = true;
@@ -389,6 +407,9 @@ export class EvolutionPipelineIntegration {
 
     // Check for automatic promotion/demotion
     this.checkAutoPromotionDemotion(ruleId);
+
+    // Persist snapshot on interval
+    this.persistSnapshot();
 
     this.logEvent('rule_application', `Rule ${ruleId} applied: ${success ? 'success' : 'failure'}`);
   }
@@ -918,6 +939,38 @@ export class EvolutionPipelineIntegration {
    */
   resetRule(ruleId: string): void {
     this.rules.delete(ruleId);
+  }
+
+  // ============================================================================
+  // KV Persistence
+  // ============================================================================
+
+  /**
+   * Load rules snapshot from KV store
+   */
+  private async loadFromKv(): Promise<void> {
+    if (!this.db) return;
+    const data = await this.db.kvGet<Record<string, RuleRecord>>('snapshot', EvolutionPipelineIntegration.NAMESPACE);
+    if (data) {
+      for (const [key, record] of Object.entries(data)) {
+        this.rules.set(key, record);
+      }
+    }
+  }
+
+  /**
+   * Persist rules snapshot to KV store on interval
+   */
+  private persistSnapshot(): void {
+    if (!this.db) return;
+    this.persistCount++;
+    if (this.persistCount % EvolutionPipelineIntegration.PERSIST_INTERVAL !== 0) return;
+    try {
+      const snapshot: Record<string, RuleRecord> = Object.fromEntries(this.rules);
+      this.db.kvSet('snapshot', snapshot, EvolutionPipelineIntegration.NAMESPACE, EvolutionPipelineIntegration.TTL_SECONDS).catch(() => {});
+    } catch (error) {
+      console.warn('[EvolutionPipeline] Persist failed:', error instanceof Error ? error.message : String(error));
+    }
   }
 
   // ============================================================================
