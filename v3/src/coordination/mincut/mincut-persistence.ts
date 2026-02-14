@@ -187,8 +187,8 @@ export class MinCutPersistence {
     const db = this.memory.getDatabase();
     if (!db) return 0;
 
-    const countRow = db.prepare('SELECT COUNT(*) as count FROM mincut_snapshots').get() as { count: number };
-    if (countRow.count <= maxSnapshots) return 0;
+    const countRow = db.prepare('SELECT COUNT(*) as count FROM mincut_snapshots').get() as { count: number } | undefined;
+    if (!countRow || countRow.count <= maxSnapshots) return 0;
 
     const deleteCount = countRow.count - maxSnapshots;
     db.prepare(`
