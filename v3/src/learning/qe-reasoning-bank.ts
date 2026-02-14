@@ -404,7 +404,8 @@ export class QEReasoningBank implements IQEReasoningBank {
       const alreadySeeded = await this.memory.get<boolean>(SEED_FLAG_KEY);
       if (!alreadySeeded) {
         await this.seedCrossDomainPatterns();
-        await this.memory.set(SEED_FLAG_KEY, true, { namespace: 'reasoning-bank' });
+        // Store without namespace so get() (which uses defaultNamespace) can find it
+        await this.memory.set(SEED_FLAG_KEY, true);
       } else {
         const stats = await this.patternStore.getStats();
         console.log(`[QEReasoningBank] Cross-domain transfer already complete (${stats.totalPatterns} patterns)`);
