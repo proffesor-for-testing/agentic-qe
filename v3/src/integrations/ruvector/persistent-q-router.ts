@@ -156,10 +156,14 @@ export const DEFAULT_PERSISTENT_CONFIG: Omit<PersistentQLearningRouterConfig, 'r
 // ============================================================================
 
 /**
- * Q-Learning router with SQLite persistence
+ * @deprecated Use `createQLearningRouter()` instead, which provides direct persistence
+ * to the `rl_q_values` table without the overhead of QValueStore abstraction.
+ * PersistentQLearningRouter wraps RuVectorQLearningRouter with QValueStore but
+ * EWC++ is NOT implemented and the full Q-table export on every feedback is O(n).
+ * Direct persistence in RuVectorQLearningRouter does O(1) upserts per update.
  *
- * Wraps RuVectorQLearningRouter and persists Q-values to SQLite via QValueStore.
- * Q-values survive across sessions, enabling continuous learning.
+ * This class is kept for backward compatibility but is no longer used by
+ * DefaultRuVectorClient as of this change.
  */
 export class PersistentQLearningRouter implements QLearningRouter {
   private readonly baseRouter: QLearningRouter;

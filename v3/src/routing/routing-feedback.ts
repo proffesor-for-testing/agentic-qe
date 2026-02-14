@@ -14,6 +14,7 @@ import type {
 } from './types.js';
 import { QE_AGENT_REGISTRY, getAgentById } from './qe-agent-registry.js';
 import type { QETaskRouter } from './qe-task-router.js';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
 // ============================================================================
 // In-Memory Storage (can be replaced with SQLite)
@@ -75,9 +76,112 @@ class OutcomeStore {
 export class RoutingFeedbackCollector {
   private outcomeStore: OutcomeStore;
   private router: QETaskRouter | null = null;
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private readonly maxOutcomes: number;
+  private static readonly RETENTION_CLEANUP_INTERVAL = 100;
 
   constructor(maxOutcomes = 10000) {
+    this.maxOutcomes = maxOutcomes;
     this.outcomeStore = new OutcomeStore(maxOutcomes);
+  }
+
+  /**
+   * Initialize DB persistence for routing outcomes.
+   * Falls back to memory-only if DB is unavailable.
+   */
+  async initialize(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) {
+        await this.db.initialize();
+      }
+      await this.loadFromDb();
+    } catch (error) {
+      console.warn('[RoutingFeedbackCollector] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
+  }
+
+  /**
+   * Load persisted outcomes from the database into memory
+   */
+  private async loadFromDb(): Promise<void> {
+    if (!this.db) return;
+    const database = this.db.getDatabase();
+    const rows = database.prepare(`
+      SELECT * FROM routing_outcomes ORDER BY created_at DESC LIMIT ?
+    `).all(this.maxOutcomes) as any[];
+
+    for (const row of rows.reverse()) {
+      const outcome: RoutingOutcome = {
+        id: row.id,
+        task: JSON.parse(row.task_json),
+        decision: JSON.parse(row.decision_json),
+        usedAgent: row.used_agent,
+        followedRecommendation: Boolean(row.followed_recommendation),
+        outcome: {
+          success: Boolean(row.success),
+          qualityScore: row.quality_score,
+          durationMs: row.duration_ms,
+          error: row.error || undefined,
+        },
+        timestamp: new Date(row.created_at),
+      };
+      this.outcomeStore.add(outcome);
+    }
+    if (rows.length > 0) {
+      console.log(`[RoutingFeedbackCollector] Loaded ${rows.length} outcomes from DB`);
+    }
+  }
+
+  /**
+   * Persist a single outcome to the database
+   */
+  private persistOutcome(outcome: RoutingOutcome): void {
+    if (!this.db) return;
+    try {
+      const database = this.db.getDatabase();
+      database.prepare(`
+        INSERT OR REPLACE INTO routing_outcomes (
+          id, task_json, decision_json, used_agent,
+          followed_recommendation, success, quality_score,
+          duration_ms, error
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        outcome.id,
+        JSON.stringify(outcome.task),
+        JSON.stringify(outcome.decision),
+        outcome.usedAgent,
+        outcome.followedRecommendation ? 1 : 0,
+        outcome.outcome.success ? 1 : 0,
+        outcome.outcome.qualityScore,
+        outcome.outcome.durationMs,
+        outcome.outcome.error || null
+      );
+      this.persistCount++;
+      if (this.persistCount % RoutingFeedbackCollector.RETENTION_CLEANUP_INTERVAL === 0) {
+        this.enforceRetention(database);
+      }
+    } catch (error) {
+      console.warn('[RoutingFeedbackCollector] Failed to persist outcome:', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /**
+   * Delete oldest rows beyond retention limit
+   */
+  private enforceRetention(database: ReturnType<UnifiedMemoryManager['getDatabase']>): void {
+    try {
+      const maxRows = this.maxOutcomes * 2;
+      database.prepare(`
+        DELETE FROM routing_outcomes WHERE id NOT IN (
+          SELECT id FROM routing_outcomes ORDER BY created_at DESC LIMIT ?
+        )
+      `).run(maxRows);
+    } catch (error) {
+      console.warn('[RoutingFeedbackCollector] Retention cleanup failed:', error instanceof Error ? error.message : String(error));
+    }
   }
 
   /**
@@ -113,6 +217,7 @@ export class RoutingFeedbackCollector {
 
     // Store outcome
     this.outcomeStore.add(routingOutcome);
+    this.persistOutcome(routingOutcome);
 
     // Update router's performance tracking
     if (this.router) {

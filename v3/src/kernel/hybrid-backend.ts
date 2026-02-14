@@ -87,6 +87,7 @@ export class HybridMemoryBackend implements MemoryBackend {
   private unifiedMemory: UnifiedMemoryManager | null = null;
   private config: HybridBackendConfig;
   private cleanupInterval?: ReturnType<typeof setInterval>;
+  private cleanupCount = 0;
   private initialized = false;
 
   constructor(config?: Partial<HybridBackendConfig>) {
@@ -363,6 +364,15 @@ export class HybridMemoryBackend implements MemoryBackend {
     if (this.unifiedMemory?.isInitialized()) {
       try {
         await this.unifiedMemory.kvCleanupExpired();
+        this.cleanupCount++;
+        // Run VACUUM every 10th cleanup to reclaim space (Issue #258)
+        if (this.cleanupCount % 10 === 0) {
+          try {
+            this.unifiedMemory.getDatabase().exec('VACUUM');
+          } catch {
+            // VACUUM can fail if transactions are active — non-critical
+          }
+        }
       } catch (error) {
         console.warn('[HybridBackend] Cleanup failed:', error);
       }

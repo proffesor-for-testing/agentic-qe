@@ -13,6 +13,7 @@ import type {
 } from './types.js';
 import { DEFAULT_FEEDBACK_CONFIG } from './types.js';
 import type { RealQEReasoningBank } from '../learning/real-qe-reasoning-bank.js';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
 // ============================================================================
 // Coverage Session Store
@@ -84,6 +85,9 @@ export class CoverageLearner {
   private strategies: Map<string, CoverageStrategy> = new Map();
   private reasoningBank: RealQEReasoningBank | null = null;
   private config: FeedbackConfig;
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly RETENTION_CLEANUP_INTERVAL = 50;
 
   constructor(config: Partial<FeedbackConfig> = {}) {
     this.config = { ...DEFAULT_FEEDBACK_CONFIG, ...config };
@@ -98,11 +102,153 @@ export class CoverageLearner {
   }
 
   /**
+   * Initialize DB persistence for coverage sessions
+   */
+  async initialize(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) {
+        await this.db.initialize();
+      }
+      await this.loadFromDb();
+    } catch (error) {
+      console.warn('[CoverageLearner] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
+  }
+
+  /**
+   * Load persisted sessions from the database
+   */
+  private async loadFromDb(): Promise<void> {
+    if (!this.db) return;
+    const database = this.db.getDatabase();
+    const rows = database.prepare(`
+      SELECT * FROM coverage_sessions ORDER BY created_at DESC LIMIT ?
+    `).all(this.config.maxOutcomesInMemory) as any[];
+
+    for (const row of rows.reverse()) {
+      const session: CoverageSession = {
+        id: row.id,
+        targetPath: row.target_path,
+        agentId: row.agent_id,
+        technique: row.technique as CoverageTechnique,
+        beforeCoverage: {
+          lines: row.before_lines,
+          branches: row.before_branches,
+          functions: row.before_functions,
+        },
+        afterCoverage: {
+          lines: row.after_lines,
+          branches: row.after_branches,
+          functions: row.after_functions,
+        },
+        testsGenerated: row.tests_generated,
+        testsPassed: row.tests_passed,
+        gapsTargeted: row.gaps_json ? JSON.parse(row.gaps_json) : [],
+        durationMs: row.duration_ms,
+        startedAt: new Date(row.started_at),
+        completedAt: new Date(row.completed_at),
+        context: row.context_json ? JSON.parse(row.context_json) : undefined,
+      };
+      this.sessionStore.add(session);
+
+      // Re-extract strategies from loaded sessions
+      const improvement = (
+        (session.afterCoverage.lines - session.beforeCoverage.lines) * 0.4 +
+        (session.afterCoverage.branches - session.beforeCoverage.branches) * 0.35 +
+        (session.afterCoverage.functions - session.beforeCoverage.functions) * 0.25
+      );
+      if (improvement >= this.config.minCoverageImprovementToLearn) {
+        const filePattern = this.extractFilePattern(session.targetPath);
+        const strategyKey = `${session.technique}:${filePattern}`;
+        const existing = this.strategies.get(strategyKey);
+        if (existing) {
+          this.strategies.set(strategyKey, {
+            ...existing,
+            avgImprovement: (existing.avgImprovement * existing.successCount + improvement) / (existing.successCount + 1),
+            successCount: existing.successCount + 1,
+            confidence: Math.min(1.0, existing.confidence + 0.05),
+            lastUsedAt: new Date(row.completed_at),
+          });
+        } else {
+          this.strategies.set(strategyKey, {
+            id: `strategy-${row.id}`,
+            description: `Coverage strategy: ${session.technique} for ${filePattern} files`,
+            technique: session.technique,
+            filePatterns: [filePattern],
+            avgImprovement: improvement,
+            successCount: 1,
+            confidence: 0.5,
+            createdAt: new Date(row.started_at),
+            lastUsedAt: new Date(row.completed_at),
+          });
+        }
+      }
+    }
+    if (rows.length > 0) {
+      console.log(`[CoverageLearner] Loaded ${rows.length} sessions from DB`);
+    }
+  }
+
+  /**
+   * Persist a coverage session to the database
+   */
+  private persistSession(session: CoverageSession): void {
+    if (!this.db) return;
+    try {
+      const database = this.db.getDatabase();
+      database.prepare(`
+        INSERT OR REPLACE INTO coverage_sessions (
+          id, target_path, agent_id, technique,
+          before_lines, before_branches, before_functions,
+          after_lines, after_branches, after_functions,
+          tests_generated, tests_passed, gaps_json,
+          duration_ms, started_at, completed_at, context_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        session.id, session.targetPath, session.agentId, session.technique,
+        session.beforeCoverage.lines, session.beforeCoverage.branches, session.beforeCoverage.functions,
+        session.afterCoverage.lines, session.afterCoverage.branches, session.afterCoverage.functions,
+        session.testsGenerated, session.testsPassed,
+        JSON.stringify(session.gapsTargeted),
+        session.durationMs,
+        session.startedAt instanceof Date ? session.startedAt.toISOString() : session.startedAt,
+        session.completedAt instanceof Date ? session.completedAt.toISOString() : session.completedAt,
+        session.context ? JSON.stringify(session.context) : null
+      );
+      this.persistCount++;
+      if (this.persistCount % CoverageLearner.RETENTION_CLEANUP_INTERVAL === 0) {
+        this.enforceRetention(database);
+      }
+    } catch (error) {
+      console.warn('[CoverageLearner] Failed to persist session:', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /**
+   * Delete oldest rows beyond retention limit
+   */
+  private enforceRetention(database: ReturnType<UnifiedMemoryManager['getDatabase']>): void {
+    try {
+      const maxRows = this.config.maxOutcomesInMemory * 2;
+      database.prepare(`
+        DELETE FROM coverage_sessions WHERE id NOT IN (
+          SELECT id FROM coverage_sessions ORDER BY created_at DESC LIMIT ?
+        )
+      `).run(maxRows);
+    } catch (error) {
+      console.warn('[CoverageLearner] Retention cleanup failed:', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /**
    * Learn from a completed coverage session
    */
   async learnFromSession(session: CoverageSession): Promise<CoverageStrategy | null> {
     // Store session
     this.sessionStore.add(session);
+    this.persistSession(session);
 
     // Calculate improvement
     const improvement = this.calculateOverallImprovement(session);

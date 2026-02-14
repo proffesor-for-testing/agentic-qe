@@ -15,6 +15,7 @@ import type {
 } from './interfaces';
 import { FallbackQLearningRouter } from './fallback';
 import type { AgentType, DomainName, Priority } from '../../shared/types';
+import { getUnifiedMemory, UnifiedMemoryManager } from '../../kernel/unified-memory.js';
 
 // ============================================================================
 // Q-Learning Parameters
@@ -55,6 +56,7 @@ const DEFAULT_PARAMS: QLearningParams = {
 export class RuVectorQLearningRouter implements QLearningRouter {
   private readonly fallback: FallbackQLearningRouter;
   private readonly params: QLearningParams;
+  private db: UnifiedMemoryManager | null = null;
   private qTable: Map<string, Map<string, number>> = new Map();
   private feedback: Map<string, Array<{ success: boolean; durationMs: number; quality: number; action: QLearningAction }>> = new Map();
   private taskStateMap: Map<string, QLearningState> = new Map();
@@ -66,6 +68,22 @@ export class RuVectorQLearningRouter implements QLearningRouter {
   ) {
     this.fallback = new FallbackQLearningRouter();
     this.params = { ...DEFAULT_PARAMS, ...params };
+  }
+
+  /**
+   * Initialize persistence layer and load Q-table from DB
+   */
+  async initialize(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) {
+        await this.db.initialize();
+      }
+      await this.loadQTable();
+    } catch (error) {
+      console.warn('[RuVectorQLearningRouter] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
   }
 
   /**
@@ -489,6 +507,59 @@ export class RuVectorQLearningRouter implements QLearningRouter {
 
     stateValues.set(actionKey, newQ);
     this.qTable.set(stateKey, stateValues);
+    this.persistQValue(stateKey, actionKey, newQ, reward);
+  }
+
+  /**
+   * Load Q-table from persistent storage
+   */
+  private async loadQTable(): Promise<void> {
+    if (!this.db) return;
+    const database = this.db.getDatabase();
+    const rows = database.prepare(`
+      SELECT state_key, action_key, q_value, visits
+      FROM rl_q_values
+      WHERE algorithm = 'ruvector-qlearning'
+      ORDER BY updated_at DESC
+      LIMIT 10000
+    `).all() as Array<{ state_key: string; action_key: string; q_value: number; visits: number }>;
+
+    for (const row of rows) {
+      const stateValues = this.qTable.get(row.state_key) || new Map();
+      stateValues.set(row.action_key, row.q_value);
+      this.qTable.set(row.state_key, stateValues);
+    }
+
+    if (rows.length > 0) {
+      this.episodeCount = rows.reduce((sum, r) => sum + r.visits, 0);
+      console.log(`[RuVectorQLearningRouter] Loaded ${rows.length} Q-values from DB (${this.episodeCount} total episodes)`);
+    }
+  }
+
+  /**
+   * Persist a single Q-value update to the database
+   */
+  private persistQValue(stateKey: string, actionKey: string, qValue: number, reward: number): void {
+    if (!this.db) return;
+    try {
+      const database = this.db.getDatabase();
+      database.prepare(`
+        INSERT INTO rl_q_values (id, algorithm, agent_id, state_key, action_key, q_value, visits, last_reward, updated_at)
+        VALUES (?, 'ruvector-qlearning', 'q-router', ?, ?, ?, 1, ?, datetime('now'))
+        ON CONFLICT(algorithm, agent_id, state_key, action_key)
+        DO UPDATE SET
+          q_value = ?,
+          visits = visits + 1,
+          last_reward = ?,
+          updated_at = datetime('now')
+      `).run(
+        `ruvector-qlearning:q-router:${stateKey}:${actionKey}`,
+        stateKey, actionKey, qValue, reward,
+        qValue, reward
+      );
+    } catch (error) {
+      console.warn('[RuVectorQLearningRouter] Failed to persist Q-value:', error instanceof Error ? error.message : String(error));
+    }
   }
 
   /**
@@ -568,6 +639,7 @@ export async function createQLearningRouter(
   try {
     // Try ML implementation FIRST
     const router = new RuVectorQLearningRouter(config, params);
+    await router.initialize();
     // Record successful ML usage
     observability.recordMLUsage('q-learning-router', true, Date.now() - startTime);
     return router;

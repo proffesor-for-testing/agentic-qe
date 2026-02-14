@@ -174,7 +174,41 @@ export class MinCutPersistence {
       JSON.stringify(snapshot.edges)
     );
 
+    // Enforce retention to prevent unbounded snapshot growth (Issue #258)
+    await this.enforceRetention();
+
     return id;
+  }
+
+  /**
+   * Enforce retention limits on snapshots and history to prevent DB bloat (Issue #258)
+   */
+  async enforceRetention(maxSnapshots: number = 200): Promise<number> {
+    const db = this.memory.getDatabase();
+    if (!db) return 0;
+
+    const countRow = db.prepare('SELECT COUNT(*) as count FROM mincut_snapshots').get() as { count: number };
+    if (countRow.count <= maxSnapshots) return 0;
+
+    const deleteCount = countRow.count - maxSnapshots;
+    db.prepare(`
+      DELETE FROM mincut_snapshots WHERE id IN (
+        SELECT id FROM mincut_snapshots ORDER BY created_at ASC LIMIT ?
+      )
+    `).run(deleteCount);
+
+    // Also trim history
+    const historyCount = db.prepare('SELECT COUNT(*) as count FROM mincut_history').get() as { count: number };
+    if (historyCount.count > 500) {
+      const historyDelete = historyCount.count - 500;
+      db.prepare(`
+        DELETE FROM mincut_history WHERE id IN (
+          SELECT id FROM mincut_history ORDER BY created_at ASC LIMIT ?
+        )
+      `).run(historyDelete);
+    }
+
+    return deleteCount;
   }
 
   /**

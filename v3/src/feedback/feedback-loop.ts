@@ -124,6 +124,18 @@ export class QualityFeedbackLoop {
   }
 
   /**
+   * Initialize DB persistence for all feedback components.
+   * Must be called after construction to enable cross-session learning.
+   */
+  async initialize(): Promise<void> {
+    await Promise.all([
+      this.outcomeTracker.initialize(),
+      this.coverageLearner.initialize(),
+      this.routingFeedback.initialize(),
+    ]);
+  }
+
+  /**
    * Connect to ReasoningBank for pattern storage and updates
    */
   connectReasoningBank(bank: RealQEReasoningBank): void {
@@ -417,10 +429,21 @@ export class QualityFeedbackLoop {
 }
 
 /**
- * Create a new quality feedback loop
+ * Create a new quality feedback loop (sync — call .initialize() separately for DB persistence)
  */
 export function createQualityFeedbackLoop(
   config?: Partial<FeedbackConfig>
 ): QualityFeedbackLoop {
   return new QualityFeedbackLoop(config);
+}
+
+/**
+ * Create and initialize a quality feedback loop with DB persistence
+ */
+export async function createInitializedFeedbackLoop(
+  config?: Partial<FeedbackConfig>
+): Promise<QualityFeedbackLoop> {
+  const loop = new QualityFeedbackLoop(config);
+  await loop.initialize();
+  return loop;
 }

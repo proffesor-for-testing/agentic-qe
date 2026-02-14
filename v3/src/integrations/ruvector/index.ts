@@ -160,7 +160,7 @@ import type {
   GraphBoundariesAnalyzer,
 } from './interfaces';
 import { DEFAULT_RUVECTOR_CONFIG, RuVectorUnavailableError } from './interfaces';
-import { createPersistentQLearningRouter, PersistentQLearningRouter, DEFAULT_EWC_CONFIG } from './persistent-q-router';
+import { createQLearningRouter } from './q-learning-router';
 import { createASTComplexityAnalyzer } from './ast-complexity';
 import { createDiffRiskClassifier } from './diff-risk-classifier';
 import { createCoverageRouter } from './coverage-router';
@@ -198,8 +198,8 @@ class DefaultRuVectorClient implements RuVectorClient {
 
     // Initialize components with ML-first approach
     // Each factory function tries ML first and records observability metrics
-    // NOTE: Q-Learning router now uses PersistentQLearningRouter (ADR-046)
-    // to persist Q-values across sessions for continuous learning
+    // Q-Learning router uses direct persistence to rl_q_values table
+    // (PersistentQLearningRouter is deprecated — see persistent-q-router.ts)
     const [
       qLearningRouter,
       astComplexityAnalyzer,
@@ -207,18 +207,7 @@ class DefaultRuVectorClient implements RuVectorClient {
       coverageRouter,
       graphBoundaries,
     ] = await Promise.all([
-      createPersistentQLearningRouter({
-        ruvectorConfig: this.config,
-        agentId: clientAgentId,
-        algorithm: 'q-learning',
-        domain: 'ruvector-client',
-        loadOnInit: true,
-        autoSaveInterval: 0, // Immediate persistence
-        ewcConfig: {
-          ...DEFAULT_EWC_CONFIG,
-          enabled: true, // Enable EWC++ for catastrophic forgetting prevention
-        },
-      }),
+      createQLearningRouter(this.config),
       createASTComplexityAnalyzer(this.config),
       createDiffRiskClassifier(this.config),
       createCoverageRouter(this.config),
@@ -235,11 +224,6 @@ class DefaultRuVectorClient implements RuVectorClient {
   }
 
   async dispose(): Promise<void> {
-    // Close persistent Q-Learning router to flush pending saves
-    if (this._qLearningRouter && this._qLearningRouter instanceof PersistentQLearningRouter) {
-      await (this._qLearningRouter as PersistentQLearningRouter).close();
-    }
-
     this._qLearningRouter = null;
     this._astComplexityAnalyzer = null;
     this._diffRiskClassifier = null;
@@ -275,7 +259,7 @@ class DefaultRuVectorClient implements RuVectorClient {
           status: 'connected',
           version: '1.0.0', // Would come from actual RuVector
           features: [
-            'persistent-q-learning-router', // ADR-046: Q-values persist across sessions
+            'q-learning-router', // Direct persistence to rl_q_values table
             'ast-complexity',
             'diff-risk-classifier',
             'coverage-router',

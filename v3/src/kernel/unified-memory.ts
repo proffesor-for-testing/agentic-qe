@@ -161,7 +161,7 @@ export function getResolvedDefaultConfig(): UnifiedMemoryConfig {
 // Schema Version for Migrations
 // ============================================================================
 
-const SCHEMA_VERSION = 7; // v7: adds SONA patterns table (Neural Backbone)
+const SCHEMA_VERSION = 8; // v8: adds feedback loop persistence tables (ADR-023, ADR-022)
 
 const SCHEMA_VERSION_TABLE = `
   CREATE TABLE IF NOT EXISTS schema_version (
@@ -645,6 +645,82 @@ const SONA_PATTERNS_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_sona_patterns_domain ON sona_patterns(domain);
   CREATE INDEX IF NOT EXISTS idx_sona_patterns_confidence ON sona_patterns(confidence DESC);
   CREATE INDEX IF NOT EXISTS idx_sona_patterns_updated ON sona_patterns(updated_at DESC);
+`;
+
+const FEEDBACK_SCHEMA = `
+  -- Test outcomes (ADR-023: Quality Feedback Loop)
+  CREATE TABLE IF NOT EXISTS test_outcomes (
+    id TEXT PRIMARY KEY,
+    test_id TEXT NOT NULL,
+    test_name TEXT NOT NULL,
+    generated_by TEXT NOT NULL,
+    pattern_id TEXT,
+    framework TEXT NOT NULL,
+    language TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    passed INTEGER NOT NULL,
+    error_message TEXT,
+    coverage_lines REAL DEFAULT 0,
+    coverage_branches REAL DEFAULT 0,
+    coverage_functions REAL DEFAULT 0,
+    mutation_score REAL,
+    execution_time_ms REAL NOT NULL,
+    flaky INTEGER DEFAULT 0,
+    flakiness_score REAL,
+    maintainability_score REAL NOT NULL,
+    complexity REAL,
+    lines_of_code INTEGER,
+    assertion_count INTEGER,
+    file_path TEXT,
+    source_file_path TEXT,
+    metadata_json TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_test_outcomes_pattern ON test_outcomes(pattern_id);
+  CREATE INDEX IF NOT EXISTS idx_test_outcomes_agent ON test_outcomes(generated_by);
+  CREATE INDEX IF NOT EXISTS idx_test_outcomes_domain ON test_outcomes(domain);
+  CREATE INDEX IF NOT EXISTS idx_test_outcomes_created ON test_outcomes(created_at);
+
+  -- Routing outcomes (ADR-022: Adaptive QE Agent Routing)
+  CREATE TABLE IF NOT EXISTS routing_outcomes (
+    id TEXT PRIMARY KEY,
+    task_json TEXT NOT NULL,
+    decision_json TEXT NOT NULL,
+    used_agent TEXT NOT NULL,
+    followed_recommendation INTEGER NOT NULL,
+    success INTEGER NOT NULL,
+    quality_score REAL NOT NULL,
+    duration_ms REAL NOT NULL,
+    error TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_routing_outcomes_agent ON routing_outcomes(used_agent);
+  CREATE INDEX IF NOT EXISTS idx_routing_outcomes_created ON routing_outcomes(created_at);
+
+  -- Coverage sessions (ADR-023: Coverage Learning)
+  CREATE TABLE IF NOT EXISTS coverage_sessions (
+    id TEXT PRIMARY KEY,
+    target_path TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    technique TEXT NOT NULL,
+    before_lines REAL DEFAULT 0,
+    before_branches REAL DEFAULT 0,
+    before_functions REAL DEFAULT 0,
+    after_lines REAL DEFAULT 0,
+    after_branches REAL DEFAULT 0,
+    after_functions REAL DEFAULT 0,
+    tests_generated INTEGER DEFAULT 0,
+    tests_passed INTEGER DEFAULT 0,
+    gaps_json TEXT,
+    duration_ms REAL NOT NULL,
+    started_at TEXT NOT NULL,
+    completed_at TEXT NOT NULL,
+    context_json TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_coverage_sessions_technique ON coverage_sessions(technique);
+  CREATE INDEX IF NOT EXISTS idx_coverage_sessions_agent ON coverage_sessions(agent_id);
+  CREATE INDEX IF NOT EXISTS idx_coverage_sessions_created ON coverage_sessions(created_at);
 `;
 
 // ============================================================================
@@ -1409,6 +1485,11 @@ export class UnifiedMemoryManager {
         // v7: SONA Patterns table (Neural Backbone)
         if (currentVersion < 7) {
           this.db!.exec(SONA_PATTERNS_SCHEMA);
+        }
+
+        // v8: Feedback loop persistence tables (ADR-023, ADR-022)
+        if (currentVersion < 8) {
+          this.db!.exec(FEEDBACK_SCHEMA);
         }
 
         // Update schema version
