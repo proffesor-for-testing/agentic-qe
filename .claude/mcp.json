@@ -11,18 +11,6 @@
         "NODE_ENV": "production"
       }
     },
-    "claude-flow": {
-      "command": "npx",
-      "args": [
-        "@claude-flow/cli@latest",
-        "mcp",
-        "start"
-      ],
-      "env": {
-        "CLAUDE_FLOW_HOOKS_ENABLED": "true",
-        "NODE_NO_WARNINGS": "1"
-      }
-    },
     "vibium": {
       "command": "npx",
       "args": [
