@@ -10,10 +10,13 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     env: {
-      // Ensure all test processes use the repo root database, not v3/.agentic-qe/
+      // Default: point at repo root so unit tests that accidentally touch DB
+      // don't create a shadow v3/.agentic-qe/. Integration tests override this
+      // in their setup file to use a temp directory (tests/integration/setup.ts).
       AQE_PROJECT_ROOT: path.resolve(__dirname, '..'),
     },
     include: ['tests/**/*.test.ts'],
+    setupFiles: ['tests/integration/setup.ts'],
     benchmark: {
       include: ['tests/**/*.bench.ts'],
     },

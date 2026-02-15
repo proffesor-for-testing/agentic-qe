@@ -30,6 +30,7 @@ import {
   createProofEnvelopeIntegration,
 } from '../../../src/governance/proof-envelope-integration.js';
 import { governanceFlags, isComplianceReporterEnabled } from '../../../src/governance/feature-flags.js';
+import { getUnifiedMemory } from '../../../src/kernel/unified-memory.js';
 
 describe('Compliance Reporter Integration', () => {
   let reporter: ComplianceReporter;
@@ -44,9 +45,17 @@ describe('Compliance Reporter Integration', () => {
     await reporter.initialize();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     reporter.reset();
     proofIntegration.reset();
+    // Clean up KV snapshot persisted during tests to prevent data leaking
+    // between describe blocks. Tests clean up what they create.
+    try {
+      const db = getUnifiedMemory();
+      await db.kvDelete('snapshot', 'compliance-audit');
+    } catch {
+      // DB may not be available in all environments
+    }
   });
 
   describe('Initialization', () => {
