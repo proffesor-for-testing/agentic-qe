@@ -1257,6 +1257,14 @@ export class UnifiedMemoryManager {
     // Use resolved config with project root detection for the dbPath
     const resolvedDefaults = getResolvedDefaultConfig();
     this.config = { ...resolvedDefaults, ...config };
+
+    // CRITICAL: If dbPath is relative (e.g. '.agentic-qe/memory.db' from a caller
+    // that used a static default), resolve it through findProjectRoot() to prevent
+    // split-brain where CWD-relative paths create duplicate databases in subdirectories.
+    if (!path.isAbsolute(this.config.dbPath)) {
+      const projectRoot = findProjectRoot();
+      this.config.dbPath = path.join(projectRoot, this.config.dbPath);
+    }
   }
 
   /**
