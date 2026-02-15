@@ -46,6 +46,7 @@ import type {
   DynamicScalingConfig,
 } from './types';
 import { DEFAULT_DYNAMIC_SCALING_CONFIG } from './types';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../../kernel/unified-memory.js';
 
 // ============================================================================
 // Types
@@ -91,6 +92,14 @@ export class DynamicScaler {
   private currentAgents: number;
   private lastDecision?: ScalingDecision;
 
+  // KV store persistence (Tier 2)
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly KV_NAMESPACE = 'scaling-metrics';
+  private static readonly KV_KEY = 'dynamic-scaler-snapshot';
+  private static readonly PERSIST_INTERVAL = 10;
+  private static readonly KV_TTL = 7200;
+
   /**
    * Create a new DynamicScaler.
    *
@@ -120,6 +129,10 @@ export class DynamicScaler {
     this.metricsHistory.push(metrics);
     if (this.metricsHistory.length > this.config.metricsHistorySize) {
       this.metricsHistory.shift();
+    }
+    this.persistCount++;
+    if (this.persistCount % DynamicScaler.PERSIST_INTERVAL === 0) {
+      this.persistSnapshot().catch(() => {});
     }
   }
 
@@ -371,6 +384,24 @@ export class DynamicScaler {
   // --------------------------------------------------------------------------
 
   /**
+   * Initialize persistence layer and load last snapshot from KV store.
+   * Safe to call multiple times; will not throw on DB failure.
+   */
+  async initialize(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn(
+        '[DynamicScaler] DB init failed, using memory-only:',
+        error instanceof Error ? error.message : String(error),
+      );
+      this.db = null;
+    }
+  }
+
+  /**
    * Release internal buffers. The scaler should not be used after disposal.
    */
   dispose(): void {
@@ -417,11 +448,72 @@ export class DynamicScaler {
 
   /**
    * Record a scaling event, evicting the oldest when the history cap is hit.
+   * Triggers periodic persistence to KV store.
    */
   private recordEvent(event: ScalingEvent): void {
     this.events.push(event);
     if (this.events.length > this.config.decisionHistorySize) {
       this.events.shift();
+    }
+    this.persistCount++;
+    if (this.persistCount % DynamicScaler.PERSIST_INTERVAL === 0) {
+      this.persistSnapshot().catch(() => {});
+    }
+  }
+
+  /**
+   * Load last persisted snapshot from KV store into in-memory state.
+   */
+  private async loadFromKv(): Promise<void> {
+    if (!this.db) return;
+    try {
+      const snapshot = await this.db.kvGet<{
+        metricsHistory: WorkloadMetrics[];
+        events: ScalingEvent[];
+      }>(DynamicScaler.KV_KEY, DynamicScaler.KV_NAMESPACE);
+
+      if (snapshot) {
+        if (Array.isArray(snapshot.metricsHistory)) {
+          for (const m of snapshot.metricsHistory) {
+            this.metricsHistory.push(m);
+          }
+        }
+        if (Array.isArray(snapshot.events)) {
+          for (const e of snapshot.events) {
+            this.events.push(e);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(
+        '[DynamicScaler] Failed to load KV snapshot:',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  /**
+   * Persist a trimmed snapshot of metricsHistory and events to KV store.
+   * Keeps only the last 50 entries of each to limit storage size.
+   */
+  private async persistSnapshot(): Promise<void> {
+    if (!this.db) return;
+    try {
+      const snapshot = {
+        metricsHistory: this.metricsHistory.slice(-50),
+        events: this.events.slice(-50),
+      };
+      await this.db.kvSet(
+        DynamicScaler.KV_KEY,
+        snapshot,
+        DynamicScaler.KV_NAMESPACE,
+        DynamicScaler.KV_TTL,
+      );
+    } catch (error) {
+      console.warn(
+        '[DynamicScaler] Failed to persist KV snapshot:',
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 }

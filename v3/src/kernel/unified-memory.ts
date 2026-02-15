@@ -67,12 +67,19 @@ export function findProjectRoot(startDir: string = process.cwd()): string {
   const root = path.parse(dir).root;
 
   // Priority 2: Look for existing .agentic-qe directory (AQE project marker)
+  // Walk ALL the way up and use the TOPMOST .agentic-qe found, not the first.
+  // This prevents subdirectories (e.g. v3/.agentic-qe) from shadowing the
+  // root project database, which caused a split-brain with two DBs growing.
   let checkDir = dir;
+  let topmostAqeDir: string | null = null;
   while (checkDir !== root) {
     if (fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
-      return checkDir;
+      topmostAqeDir = checkDir;
     }
     checkDir = path.dirname(checkDir);
+  }
+  if (topmostAqeDir) {
+    return topmostAqeDir;
   }
 
   // Priority 3: Look for .git directory (repo root)
@@ -158,10 +165,29 @@ export function getResolvedDefaultConfig(): UnifiedMemoryConfig {
 }
 
 // ============================================================================
+// Empty Tables Audit (Issue #260, 2026-02-14)
+// ============================================================================
+// The following 10 tables exist in the schema but have ZERO production writes.
+// They are candidates for removal in a future schema migration:
+//   - artifacts, baselines, consensus_state, learning_history,
+//     memory_acl, nervous_system_state, pattern_versions,
+//     sessions, transfer_test_results, transfer_validations
+//
+// Tables actively wired (DO NOT remove):
+//   - embeddings, executed_steps, execution_results,
+//     goap_execution_steps, goap_goals, goap_plan_signatures,
+//     hypergraph_edges, hypergraph_nodes
+//
+// Tables partially wired (in allowlist, need INSERT code):
+//   - learning_metrics, ooda_cycles, performance_metrics,
+//     workflow_state, experience_applications
+// ============================================================================
+
+// ============================================================================
 // Schema Version for Migrations
 // ============================================================================
 
-const SCHEMA_VERSION = 7; // v7: adds SONA patterns table (Neural Backbone)
+const SCHEMA_VERSION = 8; // v8: adds feedback loop persistence tables (ADR-023, ADR-022)
 
 const SCHEMA_VERSION_TABLE = `
   CREATE TABLE IF NOT EXISTS schema_version (
@@ -645,6 +671,82 @@ const SONA_PATTERNS_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_sona_patterns_domain ON sona_patterns(domain);
   CREATE INDEX IF NOT EXISTS idx_sona_patterns_confidence ON sona_patterns(confidence DESC);
   CREATE INDEX IF NOT EXISTS idx_sona_patterns_updated ON sona_patterns(updated_at DESC);
+`;
+
+const FEEDBACK_SCHEMA = `
+  -- Test outcomes (ADR-023: Quality Feedback Loop)
+  CREATE TABLE IF NOT EXISTS test_outcomes (
+    id TEXT PRIMARY KEY,
+    test_id TEXT NOT NULL,
+    test_name TEXT NOT NULL,
+    generated_by TEXT NOT NULL,
+    pattern_id TEXT,
+    framework TEXT NOT NULL,
+    language TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    passed INTEGER NOT NULL,
+    error_message TEXT,
+    coverage_lines REAL DEFAULT 0,
+    coverage_branches REAL DEFAULT 0,
+    coverage_functions REAL DEFAULT 0,
+    mutation_score REAL,
+    execution_time_ms REAL NOT NULL,
+    flaky INTEGER DEFAULT 0,
+    flakiness_score REAL,
+    maintainability_score REAL NOT NULL,
+    complexity REAL,
+    lines_of_code INTEGER,
+    assertion_count INTEGER,
+    file_path TEXT,
+    source_file_path TEXT,
+    metadata_json TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_test_outcomes_pattern ON test_outcomes(pattern_id);
+  CREATE INDEX IF NOT EXISTS idx_test_outcomes_agent ON test_outcomes(generated_by);
+  CREATE INDEX IF NOT EXISTS idx_test_outcomes_domain ON test_outcomes(domain);
+  CREATE INDEX IF NOT EXISTS idx_test_outcomes_created ON test_outcomes(created_at);
+
+  -- Routing outcomes (ADR-022: Adaptive QE Agent Routing)
+  CREATE TABLE IF NOT EXISTS routing_outcomes (
+    id TEXT PRIMARY KEY,
+    task_json TEXT NOT NULL,
+    decision_json TEXT NOT NULL,
+    used_agent TEXT NOT NULL,
+    followed_recommendation INTEGER NOT NULL,
+    success INTEGER NOT NULL,
+    quality_score REAL NOT NULL,
+    duration_ms REAL NOT NULL,
+    error TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_routing_outcomes_agent ON routing_outcomes(used_agent);
+  CREATE INDEX IF NOT EXISTS idx_routing_outcomes_created ON routing_outcomes(created_at);
+
+  -- Coverage sessions (ADR-023: Coverage Learning)
+  CREATE TABLE IF NOT EXISTS coverage_sessions (
+    id TEXT PRIMARY KEY,
+    target_path TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    technique TEXT NOT NULL,
+    before_lines REAL DEFAULT 0,
+    before_branches REAL DEFAULT 0,
+    before_functions REAL DEFAULT 0,
+    after_lines REAL DEFAULT 0,
+    after_branches REAL DEFAULT 0,
+    after_functions REAL DEFAULT 0,
+    tests_generated INTEGER DEFAULT 0,
+    tests_passed INTEGER DEFAULT 0,
+    gaps_json TEXT,
+    duration_ms REAL NOT NULL,
+    started_at TEXT NOT NULL,
+    completed_at TEXT NOT NULL,
+    context_json TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_coverage_sessions_technique ON coverage_sessions(technique);
+  CREATE INDEX IF NOT EXISTS idx_coverage_sessions_agent ON coverage_sessions(agent_id);
+  CREATE INDEX IF NOT EXISTS idx_coverage_sessions_created ON coverage_sessions(created_at);
 `;
 
 // ============================================================================
@@ -1143,6 +1245,7 @@ export class UnifiedMemoryManager {
   private db: DatabaseType | null = null;
   private readonly config: UnifiedMemoryConfig;
   private initialized = false;
+  private vectorsLoaded = false;
   private initPromise: Promise<void> | null = null;
   private preparedStatements: Map<string, Statement> = new Map();
   private vectorIndex: InMemoryHNSWIndex = new InMemoryHNSWIndex();
@@ -1248,8 +1351,8 @@ export class UnifiedMemoryManager {
       // Run migrations
       await this.runMigrations();
 
-      // Load vectors into HNSW index
-      await this.loadVectorIndex();
+      // Defer vector index loading until first search (startup optimization)
+      this.vectorsLoaded = false;
 
       this.initialized = true;
       console.log(`[UnifiedMemory] Initialized: ${this.config.dbPath}`);
@@ -1410,6 +1513,11 @@ export class UnifiedMemoryManager {
           this.db!.exec(SONA_PATTERNS_SCHEMA);
         }
 
+        // v8: Feedback loop persistence tables (ADR-023, ADR-022)
+        if (currentVersion < 8) {
+          this.db!.exec(FEEDBACK_SCHEMA);
+        }
+
         // Update schema version
         this.db!.prepare(`
           INSERT OR REPLACE INTO schema_version (id, version, migrated_at)
@@ -1426,6 +1534,7 @@ export class UnifiedMemoryManager {
    * Load all vectors from SQLite into HNSW index
    */
   private async loadVectorIndex(): Promise<void> {
+    if (this.vectorsLoaded) return;
     if (!this.db) throw new Error('Database not initialized');
 
     this.vectorIndex.clear();
@@ -1439,6 +1548,7 @@ export class UnifiedMemoryManager {
       this.vectorIndex.add(row.id, embedding);
     }
 
+    this.vectorsLoaded = true;
     console.log(`[UnifiedMemory] Loaded ${rows.length} vectors into HNSW index`);
   }
 
@@ -1601,6 +1711,11 @@ export class UnifiedMemoryManager {
     namespace?: string
   ): Promise<Array<{ id: string; score: number; metadata?: unknown }>> {
     this.ensureInitialized();
+
+    // Lazy-load vectors on first search (deferred from startup for fast init)
+    if (!this.vectorsLoaded) {
+      await this.loadVectorIndex();
+    }
 
     // Use in-memory HNSW index for fast search
     const results = this.vectorIndex.search(query, k * 2); // Get extra for namespace filtering

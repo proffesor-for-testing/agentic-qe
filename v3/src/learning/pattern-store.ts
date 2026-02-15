@@ -444,39 +444,10 @@ export class PatternStore implements IPatternStore {
    * Load existing patterns from memory with timeout protection
    */
   private async loadPatterns(): Promise<void> {
-    try {
-      // Add timeout to prevent hanging on uninitialized/empty databases
-      const timeoutMs = 5000;
-      const searchPromise = this.memory.search(`${this.config.namespace}:pattern:*`, 10000);
-      const timeoutPromise = new Promise<string[]>((_, reject) =>
-        setTimeout(() => reject(new Error('Pattern load timeout')), timeoutMs)
-      );
-
-      const keys = await Promise.race([searchPromise, timeoutPromise]);
-
-      // Batch load patterns concurrently instead of N+1 sequential gets
-      const BATCH_SIZE = 50;
-      for (let i = 0; i < keys.length; i += BATCH_SIZE) {
-        const batch = keys.slice(i, i + BATCH_SIZE);
-        const patterns = await Promise.all(
-          batch.map(key => this.memory.get<QEPattern>(key).catch(() => null))
-        );
-        for (const pattern of patterns) {
-          if (pattern) {
-            this.indexPattern(pattern);
-          }
-        }
-      }
-
-      if (this.patternCache.size > 0) {
-        console.log(`[PatternStore] Loaded ${this.patternCache.size} patterns`);
-      }
-    } catch (error) {
-      // Database may be empty or uninitialized - that's OK, we'll start fresh
-      console.log(`[PatternStore] Starting fresh (no existing patterns loaded): ${
-        error instanceof Error ? error.message : 'unknown error'
-      }`);
-    }
+    // Patterns are loaded from qe_patterns table by SQLitePatternStore.
+    // PatternStore's in-memory cache is populated via indexPattern() calls
+    // from the ReasoningBank when it loads from the relational store.
+    // Previously this loaded from kv_store, which duplicated storage (Issue #258).
   }
 
   /**
@@ -541,15 +512,9 @@ export class PatternStore implements IPatternStore {
       await this.cleanupDomain(pattern.qeDomain);
     }
 
-    // Store in memory backend
-    // NOTE: We include namespace in the KEY (e.g., 'qe-patterns:pattern:123')
-    // but do NOT pass namespace in options because HybridMemoryBackend's get()
-    // and search() methods use the default namespace. Having the namespace
-    // in the key provides isolation while keeping operations consistent.
-    const key = `${this.config.namespace}:pattern:${pattern.id}`;
-    await this.memory.set(key, pattern, {
-      persist: true,
-    });
+    // Patterns are persisted to qe_patterns table by SQLitePatternStore.
+    // PatternStore only maintains in-memory cache + HNSW index for fast search.
+    // Previously this wrote to kv_store, causing 229MB bloat (Issue #258).
 
     // Index locally
     this.indexPattern(pattern);
@@ -656,20 +621,7 @@ export class PatternStore implements IPatternStore {
       await this.initialize();
     }
 
-    // Check cache first
-    const cached = this.patternCache.get(id);
-    if (cached) return cached;
-
-    // Fallback to memory backend
-    const key = `${this.config.namespace}:pattern:${id}`;
-    const pattern = await this.memory.get<QEPattern>(key);
-
-    if (pattern) {
-      this.indexPattern(pattern);
-      return pattern;
-    }
-
-    return null;
+    return this.patternCache.get(id) ?? null;
   }
 
   /**
@@ -965,13 +917,7 @@ export class PatternStore implements IPatternStore {
     if (shouldPromote && updated.tier === 'short-term') {
       await this.promote(id);
     } else {
-      // Update in store (no namespace in options - key has prefix for isolation)
-      const key = `${this.config.namespace}:pattern:${id}`;
-      await this.memory.set(key, updated, {
-        persist: true,
-      });
-
-      // Update cache
+      // Update cache only - persistence handled by SQLitePatternStore
       this.patternCache.set(id, updated);
     }
 
@@ -1001,12 +947,7 @@ export class PatternStore implements IPatternStore {
     this.tierIndex.get('short-term')?.delete(id);
     this.tierIndex.get('long-term')?.add(id);
 
-    // Update in store (no namespace in options - key has prefix for isolation)
-    const key = `${this.config.namespace}:pattern:${id}`;
-    await this.memory.set(key, promoted, {
-      persist: true,
-    });
-
+    // Update cache only - persistence handled by SQLitePatternStore.promotePattern()
     this.patternCache.set(id, promoted);
 
     console.log(
@@ -1028,11 +969,8 @@ export class PatternStore implements IPatternStore {
     // Remove from indices
     this.unindexPattern(pattern);
 
-    // Remove from memory backend
-    const key = `${this.config.namespace}:pattern:${id}`;
-    await this.memory.delete(key);
-
-    // Remove from HNSW if already initialized (no lazy-load for delete)
+    // No kv_store write — deletion from qe_patterns handled by SQLitePatternStore.
+    // Only remove from HNSW if already initialized (no lazy-load for delete)
     if (this.hnswIndex !== null) {
       try {
         await this.hnswIndex.delete(id);

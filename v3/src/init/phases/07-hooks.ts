@@ -149,9 +149,29 @@ export class HooksPhase extends BasePhase<HooksResult> {
    * Uses `npx agentic-qe` for portability - works without global installation.
    * All hooks use --json output for structured data and fail silently with continueOnError.
    */
-  private generateHooksConfig(config: AQEInitConfig): Record<string, unknown[]> {
+  private generateHooksConfig(_config: AQEInitConfig): Record<string, unknown[]> {
+    // Shell injection safety: env vars like $TOOL_INPUT_file_path are set by
+    // Claude Code as environment variables before invoking the hook command.
+    // We pass them via --file "$TOOL_INPUT_file_path" which is safe because
+    // the shell expands the env var into a single quoted argument. We avoid
+    // constructing shell commands from user-controlled $TOOL_INPUT_prompt or
+    // $TOOL_INPUT_command by using env-var passthrough where possible.
+
     return {
       PreToolUse: [
+        // File guardian — MUST be first to block before learning hooks run
+        {
+          matcher: '^(Write|Edit|MultiEdit)$',
+          hooks: [
+            {
+              type: 'command',
+              command: 'npx agentic-qe hooks guard --file "$TOOL_INPUT_file_path" --json',
+              timeout: 3000,
+              continueOnError: true,
+            },
+          ],
+        },
+        // Learning: pre-edit context
         {
           matcher: '^(Write|Edit|MultiEdit)$',
           hooks: [
@@ -163,17 +183,19 @@ export class HooksPhase extends BasePhase<HooksResult> {
             },
           ],
         },
+        // Command bouncer — blocks dangerous commands
         {
           matcher: '^Bash$',
           hooks: [
             {
               type: 'command',
               command: 'npx agentic-qe hooks pre-command --command "$TOOL_INPUT_command" --json',
-              timeout: 5000,
+              timeout: 3000,
               continueOnError: true,
             },
           ],
         },
+        // Task routing
         {
           matcher: '^Task$',
           hooks: [
@@ -193,7 +215,7 @@ export class HooksPhase extends BasePhase<HooksResult> {
           hooks: [
             {
               type: 'command',
-              command: 'npx agentic-qe hooks post-edit --file "$TOOL_INPUT_file_path" --success "$TOOL_SUCCESS" --json',
+              command: 'npx agentic-qe hooks post-edit --file "$TOOL_INPUT_file_path" --success --json',
               timeout: 5000,
               continueOnError: true,
             },
@@ -204,7 +226,7 @@ export class HooksPhase extends BasePhase<HooksResult> {
           hooks: [
             {
               type: 'command',
-              command: 'npx agentic-qe hooks post-command --command "$TOOL_INPUT_command" --success "$TOOL_SUCCESS" --json',
+              command: 'npx agentic-qe hooks post-command --command "$TOOL_INPUT_command" --success --json',
               timeout: 5000,
               continueOnError: true,
             },
@@ -215,7 +237,7 @@ export class HooksPhase extends BasePhase<HooksResult> {
           hooks: [
             {
               type: 'command',
-              command: 'npx agentic-qe hooks post-task --task-id "$TOOL_RESULT_agent_id" --success "$TOOL_SUCCESS" --json',
+              command: 'npx agentic-qe hooks post-task --task-id "$TOOL_RESULT_agent_id" --success --json',
               timeout: 5000,
               continueOnError: true,
             },

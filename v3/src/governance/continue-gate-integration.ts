@@ -9,6 +9,7 @@
  */
 
 import { governanceFlags, isContinueGateEnabled, isStrictMode } from './feature-flags.js';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
 /**
  * Agent action record for loop detection
@@ -41,6 +42,12 @@ export class ContinueGateIntegration {
   private throttledAgents: Map<string, number> = new Map();
   private guidanceContinueGate: any = null;
   private initialized = false;
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly KV_NAMESPACE = 'continue-gate-actions';
+  private static readonly KV_KEY = 'snapshot';
+  private static readonly PERSIST_INTERVAL = 20;
+  private static readonly KV_TTL = 3600; // 1 hour
 
   /**
    * Initialize the ContinueGate integration
@@ -52,10 +59,52 @@ export class ContinueGateIntegration {
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
-
-    // Use local implementation optimized for AQE agent coordination
-    // The guidance ContinueGate is designed for different metrics (coherence, tokens, etc.)
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn('[ContinueGateIntegration] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
     this.initialized = true;
+  }
+
+  private async loadFromKv(): Promise<void> {
+    if (!this.db) return;
+    const data = await this.db.kvGet<{
+      actionHistory: Array<[string, AgentAction[]]>;
+      throttledAgents: Array<[string, number]>;
+    }>(ContinueGateIntegration.KV_KEY, ContinueGateIntegration.KV_NAMESPACE);
+    if (data) {
+      for (const [agentId, actions] of data.actionHistory) {
+        this.actionHistory.set(agentId, actions);
+      }
+      const now = Date.now();
+      for (const [agentId, until] of data.throttledAgents) {
+        if (until > now) this.throttledAgents.set(agentId, until);
+      }
+      console.log('[ContinueGateIntegration] Loaded state from DB');
+    }
+  }
+
+  private async persistSnapshot(): Promise<void> {
+    if (!this.db) return;
+    try {
+      await this.db.kvSet(
+        ContinueGateIntegration.KV_KEY,
+        {
+          actionHistory: Array.from(this.actionHistory.entries()).map(
+            ([agentId, actions]) => [agentId, actions.slice(-50)]
+          ),
+          throttledAgents: Array.from(this.throttledAgents.entries()),
+        },
+        ContinueGateIntegration.KV_NAMESPACE,
+        ContinueGateIntegration.KV_TTL
+      );
+    } catch (error) {
+      console.warn('[ContinueGateIntegration] Persist failed:', error instanceof Error ? error.message : String(error));
+    }
   }
 
   /**
@@ -73,6 +122,11 @@ export class ContinueGateIntegration {
     }
 
     this.actionHistory.set(action.agentId, history);
+
+    this.persistCount++;
+    if (this.persistCount % ContinueGateIntegration.PERSIST_INTERVAL === 0) {
+      this.persistSnapshot().catch(() => {});
+    }
   }
 
   /**

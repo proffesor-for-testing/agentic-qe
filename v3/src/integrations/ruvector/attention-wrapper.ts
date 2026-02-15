@@ -17,6 +17,7 @@ import {
   MoEAttention,
   type ArrayInput
 } from '@ruvector/attention';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../../kernel/unified-memory.js';
 
 // ============================================================================
 // QE-Specific Types
@@ -327,6 +328,13 @@ export class QEFlashAttention {
   private workload: QEWorkloadType;
   private metrics: QEFlashAttentionMetrics[] = [];
 
+  // kv_store persistence
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly KV_NAMESPACE = 'attention-metrics';
+  private static readonly KV_TTL = 3600; // 1 hour
+  private static readonly PERSIST_INTERVAL = 10; // every 10 operations
+
   constructor(workload: QEWorkloadType, customConfig?: Partial<QEFlashAttentionConfig>) {
     this.workload = workload;
 
@@ -340,12 +348,20 @@ export class QEFlashAttention {
   }
 
   /**
-   * Initialize Flash Attention
+   * Initialize Flash Attention and kv_store persistence
    * Note: @ruvector/attention doesn't require async initialization
    */
   async initialize(): Promise<void> {
     // @ruvector/attention is ready immediately
-    // This method exists for backward compatibility
+    // Initialize kv_store persistence
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn('[QEFlashAttention] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
   }
 
   /**
@@ -405,6 +421,9 @@ export class QEFlashAttention {
       throughput: (seqLen * seqLen) / ((endTime - startTime) / 1000),
       peakMemoryMB: endMemory,
     });
+
+    // Track operation for kv_store persistence
+    this.maybePersistToKv();
 
     return output;
   }
@@ -626,6 +645,60 @@ export class QEFlashAttention {
    */
   dispose(): void {
     this.metrics = [];
+  }
+
+  // ========================================================================
+  // kv_store Persistence
+  // ========================================================================
+
+  /**
+   * Persist metrics snapshot to kv_store
+   */
+  private async persistToKv(): Promise<void> {
+    if (!this.db) return;
+
+    const kvKey = `attention-metrics-${this.workload}`;
+    const snapshot = {
+      workload: this.workload,
+      metrics: this.metrics.slice(-50),
+      savedAt: Date.now(),
+    };
+
+    await this.db.kvSet(
+      kvKey,
+      snapshot,
+      QEFlashAttention.KV_NAMESPACE,
+      QEFlashAttention.KV_TTL
+    );
+  }
+
+  /**
+   * Load metrics snapshot from kv_store
+   */
+  private async loadFromKv(): Promise<void> {
+    if (!this.db) return;
+
+    const kvKey = `attention-metrics-${this.workload}`;
+    const snapshot = await this.db.kvGet<{
+      workload: QEWorkloadType;
+      metrics: QEFlashAttentionMetrics[];
+      savedAt: number;
+    }>(kvKey, QEFlashAttention.KV_NAMESPACE);
+
+    if (snapshot?.metrics?.length) {
+      this.metrics = snapshot.metrics;
+    }
+  }
+
+  /**
+   * Track operations and persist periodically
+   */
+  private maybePersistToKv(): void {
+    this.persistCount++;
+    if (this.persistCount >= QEFlashAttention.PERSIST_INTERVAL) {
+      this.persistCount = 0;
+      this.persistToKv().catch(() => {});
+    }
   }
 
   // ========================================================================

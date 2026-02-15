@@ -87,6 +87,7 @@ export class HybridMemoryBackend implements MemoryBackend {
   private unifiedMemory: UnifiedMemoryManager | null = null;
   private config: HybridBackendConfig;
   private cleanupInterval?: ReturnType<typeof setInterval>;
+  private cleanupCount = 0;
   private initialized = false;
 
   constructor(config?: Partial<HybridBackendConfig>) {
@@ -363,6 +364,46 @@ export class HybridMemoryBackend implements MemoryBackend {
     if (this.unifiedMemory?.isInitialized()) {
       try {
         await this.unifiedMemory.kvCleanupExpired();
+
+        const db = this.unifiedMemory.getDatabase();
+
+        // Expire TTL'd entries
+        try {
+          const expired = db.prepare('DELETE FROM kv_store WHERE expires_at IS NOT NULL AND expires_at < ?').run(Date.now());
+          if (expired.changes > 0) {
+            console.log(`[HybridBackend] Expired ${expired.changes} kv_store entries`);
+          }
+        } catch (e) {
+          // Non-critical
+        }
+
+        this.cleanupCount++;
+        // Run VACUUM every 10th cleanup to reclaim space (Issue #258)
+        if (this.cleanupCount % 10 === 0) {
+          // Enforce kv_store retention — prevent unbounded growth
+          try {
+            const kvCount = db.prepare('SELECT COUNT(*) as cnt FROM kv_store').get() as { cnt: number };
+            if (kvCount.cnt > 5000) {
+              // Keep only 5000 most recent entries (by rowid as proxy for insertion order)
+              const deleted = db.prepare(`
+                DELETE FROM kv_store WHERE rowid NOT IN (
+                  SELECT rowid FROM kv_store ORDER BY rowid DESC LIMIT 5000
+                )
+              `).run();
+              if (deleted.changes > 0) {
+                console.log(`[HybridBackend] kv_store retention: pruned ${deleted.changes} rows (kept 5000)`);
+              }
+            }
+          } catch (e) {
+            // Non-critical — don't fail cleanup
+          }
+
+          // VACUUM removed — it requires exclusive DB access and corrupts
+          // the database when hook processes have concurrent connections open.
+          // Use incremental auto_vacuum instead (set at DB creation time).
+          // See root cause analysis: each tool call spawns 3+ hook processes
+          // that all open memory.db, making VACUUM unsafe at any time.
+        }
       } catch (error) {
         console.warn('[HybridBackend] Cleanup failed:', error);
       }

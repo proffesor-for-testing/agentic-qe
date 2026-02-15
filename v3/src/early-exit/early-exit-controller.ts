@@ -21,6 +21,7 @@ import {
 import { calculateQualitySignal, calculateLambdaStability, calculateConfidence } from './quality-signal';
 import { CoherenceEarlyExit } from './early-exit-decision';
 import { SpeculativeExecutor } from './speculative-executor';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
 // ============================================================================
 // Types
@@ -79,12 +80,38 @@ export class EarlyExitController {
   private executionMetrics: EarlyExitMetrics;
   private events: EarlyExitEvents = {};
 
+  // KV store persistence (Tier 2)
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly KV_NAMESPACE = 'early-exit-signals';
+  private static readonly KV_KEY = 'early-exit-controller-snapshot';
+  private static readonly PERSIST_INTERVAL = 5;
+  private static readonly KV_TTL = 3600;
+
   constructor(config: Partial<EarlyExitConfig> = {}, totalLayers: number) {
     this.config = { ...DEFAULT_EXIT_CONFIG, ...config };
     this.totalLayers = totalLayers;
     this.earlyExit = new CoherenceEarlyExit(this.config, totalLayers);
     this.speculator = new SpeculativeExecutor(this.config);
     this.executionMetrics = this.initializeMetrics();
+  }
+
+  /**
+   * Initialize persistence layer and load last snapshot from KV store.
+   * Safe to call multiple times; will not throw on DB failure.
+   */
+  async initialize(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn(
+        '[EarlyExitController] DB init failed, using memory-only:',
+        error instanceof Error ? error.message : String(error),
+      );
+      this.db = null;
+    }
   }
 
   /**
@@ -119,6 +146,12 @@ export class EarlyExitController {
       const signal = calculateQualitySignal(layerResult, previousSignal);
       this.qualitySignals.set(i, signal);
       previousSignal = signal;
+
+      // Periodic KV persistence after signal updates
+      this.persistCount++;
+      if (this.persistCount % EarlyExitController.PERSIST_INTERVAL === 0) {
+        this.persistSnapshot().catch(() => {});
+      }
 
       // Emit layer complete event
       this.events.onLayerComplete?.(layer, layerResult, signal);
@@ -423,6 +456,62 @@ export class EarlyExitController {
    */
   getSpeculationStats() {
     return this.speculator.getAccuracyStats();
+  }
+
+  /**
+   * Load last persisted snapshot from KV store into in-memory state.
+   */
+  private async loadFromKv(): Promise<void> {
+    if (!this.db) return;
+    try {
+      const snapshot = await this.db.kvGet<{
+        layerResults: Array<[number, LayerResult]>;
+        qualitySignals: Array<[number, QualitySignal]>;
+      }>(EarlyExitController.KV_KEY, EarlyExitController.KV_NAMESPACE);
+
+      if (snapshot) {
+        if (Array.isArray(snapshot.layerResults)) {
+          for (const [k, v] of snapshot.layerResults) {
+            this.layerResults.set(k, v);
+          }
+        }
+        if (Array.isArray(snapshot.qualitySignals)) {
+          for (const [k, v] of snapshot.qualitySignals) {
+            this.qualitySignals.set(k, v);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(
+        '[EarlyExitController] Failed to load KV snapshot:',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  /**
+   * Persist a snapshot of layerResults and qualitySignals to KV store.
+   * Serializes Maps as arrays of entries for JSON compatibility.
+   */
+  private async persistSnapshot(): Promise<void> {
+    if (!this.db) return;
+    try {
+      const snapshot = {
+        layerResults: Array.from(this.layerResults.entries()),
+        qualitySignals: Array.from(this.qualitySignals.entries()),
+      };
+      await this.db.kvSet(
+        EarlyExitController.KV_KEY,
+        snapshot,
+        EarlyExitController.KV_NAMESPACE,
+        EarlyExitController.KV_TTL,
+      );
+    } catch (error) {
+      console.warn(
+        '[EarlyExitController] Failed to persist KV snapshot:',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   /**

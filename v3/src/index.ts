@@ -101,6 +101,7 @@ export {
   createQualityScoreCalculator,
   createPatternPromotionManager,
   createQualityFeedbackLoop,
+  createInitializedFeedbackLoop,
   QualityFeedbackLoop,
   TestOutcomeTracker,
   CoverageLearner,

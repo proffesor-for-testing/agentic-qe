@@ -58,6 +58,7 @@ export type { PatternMetrics } from './pattern-promotion.js';
 export {
   QualityFeedbackLoop,
   createQualityFeedbackLoop,
+  createInitializedFeedbackLoop,
 } from './feedback-loop.js';
 export type {
   FeedbackLoopStats,

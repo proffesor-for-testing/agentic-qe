@@ -326,20 +326,9 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
    * Clear the knowledge graph
    */
   async clear(): Promise<void> {
-    // Clear caches
+    // Cache-only: just clear in-memory caches, no kv_store cleanup needed
     this.nodeCache.clear();
     this.edgeIndex.clear();
-
-    // Clear persisted data
-    const nodePattern = `${this.config.namespace}:node:*`;
-    const edgePattern = `${this.config.namespace}:edge:*`;
-
-    const nodeKeys = await this.memory.search(nodePattern, this.config.maxNodes);
-    const edgeKeys = await this.memory.search(edgePattern, this.config.maxNodes * 10);
-
-    for (const key of [...nodeKeys, ...edgeKeys]) {
-      await this.memory.delete(key);
-    }
   }
 
   // ============================================================================
@@ -624,31 +613,19 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
       edgesCreated++;
     }
 
-    // Store design patterns as metadata on file node
-    if (relationships.designPatterns.length > 0) {
-      await this.memory.set(
-        `${this.config.namespace}:patterns:${fileNodeId}`,
-        relationships.designPatterns,
-        { namespace: this.config.namespace }
-      );
-    }
-
-    // Store architectural boundaries
-    if (relationships.architecturalBoundaries.length > 0) {
-      await this.memory.set(
-        `${this.config.namespace}:boundaries:${fileNodeId}`,
-        relationships.architecturalBoundaries,
-        { namespace: this.config.namespace }
-      );
-    }
-
-    // Store dependency impacts
-    if (relationships.dependencyImpacts.length > 0) {
-      await this.memory.set(
-        `${this.config.namespace}:impacts:${fileNodeId}`,
-        relationships.dependencyImpacts,
-        { namespace: this.config.namespace }
-      );
+    // Store LLM metadata in nodeCache (cache-only, no kv_store writes)
+    const node = this.nodeCache.get(fileNodeId);
+    if (node) {
+      if (relationships.designPatterns.length > 0) {
+        node.properties.designPatterns = relationships.designPatterns;
+      }
+      if (relationships.architecturalBoundaries.length > 0) {
+        node.properties.architecturalBoundaries = relationships.architecturalBoundaries;
+      }
+      if (relationships.dependencyImpacts.length > 0) {
+        node.properties.dependencyImpacts = relationships.dependencyImpacts;
+      }
+      this.nodeCache.set(fileNodeId, node);
     }
 
     return edgesCreated;
@@ -715,10 +692,7 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
       type,
     };
 
-    // Store edge
-    await this.memory.set(`${this.config.namespace}:edge:${edgeId}`, edge, {
-      namespace: this.config.namespace,
-    });
+    // Cache-only: no kv_store persistence needed, KG is rebuilt from source on each init
 
     // Update edge index
     const sourceEdges = this.edgeIndex.get(sourceId) || [];
@@ -737,14 +711,10 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
         this.nodeCache.delete(firstKey);
         // Also clean up related edges
         this.edgeIndex.delete(firstKey);
-        // Remove from persistent storage
-        await this.memory.delete(`${this.config.namespace}:node:${firstKey}`);
       }
     }
 
-    await this.memory.set(`${this.config.namespace}:node:${node.id}`, node, {
-      namespace: this.config.namespace,
-    });
+    // Cache-only: KG is rebuilt from source on each init, no need for kv_store persistence
     this.nodeCache.set(node.id, node);
   }
 
@@ -1280,11 +1250,9 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     });
   }
 
-  private async storeIndexMetadata(metadata: Record<string, unknown>): Promise<void> {
-    await this.memory.set(`${this.config.namespace}:metadata:index`, metadata, {
-      namespace: this.config.namespace,
-      persist: true,
-    });
+  private async storeIndexMetadata(_metadata: Record<string, unknown>): Promise<void> {
+    // Cache-only: index metadata is transient, no kv_store persistence needed
+    // Metadata is returned directly in the IndexResult from index()
   }
 
   private async generateEmbedding(entity: ExtractedEntity): Promise<number[]> {

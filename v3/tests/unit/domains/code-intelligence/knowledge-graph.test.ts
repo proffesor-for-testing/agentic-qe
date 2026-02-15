@@ -430,13 +430,15 @@ describe('KnowledgeGraphService', () => {
       expect(node).toBeUndefined();
     });
 
-    it('should clear both cache and persisted data', async () => {
+    it('should clear in-memory cache data', async () => {
       await service.index({ paths: ['src/test.ts'] });
 
       await service.clear();
 
-      // Memory.search should be called to find and delete keys
-      expect(mockMemory.search).toHaveBeenCalled();
+      // Cache-only mode: clear() clears in-memory caches only
+      // No kv_store/memory.search calls needed
+      const node = await service.getNode('src:test_ts');
+      expect(node).toBeUndefined();
     });
   });
 

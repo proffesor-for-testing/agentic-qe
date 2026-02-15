@@ -26,6 +26,8 @@ export const ALLOWED_TABLE_NAMES = new Set([
   'mincut_alerts', 'mincut_healing_actions', 'mincut_observations',
   // SONA tables
   'sona_patterns',
+  // Feedback loop tables
+  'test_outcomes', 'routing_outcomes', 'coverage_sessions',
   // Sync tables
   'patterns',
   // Hypergraph tables

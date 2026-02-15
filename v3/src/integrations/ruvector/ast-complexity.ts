@@ -13,6 +13,7 @@ import type {
 } from './interfaces';
 import { FallbackASTComplexityAnalyzer } from './fallback';
 import type { Severity, Priority } from '../../shared/types';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../../kernel/unified-memory.js';
 
 // ============================================================================
 // Complexity Thresholds
@@ -44,6 +45,11 @@ export class RuVectorASTComplexityAnalyzer implements ASTComplexityAnalyzer {
   private readonly fallback: FallbackASTComplexityAnalyzer;
   private readonly thresholds: ComplexityThresholds;
   private readonly cache: Map<string, { result: FileComplexityResult; timestamp: number }> = new Map();
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly PERSIST_INTERVAL = 25;
+  private static readonly NAMESPACE = 'ast-complexity-cache';
+  private static readonly TTL_SECONDS = 3600;
 
   constructor(
     private readonly config: RuVectorConfig,
@@ -51,6 +57,41 @@ export class RuVectorASTComplexityAnalyzer implements ASTComplexityAnalyzer {
   ) {
     this.fallback = new FallbackASTComplexityAnalyzer();
     this.thresholds = { ...DEFAULT_THRESHOLDS, ...thresholds };
+  }
+
+  async initialize(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn('[RuVectorASTComplexityAnalyzer] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
+  }
+
+  private async loadFromKv(): Promise<void> {
+    if (!this.db) return;
+    const data = await this.db.kvGet<Record<string, { result: FileComplexityResult; timestamp: number }>>('cache', RuVectorASTComplexityAnalyzer.NAMESPACE);
+    if (data) {
+      for (const [key, entry] of Object.entries(data)) {
+        this.cache.set(key, entry);
+      }
+      console.log(`[RuVectorASTComplexityAnalyzer] Loaded ${Object.keys(data).length} cached entries from DB`);
+    }
+  }
+
+  private persistCache(): void {
+    if (!this.db) return;
+    this.persistCount++;
+    if (this.persistCount % RuVectorASTComplexityAnalyzer.PERSIST_INTERVAL !== 0) return;
+    try {
+      const entries = Array.from(this.cache.entries()).slice(-200);
+      const snapshot = Object.fromEntries(entries);
+      this.db.kvSet('cache', snapshot, RuVectorASTComplexityAnalyzer.NAMESPACE, RuVectorASTComplexityAnalyzer.TTL_SECONDS).catch(() => {});
+    } catch (error) {
+      console.warn('[RuVectorASTComplexityAnalyzer] Persist failed:', error instanceof Error ? error.message : String(error));
+    }
   }
 
   /**
@@ -75,6 +116,7 @@ export class RuVectorASTComplexityAnalyzer implements ASTComplexityAnalyzer {
       // Cache result
       if (this.config.cacheEnabled) {
         this.cache.set(filePath, { result, timestamp: Date.now() });
+        this.persistCache();
       }
 
       return result;

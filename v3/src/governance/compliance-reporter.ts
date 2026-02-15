@@ -24,6 +24,7 @@ import {
   proofEnvelopeIntegration,
   type ProofEnvelope,
 } from './proof-envelope-integration.js';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
 // ============================================================================
 // Types
@@ -313,6 +314,13 @@ export class ComplianceReporter {
   private scoreHistory: ComplianceScore[] = [];
   private alertListeners: Set<(alert: Alert) => void> = new Set();
 
+  // KV persistence
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly NAMESPACE = 'compliance-audit';
+  private static readonly TTL_SECONDS = 2592000; // 30 days
+  private static readonly PERSIST_INTERVAL = 10;
+
   /**
    * Create a new ComplianceReporter instance
    *
@@ -332,6 +340,16 @@ export class ComplianceReporter {
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
+
+    // Initialize KV persistence
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn('[ComplianceReporter] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
 
     // Initialize proof envelope integration if not already
     if (!this.proofIntegration.isInitialized()) {
@@ -419,6 +437,9 @@ export class ComplianceReporter {
     if (this.flags.alertOnCritical && violation.severity === 'critical') {
       this.triggerAlert(violation.gate, 'Critical violation detected', 'critical');
     }
+
+    // Persist snapshot on interval
+    this.persistSnapshot();
 
     // Clean up old violations based on retention
     this.cleanupOldViolations();
@@ -936,6 +957,51 @@ export class ComplianceReporter {
     this.scoreHistory = [];
     this.alertListeners.clear();
     this.initialized = false;
+  }
+
+  // ============================================================================
+  // KV Persistence
+  // ============================================================================
+
+  /**
+   * Load violations and score history from KV store
+   */
+  private async loadFromKv(): Promise<void> {
+    if (!this.db) return;
+    const data = await this.db.kvGet<{
+      violations: Record<string, ComplianceViolation>;
+      scoreHistory: ComplianceScore[];
+    }>('snapshot', ComplianceReporter.NAMESPACE);
+    if (data) {
+      if (data.violations) {
+        for (const [key, violation] of Object.entries(data.violations)) {
+          this.violations.set(key, violation);
+        }
+      }
+      if (data.scoreHistory) {
+        this.scoreHistory = data.scoreHistory;
+      }
+    }
+  }
+
+  /**
+   * Persist violations and score history to KV store on interval
+   */
+  private persistSnapshot(): void {
+    if (!this.db) return;
+    this.persistCount++;
+    if (this.persistCount % ComplianceReporter.PERSIST_INTERVAL !== 0) return;
+    try {
+      // Keep last 500 violations and last 100 score history entries
+      const violationEntries = Array.from(this.violations.entries()).slice(-500);
+      const snapshot = {
+        violations: Object.fromEntries(violationEntries),
+        scoreHistory: this.scoreHistory.slice(-100),
+      };
+      this.db.kvSet('snapshot', snapshot, ComplianceReporter.NAMESPACE, ComplianceReporter.TTL_SECONDS).catch(() => {});
+    } catch (error) {
+      console.warn('[ComplianceReporter] Persist failed:', error instanceof Error ? error.message : String(error));
+    }
   }
 
   // ============================================================================

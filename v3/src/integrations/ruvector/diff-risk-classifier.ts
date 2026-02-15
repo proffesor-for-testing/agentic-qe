@@ -14,6 +14,7 @@ import type {
 } from './interfaces';
 import { FallbackDiffRiskClassifier } from './fallback';
 import type { Severity, Priority } from '../../shared/types';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../../kernel/unified-memory.js';
 
 // ============================================================================
 // Risk Classification Patterns
@@ -104,6 +105,11 @@ export class RuVectorDiffRiskClassifier implements DiffRiskClassifier {
   private readonly fallback: FallbackDiffRiskClassifier;
   private readonly patterns: RiskPatterns;
   private readonly cache: Map<string, { result: RiskClassification; timestamp: number }> = new Map();
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly PERSIST_INTERVAL = 25;
+  private static readonly NAMESPACE = 'diff-risk-cache';
+  private static readonly TTL_SECONDS = 86400;
 
   constructor(
     private readonly config: RuVectorConfig,
@@ -111,6 +117,41 @@ export class RuVectorDiffRiskClassifier implements DiffRiskClassifier {
   ) {
     this.fallback = new FallbackDiffRiskClassifier();
     this.patterns = { ...DEFAULT_RISK_PATTERNS, ...patterns };
+  }
+
+  async initialize(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn('[RuVectorDiffRiskClassifier] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
+  }
+
+  private async loadFromKv(): Promise<void> {
+    if (!this.db) return;
+    const data = await this.db.kvGet<Record<string, { result: RiskClassification; timestamp: number }>>('cache', RuVectorDiffRiskClassifier.NAMESPACE);
+    if (data) {
+      for (const [key, entry] of Object.entries(data)) {
+        this.cache.set(key, entry);
+      }
+      console.log(`[RuVectorDiffRiskClassifier] Loaded ${Object.keys(data).length} cached entries from DB`);
+    }
+  }
+
+  private persistCache(): void {
+    if (!this.db) return;
+    this.persistCount++;
+    if (this.persistCount % RuVectorDiffRiskClassifier.PERSIST_INTERVAL !== 0) return;
+    try {
+      const entries = Array.from(this.cache.entries()).slice(-200);
+      const snapshot = Object.fromEntries(entries);
+      this.db.kvSet('cache', snapshot, RuVectorDiffRiskClassifier.NAMESPACE, RuVectorDiffRiskClassifier.TTL_SECONDS).catch(() => {});
+    } catch (error) {
+      console.warn('[RuVectorDiffRiskClassifier] Persist failed:', error instanceof Error ? error.message : String(error));
+    }
   }
 
   /**
@@ -136,6 +177,7 @@ export class RuVectorDiffRiskClassifier implements DiffRiskClassifier {
       // Cache result
       if (this.config.cacheEnabled) {
         this.cache.set(cacheKey, { result, timestamp: Date.now() });
+        this.persistCache();
       }
 
       return result;

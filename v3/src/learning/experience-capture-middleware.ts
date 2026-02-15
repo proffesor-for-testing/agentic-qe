@@ -194,27 +194,59 @@ async function doInitialize(): Promise<void> {
     memoryManager = getUnifiedMemory();
     await memoryManager.initialize();
 
-    // Ensure experience tables exist
+    // Ensure experience tables exist with v3 schema
     const db = memoryManager.getDatabase();
     if (db) {
+      let needsCreate = false;
+
+      const tableExists = (db.prepare(
+        "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name='captured_experiences'"
+      ).get() as { cnt: number }).cnt > 0;
+
+      if (tableExists) {
+        const columns = db.prepare('PRAGMA table_info(captured_experiences)').all() as Array<{ name: string }>;
+        const colNames = new Set(columns.map(c => c.name));
+
+        if (!colNames.has('success') || !colNames.has('task')) {
+          // v2 schema — rename old table and recreate with v3 schema
+          db.exec('ALTER TABLE captured_experiences RENAME TO captured_experiences_v2_backup');
+          needsCreate = true;
+        } else {
+          // v3 schema — add any missing columns
+          if (!colNames.has('domain')) {
+            db.exec("ALTER TABLE captured_experiences ADD COLUMN domain TEXT NOT NULL DEFAULT ''");
+          }
+          if (!colNames.has('source')) {
+            db.exec("ALTER TABLE captured_experiences ADD COLUMN source TEXT DEFAULT 'middleware'");
+          }
+        }
+      } else {
+        needsCreate = true;
+      }
+
+      if (needsCreate) {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS captured_experiences (
+            id TEXT PRIMARY KEY,
+            task TEXT NOT NULL,
+            agent TEXT NOT NULL,
+            domain TEXT NOT NULL DEFAULT '',
+            success INTEGER NOT NULL DEFAULT 0,
+            quality REAL NOT NULL DEFAULT 0.5,
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            model_tier INTEGER,
+            routing_json TEXT,
+            steps_json TEXT,
+            result_json TEXT,
+            error TEXT,
+            started_at TEXT NOT NULL DEFAULT (datetime('now')),
+            completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+            source TEXT DEFAULT 'middleware'
+          );
+        `);
+      }
+
       db.exec(`
-        CREATE TABLE IF NOT EXISTS captured_experiences (
-          id TEXT PRIMARY KEY,
-          task TEXT NOT NULL,
-          agent TEXT NOT NULL,
-          domain TEXT NOT NULL,
-          success INTEGER NOT NULL DEFAULT 0,
-          quality REAL NOT NULL DEFAULT 0.5,
-          duration_ms INTEGER NOT NULL DEFAULT 0,
-          model_tier INTEGER,
-          routing_json TEXT,
-          steps_json TEXT,
-          result_json TEXT,
-          error TEXT,
-          started_at TEXT NOT NULL,
-          completed_at TEXT NOT NULL DEFAULT (datetime('now')),
-          source TEXT DEFAULT 'middleware'
-        );
         CREATE INDEX IF NOT EXISTS idx_captured_exp_domain ON captured_experiences(domain);
         CREATE INDEX IF NOT EXISTS idx_captured_exp_success ON captured_experiences(success);
         CREATE INDEX IF NOT EXISTS idx_captured_exp_agent ON captured_experiences(agent);

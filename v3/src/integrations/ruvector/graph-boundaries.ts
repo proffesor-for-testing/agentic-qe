@@ -15,6 +15,7 @@ import type {
 } from './interfaces';
 import { FallbackGraphBoundariesAnalyzer } from './fallback';
 import type { Severity, Priority } from '../../shared/types';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../../kernel/unified-memory.js';
 
 // ============================================================================
 // Graph Configuration
@@ -72,6 +73,11 @@ export class RuVectorGraphBoundariesAnalyzer implements GraphBoundariesAnalyzer 
   private readonly cache: Map<string, { result: GraphBoundariesResult; timestamp: number }> = new Map();
   private moduleCache: Map<string, ModuleBoundary> = new Map();
   private dependencyGraph: Map<string, ModuleDependency[]> = new Map();
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly PERSIST_INTERVAL = 25;
+  private static readonly NAMESPACE = 'graph-boundaries-cache';
+  private static readonly TTL_SECONDS = 3600;
 
   constructor(
     private readonly config: RuVectorConfig,
@@ -79,6 +85,41 @@ export class RuVectorGraphBoundariesAnalyzer implements GraphBoundariesAnalyzer 
   ) {
     this.fallback = new FallbackGraphBoundariesAnalyzer();
     this.graphConfig = { ...DEFAULT_GRAPH_CONFIG, ...graphConfig };
+  }
+
+  async initialize(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn('[RuVectorGraphBoundariesAnalyzer] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
+  }
+
+  private async loadFromKv(): Promise<void> {
+    if (!this.db) return;
+    const data = await this.db.kvGet<Record<string, { result: GraphBoundariesResult; timestamp: number }>>('cache', RuVectorGraphBoundariesAnalyzer.NAMESPACE);
+    if (data) {
+      for (const [key, entry] of Object.entries(data)) {
+        this.cache.set(key, entry);
+      }
+      console.log(`[RuVectorGraphBoundariesAnalyzer] Loaded ${Object.keys(data).length} cached entries from DB`);
+    }
+  }
+
+  private persistCache(): void {
+    if (!this.db) return;
+    this.persistCount++;
+    if (this.persistCount % RuVectorGraphBoundariesAnalyzer.PERSIST_INTERVAL !== 0) return;
+    try {
+      const entries = Array.from(this.cache.entries()).slice(-200);
+      const snapshot = Object.fromEntries(entries);
+      this.db.kvSet('cache', snapshot, RuVectorGraphBoundariesAnalyzer.NAMESPACE, RuVectorGraphBoundariesAnalyzer.TTL_SECONDS).catch(() => {});
+    } catch (error) {
+      console.warn('[RuVectorGraphBoundariesAnalyzer] Persist failed:', error instanceof Error ? error.message : String(error));
+    }
   }
 
   /**
@@ -104,6 +145,7 @@ export class RuVectorGraphBoundariesAnalyzer implements GraphBoundariesAnalyzer 
       // Cache result
       if (this.config.cacheEnabled) {
         this.cache.set(cacheKey, { result, timestamp: Date.now() });
+        this.persistCache();
       }
 
       return result;

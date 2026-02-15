@@ -15,6 +15,7 @@ import type {
 import { DEFAULT_FEEDBACK_CONFIG } from './types.js';
 import type { QEDomain } from '../learning/qe-patterns.js';
 import type { RealQEReasoningBank } from '../learning/real-qe-reasoning-bank.js';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
 // ============================================================================
 // Outcome Store
@@ -78,6 +79,9 @@ export class TestOutcomeTracker {
   private store: OutcomeStore;
   private reasoningBank: RealQEReasoningBank | null = null;
   private config: FeedbackConfig;
+  private db: UnifiedMemoryManager | null = null;
+  private persistCount = 0;
+  private static readonly RETENTION_CLEANUP_INTERVAL = 100;
 
   // Pattern metrics cache
   private patternMetrics: Map<string, {
@@ -100,11 +104,133 @@ export class TestOutcomeTracker {
   }
 
   /**
+   * Initialize DB persistence (optional - tracker works without it)
+   */
+  async initialize(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) {
+        await this.db.initialize();
+      }
+      await this.loadFromDb();
+    } catch (error) {
+      console.warn('[TestOutcomeTracker] DB initialization failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
+  }
+
+  /**
+   * Load outcomes from DB into memory
+   */
+  private async loadFromDb(): Promise<void> {
+    if (!this.db) return;
+    const database = this.db.getDatabase();
+    const rows = database.prepare(`
+      SELECT * FROM test_outcomes ORDER BY created_at DESC LIMIT ?
+    `).all(this.config.maxOutcomesInMemory) as any[];
+
+    // Load in chronological order (oldest first)
+    for (const row of rows.reverse()) {
+      const outcome: TestOutcome = {
+        id: row.id,
+        testId: row.test_id,
+        testName: row.test_name,
+        generatedBy: row.generated_by,
+        patternId: row.pattern_id || undefined,
+        framework: row.framework,
+        language: row.language,
+        domain: row.domain,
+        passed: Boolean(row.passed),
+        errorMessage: row.error_message || undefined,
+        coverage: {
+          lines: row.coverage_lines,
+          branches: row.coverage_branches,
+          functions: row.coverage_functions,
+        },
+        mutationScore: row.mutation_score ?? undefined,
+        executionTimeMs: row.execution_time_ms,
+        flaky: Boolean(row.flaky),
+        flakinessScore: row.flakiness_score ?? undefined,
+        maintainabilityScore: row.maintainability_score,
+        complexity: row.complexity ?? undefined,
+        linesOfCode: row.lines_of_code ?? undefined,
+        assertionCount: row.assertion_count ?? undefined,
+        filePath: row.file_path || undefined,
+        sourceFilePath: row.source_file_path || undefined,
+        timestamp: new Date(row.created_at),
+        metadata: row.metadata_json ? JSON.parse(row.metadata_json) : undefined,
+      };
+      this.store.add(outcome);
+      if (outcome.patternId) {
+        this.updatePatternMetrics(outcome);
+      }
+    }
+    if (rows.length > 0) {
+      console.log(`[TestOutcomeTracker] Loaded ${rows.length} outcomes from DB`);
+    }
+  }
+
+  /**
+   * Persist a single outcome to DB (write-through)
+   */
+  private persistOutcome(outcome: TestOutcome): void {
+    if (!this.db) return;
+    try {
+      const database = this.db.getDatabase();
+      database.prepare(`
+        INSERT OR REPLACE INTO test_outcomes (
+          id, test_id, test_name, generated_by, pattern_id,
+          framework, language, domain, passed, error_message,
+          coverage_lines, coverage_branches, coverage_functions,
+          mutation_score, execution_time_ms, flaky, flakiness_score,
+          maintainability_score, complexity, lines_of_code,
+          assertion_count, file_path, source_file_path, metadata_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        outcome.id, outcome.testId, outcome.testName, outcome.generatedBy,
+        outcome.patternId || null,
+        outcome.framework, outcome.language, outcome.domain,
+        outcome.passed ? 1 : 0, outcome.errorMessage || null,
+        outcome.coverage.lines, outcome.coverage.branches, outcome.coverage.functions,
+        outcome.mutationScore ?? null, outcome.executionTimeMs,
+        outcome.flaky ? 1 : 0, outcome.flakinessScore ?? null,
+        outcome.maintainabilityScore, outcome.complexity ?? null,
+        outcome.linesOfCode ?? null, outcome.assertionCount ?? null,
+        outcome.filePath || null, outcome.sourceFilePath || null,
+        outcome.metadata ? JSON.stringify(outcome.metadata) : null
+      );
+      this.persistCount++;
+      if (this.persistCount % TestOutcomeTracker.RETENTION_CLEANUP_INTERVAL === 0) {
+        this.enforceRetention(database);
+      }
+    } catch (error) {
+      console.warn('[TestOutcomeTracker] Failed to persist outcome:', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /**
+   * Delete oldest rows beyond retention limit
+   */
+  private enforceRetention(database: ReturnType<UnifiedMemoryManager['getDatabase']>): void {
+    try {
+      const maxRows = this.config.maxOutcomesInMemory * 2; // Keep 2x in-memory limit in DB
+      database.prepare(`
+        DELETE FROM test_outcomes WHERE id NOT IN (
+          SELECT id FROM test_outcomes ORDER BY created_at DESC LIMIT ?
+        )
+      `).run(maxRows);
+    } catch (error) {
+      console.warn('[TestOutcomeTracker] Retention cleanup failed:', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /**
    * Track a test outcome
    */
   async track(outcome: TestOutcome): Promise<void> {
     // 1. Store outcome
     this.store.add(outcome);
+    this.persistOutcome(outcome);
 
     // 2. Update pattern metrics if pattern was used
     if (outcome.patternId) {

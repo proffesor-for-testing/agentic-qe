@@ -468,16 +468,23 @@ export class SASTScanner {
     vulnerabilities: Vulnerability[],
     summary: ScanSummary
   ): Promise<void> {
+    // Store summary only — full scan results caused 65MB bloat (Issue #258)
+    const scanSummary = {
+      scanId,
+      scanType,
+      summary,
+      timestamp: new Date().toISOString(),
+      vulnerabilityCount: vulnerabilities.length,
+      // Keep only critical/high vulnerabilities in stored result
+      criticalVulnerabilities: vulnerabilities.filter(
+        (v) => v.severity === 'critical' || v.severity === 'high'
+      ),
+    };
+
     await this.memory.set(
       `security:scan:${scanId}`,
-      {
-        scanId,
-        scanType,
-        vulnerabilities,
-        summary,
-        timestamp: new Date().toISOString(),
-      },
-      { namespace: 'security-compliance', ttl: 86400 * 7 } // 7 days
+      scanSummary,
+      { namespace: 'security-compliance', ttl: 86400 * 2 } // 2 days (reduced from 7)
     );
   }
 

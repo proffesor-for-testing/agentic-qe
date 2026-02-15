@@ -32,6 +32,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
 // ============================================================================
 // Token Usage Types (ADR-042 Specification)
@@ -231,6 +232,14 @@ class TokenMetricsCollectorImpl {
   private persistenceConfig: TokenPersistenceConfig = DEFAULT_PERSISTENCE_CONFIG;
   private autoSaveTimer: NodeJS.Timeout | null = null;
   private isDirty = false;
+
+  // kv_store persistence
+  private db: UnifiedMemoryManager | null = null;
+  private kvPersistCount = 0;
+  private static readonly KV_NAMESPACE = 'token-usage-metrics';
+  private static readonly KV_KEY = 'token-tracker-snapshot';
+  private static readonly KV_TTL = 604800; // 7 days
+  private static readonly KV_PERSIST_INTERVAL = 10; // every 10 operations
 
   constructor() {
     // Use cryptographically secure random UUID instead of Math.random()
@@ -794,6 +803,107 @@ class TokenMetricsCollectorImpl {
    */
   hasUnsavedChanges(): boolean {
     return this.isDirty;
+  }
+
+  // ============================================================================
+  // kv_store Persistence
+  // ============================================================================
+
+  /**
+   * Initialize kv_store persistence and restore snapshot if available.
+   * This supplements the existing file-based persistence.
+   */
+  async initializeDb(): Promise<void> {
+    try {
+      this.db = getUnifiedMemory();
+      if (!this.db.isInitialized()) await this.db.initialize();
+      await this.loadFromKv();
+    } catch (error) {
+      console.warn('[TokenMetricsCollector] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      this.db = null;
+    }
+  }
+
+  /**
+   * Persist current state snapshot to kv_store
+   */
+  private async persistToKv(): Promise<void> {
+    if (!this.db) return;
+
+    const snapshot: PersistedTokenData = {
+      version: '1.0.0',
+      sessionId: this.sessionId,
+      sessionStartTime: this.sessionStartTime,
+      taskMetrics: this.taskMetrics.slice(-this.persistenceConfig.maxMetricsInMemory),
+      optimizationStats: {
+        cacheHits: this.cacheHits,
+        earlyExits: this.earlyExits,
+        totalTokensSaved: this.totalTokensSaved,
+        totalPatternsReused: this.totalPatternsReused,
+      },
+      lastSavedAt: Date.now(),
+    };
+
+    await this.db.kvSet(
+      TokenMetricsCollectorImpl.KV_KEY,
+      snapshot,
+      TokenMetricsCollectorImpl.KV_NAMESPACE,
+      TokenMetricsCollectorImpl.KV_TTL
+    );
+  }
+
+  /**
+   * Load state snapshot from kv_store
+   */
+  private async loadFromKv(): Promise<boolean> {
+    if (!this.db) return false;
+
+    const snapshot = await this.db.kvGet<PersistedTokenData>(
+      TokenMetricsCollectorImpl.KV_KEY,
+      TokenMetricsCollectorImpl.KV_NAMESPACE
+    );
+
+    if (!snapshot) return false;
+
+    // Validate version
+    if (!snapshot.version || !snapshot.version.startsWith('1.')) {
+      console.warn('[TokenMetricsCollector] Incompatible kv_store data version, skipping load');
+      return false;
+    }
+
+    // Restore state (merge with current session)
+    const historicalMetrics = snapshot.taskMetrics || [];
+    this.taskMetrics = [...historicalMetrics, ...this.taskMetrics];
+
+    // Accumulate optimization stats from history
+    this.cacheHits += snapshot.optimizationStats?.cacheHits || 0;
+    this.earlyExits += snapshot.optimizationStats?.earlyExits || 0;
+    this.totalTokensSaved += snapshot.optimizationStats?.totalTokensSaved || 0;
+    this.totalPatternsReused += snapshot.optimizationStats?.totalPatternsReused || 0;
+
+    // Rebuild aggregations
+    for (const metric of historicalMetrics) {
+      this.updateAgentMetrics(metric.agentId, metric.usage, metric.patternReused, metric.tokensSaved || 0);
+      this.updateDomainMetrics(metric.domain, metric.usage);
+    }
+
+    // Trim if needed
+    if (this.taskMetrics.length > this.persistenceConfig.maxMetricsInMemory) {
+      this.taskMetrics = this.taskMetrics.slice(-this.persistenceConfig.maxMetricsInMemory);
+    }
+
+    return true;
+  }
+
+  /**
+   * Track state changes and persist to kv_store periodically
+   */
+  private maybePersistToKv(): void {
+    this.kvPersistCount++;
+    if (this.kvPersistCount >= TokenMetricsCollectorImpl.KV_PERSIST_INTERVAL) {
+      this.kvPersistCount = 0;
+      this.persistToKv().catch(() => {});
+    }
   }
 
   // ============================================================================
