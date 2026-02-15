@@ -104,6 +104,9 @@ describe('Wrapped Domain Handlers', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+
+      // Restore fleet for subsequent tests (beforeAll only inits once)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should handle errors gracefully in multiple wrapped handlers', async () => {
@@ -119,6 +122,9 @@ describe('Wrapped Domain Handlers', () => {
         expect(result.success).toBe(false);
         expect(result.error).toBeDefined();
       });
+
+      // Restore fleet for subsequent tests (beforeAll only inits once)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
   });
 
