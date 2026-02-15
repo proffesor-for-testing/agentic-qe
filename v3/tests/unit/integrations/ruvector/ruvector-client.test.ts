@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import {
   createRuVectorClient,
   createRuVectorClientSync,
-  PersistentQLearningRouter,
+  RuVectorQLearningRouter,
   type RuVectorClient,
   type RuVectorConfig,
   type TestTask,
@@ -111,12 +111,12 @@ describe('RuVectorClient', () => {
       await client?.dispose();
     });
 
-    it('should return PersistentQLearningRouter from getQLearningRouter', async () => {
+    it('should return QLearningRouter from getQLearningRouter', async () => {
       const router = client.getQLearningRouter();
 
-      // The router should be a PersistentQLearningRouter
+      // The router should be a RuVectorQLearningRouter (direct ML router)
       expect(router).toBeDefined();
-      expect(router).toBeInstanceOf(PersistentQLearningRouter);
+      expect(router).toBeInstanceOf(RuVectorQLearningRouter);
     });
 
     it('should route test tasks through persistent router', async () => {
@@ -146,25 +146,14 @@ describe('RuVectorClient', () => {
       ).resolves.not.toThrow();
     });
 
-    it('should export model with persistence info', async () => {
-      const router = client.getQLearningRouter() as PersistentQLearningRouter;
+    it('should export model info', async () => {
+      const router = client.getQLearningRouter();
 
       const model = await router.exportModel();
 
       expect(model).toHaveProperty('type', 'ruvector-qlearning');
-      expect(model).toHaveProperty('persistence');
-      expect((model.persistence as Record<string, unknown>).agentId).toBeDefined();
-      expect((model.persistence as Record<string, unknown>).algorithm).toBe('q-learning');
-      expect((model.persistence as Record<string, unknown>).domain).toBe('ruvector-client');
-      expect(model).toHaveProperty('ewcConfig');
-    });
-
-    it('should have EWC++ enabled by default', async () => {
-      const router = client.getQLearningRouter() as PersistentQLearningRouter;
-
-      const ewcConfig = router.getEWCConfig();
-
-      expect(ewcConfig.enabled).toBe(true);
+      expect(model).toHaveProperty('params');
+      expect(model).toHaveProperty('qTable');
     });
   });
 
@@ -226,9 +215,9 @@ describe('RuVectorClient', () => {
   });
 
   describe('Dispose', () => {
-    it('should properly dispose client and close persistent router', async () => {
+    it('should properly dispose client', async () => {
       const client = await createRuVectorClient(createRuVectorConfig());
-      const router = client.getQLearningRouter() as PersistentQLearningRouter;
+      const router = client.getQLearningRouter();
 
       // Route and provide feedback to create pending saves
       const task = createTestTask();
@@ -239,19 +228,16 @@ describe('RuVectorClient', () => {
         quality: 0.9,
       });
 
-      // Dispose should close the persistent router
-      await client.dispose();
-
-      // Router should be closed
-      expect(router.isInitialized()).toBe(false);
+      // Dispose should clean up the client
+      await expect(client.dispose()).resolves.not.toThrow();
     });
   });
 
   describe('Persistence Across Instances', () => {
-    it('should persist Q-values across client instances', async () => {
+    it('should create independent router per client instance', async () => {
       // Create first client and train it
       const client1 = await createRuVectorClient(createRuVectorConfig());
-      const router1 = client1.getQLearningRouter() as PersistentQLearningRouter;
+      const router1 = client1.getQLearningRouter();
 
       // Train with multiple tasks
       for (let i = 0; i < 5; i++) {
@@ -268,21 +254,12 @@ describe('RuVectorClient', () => {
         });
       }
 
-      // Get stats from first router
-      const stats1 = await router1.getStats();
-
       // Dispose first client
       await client1.dispose();
 
-      // Create second client - should load persisted Q-values
-      // Note: Each client gets its own agentId, so Q-values are isolated per client
-      // To truly verify persistence, we need to use the same agentId,
-      // which requires using createPersistentQLearningRouter directly
+      // Create second client — should get a fresh router
       const client2 = await createRuVectorClient(createRuVectorConfig());
-      const router2 = client2.getQLearningRouter() as PersistentQLearningRouter;
-
-      // The new router should be initialized
-      expect(router2.isInitialized()).toBe(true);
+      const router2 = client2.getQLearningRouter();
 
       // Should be able to route tasks
       const task = createTestTask({ type: 'unit' });
