@@ -3,7 +3,7 @@
  * Tests domain-specific operations: test generation, execution, coverage, quality, security, etc.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
 import {
   handleTestGenerate,
   handleTestExecute,
@@ -22,6 +22,7 @@ import {
   handleFleetInit,
   disposeFleet,
 } from '../../../../src/mcp/handlers/core-handlers';
+import { resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence';
 import type {
   TestGenerateParams,
   TestExecuteParams,
@@ -38,15 +39,22 @@ import type {
 // ============================================================================
 
 describe('Domain Handlers', { timeout: 30000 }, () => {
-  // Initialize fleet before each test
-  beforeEach(async () => {
-    await handleFleetInit({});
+  // Initialize fleet ONCE for all tests (in-memory to avoid touching live DB).
+  // Each fleet init creates 13 domain plugins + queen + MinCut + SONA engines,
+  // so per-test init causes OOM in memory-constrained environments.
+  beforeAll(async () => {
+    await handleFleetInit({ memoryBackend: 'memory' });
   });
 
-  // Clean up after each test
-  afterEach(async () => {
+  afterAll(async () => {
     resetTaskExecutor();
     await disposeFleet();
+    resetUnifiedPersistence();
+  });
+
+  // Reset task executor between tests to avoid cross-test state leakage
+  afterEach(() => {
+    resetTaskExecutor();
   });
 
   // --------------------------------------------------------------------------
@@ -60,6 +68,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+      // Re-init fleet for subsequent tests (shared fleet via beforeAll)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should generate tests with default parameters', async () => {
@@ -203,6 +213,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+      // Re-init fleet for subsequent tests (shared fleet via beforeAll)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should execute tests with default parameters', async () => {
@@ -311,6 +323,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+      // Re-init fleet for subsequent tests (shared fleet via beforeAll)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should analyze coverage with default parameters', async () => {
@@ -403,6 +417,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+      // Re-init fleet for subsequent tests (shared fleet via beforeAll)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should assess quality with default parameters', async () => {
@@ -462,6 +478,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+      // Re-init fleet for subsequent tests (shared fleet via beforeAll)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should scan security with default parameters', async () => {
@@ -534,6 +552,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+      // Re-init fleet for subsequent tests (shared fleet via beforeAll)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should validate contract with default parameters', async () => {
@@ -580,6 +600,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+      // Re-init fleet for subsequent tests (shared fleet via beforeAll)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should test accessibility with default parameters', async () => {
@@ -644,6 +666,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+      // Re-init fleet for subsequent tests (shared fleet via beforeAll)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should run chaos test with default parameters', async () => {
@@ -704,6 +728,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+      // Re-init fleet for subsequent tests (shared fleet via beforeAll)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should predict defects with default parameters', async () => {
@@ -761,6 +787,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+      // Re-init fleet for subsequent tests (shared fleet via beforeAll)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should validate requirements with default parameters', async () => {
@@ -802,6 +830,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+      // Re-init fleet for subsequent tests (shared fleet via beforeAll)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     // SKIP: These tests do real code indexing and take 30+ seconds each

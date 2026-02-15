@@ -20,7 +20,7 @@ import { createRequire } from 'module';
 import { bootstrapTokenTracking, shutdownTokenTracking } from '../init/token-bootstrap.js';
 import { initializeExperienceCapture, stopCleanupTimer } from '../learning/experience-capture-middleware.js';
 import { createInfraHealingOrchestratorSync, ShellCommandRunner } from '../strange-loop/infra-healing/index.js';
-import { setInfraHealingOrchestrator } from './handlers/index.js';
+import { setInfraHealingOrchestrator, handleFleetInit } from './handlers/index.js';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -118,6 +118,25 @@ async function main(): Promise<void> {
     } catch (infraError) {
       originalStderrWrite(`[MCP] WARNING: Infra-healing init failed: ${infraError}\n`);
       // Non-fatal — MCP server continues without infra-healing
+    }
+
+    // Auto-initialize fleet so tools work without requiring fleet_init call
+    originalStderrWrite('[MCP] Auto-initializing fleet...\n');
+    try {
+      const fleetResult = await handleFleetInit({
+        topology: 'hierarchical',
+        maxAgents: 15,
+        memoryBackend: 'hybrid',
+        lazyLoading: true,
+      });
+      if (fleetResult.success) {
+        originalStderrWrite(`[MCP] Fleet ready: ${fleetResult.data?.fleetId}\n`);
+      } else {
+        originalStderrWrite(`[MCP] WARNING: Fleet auto-init failed: ${fleetResult.error}\n`);
+      }
+    } catch (fleetError) {
+      originalStderrWrite(`[MCP] WARNING: Fleet auto-init error: ${fleetError}\n`);
+      // Non-fatal — tools will prompt user to call fleet_init manually
     }
 
     // Start the MCP server

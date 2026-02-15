@@ -12,6 +12,7 @@ import {
   isFleetInitialized,
   disposeFleet,
 } from '../../../../src/mcp/handlers/core-handlers';
+import { resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence';
 import type { FleetInitParams, FleetStatusParams, FleetHealthParams } from '../../../../src/mcp/types';
 
 // ============================================================================
@@ -23,11 +24,13 @@ describe('Core Handlers', { timeout: 30000 }, () => {
   beforeEach(async () => {
     // Ensure fleet is disposed before each test starts fresh
     await disposeFleet();
+    resetUnifiedPersistence();
   });
 
   // Clean up after each test
   afterEach(async () => {
     await disposeFleet();
+    resetUnifiedPersistence();
   });
 
   // --------------------------------------------------------------------------
@@ -40,12 +43,12 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should return true after fleet is initialized', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       expect(isFleetInitialized()).toBe(true);
     });
 
     it('should return false after fleet is disposed', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       expect(isFleetInitialized()).toBe(true);
 
       await disposeFleet();
@@ -67,7 +70,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should return initialized state after fleet init', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       const state = getFleetState();
 
       expect(state.initialized).toBe(true);
@@ -85,7 +88,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
 
   describe('handleFleetInit', () => {
     it('should initialize fleet with default parameters', async () => {
-      const result = await handleFleetInit({});
+      const result = await handleFleetInit({ memoryBackend: 'memory' });
 
       expect(result.success).toBe(true);
       expect(result.data).toBeDefined();
@@ -100,14 +103,14 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should respect custom topology parameter', async () => {
-      const result = await handleFleetInit({ topology: 'mesh' });
+      const result = await handleFleetInit({ topology: 'mesh', memoryBackend: 'memory' });
 
       expect(result.success).toBe(true);
       expect(result.data!.topology).toBe('mesh');
     });
 
     it('should respect custom maxAgents parameter', async () => {
-      const result = await handleFleetInit({ maxAgents: 20 });
+      const result = await handleFleetInit({ maxAgents: 20, memoryBackend: 'memory' });
 
       expect(result.success).toBe(true);
       expect(result.data!.maxAgents).toBe(20);
@@ -116,6 +119,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     it('should respect custom enabledDomains parameter', async () => {
       const result = await handleFleetInit({
         enabledDomains: ['test-generation', 'test-execution'],
+        memoryBackend: 'memory',
       });
 
       expect(result.success).toBe(true);
@@ -125,8 +129,8 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should return existing fleet if already initialized', async () => {
-      const first = await handleFleetInit({});
-      const second = await handleFleetInit({});
+      const first = await handleFleetInit({ memoryBackend: 'memory' });
+      const second = await handleFleetInit({ memoryBackend: 'memory' });
 
       expect(first.success).toBe(true);
       expect(second.success).toBe(true);
@@ -135,7 +139,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should respect lazyLoading parameter', async () => {
-      const result = await handleFleetInit({ lazyLoading: false });
+      const result = await handleFleetInit({ lazyLoading: false, memoryBackend: 'memory' });
 
       expect(result.success).toBe(true);
       // Kernel should be initialized with lazyLoading: false
@@ -144,7 +148,8 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should respect memoryBackend parameter', async () => {
-      const result = await handleFleetInit({ memoryBackend: 'sqlite' });
+      // Uses 'memory' backend in unit tests to avoid touching live DB
+      const result = await handleFleetInit({ memoryBackend: 'memory' });
 
       expect(result.success).toBe(true);
       const state = getFleetState();
@@ -165,7 +170,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should return fleet status when initialized', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       const result = await handleFleetStatus({});
 
       expect(result.success).toBe(true);
@@ -179,7 +184,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should include domain status when includeDomains is true', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       const result = await handleFleetStatus({ includeDomains: true });
 
       expect(result.success).toBe(true);
@@ -188,7 +193,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should include metrics when includeMetrics is true', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       const result = await handleFleetStatus({ includeMetrics: true });
 
       expect(result.success).toBe(true);
@@ -199,7 +204,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should include both domains and metrics when both flags are true', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       const result = await handleFleetStatus({
         includeDomains: true,
         includeMetrics: true,
@@ -224,7 +229,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should return overall health when no domain specified', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       const result = await handleFleetHealth({});
 
       expect(result.success).toBe(true);
@@ -236,7 +241,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should return domain-specific health when domain is specified', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       const result = await handleFleetHealth({ domain: 'test-generation' });
 
       expect(result.success).toBe(true);
@@ -247,7 +252,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should return error for invalid domain', async () => {
-      await handleFleetInit({ enabledDomains: ['test-generation'] });
+      await handleFleetInit({ enabledDomains: ['test-generation'], memoryBackend: 'memory' });
       // Note: behavior depends on implementation - may return error or empty health
       const result = await handleFleetHealth({ domain: 'nonexistent-domain' as any });
 
@@ -257,7 +262,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should include detailed domain info when detailed is true', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       const result = await handleFleetHealth({ detailed: true });
 
       expect(result.success).toBe(true);
@@ -279,7 +284,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should dispose fleet and reset state', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       expect(isFleetInitialized()).toBe(true);
 
       await disposeFleet();
@@ -293,11 +298,11 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should allow re-initialization after dispose', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       const firstFleetId = getFleetState().fleetId;
 
       await disposeFleet();
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
 
       const secondFleetId = getFleetState().fleetId;
       expect(isFleetInitialized()).toBe(true);
@@ -305,7 +310,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should handle multiple dispose calls gracefully', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
 
       await disposeFleet();
       await expect(disposeFleet()).resolves.not.toThrow();
@@ -321,9 +326,9 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     it('should handle concurrent init calls gracefully', async () => {
       // Start multiple init calls simultaneously
       const results = await Promise.all([
-        handleFleetInit({}),
-        handleFleetInit({}),
-        handleFleetInit({}),
+        handleFleetInit({ memoryBackend: 'memory' }),
+        handleFleetInit({ memoryBackend: 'memory' }),
+        handleFleetInit({ memoryBackend: 'memory' }),
       ]);
 
       // All should succeed
@@ -337,7 +342,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should handle status call immediately after init', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       const result = await handleFleetStatus({});
 
       expect(result.success).toBe(true);
@@ -345,7 +350,7 @@ describe('Core Handlers', { timeout: 30000 }, () => {
     });
 
     it('should handle health call immediately after init', async () => {
-      await handleFleetInit({});
+      await handleFleetInit({ memoryBackend: 'memory' });
       const result = await handleFleetHealth({});
 
       expect(result.success).toBe(true);

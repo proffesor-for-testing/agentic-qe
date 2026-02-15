@@ -147,25 +147,32 @@ const DEFAULT_CONFIG: ExperienceReplayConfig = {
 };
 
 /**
- * Database row structure for experience queries
+ * Database row structure for captured_experiences table queries.
+ * Maps to the canonical captured_experiences table written by the middleware.
  */
 interface ExperienceRow {
   id: string;
-  trajectory_id: string;
   task: string;
+  agent: string;
   domain: string;
-  strategy: string;
-  key_actions: string;
-  quality_score: number;
+  success: number;
+  quality: number;
+  duration_ms: number;
+  model_tier: number | null;
+  routing_json: string | null;
+  steps_json: string | null;
+  result_json: string | null;
+  error: string | null;
+  started_at: string;
+  completed_at: string;
+  source: string | null;
+  // ExperienceReplay-specific columns (added by ensureSchema)
   application_count: number;
-  success_rate: number;
   avg_token_savings: number;
-  embedding?: Buffer;
-  embedding_dimension?: number;
-  created_at: string;
-  last_applied_at?: string;
-  original_metrics: string;
-  tags: string;
+  embedding: Buffer | null;
+  embedding_dimension: number | null;
+  tags: string | null;
+  last_applied_at: string | null;
 }
 
 // ============================================================================
@@ -253,35 +260,60 @@ export class ExperienceReplay {
   }
 
   /**
-   * Ensure required schema exists
+   * Ensure required schema exists.
+   * Uses captured_experiences as the canonical table (written by experience-capture-middleware).
+   * Adds ExperienceReplay-specific columns if missing.
    */
   private ensureSchema(): void {
     if (!this.db) throw new Error('Database not initialized');
 
+    // Ensure captured_experiences table exists (middleware normally creates it,
+    // but ExperienceReplay may initialize first)
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS experiences (
+      CREATE TABLE IF NOT EXISTS captured_experiences (
         id TEXT PRIMARY KEY,
-        trajectory_id TEXT NOT NULL,
         task TEXT NOT NULL,
-        domain TEXT NOT NULL,
-        strategy TEXT NOT NULL,
-        key_actions TEXT NOT NULL,
-        quality_score REAL NOT NULL DEFAULT 0.5,
+        agent TEXT NOT NULL,
+        domain TEXT NOT NULL DEFAULT '',
+        success INTEGER NOT NULL DEFAULT 0,
+        quality REAL NOT NULL DEFAULT 0.5,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        model_tier INTEGER,
+        routing_json TEXT,
+        steps_json TEXT,
+        result_json TEXT,
+        error TEXT,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+        source TEXT DEFAULT 'middleware',
         application_count INTEGER DEFAULT 0,
-        success_rate REAL DEFAULT 1.0,
         avg_token_savings REAL DEFAULT 0,
         embedding BLOB,
         embedding_dimension INTEGER,
-        original_metrics TEXT,
         tags TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
-        last_applied_at TEXT,
-        FOREIGN KEY (trajectory_id) REFERENCES qe_trajectories(id) ON DELETE SET NULL
+        last_applied_at TEXT
       );
-      CREATE INDEX IF NOT EXISTS idx_experiences_domain ON experiences(domain);
-      CREATE INDEX IF NOT EXISTS idx_experiences_quality ON experiences(quality_score DESC);
-      CREATE INDEX IF NOT EXISTS idx_experiences_task ON experiences(task);
+      CREATE INDEX IF NOT EXISTS idx_captured_exp_domain ON captured_experiences(domain);
+      CREATE INDEX IF NOT EXISTS idx_captured_exp_quality ON captured_experiences(quality DESC);
+      CREATE INDEX IF NOT EXISTS idx_captured_exp_task ON captured_experiences(task);
     `);
+
+    // Add ExperienceReplay-specific columns if missing (for pre-existing tables)
+    const columns = this.db.prepare('PRAGMA table_info(captured_experiences)').all() as Array<{ name: string }>;
+    const colNames = new Set(columns.map(c => c.name));
+    const additions: Array<[string, string]> = [
+      ['application_count', 'INTEGER DEFAULT 0'],
+      ['avg_token_savings', 'REAL DEFAULT 0'],
+      ['embedding', 'BLOB'],
+      ['embedding_dimension', 'INTEGER'],
+      ['tags', 'TEXT'],
+      ['last_applied_at', 'TEXT'],
+    ];
+    for (const [col, def] of additions) {
+      if (!colNames.has(col)) {
+        this.db.exec(`ALTER TABLE captured_experiences ADD COLUMN ${col} ${def}`);
+      }
+    }
 
     // Create experience_applications table for tracking reuse
     this.db.exec(`
@@ -293,45 +325,44 @@ export class ExperienceReplay {
         tokens_saved INTEGER DEFAULT 0,
         feedback TEXT,
         applied_at TEXT DEFAULT (datetime('now')),
-        FOREIGN KEY (experience_id) REFERENCES experiences(id) ON DELETE CASCADE
+        FOREIGN KEY (experience_id) REFERENCES captured_experiences(id) ON DELETE CASCADE
       );
       CREATE INDEX IF NOT EXISTS idx_exp_apps_experience ON experience_applications(experience_id);
     `);
   }
 
   /**
-   * Prepare commonly used statements
+   * Prepare commonly used statements against captured_experiences table
    */
   private prepareStatements(): void {
     if (!this.db) throw new Error('Database not initialized');
 
     this.prepared.set('insertExperience', this.db.prepare(`
-      INSERT INTO experiences (
-        id, trajectory_id, task, domain, strategy, key_actions, quality_score,
-        embedding, embedding_dimension, original_metrics, tags
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO captured_experiences (
+        id, task, agent, domain, success, quality, duration_ms,
+        steps_json, routing_json, embedding, embedding_dimension, tags, source
+      ) VALUES (?, ?, ?, ?, 1, ?, 0, ?, ?, ?, ?, ?, 'experience-replay')
     `));
 
     this.prepared.set('getExperience', this.db.prepare(`
-      SELECT * FROM experiences WHERE id = ?
+      SELECT * FROM captured_experiences WHERE id = ?
     `));
 
     this.prepared.set('getExperiencesByDomain', this.db.prepare(`
-      SELECT * FROM experiences WHERE domain = ? ORDER BY quality_score DESC LIMIT ?
+      SELECT * FROM captured_experiences WHERE domain = ? ORDER BY quality DESC LIMIT ?
     `));
 
     this.prepared.set('getAllExperiences', this.db.prepare(`
-      SELECT * FROM experiences ORDER BY quality_score DESC LIMIT ?
+      SELECT * FROM captured_experiences ORDER BY quality DESC LIMIT ?
     `));
 
     this.prepared.set('getAllEmbeddings', this.db.prepare(`
-      SELECT id, embedding, embedding_dimension FROM experiences WHERE embedding IS NOT NULL
+      SELECT id, embedding, embedding_dimension FROM captured_experiences WHERE embedding IS NOT NULL
     `));
 
     this.prepared.set('updateApplication', this.db.prepare(`
-      UPDATE experiences SET
+      UPDATE captured_experiences SET
         application_count = application_count + 1,
-        success_rate = (success_rate * application_count + ?) / (application_count + 1),
         avg_token_savings = (avg_token_savings * application_count + ?) / (application_count + 1),
         last_applied_at = datetime('now')
       WHERE id = ?
@@ -343,15 +374,15 @@ export class ExperienceReplay {
     `));
 
     this.prepared.set('deleteExperience', this.db.prepare(`
-      DELETE FROM experiences WHERE id = ?
+      DELETE FROM captured_experiences WHERE id = ?
     `));
 
     this.prepared.set('getLowQualityExperiences', this.db.prepare(`
-      SELECT id FROM experiences WHERE quality_score < ? AND application_count < 3
+      SELECT id FROM captured_experiences WHERE quality < ? AND application_count < 3
     `));
 
     this.prepared.set('countByDomain', this.db.prepare(`
-      SELECT domain, COUNT(*) as count FROM experiences GROUP BY domain
+      SELECT domain, COUNT(*) as count FROM captured_experiences GROUP BY domain
     `));
   }
 
@@ -453,22 +484,21 @@ export class ExperienceReplay {
       tags,
     };
 
-    // Store in database
+    // Store in captured_experiences table
     const insertStmt = this.prepared.get('insertExperience');
     if (insertStmt) {
       const embeddingBuffer = embedding ? this.floatArrayToBuffer(embedding) : null;
       insertStmt.run(
         id,
-        trajectory.id,
         trajectory.task,
+        strategy, // agent column stores strategy
         domain,
-        strategy,
-        JSON.stringify(keyActions),
         trajectory.metrics.efficiencyScore,
+        JSON.stringify(keyActions), // steps_json stores key actions
+        JSON.stringify(trajectory.metrics), // routing_json stores original metrics
         embeddingBuffer,
         embedding?.length ?? null,
-        JSON.stringify(trajectory.metrics),
-        JSON.stringify(tags)
+        JSON.stringify(tags),
       );
     }
 
@@ -675,7 +705,7 @@ export class ExperienceReplay {
     // Update experience stats
     const updateStmt = this.prepared.get('updateApplication');
     if (updateStmt) {
-      updateStmt.run(success ? 1 : 0, tokensSaved, experienceId);
+      updateStmt.run(tokensSaved, experienceId);
     }
 
     // Record application
@@ -815,21 +845,21 @@ export class ExperienceReplay {
 
     return {
       id: row.id,
-      trajectoryId: row.trajectory_id,
+      trajectoryId: row.id, // captured_experiences doesn't have trajectory_id
       task: row.task,
       domain: row.domain as QEDomain,
-      strategy: row.strategy,
-      keyActions: JSON.parse(row.key_actions || '[]'),
-      qualityScore: row.quality_score,
-      applicationCount: row.application_count,
-      successRate: row.success_rate,
-      avgTokenSavings: row.avg_token_savings,
+      strategy: row.agent, // agent column stores strategy/agent name
+      keyActions: JSON.parse(row.steps_json || '[]'),
+      qualityScore: row.quality,
+      applicationCount: row.application_count ?? 0,
+      successRate: row.success ? 1.0 : 0.0,
+      avgTokenSavings: row.avg_token_savings ?? 0,
       embedding: row.embedding && row.embedding_dimension
         ? this.bufferToFloatArray(row.embedding, row.embedding_dimension)
         : undefined,
-      createdAt: new Date(row.created_at),
+      createdAt: new Date(row.started_at),
       lastAppliedAt: row.last_applied_at ? new Date(row.last_applied_at) : undefined,
-      originalMetrics: JSON.parse(row.original_metrics || '{}'),
+      originalMetrics: JSON.parse(row.routing_json || '{}'),
       tags: JSON.parse(row.tags || '[]'),
     };
   }

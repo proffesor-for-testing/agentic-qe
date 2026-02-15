@@ -5,6 +5,19 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.8] - 2026-02-15
+
+### Fixed
+
+- **MCP tools failing with "Fleet not initialized"** — Every MCP tool call required a prior `fleet_init` call, which Claude Code doesn't do automatically. Fleet now auto-initializes on MCP server startup with default configuration (hierarchical topology, hybrid memory).
+- **Experience persistence gap** — Learning system (`ExperienceReplay`) read from a separate `experiences` table while the capture middleware wrote to `captured_experiences`, so new experiences were never visible to the learning system. Unified to use `captured_experiences` as the single source of truth.
+- **Split-brain database from relative dbPath** — `UnifiedMemoryManager` accepted relative paths (e.g. `.agentic-qe/memory.db`) which could create duplicate databases when CWD differed from project root. Now resolves relative paths through `findProjectRoot()`.
+- **Missing runtime dependency `fast-json-patch`** (#262) — Package was marked as external in the MCP esbuild bundle but not listed in root `package.json`, causing `ERR_MODULE_NOT_FOUND` on fresh installs. Added `fast-json-patch` and `jose` to root dependencies.
+
+### Changed
+
+- **Data migrator** — v2-to-v3 migration now writes to `captured_experiences` table instead of the removed `experiences` table.
+
 ## [3.6.7] - 2026-02-14
 
 ### Fixed

@@ -240,22 +240,21 @@ export class V2DataMigrator {
 
       let count = 0;
       const insertStmt = v3Db.prepare(`
-        INSERT OR IGNORE INTO experiences (id, task_type, task_description, agent, outcome, success, quality_score, migrated_from)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO captured_experiences (id, task, agent, domain, success, quality, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
       for (const row of v2Experiences) {
         try {
           const data = JSON.parse(row.value);
           const id = `migrated-${row.namespace}-${row.key}`;
-          const taskType = data.taskType || data.task_type || 'unknown';
           const taskDescription = data.description || data.task || '';
-          const agent = data.agent || null;
-          const outcome = data.outcome || null;
+          const agent = data.agent || 'unknown';
+          const domain = data.domain || data.taskType || data.task_type || '';
           const success = data.success ? 1 : 0;
           const qualityScore = data.quality || data.qualityScore || 0.5;
 
-          insertStmt.run(id, taskType, taskDescription, agent, outcome, success, qualityScore, `v2:${row.namespace}:${row.key}`);
+          insertStmt.run(id, taskDescription, agent, domain, success, qualityScore, `v2-migration:${row.namespace}:${row.key}`);
           count++;
         } catch (error) {
           // Non-critical: skip invalid entries during migration

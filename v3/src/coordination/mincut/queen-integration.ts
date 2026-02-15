@@ -165,9 +165,13 @@ export class QueenMinCutBridge {
     }
     this.eventSubscriptions = [];
 
-    // Save final snapshot
+    // Save final snapshot (best-effort — DB may be unavailable in tests or after shutdown)
     if (this.config.persistData) {
-      await this.saveSnapshot();
+      try {
+        await this.saveSnapshot();
+      } catch {
+        // Non-fatal: persistence failure during dispose should not crash teardown
+      }
     }
 
     this.initialized = false;
