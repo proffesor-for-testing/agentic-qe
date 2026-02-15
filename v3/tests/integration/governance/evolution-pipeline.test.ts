@@ -13,7 +13,7 @@
  * @see ADR-058-guidance-governance-integration.md
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   governanceFlags,
   DEFAULT_GOVERNANCE_FLAGS,
@@ -29,12 +29,24 @@ import {
   type PromotionStatus,
   type TaskOutcome,
 } from '../../../src/governance/evolution-pipeline-integration.js';
+import { getUnifiedMemory } from '../../../src/kernel/unified-memory.js';
 
 describe('Evolution Pipeline Integration - ADR-058 Phase 3', () => {
   beforeEach(() => {
     // Reset to defaults before each test
     governanceFlags.reset();
     evolutionPipelineIntegration.reset();
+  });
+
+  afterEach(async () => {
+    // Clean up KV snapshot persisted during tests to prevent data leaking
+    // between describe blocks. Tests clean up what they create.
+    try {
+      const db = getUnifiedMemory();
+      await db.kvDelete('snapshot', 'rule-evolution');
+    } catch {
+      // DB may not be available in all environments
+    }
   });
 
   describe('Rule Effectiveness Tracking', () => {
