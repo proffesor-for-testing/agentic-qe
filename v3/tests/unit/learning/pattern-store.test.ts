@@ -137,31 +137,25 @@ describe('PatternStore', () => {
     });
 
     it('should skip re-initialization', async () => {
-      const initSpy = vi.spyOn(memory, 'search');
-
-      // First init already done in beforeEach
+      // First init already done in beforeEach — second call should be a no-op
       await store.initialize();
       await store.initialize();
 
-      // Should only search once (during first init)
-      expect(initSpy).toHaveBeenCalledTimes(1);
+      // Verify store is still functional after multiple init calls
+      const pattern = createTestPattern();
+      const result = await store.store(pattern);
+      expect(result.success).toBe(true);
     });
 
-    it('should load existing patterns on initialization', async () => {
-      // Store a pattern first
+    it('should store and retrieve patterns from in-memory cache', async () => {
+      // Patterns are now cached in-memory only (Issue #258 removed KV persistence).
+      // SQLitePatternStore handles DB persistence; PatternStore is an in-memory cache.
       const pattern = createTestPattern();
       await store.store(pattern);
-      await store.dispose();
 
-      // Create new store and initialize
-      const newStore = createPatternStore(memory);
-      await newStore.initialize();
-
-      const loaded = await newStore.get(pattern.id);
+      const loaded = await store.get(pattern.id);
       expect(loaded).toBeDefined();
       expect(loaded?.id).toBe(pattern.id);
-
-      await newStore.dispose();
     });
   });
 

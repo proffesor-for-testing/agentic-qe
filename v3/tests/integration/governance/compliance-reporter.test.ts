@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import '../setup'; // Isolated temp DB per test file
 import {
   ComplianceReporter,
   complianceReporter,

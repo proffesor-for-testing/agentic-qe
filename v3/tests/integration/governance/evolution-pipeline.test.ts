@@ -14,6 +14,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import '../setup'; // Isolated temp DB per test file
 import {
   governanceFlags,
   DEFAULT_GOVERNANCE_FLAGS,

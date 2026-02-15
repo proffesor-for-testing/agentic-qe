@@ -16,7 +16,6 @@ export default defineConfig({
       AQE_PROJECT_ROOT: path.resolve(__dirname, '..'),
     },
     include: ['tests/**/*.test.ts'],
-    setupFiles: ['tests/integration/setup.ts'],
     benchmark: {
       include: ['tests/**/*.bench.ts'],
     },

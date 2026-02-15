@@ -1,11 +1,15 @@
 /**
- * Integration Test Setup
+ * Integration Test DB Isolation
  *
- * Creates an isolated test database so integration tests never touch
- * the main .agentic-qe/memory.db. A fresh temporary directory is created
- * before each test file and destroyed after all its tests complete.
+ * Import this in integration test files that use services with KV persistence
+ * (e.g., ComplianceReporter, EvolutionPipeline, ContinueGate).
  *
- * This runs as a vitest setupFile — beforeAll/afterAll fire per test file.
+ * Creates an isolated temp database per test file so tests never touch
+ * the main .agentic-qe/memory.db. The temp directory is created before
+ * all tests and destroyed after all tests complete.
+ *
+ * Usage in test files:
+ *   import '../setup';  // at the top of the test file
  */
 
 import { beforeAll, afterAll } from 'vitest';
@@ -13,11 +17,14 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-let testProjectRoot: string;
+let testProjectRoot: string | null = null;
+let originalProjectRoot: string | undefined;
 
 beforeAll(() => {
-  // Reset any existing singleton from a previous test file in the same worker.
-  // This ensures each test file gets a fresh DB connection.
+  // Save original value to restore in afterAll
+  originalProjectRoot = process.env.AQE_PROJECT_ROOT;
+
+  // Reset any existing singleton from a previous test file in the same worker
   try {
     const { UnifiedMemoryManager } = require('../../src/kernel/unified-memory');
     UnifiedMemoryManager.resetInstance();
@@ -42,8 +49,14 @@ afterAll(() => {
     // May not be available in all test environments
   }
 
+  // Restore original project root
+  if (originalProjectRoot !== undefined) {
+    process.env.AQE_PROJECT_ROOT = originalProjectRoot;
+  }
+
   // Clean up the temp directory
   if (testProjectRoot && fs.existsSync(testProjectRoot)) {
     fs.rmSync(testProjectRoot, { recursive: true, force: true });
   }
+  testProjectRoot = null;
 });
