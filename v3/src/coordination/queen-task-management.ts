@@ -68,6 +68,7 @@ export interface QueenTaskContext {
   // Mutable counters
   runningTaskCounter: number;
   tasksReceived: number;
+  tasksCompleted: number;
   tasksFailed: number;
   taskDurations: { push(v: number): void };
 
@@ -447,8 +448,7 @@ async function handleTaskCompletionCallback(
   ctx.tasks.set(result.taskId, updated);
 
   if (result.success) {
-    // tasksCompleted is on the coordinator, not on this context
-    // We use the auditLogger and publish events; the coordinator handles counters
+    ctx.tasksCompleted++;
     ctx.taskDurations.push(result.duration);
     ctx.auditLogger.logComplete(result.taskId, execution.assignedAgents[0]);
   } else {

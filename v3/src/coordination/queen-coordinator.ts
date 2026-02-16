@@ -832,6 +832,8 @@ export class QueenCoordinator implements IQueenCoordinator {
       set runningTaskCounter(v) { self.runningTaskCounter = v; },
       get tasksReceived() { return self.tasksReceived; },
       set tasksReceived(v) { self.tasksReceived = v; },
+      get tasksCompleted() { return self.tasksCompleted; },
+      set tasksCompleted(v) { self.tasksCompleted = v; },
       get tasksFailed() { return self.tasksFailed; },
       set tasksFailed(v) { self.tasksFailed = v; },
       taskDurations: self.taskDurations,
