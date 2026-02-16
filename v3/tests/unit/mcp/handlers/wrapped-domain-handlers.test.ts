@@ -6,7 +6,7 @@
  * domain handler functionality (which is tested in domain-handlers.test.ts)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 
 // Import wrapped handlers from the wrapped module
 import {
@@ -29,23 +29,26 @@ import {
   disposeFleet,
   isFleetInitialized,
 } from '../../../../src/mcp/handlers/core-handlers';
+import { resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence';
 
 // ============================================================================
 // Tests
 // ============================================================================
 
 describe('Wrapped Domain Handlers', () => {
-  // Initialize fleet once before all tests
-  beforeEach(async () => {
-    if (!isFleetInitialized()) {
-      await handleFleetInit({});
-    }
+  // Initialize fleet ONCE (in-memory to avoid touching live DB and OOM)
+  beforeAll(async () => {
+    await handleFleetInit({ memoryBackend: 'memory' });
   });
 
-  // Clean up after each test
-  afterEach(async () => {
+  afterAll(async () => {
     resetTaskExecutor();
     await disposeFleet();
+    resetUnifiedPersistence();
+  });
+
+  afterEach(() => {
+    resetTaskExecutor();
   });
 
   // --------------------------------------------------------------------------
@@ -101,6 +104,9 @@ describe('Wrapped Domain Handlers', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
+
+      // Restore fleet for subsequent tests (beforeAll only inits once)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
 
     it('should handle errors gracefully in multiple wrapped handlers', async () => {
@@ -116,6 +122,9 @@ describe('Wrapped Domain Handlers', () => {
         expect(result.success).toBe(false);
         expect(result.error).toBeDefined();
       });
+
+      // Restore fleet for subsequent tests (beforeAll only inits once)
+      await handleFleetInit({ memoryBackend: 'memory' });
     });
   });
 

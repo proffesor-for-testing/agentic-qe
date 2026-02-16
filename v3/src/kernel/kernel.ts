@@ -22,6 +22,7 @@ import { HybridMemoryBackend } from './hybrid-backend';
 import { SemanticAntiDriftMiddleware } from './anti-drift-middleware.js';
 import { AGENT_CONSTANTS, MEMORY_CONSTANTS } from './constants.js';
 import { findProjectRoot } from './unified-memory.js';
+import { initializeUnifiedPersistence } from './unified-persistence.js';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -154,6 +155,17 @@ export class QEKernelImpl implements QEKernel {
   async initialize(): Promise<void> {
     if (this._initialized) {
       return;
+    }
+
+    // When using in-memory backend (testing), initialize UnifiedPersistenceManager
+    // with a temp DB so subsystems (PersistentSONAEngine, MinCut, etc.) that call
+    // getUnifiedPersistence() / getUnifiedMemory() don't crash.
+    if (this._config.memoryBackend === 'memory') {
+      const tmpDbPath = path.join(
+        require('os').tmpdir(),
+        `aqe-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`
+      );
+      await initializeUnifiedPersistence({ dbPath: tmpDbPath });
     }
 
     // Initialize memory backend

@@ -17,6 +17,7 @@ import {
   handleFleetInit,
   disposeFleet,
 } from '../../../../src/mcp/handlers/core-handlers';
+import { resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence';
 import type {
   TaskSubmitParams,
   TaskListParams,
@@ -29,14 +30,15 @@ import type {
 // ============================================================================
 
 describe('Task Handlers', () => {
-  // Initialize fleet before each test
+  // Initialize fleet before each test (in-memory to avoid touching live DB)
   beforeEach(async () => {
-    await handleFleetInit({});
+    await handleFleetInit({ memoryBackend: 'memory' });
   });
 
   // Clean up after each test
   afterEach(async () => {
     await disposeFleet();
+    resetUnifiedPersistence();
   });
 
   // --------------------------------------------------------------------------
