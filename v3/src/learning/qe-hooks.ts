@@ -16,6 +16,10 @@ import {
   QERoutingResult,
 } from './qe-reasoning-bank.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('qe-hooks');
+
 import {
   QEPatternType,
   QEDomain,
@@ -204,8 +208,9 @@ export function createQEHookHandlers(
           if (result.success) {
             patternsLearned = 1;
           }
-        } catch {
+        } catch (e) {
           // Pattern learning is best-effort
+          logger.debug('Pattern learning failed', { error: e instanceof Error ? e.message : String(e) });
         }
       }
 
@@ -316,8 +321,9 @@ export function createQEHookHandlers(
           if (result.success) {
             patternsLearned = 1;
           }
-        } catch {
+        } catch (e) {
           // Best effort
+          logger.debug('Coverage strategy pattern storage failed', { error: e instanceof Error ? e.message : String(e) });
         }
       }
 
@@ -347,8 +353,9 @@ export function createQEHookHandlers(
               tags: ['coverage-gap', 'high-risk', 'suggested-tests'],
             },
           });
-        } catch {
+        } catch (e) {
           // Best effort
+          logger.debug('Coverage gap pattern storage failed', { error: e instanceof Error ? e.message : String(e) });
         }
       }
 
@@ -452,8 +459,9 @@ export function createQEHookHandlers(
               tags: ['risk', 'high-priority', 'assessment'],
             },
           });
-        } catch {
+        } catch (e) {
           // Best effort
+          logger.debug('Risk assessment pattern storage failed', { error: e instanceof Error ? e.message : String(e) });
         }
       }
 

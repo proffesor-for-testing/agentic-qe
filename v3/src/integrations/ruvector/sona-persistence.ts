@@ -39,6 +39,9 @@ import { getUnifiedPersistence, type UnifiedPersistenceManager } from '../../ker
 import type { RuVectorServerClient } from './server-client.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('sona-persistence');
 
 // ============================================================================
 // Schema (added to unified-memory.ts as part of migration)
@@ -1126,8 +1129,9 @@ export class PersistentSONAEngine {
     if (row.action_value) {
       try {
         actionValue = safeJsonParse(row.action_value) as number | string | object;
-      } catch {
+      } catch (e) {
         // Keep as string
+        logger.debug('SONA action value parse failed', { patternId: row.id, error: e instanceof Error ? e.message : String(e) });
         actionValue = row.action_value;
       }
     }

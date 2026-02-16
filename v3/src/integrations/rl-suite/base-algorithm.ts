@@ -24,6 +24,9 @@ import type {
 import { RLTrainingError, RLPredictionError, RLConfigError } from './interfaces';
 import { QValueStore } from './persistence/q-value-store.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('rl-base-algorithm');
 
 // ============================================================================
 // Default Configuration
@@ -442,7 +445,8 @@ export abstract class BaseRLAlgorithm implements RLAlgorithm {
       const modelData = safeJsonParse<Record<string, unknown>>(entry.domain);
       await this.importModel(modelData);
       return true;
-    } catch {
+    } catch (e) {
+      logger.debug('Model load from store failed', { algorithm: this.type, error: e instanceof Error ? e.message : String(e) });
       return false;
     }
   }
@@ -490,7 +494,8 @@ export abstract class BaseRLAlgorithm implements RLAlgorithm {
     try {
       const qValue = await qStore.getQValue(agentId, stateKey, actionKey, this.type);
       return qValue;
-    } catch {
+    } catch (e) {
+      logger.debug('Q-value retrieval failed', { agentId, stateKey, actionKey, error: e instanceof Error ? e.message : String(e) });
       return null;
     }
   }

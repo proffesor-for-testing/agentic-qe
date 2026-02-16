@@ -20,6 +20,10 @@
  * @module learning/qe-unified-memory
  */
 
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('qe-unified-memory');
+
 import type { MemoryBackend, StoreOptions, VectorSearchResult } from '../kernel/interfaces.js';
 import type { QEDomain } from './qe-patterns.js';
 import type { Result } from '../shared/types/index.js';
@@ -916,8 +920,9 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
           if (filter && result.metadata) {
             try {
               if (!filter(result.metadata)) continue;
-            } catch {
+            } catch (e) {
               // Filter error, skip this result
+              logger.debug('Search result filter callback failed', { error: e instanceof Error ? e.message : String(e) });
               continue;
             }
           }

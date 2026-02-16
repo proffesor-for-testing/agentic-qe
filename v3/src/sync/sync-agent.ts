@@ -32,6 +32,10 @@ interface DataReader<T = unknown> {
   close(): Promise<void>;
 }
 import { DEFAULT_SYNC_CONFIG } from './interfaces.js';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('sync-agent');
+
 import { createSQLiteReader, type SQLiteRecord } from './readers/sqlite-reader.js';
 import { createJSONReader, type JSONRecord } from './readers/json-reader.js';
 import { createConnectionManager } from './cloud/tunnel-manager.js';
@@ -347,7 +351,8 @@ export class CloudSyncAgent {
             [this.config.environment]
           );
           cloudCount = rows[0]?.count || 0;
-        } catch {
+        } catch (e) {
+          logger.debug('Cloud count query failed', { source: source.name, error: e instanceof Error ? e.message : String(e) });
           cloudCount = -1; // Error
         }
       }

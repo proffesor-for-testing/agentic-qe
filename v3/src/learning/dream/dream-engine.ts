@@ -17,6 +17,9 @@
 
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const dreamLogger = LoggerFactory.create('dream-engine');
 
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
@@ -373,8 +376,9 @@ export class DreamEngine {
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_type ON dream_insights(insight_type)');
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_novelty ON dream_insights(novelty_score DESC)');
       }
-    } catch {
+    } catch (e) {
       // Ignore migration errors — table may not exist yet
+      dreamLogger.debug('Dream schema migration skipped', { error: e instanceof Error ? e.message : String(e) });
     }
   }
 

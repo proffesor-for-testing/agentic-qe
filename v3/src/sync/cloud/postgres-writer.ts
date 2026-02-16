@@ -13,6 +13,9 @@ import type { CloudWriter, UpsertOptions, CloudConfig } from '../interfaces.js';
 import type { TunnelManager } from './tunnel-manager.js';
 import { validateIdentifier } from '../../shared/sql-safety.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('postgres-writer');
 
 // Note: pg module is optional - will use mock if not available
 
@@ -94,8 +97,9 @@ export class PostgresWriter implements CloudWriter {
       } else {
         throw new Error('pg Client not found');
       }
-    } catch {
+    } catch (e) {
       // pg module not available - use mock mode
+      logger.debug('pg module not available, using mock mode', { error: e instanceof Error ? e.message : String(e) });
       console.warn('[PostgresWriter] pg module not available, running in mock mode');
       this.client = this.createMockClient();
       this.connected = true;
@@ -281,8 +285,9 @@ export class PostgresWriter implements CloudWriter {
         if (floats.length > 0 && floats.length <= 1024) {
           return `[${Array.from(floats).join(',')}]`;
         }
-      } catch {
+      } catch (e) {
         // Not a valid float array
+        logger.debug('Buffer to float array conversion failed', { error: e instanceof Error ? e.message : String(e) });
       }
       return null;  // Skip invalid embeddings
     }

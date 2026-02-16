@@ -12,6 +12,43 @@ import { EventEmitter } from 'events';
 import { CircularBuffer } from '../shared/utils/index.js';
 
 // ============================================================================
+// Module Constants
+// ============================================================================
+
+/** Maximum events per batch before auto-flush (~60fps frame budget) */
+const DEFAULT_BATCH_SIZE = 50;
+
+/** Flush interval in milliseconds, aligned with ~60fps frame rate */
+const DEFAULT_FLUSH_INTERVAL_MS = 16;
+
+/** Default object pool capacity per type */
+const DEFAULT_POOL_SIZE = 1000;
+
+/** Defer lazy evaluation if item count exceeds this threshold */
+const DEFAULT_LAZY_EVAL_THRESHOLD = 100;
+
+/** Maximum entries in the LRU cache */
+const DEFAULT_CACHE_MAX_SIZE = 10000;
+
+/** Default cache time-to-live in milliseconds (1 minute) */
+const DEFAULT_CACHE_TTL_MS = 60000;
+
+/** Compress payloads larger than this threshold in bytes (1KB) */
+const DEFAULT_COMPRESSION_THRESHOLD_BYTES = 1024;
+
+/** Target p95 latency for AG-UI streaming in milliseconds */
+const AGUI_TARGET_LATENCY_MS = 100;
+
+/** Target p95 latency for A2A task submission in milliseconds */
+const A2A_TARGET_LATENCY_MS = 200;
+
+/** Target p95 latency for A2UI surface generation in milliseconds */
+const A2UI_TARGET_LATENCY_MS = 150;
+
+/** Default pool pre-warm count */
+const DEFAULT_PREWARM_COUNT = 100;
+
+// ============================================================================
 // Prototype Pollution Guard
 // ============================================================================
 
@@ -121,35 +158,35 @@ export interface OptimizationResult {
 const DEFAULT_TECHNIQUES: OptimizationTechniques = {
   eventBatching: {
     enabled: true,
-    batchSize: 50,
-    flushInterval: 16, // ~60fps
+    batchSize: DEFAULT_BATCH_SIZE,
+    flushInterval: DEFAULT_FLUSH_INTERVAL_MS,
   },
   objectPooling: {
     enabled: true,
-    poolSize: 1000,
+    poolSize: DEFAULT_POOL_SIZE,
     types: ['event', 'message', 'component'],
   },
   lazyEvaluation: {
     enabled: true,
-    threshold: 100,
+    threshold: DEFAULT_LAZY_EVAL_THRESHOLD,
   },
   caching: {
     enabled: true,
-    maxSize: 10000,
-    ttl: 60000, // 1 minute
+    maxSize: DEFAULT_CACHE_MAX_SIZE,
+    ttl: DEFAULT_CACHE_TTL_MS,
   },
   compression: {
     enabled: true,
-    threshold: 1024, // 1KB
+    threshold: DEFAULT_COMPRESSION_THRESHOLD_BYTES,
     algorithm: 'gzip',
   },
 };
 
 const DEFAULT_CONFIG: OptimizerConfig = {
   techniques: DEFAULT_TECHNIQUES,
-  aguiTargetLatency: 100,
-  a2aTargetLatency: 200,
-  a2uiTargetLatency: 150,
+  aguiTargetLatency: AGUI_TARGET_LATENCY_MS,
+  a2aTargetLatency: A2A_TARGET_LATENCY_MS,
+  a2uiTargetLatency: A2UI_TARGET_LATENCY_MS,
 };
 
 // ============================================================================
@@ -172,7 +209,7 @@ export class ObjectPool<T> {
   constructor(
     factory: () => T,
     reset: (obj: T) => void,
-    maxSize: number = 1000
+    maxSize: number = DEFAULT_POOL_SIZE
   ) {
     this.factory = factory;
     this.reset = reset;
@@ -263,7 +300,7 @@ export class EventBatcher<T> extends EventEmitter {
   private eventCount = 0;
   private flushCount = 0;
 
-  constructor(batchSize: number = 50, flushInterval: number = 16) {
+  constructor(batchSize: number = DEFAULT_BATCH_SIZE, flushInterval: number = DEFAULT_FLUSH_INTERVAL_MS) {
     super();
     this.batchSize = batchSize;
     this.flushInterval = flushInterval;
@@ -344,7 +381,7 @@ export class LRUCache<K, V> {
   private hitCount = 0;
   private missCount = 0;
 
-  constructor(maxSize: number = 10000, ttl: number = 60000) {
+  constructor(maxSize: number = DEFAULT_CACHE_MAX_SIZE, ttl: number = DEFAULT_CACHE_TTL_MS) {
     this.maxSize = maxSize;
     this.ttl = ttl;
   }
@@ -794,7 +831,7 @@ export class PerformanceOptimizer {
   /**
    * Pre-warm all pools
    */
-  prewarm(count: number = 100): void {
+  prewarm(count: number = DEFAULT_PREWARM_COUNT): void {
     this.eventPool.prewarm(count);
     this.messagePool.prewarm(count);
     this.componentPool.prewarm(count);

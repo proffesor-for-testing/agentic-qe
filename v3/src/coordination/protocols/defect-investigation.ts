@@ -24,6 +24,9 @@ import type {
 } from '../../domains/defect-intelligence/interfaces';
 import type { ImpactAnalysis } from '../../domains/code-intelligence/interfaces';
 import { toError } from '../../shared/error-utils.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('defect-investigation');
 
 // ============================================================================
 // Protocol Types
@@ -429,7 +432,8 @@ export class DefectInvestigationProtocol {
       }
 
       return analysis;
-    } catch {
+    } catch (e) {
+      logger.debug('Root cause analysis failed', { error: e instanceof Error ? e.message : String(e) });
       return null;
     }
   }
@@ -518,7 +522,8 @@ export class DefectInvestigationProtocol {
       }
 
       return limitedResults;
-    } catch {
+    } catch (e) {
+      logger.debug('Related failure prediction failed', { error: e instanceof Error ? e.message : String(e) });
       return [];
     }
   }
@@ -657,8 +662,9 @@ export class DefectInvestigationProtocol {
           persist: true,
         });
       }
-    } catch {
+    } catch (e) {
       // Non-critical - log but don't fail
+      logger.debug('Investigation pattern update failed', { error: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -967,7 +973,8 @@ export class DefectInvestigationProtocol {
         recommendedTests: [testFailure.testId],
         confidence: 0.7,
       };
-    } catch {
+    } catch (e) {
+      logger.debug('Regression risk analysis failed', { error: e instanceof Error ? e.message : String(e) });
       return null;
     }
   }
@@ -998,7 +1005,8 @@ export class DefectInvestigationProtocol {
         uncoveredLines: coverage.uncoveredLines,
         riskScore,
       };
-    } catch {
+    } catch (e) {
+      logger.debug('Coverage context lookup failed', { file, error: e instanceof Error ? e.message : String(e) });
       return null;
     }
   }
@@ -1010,7 +1018,8 @@ export class DefectInvestigationProtocol {
       const impactKey = `code-intelligence:impact:${file}`;
       const impact = await this.memory.get<ImpactAnalysis>(impactKey);
       return impact ?? null;
-    } catch {
+    } catch (e) {
+      logger.debug('Impact analysis lookup failed', { file, error: e instanceof Error ? e.message : String(e) });
       return null;
     }
   }

@@ -18,6 +18,10 @@ import type { MemoryBackend, EventBus } from '../kernel/interfaces.js';
 import type { Result } from '../shared/types/index.js';
 import type { DomainName } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('experience-capture');
+
 import type {
   QEPattern,
   CreateQEPatternOptions,
@@ -916,8 +920,9 @@ Duration: ${experience.durationMs}ms`;
         this.stats.patternsPromoted = savedStats.patternsPromoted;
         this.stats.byDomain = new Map(savedStats.byDomain);
       }
-    } catch {
+    } catch (e) {
       // Start fresh
+      logger.debug('Stats restoration failed, starting fresh', { error: e instanceof Error ? e.message : String(e) });
     }
   }
 

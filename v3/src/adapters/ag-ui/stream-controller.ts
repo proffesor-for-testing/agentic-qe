@@ -11,6 +11,9 @@ import { EventEmitter } from 'events';
 import type { AGUIEvent, AGUIEventType, RunFinishedEvent } from './event-types.js';
 import type { EventAdapter } from './event-adapter.js';
 import type { BackpressureHandler, BackpressureMetrics } from './backpressure-handler.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('ag-ui-stream-controller');
 
 // ============================================================================
 // Configuration Types
@@ -265,6 +268,7 @@ export class StreamController extends EventEmitter {
         await this.onErrorCallback(error);
       } catch (callbackError) {
         // Emit original error, not callback error
+        logger.debug('Error callback threw during error handling', { error: callbackError instanceof Error ? callbackError.message : String(callbackError) });
       }
     }
 

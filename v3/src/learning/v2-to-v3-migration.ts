@@ -17,6 +17,9 @@ import type { QEDomain, QEPatternType } from './qe-patterns.js';
 import type { QEMemoryDomain } from './qe-unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('v2-to-v3-migration');
 
 // ============================================================================
 // Types
@@ -230,8 +233,9 @@ export class V2ToV3Migrator {
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       try {
         return safeJsonParse(trimmed);
-      } catch {
+      } catch (e) {
         // If parsing fails, wrap as string
+        logger.debug('JSON parse failed during migration', { field: fieldName, error: e instanceof Error ? e.message : String(e) });
         return { [fieldName]: trimmed, _parseError: true };
       }
     }

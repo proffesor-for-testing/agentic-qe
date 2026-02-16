@@ -15,6 +15,9 @@ import Database from 'better-sqlite3';
 import { validateTableName } from '../../shared/sql-safety.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('sync-embedding-generator');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -248,8 +251,9 @@ export class SyncEmbeddingGenerator {
               results.push({ pattern, similarity });
             }
           }
-        } catch {
+        } catch (e) {
           // Skip patterns with invalid embeddings
+          logger.debug('Invalid embedding in search pattern', { error: e instanceof Error ? e.message : String(e) });
         }
       }
 
@@ -288,8 +292,9 @@ export class SyncEmbeddingGenerator {
         } else if (typeof content === 'string') {
           parts.push(content);
         }
-      } catch {
+      } catch (e) {
         // Not JSON, use as-is
+        logger.debug('Pattern content is not JSON, using as string', { error: e instanceof Error ? e.message : String(e) });
         parts.push(String(pattern.content));
       }
     }

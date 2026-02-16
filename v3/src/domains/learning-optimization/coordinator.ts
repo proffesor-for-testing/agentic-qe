@@ -100,6 +100,10 @@ import {
   createDomainFinding,
 } from '../../coordination/consensus/domain-findings.js';
 
+// CQ-004: Extracted modules
+import * as LearningHelpers from './coordinator-helpers.js';
+import * as ConsensusHelpers from './coordinator-consensus.js';
+
 /**
  * Workflow status tracking
  */
@@ -1824,81 +1828,19 @@ export class LearningOptimizationCoordinator
     domain: DomainName,
     strategy: { name: string; parameters: Record<string, unknown>; expectedOutcome: Record<string, number> }
   ): Promise<void> {
-    await this.memory.set(`learning:strategy:current:${domain}`, strategy, {
-      namespace: 'learning-optimization',
-      persist: true,
-    });
+    await LearningHelpers.storeStrategy(this.memory, domain, strategy);
   }
 
-  private calculateMetricValue(
-    experiences: Experience[],
-    metric: string
-  ): number {
-    const values = experiences
-      .map((e) => (e.result.outcome[metric] as number) ?? 0)
-      .filter((v) => !isNaN(v));
-
-    if (values.length === 0) return 0;
-    return values.reduce((a, b) => a + b, 0) / values.length;
+  private calculateMetricValue(experiences: Experience[], metric: string): number {
+    return LearningHelpers.calculateMetricValue(experiences, metric);
   }
 
   private getRelatedDomains(domain: DomainName): DomainName[] {
-    const relationships: Record<DomainName, DomainName[]> = {
-      'test-generation': ['test-execution', 'coverage-analysis'],
-      'test-execution': ['test-generation', 'coverage-analysis', 'quality-assessment'],
-      'coverage-analysis': ['test-generation', 'test-execution', 'quality-assessment'],
-      'quality-assessment': ['test-execution', 'coverage-analysis', 'defect-intelligence'],
-      'defect-intelligence': ['quality-assessment', 'code-intelligence'],
-      'requirements-validation': ['test-generation', 'quality-assessment'],
-      'code-intelligence': ['defect-intelligence', 'security-compliance'],
-      'security-compliance': ['code-intelligence', 'quality-assessment'],
-      'contract-testing': ['test-generation', 'test-execution'],
-      'visual-accessibility': ['quality-assessment'],
-      'chaos-resilience': ['test-execution', 'quality-assessment'],
-      'learning-optimization': ALL_DOMAINS.filter((d) => d !== 'learning-optimization'),
-      'enterprise-integration': ['contract-testing', 'security-compliance', 'quality-assessment'],
-      'coordination': ALL_DOMAINS.filter((d) => d !== 'coordination'),
-    };
-
-    return relationships[domain] || [];
+    return LearningHelpers.getRelatedDomains(domain);
   }
 
   private findSimilarPatterns(patterns: LearnedPattern[]): LearnedPattern[][] {
-    const groups: LearnedPattern[][] = [];
-    const assigned = new Set<string>();
-
-    for (const pattern of patterns) {
-      if (assigned.has(pattern.id)) continue;
-
-      const group = [pattern];
-      assigned.add(pattern.id);
-
-      for (const other of patterns) {
-        if (assigned.has(other.id)) continue;
-
-        if (
-          pattern.type === other.type &&
-          pattern.domain === other.domain &&
-          this.contextsOverlap(pattern.context, other.context)
-        ) {
-          group.push(other);
-          assigned.add(other.id);
-        }
-      }
-
-      if (group.length >= 2) {
-        groups.push(group);
-      }
-    }
-
-    return groups;
-  }
-
-  private contextsOverlap(
-    a: { tags: string[] },
-    b: { tags: string[] }
-  ): boolean {
-    return a.tags.some((tag) => b.tags.includes(tag));
+    return LearningHelpers.findSimilarPatterns(patterns);
   }
 
   private calculateChecksum(
@@ -1906,24 +1848,7 @@ export class LearningOptimizationCoordinator
     knowledge: Knowledge[],
     strategies: OptimizedStrategy[]
   ): string {
-    const data = JSON.stringify({
-      patternCount: patterns.length,
-      knowledgeCount: knowledge.length,
-      strategyCount: strategies.length,
-      patternIds: patterns.map((p) => p.id).sort(),
-      knowledgeIds: knowledge.map((k) => k.id).sort(),
-      strategyIds: strategies.map((s) => s.id).sort(),
-    });
-
-    // Simple hash function
-    let hash = 0;
-    for (let i = 0; i < data.length; i++) {
-      const char = data.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-
-    return Math.abs(hash).toString(16);
+    return LearningHelpers.calculateChecksum(patterns, knowledge, strategies);
   }
 
   // ============================================================================
@@ -2003,93 +1928,20 @@ export class LearningOptimizationCoordinator
     pattern: { id: string; name: string; type: string; domain: DomainName },
     confidence: number
   ): Promise<boolean> {
-    const finding: DomainFinding<typeof pattern> = createDomainFinding({
-      id: uuidv4(),
-      type: 'pattern-recommendation',
-      confidence,
-      description: `Verify pattern recommendation: ${pattern.name} (${pattern.type}) for domain ${pattern.domain}`,
-      payload: pattern,
-      detectedBy: 'learning-optimization-coordinator',
-      severity: confidence > 0.9 ? 'high' : 'medium',
-    });
-
-    if (this.consensusMixin.requiresConsensus(finding)) {
-      const result = await this.consensusMixin.verifyFinding(finding);
-      if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Pattern recommendation '${pattern.name}' verified by consensus`);
-        return true;
-      }
-      console.warn(`[${this.domainName}] Pattern recommendation '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
-      return false;
-    }
-    return true; // No consensus needed
+    return ConsensusHelpers.verifyPatternRecommendation(pattern, confidence, this.consensusMixin, this.domainName);
   }
 
-  /**
-   * Verify an optimization suggestion using multi-model consensus
-   * Per MM-001: Optimization suggestions can have significant impact
-   *
-   * @param suggestion - The optimization suggestion to verify
-   * @param confidence - Initial confidence in the suggestion
-   * @returns true if the suggestion is verified or doesn't require consensus
-   */
   async verifyOptimizationSuggestion(
     suggestion: { metric: string; currentValue: number; targetValue: number; strategy: string },
     confidence: number
   ): Promise<boolean> {
-    const finding: DomainFinding<typeof suggestion> = createDomainFinding({
-      id: uuidv4(),
-      type: 'optimization-suggestion',
-      confidence,
-      description: `Verify optimization: ${suggestion.metric} from ${suggestion.currentValue} to ${suggestion.targetValue} via ${suggestion.strategy}`,
-      payload: suggestion,
-      detectedBy: 'learning-optimization-coordinator',
-      severity: confidence > 0.85 ? 'high' : 'medium',
-    });
-
-    if (this.consensusMixin.requiresConsensus(finding)) {
-      const result = await this.consensusMixin.verifyFinding(finding);
-      if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Optimization suggestion for '${suggestion.metric}' verified by consensus`);
-        return true;
-      }
-      console.warn(`[${this.domainName}] Optimization suggestion for '${suggestion.metric}' NOT verified`);
-      return false;
-    }
-    return true; // No consensus needed
+    return ConsensusHelpers.verifyOptimizationSuggestion(suggestion, confidence, this.consensusMixin, this.domainName);
   }
 
-  /**
-   * Verify a cross-domain insight using multi-model consensus
-   * Per MM-001: Cross-domain insights require verification before propagation
-   *
-   * @param insight - The cross-domain insight to verify
-   * @param confidence - Initial confidence in the insight
-   * @returns true if the insight is verified or doesn't require consensus
-   */
   async verifyCrossDomainInsight(
     insight: { sourceDomain: DomainName; targetDomains: DomainName[]; description: string; impact: string },
     confidence: number
   ): Promise<boolean> {
-    const finding: DomainFinding<typeof insight> = createDomainFinding({
-      id: uuidv4(),
-      type: 'cross-domain-insight',
-      confidence,
-      description: `Verify cross-domain insight: ${insight.description}`,
-      payload: insight,
-      detectedBy: 'learning-optimization-coordinator',
-      severity: 'high', // Cross-domain insights always have high impact
-    });
-
-    if (this.consensusMixin.requiresConsensus(finding)) {
-      const result = await this.consensusMixin.verifyFinding(finding);
-      if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Cross-domain insight verified by consensus for ${insight.targetDomains.length} target domains`);
-        return true;
-      }
-      console.warn(`[${this.domainName}] Cross-domain insight NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
-      return false;
-    }
-    return true; // No consensus needed
+    return ConsensusHelpers.verifyCrossDomainInsight(insight, confidence, this.consensusMixin, this.domainName);
   }
 }

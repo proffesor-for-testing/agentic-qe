@@ -8,6 +8,9 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { createConnection, type Socket } from 'net';
 import type { TunnelConnection, CloudConfig } from '../interfaces.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('tunnel-manager');
 
 /**
  * Redact the password portion of a PostgreSQL connection string.
@@ -21,8 +24,9 @@ export function redactConnectionString(url: string): string {
       parsed.password = '***';
     }
     return parsed.toString();
-  } catch {
+  } catch (e) {
     // Not a valid URL — mask anything that looks like a password in a connection string
+    logger.debug('URL parse failed during redaction, using regex fallback', { error: e instanceof Error ? e.message : String(e) });
     return url.replace(/:\/\/([^:]+):([^@]+)@/, '://$1:***@');
   }
 }

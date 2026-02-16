@@ -28,6 +28,9 @@ import { toErrorMessage } from '../shared/error-utils.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MEMORY_CONSTANTS } from './constants.js';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('unified-memory');
 
 // Re-export from shared module for backward compatibility
 export { validateTableName, ALLOWED_TABLE_NAMES } from '../shared/sql-safety.js';
@@ -337,8 +340,9 @@ export class UnifiedMemoryManager {
           `  This can cause data splits. Remove duplicates or set AQE_PROJECT_ROOT.`
         );
       }
-    } catch {
+    } catch (e) {
       // Non-critical
+      logger.debug('Duplicate database check failed', { error: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -348,7 +352,8 @@ export class UnifiedMemoryManager {
       const safeName = validateTableName(tableName);
       const info = this.db.prepare(`PRAGMA table_info(${safeName})`).all() as Array<{ name: string }>;
       return info.some(col => col.name === columnName);
-    } catch {
+    } catch (e) {
+      logger.debug('Column existence check failed', { table: tableName, column: columnName, error: e instanceof Error ? e.message : String(e) });
       return false;
     }
   }
@@ -733,7 +738,8 @@ export class UnifiedMemoryManager {
       try {
         const row = this.db!.prepare(`SELECT COUNT(*) as count FROM ${name}`).get() as { count: number };
         return { name, rowCount: row.count };
-      } catch {
+      } catch (e) {
+        logger.debug('Table row count query failed', { table: name, error: e instanceof Error ? e.message : String(e) });
         return { name, rowCount: 0 };
       }
     });

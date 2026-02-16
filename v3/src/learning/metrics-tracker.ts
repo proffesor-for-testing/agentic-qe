@@ -18,6 +18,9 @@ import { existsSync } from 'node:fs';
 import type { QEDomain } from './qe-patterns.js';
 import { QE_DOMAIN_LIST } from './qe-patterns.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('metrics-tracker');
 
 // ============================================================================
 // Types
@@ -502,8 +505,9 @@ export class LearningMetricsTracker {
       let domainCoverage: Record<QEDomain, number> = {} as Record<QEDomain, number>;
       try {
         domainCoverage = safeJsonParse<Record<QEDomain, number>>(row.domain_coverage_json || '{}');
-      } catch {
+      } catch (e) {
         // Use empty coverage if parse fails
+        logger.debug('Domain coverage JSON parse failed', { error: e instanceof Error ? e.message : String(e) });
         for (const domain of QE_DOMAIN_LIST) {
           domainCoverage[domain] = 0;
         }

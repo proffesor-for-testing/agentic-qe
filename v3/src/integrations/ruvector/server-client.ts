@@ -61,6 +61,9 @@ import { spawn, type ChildProcess } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
 import type { QESONAPattern } from './sona-wrapper.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('ruvector-server-client');
 
 // ============================================================================
 // Configuration Types
@@ -344,8 +347,9 @@ export class RuVectorServerClient {
           this.isRunning = true;
           resolve();
         }
-      } catch {
+      } catch (e) {
         // Continue polling
+        logger.debug('Server health check poll failed, retrying', { error: e instanceof Error ? e.message : String(e) });
       }
     }, 500);
 
