@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DomainName, DomainEvent, Result, ok, err } from '../shared/types';
+import { safeJsonParse } from '../shared/safe-json.js';
 import { FilePath } from '../shared/value-objects/index.js';
 import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
 import { TaskType, QueenTask, TaskExecution } from './queen-coordinator';
@@ -104,17 +105,7 @@ interface IstanbulFileCoverage {
 }
 
 type TaskHandler = (task: QueenTask, kernel: QEKernel) => Promise<Result<unknown, Error>>;
-
-// Service cache to avoid re-instantiation
-let coverageAnalyzer: CoverageAnalyzerService | null = null;
-let securityScanner: SecurityScannerService | null = null;
-let testGenerator: TestGeneratorService | null = null;
-let knowledgeGraph: KnowledgeGraphService | null = null;
-let qualityAnalyzer: QualityAnalyzerService | null = null;
-
-// ADR-051: Lazy-initialized Agent Booster and Task Router
-let agentBooster: IAgentBoosterAdapter | null = null;
-let taskRouter: TaskRouterService | null = null;
+type InstanceTaskHandler = (task: QueenTask) => Promise<Result<unknown, Error>>;
 
 // ============================================================================
 // ADR-051: Model Routing Support
@@ -133,35 +124,6 @@ function getModelForTier(tier: number): string {
     case 4: return 'claude-opus-4-5-20251101';
     default: return 'claude-sonnet-4-20250514';
   }
-}
-
-/**
- * Get or create Agent Booster adapter
- */
-async function getAgentBooster(): Promise<IAgentBoosterAdapter> {
-  if (!agentBooster) {
-    agentBooster = await createAgentBoosterAdapter({
-      enabled: true,
-      fallbackToLLM: true,
-      confidenceThreshold: 0.7,
-    });
-  }
-  return agentBooster;
-}
-
-/**
- * Get or create Task Router for outcome recording
- */
-async function getTaskRouterInstance(): Promise<TaskRouterService | null> {
-  if (!taskRouter) {
-    try {
-      taskRouter = await getTaskRouter();
-    } catch {
-      // Task router not available - outcome recording will be skipped
-      return null;
-    }
-  }
-  return taskRouter;
 }
 
 /**
@@ -195,604 +157,6 @@ function detectTransformType(task: QueenTask): TransformType | null {
 
   return null;
 }
-
-// Helper to get or create services
-function getCoverageAnalyzer(memory: MemoryBackend): CoverageAnalyzerService {
-  if (!coverageAnalyzer) {
-    coverageAnalyzer = new CoverageAnalyzerService(memory);
-  }
-  return coverageAnalyzer;
-}
-
-function getSecurityScanner(memory: MemoryBackend): SecurityScannerService {
-  if (!securityScanner) {
-    securityScanner = new SecurityScannerService(memory);
-  }
-  return securityScanner;
-}
-
-function getTestGenerator(memory: MemoryBackend): TestGeneratorService {
-  if (!testGenerator) {
-    testGenerator = createTestGeneratorService(memory);
-  }
-  return testGenerator;
-}
-
-function getKnowledgeGraph(memory: MemoryBackend): KnowledgeGraphService {
-  if (!knowledgeGraph) {
-    knowledgeGraph = new KnowledgeGraphService(memory);
-  }
-  return knowledgeGraph;
-}
-
-function getQualityAnalyzer(memory: MemoryBackend): QualityAnalyzerService {
-  if (!qualityAnalyzer) {
-    qualityAnalyzer = new QualityAnalyzerService(memory);
-  }
-  return qualityAnalyzer;
-}
-
-// ============================================================================
-// Task Handler Registry
-// ============================================================================
-
-const taskHandlers: Map<TaskType, TaskHandler> = new Map();
-
-// Register test generation handler - REAL IMPLEMENTATION
-taskHandlers.set('generate-tests', async (task, kernel) => {
-  const payload = task.payload as {
-    sourceCode?: string;
-    filePath?: string;
-    sourceFiles?: string[];
-    language: string;
-    framework: string;
-    testType: 'unit' | 'integration' | 'e2e';
-    coverageGoal: number;
-  };
-
-  try {
-    const generator = getTestGenerator(kernel.memory);
-
-    // Determine source files to analyze
-    let sourceFiles: string[] = [];
-    if (payload.sourceFiles && payload.sourceFiles.length > 0) {
-      sourceFiles = payload.sourceFiles;
-    } else if (payload.filePath) {
-      sourceFiles = [payload.filePath];
-    } else if (payload.sourceCode) {
-      // Write temporary file for analysis if only source code provided
-      const tempPath = `/tmp/aqe-temp-${uuidv4()}.ts`;
-      await fs.writeFile(tempPath, payload.sourceCode, 'utf-8');
-      sourceFiles = [tempPath];
-    }
-
-    if (sourceFiles.length === 0) {
-      // Return a graceful fallback with warning when no source files provided
-      return ok({
-        testsGenerated: 0,
-        coverageEstimate: 0,
-        tests: [],
-        patternsUsed: [],
-        warning: 'No source files or code provided for test generation. Provide sourceCode, filePath, or sourceFiles in the payload.',
-      });
-    }
-
-    // Use the real TestGeneratorService
-    const framework = (payload.framework || 'vitest') as 'jest' | 'vitest' | 'mocha' | 'pytest';
-    const result = await generator.generateTests({
-      sourceFiles,
-      testType: payload.testType || 'unit',
-      framework,
-      coverageTarget: payload.coverageGoal || 80,
-      patterns: [],
-    });
-
-    if (!result.success) {
-      return result;
-    }
-
-    const generatedTests = result.value;
-
-    return ok({
-      testsGenerated: generatedTests.tests.length,
-      coverageEstimate: generatedTests.coverageEstimate,
-      tests: generatedTests.tests.map(t => ({
-        name: t.name,
-        file: t.testFile,
-        type: t.type,
-        sourceFile: t.sourceFile,
-        assertions: t.assertions,
-      })),
-      patternsUsed: generatedTests.patternsUsed,
-    });
-  } catch (error) {
-    return err(error instanceof Error ? error : new Error(String(error)));
-  }
-});
-
-// Register coverage analysis handler - REAL IMPLEMENTATION
-taskHandlers.set('analyze-coverage', async (task, kernel) => {
-  const payload = task.payload as {
-    target: string;
-    detectGaps: boolean;
-    threshold?: number;
-  };
-
-  try {
-    const analyzer = getCoverageAnalyzer(kernel.memory);
-    const targetPath = payload.target || process.cwd();
-    const threshold = payload.threshold || 80;
-
-    // Try to find and read actual coverage files
-    const coverageData = await loadCoverageData(targetPath);
-
-    if (!coverageData) {
-      // No coverage data found - return informative error with fallback metrics
-      return ok({
-        lineCoverage: 0,
-        branchCoverage: 0,
-        functionCoverage: 0,
-        statementCoverage: 0,
-        totalFiles: 0,
-        gaps: [],
-        algorithm: 'sublinear-O(log n)',
-        warning: 'No coverage data found. Run tests with coverage first: npm test -- --coverage',
-      });
-    }
-
-    // Analyze coverage using the real CoverageAnalyzerService
-    const analysisResult = await analyzer.analyze({
-      coverageData,
-      threshold,
-      includeFileDetails: payload.detectGaps,
-    });
-
-    if (!analysisResult.success) {
-      return analysisResult;
-    }
-
-    const report = analysisResult.value;
-
-    // Find gaps if requested
-    let gaps: Array<{ file: string; lines: number[]; risk: string }> = [];
-    if (payload.detectGaps) {
-      const gapsResult = await analyzer.findGaps(coverageData, threshold);
-      if (gapsResult.success) {
-        gaps = gapsResult.value.gaps.map(gap => ({
-          file: gap.file,
-          lines: gap.lines,
-          risk: gap.severity,
-        }));
-      }
-    }
-
-    return ok({
-      lineCoverage: Math.round(report.summary.line * 10) / 10,
-      branchCoverage: Math.round(report.summary.branch * 10) / 10,
-      functionCoverage: Math.round(report.summary.function * 10) / 10,
-      statementCoverage: Math.round(report.summary.statement * 10) / 10,
-      totalFiles: report.summary.files,
-      gaps,
-      meetsThreshold: report.meetsThreshold,
-      delta: report.delta,
-      recommendations: report.recommendations,
-      algorithm: 'sublinear-O(log n)',
-    });
-  } catch (error) {
-    return err(error instanceof Error ? error : new Error(String(error)));
-  }
-});
-
-// Register security scan handler - REAL IMPLEMENTATION
-taskHandlers.set('scan-security', async (task, kernel) => {
-  const payload = task.payload as {
-    target: string;
-    sast: boolean;
-    dast: boolean;
-    compliance: string[];
-    targetUrl?: string;
-  };
-
-  try {
-    const scanner = getSecurityScanner(kernel.memory);
-    const targetPath = payload.target || process.cwd();
-
-    // Discover files to scan
-    const filesToScan = await discoverSourceFiles(targetPath);
-
-    if (filesToScan.length === 0) {
-      return ok({
-        vulnerabilities: 0,
-        critical: 0,
-        high: 0,
-        medium: 0,
-        low: 0,
-        informational: 0,
-        topVulnerabilities: [],
-        recommendations: ['No source files found to scan'],
-        scanTypes: {
-          sast: payload.sast !== false,
-          dast: payload.dast || false,
-        },
-        warning: `No TypeScript/JavaScript files found in ${targetPath}`,
-      });
-    }
-
-    // Convert string paths to FilePath value objects
-    const filePathObjects = filesToScan.map(filePath => FilePath.create(filePath));
-
-    // Run SAST scan if requested
-    let sastResult = null;
-    if (payload.sast !== false) {
-      const result = await scanner.scanFiles(filePathObjects);
-      if (result.success) {
-        sastResult = result.value;
-      }
-    }
-
-    // Run DAST scan if URL provided and dast is enabled
-    let dastResult = null;
-    if (payload.dast && payload.targetUrl) {
-      const result = await scanner.scanUrl(payload.targetUrl, {
-        activeScanning: true,
-        maxDepth: 3,
-        timeout: 30000,
-      });
-      if (result.success) {
-        dastResult = result.value;
-      }
-    }
-
-    // Combine results - create mutable copy
-    const summary = {
-      critical: (sastResult?.summary?.critical || 0) + (dastResult?.summary?.critical || 0),
-      high: (sastResult?.summary?.high || 0) + (dastResult?.summary?.high || 0),
-      medium: (sastResult?.summary?.medium || 0) + (dastResult?.summary?.medium || 0),
-      low: (sastResult?.summary?.low || 0) + (dastResult?.summary?.low || 0),
-      informational: (sastResult?.summary?.informational || 0) + (dastResult?.summary?.informational || 0),
-    };
-
-    // Extract top vulnerabilities
-    const allVulns = [
-      ...(sastResult?.vulnerabilities || []),
-      ...(dastResult?.vulnerabilities || []),
-    ];
-
-    const topVulnerabilities = allVulns
-      .sort((a, b) => {
-        const severityOrder = { critical: 0, high: 1, medium: 2, low: 3, informational: 4 };
-        return severityOrder[a.severity] - severityOrder[b.severity];
-      })
-      .slice(0, 10)
-      .map(v => ({
-        type: v.title,
-        severity: v.severity,
-        file: v.location.file,
-        line: v.location.line,
-        description: v.description,
-      }));
-
-    // Generate recommendations based on findings
-    const recommendations = generateSecurityRecommendations(allVulns);
-
-    return ok({
-      vulnerabilities: allVulns.length,
-      critical: summary.critical,
-      high: summary.high,
-      medium: summary.medium,
-      low: summary.low,
-      informational: summary.informational,
-      topVulnerabilities,
-      recommendations,
-      scanTypes: {
-        sast: payload.sast !== false,
-        dast: payload.dast || false,
-      },
-      filesScanned: filesToScan.length,
-      coverage: sastResult?.coverage,
-    });
-  } catch (error) {
-    return err(error instanceof Error ? error : new Error(String(error)));
-  }
-});
-
-// Register code indexing handler - REAL IMPLEMENTATION
-taskHandlers.set('index-code', async (task, kernel) => {
-  const payload = task.payload as {
-    target: string;
-    incremental: boolean;
-    includeTests?: boolean;
-    languages?: string[];
-  };
-
-  try {
-    const kg = getKnowledgeGraph(kernel.memory);
-    const targetPath = payload.target || process.cwd();
-    const startTime = Date.now();
-
-    // Discover files to index
-    const filesToIndex = await discoverSourceFiles(targetPath, {
-      includeTests: payload.includeTests !== false,
-      languages: payload.languages,
-    });
-
-    if (filesToIndex.length === 0) {
-      return ok({
-        filesIndexed: 0,
-        nodesCreated: 0,
-        edgesCreated: 0,
-        target: targetPath,
-        incremental: payload.incremental || false,
-        languages: payload.languages || ['typescript', 'javascript'],
-        duration: Date.now() - startTime,
-        warning: `No source files found in ${targetPath}`,
-      });
-    }
-
-    // Use the real KnowledgeGraphService to index files
-    const result = await kg.index({
-      paths: filesToIndex,
-      incremental: payload.incremental || false,
-      includeTests: payload.includeTests !== false,
-      languages: payload.languages,
-    });
-
-    if (!result.success) {
-      return result;
-    }
-
-    const indexResult = result.value;
-
-    // Detect languages from files
-    const detectedLanguages = new Set<string>();
-    for (const file of filesToIndex) {
-      const ext = path.extname(file).slice(1);
-      if (['ts', 'tsx'].includes(ext)) detectedLanguages.add('typescript');
-      if (['js', 'jsx', 'mjs', 'cjs'].includes(ext)) detectedLanguages.add('javascript');
-      if (ext === 'py') detectedLanguages.add('python');
-    }
-
-    return ok({
-      filesIndexed: indexResult.filesIndexed,
-      nodesCreated: indexResult.nodesCreated,
-      edgesCreated: indexResult.edgesCreated,
-      target: targetPath,
-      incremental: payload.incremental || false,
-      languages: Array.from(detectedLanguages),
-      duration: indexResult.duration,
-      errors: indexResult.errors,
-    });
-  } catch (error) {
-    return err(error instanceof Error ? error : new Error(String(error)));
-  }
-});
-
-// Register quality assessment handler - REAL IMPLEMENTATION
-taskHandlers.set('assess-quality', async (task, kernel) => {
-  const payload = task.payload as {
-    runGate: boolean;
-    threshold: number;
-    metrics: string[];
-    sourceFiles?: string[];
-    target?: string;
-  };
-
-  try {
-    const analyzer = getQualityAnalyzer(kernel.memory);
-    const threshold = payload.threshold || 80;
-
-    // Determine source files to analyze
-    let sourceFiles: string[] = [];
-    if (payload.sourceFiles && payload.sourceFiles.length > 0) {
-      sourceFiles = payload.sourceFiles;
-    } else if (payload.target) {
-      sourceFiles = await discoverSourceFiles(payload.target, { includeTests: false });
-    } else {
-      sourceFiles = await discoverSourceFiles(process.cwd(), { includeTests: false });
-    }
-
-    if (sourceFiles.length === 0) {
-      return ok({
-        qualityScore: 0,
-        passed: false,
-        threshold,
-        metrics: {
-          coverage: 0,
-          complexity: 0,
-          maintainability: 0,
-          testability: 0,
-        },
-        recommendations: ['No source files found for quality assessment'],
-        warning: 'No source files found',
-      });
-    }
-
-    // Use the real QualityAnalyzerService
-    const result = await analyzer.analyzeQuality({
-      sourceFiles,
-      includeMetrics: payload.metrics || ['coverage', 'complexity', 'maintainability', 'testability'],
-    });
-
-    if (!result.success) {
-      return result;
-    }
-
-    const report = result.value;
-    const passed = report.score.overall >= threshold;
-
-    // Convert metrics to the expected format
-    const metrics: Record<string, number> = {};
-    for (const metric of report.metrics) {
-      metrics[metric.name] = metric.value;
-    }
-
-    return ok({
-      qualityScore: report.score.overall,
-      passed,
-      threshold,
-      metrics: {
-        coverage: report.score.coverage,
-        complexity: report.score.complexity,
-        maintainability: report.score.maintainability,
-        security: report.score.security,
-        ...metrics,
-      },
-      recommendations: report.recommendations.map(r => `[${r.type}] ${r.title}: ${r.description}`),
-      trends: report.trends.map(t => ({
-        metric: t.metric,
-        direction: t.direction,
-        dataPoints: t.dataPoints.length,
-      })),
-      filesAnalyzed: sourceFiles.length,
-    });
-  } catch (error) {
-    return err(error instanceof Error ? error : new Error(String(error)));
-  }
-});
-
-// Register test execution handler
-taskHandlers.set('execute-tests', async (task, _kernel) => {
-  const payload = task.payload as {
-    testFiles: string[];
-    parallel: boolean;
-    retryCount: number;
-  };
-
-  // In production, would actually run tests via test runner
-  const testCount = payload.testFiles?.length || 10;
-  const passed = Math.floor(testCount * 0.9);
-  const failed = testCount - passed;
-
-  return ok({
-    total: testCount,
-    passed,
-    failed,
-    skipped: 0,
-    duration: testCount * 50, // ~50ms per test
-    coverage: 82.5,
-    failedTests: failed > 0 ? ['example.test.ts:42'] : [],
-  });
-});
-
-// Register defect prediction handler
-taskHandlers.set('predict-defects', async (task, _kernel) => {
-  const payload = task.payload as {
-    target: string;
-    minConfidence: number;
-  };
-
-  return ok({
-    predictedDefects: [
-      {
-        file: `${payload.target}/complex-module.ts`,
-        probability: 0.78,
-        reason: 'High cyclomatic complexity combined with low test coverage',
-      },
-      {
-        file: `${payload.target}/legacy-handler.ts`,
-        probability: 0.65,
-        reason: 'Frequent changes in recent commits with error-prone patterns',
-      },
-    ],
-    riskScore: 42,
-    recommendations: [
-      'Add integration tests for complex-module.ts',
-      'Refactor legacy-handler.ts to reduce complexity',
-    ],
-  });
-});
-
-// Register requirements validation handler
-taskHandlers.set('validate-requirements', async (task, _kernel) => {
-  const payload = task.payload as {
-    generateBDD: boolean;
-  };
-
-  return ok({
-    requirementsAnalyzed: 15,
-    testable: 12,
-    ambiguous: 2,
-    untestable: 1,
-    coverage: 80,
-    bddScenarios: payload.generateBDD ? [
-      'Given a user is logged in, When they view the dashboard, Then they see their metrics',
-      'Given an API request fails, When the retry limit is exceeded, Then an error is returned',
-    ] : [],
-  });
-});
-
-// Register contract validation handler
-taskHandlers.set('validate-contracts', async (task, _kernel) => {
-  const payload = task.payload as {
-    contractPath: string;
-    checkBreakingChanges: boolean;
-  };
-
-  return ok({
-    contractPath: payload.contractPath,
-    valid: true,
-    breakingChanges: [],
-    warnings: [
-      'Deprecated field "legacyId" should be removed in next major version',
-    ],
-    coverage: 95,
-  });
-});
-
-// Register accessibility test handler
-taskHandlers.set('test-accessibility', async (task, _kernel) => {
-  const payload = task.payload as {
-    url: string;
-    standard: string;
-  };
-
-  return ok({
-    url: payload.url,
-    standard: payload.standard || 'wcag21-aa',
-    passed: true,
-    violations: [],
-    warnings: [
-      { rule: 'color-contrast', impact: 'minor', element: 'nav > a' },
-    ],
-    score: 94,
-  });
-});
-
-// Register chaos test handler
-taskHandlers.set('run-chaos', async (task, _kernel) => {
-  const payload = task.payload as {
-    faultType: string;
-    target: string;
-    duration: number;
-    dryRun: boolean;
-  };
-
-  return ok({
-    faultType: payload.faultType,
-    target: payload.target,
-    dryRun: payload.dryRun,
-    duration: payload.duration,
-    systemBehavior: payload.dryRun ? 'simulated' : 'tested',
-    resilience: {
-      recovered: true,
-      recoveryTime: 2500,
-      dataLoss: false,
-    },
-  });
-});
-
-// Register learning optimization handler
-taskHandlers.set('optimize-learning', async (task, _kernel) => {
-  return ok({
-    patternsLearned: 12,
-    modelsUpdated: 3,
-    memoryConsolidated: true,
-    recommendations: [
-      'Pattern recognition improved for error handling',
-      'Test generation templates optimized',
-    ],
-  });
-});
 
 // ============================================================================
 // Helper Functions for Real Implementations
@@ -831,7 +195,7 @@ async function loadCoverageData(targetPath: string): Promise<CoverageData | null
  * Parse Istanbul/nyc coverage-final.json format
  */
 function parseCoverageJson(content: string): CoverageData {
-  const data: Record<string, IstanbulFileCoverage> = JSON.parse(content);
+  const data: Record<string, IstanbulFileCoverage> = safeJsonParse(content);
   const files: FileCoverage[] = [];
   let totalLines = 0, coveredLines = 0;
   let totalBranches = 0, coveredBranches = 0;
@@ -1124,6 +488,20 @@ export class DomainTaskExecutor {
   private readonly config: TaskExecutorConfig;
   private readonly resultSaver: ResultSaver;
 
+  // Instance-level service caches to prevent cross-contamination between executor instances
+  private coverageAnalyzer: CoverageAnalyzerService | null = null;
+  private securityScanner: SecurityScannerService | null = null;
+  private testGenerator: TestGeneratorService | null = null;
+  private knowledgeGraph: KnowledgeGraphService | null = null;
+  private qualityAnalyzer: QualityAnalyzerService | null = null;
+
+  // ADR-051: Lazy-initialized Agent Booster and Task Router (instance-level)
+  private agentBooster: IAgentBoosterAdapter | null = null;
+  private taskRouter: TaskRouterService | null = null;
+
+  // Instance-level task handler registry
+  private readonly taskHandlers: Map<TaskType, InstanceTaskHandler> = new Map();
+
   constructor(
     private readonly kernel: QEKernel,
     private readonly eventBus: EventBus,
@@ -1139,6 +517,637 @@ export class DomainTaskExecutor {
       defaultFramework: config?.defaultFramework ?? 'vitest',
     };
     this.resultSaver = createResultSaver(this.config.resultsDir);
+    this.registerHandlers();
+  }
+
+  // ============================================================================
+  // Instance-level service getters (lazy initialization)
+  // ============================================================================
+
+  private getCoverageAnalyzer(): CoverageAnalyzerService {
+    if (!this.coverageAnalyzer) {
+      this.coverageAnalyzer = new CoverageAnalyzerService(this.kernel.memory);
+    }
+    return this.coverageAnalyzer;
+  }
+
+  private getSecurityScanner(): SecurityScannerService {
+    if (!this.securityScanner) {
+      this.securityScanner = new SecurityScannerService(this.kernel.memory);
+    }
+    return this.securityScanner;
+  }
+
+  private getTestGenerator(): TestGeneratorService {
+    if (!this.testGenerator) {
+      this.testGenerator = createTestGeneratorService(this.kernel.memory);
+    }
+    return this.testGenerator;
+  }
+
+  private getKnowledgeGraph(): KnowledgeGraphService {
+    if (!this.knowledgeGraph) {
+      this.knowledgeGraph = new KnowledgeGraphService(this.kernel.memory);
+    }
+    return this.knowledgeGraph;
+  }
+
+  private getQualityAnalyzer(): QualityAnalyzerService {
+    if (!this.qualityAnalyzer) {
+      this.qualityAnalyzer = new QualityAnalyzerService(this.kernel.memory);
+    }
+    return this.qualityAnalyzer;
+  }
+
+  /**
+   * Get or create Agent Booster adapter (instance-level)
+   */
+  private async getAgentBooster(): Promise<IAgentBoosterAdapter> {
+    if (!this.agentBooster) {
+      this.agentBooster = await createAgentBoosterAdapter({
+        enabled: true,
+        fallbackToLLM: true,
+        confidenceThreshold: 0.7,
+      });
+    }
+    return this.agentBooster;
+  }
+
+  /**
+   * Get or create Task Router for outcome recording (instance-level)
+   */
+  private async getTaskRouterInstance(): Promise<TaskRouterService | null> {
+    if (!this.taskRouter) {
+      try {
+        this.taskRouter = await getTaskRouter();
+      } catch {
+        // Task router not available - outcome recording will be skipped
+        return null;
+      }
+    }
+    return this.taskRouter;
+  }
+
+  // ============================================================================
+  // Task Handler Registration (instance-level)
+  // ============================================================================
+
+  private registerHandlers(): void {
+    // Register test generation handler - REAL IMPLEMENTATION
+    this.taskHandlers.set('generate-tests', async (task) => {
+      const payload = task.payload as {
+        sourceCode?: string;
+        filePath?: string;
+        sourceFiles?: string[];
+        language: string;
+        framework: string;
+        testType: 'unit' | 'integration' | 'e2e';
+        coverageGoal: number;
+      };
+
+      try {
+        const generator = this.getTestGenerator();
+
+        // Determine source files to analyze
+        let sourceFiles: string[] = [];
+        if (payload.sourceFiles && payload.sourceFiles.length > 0) {
+          sourceFiles = payload.sourceFiles;
+        } else if (payload.filePath) {
+          sourceFiles = [payload.filePath];
+        } else if (payload.sourceCode) {
+          // Write temporary file for analysis if only source code provided
+          const tempPath = `/tmp/aqe-temp-${uuidv4()}.ts`;
+          await fs.writeFile(tempPath, payload.sourceCode, 'utf-8');
+          sourceFiles = [tempPath];
+        }
+
+        if (sourceFiles.length === 0) {
+          // Return a graceful fallback with warning when no source files provided
+          return ok({
+            testsGenerated: 0,
+            coverageEstimate: 0,
+            tests: [],
+            patternsUsed: [],
+            warning: 'No source files or code provided for test generation. Provide sourceCode, filePath, or sourceFiles in the payload.',
+          });
+        }
+
+        // Use the real TestGeneratorService
+        const framework = (payload.framework || 'vitest') as 'jest' | 'vitest' | 'mocha' | 'pytest';
+        const result = await generator.generateTests({
+          sourceFiles,
+          testType: payload.testType || 'unit',
+          framework,
+          coverageTarget: payload.coverageGoal || 80,
+          patterns: [],
+        });
+
+        if (!result.success) {
+          return result;
+        }
+
+        const generatedTests = result.value;
+
+        return ok({
+          testsGenerated: generatedTests.tests.length,
+          coverageEstimate: generatedTests.coverageEstimate,
+          tests: generatedTests.tests.map(t => ({
+            name: t.name,
+            file: t.testFile,
+            type: t.type,
+            sourceFile: t.sourceFile,
+            assertions: t.assertions,
+          })),
+          patternsUsed: generatedTests.patternsUsed,
+        });
+      } catch (error) {
+        return err(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+
+    // Register coverage analysis handler - REAL IMPLEMENTATION
+    this.taskHandlers.set('analyze-coverage', async (task) => {
+      const payload = task.payload as {
+        target: string;
+        detectGaps: boolean;
+        threshold?: number;
+      };
+
+      try {
+        const analyzer = this.getCoverageAnalyzer();
+        const targetPath = payload.target || process.cwd();
+        const threshold = payload.threshold || 80;
+
+        // Try to find and read actual coverage files
+        const coverageData = await loadCoverageData(targetPath);
+
+        if (!coverageData) {
+          // No coverage data found - return informative error with fallback metrics
+          return ok({
+            lineCoverage: 0,
+            branchCoverage: 0,
+            functionCoverage: 0,
+            statementCoverage: 0,
+            totalFiles: 0,
+            gaps: [],
+            algorithm: 'sublinear-O(log n)',
+            warning: 'No coverage data found. Run tests with coverage first: npm test -- --coverage',
+          });
+        }
+
+        // Analyze coverage using the real CoverageAnalyzerService
+        const analysisResult = await analyzer.analyze({
+          coverageData,
+          threshold,
+          includeFileDetails: payload.detectGaps,
+        });
+
+        if (!analysisResult.success) {
+          return analysisResult;
+        }
+
+        const report = analysisResult.value;
+
+        // Find gaps if requested
+        let gaps: Array<{ file: string; lines: number[]; risk: string }> = [];
+        if (payload.detectGaps) {
+          const gapsResult = await analyzer.findGaps(coverageData, threshold);
+          if (gapsResult.success) {
+            gaps = gapsResult.value.gaps.map(gap => ({
+              file: gap.file,
+              lines: gap.lines,
+              risk: gap.severity,
+            }));
+          }
+        }
+
+        return ok({
+          lineCoverage: Math.round(report.summary.line * 10) / 10,
+          branchCoverage: Math.round(report.summary.branch * 10) / 10,
+          functionCoverage: Math.round(report.summary.function * 10) / 10,
+          statementCoverage: Math.round(report.summary.statement * 10) / 10,
+          totalFiles: report.summary.files,
+          gaps,
+          meetsThreshold: report.meetsThreshold,
+          delta: report.delta,
+          recommendations: report.recommendations,
+          algorithm: 'sublinear-O(log n)',
+        });
+      } catch (error) {
+        return err(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+
+    // Register security scan handler - REAL IMPLEMENTATION
+    this.taskHandlers.set('scan-security', async (task) => {
+      const payload = task.payload as {
+        target: string;
+        sast: boolean;
+        dast: boolean;
+        compliance: string[];
+        targetUrl?: string;
+      };
+
+      try {
+        const scanner = this.getSecurityScanner();
+        const targetPath = payload.target || process.cwd();
+
+        // Discover files to scan
+        const filesToScan = await discoverSourceFiles(targetPath);
+
+        if (filesToScan.length === 0) {
+          return ok({
+            vulnerabilities: 0,
+            critical: 0,
+            high: 0,
+            medium: 0,
+            low: 0,
+            informational: 0,
+            topVulnerabilities: [],
+            recommendations: ['No source files found to scan'],
+            scanTypes: {
+              sast: payload.sast !== false,
+              dast: payload.dast || false,
+            },
+            warning: `No TypeScript/JavaScript files found in ${targetPath}`,
+          });
+        }
+
+        // Convert string paths to FilePath value objects
+        const filePathObjects = filesToScan.map(filePath => FilePath.create(filePath));
+
+        // Run SAST scan if requested
+        let sastResult = null;
+        if (payload.sast !== false) {
+          const result = await scanner.scanFiles(filePathObjects);
+          if (result.success) {
+            sastResult = result.value;
+          }
+        }
+
+        // Run DAST scan if URL provided and dast is enabled
+        let dastResult = null;
+        if (payload.dast && payload.targetUrl) {
+          const result = await scanner.scanUrl(payload.targetUrl, {
+            activeScanning: true,
+            maxDepth: 3,
+            timeout: 30000,
+          });
+          if (result.success) {
+            dastResult = result.value;
+          }
+        }
+
+        // Combine results - create mutable copy
+        const summary = {
+          critical: (sastResult?.summary?.critical || 0) + (dastResult?.summary?.critical || 0),
+          high: (sastResult?.summary?.high || 0) + (dastResult?.summary?.high || 0),
+          medium: (sastResult?.summary?.medium || 0) + (dastResult?.summary?.medium || 0),
+          low: (sastResult?.summary?.low || 0) + (dastResult?.summary?.low || 0),
+          informational: (sastResult?.summary?.informational || 0) + (dastResult?.summary?.informational || 0),
+        };
+
+        // Extract top vulnerabilities
+        const allVulns = [
+          ...(sastResult?.vulnerabilities || []),
+          ...(dastResult?.vulnerabilities || []),
+        ];
+
+        const topVulnerabilities = allVulns
+          .sort((a, b) => {
+            const severityOrder = { critical: 0, high: 1, medium: 2, low: 3, informational: 4 };
+            return severityOrder[a.severity] - severityOrder[b.severity];
+          })
+          .slice(0, 10)
+          .map(v => ({
+            type: v.title,
+            severity: v.severity,
+            file: v.location.file,
+            line: v.location.line,
+            description: v.description,
+          }));
+
+        // Generate recommendations based on findings
+        const recommendations = generateSecurityRecommendations(allVulns);
+
+        return ok({
+          vulnerabilities: allVulns.length,
+          critical: summary.critical,
+          high: summary.high,
+          medium: summary.medium,
+          low: summary.low,
+          informational: summary.informational,
+          topVulnerabilities,
+          recommendations,
+          scanTypes: {
+            sast: payload.sast !== false,
+            dast: payload.dast || false,
+          },
+          filesScanned: filesToScan.length,
+          coverage: sastResult?.coverage,
+        });
+      } catch (error) {
+        return err(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+
+    // Register code indexing handler - REAL IMPLEMENTATION
+    this.taskHandlers.set('index-code', async (task) => {
+      const payload = task.payload as {
+        target: string;
+        incremental: boolean;
+        includeTests?: boolean;
+        languages?: string[];
+      };
+
+      try {
+        const kg = this.getKnowledgeGraph();
+        const targetPath = payload.target || process.cwd();
+        const startTime = Date.now();
+
+        // Discover files to index
+        const filesToIndex = await discoverSourceFiles(targetPath, {
+          includeTests: payload.includeTests !== false,
+          languages: payload.languages,
+        });
+
+        if (filesToIndex.length === 0) {
+          return ok({
+            filesIndexed: 0,
+            nodesCreated: 0,
+            edgesCreated: 0,
+            target: targetPath,
+            incremental: payload.incremental || false,
+            languages: payload.languages || ['typescript', 'javascript'],
+            duration: Date.now() - startTime,
+            warning: `No source files found in ${targetPath}`,
+          });
+        }
+
+        // Use the real KnowledgeGraphService to index files
+        const result = await kg.index({
+          paths: filesToIndex,
+          incremental: payload.incremental || false,
+          includeTests: payload.includeTests !== false,
+          languages: payload.languages,
+        });
+
+        if (!result.success) {
+          return result;
+        }
+
+        const indexResult = result.value;
+
+        // Detect languages from files
+        const detectedLanguages = new Set<string>();
+        for (const file of filesToIndex) {
+          const ext = path.extname(file).slice(1);
+          if (['ts', 'tsx'].includes(ext)) detectedLanguages.add('typescript');
+          if (['js', 'jsx', 'mjs', 'cjs'].includes(ext)) detectedLanguages.add('javascript');
+          if (ext === 'py') detectedLanguages.add('python');
+        }
+
+        return ok({
+          filesIndexed: indexResult.filesIndexed,
+          nodesCreated: indexResult.nodesCreated,
+          edgesCreated: indexResult.edgesCreated,
+          target: targetPath,
+          incremental: payload.incremental || false,
+          languages: Array.from(detectedLanguages),
+          duration: indexResult.duration,
+          errors: indexResult.errors,
+        });
+      } catch (error) {
+        return err(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+
+    // Register quality assessment handler - REAL IMPLEMENTATION
+    this.taskHandlers.set('assess-quality', async (task) => {
+      const payload = task.payload as {
+        runGate: boolean;
+        threshold: number;
+        metrics: string[];
+        sourceFiles?: string[];
+        target?: string;
+      };
+
+      try {
+        const analyzer = this.getQualityAnalyzer();
+        const threshold = payload.threshold || 80;
+
+        // Determine source files to analyze
+        let sourceFiles: string[] = [];
+        if (payload.sourceFiles && payload.sourceFiles.length > 0) {
+          sourceFiles = payload.sourceFiles;
+        } else if (payload.target) {
+          sourceFiles = await discoverSourceFiles(payload.target, { includeTests: false });
+        } else {
+          sourceFiles = await discoverSourceFiles(process.cwd(), { includeTests: false });
+        }
+
+        if (sourceFiles.length === 0) {
+          return ok({
+            qualityScore: 0,
+            passed: false,
+            threshold,
+            metrics: {
+              coverage: 0,
+              complexity: 0,
+              maintainability: 0,
+              testability: 0,
+            },
+            recommendations: ['No source files found for quality assessment'],
+            warning: 'No source files found',
+          });
+        }
+
+        // Use the real QualityAnalyzerService
+        const result = await analyzer.analyzeQuality({
+          sourceFiles,
+          includeMetrics: payload.metrics || ['coverage', 'complexity', 'maintainability', 'testability'],
+        });
+
+        if (!result.success) {
+          return result;
+        }
+
+        const report = result.value;
+        const passed = report.score.overall >= threshold;
+
+        // Convert metrics to the expected format
+        const metrics: Record<string, number> = {};
+        for (const metric of report.metrics) {
+          metrics[metric.name] = metric.value;
+        }
+
+        return ok({
+          qualityScore: report.score.overall,
+          passed,
+          threshold,
+          metrics: {
+            coverage: report.score.coverage,
+            complexity: report.score.complexity,
+            maintainability: report.score.maintainability,
+            security: report.score.security,
+            ...metrics,
+          },
+          recommendations: report.recommendations.map(r => `[${r.type}] ${r.title}: ${r.description}`),
+          trends: report.trends.map(t => ({
+            metric: t.metric,
+            direction: t.direction,
+            dataPoints: t.dataPoints.length,
+          })),
+          filesAnalyzed: sourceFiles.length,
+        });
+      } catch (error) {
+        return err(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+
+    // Register test execution handler
+    this.taskHandlers.set('execute-tests', async (task) => {
+      const payload = task.payload as {
+        testFiles: string[];
+        parallel: boolean;
+        retryCount: number;
+      };
+
+      // In production, would actually run tests via test runner
+      const testCount = payload.testFiles?.length || 10;
+      const passed = Math.floor(testCount * 0.9);
+      const failed = testCount - passed;
+
+      return ok({
+        total: testCount,
+        passed,
+        failed,
+        skipped: 0,
+        duration: testCount * 50, // ~50ms per test
+        coverage: 82.5,
+        failedTests: failed > 0 ? ['example.test.ts:42'] : [],
+      });
+    });
+
+    // Register defect prediction handler
+    this.taskHandlers.set('predict-defects', async (task) => {
+      const payload = task.payload as {
+        target: string;
+        minConfidence: number;
+      };
+
+      return ok({
+        predictedDefects: [
+          {
+            file: `${payload.target}/complex-module.ts`,
+            probability: 0.78,
+            reason: 'High cyclomatic complexity combined with low test coverage',
+          },
+          {
+            file: `${payload.target}/legacy-handler.ts`,
+            probability: 0.65,
+            reason: 'Frequent changes in recent commits with error-prone patterns',
+          },
+        ],
+        riskScore: 42,
+        recommendations: [
+          'Add integration tests for complex-module.ts',
+          'Refactor legacy-handler.ts to reduce complexity',
+        ],
+      });
+    });
+
+    // Register requirements validation handler
+    this.taskHandlers.set('validate-requirements', async (task) => {
+      const payload = task.payload as {
+        generateBDD: boolean;
+      };
+
+      return ok({
+        requirementsAnalyzed: 15,
+        testable: 12,
+        ambiguous: 2,
+        untestable: 1,
+        coverage: 80,
+        bddScenarios: payload.generateBDD ? [
+          'Given a user is logged in, When they view the dashboard, Then they see their metrics',
+          'Given an API request fails, When the retry limit is exceeded, Then an error is returned',
+        ] : [],
+      });
+    });
+
+    // Register contract validation handler
+    this.taskHandlers.set('validate-contracts', async (task) => {
+      const payload = task.payload as {
+        contractPath: string;
+        checkBreakingChanges: boolean;
+      };
+
+      return ok({
+        contractPath: payload.contractPath,
+        valid: true,
+        breakingChanges: [],
+        warnings: [
+          'Deprecated field "legacyId" should be removed in next major version',
+        ],
+        coverage: 95,
+      });
+    });
+
+    // Register accessibility test handler
+    this.taskHandlers.set('test-accessibility', async (task) => {
+      const payload = task.payload as {
+        url: string;
+        standard: string;
+      };
+
+      return ok({
+        url: payload.url,
+        standard: payload.standard || 'wcag21-aa',
+        passed: true,
+        violations: [],
+        warnings: [
+          { rule: 'color-contrast', impact: 'minor', element: 'nav > a' },
+        ],
+        score: 94,
+      });
+    });
+
+    // Register chaos test handler
+    this.taskHandlers.set('run-chaos', async (task) => {
+      const payload = task.payload as {
+        faultType: string;
+        target: string;
+        duration: number;
+        dryRun: boolean;
+      };
+
+      return ok({
+        faultType: payload.faultType,
+        target: payload.target,
+        dryRun: payload.dryRun,
+        duration: payload.duration,
+        systemBehavior: payload.dryRun ? 'simulated' : 'tested',
+        resilience: {
+          recovered: true,
+          recoveryTime: 2500,
+          dataLoss: false,
+        },
+      });
+    });
+
+    // Register learning optimization handler
+    this.taskHandlers.set('optimize-learning', async (_task) => {
+      return ok({
+        patternsLearned: 12,
+        modelsUpdated: 3,
+        memoryConsolidated: true,
+        recommendations: [
+          'Pattern recognition improved for error handling',
+          'Test generation templates optimized',
+        ],
+      });
+    });
   }
 
   // ============================================================================
@@ -1163,7 +1172,7 @@ export class DomainTaskExecutor {
     }
 
     try {
-      const booster = await getAgentBooster();
+      const booster = await this.getAgentBooster();
       const codeContext = (task.payload as Record<string, unknown>)?.codeContext as string ||
                           (task.payload as Record<string, unknown>)?.sourceCode as string || '';
 
@@ -1216,7 +1225,7 @@ export class DomainTaskExecutor {
     durationMs: number
   ): Promise<void> {
     try {
-      const router = await getTaskRouterInstance();
+      const router = await this.getTaskRouterInstance();
       if (!router) return;
 
       // Log outcome for debugging and metrics
@@ -1266,7 +1275,7 @@ export class DomainTaskExecutor {
         console.debug(`[TaskExecutor] Agent Booster fallback to Tier 1 for task ${task.id}`);
       }
 
-      const handler = taskHandlers.get(task.type);
+      const handler = this.taskHandlers.get(task.type);
 
       if (!handler) {
         const result = {
@@ -1282,7 +1291,7 @@ export class DomainTaskExecutor {
 
       // Execute with timeout
       const result = await Promise.race([
-        handler(task, this.kernel),
+        handler(task),
         this.timeout(task.timeout || this.config.timeout),
       ]);
 
@@ -1354,6 +1363,44 @@ export class DomainTaskExecutor {
     }
   }
 
+  /**
+   * Reset cached services - call when disposing fleet/kernel
+   * to ensure services don't hold references to disposed memory backends.
+   * Instance method replaces the former module-level resetServiceCaches().
+   */
+  async resetServiceCaches(): Promise<void> {
+    this.coverageAnalyzer = null;
+    this.securityScanner = null;
+    this.testGenerator = null;
+    this.knowledgeGraph = null;
+    this.qualityAnalyzer = null;
+
+    // ADR-051: Also reset Agent Booster and Task Router
+    if (this.agentBooster) {
+      try {
+        await this.agentBooster.dispose();
+      } catch (error) {
+        // Non-critical: disposal errors don't affect subsequent operations
+        console.debug('[TaskExecutor] Agent Booster disposal error:', error instanceof Error ? error.message : error);
+      }
+      this.agentBooster = null;
+    }
+    this.taskRouter = null;
+  }
+
+  /**
+   * Sync version for backwards compatibility
+   */
+  resetServiceCachesSync(): void {
+    this.coverageAnalyzer = null;
+    this.securityScanner = null;
+    this.testGenerator = null;
+    this.knowledgeGraph = null;
+    this.qualityAnalyzer = null;
+    this.agentBooster = null;
+    this.taskRouter = null;
+  }
+
   private getTaskDomain(taskType: TaskType): DomainName {
     const domainMap: Record<TaskType, DomainName> = {
       'generate-tests': 'test-generation',
@@ -1414,38 +1461,26 @@ export function createTaskExecutor(
 }
 
 /**
- * Reset cached services - call when disposing fleet/kernel
- * to ensure services don't hold references to disposed memory backends
+ * Reset cached services on a specific executor instance.
+ * This is the module-level wrapper for backwards compatibility with
+ * callers that import resetServiceCaches() directly.
+ * It requires the caller to also call resetTaskExecutor() which nullifies
+ * the cached executor - so the next getTaskExecutor() creates a fresh instance
+ * with clean caches. This function is now a no-op since caches are instance-level.
+ *
+ * @deprecated Prefer calling executor.resetServiceCaches() on the instance directly.
  */
 export async function resetServiceCaches(): Promise<void> {
-  coverageAnalyzer = null;
-  securityScanner = null;
-  testGenerator = null;
-  knowledgeGraph = null;
-  qualityAnalyzer = null;
-
-  // ADR-051: Also reset Agent Booster and Task Router
-  if (agentBooster) {
-    try {
-      await agentBooster.dispose();
-    } catch (error) {
-      // Non-critical: disposal errors don't affect subsequent operations
-      console.debug('[TaskExecutor] Agent Booster disposal error:', error instanceof Error ? error.message : error);
-    }
-    agentBooster = null;
-  }
-  taskRouter = null;
+  // No-op: service caches are now instance-level properties.
+  // When the cached executor is nullified by resetTaskExecutor(),
+  // the old instance (and its caches) become eligible for GC.
+  // The next executor instance starts with fresh null caches.
 }
 
 /**
  * Sync version for backwards compatibility
+ * @deprecated Prefer calling executor.resetServiceCachesSync() on the instance directly.
  */
 export function resetServiceCachesSync(): void {
-  coverageAnalyzer = null;
-  securityScanner = null;
-  testGenerator = null;
-  knowledgeGraph = null;
-  qualityAnalyzer = null;
-  agentBooster = null;
-  taskRouter = null;
+  // No-op: service caches are now instance-level properties.
 }

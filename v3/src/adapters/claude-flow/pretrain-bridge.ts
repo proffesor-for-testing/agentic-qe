@@ -14,6 +14,7 @@
 
 import type { PretrainResult } from './types.js';
 import { detectClaudeFlow } from './detect.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 /**
  * Pretrain Bridge for codebase analysis
@@ -64,12 +65,12 @@ export class PretrainBridge {
 
         // Try to parse JSON result
         try {
-          const parsed = JSON.parse(result);
+          const parsed = safeJsonParse<{ analysis?: PretrainResult['analysis']; agentConfigs?: Record<string, unknown>[] }>(result);
           const pretrainResult: PretrainResult = {
             success: true,
             repositoryPath: targetPath,
             depth,
-            analysis: parsed.analysis || parsed,
+            analysis: parsed.analysis || undefined,
             agentConfigs: parsed.agentConfigs,
           };
 
@@ -108,7 +109,7 @@ export class PretrainBridge {
         );
 
         try {
-          return JSON.parse(result);
+          return safeJsonParse<Record<string, unknown>[]>(result);
         } catch (error) {
           console.debug('[PretrainBridge] Agent config parse error:', error instanceof Error ? error.message : error);
           return [];
@@ -218,7 +219,7 @@ export class PretrainBridge {
       const packageJsonPath = join(targetPath, 'package.json');
       if (existsSync(packageJsonPath)) {
         try {
-          const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+          const pkg = safeJsonParse<{ dependencies?: Record<string, string>; devDependencies?: Record<string, string> }>(readFileSync(packageJsonPath, 'utf-8'));
           const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
           if (deps.react) frameworks.add('react');

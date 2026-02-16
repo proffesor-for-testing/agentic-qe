@@ -9,6 +9,7 @@ export {
   DirectConnectionManager,
   createTunnelManager,
   createConnectionManager,
+  redactConnectionString,
   type TunnelManager,
 } from './tunnel-manager.js';
 

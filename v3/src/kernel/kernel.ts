@@ -84,34 +84,10 @@ export class QEKernelImpl implements QEKernel {
     this._config = { ...DEFAULT_CONFIG, ...config };
     this._startTime = new Date();
 
-    // Determine data directory
-    const projectRoot = findProjectRoot();
-    const dataDir = this._config.dataDir || path.join(projectRoot, '.agentic-qe');
-
-    // Ensure data directory exists
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-
-    // Initialize memory backend based on config
-    if (this._config.memoryBackend === 'memory') {
-      // Use in-memory backend only when explicitly requested (for testing)
-      this._memory = new InMemoryBackend();
-    } else {
-      // Use hybrid backend for persistent storage (default)
-      // All data goes to unified memory.db via UnifiedMemoryManager
-      this._memory = new HybridMemoryBackend({
-        sqlite: {
-          path: path.join(dataDir, 'memory.db'),
-          walMode: true,
-          poolSize: 3,
-          busyTimeout: MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
-        },
-        enableFallback: true,
-        defaultNamespace: 'qe-kernel',
-      });
-    }
-
+    // PERF-005: Constructor only stores config — no sync I/O.
+    // Memory backend, directory creation, and plugin registration
+    // are deferred to initialize() to avoid blocking the event loop.
+    this._memory = new InMemoryBackend(); // Placeholder until initialize()
     this._eventBus = new InMemoryEventBus();
     this._coordinator = new DefaultAgentCoordinator(this._config.maxConcurrentAgents);
     this._plugins = new DefaultPluginLoader(
@@ -119,21 +95,6 @@ export class QEKernelImpl implements QEKernel {
       this._memory,
       this._config.lazyLoading
     );
-
-    // Register domain factories for enabled domains
-    for (const domain of this._config.enabledDomains) {
-      const factory = DOMAIN_FACTORIES[domain];
-      if (factory) {
-        // Wrap factory to match PluginLoader signature (async)
-        (this._plugins as DefaultPluginLoader).registerFactory(
-          domain,
-          async (eventBus: EventBus, memory: MemoryBackend) => {
-            // Create plugin synchronously, return as Promise
-            return Promise.resolve(factory(eventBus, memory, this._coordinator));
-          }
-        );
-      }
-    }
   }
 
   get eventBus(): EventBus {
@@ -157,15 +118,64 @@ export class QEKernelImpl implements QEKernel {
       return;
     }
 
-    // When using in-memory backend (testing), initialize UnifiedPersistenceManager
-    // with a temp DB so subsystems (PersistentSONAEngine, MinCut, etc.) that call
-    // getUnifiedPersistence() / getUnifiedMemory() don't crash.
+    // PERF-005: Sync I/O moved here from constructor — directory creation
+    // and memory backend setup now happen in async initialize().
+    const projectRoot = findProjectRoot();
+    const dataDir = this._config.dataDir || path.join(projectRoot, '.agentic-qe');
+
+    // Ensure data directory exists
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+
+    // Initialize memory backend based on config
     if (this._config.memoryBackend === 'memory') {
+      // Use in-memory backend only when explicitly requested (for testing)
+      // this._memory is already InMemoryBackend from constructor
+
+      // Initialize UnifiedPersistenceManager with a temp DB so subsystems
+      // (PersistentSONAEngine, MinCut, etc.) that call
+      // getUnifiedPersistence() / getUnifiedMemory() don't crash.
       const tmpDbPath = path.join(
         require('os').tmpdir(),
         `aqe-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`
       );
       await initializeUnifiedPersistence({ dbPath: tmpDbPath });
+    } else {
+      // Use hybrid backend for persistent storage (default)
+      // All data goes to unified memory.db via UnifiedMemoryManager
+      this._memory = new HybridMemoryBackend({
+        sqlite: {
+          path: path.join(dataDir, 'memory.db'),
+          walMode: true,
+          poolSize: 3,
+          busyTimeout: MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
+        },
+        enableFallback: true,
+        defaultNamespace: 'qe-kernel',
+      });
+
+      // Re-create plugins with the real memory backend
+      this._plugins = new DefaultPluginLoader(
+        this._eventBus,
+        this._memory,
+        this._config.lazyLoading
+      );
+    }
+
+    // Register domain factories for enabled domains
+    for (const domain of this._config.enabledDomains) {
+      const factory = DOMAIN_FACTORIES[domain];
+      if (factory) {
+        // Wrap factory to match PluginLoader signature (async)
+        (this._plugins as DefaultPluginLoader).registerFactory(
+          domain,
+          async (eventBus: EventBus, memory: MemoryBackend) => {
+            // Create plugin synchronously, return as Promise
+            return Promise.resolve(factory(eventBus, memory, this._coordinator));
+          }
+        );
+      }
     }
 
     // Initialize memory backend

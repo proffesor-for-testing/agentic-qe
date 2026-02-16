@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { DataReader, SyncSource } from '../interfaces.js';
 import { validateTableName } from '../../shared/sql-safety.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 /**
  * SQLite reader configuration
@@ -247,7 +248,7 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
     for (const [key, value] of Object.entries(transformed)) {
       if (typeof value === 'string' && this.looksLikeJson(value)) {
         try {
-          transformed[key] = JSON.parse(value);
+          transformed[key] = safeJsonParse(value);
         } catch {
           // Keep as string if not valid JSON
         }

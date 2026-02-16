@@ -14,6 +14,7 @@ export * from './embeddings';
 export * from './git';
 export * from './security';
 export * from './metrics';
+export * from './safe-json';
 
 // LLM module - explicit exports to avoid conflicts with http/io modules
 export type {

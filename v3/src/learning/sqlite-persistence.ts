@@ -14,6 +14,7 @@
 
 import Database, { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
+import { safeJsonParse } from '../shared/safe-json.js';
 import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
@@ -552,8 +553,8 @@ export class SQLitePatternStore {
       successRate: row.success_rate,
       qualityScore: row.quality_score,
       tier: row.tier as 'short-term' | 'long-term',
-      template: JSON.parse(row.template_json || '{}'),
-      context: JSON.parse(row.context_json || '{}'),
+      template: safeJsonParse(row.template_json || '{}'),
+      context: safeJsonParse(row.context_json || '{}'),
       createdAt: new Date(row.created_at),
       lastUsedAt: row.last_used_at ? new Date(row.last_used_at) : new Date(row.created_at),
       successfulUses: row.successful_uses,

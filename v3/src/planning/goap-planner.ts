@@ -14,6 +14,7 @@
 
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { randomUUID } from 'crypto';
+import { safeJsonParse } from '../shared/safe-json.js';
 import { getUnifiedPersistence, type UnifiedPersistenceManager } from '../kernel/unified-persistence.js';
 import type {
   V3WorldState,
@@ -31,6 +32,76 @@ import type {
 } from './types.js';
 import { DEFAULT_V3_WORLD_STATE } from './types.js';
 import { getAllQEActions, QE_GOALS, toGOAPAction } from './actions/qe-action-library.js';
+
+// ============================================================================
+// MinHeap for A* Open Set (O(log n) insert/extract vs O(n log n) sort+shift)
+// ============================================================================
+
+/**
+ * Binary min-heap ordered by a comparator function.
+ * Used by A* search for efficient open-set management.
+ */
+class MinHeap<T> {
+  private data: T[] = [];
+  private readonly cmp: (a: T, b: T) => number;
+
+  constructor(compareFn: (a: T, b: T) => number) {
+    this.cmp = compareFn;
+  }
+
+  get length(): number {
+    return this.data.length;
+  }
+
+  push(item: T): void {
+    this.data.push(item);
+    this.bubbleUp(this.data.length - 1);
+  }
+
+  pop(): T | undefined {
+    if (this.data.length === 0) return undefined;
+    const top = this.data[0];
+    const last = this.data.pop()!;
+    if (this.data.length > 0) {
+      this.data[0] = last;
+      this.sinkDown(0);
+    }
+    return top;
+  }
+
+  private bubbleUp(i: number): void {
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (this.cmp(this.data[i], this.data[parent]) < 0) {
+        [this.data[i], this.data[parent]] = [this.data[parent], this.data[i]];
+        i = parent;
+      } else {
+        break;
+      }
+    }
+  }
+
+  private sinkDown(i: number): void {
+    const n = this.data.length;
+    while (true) {
+      let smallest = i;
+      const left = 2 * i + 1;
+      const right = 2 * i + 2;
+      if (left < n && this.cmp(this.data[left], this.data[smallest]) < 0) {
+        smallest = left;
+      }
+      if (right < n && this.cmp(this.data[right], this.data[smallest]) < 0) {
+        smallest = right;
+      }
+      if (smallest !== i) {
+        [this.data[i], this.data[smallest]] = [this.data[smallest], this.data[i]];
+        i = smallest;
+      } else {
+        break;
+      }
+    }
+  }
+}
 
 // ============================================================================
 // Internal Types
@@ -90,6 +161,13 @@ interface PlanReuseStats {
   reuseRate: number;
   avgSuccessRate: number;
 }
+
+// ============================================================================
+// Module-Level Constants (PERF-008: hoisted to avoid per-call allocation)
+// ============================================================================
+
+/** Properties that must never appear in state keys (prototype pollution guard). */
+const DANGEROUS_PROPS = new Set(['__proto__', 'constructor', 'prototype']);
 
 // ============================================================================
 // GOAPPlanner Class
@@ -313,8 +391,16 @@ export class GOAPPlanner {
       return null;
     }
 
-    const openSet: PlanNode[] = [];
+    // Use a binary min-heap for O(log n) extract-min instead of O(n log n) sort+shift.
+    // Duplicate state entries are handled via lazy deletion: when a node is popped
+    // whose state is already in the closed set, it is simply skipped. This is a
+    // standard A* optimisation that preserves correctness.
+    const openHeap = new MinHeap<PlanNode>((a, b) => a.f - b.f);
     const closedSet = new Set<string>();
+    // O(1) duplicate detection: maps state hash → best g-cost seen in the open set.
+    // Entries are added on insert, updated when a better path is found, and
+    // removed when the node is popped (moved to the closed set).
+    const openSetCosts = new Map<string, number>();
 
     // Initialize start node
     const startNode: PlanNode = {
@@ -327,7 +413,8 @@ export class GOAPPlanner {
       depth: 0,
     };
     startNode.f = startNode.g + startNode.h;
-    openSet.push(startNode);
+    openHeap.push(startNode);
+    openSetCosts.set(this.hashState(start), 0);
 
     // Constraint defaults
     const maxIterations = 10000;
@@ -337,12 +424,11 @@ export class GOAPPlanner {
 
     let iterations = 0;
 
-    while (openSet.length > 0 && iterations < maxIterations) {
+    while (openHeap.length > 0 && iterations < maxIterations) {
       iterations++;
 
-      // Get node with lowest f score
-      openSet.sort((a, b) => a.f - b.f);
-      const current = openSet.shift()!;
+      // Get node with lowest f score — O(log n)
+      const current = openHeap.pop()!;
 
       // Check if goal reached
       if (this.meetsConditions(current.state, goal)) {
@@ -352,9 +438,12 @@ export class GOAPPlanner {
       // Generate state hash for closed set
       const stateKey = this.hashState(current.state);
       if (closedSet.has(stateKey)) {
+        // Lazy deletion: skip stale duplicate nodes
         continue;
       }
       closedSet.add(stateKey);
+      // Node is now closed — remove from open set cost tracker
+      openSetCosts.delete(stateKey);
 
       // Check depth limit
       if (current.depth >= maxPlanLength) {
@@ -394,36 +483,23 @@ export class GOAPPlanner {
           continue;
         }
 
-        // Check if better path to this state exists
-        const existingIdx = openSet.findIndex(
-          (n) => this.hashState(n.state) === newStateKey
-        );
-
-        if (existingIdx >= 0) {
-          if (g < openSet[existingIdx].g) {
-            // Better path found - update
-            openSet[existingIdx] = {
-              state: newState,
-              action,
-              parent: current,
-              g,
-              h,
-              f,
-              depth: current.depth + 1,
-            };
-          }
-        } else {
-          // Add new node
-          openSet.push({
-            state: newState,
-            action,
-            parent: current,
-            g,
-            h,
-            f,
-            depth: current.depth + 1,
-          });
+        // Only push if this is a better path than any previously seen in the open set
+        const prevG = openSetCosts.get(newStateKey);
+        if (prevG !== undefined && g >= prevG) {
+          continue;
         }
+        openSetCosts.set(newStateKey, g);
+
+        // Add new node — O(log n)
+        openHeap.push({
+          state: newState,
+          action,
+          parent: current,
+          g,
+          h,
+          f,
+          depth: current.depth + 1,
+        });
       }
     }
 
@@ -669,10 +745,9 @@ export class GOAPPlanner {
   private setStateValue(state: V3WorldState, key: string, value: unknown): void {
     const parts = key.split('.');
 
-    // Prevent prototype pollution - use Set for O(1) lookup
-    const dangerousProps = new Set(['__proto__', 'constructor', 'prototype']);
+    // PERF-008: Use module-level DANGEROUS_PROPS Set (avoids per-call allocation)
     for (const part of parts) {
-      if (dangerousProps.has(part)) {
+      if (DANGEROUS_PROPS.has(part)) {
         console.warn(`[GOAPPlanner] Blocked prototype pollution attempt: ${key}`);
         return;
       }
@@ -686,7 +761,7 @@ export class GOAPPlanner {
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
       // CodeQL fix: Immediate dangerous key check before property access
-      if (dangerousProps.has(part)) {
+      if (DANGEROUS_PROPS.has(part)) {
         console.warn(`[GOAPPlanner] Blocked prototype pollution: ${part}`);
         return;
       }
@@ -705,7 +780,7 @@ export class GOAPPlanner {
 
     const finalKey = parts[parts.length - 1];
     // CodeQL fix: Immediate dangerous key check before Object.defineProperty
-    if (dangerousProps.has(finalKey)) {
+    if (DANGEROUS_PROPS.has(finalKey)) {
       console.warn(`[GOAPPlanner] Blocked prototype pollution: ${finalKey}`);
       return;
     }
@@ -753,10 +828,23 @@ export class GOAPPlanner {
   }
 
   /**
-   * Deep clone world state
+   * Deep clone world state.
+   * PERF-008: Manual structured clone avoids JSON.parse/stringify overhead.
+   * Safe because V3WorldState is a known, fixed-shape object with only
+   * primitives, arrays of strings, and plain nested objects.
    */
   private cloneState(state: V3WorldState): V3WorldState {
-    return JSON.parse(JSON.stringify(state));
+    return {
+      coverage: { ...state.coverage },
+      quality: { ...state.quality },
+      fleet: {
+        ...state.fleet,
+        availableAgents: [...state.fleet.availableAgents],
+      },
+      resources: { ...state.resources },
+      context: { ...state.context },
+      patterns: { ...state.patterns },
+    };
   }
 
   /**
@@ -800,8 +888,8 @@ export class GOAPPlanner {
         name: row.name,
         description: row.description ?? undefined,
         agentType: row.agent_type,
-        preconditions: JSON.parse(row.preconditions),
-        effects: JSON.parse(row.effects),
+        preconditions: safeJsonParse(row.preconditions),
+        effects: safeJsonParse(row.effects),
         cost: row.cost,
         estimatedDurationMs: row.estimated_duration_ms ?? undefined,
         successRate: row.success_rate,
@@ -970,7 +1058,7 @@ export class GOAPPlanner {
 
     if (!row) return null;
 
-    const actionIds = JSON.parse(row.action_sequence) as string[];
+    const actionIds = safeJsonParse<string[]>(row.action_sequence);
     const actions = actionIds
       .map((id) => this.actions.get(id))
       .filter((a): a is GOAPAction => a !== undefined);
@@ -978,8 +1066,8 @@ export class GOAPPlanner {
     return {
       id: row.id,
       goalId: row.goal_id ?? undefined,
-      initialState: JSON.parse(row.initial_state),
-      goalState: JSON.parse(row.goal_state),
+      initialState: safeJsonParse(row.initial_state),
+      goalState: safeJsonParse(row.goal_state),
       actions,
       totalCost: row.total_cost,
       estimatedDurationMs: row.estimated_duration_ms ?? 0,
@@ -1187,7 +1275,7 @@ export class GOAPPlanner {
       id: row.id,
       name: row.name,
       description: row.description ?? undefined,
-      conditions: JSON.parse(row.conditions),
+      conditions: safeJsonParse(row.conditions),
       priority: row.priority,
       qeDomain: row.qe_domain as GOAPGoal['qeDomain'],
     }));

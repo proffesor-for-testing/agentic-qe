@@ -10,6 +10,24 @@ import { createConnection, type Socket } from 'net';
 import type { TunnelConnection, CloudConfig } from '../interfaces.js';
 
 /**
+ * Redact the password portion of a PostgreSQL connection string.
+ * Replaces the password between `://user:` and `@host` with `***`.
+ * Safe to call on strings that have no password or are not URLs.
+ */
+export function redactConnectionString(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.password) {
+      parsed.password = '***';
+    }
+    return parsed.toString();
+  } catch {
+    // Not a valid URL — mask anything that looks like a password in a connection string
+    return url.replace(/:\/\/([^:]+):([^@]+)@/, '://$1:***@');
+  }
+}
+
+/**
  * Tunnel manager interface
  */
 export interface TunnelManager {
@@ -216,7 +234,9 @@ export class IAPTunnelManager implements TunnelManager {
   }
 
   /**
-   * Get connection string for PostgreSQL
+   * Get connection string for PostgreSQL.
+   * WARNING: Contains real credentials — never log this value directly.
+   * Use getRedactedConnectionString() for logging purposes.
    */
   getConnectionString(): string {
     if (!this.connection) {
@@ -229,6 +249,13 @@ export class IAPTunnelManager implements TunnelManager {
     const port = this.connection.port;
 
     return `postgresql://${user}:${password}@${host}:${port}/${database}`;
+  }
+
+  /**
+   * Get a redacted connection string safe for logging.
+   */
+  getRedactedConnectionString(): string {
+    return redactConnectionString(this.getConnectionString());
   }
 }
 
@@ -275,6 +302,13 @@ export class DirectConnectionManager implements TunnelManager {
 
   getConnectionString(): string {
     return this.connectionString;
+  }
+
+  /**
+   * Get a redacted connection string safe for logging.
+   */
+  getRedactedConnectionString(): string {
+    return redactConnectionString(this.connectionString);
   }
 }
 

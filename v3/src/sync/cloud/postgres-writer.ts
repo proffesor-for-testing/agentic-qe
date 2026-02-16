@@ -11,6 +11,7 @@
 
 import type { CloudWriter, UpsertOptions, CloudConfig } from '../interfaces.js';
 import type { TunnelManager } from './tunnel-manager.js';
+import { validateIdentifier } from '../../shared/sql-safety.js';
 
 // Note: pg module is optional - will use mock if not available
 
@@ -194,19 +195,25 @@ export class PostgresWriter implements CloudWriter {
       valuePlaceholders.push(`(${recordValues.join(', ')})`);
     }
 
+    // Validate all identifiers before interpolating into SQL
+    const safeTable = validateIdentifier(table);
+    const safeColumns = columns.map(validateIdentifier);
+    const safeConflictColumns = conflictColumns.map(validateIdentifier);
+    const safeUpdateColumns = updateColumns.map(validateIdentifier);
+
     // Build ON CONFLICT clause
     let conflictClause = '';
-    if (conflictColumns.length > 0) {
+    if (safeConflictColumns.length > 0) {
       if (skipIfExists) {
-        conflictClause = `ON CONFLICT (${conflictColumns.join(', ')}) DO NOTHING`;
-      } else if (updateColumns.length > 0) {
-        const updateSet = updateColumns.map(col => `${col} = EXCLUDED.${col}`).join(', ');
-        conflictClause = `ON CONFLICT (${conflictColumns.join(', ')}) DO UPDATE SET ${updateSet}`;
+        conflictClause = `ON CONFLICT (${safeConflictColumns.join(', ')}) DO NOTHING`;
+      } else if (safeUpdateColumns.length > 0) {
+        const updateSet = safeUpdateColumns.map(col => `${col} = EXCLUDED.${col}`).join(', ');
+        conflictClause = `ON CONFLICT (${safeConflictColumns.join(', ')}) DO UPDATE SET ${updateSet}`;
       }
     }
 
     const sql = `
-      INSERT INTO ${table} (${columns.join(', ')})
+      INSERT INTO ${safeTable} (${safeColumns.join(', ')})
       VALUES ${valuePlaceholders.join(', ')}
       ${conflictClause}
     `;

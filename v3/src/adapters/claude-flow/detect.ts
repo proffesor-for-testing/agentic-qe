@@ -11,6 +11,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -94,7 +95,7 @@ function checkMCPConfig(projectRoot: string): ClaudeFlowDetection | null {
   const mcpJsonPath = join(projectRoot, '.claude', 'mcp.json');
   if (existsSync(mcpJsonPath)) {
     try {
-      const config = JSON.parse(readFileSync(mcpJsonPath, 'utf-8'));
+      const config = safeJsonParse<{ mcpServers?: Record<string, unknown> }>(readFileSync(mcpJsonPath, 'utf-8'));
       if (config.mcpServers?.['claude-flow']) {
         return { available: true, method: 'mcp-config' };
       }
@@ -107,7 +108,7 @@ function checkMCPConfig(projectRoot: string): ClaudeFlowDetection | null {
   const settingsPath = join(projectRoot, '.claude', 'settings.json');
   if (existsSync(settingsPath)) {
     try {
-      const settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+      const settings = safeJsonParse<{ mcpServers?: Record<string, unknown>; mcp?: { servers?: Record<string, unknown> } }>(readFileSync(settingsPath, 'utf-8'));
       const servers = settings.mcpServers || settings.mcp?.servers || {};
       if (servers['claude-flow'] || servers['@anthropic/claude-flow']) {
         return { available: true, method: 'mcp-config' };
@@ -125,7 +126,7 @@ function checkPackageJson(projectRoot: string): ClaudeFlowDetection | null {
   if (!existsSync(packageJsonPath)) return null;
 
   try {
-    const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    const pkg = safeJsonParse<{ dependencies?: Record<string, string>; devDependencies?: Record<string, string> }>(readFileSync(packageJsonPath, 'utf-8'));
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
     if (deps['@claude-flow/cli'] || deps['claude-flow']) {

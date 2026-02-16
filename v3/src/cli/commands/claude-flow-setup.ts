@@ -20,6 +20,7 @@
 import { existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
+import { safeJsonParse } from '../../shared/safe-json.js';
 import {
   detectClaudeFlow as smartDetectClaudeFlow,
   getClaudeFlowNotFoundMessage,
@@ -182,7 +183,7 @@ function updateMCPConfig(projectRoot: string): void {
   let settings: Record<string, unknown> = {};
   if (existsSync(claudeSettingsPath)) {
     try {
-      settings = JSON.parse(readFileSync(claudeSettingsPath, 'utf-8'));
+      settings = safeJsonParse<Record<string, unknown>>(readFileSync(claudeSettingsPath, 'utf-8'));
     } catch {
       // Start fresh
     }
@@ -345,7 +346,7 @@ export function getClaudeFlowConfig(projectRoot: string): object | null {
   }
 
   try {
-    return JSON.parse(readFileSync(configPath, 'utf-8'));
+    return safeJsonParse(readFileSync(configPath, 'utf-8'));
   } catch {
     return null;
   }

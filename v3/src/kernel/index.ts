@@ -34,6 +34,7 @@ export {
   DEFAULT_UNIFIED_MEMORY_CONFIG,
   // Project root detection for consistent DB path resolution
   findProjectRoot,
+  clearProjectRootCache,
   getDefaultDbPath,
   getResolvedDefaultConfig,
 } from './unified-memory';

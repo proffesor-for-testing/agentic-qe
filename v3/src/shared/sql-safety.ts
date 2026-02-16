@@ -45,3 +45,26 @@ export function validateTableName(tableName: string): string {
   }
   return tableName;
 }
+
+/**
+ * Valid PostgreSQL identifier pattern: starts with a lowercase letter or underscore,
+ * followed by up to 62 lowercase alphanumeric characters or underscores.
+ */
+const IDENTIFIER_REGEX = /^[a-z_][a-z0-9_]{0,62}$/;
+
+/**
+ * Validate a PostgreSQL identifier (table or column name) against a strict regex.
+ * Prevents SQL injection via dynamically interpolated identifiers (CWE-89).
+ *
+ * @param name - The identifier to validate
+ * @returns The validated identifier string if valid
+ * @throws {Error} If the identifier contains invalid characters or format
+ */
+export function validateIdentifier(name: string): string {
+  if (!IDENTIFIER_REGEX.test(name)) {
+    throw new Error(
+      `Invalid SQL identifier: "${name}" does not match pattern ${IDENTIFIER_REGEX}`
+    );
+  }
+  return name;
+}

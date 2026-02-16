@@ -18,6 +18,7 @@
  */
 
 import Database, { type Database as DatabaseType, type Statement } from 'better-sqlite3';
+import { safeJsonParse } from '../shared/safe-json.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
@@ -44,6 +45,17 @@ import {
 // Project Root Detection
 // ============================================================================
 
+/** Module-level cache for findProjectRoot result. */
+let _cachedProjectRoot: string | null = null;
+
+/**
+ * Clear the cached project root. Useful for testing or when the
+ * environment changes at runtime.
+ */
+export function clearProjectRootCache(): void {
+  _cachedProjectRoot = null;
+}
+
 /**
  * Find the project root by walking up the directory tree.
  *
@@ -56,57 +68,61 @@ import {
  *
  * This ensures ALL V3 systems persist to the same database regardless
  * of which subdirectory they are run from (especially in monorepos).
+ *
+ * Optimized: single upward walk checks all markers in one pass,
+ * and the result is cached at module level for subsequent calls.
  */
 export function findProjectRoot(startDir: string = process.cwd()): string {
-  // Priority 1: Environment variable (set by MCP config)
-  if (process.env.AQE_PROJECT_ROOT) {
-    return process.env.AQE_PROJECT_ROOT;
+  // Return cached result immediately if available
+  if (_cachedProjectRoot) {
+    return _cachedProjectRoot;
   }
 
-  let dir = startDir;
+  // Priority 1: Environment variable (set by MCP config)
+  if (process.env.AQE_PROJECT_ROOT) {
+    _cachedProjectRoot = process.env.AQE_PROJECT_ROOT;
+    return _cachedProjectRoot;
+  }
+
+  const dir = startDir;
   const root = path.parse(dir).root;
 
-  // Priority 2: Look for existing .agentic-qe directory (AQE project marker)
-  // Walk ALL the way up and use the TOPMOST .agentic-qe found, not the first.
-  // This prevents subdirectories (e.g. v3/.agentic-qe) from shadowing the
-  // root project database, which caused a split-brain with two DBs growing.
+  // Single walk: check all markers at each directory level.
+  // - .agentic-qe: use the TOPMOST found (walk entire tree)
+  // - .git: use the LOWEST found (nearest to startDir)
+  // - package.json: use the TOPMOST found (monorepo root)
   let checkDir = dir;
   let topmostAqeDir: string | null = null;
+  let lowestGitDir: string | null = null;
+  let topmostPackageJson: string | null = null;
+
   while (checkDir !== root) {
     if (fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
       topmostAqeDir = checkDir;
     }
-    checkDir = path.dirname(checkDir);
-  }
-  if (topmostAqeDir) {
-    return topmostAqeDir;
-  }
-
-  // Priority 3: Look for .git directory (repo root)
-  checkDir = dir;
-  while (checkDir !== root) {
     if (fs.existsSync(path.join(checkDir, '.git'))) {
-      return checkDir;
+      if (lowestGitDir === null) {
+        lowestGitDir = checkDir;
+      }
     }
-    checkDir = path.dirname(checkDir);
-  }
-
-  // Priority 4: Look for root package.json (skip monorepo subdirectories)
-  // A root package.json typically has workspaces or is not inside node_modules
-  checkDir = dir;
-  let lastPackageJson: string | null = null;
-  while (checkDir !== root) {
     if (fs.existsSync(path.join(checkDir, 'package.json'))) {
-      lastPackageJson = checkDir;
+      topmostPackageJson = checkDir;
     }
     checkDir = path.dirname(checkDir);
   }
-  if (lastPackageJson) {
-    return lastPackageJson;
+
+  // Apply priority order to the collected results
+  if (topmostAqeDir) {
+    _cachedProjectRoot = topmostAqeDir;
+  } else if (lowestGitDir) {
+    _cachedProjectRoot = lowestGitDir;
+  } else if (topmostPackageJson) {
+    _cachedProjectRoot = topmostPackageJson;
+  } else {
+    _cachedProjectRoot = process.cwd();
   }
 
-  // Fallback to current working directory
-  return process.cwd();
+  return _cachedProjectRoot;
 }
 
 /**
@@ -1598,7 +1614,7 @@ export class UnifiedMemoryManager {
       return undefined;
     }
 
-    return JSON.parse(row.value) as T;
+    return safeJsonParse<T>(row.value);
   }
 
   /**
@@ -1693,7 +1709,7 @@ export class UnifiedMemoryManager {
 
     return {
       embedding: this.bufferToFloatArray(row.embedding, row.dimensions),
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      metadata: row.metadata ? safeJsonParse(row.metadata) : undefined,
     };
   }
 
@@ -1748,7 +1764,7 @@ export class UnifiedMemoryManager {
           filteredResults.push({
             id: result.id,
             score: result.score,
-            metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+            metadata: row.metadata ? safeJsonParse(row.metadata) : undefined,
           });
           if (filteredResults.length >= k) break;
         }
@@ -1763,7 +1779,7 @@ export class UnifiedMemoryManager {
       return {
         id: result.id,
         score: result.score,
-        metadata: row?.metadata ? JSON.parse(row.metadata) : undefined,
+        metadata: row?.metadata ? safeJsonParse(row.metadata) : undefined,
       };
     });
   }

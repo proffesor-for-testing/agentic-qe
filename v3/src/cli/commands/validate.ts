@@ -13,6 +13,7 @@ import { Command } from 'commander';
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join, resolve, basename, dirname } from 'path';
 import chalk from 'chalk';
+import { safeJsonParse } from '../../shared/safe-json.js';
 import type { CLIContext } from '../handlers/interfaces.js';
 import {
   ValidationResultAggregator,
@@ -62,7 +63,7 @@ function loadValidationResults(inputPath: string): ParallelValidationRunResult[]
 
     for (const file of files) {
       try {
-        const content = JSON.parse(readFileSync(file, 'utf-8'));
+        const content = safeJsonParse<unknown>(readFileSync(file, 'utf-8'));
         if (isValidationRunResult(content)) {
           results.push(content);
         } else if (Array.isArray(content)) {
@@ -81,7 +82,7 @@ function loadValidationResults(inputPath: string): ParallelValidationRunResult[]
     return results;
   } else {
     // Load single file
-    const content = JSON.parse(readFileSync(resolvedPath, 'utf-8'));
+    const content = safeJsonParse<unknown>(readFileSync(resolvedPath, 'utf-8'));
 
     if (isValidationRunResult(content)) {
       return [content];

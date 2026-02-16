@@ -788,6 +788,14 @@ export class QueenCoordinator implements IQueenCoordinator {
             domain: task.targetDomains[0] || 'test-generation',
             tags: { taskId, priority: task.priority, tier: selectedTier || 'unknown' },
           });
+          // MEM-003 FIX: Enforce max-size guard before inserting (FIFO eviction)
+          const MAX_TRACE_CONTEXTS = 10000;
+          if (this.taskTraceContexts.size >= MAX_TRACE_CONTEXTS) {
+            const oldest = this.taskTraceContexts.keys().next().value;
+            if (oldest !== undefined) {
+              this.taskTraceContexts.delete(oldest);
+            }
+          }
           this.taskTraceContexts.set(taskId, context);
         } catch (traceError) {
           console.warn('[QueenCoordinator] Trace start error (continuing):', traceError);
@@ -1951,8 +1959,10 @@ export class QueenCoordinator implements IQueenCoordinator {
       }
     }
 
-    // Remove from domain queues
-    for (const domain of ALL_DOMAINS) {
+    // PERF-008: Only iterate the task's targetDomains instead of ALL_DOMAINS.
+    // Tasks are only enqueued into their targetDomains (see enqueueTask),
+    // so scanning all 12+ domains is unnecessary work.
+    for (const domain of task.targetDomains) {
       const domainQueue = this.domainQueues.get(domain);
       if (domainQueue) {
         const idx = domainQueue.findIndex(t => t.id === task.id);
@@ -2033,8 +2043,35 @@ export class QueenCoordinator implements IQueenCoordinator {
   }
 
   private startWorkStealing(): void {
+    let workStealingFailures = 0;
+    const maxConsecutiveFailures = 10;
+
     this.workStealingTimer = setInterval(async () => {
-      await this.triggerWorkStealing();
+      try {
+        await this.triggerWorkStealing();
+        workStealingFailures = 0;
+      } catch (error) {
+        workStealingFailures++;
+        const backoffMs = Math.min(1000 * Math.pow(2, workStealingFailures), 30000);
+        console.warn(
+          `[QueenCoordinator] Work-stealing failed (attempt ${workStealingFailures}), backing off ${backoffMs}ms`,
+          error instanceof Error ? error.message : String(error)
+        );
+
+        if (workStealingFailures > maxConsecutiveFailures) {
+          console.error(
+            `[QueenCoordinator] Work-stealing exceeded ${maxConsecutiveFailures} consecutive failures, stopping interval`
+          );
+          if (this.workStealingTimer) {
+            clearInterval(this.workStealingTimer);
+            this.workStealingTimer = null;
+          }
+          return;
+        }
+
+        // Wait for backoff period before next attempt proceeds
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
     }, this.config.workStealing.checkInterval);
   }
 
@@ -2154,9 +2191,25 @@ export class QueenCoordinator implements IQueenCoordinator {
 
         if (completedTime > 0 && now - completedTime > retentionMs) {
           this.tasks.delete(taskId);
+          // MEM-003 FIX: Clean up orphaned trace contexts for completed tasks
+          this.taskTraceContexts.delete(taskId);
           cleaned++;
         }
       }
+    }
+
+    // MEM-003 FIX: Enforce max-size guard on taskTraceContexts (FIFO eviction)
+    const MAX_TRACE_CONTEXTS = 10000;
+    if (this.taskTraceContexts.size > MAX_TRACE_CONTEXTS) {
+      const excess = this.taskTraceContexts.size - MAX_TRACE_CONTEXTS;
+      const keysIterator = this.taskTraceContexts.keys();
+      for (let i = 0; i < excess; i++) {
+        const oldest = keysIterator.next().value;
+        if (oldest !== undefined) {
+          this.taskTraceContexts.delete(oldest);
+        }
+      }
+      console.log(`[QueenCoordinator] Evicted ${excess} oldest trace contexts (max: ${MAX_TRACE_CONTEXTS})`);
     }
 
     if (cleaned > 0) {

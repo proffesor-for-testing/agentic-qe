@@ -3,7 +3,8 @@
  * Wraps CLI calls with type safety and error handling
  */
 
-import { execSync, spawn } from 'child_process';
+import { spawnSync, spawn } from 'child_process';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // Command result from --json output
 export interface CommandResult<T = unknown> {
@@ -28,8 +29,14 @@ export class AgentBrowserCommandExecutor {
   private browserLaunched = false;
 
   constructor(config: CommandExecutorConfig = {}) {
+    const sessionName = config.sessionName ?? 'default';
+    if (!/^[a-zA-Z0-9_-]+$/.test(sessionName)) {
+      throw new Error(
+        `Invalid sessionName "${sessionName}": must match /^[a-zA-Z0-9_-]+$/`
+      );
+    }
     this.config = {
-      sessionName: config.sessionName ?? 'default',
+      sessionName,
       timeout: config.timeout ?? 30000,
       headed: config.headed ?? false,
       debug: config.debug ?? false,
@@ -45,26 +52,38 @@ export class AgentBrowserCommandExecutor {
    */
   execute<T = unknown>(command: string, args: string[] = []): CommandResult<T> {
     const fullArgs = this.buildArgs(command, args);
-    const cmdString = `npx agent-browser ${fullArgs.join(' ')}`;
+    const spawnArgs = ['agent-browser', ...fullArgs];
 
     if (this.config.debug) {
-      console.log(`[agent-browser] Executing: ${cmdString}`);
+      console.log(`[agent-browser] Executing: npx ${spawnArgs.join(' ')}`);
     }
 
     try {
-      const output = execSync(cmdString, {
+      const result = spawnSync('npx', spawnArgs, {
         encoding: 'utf-8',
         timeout: this.config.timeout,
         maxBuffer: 10 * 1024 * 1024, // 10MB for screenshots
+        shell: false,
       });
+
+      if (result.error) {
+        return { success: false, error: result.error.message };
+      }
+
+      if (result.status !== 0) {
+        const stderr = result.stderr?.trim();
+        return { success: false, error: stderr || `Exit code: ${result.status}` };
+      }
+
+      const output = result.stdout?.trim() ?? '';
 
       // Try to parse as JSON
       try {
-        const parsed = JSON.parse(output.trim());
+        const parsed = safeJsonParse(output);
         return { success: true, data: parsed as T };
       } catch {
         // Not JSON, return as string
-        return { success: true, data: output.trim() as unknown as T };
+        return { success: true, data: output as unknown as T };
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -101,7 +120,7 @@ export class AgentBrowserCommandExecutor {
       process.on('close', (code) => {
         if (code === 0) {
           try {
-            const parsed = JSON.parse(stdout.trim());
+            const parsed = safeJsonParse(stdout.trim());
             resolve({ success: true, data: parsed as T });
           } catch {
             resolve({ success: true, data: stdout.trim() as unknown as T });
@@ -163,12 +182,13 @@ export class AgentBrowserCommandExecutor {
       const sessionName = this.config.sessionName;
 
       // Find and kill processes by session name
-      // Use pkill to find processes with matching session in command line
+      // Use pkill with argument array to prevent shell injection
       try {
-        execSync(
-          `pkill -f "agent-browser.*--session[= ]${sessionName}" 2>/dev/null || true`,
-          { timeout: 5000, stdio: 'ignore' }
-        );
+        spawnSync('pkill', ['-f', `agent-browser.*--session[= ]${sessionName}`], {
+          timeout: 5000,
+          stdio: 'ignore',
+          shell: false,
+        });
       } catch (error) {
         // Non-critical: pkill errors - process might already be dead
         console.debug('[CommandExecutor] pkill error:', error instanceof Error ? error.message : error);
@@ -217,16 +237,14 @@ export class AgentBrowserCommandExecutor {
    * Fill input by ref or selector
    */
   fill(target: string, text: string): CommandResult<void> {
-    // Escape backslashes first, then quotes
-    return this.execute('fill', [target, `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`]);
+    return this.execute('fill', [target, text]);
   }
 
   /**
    * Type text (without clearing)
    */
   type(target: string, text: string): CommandResult<void> {
-    // Escape backslashes first, then quotes
-    return this.execute('type', [target, `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`]);
+    return this.execute('type', [target, text]);
   }
 
   /**
@@ -309,7 +327,7 @@ export class AgentBrowserCommandExecutor {
    * Set device emulation
    */
   setDevice(deviceName: string): CommandResult<void> {
-    return this.execute('set', ['device', `"${deviceName}"`]);
+    return this.execute('set', ['device', deviceName]);
   }
 
   /**
@@ -327,8 +345,8 @@ export class AgentBrowserCommandExecutor {
    * Mock network route
    */
   mockRoute(urlPattern: string, body: unknown): CommandResult<void> {
-    const bodyJson = JSON.stringify(body).replace(/"/g, '\\"');
-    return this.execute('network', ['route', urlPattern, '--body', `"${bodyJson}"`]);
+    const bodyJson = JSON.stringify(body);
+    return this.execute('network', ['route', urlPattern, '--body', bodyJson]);
   }
 
   /**
@@ -395,9 +413,7 @@ export class AgentBrowserCommandExecutor {
    * Evaluate JavaScript in page context
    */
   eval<T = unknown>(script: string): CommandResult<T> {
-    // Escape backslashes first, then quotes, then newlines
-    const escapedScript = script.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ');
-    return this.execute<T>('eval', [`"${escapedScript}"`, '--json']);
+    return this.execute<T>('eval', [script, '--json']);
   }
 
   // ========================================================================
@@ -444,7 +460,12 @@ export function isAgentBrowserAvailable(): boolean {
   try {
     // Use 'npx agent-browser' without args to check help output
     // --version is not a valid command, but running with no args shows help
-    const output = execSync('npx agent-browser 2>&1', { encoding: 'utf-8', timeout: 10000 });
+    const result = spawnSync('npx', ['agent-browser'], {
+      encoding: 'utf-8',
+      timeout: 10000,
+      shell: false,
+    });
+    const output = (result.stdout ?? '') + (result.stderr ?? '');
     return output.includes('agent-browser') && output.includes('Usage:');
   } catch {
     return false;

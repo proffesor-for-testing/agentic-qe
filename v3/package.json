@@ -152,7 +152,8 @@
   "overrides": {
     "@ruvector/gnn-linux-x64-musl": "npm:@ruvector/gnn-linux-x64-gnu@0.1.19",
     "@ruvector/gnn-linux-arm64-musl": "npm:@ruvector/gnn-linux-arm64-gnu@0.1.19",
-    "tar": ">=7.5.7"
+    "tar": ">=7.5.7",
+    "markdown-it": ">=14.1.1"
   },
   "engines": {
     "node": ">=18.0.0"

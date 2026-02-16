@@ -12,6 +12,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Type Definitions
@@ -403,7 +404,7 @@ export function loadCLIConfig(): QECLIConfig {
 
   try {
     const content = readFileSync(configPath, 'utf-8');
-    const parsed = JSON.parse(content);
+    const parsed = safeJsonParse<Record<string, unknown>>(content);
 
     const validation = validateConfig(parsed);
     if (!validation.valid) {

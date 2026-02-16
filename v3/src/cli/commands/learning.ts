@@ -16,6 +16,7 @@ import chalk from 'chalk';
 import path from 'node:path';
 import { findProjectRoot } from '../../kernel/unified-memory.js';
 import { existsSync, writeFileSync, readFileSync, mkdirSync, copyFileSync } from 'node:fs';
+import { safeJsonParse } from '../helpers/safe-json.js';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { stat, unlink } from 'node:fs/promises';
 import { createGzip, createGunzip } from 'node:zlib';
@@ -650,7 +651,7 @@ Examples:
         }
 
         const content = readFileSync(inputPath, 'utf-8');
-        const importData = JSON.parse(content);
+        const importData = safeJsonParse<Record<string, unknown>>(content);
 
         if (!importData.patterns || !Array.isArray(importData.patterns)) {
           throw new Error('Invalid pattern file format');
@@ -1598,7 +1599,7 @@ Examples:
           content = readFileSync(inputPath, 'utf-8');
         }
 
-        const importData = JSON.parse(content) as LearningExportData;
+        const importData = safeJsonParse<LearningExportData>(content);
 
         // Validate import data
         if (!importData.patterns || !Array.isArray(importData.patterns)) {

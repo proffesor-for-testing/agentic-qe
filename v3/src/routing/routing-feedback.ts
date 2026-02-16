@@ -15,6 +15,7 @@ import type {
 import { QE_AGENT_REGISTRY, getAgentById } from './qe-agent-registry.js';
 import type { QETaskRouter } from './qe-task-router.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
 // In-Memory Storage (can be replaced with SQLite)
@@ -116,8 +117,8 @@ export class RoutingFeedbackCollector {
     for (const row of rows.reverse()) {
       const outcome: RoutingOutcome = {
         id: row.id,
-        task: JSON.parse(row.task_json),
-        decision: JSON.parse(row.decision_json),
+        task: safeJsonParse(row.task_json),
+        decision: safeJsonParse(row.decision_json),
         usedAgent: row.used_agent,
         followedRecommendation: Boolean(row.followed_recommendation),
         outcome: {

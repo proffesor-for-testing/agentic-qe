@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 /**
  * Compliance Reporter for Governance Audits
  *
@@ -1012,18 +1014,14 @@ export class ComplianceReporter {
    * Generate a unique violation ID
    */
   private generateViolationId(): string {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substring(2, 10);
-    return `viol_${timestamp}_${random}`;
+    return `viol_${randomUUID()}`;
   }
 
   /**
    * Generate a unique alert ID
    */
   private generateAlertId(): string {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substring(2, 6);
-    return `alert_${timestamp}_${random}`;
+    return `alert_${randomUUID()}`;
   }
 
   /**

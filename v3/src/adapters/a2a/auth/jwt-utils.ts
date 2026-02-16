@@ -8,6 +8,7 @@
  */
 
 import * as jose from 'jose';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // JWT Types
@@ -391,11 +392,11 @@ export function decodeJWT(token: string): DecodedJWT {
 
     // Decode header
     const headerJson = new TextDecoder().decode(jose.base64url.decode(headerB64));
-    const header = JSON.parse(headerJson) as jose.JWTHeaderParameters;
+    const header = safeJsonParse<jose.JWTHeaderParameters>(headerJson);
 
     // Decode payload
     const payloadJson = new TextDecoder().decode(jose.base64url.decode(payloadB64));
-    const payload = JSON.parse(payloadJson) as JWTPayload;
+    const payload = safeJsonParse<JWTPayload>(payloadJson);
 
     return {
       header,

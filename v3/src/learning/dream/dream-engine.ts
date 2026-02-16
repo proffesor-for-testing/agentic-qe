@@ -15,6 +15,8 @@
  * @module v3/learning/dream/dream-engine
  */
 
+import { safeJsonParse } from '../../shared/safe-json.js';
+
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -758,7 +760,7 @@ export class DreamEngine {
       id: row.id,
       cycleId: row.cycle_id,
       type: row.insight_type as DreamInsight['type'],
-      sourceConcepts: JSON.parse(row.source_concepts),
+      sourceConcepts: safeJsonParse<string[]>(row.source_concepts),
       description: row.description,
       noveltyScore: row.novelty_score,
       confidenceScore: row.confidence_score,

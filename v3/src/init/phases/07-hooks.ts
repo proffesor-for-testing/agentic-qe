@@ -5,6 +5,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 import {
   BasePhase,
@@ -58,7 +59,7 @@ export class HooksPhase extends BasePhase<HooksResult> {
     if (existsSync(settingsPath)) {
       try {
         const content = readFileSync(settingsPath, 'utf-8');
-        settings = JSON.parse(content);
+        settings = safeJsonParse<Record<string, unknown>>(content);
       } catch {
         settings = {};
       }
