@@ -13,6 +13,7 @@ import { normalize, cosineSimilarity, magnitude } from '../../../shared/utils/ve
 import { CoverageData, FileCoverage } from '../interfaces';
 import { IHNSWIndex, HNSWSearchResult } from './hnsw-index';
 import { ICoverageEmbedder } from './coverage-embedder';
+import { toError } from '../../../shared/error-utils.js';
 
 /** Categories of phantom coverage gaps -- classes of tests that should exist but do not. */
 export type PhantomGapCategory =
@@ -110,7 +111,7 @@ export class GhostCoverageAnalyzerService {
       this.initialized = true;
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -154,7 +155,7 @@ export class GhostCoverageAnalyzerService {
       return ok({ ghostVectors, idealSurface, actualSurface, phantomRatio,
         computedAt: Date.now(), filesAnalyzed: coverageData.files.length });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -191,7 +192,7 @@ export class GhostCoverageAnalyzerService {
       gaps.sort((a, b) => b.ghostDistance * b.riskScore - a.ghostDistance * a.riskScore);
       return ok(gaps.slice(0, this.config.maxGaps));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -219,7 +220,7 @@ export class GhostCoverageAnalyzerService {
       this.cachedIdealSurface = this.aggregateIdealSurface();
       return ok(this.idealSurfacePatterns.length);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

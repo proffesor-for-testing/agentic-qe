@@ -38,6 +38,7 @@ import { OpenRouterProvider } from './providers/openrouter';
 import { GeminiProvider } from './providers/gemini';
 import { AzureOpenAIProvider } from './providers/azure-openai';
 import { BedrockProvider } from './providers/bedrock';
+import { toError } from '../error-utils.js';
 
 /**
  * Default provider manager configuration
@@ -460,7 +461,7 @@ export class ProviderManager {
 
         return result;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         // Update metrics
         this.recordFailure(providerType, lastError);

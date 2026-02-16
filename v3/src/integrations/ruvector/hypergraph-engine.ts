@@ -24,6 +24,7 @@ import {
   rowToEdge,
   generateEdgeId,
 } from './hypergraph-schema.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 import type {
   HypergraphNode,
   HypergraphEdge,
@@ -848,7 +849,7 @@ export class HypergraphEngine {
         } catch (fileError) {
           errors.push({
             entity: `file:${file.path}`,
-            error: fileError instanceof Error ? fileError.message : String(fileError),
+            error: toErrorMessage(fileError),
           });
         }
       }
@@ -893,7 +894,7 @@ export class HypergraphEngine {
           } catch (entityError) {
             errors.push({
               entity: `${entity.type}:${entity.name}`,
-              error: entityError instanceof Error ? entityError.message : String(entityError),
+              error: toErrorMessage(entityError),
             });
           }
         }
@@ -925,7 +926,7 @@ export class HypergraphEngine {
           } catch (importError) {
             errors.push({
               entity: `import:${importPath}`,
-              error: importError instanceof Error ? importError.message : String(importError),
+              error: toErrorMessage(importError),
             });
           }
         }

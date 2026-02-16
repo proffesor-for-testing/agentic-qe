@@ -27,6 +27,8 @@ import {
   createLLMError,
 } from '../interfaces';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
+import { toError } from '../../error-utils.js';
+import { safeJsonParse } from '../../safe-json.js';
 
 /**
  * OpenRouter-specific configuration
@@ -459,7 +461,7 @@ export class OpenRouterProvider implements LLMProvider {
 
           if (trimmed.startsWith('data: ')) {
             try {
-              const chunk = JSON.parse(trimmed.slice(6)) as OpenRouterStreamChunk;
+              const chunk = safeJsonParse(trimmed.slice(6)) as OpenRouterStreamChunk;
               const delta = chunk.choices[0]?.delta;
 
               if (delta?.content) {
@@ -904,7 +906,7 @@ export class OpenRouterProvider implements LLMProvider {
 
         return response;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         // Only retry on network/timeout errors
         if (attempt < maxRetries - 1) {

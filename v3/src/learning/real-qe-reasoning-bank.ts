@@ -55,6 +55,7 @@ import { AsymmetricLearningEngine } from './asymmetric-learning.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { CircularBuffer } from '../shared/utils/circular-buffer.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ADR-058: @claude-flow/guidance governance integration
 import {
@@ -1237,8 +1238,8 @@ export class RealQEReasoningBank {
       agent: row.agent ?? undefined,
       domain: row.domain as QEDomain | undefined,
       success: row.success === 1,
-      steps: JSON.parse(row.steps_json || '[]'),
-      metrics: row.metadata_json ? JSON.parse(row.metadata_json) : undefined,
+      steps: safeJsonParse<unknown[]>(row.steps_json || '[]'),
+      metrics: row.metadata_json ? safeJsonParse<Record<string, unknown>>(row.metadata_json) : undefined,
     }));
   }
 

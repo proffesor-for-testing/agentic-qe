@@ -17,7 +17,7 @@ import {
 } from '../../shared/types';
 import { createEvent } from '../../shared/events/domain-events';
 import { QEKernel } from '../../kernel/interfaces';
-import {
+import type {
   CodeIntelligenceAPI,
   IndexRequest,
   IndexResult,
@@ -26,6 +26,7 @@ import {
 } from '../../domains/code-intelligence/interfaces';
 import { GitAnalyzer } from '../../shared/git';
 import { listFiles } from '../../shared/io';
+import { toError } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Protocol Types
@@ -374,7 +375,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
 
       return ok(result);
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       await this.publishCompletedEvent(protocolId, trigger, false, undefined, [], errorObj.message);
       this.updateStats(false, Date.now() - startTime, 0);
       return err(errorObj);
@@ -427,7 +428,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
 
       return ok(uniqueFiles);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -450,7 +451,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
 
       return codeIntelligence.index(request);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -470,7 +471,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
         includeTests: true,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -490,7 +491,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
         depth: 3,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -514,7 +515,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
 
       return ok(notifiedDomains);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -585,7 +586,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
       const filteredFiles = changedFiles.filter((f) => this.isRelevantFile(f));
       return ok(filteredFiles);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -599,7 +600,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
       const filteredFiles = commitFiles.filter((f) => this.isRelevantFile(f));
       return ok(filteredFiles);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -618,7 +619,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
       const filteredFiles = allFiles.filter((f) => this.isRelevantFile(f));
       return ok([...new Set(filteredFiles)]);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -637,7 +638,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
       const filteredFiles = allFiles.filter((f) => this.isRelevantFile(f));
       return ok([...new Set(filteredFiles)]);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

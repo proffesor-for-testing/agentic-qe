@@ -26,6 +26,7 @@ import { SwarmGraph, createSwarmGraph } from './swarm-graph';
 import { MinCutCalculator, createMinCutCalculator } from './mincut-calculator';
 import { MinCutHealthMonitor } from './mincut-health-monitor';
 import { MinCutPersistence } from './mincut-persistence';
+import { toErrorMessage } from '../../shared/error-utils.js';
 import {
   SwarmObservation,
   SelfModelPrediction,
@@ -554,7 +555,7 @@ export class StrangeLoopController {
       return result;
     } catch (error) {
       await this.emitEvent('mincut.healing.failed', 0, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       });
       return null;
     }
@@ -670,7 +671,7 @@ export class StrangeLoopController {
         minCutBefore,
         minCutAfter: minCutBefore,
         improvement: 0,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         durationMs: Date.now() - startTime,
       };
     }

@@ -60,6 +60,7 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
 import type { QESONAPattern } from './sona-wrapper.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Configuration Types
@@ -321,7 +322,7 @@ export class RuVectorServerClient {
         this.pollForHealth(timeout, resolve, reject);
       } catch (err) {
         clearTimeout(timeout);
-        reject(new Error(`Failed to spawn ruvector server: ${err instanceof Error ? err.message : String(err)}`));
+        reject(new Error(`Failed to spawn ruvector server: ${toErrorMessage(err)}`));
       }
     });
   }
@@ -892,7 +893,7 @@ export async function createRuVectorServerClient(
       // Log warning but don't fail - server is optional
       console.warn(
         '[RuVectorServerClient] Failed to start server:',
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
       console.warn(
         '[RuVectorServerClient] Server operations will not be available. ' +

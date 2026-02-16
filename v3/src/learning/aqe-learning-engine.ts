@@ -41,6 +41,7 @@ import type { MemoryBackend, EventBus } from '../kernel/interfaces.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 import {
   QEReasoningBank,
   createQEReasoningBank,
@@ -984,7 +985,7 @@ export class AQELearningEngine {
       const packageJsonPath = join(targetPath, 'package.json');
       if (existsSync(packageJsonPath)) {
         try {
-          const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+          const pkg = safeJsonParse(readFileSync(packageJsonPath, 'utf-8'));
           const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
           if (deps.react) frameworks.add('react');

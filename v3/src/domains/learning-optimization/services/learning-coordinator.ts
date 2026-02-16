@@ -26,6 +26,7 @@ import {
   IExperienceMiningService,
   OptimizationObjective,
 } from '../interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import {
   QEFlashAttention,
   createQEFlashAttention,
@@ -346,7 +347,7 @@ Provide:
 
       return ok(pattern);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -377,7 +378,7 @@ Provide:
 
       return ok(patterns.slice(0, limit));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -408,7 +409,7 @@ Provide:
 
       return ok(output);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -451,7 +452,7 @@ Provide:
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -516,7 +517,7 @@ Provide:
 
       return ok(consolidatedPattern);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -585,7 +586,7 @@ Provide:
         topPatterns,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -617,7 +618,7 @@ Provide:
 
       return ok(id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -664,7 +665,7 @@ Provide:
         recommendations,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -732,7 +733,7 @@ Provide:
 
       return ok(experiences.slice(0, limit));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -786,7 +787,7 @@ Provide:
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

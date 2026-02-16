@@ -8,6 +8,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import type {
   WsdlDefinition,
   WsdlService,
@@ -120,7 +121,7 @@ export class SoapWsdlService {
 
       return ok(definition);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -167,7 +168,7 @@ export class SoapWsdlService {
 
       return ok(envelope);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -248,7 +249,7 @@ export class SoapWsdlService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

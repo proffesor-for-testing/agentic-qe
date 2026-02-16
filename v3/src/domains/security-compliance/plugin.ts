@@ -37,6 +37,7 @@ import {
   type ISecurityAuditorService,
   type SecurityAuditorConfig,
 } from './services/security-auditor.js';
+import { toError } from '../../shared/error-utils.js';
 import {
   ComplianceValidatorService,
   type IExtendedComplianceValidationService,
@@ -515,7 +516,7 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
   }
 
   private handleError<T>(error: unknown): Result<T, Error> {
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = toError(error);
 
     const currentHealth = this.getHealth();
     this.updateHealth({

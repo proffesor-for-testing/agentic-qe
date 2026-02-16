@@ -12,6 +12,7 @@
 import type { CloudWriter, UpsertOptions, CloudConfig } from '../interfaces.js';
 import type { TunnelManager } from './tunnel-manager.js';
 import { validateIdentifier } from '../../shared/sql-safety.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // Note: pg module is optional - will use mock if not available
 
@@ -222,7 +223,7 @@ export class PostgresWriter implements CloudWriter {
       const result = await this.client.query(sql, params);
       return result.rowCount || 0;
     } catch (error) {
-      console.error(`[PostgresWriter] Upsert failed: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(`[PostgresWriter] Upsert failed: ${toErrorMessage(error)}`);
       throw error;
     }
   }

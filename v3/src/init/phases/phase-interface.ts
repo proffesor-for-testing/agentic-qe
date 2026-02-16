@@ -7,6 +7,7 @@
  */
 
 import type { ProjectAnalysis, AQEInitConfig } from '../types.js';
+import { toErrorMessage, toError } from '../../shared/error-utils.js';
 
 /**
  * Result of running an init phase
@@ -194,9 +195,9 @@ export abstract class BasePhase<TResult = unknown> implements InitPhase<TResult>
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
         durationMs: Date.now() - startTime,
-        message: `${this.description} failed: ${error instanceof Error ? error.message : String(error)}`,
+        message: `${this.description} failed: ${toErrorMessage(error)}`,
       };
     }
   }

@@ -37,6 +37,7 @@ import {
 // Import domain plugins that register workflow actions
 import type { RequirementsValidationExtendedAPI } from '../../domains/requirements-validation/index.js';
 import type { VisualAccessibilityAPI } from '../../domains/visual-accessibility/index.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Fleet State
@@ -186,7 +187,7 @@ export async function handleFleetInit(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to initialize fleet: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to initialize fleet: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -257,7 +258,7 @@ export async function handleFleetStatus(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to get fleet status: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to get fleet status: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -341,7 +342,7 @@ export async function handleFleetHealth(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to get fleet health: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to get fleet health: ${toErrorMessage(error)}`,
     };
   }
 }

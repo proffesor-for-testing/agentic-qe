@@ -22,6 +22,8 @@ import {
 
 // ADR-051: LLM Router for AI-enhanced requirements analysis
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import { toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Configuration for the requirements validator
@@ -219,7 +221,7 @@ Be specific and actionable in your suggestions.`,
         try {
           const jsonMatch = response.content.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const analysis = JSON.parse(jsonMatch[0]);
+            const analysis = safeJsonParse(jsonMatch[0]);
             const result: LLMRequirementsAnalysis = {
               completenessScore: analysis.completenessScore ?? 50,
               testabilityScore: analysis.testabilityScore ?? 50,
@@ -403,7 +405,7 @@ Please analyze these requirements for:
 
       return ok(errors);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -450,7 +452,7 @@ Please analyze these requirements for:
 
       return ok(errors);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -506,7 +508,7 @@ Please analyze these requirements for:
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -544,7 +546,7 @@ Please analyze these requirements for:
 
       return ok(graph);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

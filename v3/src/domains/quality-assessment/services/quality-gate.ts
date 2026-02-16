@@ -6,6 +6,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, Severity } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
+import { toError } from '../../../shared/error-utils.js';
 import {
   GateEvaluationRequest,
   GateResult,
@@ -144,7 +145,7 @@ export class QualityGateService implements IQualityGateService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -169,7 +170,7 @@ export class QualityGateService implements IQualityGateService {
 
       return ok(presetId);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

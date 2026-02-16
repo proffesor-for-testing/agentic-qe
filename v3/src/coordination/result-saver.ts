@@ -7,6 +7,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'crypto';
 import { TaskType } from './queen-coordinator';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -742,7 +743,7 @@ ${data.recommendations.length === 0 ? 'No recommendations - all quality gates pa
 
     try {
       const content = await fs.readFile(indexPath, 'utf-8');
-      index = JSON.parse(content);
+      index = safeJsonParse<ResultIndex>(content);
     } catch {
       index = {
         version: '1.0',

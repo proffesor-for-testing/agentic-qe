@@ -13,6 +13,7 @@
 
 import { OllamaClient } from './ollama-client';
 import { EmbeddingCache } from './embedding-cache';
+import { toErrorMessage } from '../error-utils.js';
 import {
   CodeChunk,
   EmbeddingResult,
@@ -274,7 +275,7 @@ export class NomicEmbedder implements IEmbeddingProvider {
         };
       } catch (error) {
         throw new Error(
-          `Failed to generate embedding for chunk ${chunk.id}: ${error instanceof Error ? error.message : String(error)}`
+          `Failed to generate embedding for chunk ${chunk.id}: ${toErrorMessage(error)}`
         );
       }
     });

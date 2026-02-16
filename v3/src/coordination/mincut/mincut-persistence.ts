@@ -28,6 +28,7 @@ import {
   SwarmObservation,
   SelfModelPrediction,
 } from './interfaces';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Database Row Types
@@ -848,8 +849,8 @@ export class MinCutPersistence {
   private rowToSnapshot(row: SnapshotRow): SwarmGraphSnapshot {
     return {
       timestamp: new Date(row.timestamp),
-      vertices: JSON.parse(row.vertices_json),
-      edges: JSON.parse(row.edges_json),
+      vertices: safeJsonParse(row.vertices_json),
+      edges: safeJsonParse(row.edges_json),
       stats: {
         vertexCount: row.vertex_count,
         edgeCount: row.edge_count,
@@ -874,10 +875,10 @@ export class MinCutPersistence {
       minCutValue: row.mincut_value,
       threshold: row.threshold,
       affectedVertices: row.affected_vertices_json
-        ? JSON.parse(row.affected_vertices_json)
+        ? safeJsonParse(row.affected_vertices_json)
         : [],
       remediations: row.remediations_json
-        ? JSON.parse(row.remediations_json)
+        ? safeJsonParse(row.remediations_json)
         : [],
       acknowledged: row.acknowledged === 1,
       timestamp: new Date(row.timestamp),

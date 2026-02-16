@@ -13,6 +13,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Coverage Data Types
@@ -385,7 +386,7 @@ export async function parseJSONCoverage(
   projectRoot?: string
 ): Promise<CoverageReport> {
   const content = await fs.readFile(jsonPath, 'utf-8');
-  const data = JSON.parse(content);
+  const data = safeJsonParse(content);
   const root = projectRoot || path.dirname(jsonPath);
   const files = new Map<string, FileCoverageData>();
 

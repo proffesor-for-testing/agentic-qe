@@ -16,6 +16,8 @@
  */
 
 import { createHash, createHmac } from 'node:crypto';
+import { toError } from '../shared/error-utils.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 /**
  * Performance metrics for WASM kernel operations
@@ -107,7 +109,7 @@ export class WasmKernelIntegration {
       }
     } catch (error) {
       // WASM kernel module not available - use JS fallback
-      this.initError = error instanceof Error ? error : new Error(String(error));
+      this.initError = toError(error);
       this.kernel = null;
       this.metrics.backend = 'js';
     }
@@ -333,7 +335,7 @@ export class WasmKernelIntegration {
    */
   private jsContentHash(jsonInput: string): string {
     try {
-      const parsed = JSON.parse(jsonInput);
+      const parsed = safeJsonParse<unknown>(jsonInput);
       const sorted = this.sortKeys(parsed);
       return this.jsHash(JSON.stringify(sorted));
     } catch {

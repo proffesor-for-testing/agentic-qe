@@ -16,6 +16,8 @@ import {
 
 // ADR-051: LLM Router for AI-enhanced deployment advice
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import { toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Interface for the deployment advisor service
@@ -234,7 +236,7 @@ Provide deployment advice specific to these metrics.`,
         try {
           const jsonMatch = response.content.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const analysis = JSON.parse(jsonMatch[0]);
+            const analysis = safeJsonParse(jsonMatch[0]);
             return this.formatLLMAdvice(analysis, metrics, riskScore);
           }
         } catch {
@@ -400,7 +402,7 @@ Provide deployment advice specific to these metrics.`,
 
       return ok(advice);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -473,7 +475,7 @@ Provide deployment advice specific to these metrics.`,
         falseNegatives,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

@@ -1373,7 +1373,7 @@ On promotion:
       );
     } catch (analyticsError) {
       // Non-critical — don't fail if analytics insert fails
-      console.warn(`[QEReasoningBank] Analytics write failed: ${analyticsError instanceof Error ? analyticsError.message : String(analyticsError)}`);
+      console.warn(`[QEReasoningBank] Analytics write failed: ${toErrorMessage(analyticsError)}`);
     }
 
     if (result.success) {

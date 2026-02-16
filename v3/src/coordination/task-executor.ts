@@ -33,12 +33,47 @@ import {
 // ADR-051: Task Router for outcome recording
 import { getTaskRouter, type TaskRouterService } from '../mcp/services/task-router';
 
-// Import real domain services
-import { CoverageAnalyzerService, type CoverageData, type FileCoverage } from '../domains/coverage-analysis';
-import { SecurityScannerService, type FullScanResult } from '../domains/security-compliance';
-import { createTestGeneratorService, type TestGeneratorService, type GeneratedTests } from '../domains/test-generation';
-import { KnowledgeGraphService } from '../domains/code-intelligence';
-import { QualityAnalyzerService, type QualityReport } from '../domains/quality-assessment';
+// Import domain types only (no runtime dependency on domain modules)
+import type { CoverageData, FileCoverage } from '../domains/coverage-analysis';
+import type { FullScanResult } from '../domains/security-compliance';
+import type { TestGeneratorService, GeneratedTests } from '../domains/test-generation';
+import type { QualityReport } from '../domains/quality-assessment';
+
+// ============================================================================
+// Lazy Domain Service Imports (break circular dependency: coordination -> domains)
+// These use dynamic import() to avoid static module graph edges.
+// The services are only loaded when first needed at runtime.
+// ============================================================================
+
+type CoverageAnalyzerService = import('../domains/coverage-analysis').CoverageAnalyzerService;
+type SecurityScannerService = import('../domains/security-compliance').SecurityScannerService;
+type KnowledgeGraphService = import('../domains/code-intelligence').KnowledgeGraphService;
+type QualityAnalyzerService = import('../domains/quality-assessment').QualityAnalyzerService;
+
+async function lazyCoverageAnalyzerService(memory: MemoryBackend): Promise<CoverageAnalyzerService> {
+  const mod = await import('../domains/coverage-analysis');
+  return new mod.CoverageAnalyzerService(memory);
+}
+
+async function lazySecurityScannerService(memory: MemoryBackend): Promise<SecurityScannerService> {
+  const mod = await import('../domains/security-compliance');
+  return new mod.SecurityScannerService(memory);
+}
+
+async function lazyTestGeneratorService(memory: MemoryBackend): Promise<TestGeneratorService> {
+  const mod = await import('../domains/test-generation');
+  return mod.createTestGeneratorService(memory);
+}
+
+async function lazyKnowledgeGraphService(memory: MemoryBackend): Promise<KnowledgeGraphService> {
+  const mod = await import('../domains/code-intelligence');
+  return new mod.KnowledgeGraphService(memory);
+}
+
+async function lazyQualityAnalyzerService(memory: MemoryBackend): Promise<QualityAnalyzerService> {
+  const mod = await import('../domains/quality-assessment');
+  return new mod.QualityAnalyzerService(memory);
+}
 
 // ============================================================================
 // Types
@@ -525,37 +560,37 @@ export class DomainTaskExecutor {
   // Instance-level service getters (lazy initialization)
   // ============================================================================
 
-  private getCoverageAnalyzer(): CoverageAnalyzerService {
+  private async getCoverageAnalyzer(): Promise<CoverageAnalyzerService> {
     if (!this.coverageAnalyzer) {
-      this.coverageAnalyzer = new CoverageAnalyzerService(this.kernel.memory);
+      this.coverageAnalyzer = await lazyCoverageAnalyzerService(this.kernel.memory);
     }
     return this.coverageAnalyzer;
   }
 
-  private getSecurityScanner(): SecurityScannerService {
+  private async getSecurityScanner(): Promise<SecurityScannerService> {
     if (!this.securityScanner) {
-      this.securityScanner = new SecurityScannerService(this.kernel.memory);
+      this.securityScanner = await lazySecurityScannerService(this.kernel.memory);
     }
     return this.securityScanner;
   }
 
-  private getTestGenerator(): TestGeneratorService {
+  private async getTestGenerator(): Promise<TestGeneratorService> {
     if (!this.testGenerator) {
-      this.testGenerator = createTestGeneratorService(this.kernel.memory);
+      this.testGenerator = await lazyTestGeneratorService(this.kernel.memory);
     }
     return this.testGenerator;
   }
 
-  private getKnowledgeGraph(): KnowledgeGraphService {
+  private async getKnowledgeGraph(): Promise<KnowledgeGraphService> {
     if (!this.knowledgeGraph) {
-      this.knowledgeGraph = new KnowledgeGraphService(this.kernel.memory);
+      this.knowledgeGraph = await lazyKnowledgeGraphService(this.kernel.memory);
     }
     return this.knowledgeGraph;
   }
 
-  private getQualityAnalyzer(): QualityAnalyzerService {
+  private async getQualityAnalyzer(): Promise<QualityAnalyzerService> {
     if (!this.qualityAnalyzer) {
-      this.qualityAnalyzer = new QualityAnalyzerService(this.kernel.memory);
+      this.qualityAnalyzer = await lazyQualityAnalyzerService(this.kernel.memory);
     }
     return this.qualityAnalyzer;
   }
@@ -607,7 +642,7 @@ export class DomainTaskExecutor {
       };
 
       try {
-        const generator = this.getTestGenerator();
+        const generator = await this.getTestGenerator();
 
         // Determine source files to analyze
         let sourceFiles: string[] = [];
@@ -675,7 +710,7 @@ export class DomainTaskExecutor {
       };
 
       try {
-        const analyzer = this.getCoverageAnalyzer();
+        const analyzer = await this.getCoverageAnalyzer();
         const targetPath = payload.target || process.cwd();
         const threshold = payload.threshold || 80;
 
@@ -750,7 +785,7 @@ export class DomainTaskExecutor {
       };
 
       try {
-        const scanner = this.getSecurityScanner();
+        const scanner = await this.getSecurityScanner();
         const targetPath = payload.target || process.cwd();
 
         // Discover files to scan
@@ -862,7 +897,7 @@ export class DomainTaskExecutor {
       };
 
       try {
-        const kg = this.getKnowledgeGraph();
+        const kg = await this.getKnowledgeGraph();
         const targetPath = payload.target || process.cwd();
         const startTime = Date.now();
 
@@ -934,7 +969,7 @@ export class DomainTaskExecutor {
       };
 
       try {
-        const analyzer = this.getQualityAnalyzer();
+        const analyzer = await this.getQualityAnalyzer();
         const threshold = payload.threshold || 80;
 
         // Determine source files to analyze

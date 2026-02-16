@@ -23,6 +23,7 @@ import {
   MetricCollectorConfig,
   DEFAULT_METRIC_CONFIG,
 } from './interfaces.js';
+import { safeJsonParse } from '../../../../shared/safe-json.js';
 
 // ============================================================================
 // Main Test Counting Function
@@ -67,7 +68,7 @@ export function detectTestRunner(projectPath: string): TestSource {
   const packageJsonPath = join(projectPath, 'package.json');
   if (existsSync(packageJsonPath)) {
     try {
-      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+      const pkg = safeJsonParse(readFileSync(packageJsonPath, 'utf-8'));
       const allDeps = {
         ...(pkg.dependencies || {}),
         ...(pkg.devDependencies || {}),
@@ -217,7 +218,7 @@ function countVitestTests(
 
     // Parse JSON output from vitest list
     try {
-      const data = JSON.parse(output);
+      const data = safeJsonParse(output);
 
       // vitest list --reporter=json returns array of test files with tests
       if (Array.isArray(data)) {

@@ -12,6 +12,7 @@ import { ToolResult } from '../../types';
 import { DefectPredictorService } from '../../../domains/defect-intelligence/services/defect-predictor';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import { Severity } from '../../../shared/types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -228,7 +229,7 @@ export class DefectPredictTool extends MCPToolBase<DefectPredictParams, DefectPr
     } catch (error) {
       return {
         success: false,
-        error: `Defect prediction failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Defect prediction failed: ${toErrorMessage(error)}`,
       };
     }
   }

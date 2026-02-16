@@ -27,6 +27,7 @@
 import type { RealQEReasoningBank } from './real-qe-reasoning-bank.js';
 import type { QualityFeedbackLoop, RoutingOutcomeInput } from '../feedback/feedback-loop.js';
 import type { QEPattern, QEPatternType } from './qe-patterns.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -328,7 +329,7 @@ export class SkillValidationLearner {
         const pattern = existingPatterns.value[0].pattern;
         const templateContent = pattern.template?.content;
         if (templateContent) {
-          const parsed = JSON.parse(templateContent);
+          const parsed = safeJsonParse(templateContent);
           // Validate that it has the expected structure
           if (parsed && typeof parsed === 'object' && Array.isArray(parsed.outcomes)) {
             history = parsed;
@@ -400,7 +401,7 @@ export class SkillValidationLearner {
         const pattern = existingPatterns.value[0].pattern;
         const templateContent = pattern.template?.content;
         if (templateContent) {
-          const parsed = JSON.parse(templateContent);
+          const parsed = safeJsonParse(templateContent);
           // Validate that it has the expected structure
           if (parsed && typeof parsed === 'object' && typeof parsed.models === 'object') {
             crossModel = parsed;
@@ -518,7 +519,7 @@ export class SkillValidationLearner {
       try {
         const templateContent = patterns.value[0].pattern.template?.content;
         if (templateContent) {
-          return JSON.parse(templateContent);
+          return safeJsonParse(templateContent);
         }
       } catch {
         // Pattern exists but content is invalid
@@ -539,7 +540,7 @@ export class SkillValidationLearner {
       try {
         const templateContent = patterns.value[0].pattern.template?.content;
         if (templateContent) {
-          return JSON.parse(templateContent);
+          return safeJsonParse(templateContent);
         }
       } catch {
         // Pattern exists but content is invalid
@@ -617,7 +618,7 @@ export class SkillValidationLearner {
 
     for (const pattern of patterns) {
       try {
-        const content = JSON.parse(pattern.template?.content || '{}');
+        const content = safeJsonParse(pattern.template?.content || '{}');
         const category = content.outcome?.metadata?.category || 'general';
         if (!byCategory.has(category)) {
           byCategory.set(category, []);
@@ -637,7 +638,7 @@ export class SkillValidationLearner {
 
       for (const pattern of categoryPatterns) {
         try {
-          const content = JSON.parse(pattern.template?.content || '{}');
+          const content = safeJsonParse(pattern.template?.content || '{}');
           const outcome = content.outcome;
           if (!outcome) continue;
 

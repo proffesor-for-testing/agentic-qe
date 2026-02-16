@@ -11,6 +11,7 @@ import {
   ImpactAnalysis,
   ImpactedFile,
 } from '../interfaces';
+import { toError } from '../../../shared/error-utils.js';
 import {
   IKnowledgeGraphService,
   KnowledgeGraphService,
@@ -160,7 +161,7 @@ export class ImpactAnalyzerService implements IImpactAnalyzerService {
 
       return ok(analysis);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -219,7 +220,7 @@ export class ImpactAnalyzerService implements IImpactAnalyzerService {
 
       return ok(Array.from(impactedTests));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

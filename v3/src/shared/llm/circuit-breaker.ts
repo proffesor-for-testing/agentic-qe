@@ -11,6 +11,7 @@
  * - HALF-OPEN: Testing recovery, limited requests allowed
  */
 
+import { toError } from '../error-utils.js';
 import {
   CircuitBreakerConfig,
   CircuitBreakerState,
@@ -122,7 +123,7 @@ export class CircuitBreaker {
       this.recordSuccess();
       return result;
     } catch (error) {
-      this.recordFailure(error instanceof Error ? error : new Error(String(error)));
+      this.recordFailure(toError(error));
       throw error;
     }
   }

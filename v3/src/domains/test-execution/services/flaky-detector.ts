@@ -15,6 +15,8 @@ import {
 } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import { TEST_EXECUTION_CONSTANTS, RETRY_CONSTANTS } from '../../constants.js';
+import { toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Configuration
@@ -235,7 +237,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -269,7 +271,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
 
       return ok(analysis);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -295,7 +297,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
 
       return ok(suggestion);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -590,7 +592,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
     try {
       const jsonOutput = this.extractJson(stdout);
       if (jsonOutput) {
-        const parsed = JSON.parse(jsonOutput);
+        const parsed = safeJsonParse(jsonOutput);
         return this.parseVitestJson(parsed, file, runId, runIndex);
       }
     } catch (error) {
@@ -602,7 +604,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
     try {
       const jsonOutput = this.extractJson(stdout);
       if (jsonOutput) {
-        const parsed = JSON.parse(jsonOutput);
+        const parsed = safeJsonParse(jsonOutput);
         if (parsed.testResults) {
           return this.parseJestJson(parsed, file, runId, runIndex);
         }

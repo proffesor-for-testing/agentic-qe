@@ -13,6 +13,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -108,7 +109,7 @@ export class GovernanceInstaller {
         mkdirSync(shardsDir, { recursive: true });
       }
     } catch (error) {
-      errors.push(`Failed to create governance directory: ${error instanceof Error ? error.message : String(error)}`);
+      errors.push(`Failed to create governance directory: ${toErrorMessage(error)}`);
       return {
         installed,
         skipped,
@@ -134,7 +135,7 @@ export class GovernanceInstaller {
           skipped.push('constitution.md');
         }
       } catch (error) {
-        errors.push(`Failed to install constitution.md: ${error instanceof Error ? error.message : String(error)}`);
+        errors.push(`Failed to install constitution.md: ${toErrorMessage(error)}`);
       }
     } else {
       errors.push('constitution.md not found in assets');
@@ -162,11 +163,11 @@ export class GovernanceInstaller {
                 skipped.push(`shards/${shardFile}`);
               }
             } catch (error) {
-              errors.push(`Failed to install ${shardFile}: ${error instanceof Error ? error.message : String(error)}`);
+              errors.push(`Failed to install ${shardFile}: ${toErrorMessage(error)}`);
             }
           }
         } catch (error) {
-          errors.push(`Failed to read shards directory: ${error instanceof Error ? error.message : String(error)}`);
+          errors.push(`Failed to read shards directory: ${toErrorMessage(error)}`);
         }
       } else {
         errors.push('Shards directory not found in assets');

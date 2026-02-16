@@ -3,6 +3,8 @@
  * Parses accessibility snapshots to extract refs for element selection
  */
 
+import { safeJsonParse } from '../../../shared/safe-json.js';
+
 // Element from snapshot
 export interface SnapshotElement {
   ref: string;              // e1, e2, etc. (without @)
@@ -114,7 +116,7 @@ export class SnapshotParser {
    * Parse JSON output from `agent-browser snapshot --json`
    */
   parseJson(jsonOutput: string | object): ParsedSnapshot {
-    const data = typeof jsonOutput === 'string' ? JSON.parse(jsonOutput) : jsonOutput;
+    const data = typeof jsonOutput === 'string' ? safeJsonParse(jsonOutput) : jsonOutput;
 
     // JSON format includes success, data.snapshot, data.refs
     if (data.success && data.data) {

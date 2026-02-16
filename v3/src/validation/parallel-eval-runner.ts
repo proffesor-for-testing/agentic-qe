@@ -20,6 +20,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'yaml';
+import { toErrorMessage } from '../shared/error-utils.js';
 import {
   SkillValidationLearner,
   TestCaseResult,
@@ -401,7 +402,7 @@ class EvalWorker {
           reasoningQuality: 0,
           category: task.testCase.category,
           priority: task.testCase.priority,
-          error: error instanceof Error ? error.message : String(error),
+          error: toErrorMessage(error),
         });
       }
     }

@@ -31,6 +31,7 @@ import Database from 'better-sqlite3';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { getUnifiedMemory, findProjectRoot, type UnifiedMemoryManager } from '../../../kernel/unified-memory.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Database row representation from SQLite
@@ -369,7 +370,7 @@ export class EmbeddingCache {
           text: row.text,
           timestamp: row.timestamp,
           quantization: row.quantization as QuantizationType,
-          metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+          metadata: row.metadata ? safeJsonParse(row.metadata) : undefined,
         };
 
         const cache = this.memoryCache.get(row.namespace);

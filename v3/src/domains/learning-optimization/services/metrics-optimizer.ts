@@ -6,6 +6,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import {
   Strategy,
   OptimizedStrategy,
@@ -160,7 +161,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -224,7 +225,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -262,7 +263,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
       candidates.sort((a, b) => b.score - a.score);
       return ok(candidates[0].strategy);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -328,7 +329,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
 
       return ok(evaluation);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -363,7 +364,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -395,7 +396,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
 
       return ok(snapshots);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -428,7 +429,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
 
       return ok(bestParams);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

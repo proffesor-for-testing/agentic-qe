@@ -11,6 +11,7 @@ import * as path from 'path';
 import type { DataReader, SyncSource } from '../interfaces.js';
 import { validateTableName } from '../../shared/sql-safety.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 /**
  * SQLite reader configuration
@@ -72,7 +73,7 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
       console.log(`[SQLiteReader:${this.name}] Initialized: ${this.dbPath}`);
     } catch (error) {
       throw new Error(
-        `Failed to open SQLite database ${this.dbPath}: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to open SQLite database ${this.dbPath}: ${toErrorMessage(error)}`
       );
     }
   }
@@ -101,7 +102,7 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
       return rows.map(row => this.transformRecord(row));
     } catch (error) {
       throw new Error(
-        `Failed to read from ${this.name}: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to read from ${this.name}: ${toErrorMessage(error)}`
       );
     }
   }

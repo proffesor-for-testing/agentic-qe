@@ -30,6 +30,8 @@ import type { QEPattern, QEPatternType, QEDomain, TestFramework, QEPatternTempla
 import type { CreateQEPatternOptions } from '../learning/qe-reasoning-bank.js';
 import type { Trajectory, TrajectoryStep as AgenticFlowStep } from '../integrations/agentic-flow/reasoning-bank/trajectory-tracker.js';
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
+import { safeJsonParse } from '../shared/safe-json.js';
+import { toError } from '../shared/error-utils.js';
 
 // ============================================================================
 // Browser Trajectory Types (@claude-flow/browser)
@@ -321,7 +323,7 @@ export class TrajectoryAdapter {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
       };
     }
   }
@@ -681,7 +683,7 @@ export class TrajectoryAdapter {
       const template = pattern.template as { content: string } | undefined;
       if (!template) return null;
 
-      const templateData = JSON.parse(template.content);
+      const templateData = safeJsonParse(template.content);
 
       return {
         trajectoryId: String(metadata.trajectoryId),
@@ -918,7 +920,7 @@ export class TrajectoryAdapter {
             (item.metadata.task?.toLowerCase().includes(task.toLowerCase()) ||
              task.toLowerCase().includes(item.metadata.task?.toLowerCase() || ''))
           ) {
-            const pattern = JSON.parse(item.pattern) as QEPattern;
+            const pattern = safeJsonParse<QEPattern>(item.pattern);
             if (pattern.successRate >= 0.7) {
               patterns.push(pattern);
             }

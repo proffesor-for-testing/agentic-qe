@@ -25,6 +25,7 @@ import type { Trajectory, TrajectoryMetrics } from './trajectory-tracker.js';
 import { CircularBuffer } from '../../../shared/utils/circular-buffer.js';
 import { HNSWEmbeddingIndex } from '../../embeddings/index/HNSWIndex.js';
 import type { IEmbedding } from '../../embeddings/base/types.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -849,7 +850,7 @@ export class ExperienceReplay {
       task: row.task,
       domain: row.domain as QEDomain,
       strategy: row.agent, // agent column stores strategy/agent name
-      keyActions: JSON.parse(row.steps_json || '[]'),
+      keyActions: safeJsonParse(row.steps_json || '[]'),
       qualityScore: row.quality,
       applicationCount: row.application_count ?? 0,
       successRate: row.success ? 1.0 : 0.0,
@@ -859,8 +860,8 @@ export class ExperienceReplay {
         : undefined,
       createdAt: new Date(row.started_at),
       lastAppliedAt: row.last_applied_at ? new Date(row.last_applied_at) : undefined,
-      originalMetrics: JSON.parse(row.routing_json || '{}'),
-      tags: JSON.parse(row.tags || '[]'),
+      originalMetrics: safeJsonParse(row.routing_json || '{}'),
+      tags: safeJsonParse(row.tags || '[]'),
     };
   }
 

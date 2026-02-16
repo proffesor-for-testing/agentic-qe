@@ -18,6 +18,7 @@ import {
   ALL_DOMAINS,
 } from '../../shared/types';
 import { EventBus } from '../../kernel/interfaces';
+import { toError } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Protocol Types
@@ -355,7 +356,7 @@ export class MorningSyncProtocol {
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

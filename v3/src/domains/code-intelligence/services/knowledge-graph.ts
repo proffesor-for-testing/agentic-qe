@@ -10,6 +10,7 @@ import { NomicEmbedder } from '../../../shared/embeddings';
 import { MemoryBackend } from '../../../kernel/interfaces';
 // ADR-051: LLM Router for AI-enhanced knowledge extraction
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import {
   IndexRequest,
   IndexResult,
@@ -24,6 +25,7 @@ import {
   DependencyEdge,
   DependencyMetrics,
 } from '../interfaces';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Interface for the knowledge graph service
@@ -183,7 +185,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
         } catch (fileError) {
           errors.push({
             file: path,
-            error: fileError instanceof Error ? fileError.message : String(fileError),
+            error: toErrorMessage(fileError),
           });
         }
       }
@@ -207,7 +209,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
         errors,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -224,7 +226,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
         return this.executeNaturalLanguageQuery(queryStr, limit);
       }
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -263,7 +265,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
         metrics,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -451,7 +453,7 @@ Be precise and only report high-confidence findings.`,
       // Try to extract JSON from response (may be wrapped in markdown)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = safeJsonParse(jsonMatch[0]);
         return {
           semanticRelationships: Array.isArray(parsed.semanticRelationships)
             ? parsed.semanticRelationships
@@ -513,7 +515,7 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
         try {
           const jsonMatch = response.content.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
+            const parsed = safeJsonParse(jsonMatch[0]);
             const rankedIds: string[] = parsed.rankedIds || [];
             const insights: string[] = parsed.insights || [];
 

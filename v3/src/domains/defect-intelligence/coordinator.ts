@@ -5,6 +5,7 @@
  * V3 Integration:
  * - ADR-047: MinCut Self-Organizing QE Integration for topology awareness
  * - MM-001: Multi-Model Consensus for high-confidence defect predictions
+ * - CQ-002: Extends BaseDomainCoordinator for lifecycle deduplication
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -48,18 +49,10 @@ import {
 } from './services/root-cause-analyzer';
 
 // V3 Integration: MinCut Topology Awareness (ADR-047)
-import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
-  type IMinCutAwareDomain,
-} from '../../coordination/mixins/mincut-aware-domain';
 import { QueenMinCutBridge, type MinCutHealth } from '../../coordination/mincut';
 
 // V3 Integration: Multi-Model Consensus (MM-001)
 import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
-  type IConsensusEnabledDomain,
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 import {
@@ -67,11 +60,12 @@ import {
   type ConsensusResult,
 } from '../../coordination/consensus';
 
-// ADR-058: Governance-aware mixin for MemoryWriteGate integration
+// CQ-002: Base domain coordinator
 import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+  type BaseWorkflowStatus,
+} from '../base-domain-coordinator.js';
 
 /**
  * Interface for the defect intelligence coordinator
@@ -105,21 +99,9 @@ export interface WorkflowStatus {
 /**
  * Coordinator configuration
  */
-export interface CoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
+export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
   enablePatternLearning: boolean;
-  publishEvents: boolean;
   autoAnalyzeThreshold: number;
-
-  // V3: MinCut topology awareness (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-
-  // V3: Multi-model consensus for high-confidence predictions (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
   consensusConfig?: Partial<ConsensusEnabledConfig>;
 }
 
@@ -138,7 +120,11 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   // V3: Enable consensus for high-confidence defect predictions
   enableConsensus: true,
   consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
+  consensusMinModels: 2,
 };
+
+type DefectWorkflowType = 'predict' | 'analyze' | 'regression' | 'cluster' | 'learn';
 
 /**
  * Defect Intelligence Coordinator
@@ -147,148 +133,77 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
  * V3 Integration:
  * - MinCut topology awareness for routing and health monitoring (ADR-047)
  * - Multi-model consensus for high-confidence predictions (MM-001)
+ * - CQ-002: Extends BaseDomainCoordinator
  */
-export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordinator {
-  private readonly config: CoordinatorConfig;
+export class DefectIntelligenceCoordinator
+  extends BaseDomainCoordinator<CoordinatorConfig, DefectWorkflowType>
+  implements IDefectIntelligenceCoordinator
+{
   private readonly predictor: IDefectPredictorService;
   private readonly patternLearner: IPatternLearnerService;
   private readonly rootCauseAnalyzer: IRootCauseAnalyzerService;
-  private readonly workflows: Map<string, WorkflowStatus> = new Map();
-  private initialized = false;
-
-  // V3: MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // V3: Multi-model consensus mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
-  // ADR-058: Governance mixin for MemoryWriteGate integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
-
-  // Domain identifier for mixin initialization
-  private readonly domainName = 'defect-intelligence';
 
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
+
+    super(eventBus, 'defect-intelligence', fullConfig, {
+      verifyFindingTypes: ['defect-prediction', 'root-cause', 'regression-risk', 'pattern-classification'],
+      ...fullConfig.consensusConfig,
+    });
+
     this.predictor = new DefectPredictorService(memory);
     this.patternLearner = new PatternLearnerService(memory);
     this.rootCauseAnalyzer = new RootCauseAnalyzerService(memory);
-
-    // V3: Initialize MinCut awareness mixin
-    this.minCutMixin = createMinCutAwareMixin('defect-intelligence', {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // V3: Initialize consensus mixin for verifying high-confidence predictions
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
-      verifyFindingTypes: ['defect-prediction', 'root-cause', 'regression-risk', 'pattern-classification'],
-      strategy: 'weighted',
-      minModels: 2,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
-      ...this.config.consensusConfig,
-    });
-
-    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
-    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
   }
 
-  /**
-   * Initialize the coordinator
-   */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
 
-    // Subscribe to relevant events
+  protected async onInitialize(): Promise<void> {
     this.subscribeToEvents();
-
-    // Load any persisted workflow state
     await this.loadWorkflowState();
-
-    // V3: Initialize consensus engine (registers providers from environment)
-    if (this.config.enableConsensus) {
-      await this.consensusMixin.initializeConsensus();
-    }
-
-    this.initialized = true;
   }
 
-  /**
-   * Dispose and cleanup
-   */
-  async dispose(): Promise<void> {
-    // V3: Dispose consensus engine
-    if (this.config.enableConsensus) {
-      await this.consensusMixin.disposeConsensus();
-    }
-
-    // V3: Dispose MinCut mixin
-    this.minCutMixin.dispose();
-
+  protected async onDispose(): Promise<void> {
     await this.saveWorkflowState();
-    this.workflows.clear();
-    this.initialized = false;
   }
 
-  /**
-   * Get active workflow statuses
-   */
-  getActiveWorkflows(): WorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
+  protected subscribeToEvents(): void {
+    // Subscribe to test execution events to learn from failures
+    this.eventBus.subscribe(
+      'test-execution.TestRunCompleted',
+      this.handleTestRunCompleted.bind(this)
+    );
+
+    // Subscribe to code change events for regression analysis
+    this.eventBus.subscribe(
+      'code-intelligence.ImpactAnalysisCompleted',
+      this.handleImpactAnalysis.bind(this)
     );
   }
 
-  // ============================================================================
-  // V3: MinCut Topology Awareness (ADR-047)
-  // ============================================================================
+  // ==========================================================================
+  // Workflow status (typed override)
+  // ==========================================================================
 
-  /**
-   * Set the MinCut bridge for topology awareness
-   * Uses dependency injection pattern for testability
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
+  override getActiveWorkflows(): WorkflowStatus[] {
+    return super.getActiveWorkflows() as WorkflowStatus[];
   }
 
-  /**
-   * Check if the overall topology is healthy
-   * Returns true if status is not 'critical'
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   * Returns true if any weak vertex belongs to defect-intelligence
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
-  /**
-   * Get routing candidates excluding weak domains
-   * Filters out domains that are currently weak points
-   */
-  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
-  }
+  // ==========================================================================
+  // V3: Additional MinCut Methods (ADR-047)
+  // ==========================================================================
 
   /**
    * Get weak vertices in this domain (for diagnostics)
    */
-  getDomainWeakVertices() {
+  override getDomainWeakVertices() {
     return this.minCutMixin.getDomainWeakVertices();
   }
 
@@ -299,9 +214,9 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
     return this.minCutMixin.onTopologyHealthChange(callback);
   }
 
-  // ============================================================================
+  // ==========================================================================
   // V3: Consensus Verification Methods (MM-001)
-  // ============================================================================
+  // ==========================================================================
 
   /**
    * Check if a finding requires consensus verification
@@ -317,16 +232,9 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
     return this.consensusMixin.verifyFinding(finding);
   }
 
-  /**
-   * Get consensus statistics
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
-  }
-
-  // ============================================================================
+  // ==========================================================================
   // DefectIntelligenceAPI Implementation
-  // ============================================================================
+  // ==========================================================================
 
   /**
    * Predict defects for given files
@@ -684,9 +592,9 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
     }
   }
 
-  // ============================================================================
+  // ==========================================================================
   // Agent Spawning Methods
-  // ============================================================================
+  // ==========================================================================
 
   private async spawnPredictionAgent(
     workflowId: string,
@@ -745,9 +653,9 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
     return this.agentCoordinator.spawn(config);
   }
 
-  // ============================================================================
+  // ==========================================================================
   // Event Publishing Methods
-  // ============================================================================
+  // ==========================================================================
 
   private async publishPredictionEvent(result: PredictionResult): Promise<void> {
     for (const prediction of result.predictions) {
@@ -816,70 +724,9 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
     await this.eventBus.publish(event);
   }
 
-  // ============================================================================
-  // Workflow Management
-  // ============================================================================
-
-  private startWorkflow(id: string, type: WorkflowStatus['type']): void {
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  // ============================================================================
+  // ==========================================================================
   // Event Handling
-  // ============================================================================
-
-  private subscribeToEvents(): void {
-    // Subscribe to test execution events to learn from failures
-    this.eventBus.subscribe(
-      'test-execution.TestRunCompleted',
-      this.handleTestRunCompleted.bind(this)
-    );
-
-    // Subscribe to code change events for regression analysis
-    this.eventBus.subscribe(
-      'code-intelligence.ImpactAnalysisCompleted',
-      this.handleImpactAnalysis.bind(this)
-    );
-  }
+  // ==========================================================================
 
   private async handleTestRunCompleted(
     event: import('../../shared/types').DomainEvent
@@ -921,9 +768,9 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
     }
   }
 
-  // ============================================================================
+  // ==========================================================================
   // Auto-Analysis
-  // ============================================================================
+  // ==========================================================================
 
   private async autoAnalyzeHighRisk(result: PredictionResult): Promise<void> {
     const highRiskFiles = result.predictions.filter(
@@ -945,9 +792,9 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
     }
   }
 
-  // ============================================================================
+  // ==========================================================================
   // State Persistence
-  // ============================================================================
+  // ==========================================================================
 
   private async loadWorkflowState(): Promise<void> {
     const savedState = await this.memory.get<WorkflowStatus[]>(

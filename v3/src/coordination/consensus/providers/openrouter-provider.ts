@@ -15,6 +15,7 @@ import {
   ModelHealthResult,
 } from '../interfaces';
 import { BaseModelProvider } from '../model-provider';
+import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -372,7 +373,7 @@ export class OpenRouterModelProvider extends BaseModelProvider {
 
           return content;
         } catch (error) {
-          lastError = error instanceof Error ? error : new Error(String(error));
+          lastError = toError(error);
 
           // Don't retry on non-retryable errors
           if (this.isNonRetryableError(lastError)) {
@@ -428,7 +429,7 @@ export class OpenRouterModelProvider extends BaseModelProvider {
     } catch (error) {
       return {
         healthy: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         availableModels: [],
       };
     }

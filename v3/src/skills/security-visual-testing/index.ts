@@ -34,6 +34,7 @@ import type {
   LayoutShift,
 } from './types.js';
 import { DEFAULT_CONFIG } from './types.js';
+import { toError } from '../../shared/error-utils.js';
 
 /**
  * Security-Visual Testing Skill Implementation
@@ -242,7 +243,7 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -325,7 +326,7 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -399,7 +400,7 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -460,7 +461,7 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
 
       return ok(validation);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -483,7 +484,7 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

@@ -4,6 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { toErrorMessage } from '../../../../shared/error-utils.js';
 import type {
   Vulnerability,
   VulnerabilitySeverity,
@@ -417,7 +418,7 @@ export function handleFetchError(
   targetUrl: string,
   vulnerabilities: Vulnerability[]
 ): void {
-  const errorMsg = fetchError instanceof Error ? fetchError.message : String(fetchError);
+  const errorMsg = toErrorMessage(fetchError);
 
   if (errorMsg.includes('CERT') || errorMsg.includes('SSL') || errorMsg.includes('TLS') || errorMsg.includes('certificate')) {
     vulnerabilities.push({

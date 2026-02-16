@@ -21,6 +21,7 @@ import {
   AgentCoordinator,
 } from '../../kernel/interfaces';
 import { createEvent } from '../../shared/events/domain-events';
+import { toErrorMessage, toError } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Protocol Events
@@ -424,7 +425,7 @@ export class QualityGateProtocol implements IQualityGateProtocol {
       if (spawnedAgentId) {
         await this.stopCoordinatorAgent(spawnedAgentId);
       }
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       await this.publishGateCompleted(evaluationId, releaseCandidate, 'blocked', errorMessage);
       return err(error instanceof Error ? error : new Error(errorMessage));
     }
@@ -510,7 +511,7 @@ export class QualityGateProtocol implements IQualityGateProtocol {
 
       return ok(metrics);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -651,7 +652,7 @@ export class QualityGateProtocol implements IQualityGateProtocol {
 
       return ok(checks);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -697,7 +698,7 @@ export class QualityGateProtocol implements IQualityGateProtocol {
 
       return ok(assessment);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -781,7 +782,7 @@ export class QualityGateProtocol implements IQualityGateProtocol {
 
       return ok(recommendation);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

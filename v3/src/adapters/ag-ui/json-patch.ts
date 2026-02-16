@@ -12,6 +12,7 @@
 
 import * as fastJsonPatch from 'fast-json-patch';
 import type { JsonPatchOperation as AQEJsonPatchOperation } from './event-types.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -352,7 +353,7 @@ export class JsonPatchError extends Error {
    * Create error from fast-json-patch error
    */
   static fromFastJsonPatch(error: unknown, operationIndex?: number): JsonPatchError {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = toErrorMessage(error);
     return new JsonPatchError(message, 'APPLICATION_FAILED', {
       originalError: message,
       operationIndex,
@@ -663,7 +664,7 @@ export function applyPatch(
       document: result.newDocument as Record<string, unknown>,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = toErrorMessage(error);
     // Try to extract operation index from error message
     const indexMatch = message.match(/Operation resulted in error.*index (\d+)/);
     const failedIndex = indexMatch ? parseInt(indexMatch[1], 10) : undefined;

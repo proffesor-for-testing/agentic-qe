@@ -8,6 +8,7 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -186,7 +187,7 @@ export class SecurityScanTool extends MCPToolBase<SecurityScanParams, SecuritySc
     } catch (error) {
       return {
         success: false,
-        error: `Security scan failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Security scan failed: ${toErrorMessage(error)}`,
       };
     }
   }

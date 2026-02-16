@@ -7,6 +7,7 @@
  */
 
 import { BaseWorker } from '../base-worker.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 import type {
   WorkerConfig,
   WorkerContext,
@@ -179,7 +180,7 @@ export class CloudSyncWorker extends BaseWorker {
         timestamp: new Date(),
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       context.logger.error(`Cloud sync failed: ${errorMessage}`);
 
       findings.push({

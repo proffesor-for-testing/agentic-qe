@@ -5,6 +5,7 @@
  * Falls back to rule-based routing when RuVector is unavailable.
  */
 
+import { toErrorMessage } from '../../shared/error-utils.js';
 import type {
   QLearningRouter,
   QLearningState,
@@ -81,7 +82,7 @@ export class RuVectorQLearningRouter implements QLearningRouter {
       }
       await this.loadQTable();
     } catch (error) {
-      console.warn('[RuVectorQLearningRouter] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[RuVectorQLearningRouter] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
   }
@@ -558,7 +559,7 @@ export class RuVectorQLearningRouter implements QLearningRouter {
         qValue, reward
       );
     } catch (error) {
-      console.warn('[RuVectorQLearningRouter] Failed to persist Q-value:', error instanceof Error ? error.message : String(error));
+      console.warn('[RuVectorQLearningRouter] Failed to persist Q-value:', toErrorMessage(error));
     }
   }
 

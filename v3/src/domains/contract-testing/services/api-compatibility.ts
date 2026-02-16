@@ -6,6 +6,7 @@
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
 import type { Version } from '../../../shared/value-objects/index.js';
+import { toError } from '../../../shared/error-utils.js';
 import type {
   IApiCompatibilityService,
   ApiContract,
@@ -18,6 +19,7 @@ import type {
   ContractEndpoint,
   SchemaDefinition,
 } from '../interfaces.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Configuration for the API compatibility service
@@ -97,7 +99,7 @@ export class ApiCompatibilityService implements IApiCompatibilityService {
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -199,7 +201,7 @@ export class ApiCompatibilityService implements IApiCompatibilityService {
         estimatedEffort,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -373,8 +375,8 @@ export class ApiCompatibilityService implements IApiCompatibilityService {
     }
 
     try {
-      const oldContent = JSON.parse(oldSchema.content) as Record<string, unknown>;
-      const newContent = JSON.parse(newSchema.content) as Record<string, unknown>;
+      const oldContent = safeJsonParse(oldSchema.content) as Record<string, unknown>;
+      const newContent = safeJsonParse(newSchema.content) as Record<string, unknown>;
 
       // Compare properties
       const oldProps = (oldContent.properties as Record<string, unknown>) || {};
@@ -552,7 +554,7 @@ export class ApiCompatibilityService implements IApiCompatibilityService {
     try {
       const schemaContent =
         typeof schema.content === 'string'
-          ? JSON.parse(schema.content)
+          ? safeJsonParse(schema.content)
           : schema.content;
 
       this.scanObjectForDeprecations(

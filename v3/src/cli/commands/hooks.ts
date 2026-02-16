@@ -16,7 +16,7 @@ import {
   createQEReasoningBank,
   QERoutingRequest,
 } from '../../learning/qe-reasoning-bank.js';
-import { safeJsonParse } from '../helpers/safe-json.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 import {
   QEHookRegistry,
   QE_HOOK_EVENTS,

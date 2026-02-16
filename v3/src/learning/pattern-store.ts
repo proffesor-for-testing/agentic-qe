@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { MemoryBackend } from '../kernel/interfaces.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
+import { toErrorMessage, toError } from '../shared/error-utils.js';
 import {
   QEPattern,
   QEPatternContext,
@@ -433,7 +434,7 @@ export class PatternStore implements IPatternStore {
     } catch (error) {
       console.warn(
         '[PatternStore] HNSW not available, using memory backend search:',
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
       this.hnswIndex = null;
       this.hnswAvailable = false;
@@ -684,7 +685,7 @@ export class PatternStore implements IPatternStore {
 
       return ok(finalResults);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

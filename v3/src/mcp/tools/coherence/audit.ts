@@ -28,6 +28,7 @@ import {
   type PatternHotspot,
   type AuditRecommendation,
 } from '../../../learning/index.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import {
   createPatternStore,
   type QEPattern,
@@ -315,7 +316,7 @@ export class CoherenceAuditTool extends MCPToolBase<
 
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }

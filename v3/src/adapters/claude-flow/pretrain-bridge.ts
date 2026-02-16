@@ -15,6 +15,7 @@
 import type { PretrainResult } from './types.js';
 import { detectClaudeFlow } from './detect.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 /**
  * Pretrain Bridge for codebase analysis
@@ -255,7 +256,7 @@ export class PretrainBridge {
         success: false,
         repositoryPath: targetPath,
         depth,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }

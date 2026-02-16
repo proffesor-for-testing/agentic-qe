@@ -13,6 +13,7 @@ import { createTestGeneratorService, type TestGeneratorService } from '../../../
 import { GenerateTestsRequest } from '../../../domains/test-generation/interfaces';
 import { TokenOptimizerService } from '../../../optimization/token-optimizer-service.js';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -210,7 +211,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
     } catch (error) {
       return {
         success: false,
-        error: `Test generation failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Test generation failed: ${toErrorMessage(error)}`,
       };
     }
   }

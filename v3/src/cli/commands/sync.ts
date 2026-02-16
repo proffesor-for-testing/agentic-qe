@@ -24,6 +24,7 @@ import {
 } from '../../sync/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 /**
  * Create sync commands
@@ -75,7 +76,7 @@ export function createSyncCommands(): Command {
         spinner.stop();
         printSyncReport(report);
       } catch (error) {
-        spinner.fail(`Sync failed: ${error instanceof Error ? error.message : String(error)}`);
+        spinner.fail(`Sync failed: ${toErrorMessage(error)}`);
         process.exit(1);
       }
     });
@@ -97,7 +98,7 @@ export function createSyncCommands(): Command {
         spinner.stop();
         printSyncStatus(status);
       } catch (error) {
-        spinner.fail(`Failed to get status: ${error instanceof Error ? error.message : String(error)}`);
+        spinner.fail(`Failed to get status: ${toErrorMessage(error)}`);
         process.exit(1);
       }
     });
@@ -122,7 +123,7 @@ export function createSyncCommands(): Command {
         spinner.stop();
         printVerifyResult(verifyResult);
       } catch (error) {
-        spinner.fail(`Verification failed: ${error instanceof Error ? error.message : String(error)}`);
+        spinner.fail(`Verification failed: ${toErrorMessage(error)}`);
         process.exit(1);
       }
     });
@@ -168,7 +169,7 @@ export function createSyncCommands(): Command {
         spinner.info('Run with --output to save schema, then apply manually');
         await agent.close();
       } catch (error) {
-        spinner.fail(`Init failed: ${error instanceof Error ? error.message : String(error)}`);
+        spinner.fail(`Init failed: ${toErrorMessage(error)}`);
         process.exit(1);
       }
     });

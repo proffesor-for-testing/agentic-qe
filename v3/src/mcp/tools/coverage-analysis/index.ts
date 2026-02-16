@@ -19,6 +19,7 @@ import {
 } from '../../../domains/coverage-analysis/services/coverage-parser';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import { FileCoverage as DomainFileCoverage, CoverageSummary as DomainCoverageSummary } from '../../../domains/coverage-analysis/interfaces';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -242,7 +243,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
           // Return error - don't silently fall back to fake data
           return {
             success: false,
-            error: `Failed to parse coverage file '${coverageFile}': ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            error: `Failed to parse coverage file '${coverageFile}': ${toErrorMessage(parseError)}`,
           };
         }
       } else {
@@ -361,7 +362,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
     } catch (error) {
       return {
         success: false,
-        error: `Coverage analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Coverage analysis failed: ${toErrorMessage(error)}`,
       };
     }
   }
@@ -484,7 +485,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
         } catch (parseError) {
           return {
             success: false,
-            error: `Failed to parse coverage file: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            error: `Failed to parse coverage file: ${toErrorMessage(parseError)}`,
           };
         }
       } else {
@@ -599,7 +600,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
     } catch (error) {
       return {
         success: false,
-        error: `Gap detection failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Gap detection failed: ${toErrorMessage(error)}`,
       };
     }
   }

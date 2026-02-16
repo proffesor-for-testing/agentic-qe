@@ -36,6 +36,7 @@ import type {
 import { RuVectorQLearningRouter, type QLearningParams, createQLearningRouterSync } from './q-learning-router';
 import { QValueStore, type QValueStoreConfig, createQValueStore } from '../rl-suite/persistence/q-value-store';
 import type { RLAlgorithmType } from '../rl-suite/interfaces';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // EWC++ Configuration (ADR-046: Future Catastrophic Forgetting Prevention)
@@ -239,7 +240,7 @@ export class PersistentQLearningRouter implements QLearningRouter {
     } catch (error) {
       this.initPromise = null;
       throw new Error(
-        `Failed to initialize PersistentQLearningRouter: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize PersistentQLearningRouter: ${toErrorMessage(error)}`
       );
     }
   }

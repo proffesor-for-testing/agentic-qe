@@ -33,6 +33,8 @@
 
 import { randomUUID } from 'crypto';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+import { toErrorMessage } from '../shared/error-utils.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
 // Token Usage Types (ADR-042 Specification)
@@ -754,7 +756,7 @@ class TokenMetricsCollectorImpl {
 
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
-      const data: PersistedTokenData = JSON.parse(content);
+      const data: PersistedTokenData = safeJsonParse<PersistedTokenData>(content);
 
       // Validate version
       if (!data.version || !data.version.startsWith('1.')) {
@@ -819,7 +821,7 @@ class TokenMetricsCollectorImpl {
       if (!this.db.isInitialized()) await this.db.initialize();
       await this.loadFromKv();
     } catch (error) {
-      console.warn('[TokenMetricsCollector] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[TokenMetricsCollector] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
   }

@@ -23,6 +23,8 @@ import {
 
 // ADR-051: LLM Router for AI-enhanced quality insights
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import { toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Interface for the quality analyzer service
@@ -257,7 +259,7 @@ Focus on:
       // Try to extract JSON from response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = safeJsonParse(jsonMatch[0]);
 
         // Validate required fields
         if (
@@ -369,7 +371,7 @@ Focus on:
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -410,7 +412,7 @@ Focus on:
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -465,7 +467,7 @@ Focus on:
         direction,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

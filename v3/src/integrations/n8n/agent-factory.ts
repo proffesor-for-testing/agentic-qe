@@ -11,6 +11,7 @@ import { resolve, join } from 'path';
 import { existsSync } from 'fs';
 import type { N8nAgentType } from './types.js';
 import { N8N_TO_V3_DOMAIN_MAP } from './workflow-mapper.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Types (matching v2 agent interfaces)
@@ -413,7 +414,7 @@ export class N8nAgentFactory {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         agentId: instance.id,
       };
     }

@@ -40,6 +40,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Trace Context
@@ -368,7 +369,7 @@ export function extractTraceContext(
 
   try {
     const json = correlationId.slice(TRACE_PREFIX.length);
-    const parsed = JSON.parse(json) as Record<string, unknown>;
+    const parsed = safeJsonParse<Record<string, unknown>>(json);
 
     if (
       typeof parsed.traceId === 'string' &&

@@ -12,6 +12,7 @@
 import type { Database as DatabaseType } from 'better-sqlite3';
 import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
 import { AsymmetricLearningEngine, type AsymmetricLearningConfig } from './asymmetric-learning.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
 // Configuration
@@ -904,8 +905,8 @@ Pattern extracted from ${exp.count} successful experiences.`;
       successRate: row.success_rate,
       qualityScore: row.quality_score,
       tier: row.tier as 'short-term' | 'long-term',
-      template: JSON.parse(row.template_json || '{}'),
-      context: JSON.parse(row.context_json || '{}'),
+      template: safeJsonParse(row.template_json || '{}'),
+      context: safeJsonParse(row.context_json || '{}'),
       createdAt: new Date(row.created_at),
       lastUsedAt: row.last_used_at ? new Date(row.last_used_at) : new Date(row.created_at),
       successfulUses: row.successful_uses,

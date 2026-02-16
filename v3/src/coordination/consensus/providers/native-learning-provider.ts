@@ -27,6 +27,7 @@ import {
 import { BaseModelProvider } from '../model-provider';
 import type { IPatternStore, PatternSearchResult } from '../../../learning/pattern-store';
 import type { Severity } from '../../../shared/types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -404,10 +405,10 @@ export class NativeLearningProvider extends BaseModelProvider {
         agrees: false,
         assessment: 'inconclusive' as VoteAssessment,
         confidence: 0,
-        reasoning: `Fallback provider failed: ${error instanceof Error ? error.message : String(error)}`,
+        reasoning: `Fallback provider failed: ${toErrorMessage(error)}`,
         executionTime: Date.now() - startTime,
         votedAt: new Date(),
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }

@@ -14,7 +14,7 @@ import {
   err,
   DomainEvent,
 } from '../../shared/types';
-import { toError } from '../../shared/error-utils.js';
+import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import {
   EventBus,
   MemoryBackend,
@@ -363,7 +363,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
         console.log('[TestGenerationCoordinator] QEFlashAttention initialized for test-similarity');
       } catch (error) {
         console.error('[TestGenerationCoordinator] Failed to initialize QEFlashAttention:', error);
-        throw new Error(`QEFlashAttention initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`QEFlashAttention initialization failed: ${toErrorMessage(error)}`);
       }
     }
 
@@ -378,7 +378,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
         console.log('[TestGenerationCoordinator] DecisionTransformer created for test case selection');
       } catch (error) {
         console.error('[TestGenerationCoordinator] Failed to create DecisionTransformer:', error);
-        throw new Error(`DecisionTransformer creation failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`DecisionTransformer creation failed: ${toErrorMessage(error)}`);
       }
     }
 
@@ -583,7 +583,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
 
       return result;
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       if (this.config.publishEvents) {
         await this.publishGenerationFailed(err, 'generateTests');

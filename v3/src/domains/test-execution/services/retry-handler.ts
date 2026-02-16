@@ -9,6 +9,8 @@ import { Result, ok, err } from '../../../shared/types';
 import { RetryResult, FailedTest } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import { TEST_EXECUTION_CONSTANTS, RETRY_CONSTANTS } from '../../constants.js';
+import { toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Configuration
@@ -273,7 +275,7 @@ export class RetryHandlerService implements IRetryHandler {
 
       return ok(retryResult);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -298,7 +300,7 @@ export class RetryHandlerService implements IRetryHandler {
       const allStats = Array.from(this.runStats.values());
       return ok(this.convertToRetryStatistics(allStats));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -498,7 +500,7 @@ export class RetryHandlerService implements IRetryHandler {
       const pkgPath = `${cwd}/package.json`;
       if (existsSync(pkgPath)) {
         const pkgContent = readFileSync(pkgPath, 'utf-8');
-        const pkg = JSON.parse(pkgContent);
+        const pkg = safeJsonParse(pkgContent);
         const testScript = pkg?.scripts?.test ?? '';
         if (testScript.includes('vitest')) return 'vitest';
         if (testScript.includes('jest')) return 'jest';
@@ -638,7 +640,7 @@ export class RetryHandlerService implements IRetryHandler {
       // Vitest JSON output
       const vitestMatch = stdout.match(/\{[\s\S]*"testResults"[\s\S]*\}/);
       if (vitestMatch) {
-        const result = JSON.parse(vitestMatch[0]);
+        const result = safeJsonParse(vitestMatch[0]);
         if (result.success === true || result.numFailedTests === 0) {
           return { passed: true };
         }
@@ -654,7 +656,7 @@ export class RetryHandlerService implements IRetryHandler {
       // Jest JSON output
       const jestMatch = stdout.match(/\{[\s\S]*"numFailedTests"[\s\S]*\}/);
       if (jestMatch) {
-        const result = JSON.parse(jestMatch[0]);
+        const result = safeJsonParse(jestMatch[0]);
         if (result.success === true || result.numFailedTests === 0) {
           return { passed: true };
         }
@@ -670,7 +672,7 @@ export class RetryHandlerService implements IRetryHandler {
       // Mocha JSON output
       const mochaMatch = stdout.match(/\{[\s\S]*"stats"[\s\S]*"failures"[\s\S]*\}/);
       if (mochaMatch) {
-        const result = JSON.parse(mochaMatch[0]);
+        const result = safeJsonParse(mochaMatch[0]);
         if (result.stats?.failures === 0) {
           return { passed: true };
         }

@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types';
 import { HttpClient, RequestOptions } from '../../../shared/http';
 import { MemoryBackend } from '../../../kernel/interfaces';
+import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import {
   LoadTest,
   LoadTestType,
@@ -122,7 +123,7 @@ export class LoadTesterService implements ILoadTestingService {
 
       return ok(test.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -173,7 +174,7 @@ export class LoadTesterService implements ILoadTestingService {
         execution.result.status = 'failed';
         execution.result.errors.push({
           type: 'execution_error',
-          message: error instanceof Error ? error.message : String(error),
+          message: toErrorMessage(error),
           count: 1,
           firstOccurrence: new Date(),
           lastOccurrence: new Date(),
@@ -183,7 +184,7 @@ export class LoadTesterService implements ILoadTestingService {
         this.activeTests.delete(testId);
       }
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -202,7 +203,7 @@ export class LoadTesterService implements ILoadTestingService {
 
       return ok(this.finalizeExecution(execution));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -223,7 +224,7 @@ export class LoadTesterService implements ILoadTestingService {
 
       return ok(latestPoint);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -320,7 +321,7 @@ export class LoadTesterService implements ILoadTestingService {
 
       return ok(loadTest);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -653,7 +654,7 @@ export class LoadTesterService implements ILoadTestingService {
         status: 0,
         latency: Date.now() - start,
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         timestamp,
       };
     }

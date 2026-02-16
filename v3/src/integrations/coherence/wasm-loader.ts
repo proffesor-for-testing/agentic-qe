@@ -50,6 +50,7 @@ import type {
   FallbackResult,
   FallbackState,
 } from './types.js';
+import { toErrorMessage, toError } from '../../shared/error-utils.js';
 import {
   DEFAULT_WASM_LOADER_CONFIG,
   DEFAULT_FALLBACK_RESULT,
@@ -291,7 +292,7 @@ export class WasmLoader implements IWasmLoader {
       return this.engines;
     } catch (error) {
       this.state = 'failed';
-      this.lastError = error instanceof Error ? error : new Error(String(error));
+      this.lastError = toError(error);
 
       // ADR-052 A4.3: Enter degraded mode and schedule retry
       this.enterDegradedMode(this.lastError);
@@ -621,7 +622,7 @@ export class WasmLoader implements IWasmLoader {
 
         return engines;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         // Emit error event
         this.emit('error', {
@@ -689,7 +690,7 @@ export class WasmLoader implements IWasmLoader {
         wasmModule = require('prime-radiant-advanced-wasm');
       } catch (requireError) {
         throw new Error(
-          `Failed to import prime-radiant-advanced-wasm: ${importError instanceof Error ? importError.message : String(importError)}`
+          `Failed to import prime-radiant-advanced-wasm: ${toErrorMessage(importError)}`
         );
       }
     }

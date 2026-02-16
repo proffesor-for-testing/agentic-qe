@@ -13,6 +13,8 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
 import { validateTableName } from '../../shared/sql-safety.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -184,7 +186,7 @@ export class SyncEmbeddingGenerator {
               console.log(`[SyncEmbedding] Generated ${stats.patternsGenerated}/${patterns.length}`);
             }
           } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
+            const errorMsg = toErrorMessage(error);
             stats.errors.push(`Pattern ${pattern.id}: ${errorMsg}`);
             stats.patternsSkipped++;
           }
@@ -237,7 +239,7 @@ export class SyncEmbeddingGenerator {
       for (const pattern of patterns) {
         try {
           const patternVector = typeof pattern.embedding === 'string'
-            ? JSON.parse(pattern.embedding)
+            ? safeJsonParse<number[]>(pattern.embedding)
             : pattern.embedding;
 
           if (Array.isArray(patternVector) && patternVector.length === queryVector.length) {
@@ -274,7 +276,7 @@ export class SyncEmbeddingGenerator {
       // Handle JSON content
       try {
         const content = typeof pattern.content === 'string'
-          ? JSON.parse(pattern.content)
+          ? safeJsonParse(pattern.content)
           : pattern.content;
 
         if (typeof content === 'object') {

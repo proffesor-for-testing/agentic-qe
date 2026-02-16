@@ -15,6 +15,7 @@ import {
 import { DomainName } from '../../shared/types';
 import { MetricsCollector } from '../metrics';
 import { getLoadBalancer } from '../load-balancer.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Agent List Handler
@@ -72,7 +73,7 @@ export async function handleAgentList(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to list agents: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to list agents: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -132,7 +133,7 @@ export async function handleAgentSpawn(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to spawn agent: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to spawn agent: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -209,7 +210,7 @@ export async function handleAgentMetrics(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to get agent metrics: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to get agent metrics: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -286,7 +287,7 @@ export async function handleAgentStatus(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to get agent status: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to get agent status: ${toErrorMessage(error)}`,
     };
   }
 }

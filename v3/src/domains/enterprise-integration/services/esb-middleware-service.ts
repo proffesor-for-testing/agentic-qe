@@ -8,6 +8,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import type {
   MessageFlow,
   FlowNode,
@@ -20,6 +21,7 @@ import type {
   MiddlewareTestResult,
   MiddlewareValidationError,
 } from '../interfaces.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Configuration for the ESB middleware service
@@ -131,7 +133,7 @@ export class EsbMiddlewareService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -176,7 +178,7 @@ export class EsbMiddlewareService {
 
       return ok({ matchedRules, conflicts });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -241,7 +243,7 @@ export class EsbMiddlewareService {
 
       return ok(true);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -818,7 +820,7 @@ export class EsbMiddlewareService {
       case 'mapping':
         // Mapping can be JSON or XML based
         try {
-          JSON.parse(spec.spec);
+          safeJsonParse(spec.spec);
           return true;
         } catch {
           return spec.spec.includes('<') && spec.spec.includes('>');
@@ -839,7 +841,7 @@ export class EsbMiddlewareService {
     switch (format) {
       case 'json':
         try {
-          JSON.parse(content);
+          safeJsonParse(content);
           return true;
         } catch {
           return false;

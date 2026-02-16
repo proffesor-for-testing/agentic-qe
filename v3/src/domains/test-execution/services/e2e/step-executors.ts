@@ -41,6 +41,7 @@ import {
 } from './browser-orchestrator';
 import { AssertionHandlers, createAssertionHandlers } from './assertion-handlers';
 import { WaitConditionHandler, createWaitConditionHandler } from './wait-condition-handler';
+import { safeJsonParse } from '../../../../shared/safe-json.js';
 
 // ============================================================================
 // Step Executor Class
@@ -498,7 +499,7 @@ export class StepExecutors {
         throw evalResult.error;
       }
 
-      const axeResults = JSON.parse(evalResult.value);
+      const axeResults = safeJsonParse(evalResult.value);
       const a11yResult = toVibiumAccessibilityResult(axeResults);
 
       if (step.options?.failOnSeverity) {

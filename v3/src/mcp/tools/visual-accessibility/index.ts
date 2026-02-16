@@ -14,6 +14,7 @@ import { ToolResult } from '../../types';
 import { createVisualTesterService, VisualTesterService } from '../../../domains/visual-accessibility/services/visual-tester';
 import { AccessibilityTesterService } from '../../../domains/visual-accessibility/services/accessibility-tester';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Visual Compare Types
@@ -329,7 +330,7 @@ export class VisualCompareTool extends MCPToolBase<VisualCompareParams, VisualCo
     } catch (error) {
       return {
         success: false,
-        error: `Visual comparison failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Visual comparison failed: ${toErrorMessage(error)}`,
       };
     }
   }
@@ -581,7 +582,7 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
     } catch (error) {
       return {
         success: false,
-        error: `Accessibility audit failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Accessibility audit failed: ${toErrorMessage(error)}`,
       };
     }
   }

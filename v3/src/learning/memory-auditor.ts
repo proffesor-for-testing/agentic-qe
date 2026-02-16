@@ -60,6 +60,7 @@
 import type { CoherenceService, CoherenceResult, CoherenceNode } from '../integrations/coherence/index.js';
 import type { QEPattern, QEDomain } from './qe-patterns.js';
 import type { EventBus } from '../kernel/interfaces.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -250,7 +251,7 @@ export class MemoryCoherenceAuditor {
       // Emit error event
       try {
         await this.emitEvent('memory:audit_failed', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toErrorMessage(error),
           timestamp: new Date(),
         });
       } catch (eventError) {
@@ -413,7 +414,7 @@ export class MemoryCoherenceAuditor {
     } catch (error) {
       await this.emitEvent('memory:audit_progress', {
         status: 'failed',
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         timestamp: new Date(),
       });
     } finally {

@@ -18,6 +18,7 @@ import { createTaskExecutor, DomainTaskExecutor } from '../../coordination/task-
 import { getTaskRouter, type TaskRoutingResult, type PatternHint } from '../services/task-router';
 import { Priority } from '../../shared/types';
 import type { QEDomain as LearningDomain } from '../../learning/qe-patterns.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -400,7 +401,7 @@ async function getLearningEngine(): Promise<import('../../learning/aqe-learning-
     // Non-critical - pattern search is optional
     console.debug(
       '[HandlerFactory] Learning engine init failed:',
-      error instanceof Error ? error.message : String(error)
+      toErrorMessage(error)
     );
     return null;
   }
@@ -448,7 +449,7 @@ async function searchPatternsForTask(
     // Non-critical - pattern search is optional
     console.debug(
       '[HandlerFactory] Pattern search failed:',
-      error instanceof Error ? error.message : String(error)
+      toErrorMessage(error)
     );
     return [];
   }
@@ -669,7 +670,7 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
       };
     } catch (error) {
       // Step 6: Error handling
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
 
       // Record pattern usage on failure (Phase 5.3 — fire-and-forget)
       recordPatternUsageAsync(

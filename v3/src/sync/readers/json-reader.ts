@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import secureJsonParse from 'secure-json-parse';
 import type { DataReader, SyncSource } from '../interfaces.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 /**
  * JSON reader configuration
@@ -86,7 +87,7 @@ export class JSONReader implements DataReader<JSONRecord> {
       return records.map(record => this.transformRecord(record));
     } catch (error) {
       console.error(
-        `[JSONReader:${this.name}] Failed to read: ${error instanceof Error ? error.message : String(error)}`
+        `[JSONReader:${this.name}] Failed to read: ${toErrorMessage(error)}`
       );
       return [];
     }

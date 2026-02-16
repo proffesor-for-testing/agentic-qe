@@ -110,6 +110,7 @@ async function httpGet<R>(url: string): Promise<HttpResponse<R>> {
     data,
   };
 }
+import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import type {
   IDependencySecurityService,
   DependencyScanResult,
@@ -130,6 +131,7 @@ import type {
   SASTResult,
   DASTResult,
 } from '../interfaces.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Service Interface
@@ -271,7 +273,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         summary,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -302,7 +304,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         isDeprecated,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -357,7 +359,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
       return ok(recommendations);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -437,7 +439,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -467,7 +469,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         filesScanned,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -516,7 +518,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         recommendations,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -551,7 +553,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
       return ok(triaged);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -578,7 +580,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       if (ecosystem === 'npm') {
         // Read and parse package.json
         const content = await fs.readFile(manifest, 'utf-8');
-        const packageJson: PackageJson = JSON.parse(content);
+        const packageJson: PackageJson = safeJsonParse(content);
 
         // Collect all dependency types
         const allDeps: Record<string, string> = {
@@ -1732,7 +1734,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
       } catch (fetchError) {
         clearTimeout(timeoutId);
-        const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        const errorMessage = toErrorMessage(fetchError);
 
         // Network errors might indicate issues
         if (errorMessage.includes('certificate') || errorMessage.includes('SSL') || errorMessage.includes('TLS')) {

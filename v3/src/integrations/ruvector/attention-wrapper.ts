@@ -18,6 +18,7 @@ import {
   type ArrayInput
 } from '@ruvector/attention';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../../kernel/unified-memory.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // QE-Specific Types
@@ -359,7 +360,7 @@ export class QEFlashAttention {
       if (!this.db.isInitialized()) await this.db.initialize();
       await this.loadFromKv();
     } catch (error) {
-      console.warn('[QEFlashAttention] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[QEFlashAttention] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
   }

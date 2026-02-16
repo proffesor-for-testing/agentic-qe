@@ -7,6 +7,7 @@
 
 import { readFileSync, existsSync, statSync, readdirSync } from 'fs';
 import { join, basename, extname, relative } from 'path';
+import { safeJsonParse } from '../shared/safe-json.js';
 import type {
   ProjectAnalysis,
   DetectedFramework,
@@ -198,7 +199,7 @@ function readPackageJson(root: string): PackageJson | null {
   const pkgPath = join(root, 'package.json');
   if (!existsSync(pkgPath)) return null;
   try {
-    return JSON.parse(readFileSync(pkgPath, 'utf-8')) as PackageJson;
+    return safeJsonParse<PackageJson>(readFileSync(pkgPath, 'utf-8'));
   } catch {
     return null;
   }
@@ -628,7 +629,7 @@ export class ProjectAnalyzer {
         // Try to read coverage summary
         if (coveragePath.endsWith('.json')) {
           try {
-            const content = JSON.parse(readFileSync(fullPath, 'utf-8'));
+            const content = safeJsonParse(readFileSync(fullPath, 'utf-8'));
             const total = content.total || {};
             return {
               lines: total.lines?.pct || 0,

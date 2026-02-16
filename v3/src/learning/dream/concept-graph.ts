@@ -33,6 +33,7 @@ import type {
 
 import { DEFAULT_CONCEPT_GRAPH_CONFIG } from './types.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // ConceptGraph Class
@@ -95,7 +96,7 @@ export class ConceptGraph {
       }
     } catch (error) {
       throw new Error(
-        `Failed to initialize ConceptGraph: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize ConceptGraph: ${toErrorMessage(error)}`
       );
     }
   }

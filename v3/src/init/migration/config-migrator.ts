@@ -6,6 +6,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { getAQEVersion } from '../types.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 /**
  * V2 Config Migrator
@@ -60,7 +61,7 @@ ${yaml.stringify(v3Config)}`;
   private readJsonSafe(path: string): Record<string, unknown> | null {
     try {
       if (!existsSync(path)) return null;
-      return JSON.parse(readFileSync(path, 'utf-8'));
+      return safeJsonParse<Record<string, unknown>>(readFileSync(path, 'utf-8'));
     } catch {
       return null;
     }

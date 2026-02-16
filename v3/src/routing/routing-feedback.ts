@@ -16,6 +16,7 @@ import { QE_AGENT_REGISTRY, getAgentById } from './qe-agent-registry.js';
 import type { QETaskRouter } from './qe-task-router.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Database Row Types
@@ -117,7 +118,7 @@ export class RoutingFeedbackCollector {
       }
       await this.loadFromDb();
     } catch (error) {
-      console.warn('[RoutingFeedbackCollector] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[RoutingFeedbackCollector] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
   }
@@ -183,7 +184,7 @@ export class RoutingFeedbackCollector {
         this.enforceRetention(database);
       }
     } catch (error) {
-      console.warn('[RoutingFeedbackCollector] Failed to persist outcome:', error instanceof Error ? error.message : String(error));
+      console.warn('[RoutingFeedbackCollector] Failed to persist outcome:', toErrorMessage(error));
     }
   }
 
@@ -199,7 +200,7 @@ export class RoutingFeedbackCollector {
         )
       `).run(maxRows);
     } catch (error) {
-      console.warn('[RoutingFeedbackCollector] Retention cleanup failed:', error instanceof Error ? error.message : String(error));
+      console.warn('[RoutingFeedbackCollector] Retention cleanup failed:', toErrorMessage(error));
     }
   }
 

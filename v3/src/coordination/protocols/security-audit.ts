@@ -40,16 +40,38 @@ import type {
   DetectedSecret,
   ScanSummary,
 } from '../../domains/security-compliance/interfaces.js';
-import {
-  SecurityScannerService,
-  type ISecurityScannerService,
+import type {
+  ISecurityScannerService,
 } from '../../domains/security-compliance/services/security-scanner.js';
-import {
-  runSemgrepWithRules,
-  isSemgrepAvailable,
-  convertSemgrepFindings,
-  type SemgrepFinding,
+import { toError } from '../../shared/error-utils.js';
+import type {
+  SemgrepFinding,
 } from '../../domains/security-compliance/services/semgrep-integration.js';
+
+// ============================================================================
+// Lazy Domain Imports (break circular dependency: coordination -> domains)
+// These use dynamic import() to avoid static module graph edges.
+// ============================================================================
+
+async function lazySecurityScannerService(memory: MemoryBackend): Promise<ISecurityScannerService> {
+  const { SecurityScannerService } = await import('../../domains/security-compliance/services/security-scanner.js');
+  return new SecurityScannerService(memory);
+}
+
+async function lazyIsSemgrepAvailable(): Promise<boolean> {
+  const { isSemgrepAvailable } = await import('../../domains/security-compliance/services/semgrep-integration.js');
+  return isSemgrepAvailable();
+}
+
+async function lazyRunSemgrepWithRules(targetPath: string, ruleSetIds: string[]) {
+  const { runSemgrepWithRules } = await import('../../domains/security-compliance/services/semgrep-integration.js');
+  return runSemgrepWithRules(targetPath, ruleSetIds);
+}
+
+async function lazyConvertSemgrepFindings(findings: SemgrepFinding[]) {
+  const { convertSemgrepFindings } = await import('../../domains/security-compliance/services/semgrep-integration.js');
+  return convertSemgrepFindings(findings);
+}
 
 // ============================================================================
 // Protocol Types
@@ -260,11 +282,11 @@ export class SecurityAuditProtocol {
 
   /**
    * Get or create the SecurityScannerService instance
-   * Lazily initialized to avoid constructor complexity
+   * Lazily initialized via dynamic import to break circular dependency
    */
-  private getSecurityScanner(): ISecurityScannerService {
+  private async getSecurityScanner(): Promise<ISecurityScannerService> {
     if (!this.securityScanner) {
-      this.securityScanner = new SecurityScannerService(this.memory);
+      this.securityScanner = await lazySecurityScannerService(this.memory);
     }
     return this.securityScanner;
   }
@@ -388,7 +410,7 @@ export class SecurityAuditProtocol {
       this.updatePhase('failed');
       await this.cleanupAgents();
       this.currentAudit = null;
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -412,7 +434,7 @@ export class SecurityAuditProtocol {
 
       // Try real SecurityScannerService first
       try {
-        const scanner = this.getSecurityScanner();
+        const scanner = await this.getSecurityScanner();
         const ruleSetIds = options.ruleSetIds || ['owasp-top-10', 'cwe-sans-25'];
         const scanResult = await scanner.scanWithRules(files, ruleSetIds);
 
@@ -430,16 +452,16 @@ export class SecurityAuditProtocol {
       }
 
       // Try semgrep if available as secondary option
-      const semgrepAvailable = await isSemgrepAvailable();
+      const semgrepAvailable = await lazyIsSemgrepAvailable();
       if (semgrepAvailable) {
         try {
-          const semgrepResult = await runSemgrepWithRules(
+          const semgrepResult = await lazyRunSemgrepWithRules(
             this.config.scanPaths[0] || '.',
             options.ruleSetIds || ['owasp-top-10']
           );
 
           if (semgrepResult.success && semgrepResult.findings.length > 0) {
-            const convertedFindings = convertSemgrepFindings(semgrepResult.findings);
+            const convertedFindings = await lazyConvertSemgrepFindings(semgrepResult.findings);
             const vulnerabilities: Vulnerability[] = convertedFindings.map(f => ({
               id: uuidv4(),
               cveId: undefined,
@@ -492,7 +514,7 @@ export class SecurityAuditProtocol {
         'Install semgrep (pip install semgrep) or ensure SecurityScannerService is properly configured.'
       ));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -531,7 +553,7 @@ export class SecurityAuditProtocol {
 
       // Try real SecurityScannerService with OSV API integration
       try {
-        const scanner = this.getSecurityScanner();
+        const scanner = await this.getSecurityScanner();
 
         // Try to scan package.json if it exists
         const packageJsonPath = this.findPackageJsonPath();
@@ -564,7 +586,7 @@ export class SecurityAuditProtocol {
         'Ensure package.json exists and SecurityScannerService is properly configured.'
       ));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -617,7 +639,7 @@ export class SecurityAuditProtocol {
         filesScanned: this.config.scanPaths.length * 10, // Estimate
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -634,7 +656,7 @@ export class SecurityAuditProtocol {
 
       // Try real SecurityScannerService for DAST
       try {
-        const scanner = this.getSecurityScanner();
+        const scanner = await this.getSecurityScanner();
         const scanResult = await scanner.scanUrl(targetUrl, {
           maxDepth: 5,
           activeScanning: false, // Passive by default for safety
@@ -661,7 +683,7 @@ export class SecurityAuditProtocol {
         'Ensure the target URL is accessible and SecurityScannerService is properly configured.'
       ));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -686,7 +708,7 @@ export class SecurityAuditProtocol {
 
       return ok(reports);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

@@ -18,6 +18,7 @@ import {
 } from '../interfaces';
 import { NomicEmbedder, IEmbeddingProvider, EMBEDDING_CONFIG } from '../../../shared/embeddings';
 import type { QEFlashAttention, QEFlashAttentionConfig } from '../../../integrations/ruvector/wrappers.js';
+import { toError } from '../../../shared/error-utils.js';
 
 /**
  * Flash Attention status for pattern learning
@@ -212,7 +213,7 @@ export class PatternLearnerService implements IPatternLearnerService {
         improvementEstimate,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -261,7 +262,7 @@ export class PatternLearnerService implements IPatternLearnerService {
         clusteringMetrics,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -294,7 +295,7 @@ export class PatternLearnerService implements IPatternLearnerService {
 
       return ok(similarDefects.slice(0, limit));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

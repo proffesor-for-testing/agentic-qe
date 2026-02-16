@@ -21,6 +21,7 @@ import {
   type EmbeddingConfig,
 } from '../../../learning/real-embeddings.js';
 import { CircularBuffer } from '../../../shared/utils/circular-buffer.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -829,7 +830,7 @@ export class PatternEvolution {
       patternId: row.pattern_id,
       version: row.version,
       embedding: this.bufferToFloatArray(row.embedding, row.embedding_dimension),
-      changes: JSON.parse(row.changes || '[]'),
+      changes: safeJsonParse(row.changes || '[]'),
       qualityScore: row.quality_score,
       successRate: row.success_rate,
       timestamp: new Date(row.created_at),
@@ -844,7 +845,7 @@ export class PatternEvolution {
       id: row.id,
       patternId: row.pattern_id,
       eventType: row.event_type as EvolutionEvent['eventType'],
-      details: JSON.parse(row.details || '{}'),
+      details: safeJsonParse(row.details || '{}'),
       timestamp: new Date(row.created_at),
     }));
 

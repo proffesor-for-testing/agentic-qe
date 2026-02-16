@@ -34,10 +34,12 @@ import {
   getSnapshotParser,
   type ParsedSnapshot as ParserParsedSnapshot,
 } from './snapshot-parser';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import {
   AgentBrowserSessionManager,
   type BrowserSessionInfo as SessionManagerInfo,
 } from './session-manager';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Helper Functions
@@ -255,7 +257,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
       return ok(toSessionInfo(session));
     } catch (error) {
       const browserError = new BrowserError(
-        error instanceof Error ? error.message : String(error),
+        toErrorMessage(error),
         'LAUNCH_FAILED',
         'agent-browser',
         error instanceof Error ? error : undefined
@@ -301,7 +303,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
 
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'QUIT_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -356,7 +358,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
       const pageInfo =
         evalResult.success && evalResult.data
           ? typeof evalResult.data === 'string'
-            ? JSON.parse(evalResult.data)
+            ? safeJsonParse(evalResult.data)
             : evalResult.data
           : { title: '', url };
 
@@ -369,7 +371,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'NAVIGATION_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -393,7 +395,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'RELOAD_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -417,7 +419,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'HISTORY_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -441,7 +443,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'HISTORY_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -470,7 +472,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'CLICK_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -495,7 +497,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'FILL_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -539,7 +541,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'GET_TEXT_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -565,7 +567,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'VISIBILITY_CHECK_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -600,7 +602,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
       if (dimensionsResult.success && dimensionsResult.data) {
         const parsed =
           typeof dimensionsResult.data === 'string'
-            ? JSON.parse(dimensionsResult.data)
+            ? safeJsonParse(dimensionsResult.data)
             : dimensionsResult.data;
         dimensions = { width: parsed.width || 1280, height: parsed.height || 720 };
       }
@@ -614,7 +616,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'SCREENSHOT_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -661,7 +663,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'EVAL_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -714,7 +716,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'SNAPSHOT_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -737,7 +739,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'SESSION_CREATE_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -766,7 +768,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'SESSION_SWITCH_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -785,7 +787,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'SESSION_LIST_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -822,7 +824,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'MOCK_ROUTE_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -846,7 +848,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'ABORT_ROUTE_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -870,7 +872,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'CLEAR_ROUTES_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -898,7 +900,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'SET_DEVICE_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -922,7 +924,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'SET_VIEWPORT_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -950,7 +952,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'SAVE_STATE_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -974,7 +976,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'LOAD_STATE_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -1008,7 +1010,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'WAIT_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -1036,7 +1038,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'WAIT_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -1063,7 +1065,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'WAIT_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -1090,7 +1092,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'WAIT_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -1121,7 +1123,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'START_TRACE_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined
@@ -1148,7 +1150,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     } catch (error) {
       return err(
         new BrowserError(
-          error instanceof Error ? error.message : String(error),
+          toErrorMessage(error),
           'STOP_TRACE_FAILED',
           'agent-browser',
           error instanceof Error ? error : undefined

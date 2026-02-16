@@ -11,6 +11,7 @@ import {
   EMBEDDING_CONFIG,
   IEmbeddingProvider,
 } from '../../../shared/embeddings';
+import { toError } from '../../../shared/error-utils.js';
 import {
   SearchRequest,
   SearchResults,
@@ -188,7 +189,7 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
         searchTime,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -220,7 +221,7 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -262,7 +263,7 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
 
       return ok(results);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -307,7 +308,7 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
 
       return ok(analysis);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

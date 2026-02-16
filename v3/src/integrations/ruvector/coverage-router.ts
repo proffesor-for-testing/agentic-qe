@@ -5,6 +5,7 @@
  * Falls back to rule-based routing when RuVector is unavailable.
  */
 
+import { toErrorMessage } from '../../shared/error-utils.js';
 import type {
   CoverageRouter,
   CoverageRoutingResult,
@@ -79,7 +80,7 @@ export class RuVectorCoverageRouter implements CoverageRouter {
       if (!this.db.isInitialized()) await this.db.initialize();
       await this.loadFromKv();
     } catch (error) {
-      console.warn('[RuVectorCoverageRouter] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[RuVectorCoverageRouter] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
   }
@@ -104,7 +105,7 @@ export class RuVectorCoverageRouter implements CoverageRouter {
       const snapshot = Object.fromEntries(entries);
       this.db.kvSet('cache', snapshot, RuVectorCoverageRouter.NAMESPACE, RuVectorCoverageRouter.TTL_SECONDS).catch(() => {});
     } catch (error) {
-      console.warn('[RuVectorCoverageRouter] Persist failed:', error instanceof Error ? error.message : String(error));
+      console.warn('[RuVectorCoverageRouter] Persist failed:', toErrorMessage(error));
     }
   }
 

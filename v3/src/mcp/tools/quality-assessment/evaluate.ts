@@ -8,6 +8,7 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -221,7 +222,7 @@ export class QualityEvaluateTool extends MCPToolBase<QualityEvaluateParams, Qual
     } catch (error) {
       return {
         success: false,
-        error: `Quality evaluation failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Quality evaluation failed: ${toErrorMessage(error)}`,
       };
     }
   }

@@ -22,6 +22,7 @@ import type {
 } from '../../../../integrations/browser';
 import type { E2ETestCase } from '../../types';
 import type { UnifiedBrowserClient, E2ERunnerConfig } from './types';
+import { toErrorMessage } from '../../../../shared/error-utils.js';
 
 // ============================================================================
 // Type Guards
@@ -227,7 +228,7 @@ export class BrowserOrchestrator {
         return null;
       }
     } catch (error) {
-      return error instanceof Error ? error.message : String(error);
+      return toErrorMessage(error);
     }
   }
 

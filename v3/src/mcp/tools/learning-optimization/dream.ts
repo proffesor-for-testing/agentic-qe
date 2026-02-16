@@ -23,6 +23,7 @@ import type { DreamCycleResult, ApplyInsightResult as EngineApplyResult } from '
 import type { DreamInsight } from '../../../learning/dream/insight-generator.js';
 import type { DreamCycle } from '../../../learning/dream/types.js';
 import { createQEReasoningBank } from '../../../learning/qe-reasoning-bank.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -287,7 +288,7 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
           };
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       return {
         success: false,
         error: errorMessage,
@@ -516,7 +517,7 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
         },
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       return {
         success: false,
         error: errorMessage,

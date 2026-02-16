@@ -21,6 +21,7 @@ import {
   createAgentFileWatcher,
 } from './file-watcher.js';
 import { MetricsCollector, createMetricsCollector } from './metrics.js';
+import { toError } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -331,7 +332,7 @@ export class HotReloadService extends EventEmitter {
           break;
       }
     } catch (error) {
-      this.handleError(error instanceof Error ? error : new Error(String(error)), `file-${eventType}`);
+      this.handleError(toError(error), `file-${eventType}`);
     }
   }
 
@@ -387,7 +388,7 @@ export class HotReloadService extends EventEmitter {
       this.recordReloadSuccess(agentId, 'added', card, startTime);
       this.metrics.increment('hot-reload.card-added', { agent_id: agentId });
     } catch (error) {
-      this.recordReloadFailure(agentId, 'added', error instanceof Error ? error : new Error(String(error)), startTime);
+      this.recordReloadFailure(agentId, 'added', toError(error), startTime);
       throw error;
     }
   }
@@ -427,7 +428,7 @@ export class HotReloadService extends EventEmitter {
       this.recordReloadSuccess(agentId, 'updated', card, startTime);
       this.metrics.increment('hot-reload.card-updated', { agent_id: agentId });
     } catch (error) {
-      this.recordReloadFailure(agentId, 'updated', error instanceof Error ? error : new Error(String(error)), startTime);
+      this.recordReloadFailure(agentId, 'updated', toError(error), startTime);
       throw error;
     }
   }
@@ -464,7 +465,7 @@ export class HotReloadService extends EventEmitter {
       this.recordReloadSuccess(agentId, 'removed', undefined, startTime);
       this.metrics.increment('hot-reload.card-removed', { agent_id: agentId });
     } catch (error) {
-      this.recordReloadFailure(agentId, 'removed', error instanceof Error ? error : new Error(String(error)), startTime);
+      this.recordReloadFailure(agentId, 'removed', toError(error), startTime);
       throw error;
     }
   }
@@ -498,7 +499,7 @@ export class HotReloadService extends EventEmitter {
 
       return this.recordReloadSuccess(agentId, 'updated', card, startTime);
     } catch (error) {
-      return this.recordReloadFailure(agentId, 'updated', error instanceof Error ? error : new Error(String(error)), startTime);
+      return this.recordReloadFailure(agentId, 'updated', toError(error), startTime);
     }
   }
 

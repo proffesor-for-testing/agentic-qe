@@ -14,6 +14,7 @@ import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import type { RLAlgorithmType } from '../interfaces.js';
 import { getUnifiedPersistence, type UnifiedPersistenceManager } from '../../../kernel/unified-persistence.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -125,7 +126,7 @@ export class QValueStore {
       console.log(`[QValueStore] Initialized: ${this.persistence.getDbPath()}`);
     } catch (error) {
       throw new Error(
-        `Failed to initialize QValueStore: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize QValueStore: ${toErrorMessage(error)}`
       );
     }
   }

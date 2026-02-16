@@ -19,6 +19,8 @@ import type {
   ContractEndpoint,
 } from '../interfaces.js';
 import { CONTRACT_CONSTANTS, LLM_ANALYSIS_CONSTANTS } from '../../constants.js';
+import { toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Configuration for the contract validator
@@ -228,7 +230,7 @@ Provide:
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -266,7 +268,7 @@ Provide:
         errors,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -304,7 +306,7 @@ Provide:
         errors,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -322,7 +324,7 @@ Provide:
       // Parse the spec
       let parsedSpec: Record<string, unknown>;
       try {
-        parsedSpec = JSON.parse(spec);
+        parsedSpec = safeJsonParse(spec);
       } catch {
         // Try YAML parsing
         // For now, we'll treat it as JSON
@@ -393,7 +395,7 @@ Provide:
         schemaCount,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -574,7 +576,7 @@ Provide:
     _warnings: string[]
   ): void {
     try {
-      const parsed = JSON.parse(content);
+      const parsed = safeJsonParse(content);
 
       // Basic JSON Schema validation
       if (typeof parsed !== 'object' || parsed === null) {
@@ -787,7 +789,7 @@ Provide:
     _warnings: string[]
   ): void {
     try {
-      const parsed = JSON.parse(content);
+      const parsed = safeJsonParse(content);
       if (!parsed.type) {
         errors.push({
           path: `schema.${schemaId}`,
@@ -850,7 +852,7 @@ Provide:
     errors: SchemaError[]
   ): Promise<void> {
     try {
-      const schema = JSON.parse(schemaContent);
+      const schema = safeJsonParse(schemaContent);
 
       // JSON Schema validation with type, required, constraints, and nested object/array support
       this.basicTypeValidation(data, schema, '', errors);

@@ -57,6 +57,7 @@ import {
   type EventBatch,
   type BatcherMetrics,
 } from './event-batcher.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Configuration Types
@@ -859,7 +860,7 @@ export class EventAdapter extends EventEmitter {
 
     if (state) {
       try {
-        args = JSON.parse(state.argsJson);
+        args = safeJsonParse<Record<string, unknown>>(state.argsJson);
         state.args = args;
       } catch {
         // Invalid JSON, leave args undefined

@@ -51,6 +51,7 @@ import {
   isBrowserModeEnabled,
   isAxeCoreEnabled,
 } from '../../../integrations/vibium/index.js';
+import { toError } from '../../../shared/error-utils.js';
 import {
   createBrowserClient,
   getBrowserClientForUseCase,
@@ -58,6 +59,7 @@ import {
   type IAgentBrowserClient,
   type BrowserError,
 } from '../../../integrations/browser/index.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Axe-core result structure from browser evaluation
@@ -369,7 +371,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
       // Use heuristic-based audit
       return this.auditWithHeuristics(url, wcagLevel, options);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -436,7 +438,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
         await client.quit();
       }
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -516,7 +518,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
     }
 
     try {
-      const parsed = JSON.parse(evalResult.value) as AxeCoreResult;
+      const parsed = safeJsonParse(evalResult.value) as AxeCoreResult;
       return ok(parsed);
     } catch (parseError) {
       return err(new Error(`Failed to parse axe-core results: ${parseError}`));
@@ -691,7 +693,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
         await this.vibiumClient.quit();
       }
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -850,7 +852,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -944,7 +946,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
         await this.vibiumClient.quit();
       }
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -993,7 +995,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
 
       return ok(analyses);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1051,7 +1053,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
         await this.vibiumClient.quit();
       }
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1151,7 +1153,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
         score,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1242,7 +1244,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1363,7 +1365,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
         await this.vibiumClient.quit();
       }
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -2088,7 +2090,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
 
       return euResult;
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

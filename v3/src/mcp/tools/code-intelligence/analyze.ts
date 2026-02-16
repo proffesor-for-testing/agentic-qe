@@ -17,6 +17,7 @@ import { ImpactAnalyzerService } from '../../../domains/code-intelligence/servic
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import * as fs from 'fs';
 import * as path from 'path';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -213,7 +214,7 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
     } catch (error) {
       return {
         success: false,
-        error: `Code analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Code analysis failed: ${toErrorMessage(error)}`,
       };
     }
   }

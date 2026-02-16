@@ -452,8 +452,10 @@ export function optionalAuth(
 export function mockAuthMiddleware(
   mockUser?: { id: string; scopes?: string[] }
 ): (req: HttpRequest, res: HttpResponse, next?: NextFunction) => void {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('mockAuthMiddleware is not available in production');
+  if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'development') {
+    throw new Error(
+      `mockAuthMiddleware is only available in test/development environments (current: ${process.env.NODE_ENV ?? 'undefined'})`
+    );
   }
 
   const user = mockUser ?? { id: 'mock-user', scopes: ['*'] };

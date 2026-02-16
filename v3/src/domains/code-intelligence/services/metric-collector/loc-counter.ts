@@ -22,6 +22,7 @@ import {
   MetricCollectorConfig,
   DEFAULT_METRIC_CONFIG,
 } from './interfaces.js';
+import { safeJsonParse } from '../../../../shared/safe-json.js';
 
 // ============================================================================
 // Main LOC Counting Function
@@ -124,7 +125,7 @@ async function tryClocCount(
  * Parse cloc JSON output into LOCMetrics
  */
 function parseClocOutput(output: string, excludedDirs: string[]): LOCMetrics {
-  const data = JSON.parse(output);
+  const data = safeJsonParse(output);
   const byLanguage: Record<string, number> = {};
   let total = 0;
 
@@ -194,7 +195,7 @@ async function tryTokeiCount(
  * }
  */
 function parseTokeiOutput(output: string, excludedDirs: string[]): LOCMetrics {
-  const data = JSON.parse(output);
+  const data = safeJsonParse(output);
   const byLanguage: Record<string, number> = {};
   let total = 0;
 

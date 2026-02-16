@@ -19,6 +19,7 @@
 import { governanceFlags, isStrictMode } from './feature-flags.js';
 import type { GovernanceFeatureFlags } from './feature-flags.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -373,7 +374,7 @@ export class EvolutionPipelineIntegration {
       if (!this.db.isInitialized()) await this.db.initialize();
       await this.loadFromKv();
     } catch (error) {
-      console.warn('[EvolutionPipeline] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[EvolutionPipeline] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
 
@@ -969,7 +970,7 @@ export class EvolutionPipelineIntegration {
       const snapshot: Record<string, RuleRecord> = Object.fromEntries(this.rules);
       this.db.kvSet('snapshot', snapshot, EvolutionPipelineIntegration.NAMESPACE, EvolutionPipelineIntegration.TTL_SECONDS).catch(() => {});
     } catch (error) {
-      console.warn('[EvolutionPipeline] Persist failed:', error instanceof Error ? error.message : String(error));
+      console.warn('[EvolutionPipeline] Persist failed:', toErrorMessage(error));
     }
   }
 

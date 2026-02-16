@@ -20,6 +20,7 @@
  */
 
 import { type Database as DatabaseType } from 'better-sqlite3';
+import { toErrorMessage } from '../shared/error-utils.js';
 import {
   UnifiedMemoryManager,
   getUnifiedMemory,
@@ -169,7 +170,7 @@ export class UnifiedPersistenceManager {
       // Allow retry on failure by clearing the promise
       this.initPromise = null;
       throw new Error(
-        `Failed to initialize UnifiedPersistenceManager: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize UnifiedPersistenceManager: ${toErrorMessage(error)}`
       );
     }
   }

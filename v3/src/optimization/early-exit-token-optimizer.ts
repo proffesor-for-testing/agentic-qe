@@ -14,6 +14,7 @@ import type {
 } from '../learning/pattern-store.js';
 import type { QEPattern, QEDomain } from '../learning/qe-patterns.js';
 import { detectQEDomain } from '../learning/qe-patterns.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Configuration Types
@@ -446,7 +447,7 @@ export class EarlyExitTokenOptimizer {
       const result = this.createResult(
         false,
         'search_error',
-        `Error during pattern search: ${error instanceof Error ? error.message : String(error)}`,
+        `Error during pattern search: ${toErrorMessage(error)}`,
         latencyMs
       );
       this.recordAttempt('search_error');

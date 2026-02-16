@@ -14,6 +14,7 @@ import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import { Pattern, LearnPatternsRequest, LearnedPatterns } from '../interfaces';
 import { NomicEmbedder, IEmbeddingProvider, EMBEDDING_CONFIG } from '../../../shared/embeddings';
+import { toError } from '../../../shared/error-utils.js';
 
 /**
  * Interface for the pattern matching service
@@ -161,7 +162,7 @@ export class PatternMatcherService implements IPatternMatchingService {
 
       return this.matchTestablePatternsFromCode(content, filePath);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -196,7 +197,7 @@ export class PatternMatcherService implements IPatternMatchingService {
 
       return ok(patterns);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -502,7 +503,7 @@ export class PatternMatcherService implements IPatternMatchingService {
 
       return ok(filteredMatches);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -561,7 +562,7 @@ export class PatternMatcherService implements IPatternMatchingService {
         confidence,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -606,7 +607,7 @@ export class PatternMatcherService implements IPatternMatchingService {
 
       return ok(pattern);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -643,7 +644,7 @@ export class PatternMatcherService implements IPatternMatchingService {
         confidence,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

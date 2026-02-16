@@ -79,6 +79,7 @@ import type { WeakVertex } from '../../coordination/mincut/interfaces';
 
 // ADR-057: Infrastructure self-healing integration
 import type { InfraHealingOrchestrator } from '../../strange-loop/infra-healing/infra-healing-orchestrator.js';
+import { toError } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Coordinator Configuration
@@ -549,7 +550,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
       return result;
     } catch (error) {
       this.activeRuns.delete(runId);
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -691,7 +692,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
       return result;
     } catch (error) {
       this.activeRuns.delete(runId);
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1017,7 +1018,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
         },
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1130,7 +1131,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1189,7 +1190,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

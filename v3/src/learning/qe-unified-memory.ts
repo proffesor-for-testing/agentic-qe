@@ -37,6 +37,7 @@ import type {
   HNSWIndexStats,
 } from '../domains/coverage-analysis/services/hnsw-index.js';
 
+import { toErrorMessage } from '../shared/error-utils.js';
 import {
   DEFAULT_HNSW_CONFIG,
   HNSWIndex,
@@ -1080,7 +1081,7 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
         success: false,
         itemsMigrated,
         itemsSkipped,
-        errors: [error instanceof Error ? error.message : String(error)],
+        errors: [toErrorMessage(error)],
       };
     }
   }

@@ -14,6 +14,7 @@ import { ToolResult } from '../../types';
 import { QXHeuristicsEngine } from './heuristics-engine';
 import { OracleDetector } from './oracle-detector';
 import { ImpactAnalyzer } from './impact-analyzer';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import {
   QXAnalyzeParams,
   QXAnalysisResult,
@@ -216,7 +217,7 @@ export class QXAnalyzeTool extends MCPToolBase<QXAnalyzeParams, QXAnalysisResult
     } catch (error) {
       return {
         success: false,
-        error: `QX analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `QX analysis failed: ${toErrorMessage(error)}`,
       };
     }
   }

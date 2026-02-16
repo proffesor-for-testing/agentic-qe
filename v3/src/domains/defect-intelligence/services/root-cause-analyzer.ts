@@ -16,6 +16,8 @@ import {
 
 // ADR-051: LLM Router for AI-enhanced root cause analysis
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import { toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Interface for the root cause analyzer service
@@ -391,7 +393,7 @@ Return your analysis as JSON with this structure:
         jsonContent = jsonMatch[1].trim();
       }
 
-      const parsed = JSON.parse(jsonContent);
+      const parsed = safeJsonParse(jsonContent);
 
       // Validate and transform the response
       return {
@@ -572,7 +574,7 @@ Return your analysis as JSON with this structure:
         timeline: timeline.success ? timeline.value : [],
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -614,7 +616,7 @@ Return your analysis as JSON with this structure:
 
       return ok(relatedDefects);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -662,7 +664,7 @@ Return your analysis as JSON with this structure:
 
       return ok(sortedTimeline);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

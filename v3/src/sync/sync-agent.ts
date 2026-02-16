@@ -36,6 +36,7 @@ import { createSQLiteReader, type SQLiteRecord } from './readers/sqlite-reader.j
 import { createJSONReader, type JSONRecord } from './readers/json-reader.js';
 import { createConnectionManager } from './cloud/tunnel-manager.js';
 import { createPostgresWriter } from './cloud/postgres-writer.js';
+import { toErrorMessage, toError } from '../shared/error-utils.js';
 
 /**
  * Sync agent configuration
@@ -125,7 +126,7 @@ export class CloudSyncAgent {
       this.report.status = this.report.results.every(r => r.success) ? 'completed' : 'partial';
     } catch (error) {
       this.report.status = 'failed';
-      this.report.errors.push(error instanceof Error ? error.message : String(error));
+      this.report.errors.push(toErrorMessage(error));
     } finally {
       await this.disconnect();
       this.report.completedAt = new Date();
@@ -165,7 +166,7 @@ export class CloudSyncAgent {
       this.report.status = this.report.results.every(r => r.success) ? 'completed' : 'partial';
     } catch (error) {
       this.report.status = 'failed';
-      this.report.errors.push(error instanceof Error ? error.message : String(error));
+      this.report.errors.push(toErrorMessage(error));
     } finally {
       await this.disconnect();
       this.report.completedAt = new Date();
@@ -229,8 +230,8 @@ export class CloudSyncAgent {
 
       result.success = true;
     } catch (error) {
-      result.error = error instanceof Error ? error.message : String(error);
-      this.config.onError?.(error instanceof Error ? error : new Error(String(error)), source.name);
+      result.error = toErrorMessage(error);
+      this.config.onError?.(toError(error), source.name);
     }
 
     result.durationMs = Date.now() - startTime;
@@ -285,7 +286,7 @@ export class CloudSyncAgent {
 
       result.success = true;
     } catch (error) {
-      result.error = error instanceof Error ? error.message : String(error);
+      result.error = toErrorMessage(error);
     }
 
     result.durationMs = Date.now() - startTime;

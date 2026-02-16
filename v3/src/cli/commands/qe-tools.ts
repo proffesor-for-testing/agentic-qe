@@ -25,6 +25,7 @@ import {
   ChaosInjectTool,
   LearningOptimizeTool,
 } from '../../mcp/tools';
+import { parseJsonOption } from '../../shared/safe-json.js';
 import { runTestGenerationWizard, type TestWizardResult } from '../wizards/test-wizard.js';
 import {
   runCoverageAnalysisWizard,
@@ -776,7 +777,7 @@ export function registerVisualCommands(program: Command): void {
         baselineUrl: baseline,
         currentUrl: current,
         threshold: parseFloat(options.threshold),
-        ignoreRegions: options.ignoreRegions ? JSON.parse(options.ignoreRegions) : undefined,
+        ignoreRegions: options.ignoreRegions ? parseJsonOption(options.ignoreRegions, 'ignoreRegions') : undefined,
         generateDiff: options.generateDiff,
       }, options.streaming ? createStreamHandler() : {});
 

@@ -16,7 +16,7 @@ import chalk from 'chalk';
 import path from 'node:path';
 import { findProjectRoot } from '../../kernel/unified-memory.js';
 import { existsSync, writeFileSync, readFileSync, mkdirSync, copyFileSync } from 'node:fs';
-import { safeJsonParse } from '../helpers/safe-json.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { stat, unlink } from 'node:fs/promises';
 import { createGzip, createGunzip } from 'node:zlib';

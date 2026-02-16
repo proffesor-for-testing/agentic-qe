@@ -17,6 +17,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import type { QEDomain } from './qe-patterns.js';
 import { QE_DOMAIN_LIST } from './qe-patterns.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -500,7 +501,7 @@ export class LearningMetricsTracker {
     for (const row of rows) {
       let domainCoverage: Record<QEDomain, number> = {} as Record<QEDomain, number>;
       try {
-        domainCoverage = JSON.parse(row.domain_coverage_json || '{}');
+        domainCoverage = safeJsonParse<Record<QEDomain, number>>(row.domain_coverage_json || '{}');
       } catch {
         // Use empty coverage if parse fails
         for (const domain of QE_DOMAIN_LIST) {

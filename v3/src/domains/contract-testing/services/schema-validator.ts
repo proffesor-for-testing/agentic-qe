@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
 import { createSafeRegex } from '../../../mcp/security/validators/regex-safety-validator.js';
+import { toError } from '../../../shared/error-utils.js';
 import type {
   ISchemaValidationService,
   SchemaDefinition,
@@ -17,6 +18,7 @@ import type {
   SchemaComparisonResult,
   SchemaModification,
 } from '../interfaces.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Configuration for the schema validator
@@ -68,7 +70,7 @@ export class SchemaValidatorService implements ISchemaValidationService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -161,7 +163,7 @@ export class SchemaValidatorService implements ISchemaValidationService {
         mutationCount,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -254,7 +256,7 @@ export class SchemaValidatorService implements ISchemaValidationService {
         modifications,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -289,7 +291,7 @@ export class SchemaValidatorService implements ISchemaValidationService {
 
       return ok(schemaDefinition);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -756,8 +758,8 @@ export class SchemaValidatorService implements ISchemaValidationService {
     modifications: SchemaModification[]
   ): void {
     try {
-      const oldSchema = JSON.parse(oldContent) as Record<string, unknown>;
-      const newSchema = JSON.parse(newContent) as Record<string, unknown>;
+      const oldSchema = safeJsonParse(oldContent) as Record<string, unknown>;
+      const newSchema = safeJsonParse(newContent) as Record<string, unknown>;
 
       this.compareSchemaObjects(oldSchema, newSchema, '', additions, removals, modifications);
     } catch {
@@ -910,8 +912,8 @@ export class SchemaValidatorService implements ISchemaValidationService {
     modifications: SchemaModification[]
   ): void {
     try {
-      const oldSchema = JSON.parse(oldContent) as Record<string, unknown>;
-      const newSchema = JSON.parse(newContent) as Record<string, unknown>;
+      const oldSchema = safeJsonParse(oldContent) as Record<string, unknown>;
+      const newSchema = safeJsonParse(newContent) as Record<string, unknown>;
 
       // Compare type
       if (oldSchema.type !== newSchema.type) {

@@ -25,6 +25,8 @@ import { TypeScriptParser } from '../../../shared/parsers';
 
 // ADR-051: LLM Router for AI-enhanced defect prediction
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import { toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Interface for the defect prediction service
@@ -316,7 +318,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
       // Try to extract JSON from response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = safeJsonParse(jsonMatch[0]);
         return {
           riskFactors: Array.isArray(parsed.riskFactors) ? parsed.riskFactors : [],
           reviewFocusAreas: Array.isArray(parsed.reviewFocusAreas) ? parsed.reviewFocusAreas : [],
@@ -449,7 +451,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
         llmAnalysis: llmAnalysis ?? undefined,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -526,7 +528,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
         confidence,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -547,7 +549,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

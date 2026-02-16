@@ -13,6 +13,7 @@ import type { IQEReasoningBank, LearningOutcome } from '../learning/qe-reasoning
 import type { CreateQEPatternOptions } from '../learning/qe-patterns.js';
 import type { QEPatternType, QEDomain } from '../learning/qe-patterns.js';
 import { detectQEDomain } from '../learning/qe-patterns.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Type Mapping
@@ -153,7 +154,7 @@ export class ReasoningBankPatternStore implements PatternStore {
       throw result.error;
     } catch (error) {
       console.error(
-        `[ReasoningBankPatternStore] Store error: ${error instanceof Error ? error.message : String(error)}`
+        `[ReasoningBankPatternStore] Store error: ${toErrorMessage(error)}`
       );
       throw error;
     }
@@ -182,7 +183,7 @@ export class ReasoningBankPatternStore implements PatternStore {
       }
     } catch (error) {
       console.error(
-        `[ReasoningBankPatternStore] recordOutcome error: ${error instanceof Error ? error.message : String(error)}`
+        `[ReasoningBankPatternStore] recordOutcome error: ${toErrorMessage(error)}`
       );
       // Fire-and-forget: don't throw
     }

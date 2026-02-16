@@ -17,7 +17,8 @@ import {
 } from '../../shared/types/index.js';
 import { TimeRange } from '../../shared/value-objects/index.js';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces.js';
-import {
+import { toError } from '../../shared/error-utils.js';
+import type {
   LearnedPattern,
   PatternType,
   Knowledge,
@@ -297,7 +298,7 @@ export class LearningConsolidationProtocol {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -323,7 +324,7 @@ export class LearningConsolidationProtocol {
 
       return ok(domainGroups);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -491,7 +492,7 @@ export class LearningConsolidationProtocol {
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -754,7 +755,7 @@ export class LearningConsolidationProtocol {
 
       return ok(updatedCount);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -870,7 +871,7 @@ export class LearningConsolidationProtocol {
 
       return ok(transferablePatterns);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

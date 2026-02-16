@@ -5,6 +5,7 @@
  * Falls back to path-based analysis when RuVector is unavailable.
  */
 
+import { toErrorMessage } from '../../shared/error-utils.js';
 import type {
   GraphBoundariesAnalyzer,
   GraphBoundariesResult,
@@ -93,7 +94,7 @@ export class RuVectorGraphBoundariesAnalyzer implements GraphBoundariesAnalyzer 
       if (!this.db.isInitialized()) await this.db.initialize();
       await this.loadFromKv();
     } catch (error) {
-      console.warn('[RuVectorGraphBoundariesAnalyzer] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[RuVectorGraphBoundariesAnalyzer] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
   }
@@ -118,7 +119,7 @@ export class RuVectorGraphBoundariesAnalyzer implements GraphBoundariesAnalyzer 
       const snapshot = Object.fromEntries(entries);
       this.db.kvSet('cache', snapshot, RuVectorGraphBoundariesAnalyzer.NAMESPACE, RuVectorGraphBoundariesAnalyzer.TTL_SECONDS).catch(() => {});
     } catch (error) {
-      console.warn('[RuVectorGraphBoundariesAnalyzer] Persist failed:', error instanceof Error ? error.message : String(error));
+      console.warn('[RuVectorGraphBoundariesAnalyzer] Persist failed:', toErrorMessage(error));
     }
   }
 

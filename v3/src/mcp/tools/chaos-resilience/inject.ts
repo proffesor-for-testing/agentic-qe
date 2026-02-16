@@ -12,6 +12,7 @@ import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMem
 import { ToolResult } from '../../types.js';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
 import { ChaosEngineerService } from '../../../domains/chaos-resilience/services/chaos-engineer.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import {
   ChaosExperiment,
   FaultInjection,
@@ -271,7 +272,7 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
     } catch (error) {
       return {
         success: false,
-        error: `Chaos injection failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Chaos injection failed: ${toErrorMessage(error)}`,
       };
     }
   }

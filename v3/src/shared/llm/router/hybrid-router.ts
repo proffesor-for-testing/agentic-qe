@@ -44,6 +44,7 @@ import {
   createRouterMetricsCollector,
   createCostMetricsCollector,
 } from '../metrics';
+import { toError } from '../../error-utils.js';
 import {
   mapModelId,
   normalizeModelId,
@@ -672,7 +673,7 @@ export class HybridRouter {
           routingDecision: decision,
         };
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
         const callLatency = Date.now() - callStartTime;
 
         // Record failure in legacy tracker

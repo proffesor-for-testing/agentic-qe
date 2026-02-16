@@ -8,6 +8,7 @@
 
 import type { AQEInitConfig, InitResult, InitStepResult } from './types.js';
 import { createDefaultConfig } from './types.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 import {
   getDefaultPhases,
   type InitPhase,
@@ -134,7 +135,7 @@ export class ModularInitOrchestrator {
       steps.push({
         step: 'Initialization Failed',
         status: 'error',
-        message: error instanceof Error ? error.message : String(error),
+        message: toErrorMessage(error),
         durationMs: 0,
       });
 

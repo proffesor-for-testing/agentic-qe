@@ -17,6 +17,7 @@ import {
 } from '../types';
 
 // ADR-058: Governance integration for memory writes
+import { toErrorMessage } from '../../shared/error-utils.js';
 import {
   memoryWriteGateIntegration,
   createMemoryPattern,
@@ -112,7 +113,7 @@ export async function handleMemoryStore(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to store memory: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to store memory: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -169,7 +170,7 @@ export async function handleMemoryRetrieve(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to retrieve memory: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to retrieve memory: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -233,7 +234,7 @@ export async function handleMemoryQuery(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to query memory: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to query memory: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -282,7 +283,7 @@ export async function handleMemoryDelete(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to delete memory: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to delete memory: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -332,7 +333,7 @@ export async function handleMemoryUsage(): Promise<ToolResult<MemoryUsageResult>
   } catch (error) {
     return {
       success: false,
-      error: `Failed to get memory usage: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to get memory usage: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -439,7 +440,7 @@ export async function handleMemoryShare(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to share memory: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to share memory: ${toErrorMessage(error)}`,
     };
   }
 }

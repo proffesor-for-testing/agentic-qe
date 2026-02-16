@@ -15,6 +15,7 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base.js';
 import { ToolResult } from '../../types.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import {
   TokenMetricsCollector,
   Timeframe,
@@ -165,7 +166,7 @@ export class TokenUsageTool extends MCPToolBase<TokenUsageParams, TokenUsageResu
     } catch (error) {
       return {
         success: false,
-        error: `Token usage analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Token usage analysis failed: ${toErrorMessage(error)}`,
       };
     }
   }

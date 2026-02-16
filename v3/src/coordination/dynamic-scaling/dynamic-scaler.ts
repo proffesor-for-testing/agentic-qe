@@ -47,6 +47,7 @@ import type {
 } from './types';
 import { DEFAULT_DYNAMIC_SCALING_CONFIG } from './types';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../../kernel/unified-memory.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -312,7 +313,7 @@ export class DynamicScaler {
       const failedEvent: ScalingEvent = {
         ...event,
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
       this.recordEvent(failedEvent);
       return failedEvent;
@@ -395,7 +396,7 @@ export class DynamicScaler {
     } catch (error) {
       console.warn(
         '[DynamicScaler] DB init failed, using memory-only:',
-        error instanceof Error ? error.message : String(error),
+        toErrorMessage(error),
       );
       this.db = null;
     }
@@ -487,7 +488,7 @@ export class DynamicScaler {
     } catch (error) {
       console.warn(
         '[DynamicScaler] Failed to load KV snapshot:',
-        error instanceof Error ? error.message : String(error),
+        toErrorMessage(error),
       );
     }
   }
@@ -512,7 +513,7 @@ export class DynamicScaler {
     } catch (error) {
       console.warn(
         '[DynamicScaler] Failed to persist KV snapshot:',
-        error instanceof Error ? error.message : String(error),
+        toErrorMessage(error),
       );
     }
   }

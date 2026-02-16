@@ -9,6 +9,7 @@
 import chalk from 'chalk';
 import { existsSync, readdirSync, statSync, readFileSync } from 'fs';
 import { join, resolve, relative, extname, basename } from 'path';
+import { safeJsonParse } from '../../shared/safe-json.js';
 import {
   BaseWizard,
   BaseWizardResult,
@@ -294,7 +295,7 @@ class FrameworkSelectStep extends SingleSelectStep<TestFramework> {
     try {
       // Security: Use readFileSync + JSON.parse instead of require() to prevent code execution
       const content = readFileSync(packageJsonPath, 'utf-8');
-      const pkg = JSON.parse(content);
+      const pkg = safeJsonParse(content);
       const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
       if (deps.vitest) return 'vitest';

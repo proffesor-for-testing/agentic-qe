@@ -13,6 +13,7 @@ import type {
   PhaseExecutor,
 } from '../interfaces';
 import type { FlakyTestTracker } from '../flaky-tracking/flaky-tracker';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -192,7 +193,7 @@ export class VitestPhaseExecutor implements PhaseExecutor {
       }
 
       const jsonStr = stdout.slice(jsonStart, jsonEnd + 1);
-      return JSON.parse(jsonStr);
+      return safeJsonParse(jsonStr);
     } catch (parseError) {
       // If JSON parsing fails, create a basic result from exit code
       return {
@@ -355,7 +356,7 @@ export class VitestPhaseExecutor implements PhaseExecutor {
       );
 
       const content = await fs.readFile(coverageFile, 'utf-8');
-      const coverage = JSON.parse(content);
+      const coverage = safeJsonParse(content);
 
       // Return line coverage percentage
       return (coverage.total?.lines?.pct ?? 0) / 100;

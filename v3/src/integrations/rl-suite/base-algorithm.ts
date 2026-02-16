@@ -23,6 +23,7 @@ import type {
 } from './interfaces';
 import { RLTrainingError, RLPredictionError, RLConfigError } from './interfaces';
 import { QValueStore } from './persistence/q-value-store.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Default Configuration
@@ -438,7 +439,7 @@ export abstract class BaseRLAlgorithm implements RLAlgorithm {
         return false;
       }
 
-      const modelData = JSON.parse(entry.domain);
+      const modelData = safeJsonParse<Record<string, unknown>>(entry.domain);
       await this.importModel(modelData);
       return true;
     } catch {

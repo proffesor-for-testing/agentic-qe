@@ -27,6 +27,7 @@ import { DEFAULT_CONFIG } from './scanner-types.js';
 import { SASTScanner } from './sast-scanner.js';
 import { DASTScanner } from './dast-scanner.js';
 import { DependencyScanner } from './dependency-scanner.js';
+import { toError } from '../../../../shared/error-utils.js';
 
 // ============================================================================
 // Scanner Orchestrator Service
@@ -210,7 +211,7 @@ export class SecurityScannerService implements ISecurityScannerService {
         combinedSummary,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

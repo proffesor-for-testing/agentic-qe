@@ -12,6 +12,7 @@
 
 import type { ClaudeFlowAdapter, ClaudeFlowFeatures } from './types.js';
 import { detectClaudeFlow } from '../../adapters/claude-flow/detect.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 /** Shared execSync options for cross-platform CLI calls */
 const SHELL = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
@@ -235,7 +236,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
 
       // Try to parse JSON result
       try {
-        return JSON.parse(result);
+        return safeJsonParse<Record<string, unknown>>(result);
       } catch {
         return { success: true, raw: result };
       }
@@ -289,7 +290,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
 
       // Try to parse JSON result
       try {
-        const parsed = JSON.parse(result);
+        const parsed = safeJsonParse<unknown>(result);
         return Array.isArray(parsed) ? parsed : [];
       } catch {
         return [];

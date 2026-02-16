@@ -12,6 +12,7 @@ import {
   VisualDiff,
 } from '../interfaces.js';
 import { FilePath } from '../../../shared/value-objects/index.js';
+import { toError } from '../../../shared/error-utils.js';
 
 /**
  * Responsive testing interfaces
@@ -258,7 +259,7 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -280,7 +281,7 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
 
       return ok(diff);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -303,7 +304,7 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
       const result = await this.testViewport(url, viewport, this.config);
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -332,7 +333,7 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
         coverageScore,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

@@ -13,6 +13,8 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
+import { toErrorMessage } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -225,7 +227,7 @@ export async function runSemgrep(config: Partial<SemgrepConfig>): Promise<Semgre
  */
 function parseSemgrepOutput(stdout: string): SemgrepResult {
   try {
-    const parsed = JSON.parse(stdout) as SemgrepRawOutput;
+    const parsed = safeJsonParse(stdout) as SemgrepRawOutput;
 
     // Handle different output formats
     const results = parsed.results || parsed.findings || [];
@@ -259,7 +261,7 @@ function parseSemgrepOutput(stdout: string): SemgrepResult {
     return {
       success: false,
       findings: [],
-      errors: [`Failed to parse semgrep output: ${error instanceof Error ? error.message : String(error)}`],
+      errors: [`Failed to parse semgrep output: ${toErrorMessage(error)}`],
     };
   }
 }

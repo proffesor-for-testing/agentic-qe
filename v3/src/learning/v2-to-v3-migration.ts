@@ -15,6 +15,8 @@ import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import type { QEDomain, QEPatternType } from './qe-patterns.js';
 import type { QEMemoryDomain } from './qe-unified-memory.js';
+import { toErrorMessage } from '../shared/error-utils.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -195,7 +197,7 @@ export class V2ToV3Migrator {
         duration: Date.now() - this.startTime,
       };
     } catch (error) {
-      errors.push(error instanceof Error ? error.message : String(error));
+      errors.push(toErrorMessage(error));
       return {
         success: false,
         tablesMigrated,
@@ -227,7 +229,7 @@ export class V2ToV3Migrator {
     // Check if it looks like JSON (starts with { or [)
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       try {
-        return JSON.parse(trimmed);
+        return safeJsonParse(trimmed);
       } catch {
         // If parsing fails, wrap as string
         return { [fieldName]: trimmed, _parseError: true };
@@ -348,7 +350,7 @@ export class V2ToV3Migrator {
 
         return this.v2Db!.prepare(`SELECT * FROM ${tableName}`).all() as T[];
       } catch (error) {
-        console.warn(`  [V2Migration] Could not read table '${tableName}': ${error instanceof Error ? error.message : String(error)}`);
+        console.warn(`  [V2Migration] Could not read table '${tableName}': ${toErrorMessage(error)}`);
         return [];
       }
     };

@@ -17,12 +17,13 @@ import {
 } from '../../shared/types';
 import { createEvent } from '../../shared/events/domain-events';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
-import {
+import type {
   RootCauseAnalysis,
   ContributingFactor,
   RegressionRisk,
 } from '../../domains/defect-intelligence/interfaces';
-import { ImpactAnalysis } from '../../domains/code-intelligence/interfaces';
+import type { ImpactAnalysis } from '../../domains/code-intelligence/interfaces';
+import { toError } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Protocol Types
@@ -323,7 +324,7 @@ export class DefectInvestigationProtocol {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

@@ -65,6 +65,7 @@ export interface EnhancedReasoningBankAdapterStats {
 }
 import type { Result } from '../../../shared/types/index.js';
 import { ok, err } from '../../../shared/types/index.js';
+import { toError } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Re-exports
@@ -323,7 +324,7 @@ export class EnhancedReasoningBankAdapter {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

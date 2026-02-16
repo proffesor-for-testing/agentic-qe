@@ -23,6 +23,7 @@ import { createPersistentScheduler } from '../scheduler/index.js';
 import type { VisualAccessibilityAPI } from '../../domains/visual-accessibility/plugin.js';
 import type { RequirementsValidationExtendedAPI } from '../../domains/requirements-validation/plugin.js';
 import type { QEKernel } from '../../kernel/interfaces.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Init Handler
@@ -329,7 +330,7 @@ export class InitHandler implements ICommandHandler {
       } catch (error) {
         // Log but don't fail - domain may not be enabled
         console.error(
-          chalk.yellow(`  ! Could not register visual-accessibility workflow actions: ${error instanceof Error ? error.message : String(error)}`)
+          chalk.yellow(`  ! Could not register visual-accessibility workflow actions: ${toErrorMessage(error)}`)
         );
       }
     }
@@ -342,7 +343,7 @@ export class InitHandler implements ICommandHandler {
       } catch (error) {
         // Log but don't fail - domain may not be enabled
         console.error(
-          chalk.yellow(`  ! Could not register requirements-validation workflow actions: ${error instanceof Error ? error.message : String(error)}`)
+          chalk.yellow(`  ! Could not register requirements-validation workflow actions: ${toErrorMessage(error)}`)
         );
       }
     }

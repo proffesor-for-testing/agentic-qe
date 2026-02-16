@@ -16,6 +16,7 @@ import {
   BenchmarkSuite,
 } from './performance-benchmarks.js';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Additional O(log n) Verification Tests
@@ -86,7 +87,7 @@ async function verifyGapDetectorComplexity(): Promise<void> {
     console.log(`  Result: ${result.verified ? '✅ VERIFIED' : '❌ NOT VERIFIED'}`);
     console.log(`  Details: ${result.details}`);
   } catch (error) {
-    console.error(`  Failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`  Failed: ${toErrorMessage(error)}`);
   }
 }
 
@@ -166,7 +167,7 @@ async function verifyCoverageAnalyzerComplexity(): Promise<void> {
     console.log(`  Result: ${result.verified ? '✅ VERIFIED' : '❌ NOT VERIFIED'}`);
     console.log(`  Details: ${result.details}`);
   } catch (error) {
-    console.error(`  Failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`  Failed: ${toErrorMessage(error)}`);
   }
 }
 
@@ -220,7 +221,7 @@ async function verifyDefectPredictorComplexity(): Promise<void> {
     console.log(`  Result: ${result.verified ? '✅ VERIFIED' : '❌ NOT VERIFIED'}`);
     console.log(`  Details: ${result.details}`);
   } catch (error) {
-    console.error(`  Failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`  Failed: ${toErrorMessage(error)}`);
   }
 }
 

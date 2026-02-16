@@ -9,6 +9,7 @@
 
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 import {
   BasePhase,
@@ -222,7 +223,7 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
       db.close();
 
       if (!row) return null;
-      const metadata = JSON.parse(row.value);
+      const metadata = safeJsonParse(row.value);
       if (!metadata.indexedAt) return null;
       const date = new Date(metadata.indexedAt);
       return isNaN(date.getTime()) ? null : date;

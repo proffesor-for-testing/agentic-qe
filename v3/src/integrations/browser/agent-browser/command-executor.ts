@@ -5,6 +5,7 @@
 
 import { spawnSync, spawn } from 'child_process';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // Command result from --json output
 export interface CommandResult<T = unknown> {
@@ -86,7 +87,7 @@ export class AgentBrowserCommandExecutor {
         return { success: true, data: output as unknown as T };
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = toErrorMessage(error);
       return { success: false, error: message };
     }
   }

@@ -28,6 +28,7 @@ import {
   isHighStakesFinding,
 } from '../consensus/domain-findings';
 import { Result, ok, err, Severity } from '../../shared/types';
+import { toError } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Configuration Interface
@@ -373,7 +374,7 @@ export class ConsensusEnabledMixin implements IConsensusEnabledDomain {
 
       return result;
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -448,7 +449,7 @@ export class ConsensusEnabledMixin implements IConsensusEnabledDomain {
 
       return result;
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

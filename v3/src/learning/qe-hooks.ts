@@ -15,6 +15,7 @@ import {
   QERoutingRequest,
   QERoutingResult,
 } from './qe-reasoning-bank.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 import {
   QEPatternType,
   QEDomain,
@@ -597,7 +598,7 @@ export class QEHookRegistry {
       } catch (error) {
         results.push({
           success: false,
-          error: error instanceof Error ? error.message : String(error),
+          error: toErrorMessage(error),
         });
       }
     }

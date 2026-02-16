@@ -19,6 +19,8 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { governanceFlags } from './feature-flags.js';
+import { toErrorMessage } from '../shared/error-utils.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 import {
   ShardRetrieverIntegration,
   shardRetrieverIntegration,
@@ -782,7 +784,7 @@ export class ShardEmbeddingsManager {
       await fs.writeFile(persistPath, JSON.stringify(data, null, 2), 'utf-8');
       this.persistedToFile = true;
     } catch (error) {
-      this.logError(`Failed to persist embeddings: ${error instanceof Error ? error.message : String(error)}`);
+      this.logError(`Failed to persist embeddings: ${toErrorMessage(error)}`);
     }
   }
 
@@ -795,7 +797,7 @@ export class ShardEmbeddingsManager {
 
     try {
       const content = await fs.readFile(persistPath, 'utf-8');
-      const data = JSON.parse(content);
+      const data = safeJsonParse(content);
 
       // Validate version
       if (data.version !== 1) {

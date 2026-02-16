@@ -14,7 +14,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainEvent } from '../../shared/types';
-import { toError } from '../../shared/error-utils.js';
+import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import type {
   RLState,
   RLAction,
@@ -348,7 +348,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
       this.initialized = true;
     } catch (error) {
-      const errorMsg = `Failed to initialize quality-assessment coordinator: ${error instanceof Error ? error.message : String(error)}`;
+      const errorMsg = `Failed to initialize quality-assessment coordinator: ${toErrorMessage(error)}`;
       throw new Error(errorMsg);
     }
   }
@@ -1861,7 +1861,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       // ActorCriticAlgorithm initializes automatically on first predict/train call
       // No need to call initialize() as it's protected
     } catch (error) {
-      throw new Error(`Failed to initialize Actor-Critic RL: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to initialize Actor-Critic RL: ${toErrorMessage(error)}`);
     }
   }
 
@@ -1901,7 +1901,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
         blockSize: 32,
       });
     } catch (error) {
-      throw new Error(`Failed to initialize QEFlashAttention: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to initialize QEFlashAttention: ${toErrorMessage(error)}`);
     }
   }
 
@@ -2243,7 +2243,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
         },
       }) as ClaimVerifierService;
     } catch (error) {
-      throw new Error(`Failed to initialize ClaimVerifier: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to initialize ClaimVerifier: ${toErrorMessage(error)}`);
     }
   }
 

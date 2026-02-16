@@ -7,6 +7,8 @@
  * @module benchmarks/performance-benchmarks
  */
 
+import { toErrorMessage } from '../shared/error-utils.js';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -404,7 +406,7 @@ export async function benchmarkHNSWIndex(): Promise<BenchmarkResult[]> {
       opsPerSecond: 0,
       complexity: 'FAILED',
       verified: false,
-      details: `Benchmark failed: ${error instanceof Error ? error.message : String(error)}`,
+      details: `Benchmark failed: ${toErrorMessage(error)}`,
     });
   }
 
@@ -485,7 +487,7 @@ export async function benchmarkCoverageParser(): Promise<BenchmarkResult[]> {
       opsPerSecond: 0,
       complexity: 'FAILED',
       verified: false,
-      details: `Benchmark failed: ${error instanceof Error ? error.message : String(error)}`,
+      details: `Benchmark failed: ${toErrorMessage(error)}`,
     });
   }
 
@@ -566,7 +568,7 @@ export async function benchmarkSecurityScanner(): Promise<BenchmarkResult[]> {
       opsPerSecond: 0,
       complexity: 'FAILED',
       verified: false,
-      details: `Benchmark failed: ${error instanceof Error ? error.message : String(error)}`,
+      details: `Benchmark failed: ${toErrorMessage(error)}`,
     });
   }
 

@@ -21,6 +21,7 @@ import type {
   VibiumClient,
   ScreenshotOptions as VibiumScreenshotOptions,
 } from '../../../integrations/vibium/types.js';
+import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import {
   createAgentBrowserClient,
   getBrowserClientForUseCase,
@@ -553,7 +554,7 @@ export class ViewportCaptureService implements IViewportCaptureService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -650,7 +651,7 @@ export class ViewportCaptureService implements IViewportCaptureService {
 
       return ok(analysis);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -705,7 +706,7 @@ export class ViewportCaptureService implements IViewportCaptureService {
         timestamp: new Date(),
         captureTimeMs,
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       });
     }
   }
@@ -781,7 +782,7 @@ export class ViewportCaptureService implements IViewportCaptureService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -888,7 +889,7 @@ export class ViewportCaptureService implements IViewportCaptureService {
         timestamp: new Date(),
         captureTimeMs,
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       });
     }
   }
@@ -982,7 +983,7 @@ export class ViewportCaptureService implements IViewportCaptureService {
         timestamp: new Date(),
         captureTimeMs,
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       });
     }
   }

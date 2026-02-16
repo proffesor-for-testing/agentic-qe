@@ -6,6 +6,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../../shared/types/index.js';
 import { OSVClient, ParsedVulnerability } from '../../../../shared/security/index.js';
+import { toError } from '../../../../shared/error-utils.js';
 import type {
   SecurityScannerConfig,
   DependencyScanResult,
@@ -18,6 +19,7 @@ import type {
   MutableScanSummary,
   ScanStatus,
 } from './scanner-types.js';
+import { safeJsonParse } from '../../../../shared/safe-json.js';
 
 // ============================================================================
 // Dependency Scanner Service
@@ -98,7 +100,7 @@ export class DependencyScanner {
       });
     } catch (error) {
       this.activeScans.set(scanId, 'failed');
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -109,7 +111,7 @@ export class DependencyScanner {
     try {
       const fs = await import('fs/promises');
       const content = await fs.readFile(packageJsonPath, 'utf-8');
-      const packageJson = JSON.parse(content);
+      const packageJson = safeJsonParse(content);
 
       // Combine all dependency types
       const allDependencies: Record<string, string> = {
@@ -128,7 +130,7 @@ export class DependencyScanner {
       if (error instanceof SyntaxError) {
         return err(new Error(`Invalid JSON in package.json: ${error.message}`));
       }
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

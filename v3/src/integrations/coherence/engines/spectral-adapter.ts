@@ -24,6 +24,7 @@ import type {
   CoherenceLogger,
 } from '../types';
 import { WasmNotLoadedError, DEFAULT_COHERENCE_LOGGER } from '../types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // WASM Engine Wrapper
@@ -380,7 +381,7 @@ export class SpectralAdapter implements ISpectralAdapter {
       return fiedlerValue;
     } catch (error) {
       this.logger.warn('Failed to compute Fiedler value', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         nodeCount: this.nodes.size,
         edgeCount: this.edges.length,
       });
@@ -412,7 +413,7 @@ export class SpectralAdapter implements ISpectralAdapter {
       return risk;
     } catch (error) {
       this.logger.warn('Failed to predict collapse risk', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         nodeCount: this.nodes.size,
         edgeCount: this.edges.length,
       });
@@ -454,7 +455,7 @@ export class SpectralAdapter implements ISpectralAdapter {
       return weakVertices;
     } catch (error) {
       this.logger.warn('Failed to get weak vertices', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         nodeCount: this.nodes.size,
         edgeCount: this.edges.length,
       });

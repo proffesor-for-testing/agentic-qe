@@ -3,6 +3,7 @@
  * Client for Ollama embeddings API with retry logic
  */
 
+import { toError } from '../error-utils.js';
 import {
   OllamaEmbeddingRequest,
   OllamaEmbeddingResponse,
@@ -106,7 +107,7 @@ export class OllamaClient {
 
         return data.embedding;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         // Don't retry on validation errors
         if (lastError.message.includes('Invalid embedding dimensions')) {

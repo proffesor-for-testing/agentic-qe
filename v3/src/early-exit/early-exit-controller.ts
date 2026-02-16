@@ -22,6 +22,7 @@ import { calculateQualitySignal, calculateLambdaStability, calculateConfidence }
 import { CoherenceEarlyExit } from './early-exit-decision';
 import { SpeculativeExecutor } from './speculative-executor';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -108,7 +109,7 @@ export class EarlyExitController {
     } catch (error) {
       console.warn(
         '[EarlyExitController] DB init failed, using memory-only:',
-        error instanceof Error ? error.message : String(error),
+        toErrorMessage(error),
       );
       this.db = null;
     }
@@ -484,7 +485,7 @@ export class EarlyExitController {
     } catch (error) {
       console.warn(
         '[EarlyExitController] Failed to load KV snapshot:',
-        error instanceof Error ? error.message : String(error),
+        toErrorMessage(error),
       );
     }
   }
@@ -509,7 +510,7 @@ export class EarlyExitController {
     } catch (error) {
       console.warn(
         '[EarlyExitController] Failed to persist KV snapshot:',
-        error instanceof Error ? error.message : String(error),
+        toErrorMessage(error),
       );
     }
   }

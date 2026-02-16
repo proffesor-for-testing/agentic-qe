@@ -13,6 +13,7 @@ import { HybridMemoryBackend } from '../../kernel/hybrid-backend';
 import { findProjectRoot } from '../../kernel/unified-memory.js';
 import * as path from 'path';
 import * as fs from 'fs';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Shared Memory Backend for MCP Tools
@@ -397,7 +398,7 @@ export abstract class MCPToolBase<
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         metadata: this.createMetadata(startTime, requestId),
       };
     }

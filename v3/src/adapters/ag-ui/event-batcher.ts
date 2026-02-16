@@ -10,6 +10,7 @@
 import { EventEmitter } from 'events';
 import type { AGUIEvent, AGUIEventType } from './event-types.js';
 import { getEventCategory } from './event-types.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Configuration Types
@@ -557,7 +558,7 @@ export function serializeBatch(batch: EventBatch, includeMetadata = true): strin
  * Deserialize a batch from network transmission
  */
 export function deserializeBatch(data: string): EventBatch {
-  const parsed = JSON.parse(data);
+  const parsed = safeJsonParse(data);
 
   // Handle batch without metadata
   if (!parsed.metadata) {

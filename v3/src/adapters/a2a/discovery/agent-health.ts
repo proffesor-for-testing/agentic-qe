@@ -9,6 +9,7 @@
 
 import { EventEmitter } from 'events';
 import { QEAgentCard } from '../agent-cards/schema.js';
+import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -213,7 +214,7 @@ export class AgentHealthChecker extends EventEmitter {
         this.emit('status-change', agentId, previousStatus, errorState.status);
       }
 
-      this.emit('check-error', agentId, error instanceof Error ? error : new Error(String(error)));
+      this.emit('check-error', agentId, toError(error));
       this.emit('check-complete', agentId, status);
       return status;
     }
@@ -397,7 +398,7 @@ export class AgentHealthChecker extends EventEmitter {
       return {
         success: false,
         responseTime: Date.now() - startTime,
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: toError(error),
       };
     }
   }
@@ -481,7 +482,7 @@ export class AgentHealthChecker extends EventEmitter {
       lastCheck: new Date(),
       errorCount,
       successCount: 0,
-      errorMessage: error instanceof Error ? error.message : String(error),
+      errorMessage: toErrorMessage(error),
     };
   }
 

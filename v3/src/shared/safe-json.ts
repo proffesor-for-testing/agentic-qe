@@ -29,7 +29,8 @@ import sjson from 'secure-json-parse';
  * // Object.prototype.polluted remains undefined
  * ```
  */
-export function safeJsonParse<T = unknown>(json: string): T {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function safeJsonParse<T = any>(json: string): T {
   return sjson.parse(json, undefined, {
     protoAction: 'remove',
     constructorAction: 'remove',

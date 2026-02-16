@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -293,7 +294,7 @@ export class AgentsInstaller {
           result.skipped.push(agentName);
         }
       } catch (error) {
-        result.errors.push(`Failed to install ${agentName}: ${error instanceof Error ? error.message : String(error)}`);
+        result.errors.push(`Failed to install ${agentName}: ${toErrorMessage(error)}`);
       }
     }
 

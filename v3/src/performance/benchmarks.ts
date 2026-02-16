@@ -12,6 +12,7 @@ import { EventEmitter } from 'events';
 import * as os from 'os';
 import { PerformanceProfiler, createProfiler } from './profiler.js';
 import { CircularBuffer } from '../shared/utils/index.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
 // Performance Targets (Issue #177)
@@ -378,7 +379,7 @@ export class BenchmarkSuite {
     return this.runBenchmark(
       'A2A JSON-RPC Parsing',
       () => {
-        const parsed = JSON.parse(sampleRequest);
+        const parsed = safeJsonParse<Record<string, unknown>>(sampleRequest);
         // Validate structure
         const valid =
           parsed.jsonrpc === '2.0' &&

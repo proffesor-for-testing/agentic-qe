@@ -10,6 +10,7 @@
  */
 
 import type { JsonPatchOperation } from './event-types.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -476,7 +477,7 @@ export function applyPatch(
       return {
         success: false,
         document, // Return original document (rollback)
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         failedOperationIndex: i,
       };
     }

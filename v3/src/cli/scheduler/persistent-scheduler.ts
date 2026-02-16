@@ -17,6 +17,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { calculateNextRun } from '../utils/workflow-parser.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -381,7 +383,7 @@ export class PersistentScheduler {
       throw new Error(`Schedules file exceeds maximum allowed size (${MAX_SCHEDULES_FILE_SIZE / (1024 * 1024)}MB). File is ${(contentSize / (1024 * 1024)).toFixed(2)}MB.`);
     }
 
-    const data = JSON.parse(content) as SchedulesFile;
+    const data = safeJsonParse<SchedulesFile>(content);
 
     // Validate structure
     if (!data.schedules || !Array.isArray(data.schedules)) {
@@ -417,7 +419,7 @@ export class PersistentScheduler {
    * Handle corrupt schedules file by backing up and creating new
    */
   private async handleCorruptFile(error: unknown): Promise<void> {
-    const errorMsg = error instanceof Error ? error.message : String(error);
+    const errorMsg = toErrorMessage(error);
     this.log(`Corrupt schedules file detected: ${errorMsg}`);
 
     // Create backup of corrupt file

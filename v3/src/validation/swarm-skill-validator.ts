@@ -12,6 +12,7 @@
  * @module validation/swarm-skill-validator
  */
 
+import { toErrorMessage } from '../shared/error-utils.js';
 import type {
   SkillValidationLearner,
   SkillValidationOutcome,
@@ -577,7 +578,7 @@ export class SwarmSkillValidator {
    * Create an error result for a failed task
    */
   private createErrorResult(task: ValidationTask, error: unknown): SwarmValidationResult {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = toErrorMessage(error);
 
     return {
       skill: task.skill,

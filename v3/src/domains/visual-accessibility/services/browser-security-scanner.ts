@@ -12,6 +12,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import { BrowserResultAdapter } from '../../../adapters/browser-result-adapter.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Interfaces
@@ -371,7 +372,7 @@ export class BrowserSecurityScanner {
 
       return ok({ safe, threats, score });
     } catch (error) {
-      return err(new Error(`Invalid URL: ${error instanceof Error ? error.message : String(error)}`));
+      return err(new Error(`Invalid URL: ${toErrorMessage(error)}`));
     }
   }
 
@@ -420,7 +421,7 @@ export class BrowserSecurityScanner {
 
       return ok({ isPhishing, confidence, indicators });
     } catch (error) {
-      return err(new Error(`Invalid URL: ${error instanceof Error ? error.message : String(error)}`));
+      return err(new Error(`Invalid URL: ${toErrorMessage(error)}`));
     }
   }
 

@@ -14,6 +14,7 @@ import type {
   MemoryBackend,
   ScanStatus,
 } from './scanner-types.js';
+import { toError } from '../../../../shared/error-utils.js';
 import {
   analyzeSecurityHeaders,
   analyzeCookieSecurity,
@@ -122,7 +123,7 @@ export class DASTScanner {
       });
     } catch (error) {
       this.activeScans.set(scanId, 'failed');
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -182,7 +183,7 @@ export class DASTScanner {
       });
     } catch (error) {
       this.activeScans.set(scanId, 'failed');
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

@@ -18,6 +18,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { governanceFlags } from './feature-flags.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 /**
  * Agent constraints from a shard
@@ -383,13 +384,13 @@ export class ShardRetrieverIntegration {
             this.cacheShardIfEnabled(domain, shard);
           }
         } catch (error) {
-          const errorMsg = `Failed to load shard ${file}: ${error instanceof Error ? error.message : String(error)}`;
+          const errorMsg = `Failed to load shard ${file}: ${toErrorMessage(error)}`;
           this.parseErrors.push(errorMsg);
           this.logError(errorMsg);
         }
       }
     } catch (error) {
-      const errorMsg = `Failed to read shards directory: ${error instanceof Error ? error.message : String(error)}`;
+      const errorMsg = `Failed to read shards directory: ${toErrorMessage(error)}`;
       this.parseErrors.push(errorMsg);
       this.logError(errorMsg);
     }
@@ -425,7 +426,7 @@ export class ShardRetrieverIntegration {
       }
       return shard;
     } catch (error) {
-      this.logError(`Failed to load shard for domain ${domain}: ${error instanceof Error ? error.message : String(error)}`);
+      this.logError(`Failed to load shard for domain ${domain}: ${toErrorMessage(error)}`);
       return null;
     }
   }

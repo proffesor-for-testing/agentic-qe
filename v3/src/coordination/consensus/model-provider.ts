@@ -19,6 +19,7 @@ import {
   FindingEvidence,
 } from './interfaces';
 import { Severity } from '../../shared/types';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Abstract Base Model Provider
@@ -140,7 +141,7 @@ export abstract class BaseModelProvider implements ModelProvider {
     } catch (error) {
       const result: ModelHealthResult = {
         healthy: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
       this.healthCache = {
         result,

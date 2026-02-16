@@ -32,6 +32,7 @@ import {
   CoherenceGateController,
   createCoherenceGateController,
 } from '../coherence/gate-controller';
+import { toError } from '../../../shared/error-utils.js';
 import {
   PartitionDetector,
   createPartitionDetector,
@@ -178,7 +179,7 @@ export class CoherenceGateService extends QualityGateService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

@@ -20,6 +20,7 @@
 
 import type { Result } from '../../../shared/types';
 import type { TransformType, TransformResult, IAgentBoosterAdapter } from '../../../integrations/agentic-flow';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Configuration
@@ -221,7 +222,7 @@ export class CodeTransformService {
 
         this.metrics.totalTransforms++;
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = toErrorMessage(error);
         errors.push(`${transformType}: ${message}`);
       }
     }

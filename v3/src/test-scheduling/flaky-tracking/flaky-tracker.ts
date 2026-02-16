@@ -7,6 +7,7 @@
  */
 
 import type { TestResult, FlakyTestRecord } from '../interfaces';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -361,7 +362,7 @@ export async function loadFlakyTracker(
   try {
     const fs = await import('fs/promises');
     const content = await fs.readFile(historyPath, 'utf-8');
-    const records = JSON.parse(content) as FlakyTestRecord[];
+    const records = safeJsonParse(content) as FlakyTestRecord[];
     tracker.importHistory(records);
   } catch (error) {
     // Non-critical: no history file or invalid - start fresh

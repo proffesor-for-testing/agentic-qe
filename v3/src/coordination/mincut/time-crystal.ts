@@ -30,6 +30,7 @@ import { getUnifiedMemory, type UnifiedMemoryManager } from '../../kernel/unifie
 import type { StrangeLoopController } from './strange-loop';
 import type { MinCutHealthMonitor } from './mincut-health-monitor';
 import type { TestFailureCausalGraph } from './causal-discovery';
+import { toErrorMessage } from '../../shared/error-utils.js';
 import {
   KuramotoCPG,
   createKuramotoCPG,
@@ -1554,7 +1555,7 @@ export class TimeCrystalController {
       if (!this.db.isInitialized()) await this.db.initialize();
       await this.loadFromKv();
     } catch (error) {
-      console.warn('[TimeCrystalController] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[TimeCrystalController] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
   }

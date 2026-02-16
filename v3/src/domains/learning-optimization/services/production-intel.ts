@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { TimeRange } from '../../../shared/value-objects/index.js';
+import { toError } from '../../../shared/error-utils.js';
 import {
   Experience,
   ExperienceResult,
@@ -140,7 +141,7 @@ export class ProductionIntelService {
 
       return ok(metric.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -174,7 +175,7 @@ export class ProductionIntelService {
 
       return ok(ids);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -211,7 +212,7 @@ export class ProductionIntelService {
 
       return ok(metrics);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -254,7 +255,7 @@ export class ProductionIntelService {
 
       return ok(incident);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -293,7 +294,7 @@ export class ProductionIntelService {
 
       return ok(resolved);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -341,7 +342,7 @@ export class ProductionIntelService {
 
       return ok(unique.slice(0, limit));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -412,7 +413,7 @@ export class ProductionIntelService {
         recommendations,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -617,7 +618,7 @@ export class ProductionIntelService {
         recommendations,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -644,7 +645,7 @@ export class ProductionIntelService {
 
       return ok(milestone);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -667,7 +668,7 @@ export class ProductionIntelService {
 
       return ok(milestones.slice(0, limit));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

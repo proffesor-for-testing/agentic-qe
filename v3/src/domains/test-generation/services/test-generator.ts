@@ -43,6 +43,8 @@ import { TestDataGeneratorService, type ITestDataGeneratorService } from './test
 
 // ADR-051: LLM Router for AI-enhanced test generation
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import { toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Interface for the test generation service
@@ -280,7 +282,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
           // Try to parse JSON from response
           const jsonMatch = response.content.match(/\[[\s\S]*\]/);
           if (jsonMatch) {
-            const suggestions = JSON.parse(jsonMatch[0]);
+            const suggestions = safeJsonParse(jsonMatch[0]);
             return suggestions.map((s: { name: string }) => s.name);
           }
         } catch {
@@ -338,7 +340,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         patternsUsed: Array.from(new Set(patternsUsed)),
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -370,7 +372,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
 
       return ok(tests);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -382,7 +384,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       const result = await this.tddGenerator.generateTDDTests(request);
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -394,7 +396,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       const result = await this.propertyTestGenerator.generatePropertyTests(request);
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -406,7 +408,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       const result = await this.testDataGenerator.generateTestData(request);
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
