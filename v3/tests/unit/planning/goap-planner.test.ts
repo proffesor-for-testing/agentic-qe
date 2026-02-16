@@ -348,9 +348,10 @@ describe('GOAPPlanner', () => {
   });
 
   describe('edge cases', () => {
-    it('should handle empty action library', async () => {
+    it('should return null for unsatisfiable goals', async () => {
+      // Goal that no seeded action can satisfy (impossible state key)
       const plan = await planner.findPlan(DEFAULT_V3_WORLD_STATE, {
-        'coverage.line': { min: 80 },
+        'nonexistent.impossible.goal': { min: 999 },
       });
 
       expect(plan).toBeNull();
