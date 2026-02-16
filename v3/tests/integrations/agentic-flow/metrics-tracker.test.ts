@@ -10,6 +10,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import {
   MetricsTracker,
@@ -22,46 +23,37 @@ import type {
 } from '../../../src/integrations/agentic-flow/metrics/types';
 import { resetUnifiedMemory } from '../../../src/kernel/unified-memory';
 
+/** Remove DB file and its WAL/SHM companions */
+function removeDbFiles(dbPath: string): void {
+  for (const suffix of ['', '-wal', '-shm']) {
+    try {
+      if (fs.existsSync(dbPath + suffix)) fs.unlinkSync(dbPath + suffix);
+    } catch { /* ignore */ }
+  }
+}
+
 describe('MetricsTracker', () => {
-  const testDbDir = '.agentic-qe-test';
-  const testDbPath = `${testDbDir}/metrics-test.db`;
+  // Use an absolute temp path so findProjectRoot() resolution doesn't redirect writes
+  let testDbPath: string;
 
   beforeEach(async () => {
-    // Clean up any existing test database
-    if (fs.existsSync(testDbPath)) {
-      fs.unlinkSync(testDbPath);
-    }
-    if (fs.existsSync(testDbPath + '-wal')) {
-      fs.unlinkSync(testDbPath + '-wal');
-    }
-    if (fs.existsSync(testDbPath + '-shm')) {
-      fs.unlinkSync(testDbPath + '-shm');
-    }
+    testDbPath = path.join(
+      os.tmpdir(),
+      `aqe-metrics-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
+    );
 
-    // Reset singletons
-    resetUnifiedMemory();
+    // Reset singletons before each test
     resetMetricsTracker();
+    resetUnifiedMemory();
   });
 
   afterEach(async () => {
-    // Reset singletons
-    resetUnifiedMemory();
+    // Reset singletons (order matters: tracker first, then memory)
     resetMetricsTracker();
+    resetUnifiedMemory();
 
     // Clean up test database
-    try {
-      if (fs.existsSync(testDbPath)) {
-        fs.unlinkSync(testDbPath);
-      }
-      if (fs.existsSync(testDbPath + '-wal')) {
-        fs.unlinkSync(testDbPath + '-wal');
-      }
-      if (fs.existsSync(testDbPath + '-shm')) {
-        fs.unlinkSync(testDbPath + '-shm');
-      }
-    } catch {
-      // Ignore cleanup errors
-    }
+    removeDbFiles(testDbPath);
   });
 
   describe('initialization', () => {
