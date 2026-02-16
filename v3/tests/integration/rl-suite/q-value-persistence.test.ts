@@ -56,6 +56,9 @@ describe('Q-Value Cross-Session Persistence', () => {
       const store1 = createQValueStore();
       await store1.initialize();
 
+      // Clear any leftover data from other test files sharing the unified DB
+      (store1 as any).db?.exec('DELETE FROM rl_q_values');
+
       const agentId = 'test-agent-001';
       const testData = [
         { state: 'state-A', action: 'action-1', qValue: 0.75, reward: 1.0 },
