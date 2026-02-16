@@ -259,6 +259,8 @@ describe('Q-Value Cross-Session Persistence', () => {
       // With unified persistence, this tests the singleton reinitialization
       const store1 = createQValueStore();
       await store1.initialize();
+      // Clear any data from other tests sharing the unified DB
+      (store1 as any).db?.exec('DELETE FROM rl_q_values');
       await store1.close();
 
       // Reset singleton to simulate a new process
