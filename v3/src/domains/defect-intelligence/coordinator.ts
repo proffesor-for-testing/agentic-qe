@@ -9,6 +9,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Result, err, ok, DomainName } from '../../shared/types';
+import { toError } from '../../shared/error-utils.js';
 import {
   EventBus,
   MemoryBackend,
@@ -216,7 +217,7 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
 
     // V3: Initialize consensus engine (registers providers from environment)
     if (this.config.enableConsensus) {
-      await (this.consensusMixin as any).initializeConsensus();
+      await this.consensusMixin.initializeConsensus();
     }
 
     this.initialized = true;
@@ -228,7 +229,7 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
   async dispose(): Promise<void> {
     // V3: Dispose consensus engine
     if (this.config.enableConsensus) {
-      await (this.consensusMixin as any).disposeConsensus();
+      await this.consensusMixin.disposeConsensus();
     }
 
     // V3: Dispose MinCut mixin
@@ -400,7 +401,7 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
 
       return result;
     } catch (error) {
-      const errResult = error instanceof Error ? error : new Error(String(error));
+      const errResult = toError(error);
       this.failWorkflow(workflowId, errResult.message);
       return { success: false, error: errResult };
     }
@@ -530,7 +531,7 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
       return result;
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -622,7 +623,7 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
       return result;
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -648,7 +649,7 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
       return result;
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -679,7 +680,7 @@ export class DefectIntelligenceCoordinator implements IDefectIntelligenceCoordin
       return result;
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

@@ -16,6 +16,32 @@ import type { RealQEReasoningBank } from '../learning/real-qe-reasoning-bank.js'
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
 // ============================================================================
+// Database Row Types
+// ============================================================================
+
+/** Database row structure for coverage_sessions table */
+interface CoverageSessionRow {
+  id: string;
+  target_path: string;
+  agent_id: string;
+  technique: string;
+  before_lines: number;
+  before_branches: number;
+  before_functions: number;
+  after_lines: number;
+  after_branches: number;
+  after_functions: number;
+  tests_generated: number;
+  tests_passed: number;
+  gaps_json: string | null;
+  duration_ms: number;
+  started_at: string;
+  completed_at: string;
+  context_json: string | null;
+  created_at: string;
+}
+
+// ============================================================================
 // Coverage Session Store
 // ============================================================================
 
@@ -125,7 +151,7 @@ export class CoverageLearner {
     const database = this.db.getDatabase();
     const rows = database.prepare(`
       SELECT * FROM coverage_sessions ORDER BY created_at DESC LIMIT ?
-    `).all(this.config.maxOutcomesInMemory) as any[];
+    `).all(this.config.maxOutcomesInMemory) as CoverageSessionRow[];
 
     for (const row of rows.reverse()) {
       const session: CoverageSession = {

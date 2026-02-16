@@ -173,6 +173,49 @@ export interface PatternEvolutionConfig {
   historyBufferSize: number;
 }
 
+/** Database row structure for pattern_versions table */
+interface PatternVersionRow {
+  id: string;
+  pattern_id: string;
+  version: number;
+  embedding: Buffer;
+  embedding_dimension: number;
+  changes: string | null;
+  quality_score: number;
+  success_rate: number;
+  trigger: string;
+  created_at: string;
+}
+
+/** Database row structure for pattern_evolution_events table */
+interface EvolutionEventRow {
+  id: string;
+  pattern_id: string;
+  event_type: string;
+  details: string | null;
+  created_at: string;
+}
+
+/** Database row structure for qe_patterns table (subset used in evolution) */
+interface PatternRow {
+  id: string;
+  name: string;
+  quality_score: number | null;
+  success_rate: number | null;
+  usage_count: number | null;
+  successful_uses: number | null;
+  last_used_at: string | null;
+  tier: string;
+  qe_domain: string;
+}
+
+/** Database row structure for qe_pattern_embeddings table */
+interface PatternEmbeddingRow {
+  pattern_id: string;
+  embedding: Buffer;
+  dimension: number;
+}
+
 const DEFAULT_CONFIG: PatternEvolutionConfig = {
   driftThreshold: 0.3,
   mergeSimilarityThreshold: 0.85,
@@ -389,11 +432,7 @@ export class PatternEvolution {
     const stmt = this.prepared.get('getAllPatternEmbeddings');
     if (!stmt) return;
 
-    const rows = stmt.all() as Array<{
-      pattern_id: string;
-      embedding: Buffer;
-      dimension: number;
-    }>;
+    const rows = stmt.all() as PatternEmbeddingRow[];
 
     this.embeddingCache.clear();
     for (const row of rows) {
@@ -427,7 +466,7 @@ export class PatternEvolution {
 
     // Get pattern quality/success rate
     const patternStmt = this.prepared.get('getPattern');
-    const pattern = patternStmt?.get(patternId) as any;
+    const pattern = patternStmt?.get(patternId) as PatternRow | undefined;
 
     const id = uuidv4();
     const version: PatternVersion = {
@@ -484,7 +523,7 @@ export class PatternEvolution {
     const historyStmt = this.prepared.get('getVersionHistory');
     if (!historyStmt) return null;
 
-    const versions = historyStmt.all(patternId, 10) as any[];
+    const versions = historyStmt.all(patternId, 10) as PatternVersionRow[];
     if (versions.length < 2) return null;
 
     // Compare current (first) with original (last)
@@ -548,11 +587,7 @@ export class PatternEvolution {
     const embeddingsStmt = this.prepared.get('getPatternEmbeddings');
     if (!embeddingsStmt) return [];
 
-    const rows = embeddingsStmt.all(domain) as Array<{
-      pattern_id: string;
-      embedding: Buffer;
-      dimension: number;
-    }>;
+    const rows = embeddingsStmt.all(domain) as PatternEmbeddingRow[];
 
     // Compare all pairs
     const candidates: MergeCandidate[] = [];
@@ -567,8 +602,8 @@ export class PatternEvolution {
 
         if (similarity >= this.config.mergeSimilarityThreshold) {
           // Get pattern names
-          const p1 = patternStmt?.get(rows[i].pattern_id) as any;
-          const p2 = patternStmt?.get(rows[j].pattern_id) as any;
+          const p1 = patternStmt?.get(rows[i].pattern_id) as PatternRow | undefined;
+          const p2 = patternStmt?.get(rows[j].pattern_id) as PatternRow | undefined;
 
           // Calculate merge benefit (higher if both have good quality)
           const avgQuality = ((p1?.quality_score ?? 0) + (p2?.quality_score ?? 0)) / 2;
@@ -603,7 +638,7 @@ export class PatternEvolution {
     // Get low-quality patterns
     const pruneStmt = this.prepared.get('getPatternsForPruning');
     if (pruneStmt) {
-      const rows = pruneStmt.all(domain, this.config.minQualityForRetention) as any[];
+      const rows = pruneStmt.all(domain, this.config.minQualityForRetention) as PatternRow[];
 
       for (const row of rows) {
         const lastUsed = row.last_used_at ? new Date(row.last_used_at) : new Date(0);
@@ -614,7 +649,7 @@ export class PatternEvolution {
         let reason: PruneCandidate['reason'];
         if (daysSinceLastUse > this.config.obsoleteDaysThreshold) {
           reason = 'obsolete';
-        } else if (row.quality_score < 0.2) {
+        } else if ((row.quality_score ?? 0) < 0.2) {
           reason = 'low-quality';
         } else {
           reason = 'unused';
@@ -624,7 +659,7 @@ export class PatternEvolution {
           patternId: row.id,
           name: row.name,
           reason,
-          qualityScore: row.quality_score,
+          qualityScore: row.quality_score ?? 0,
           daysSinceLastUse,
         });
       }
@@ -634,8 +669,8 @@ export class PatternEvolution {
     const mergeCandidates = await this.findMergeCandidates(domain);
     for (const merge of mergeCandidates) {
       // If one pattern is significantly lower quality, mark it redundant
-      const p1 = this.prepared.get('getPattern')?.get(merge.patternId1) as any;
-      const p2 = this.prepared.get('getPattern')?.get(merge.patternId2) as any;
+      const p1 = this.prepared.get('getPattern')?.get(merge.patternId1) as PatternRow | undefined;
+      const p2 = this.prepared.get('getPattern')?.get(merge.patternId2) as PatternRow | undefined;
 
       if (p1 && p2) {
         const qualityDiff = Math.abs((p1.quality_score ?? 0) - (p2.quality_score ?? 0));
@@ -649,7 +684,7 @@ export class PatternEvolution {
               patternId: lowerPattern.id,
               name: lowerPattern.name,
               reason: 'redundant',
-              qualityScore: lowerPattern.quality_score,
+              qualityScore: lowerPattern.quality_score ?? 0,
               daysSinceLastUse: 0,
               similarPatterns: [higherPattern.id],
             });
@@ -678,8 +713,8 @@ export class PatternEvolution {
     if (!this.db) return null;
 
     const patternStmt = this.prepared.get('getPattern');
-    const p1 = patternStmt?.get(patternId1) as any;
-    const p2 = patternStmt?.get(patternId2) as any;
+    const p1 = patternStmt?.get(patternId1) as PatternRow | undefined;
+    const p2 = patternStmt?.get(patternId2) as PatternRow | undefined;
 
     if (!p1 || !p2) return null;
 
@@ -787,7 +822,7 @@ export class PatternEvolution {
 
     // Get versions
     const versionsStmt = this.prepared.get('getVersionHistory');
-    const versionRows = versionsStmt?.all(patternId, limit) as any[] ?? [];
+    const versionRows = versionsStmt?.all(patternId, limit) as PatternVersionRow[] ?? [];
 
     const versions: PatternVersion[] = versionRows.map(row => ({
       id: row.id,
@@ -803,7 +838,7 @@ export class PatternEvolution {
 
     // Get events
     const eventsStmt = this.prepared.get('getEvents');
-    const eventRows = eventsStmt?.all(patternId, limit) as any[] ?? [];
+    const eventRows = eventsStmt?.all(patternId, limit) as EvolutionEventRow[] ?? [];
 
     const events: EvolutionEvent[] = eventRows.map(row => ({
       id: row.id,

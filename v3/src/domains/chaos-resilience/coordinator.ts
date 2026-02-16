@@ -5,6 +5,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainEvent } from '../../shared/types';
+import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import {
   EventBus,
   MemoryBackend,
@@ -226,7 +227,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
         console.log('[chaos-resilience] PolicyGradient algorithm created successfully');
       } catch (error) {
         console.error('[chaos-resilience] Failed to create PolicyGradient:', error);
-        throw new Error(`PolicyGradient creation failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`PolicyGradient creation failed: ${toErrorMessage(error)}`);
       }
     }
 
@@ -258,7 +259,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
     // Initialize Consensus engine if enabled (MM-001)
     if (this.config.enableConsensus) {
       try {
-        await (this.consensusMixin as any).initializeConsensus();
+        await this.consensusMixin.initializeConsensus();
         console.log(`[${this.domainName}] Consensus engine initialized`);
       } catch (error) {
         console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
@@ -277,7 +278,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
 
     // Dispose Consensus engine (MM-001)
     try {
-      await (this.consensusMixin as any).disposeConsensus();
+      await this.consensusMixin.disposeConsensus();
     } catch (error) {
       console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
     }
@@ -404,7 +405,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
       return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -490,7 +491,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
       return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -632,7 +633,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
       return ok(assessment);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -677,7 +678,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
       return ok(experiments);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -816,7 +817,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
       return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -889,7 +890,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
 
       return ok(dashboard);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1774,7 +1775,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
    * Check if consensus engine is available
    */
   isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+    return this.consensusMixin.isConsensusAvailable?.() ?? false;
   }
 
   /**

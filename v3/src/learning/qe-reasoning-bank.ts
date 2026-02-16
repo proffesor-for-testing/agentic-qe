@@ -18,6 +18,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { MemoryBackend, EventBus } from '../kernel/interfaces.js';
 import type { Result, DomainName } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
+import { toError, toErrorMessage } from '../shared/error-utils.js';
 import {
   QEPattern,
   QEPatternContext,
@@ -1610,7 +1611,7 @@ On promotion:
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1661,7 +1662,7 @@ On promotion:
         if (process.env.DEBUG) {
           console.warn(
             '[QEReasoningBank] ONNX embeddings unavailable, using hash fallback:',
-            error instanceof Error ? error.message : String(error)
+            toErrorMessage(error)
           );
         }
       }

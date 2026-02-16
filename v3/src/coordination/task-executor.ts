@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DomainName, DomainEvent, Result, ok, err } from '../shared/types';
+import { toError, toErrorMessage } from '../shared/error-utils.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { FilePath } from '../shared/value-objects/index.js';
 import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
@@ -661,7 +662,7 @@ export class DomainTaskExecutor {
           patternsUsed: generatedTests.patternsUsed,
         });
       } catch (error) {
-        return err(error instanceof Error ? error : new Error(String(error)));
+        return err(toError(error));
       }
     });
 
@@ -734,7 +735,7 @@ export class DomainTaskExecutor {
           algorithm: 'sublinear-O(log n)',
         });
       } catch (error) {
-        return err(error instanceof Error ? error : new Error(String(error)));
+        return err(toError(error));
       }
     });
 
@@ -847,7 +848,7 @@ export class DomainTaskExecutor {
           coverage: sastResult?.coverage,
         });
       } catch (error) {
-        return err(error instanceof Error ? error : new Error(String(error)));
+        return err(toError(error));
       }
     });
 
@@ -918,7 +919,7 @@ export class DomainTaskExecutor {
           errors: indexResult.errors,
         });
       } catch (error) {
-        return err(error instanceof Error ? error : new Error(String(error)));
+        return err(toError(error));
       }
     });
 
@@ -1001,7 +1002,7 @@ export class DomainTaskExecutor {
           filesAnalyzed: sourceFiles.length,
         });
       } catch (error) {
-        return err(error instanceof Error ? error : new Error(String(error)));
+        return err(toError(error));
       }
     });
 
@@ -1348,7 +1349,7 @@ export class DomainTaskExecutor {
         savedFiles,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       await this.publishTaskFailed(task.id, errorMessage, domain);
       // ADR-051: Record failed outcome
       this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch(() => {});

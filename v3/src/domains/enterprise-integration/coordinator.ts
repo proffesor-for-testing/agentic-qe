@@ -190,7 +190,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
     // Initialize Consensus engine if enabled (MM-001)
     if (this.config.enableConsensus) {
       try {
-        await (this.consensusMixin as any).initializeConsensus();
+        await this.consensusMixin.initializeConsensus();
         console.log(`[${this.domainName}] Consensus engine initialized`);
       } catch (error) {
         console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
@@ -204,7 +204,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
 
   async dispose(): Promise<void> {
     try {
-      await (this.consensusMixin as any).disposeConsensus();
+      await this.consensusMixin.disposeConsensus();
     } catch (error) {
       console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
     }
@@ -806,7 +806,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
   // ============================================================================
 
   isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+    return this.consensusMixin.isConsensusAvailable?.() ?? false;
   }
 
   getConsensusStats() {

@@ -9,6 +9,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Result, err, DomainEvent } from '../../shared/types';
+import { toError } from '../../shared/error-utils.js';
 import {
   EventBus,
   MemoryBackend,
@@ -401,7 +402,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     // Initialize Consensus engine if enabled (MM-001)
     if (this.config.enableConsensus) {
       try {
-        await (this.consensusMixin as any).initializeConsensus();
+        await this.consensusMixin.initializeConsensus();
         console.log(`[${this.domainName}] Consensus engine initialized`);
       } catch (error) {
         console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
@@ -504,7 +505,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
   async dispose(): Promise<void> {
     // Dispose Consensus engine (MM-001)
     try {
-      await (this.consensusMixin as any).disposeConsensus();
+      await this.consensusMixin.disposeConsensus();
     } catch (error) {
       console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
     }
@@ -643,7 +644,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -707,7 +708,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -783,7 +784,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -811,7 +812,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -837,7 +838,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -1516,7 +1517,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -1617,7 +1618,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return { success: true, value: metrics };
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       console.error('[CodeIntelligence] Failed to collect metrics:', errorObj.message);
       return err(errorObj);
     }
@@ -1746,7 +1747,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return { success: true, value: untestedFunctions };
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       console.error('[CodeIntelligence] Failed to find untested functions:', errorObj.message);
       return err(errorObj);
     }
@@ -1799,7 +1800,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return { success: true, value: impactedTests };
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       console.error('[CodeIntelligence] Failed to find impacted tests:', errorObj.message);
       return err(errorObj);
     }
@@ -1850,7 +1851,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return { success: true, value: coverageGaps };
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       console.error('[CodeIntelligence] Failed to find coverage gaps:', errorObj.message);
       return err(errorObj);
     }
@@ -1916,7 +1917,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return { success: true, value: buildResult };
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       console.error('[CodeIntelligence] Failed to build hypergraph:', errorObj.message);
       return err(errorObj);
     }
@@ -2013,7 +2014,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
    * Check if consensus engine is available
    */
   isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+    return this.consensusMixin.isConsensusAvailable?.() ?? false;
   }
 
   /**

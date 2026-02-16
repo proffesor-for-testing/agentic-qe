@@ -16,6 +16,7 @@
  */
 
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
@@ -322,7 +323,7 @@ export class DreamEngine {
       console.log(`[DreamEngine] Initialized: ${this.persistence.getDbPath()}`);
     } catch (error) {
       throw new Error(
-        `Failed to initialize DreamEngine: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize DreamEngine: ${toErrorMessage(error)}`
       );
     }
   }
@@ -482,7 +483,7 @@ export class DreamEngine {
         if (this.currentCycle.status === 'running') {
           this.currentCycle.status = 'failed';
         }
-        this.currentCycle.error = error instanceof Error ? error.message : String(error);
+        this.currentCycle.error = toErrorMessage(error);
         this.currentCycle.endTime = new Date();
         this.currentCycle.durationMs = Date.now() - startTime;
         await this.updateCycle(this.currentCycle);
@@ -557,7 +558,7 @@ export class DreamEngine {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }

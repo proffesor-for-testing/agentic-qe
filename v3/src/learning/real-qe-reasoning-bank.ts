@@ -16,6 +16,7 @@
  * 3. Standalone implementation gives us full control and better performance
  */
 import { v4 as uuidv4 } from 'uuid';
+import { toError, toErrorMessage } from '../shared/error-utils.js';
 import {
   computeRealEmbedding,
   computeBatchEmbeddings,
@@ -571,7 +572,7 @@ export class RealQEReasoningBank {
 
       return ok(pattern);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -630,7 +631,7 @@ export class RealQEReasoningBank {
 
       return ok(patterns);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -725,7 +726,7 @@ export class RealQEReasoningBank {
         latencyMs,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -782,7 +783,7 @@ export class RealQEReasoningBank {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -977,7 +978,7 @@ export class RealQEReasoningBank {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }
@@ -1217,7 +1218,18 @@ export class RealQEReasoningBank {
     sql += ' ORDER BY ended_at DESC LIMIT ?';
     params.push(limit);
 
-    const rows = db.prepare(sql).all(...params) as any[];
+    /** Database row structure for qe_trajectories table */
+    interface TrajectoryRow {
+      id: string;
+      task: string;
+      agent: string | null;
+      domain: string | null;
+      success: number;
+      steps_json: string | null;
+      metadata_json: string | null;
+    }
+
+    const rows = db.prepare(sql).all(...params) as TrajectoryRow[];
 
     return rows.map(row => ({
       id: row.id,

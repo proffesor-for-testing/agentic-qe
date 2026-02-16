@@ -12,10 +12,44 @@ import type {
   FeedbackConfig,
   PatternTier,
 } from './types.js';
+import type { TestFramework, ProgrammingLanguage } from '../routing/types.js';
 import { DEFAULT_FEEDBACK_CONFIG } from './types.js';
 import type { QEDomain } from '../learning/qe-patterns.js';
 import type { RealQEReasoningBank } from '../learning/real-qe-reasoning-bank.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+
+// ============================================================================
+// Database Row Types
+// ============================================================================
+
+/** Database row structure for test_outcomes table */
+interface TestOutcomeRow {
+  id: string;
+  test_id: string;
+  test_name: string;
+  generated_by: string;
+  pattern_id: string | null;
+  framework: string;
+  language: string;
+  domain: string;
+  passed: number;
+  error_message: string | null;
+  coverage_lines: number;
+  coverage_branches: number;
+  coverage_functions: number;
+  mutation_score: number | null;
+  execution_time_ms: number;
+  flaky: number;
+  flakiness_score: number | null;
+  maintainability_score: number;
+  complexity: number | null;
+  lines_of_code: number | null;
+  assertion_count: number | null;
+  file_path: string | null;
+  source_file_path: string | null;
+  metadata_json: string | null;
+  created_at: string;
+}
 
 // ============================================================================
 // Outcome Store
@@ -127,7 +161,7 @@ export class TestOutcomeTracker {
     const database = this.db.getDatabase();
     const rows = database.prepare(`
       SELECT * FROM test_outcomes ORDER BY created_at DESC LIMIT ?
-    `).all(this.config.maxOutcomesInMemory) as any[];
+    `).all(this.config.maxOutcomesInMemory) as TestOutcomeRow[];
 
     // Load in chronological order (oldest first)
     for (const row of rows.reverse()) {
@@ -137,9 +171,9 @@ export class TestOutcomeTracker {
         testName: row.test_name,
         generatedBy: row.generated_by,
         patternId: row.pattern_id || undefined,
-        framework: row.framework,
-        language: row.language,
-        domain: row.domain,
+        framework: row.framework as TestFramework,
+        language: row.language as ProgrammingLanguage,
+        domain: row.domain as QEDomain,
         passed: Boolean(row.passed),
         errorMessage: row.error_message || undefined,
         coverage: {

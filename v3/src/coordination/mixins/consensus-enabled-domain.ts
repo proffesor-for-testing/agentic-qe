@@ -85,6 +85,25 @@ export const DEFAULT_CONSENSUS_ENABLED_CONFIG: ConsensusEnabledConfig = {
  */
 export interface IConsensusEnabledDomain {
   /**
+   * Initialize the consensus engine
+   *
+   * Call this in the domain coordinator's initialize() method.
+   */
+  initializeConsensus(): Promise<void>;
+
+  /**
+   * Dispose the consensus engine
+   *
+   * Call this in the domain coordinator's dispose() method.
+   */
+  disposeConsensus(): Promise<void>;
+
+  /**
+   * Check if consensus engine is available
+   */
+  isConsensusAvailable(): boolean;
+
+  /**
    * Verify a single finding using multi-model consensus
    *
    * @param finding - The finding to verify
@@ -249,7 +268,7 @@ export class ConsensusEnabledMixin implements IConsensusEnabledDomain {
    *
    * @throws Error if consensus initialization fails
    */
-  protected async initializeConsensus(): Promise<void> {
+  async initializeConsensus(): Promise<void> {
     if (!this.consensusConfig.enableConsensus) {
       if (this.consensusConfig.enableLogging) {
         console.log('[ConsensusEnabledMixin] Consensus verification disabled');
@@ -302,7 +321,7 @@ export class ConsensusEnabledMixin implements IConsensusEnabledDomain {
    *
    * Call this in the domain coordinator's dispose() method.
    */
-  protected async disposeConsensus(): Promise<void> {
+  async disposeConsensus(): Promise<void> {
     if (this.consensusEngine) {
       await this.consensusEngine.dispose();
       this.consensusEngine = undefined;
@@ -447,7 +466,7 @@ export class ConsensusEnabledMixin implements IConsensusEnabledDomain {
   /**
    * Check if consensus engine is available
    */
-  protected isConsensusAvailable(): boolean {
+  isConsensusAvailable(): boolean {
     return this.consensusInitialized && this.consensusEngine !== undefined;
   }
 
@@ -587,7 +606,7 @@ export function withConsensusEnabled<TBase extends Constructor>(
       };
     }
 
-    protected async initializeConsensus(): Promise<void> {
+    async initializeConsensus(): Promise<void> {
       if (!this.consensusConfig.enableConsensus) {
         return;
       }
@@ -612,12 +631,16 @@ export function withConsensusEnabled<TBase extends Constructor>(
       this.consensusInitialized = true;
     }
 
-    protected async disposeConsensus(): Promise<void> {
+    async disposeConsensus(): Promise<void> {
       if (this.consensusEngine) {
         await this.consensusEngine.dispose();
         this.consensusEngine = undefined;
         this.consensusInitialized = false;
       }
+    }
+
+    isConsensusAvailable(): boolean {
+      return this.consensusInitialized && this.consensusEngine !== undefined;
     }
 
     async verifyFinding<T>(

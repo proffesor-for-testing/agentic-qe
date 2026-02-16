@@ -19,6 +19,7 @@
 
 import Database, { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
@@ -1387,7 +1388,7 @@ export class UnifiedMemoryManager {
       // Allow retry on failure by clearing the promise
       this.initPromise = null;
       throw new Error(
-        `Failed to initialize UnifiedMemoryManager: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize UnifiedMemoryManager: ${toErrorMessage(error)}`
       );
     }
   }

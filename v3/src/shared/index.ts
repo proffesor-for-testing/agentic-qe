@@ -15,6 +15,7 @@ export * from './git';
 export * from './security';
 export * from './metrics';
 export * from './safe-json';
+export * from './error-utils';
 
 // LLM module - explicit exports to avoid conflicts with http/io modules
 export type {

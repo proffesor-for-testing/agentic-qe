@@ -394,7 +394,7 @@ export class TrajectoryTracker {
     const stmt = this.prepared.get('getRecentTrajectories');
     if (!stmt) return;
 
-    const rows = stmt.all(this.config.recentBufferSize) as any[];
+    const rows = stmt.all(this.config.recentBufferSize) as TrajectoryRow[];
 
     for (const row of rows) {
       const trajectory = await this.rowToTrajectory(row);
@@ -627,7 +627,7 @@ export class TrajectoryTracker {
     const stmt = this.prepared.get('getTrajectory');
     if (!stmt) return null;
 
-    const row = stmt.get(id) as any;
+    const row = stmt.get(id) as TrajectoryRow | undefined;
     if (!row) return null;
 
     return this.rowToTrajectory(row);
@@ -645,7 +645,7 @@ export class TrajectoryTracker {
     const stmt = this.prepared.get('getTrajectoryByDomain');
     if (!stmt) return [];
 
-    const rows = stmt.all(domain, limit) as any[];
+    const rows = stmt.all(domain, limit) as TrajectoryRow[];
     const trajectories: Trajectory[] = [];
 
     for (const row of rows) {

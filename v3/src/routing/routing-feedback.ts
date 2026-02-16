@@ -18,6 +18,24 @@ import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-m
 import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
+// Database Row Types
+// ============================================================================
+
+/** Database row structure for routing_outcomes table */
+interface RoutingOutcomeRow {
+  id: string;
+  task_json: string;
+  decision_json: string;
+  used_agent: string;
+  followed_recommendation: number;
+  success: number;
+  quality_score: number;
+  duration_ms: number;
+  error: string | null;
+  created_at: string;
+}
+
+// ============================================================================
 // In-Memory Storage (can be replaced with SQLite)
 // ============================================================================
 
@@ -112,7 +130,7 @@ export class RoutingFeedbackCollector {
     const database = this.db.getDatabase();
     const rows = database.prepare(`
       SELECT * FROM routing_outcomes ORDER BY created_at DESC LIMIT ?
-    `).all(this.maxOutcomes) as any[];
+    `).all(this.maxOutcomes) as RoutingOutcomeRow[];
 
     for (const row of rows.reverse()) {
       const outcome: RoutingOutcome = {

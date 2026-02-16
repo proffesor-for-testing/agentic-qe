@@ -9,6 +9,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainEvent } from '../../shared/types/index.js';
+import { toError } from '../../shared/error-utils.js';
 import {
   EventBus,
   MemoryBackend,
@@ -277,7 +278,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
     // Initialize Consensus engine if enabled (MM-001)
     if (this.config.enableConsensus) {
       try {
-        await (this.consensusMixin as any).initializeConsensus();
+        await this.consensusMixin.initializeConsensus();
         console.log(`[${this.domainName}] Consensus engine initialized`);
       } catch (error) {
         console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
@@ -340,7 +341,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
   async dispose(): Promise<void> {
     // Dispose Consensus engine (MM-001)
     try {
-      await (this.consensusMixin as any).disposeConsensus();
+      await this.consensusMixin.disposeConsensus();
     } catch (error) {
       console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
     }
@@ -475,7 +476,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
 
       return ok(analysis);
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       if (this.config.publishEvents) {
         await this.publishValidationFailed(err, 'analyzeRequirement');
@@ -576,7 +577,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
 
       return ok(artifacts);
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -689,7 +690,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
 
       return ok(validation);
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -719,7 +720,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
       const prediction = await this.ppoAlgorithm.predict(state);
       return ok(prediction);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1331,7 +1332,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
    * Check if consensus engine is available
    */
   isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+    return this.consensusMixin.isConsensusAvailable?.() ?? false;
   }
 
   /**

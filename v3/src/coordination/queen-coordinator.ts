@@ -23,6 +23,7 @@ import {
   Severity,
 } from '../shared/types';
 import { CircularBuffer, binaryInsert, createdAtComparator } from '../shared/utils/index.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 import {
   EventBus,
   AgentCoordinator,
@@ -2055,7 +2056,7 @@ export class QueenCoordinator implements IQueenCoordinator {
         const backoffMs = Math.min(1000 * Math.pow(2, workStealingFailures), 30000);
         console.warn(
           `[QueenCoordinator] Work-stealing failed (attempt ${workStealingFailures}), backing off ${backoffMs}ms`,
-          error instanceof Error ? error.message : String(error)
+          toErrorMessage(error)
         );
 
         if (workStealingFailures > maxConsecutiveFailures) {

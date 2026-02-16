@@ -19,6 +19,7 @@ import {
   Subscription,
 } from '../kernel/interfaces.js';
 import { createEvent } from '../shared/events/domain-events.js';
+import { toError, toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Workflow Types
@@ -397,7 +398,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -866,7 +867,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
           await this.publishStepCompleted(execution, step, result);
           return result;
         } catch (error) {
-          lastError = error instanceof Error ? error : new Error(String(error));
+          lastError = toError(error);
 
           if (attempt < maxAttempts) {
             await this.delay(backoffMs);
@@ -891,7 +892,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
       return result;
     } catch (error) {
       result.status = 'failed';
-      result.error = error instanceof Error ? error.message : String(error);
+      result.error = toErrorMessage(error);
       result.completedAt = new Date();
       result.duration = result.completedAt.getTime() - startedAt.getTime();
       execution.stepResults.set(step.id, result);

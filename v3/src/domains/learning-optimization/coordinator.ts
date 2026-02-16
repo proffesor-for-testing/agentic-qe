@@ -4,6 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { toError } from '../../shared/error-utils.js';
 import {
   Result,
   ok,
@@ -315,7 +316,7 @@ export class LearningOptimizationCoordinator
     // Initialize Consensus engine if enabled (MM-001)
     if (this.config.enableConsensus) {
       try {
-        await (this.consensusMixin as any).initializeConsensus();
+        await this.consensusMixin.initializeConsensus();
         console.log(`[${this.domainName}] Consensus engine initialized`);
       } catch (error) {
         console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
@@ -332,7 +333,7 @@ export class LearningOptimizationCoordinator
   async dispose(): Promise<void> {
     // Dispose Consensus engine (MM-001)
     try {
-      await (this.consensusMixin as any).disposeConsensus();
+      await this.consensusMixin.disposeConsensus();
     } catch (error) {
       console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
     }
@@ -503,7 +504,7 @@ export class LearningOptimizationCoordinator
       return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -602,7 +603,7 @@ export class LearningOptimizationCoordinator
       return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -711,7 +712,7 @@ export class LearningOptimizationCoordinator
       return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -782,7 +783,7 @@ export class LearningOptimizationCoordinator
 
       return ok(dashboard);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1144,7 +1145,7 @@ export class LearningOptimizationCoordinator
       return ok(modelExport);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1313,7 +1314,7 @@ export class LearningOptimizationCoordinator
       return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1979,7 +1980,7 @@ export class LearningOptimizationCoordinator
    * Check if consensus engine is available
    */
   isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+    return this.consensusMixin.isConsensusAvailable?.() ?? false;
   }
 
   /**

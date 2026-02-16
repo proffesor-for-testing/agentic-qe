@@ -5,6 +5,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainEvent, type DomainName } from '../../shared/types/index.js';
+import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import { FilePath, Version } from '../../shared/value-objects/index.js';
 import { HttpClient, createHttpClient } from '../../shared/http/index.js';
 import { FileReader } from '../../shared/io/index.js';
@@ -221,7 +222,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
         console.log('[contract-testing] SARSA algorithm created successfully');
       } catch (error) {
         console.error('[contract-testing] Failed to create SARSA:', error);
-        throw new Error(`SARSA creation failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`SARSA creation failed: ${toErrorMessage(error)}`);
       }
     }
 
@@ -253,7 +254,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     // Initialize Consensus engine if enabled (MM-001)
     if (this.config.enableConsensus) {
       try {
-        await (this.consensusMixin as any).initializeConsensus();
+        await this.consensusMixin.initializeConsensus();
         console.log(`[${this.domainName}] Consensus engine initialized`);
       } catch (error) {
         console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
@@ -270,7 +271,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
   async dispose(): Promise<void> {
     // Dispose Consensus engine (MM-001)
     try {
-      await (this.consensusMixin as any).disposeConsensus();
+      await this.consensusMixin.disposeConsensus();
     } catch (error) {
       console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
     }
@@ -342,7 +343,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
 
       return ok(contract.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -457,7 +458,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       });
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -574,7 +575,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       });
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -622,7 +623,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       return ok(contract);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -650,7 +651,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       return ok(openAPISpec);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -704,7 +705,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
             type: 'connection-error',
             expected: 'reachable',
             actual: 'error',
-            message: `Failed to verify endpoint: ${error instanceof Error ? error.message : String(error)}`,
+            message: `Failed to verify endpoint: ${toErrorMessage(error)}`,
           });
         }
       } else {
@@ -874,7 +875,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     } catch (error) {
       console.error(
         `Failed to parse contract from ${path.value}:`,
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
       return null;
     }
@@ -1545,7 +1546,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
    * Check if consensus engine is available
    */
   isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+    return this.consensusMixin.isConsensusAvailable?.() ?? false;
   }
 
   /**

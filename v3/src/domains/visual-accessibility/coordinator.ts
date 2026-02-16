@@ -4,6 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import {
   Result,
   ok,
@@ -245,7 +246,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
         console.log('[visual-accessibility] A2C algorithm created successfully');
       } catch (error) {
         console.error('[visual-accessibility] Failed to create A2C:', error);
-        throw new Error(`A2C creation failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`A2C creation failed: ${toErrorMessage(error)}`);
       }
     }
 
@@ -256,7 +257,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
         console.log('[visual-accessibility] QEFlashAttention initialized successfully');
       } catch (error) {
         console.error('[visual-accessibility] Failed to initialize Flash Attention:', error);
-        throw new Error(`Flash Attention initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`Flash Attention initialization failed: ${toErrorMessage(error)}`);
       }
     }
 
@@ -266,7 +267,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
     // Initialize Consensus engine if enabled (MM-001)
     if (this.config.enableConsensus) {
       try {
-        await (this.consensusMixin as any).initializeConsensus();
+        await this.consensusMixin.initializeConsensus();
         console.log(`[${this.domainName}] Consensus engine initialized`);
       } catch (error) {
         console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
@@ -285,7 +286,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
     // Dispose Consensus engine (MM-001)
     try {
-      await (this.consensusMixin as any).disposeConsensus();
+      await this.consensusMixin.disposeConsensus();
     } catch (error) {
       console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
     }
@@ -491,7 +492,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok(report);
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -582,7 +583,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok(auditReport);
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -623,7 +624,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -656,7 +657,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok(plan);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -715,7 +716,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok(status);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -802,7 +803,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok({ differences });
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -870,7 +871,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
         passed: true,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -907,7 +908,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok({ issues });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -949,7 +950,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok({ viewportResults });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1698,7 +1699,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
    * Check if consensus engine is available
    */
   isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+    return this.consensusMixin.isConsensusAvailable?.() ?? false;
   }
 
   /**

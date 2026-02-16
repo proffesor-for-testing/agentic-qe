@@ -14,6 +14,7 @@ import {
   err,
   DomainEvent,
 } from '../../shared/types';
+import { toError } from '../../shared/error-utils.js';
 import {
   EventBus,
   MemoryBackend,
@@ -390,7 +391,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
     // Initialize Consensus engine if enabled (MM-001)
     if (this.config.enableConsensus) {
       try {
-        await (this.consensusMixin as any).initializeConsensus();
+        await this.consensusMixin.initializeConsensus();
         console.log('[TestGenerationCoordinator] Consensus engine initialized for test design verification');
       } catch (error) {
         // Log and continue - consensus is enhancement, not critical
@@ -411,7 +412,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
 
     // Dispose Consensus engine (MM-001)
     try {
-      await (this.consensusMixin as any).disposeConsensus();
+      await this.consensusMixin.disposeConsensus();
     } catch (error) {
       console.error('[TestGenerationCoordinator] Error disposing consensus engine:', error);
     }
@@ -624,7 +625,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
       return result;
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -660,7 +661,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
       return result;
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -684,7 +685,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
       return result;
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -715,7 +716,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
       return result;
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1592,7 +1593,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
    * Per MM-001: Returns true if consensus engine is initialized
    */
   isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+    return this.consensusMixin.isConsensusAvailable?.() ?? false;
   }
 
   /**

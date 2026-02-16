@@ -14,6 +14,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainEvent } from '../../shared/types';
+import { toError } from '../../shared/error-utils.js';
 import type {
   RLState,
   RLAction,
@@ -573,7 +574,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       return ok(verifiedResult);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -775,7 +776,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       return ok(verifiedResult);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -842,7 +843,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       return ok(finalAdvice);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -971,7 +972,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       return result;
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1023,7 +1024,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
       return ok({ content, format: options.format });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1066,7 +1067,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
         },
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1148,7 +1149,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
       return ok({ risks, overallRiskLevel });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1262,7 +1263,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
       return ok({ ready, risks, score });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1317,7 +1318,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
 
       return ok({ totalDebt, items, debtRatio });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

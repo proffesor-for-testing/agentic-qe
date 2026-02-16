@@ -5,6 +5,7 @@
  */
 
 import { Result, ok, err, DomainName, Severity } from '../../shared/types';
+import { toError } from '../../shared/error-utils.js';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
 import {
   createEvent,
@@ -234,7 +235,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
     // Initialize Consensus engine if enabled (MM-001)
     if (this.config.enableConsensus) {
       try {
-        await (this.consensusMixin as any).initializeConsensus();
+        await this.consensusMixin.initializeConsensus();
         console.log(`[${this.domainName}] Consensus engine initialized`);
       } catch (error) {
         console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
@@ -253,7 +254,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
   async dispose(): Promise<void> {
     // Dispose Consensus engine (MM-001)
     try {
-      await (this.consensusMixin as any).disposeConsensus();
+      await this.consensusMixin.disposeConsensus();
     } catch (error) {
       console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
     }
@@ -312,7 +313,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
         reasoning: `Q-Learning prioritized ${prioritized.length} tests based on coverage optimization potential`,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -600,7 +601,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
       return result;
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -653,7 +654,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
       return result;
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -700,7 +701,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
       return result;
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -762,7 +763,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
         forecast,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -814,7 +815,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
         searchTime,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -887,7 +888,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
       return ok(phantomSurface);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1166,7 +1167,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
    * Check if consensus engine is available
    */
   isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
+    return this.consensusMixin.isConsensusAvailable?.() ?? false;
   }
 
   /**

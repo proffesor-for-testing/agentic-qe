@@ -15,6 +15,7 @@
 import Database, { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 
@@ -176,7 +177,7 @@ export class SQLitePatternStore {
 
       this.initialized = true;
     } catch (error) {
-      throw new Error(`Failed to initialize SQLite: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to initialize SQLite: ${toErrorMessage(error)}`);
     }
   }
 
@@ -698,7 +699,7 @@ export class SQLitePatternStore {
       // Non-critical - don't fail if metrics tracking fails
       console.debug(
         '[SQLitePatternStore] Failed to record pattern reuse:',
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
     }
   }
@@ -795,7 +796,7 @@ export class SQLitePatternStore {
     } catch (error) {
       console.debug(
         '[SQLitePatternStore] Failed to get reuse stats:',
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
       return {
         totalSearches: 0,

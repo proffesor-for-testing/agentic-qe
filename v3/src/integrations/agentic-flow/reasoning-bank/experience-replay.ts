@@ -673,7 +673,7 @@ export class ExperienceReplay {
       if (!experienceId) continue;
 
       if (getStmt) {
-        const row = getStmt.get(experienceId) as any;
+        const row = getStmt.get(experienceId) as ExperienceRow | undefined;
         if (row) {
           // Filter by domain if specified
           if (domain && row.domain !== domain) continue;
@@ -734,7 +734,7 @@ export class ExperienceReplay {
     const stmt = this.prepared.get('getExperience');
     if (!stmt) return null;
 
-    const row = stmt.get(id) as any;
+    const row = stmt.get(id) as ExperienceRow | undefined;
     return row ? this.rowToExperience(row) : null;
   }
 
@@ -747,7 +747,7 @@ export class ExperienceReplay {
     const stmt = this.prepared.get('getExperiencesByDomain');
     if (!stmt) return [];
 
-    const rows = stmt.all(domain, limit) as any[];
+    const rows = stmt.all(domain, limit) as ExperienceRow[];
     return rows.map(r => this.rowToExperience(r)).filter((e): e is Experience => e !== null);
   }
 
