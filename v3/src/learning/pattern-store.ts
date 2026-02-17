@@ -304,6 +304,9 @@ export class PatternStore implements IPatternStore {
   private initialized = false;
   private cleanupTimer?: NodeJS.Timeout;
 
+  // Optional SQLite persistence delegate for delete/promote
+  private sqliteStore: import('./sqlite-persistence.js').SQLitePatternStore | null = null;
+
   // In-memory caches for fast access
   private patternCache: Map<string, QEPattern> = new Map();
   private domainIndex: Map<QEDomain, Set<string>> = new Map();
@@ -327,6 +330,15 @@ export class PatternStore implements IPatternStore {
     config: Partial<PatternStoreConfig> = {}
   ) {
     this.config = { ...DEFAULT_PATTERN_STORE_CONFIG, ...config };
+  }
+
+  /**
+   * Set SQLite persistence delegate for delete/promote operations.
+   * When set, PatternStore will forward these operations to SQLite
+   * in addition to updating the in-memory cache.
+   */
+  setSqliteStore(store: import('./sqlite-persistence.js').SQLitePatternStore): void {
+    this.sqliteStore = store;
   }
 
   /**
@@ -948,8 +960,17 @@ export class PatternStore implements IPatternStore {
     this.tierIndex.get('short-term')?.delete(id);
     this.tierIndex.get('long-term')?.add(id);
 
-    // Update cache only - persistence handled by SQLitePatternStore.promotePattern()
+    // Update cache
     this.patternCache.set(id, promoted);
+
+    // Persist promotion to SQLite
+    if (this.sqliteStore) {
+      try {
+        this.sqliteStore.promotePattern(id);
+      } catch (e) {
+        console.debug('[PatternStore] SQLite promotion error:', e instanceof Error ? e.message : e);
+      }
+    }
 
     console.log(
       `[PatternStore] Promoted pattern ${id} (${pattern.name}) to long-term storage`
@@ -970,7 +991,15 @@ export class PatternStore implements IPatternStore {
     // Remove from indices
     this.unindexPattern(pattern);
 
-    // No kv_store write — deletion from qe_patterns handled by SQLitePatternStore.
+    // Persist deletion to SQLite
+    if (this.sqliteStore) {
+      try {
+        this.sqliteStore.deletePattern(id);
+      } catch (e) {
+        console.debug('[PatternStore] SQLite deletion error:', e instanceof Error ? e.message : e);
+      }
+    }
+
     // Only remove from HNSW if already initialized (no lazy-load for delete)
     if (this.hnswIndex !== null) {
       try {

@@ -150,6 +150,23 @@ export function createQEHookHandlers(
         };
       }
 
+      // Query recent experiences for this domain to inform generation
+      let recentExperiences: Array<{ patternId: string; success: boolean; feedback: string | null }> = [];
+      try {
+        const { getUnifiedMemory } = await import('../kernel/unified-memory.js');
+        const db = getUnifiedMemory().getDatabase();
+        recentExperiences = db.prepare(`
+          SELECT u.pattern_id, u.success, u.feedback
+          FROM qe_pattern_usage u
+          JOIN qe_patterns p ON u.pattern_id = p.id
+          WHERE p.qe_domain = 'test-generation'
+          ORDER BY u.created_at DESC
+          LIMIT 10
+        `).all() as Array<{ patternId: string; success: boolean; feedback: string | null }>;
+      } catch {
+        // Non-critical — experience query is best-effort
+      }
+
       return {
         success: true,
         routing: routingResult.value,
@@ -157,6 +174,7 @@ export function createQEHookHandlers(
         data: {
           recommendedAgent: routingResult.value.recommendedAgent,
           patterns: routingResult.value.patterns.map((p) => p.id),
+          recentExperiences,
         },
       };
     },
@@ -270,10 +288,30 @@ export function createQEHookHandlers(
         return { success: false, error: routingResult.error.message };
       }
 
+      // Query recent coverage-analysis experiences
+      let recentExperiences: Array<{ patternId: string; success: boolean; feedback: string | null }> = [];
+      try {
+        const { getUnifiedMemory } = await import('../kernel/unified-memory.js');
+        const db = getUnifiedMemory().getDatabase();
+        recentExperiences = db.prepare(`
+          SELECT u.pattern_id, u.success, u.feedback
+          FROM qe_pattern_usage u
+          JOIN qe_patterns p ON u.pattern_id = p.id
+          WHERE p.qe_domain = 'coverage-analysis'
+          ORDER BY u.created_at DESC
+          LIMIT 10
+        `).all() as Array<{ patternId: string; success: boolean; feedback: string | null }>;
+      } catch {
+        // Non-critical
+      }
+
       return {
         success: true,
         routing: routingResult.value,
         guidance: routingResult.value.guidance,
+        data: {
+          recentExperiences,
+        },
       };
     },
 

@@ -172,6 +172,9 @@ export class SQLitePatternStore {
         console.log(`[SQLitePatternStore] Initialized (legacy): ${this.config.dbPath}`);
       }
 
+      // Run deduplication migration (one-time, idempotent)
+      this.deduplicatePatterns();
+
       // Prepare statements
       this.prepareStatements();
 
@@ -255,6 +258,10 @@ export class SQLitePatternStore {
         FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
       );
 
+      -- Unique constraint to prevent duplicate patterns
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_unique_name_domain_type
+        ON qe_patterns(name, qe_domain, pattern_type);
+
       -- Indexes for performance
       CREATE INDEX IF NOT EXISTS idx_patterns_domain ON qe_patterns(qe_domain);
       CREATE INDEX IF NOT EXISTS idx_patterns_type ON qe_patterns(pattern_type);
@@ -268,13 +275,56 @@ export class SQLitePatternStore {
   }
 
   /**
+   * Deduplicate existing patterns (one-time migration).
+   * Keeps the row with the highest quality_score for each (name, qe_domain, pattern_type) triple.
+   */
+  private deduplicatePatterns(): void {
+    if (!this.db) return;
+
+    try {
+      // Check if unique index already exists (migration already done)
+      const indexExists = this.db.prepare(
+        `SELECT name FROM sqlite_master WHERE type='index' AND name='idx_patterns_unique_name_domain_type'`
+      ).get();
+
+      if (indexExists) return; // Already deduplicated
+
+      const dupeCount = (this.db.prepare(`
+        SELECT COUNT(*) as cnt FROM (
+          SELECT name, qe_domain, pattern_type, COUNT(*) as c
+          FROM qe_patterns GROUP BY name, qe_domain, pattern_type HAVING c > 1
+        )
+      `).get() as { cnt: number })?.cnt || 0;
+
+      if (dupeCount > 0) {
+        // Delete duplicates, keeping the row with the highest quality_score
+        this.db.exec(`
+          DELETE FROM qe_patterns WHERE rowid NOT IN (
+            SELECT MIN(rowid) FROM qe_patterns
+            GROUP BY name, qe_domain, pattern_type
+          )
+        `);
+        console.log(`[SQLitePatternStore] Deduplicated ${dupeCount} duplicate pattern groups`);
+      }
+
+      // Create unique index to prevent future duplicates
+      this.db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_unique_name_domain_type
+          ON qe_patterns(name, qe_domain, pattern_type)
+      `);
+    } catch (e) {
+      console.debug('[SQLitePatternStore] Deduplication migration:', toErrorMessage(e));
+    }
+  }
+
+  /**
    * Prepare commonly used statements
    */
   private prepareStatements(): void {
     if (!this.db) throw new Error('Database not initialized');
 
     this.prepared.set('insertPattern', this.db.prepare(`
-      INSERT INTO qe_patterns (
+      INSERT OR REPLACE INTO qe_patterns (
         id, pattern_type, qe_domain, domain, name, description,
         confidence, tier, template_json, context_json
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -476,6 +526,21 @@ export class SQLitePatternStore {
         qualityScore,
         patternId
       );
+    });
+
+    transaction();
+  }
+
+  /**
+   * Delete a pattern and its related data (embedding, usage history)
+   */
+  deletePattern(patternId: string): void {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const transaction = this.db.transaction(() => {
+      this.db!.prepare('DELETE FROM qe_pattern_embeddings WHERE pattern_id = ?').run(patternId);
+      this.db!.prepare('DELETE FROM qe_pattern_usage WHERE pattern_id = ?').run(patternId);
+      this.db!.prepare('DELETE FROM qe_patterns WHERE id = ?').run(patternId);
     });
 
     transaction();

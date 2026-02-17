@@ -52,6 +52,10 @@ import {
   IPatternMatchingService,
 } from './services/pattern-matcher';
 
+// QE Hook integration for self-learning feedback loop (Issue #265)
+import type { QEHookRegistry, QEHookResult } from '../../learning/qe-hooks.js';
+import { QE_HOOK_EVENTS } from '../../learning/qe-hooks.js';
+
 // ============================================================================
 // MinCut & Consensus Mixin Imports (ADR-047, MM-001)
 // ============================================================================
@@ -256,7 +260,8 @@ export class TestGenerationCoordinator
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {},
-    private readonly coherenceService?: ICoherenceService | null
+    private readonly coherenceService?: ICoherenceService | null,
+    private readonly hookRegistry?: QEHookRegistry | null
   ) {
     const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -417,6 +422,34 @@ export class TestGenerationCoordinator
         return err(new Error('Test generation paused: topology is in critical state'));
       }
 
+      // Fire PreTestGeneration hook to get guidance and patterns from learning system
+      let hookPatternIds: string[] = [];
+      if (this.hookRegistry) {
+        try {
+          const targetFile = request.sourceFiles?.[0] || '';
+          const hookResults = await this.hookRegistry.emit(
+            QE_HOOK_EVENTS.PreTestGeneration,
+            {
+              targetFile,
+              testType: request.testType,
+              framework: request.framework,
+              language: targetFile.split('.').pop() || 'typescript',
+            }
+          );
+          for (const hookResult of hookResults) {
+            if (hookResult.success && hookResult.data?.patterns) {
+              hookPatternIds.push(...(hookResult.data.patterns as string[]));
+            }
+            if (hookResult.guidance) {
+              console.log(`[TestGenerationCoordinator] Hook guidance: ${hookResult.guidance.join('; ')}`);
+            }
+          }
+        } catch (e) {
+          // Hook failures are non-critical
+          console.debug('[TestGenerationCoordinator] PreTestGeneration hook failed:', e instanceof Error ? e.message : e);
+        }
+      }
+
       // Check if we can spawn agents
       if (!this.agentCoordinator.canSpawn()) {
         return err(new Error('Agent limit reached, cannot spawn test generation agents'));
@@ -432,7 +465,7 @@ export class TestGenerationCoordinator
       this.addAgentToWorkflow(workflowId, agentResult.value);
 
       // Use QESONA to adapt test generation patterns based on context
-      let adaptedPatterns: string[] = request.patterns || [];
+      let adaptedPatterns: string[] = [...(request.patterns || []), ...hookPatternIds];
       if (this.config.enableQESONA && this.qesona) {
         const sonaPatterns = await this.adaptTestGenerationPatterns(request);
         if (sonaPatterns.length > 0) {

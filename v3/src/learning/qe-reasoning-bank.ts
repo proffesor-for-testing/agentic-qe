@@ -52,6 +52,10 @@ import {
   PatternSearchResult,
   createPatternStore,
 } from './pattern-store.js';
+import {
+  SQLitePatternStore,
+  createSQLitePatternStore,
+} from './sqlite-persistence.js';
 
 // ============================================================================
 // QEReasoningBank Configuration
@@ -313,6 +317,23 @@ export class QEReasoningBank implements IQEReasoningBank {
   private readonly config: QEReasoningBankConfig;
   private patternStore: PatternStore;
   private initialized = false;
+  private sqliteStore: SQLitePatternStore | null = null;
+
+  /**
+   * Lazy getter for SQLitePatternStore — persists pattern usage/promotion
+   * to the qe_patterns table (same DB as UnifiedMemory).
+   */
+  private getSqliteStore(): SQLitePatternStore {
+    if (!this.sqliteStore) {
+      this.sqliteStore = createSQLitePatternStore();
+      // initialize() is sync-safe when useUnified=true (already open)
+      // but we call it defensively; it no-ops if already initialized
+      this.sqliteStore.initialize().catch((e) => {
+        logger.warn('SQLitePatternStore init failed', { error: toErrorMessage(e) });
+      });
+    }
+    return this.sqliteStore;
+  }
 
   // Statistics
   private stats = {
@@ -405,6 +426,15 @@ export class QEReasoningBank implements IQEReasoningBank {
     if (this.initialized) return;
 
     await this.patternStore.initialize();
+
+    // Wire SQLitePatternStore into PatternStore for delete/promote persistence
+    try {
+      const store = this.getSqliteStore();
+      await store.initialize();
+      this.patternStore.setSqliteStore(store);
+    } catch (e) {
+      logger.warn('Failed to wire SQLitePatternStore into PatternStore', { error: toErrorMessage(e) });
+    }
 
     // Load any pre-trained patterns
     await this.loadPretrainedPatterns();
@@ -1368,22 +1398,18 @@ On promotion:
       outcome.success
     );
 
-    // Write to qe_pattern_usage table for analytics/feedback loop
+    // Persist usage to SQLite (updates qe_patterns row AND inserts qe_pattern_usage)
     try {
-      const { getUnifiedMemory } = await import('../kernel/unified-memory.js');
-      const db = getUnifiedMemory().getDatabase();
-      db.prepare(`
-        INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json, feedback)
-        VALUES (?, ?, ?, ?)
-      `).run(
+      const store = this.getSqliteStore();
+      store.recordUsage(
         outcome.patternId,
-        outcome.success ? 1 : 0,
-        outcome.metrics ? JSON.stringify(outcome.metrics) : null,
-        outcome.feedback || null
+        outcome.success,
+        outcome.metrics as Record<string, unknown> | undefined,
+        outcome.feedback
       );
-    } catch (analyticsError) {
-      // Non-critical — don't fail if analytics insert fails
-      logger.warn('Analytics write failed', { error: toErrorMessage(analyticsError) });
+    } catch (persistError) {
+      // Non-critical — don't fail if persistence fails
+      logger.warn('SQLite pattern usage persist failed', { error: toErrorMessage(persistError) });
     }
 
     if (result.success) {
@@ -1486,6 +1512,12 @@ On promotion:
   private async promotePattern(patternId: string): Promise<void> {
     const result = await this.patternStore.promote(patternId);
     if (result.success) {
+      // Persist promotion to SQLite
+      try {
+        this.getSqliteStore().promotePattern(patternId);
+      } catch (e) {
+        logger.warn('SQLite pattern promotion persist failed', { error: toErrorMessage(e) });
+      }
       logger.info('Promoted pattern to long-term', { patternId });
       if (this.eventBus) {
         await this.eventBus.publish({
@@ -1800,6 +1832,10 @@ On promotion:
    */
   async dispose(): Promise<void> {
     await this.patternStore.dispose();
+    if (this.sqliteStore) {
+      this.sqliteStore.close();
+      this.sqliteStore = null;
+    }
     this.initialized = false;
   }
 }
