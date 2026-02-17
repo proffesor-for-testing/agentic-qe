@@ -404,7 +404,16 @@ export class RuVectorServerClient {
       const responseTimeMs = Date.now() - startTime;
 
       if (response.ok) {
-        // TODO: Parse actual health response when API is available
+        // Parse health response for feature detection
+        let features: string[] = [];
+        try {
+          const body = await response.json() as Record<string, unknown>;
+          if (Array.isArray(body.features)) {
+            features = body.features as string[];
+          }
+        } catch {
+          // Response may not have JSON body - no features detected
+        }
         this.lastHealthCheck = {
           healthy: true,
           status: 'running',
@@ -412,7 +421,7 @@ export class RuVectorServerClient {
           grpcEndpoint: `localhost:${this.config.grpcPort}`,
           lastChecked: new Date(),
           responseTimeMs,
-          features: ['vector-store', 'similarity-search'],
+          features,
         };
       } else {
         this.lastHealthCheck = {
@@ -452,12 +461,10 @@ export class RuVectorServerClient {
    * @returns true if vector operations (store/search/delete) are supported
    */
   supportsVectorOperations(): boolean {
-    // TODO: When server API becomes available, check health response for features
-    // return this.lastHealthCheck?.features?.includes('vector-store') ?? false;
-
-    // Currently the server REST API is "Coming Soon"
-    // See: npx ruvector server --info
-    return false;
+    if (!this.isRunning) {
+      return false;
+    }
+    return this.lastHealthCheck?.features?.includes('vector-store') ?? false;
   }
 
   /**

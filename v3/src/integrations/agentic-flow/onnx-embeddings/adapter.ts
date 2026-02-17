@@ -23,6 +23,7 @@ import { EmbeddingModel, EmbeddingError, EmbeddingErrorType, SimilarityMetric } 
 import { EmbeddingGenerator } from './embedding-generator.js';
 import { SimilaritySearch } from './similarity-search.js';
 import { HyperbolicOps } from './hyperbolic-ops.js';
+import { getUnifiedMemory } from '../../../kernel/unified-memory.js';
 
 /**
  * Configuration for the ONNX embeddings adapter
@@ -154,6 +155,21 @@ export class ONNXEmbeddingsAdapter {
     };
 
     this.search.store(stored);
+
+    // Persist to unified vectors table
+    try {
+      const mem = getUnifiedMemory();
+      await mem.initialize();
+      await mem.vectorStore(
+        stored.id,
+        stored.embedding.vector,
+        stored.namespace ?? 'onnx',
+        { text: stored.text, customData: stored.metadata, createdAt: stored.createdAt }
+      );
+    } catch {
+      // Non-fatal: in-memory search still works without DB persistence
+    }
+
     return stored;
   }
 
