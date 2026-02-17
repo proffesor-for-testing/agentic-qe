@@ -131,7 +131,7 @@ describe('Compliance Reporter Integration', () => {
         agentId: 'test-agent-1',
       });
 
-      expect(id).toMatch(/^viol_[a-z0-9]+_[a-z0-9]+$/);
+      expect(id).toMatch(/^viol_[a-f0-9-]+$/);
 
       const violation = reporter.getViolation(id);
       expect(violation).not.toBeNull();

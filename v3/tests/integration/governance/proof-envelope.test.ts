@@ -103,7 +103,7 @@ describe('Proof Envelope Integration', () => {
         { result: 'success' }
       );
 
-      expect(envelope.id).toMatch(/^env_[a-z0-9]+_[a-z0-9]+$/);
+      expect(envelope.id).toMatch(/^env_[a-f0-9-]+$/);
       expect(envelope.agentId).toBe('test-agent');
       expect(envelope.action).toBe('task_complete');
       expect(envelope.payload).toEqual({ result: 'success' });
