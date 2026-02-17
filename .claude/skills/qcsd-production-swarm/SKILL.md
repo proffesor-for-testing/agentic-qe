@@ -183,6 +183,36 @@ npx @claude-flow/cli@latest memory search --query "qcsd-cicd" --namespace qcsd-c
 
 ---
 
+### Step 0.5: Auto-Detect Pre-Collected Telemetry
+
+Before requiring manual telemetry input, check if the GitHub Actions telemetry collection
+workflow has pre-collected DORA metrics. This runs automatically after every npm publish
+and weekly on schedule.
+
+**Check for pre-collected telemetry:**
+
+```bash
+TELEMETRY_FILE="docs/telemetry/production/latest.json"
+```
+
+**If the file exists and is recent (< 7 days old):**
+- Use it as the primary TELEMETRY_DATA source
+- The DORA metrics (deployment frequency, lead time, change failure rate, MTTR) are already
+  computed from GitHub API — the qe-metrics-optimizer agent should validate and enrich these,
+  not recompute from scratch
+- Record: `TELEMETRY SOURCE: GHA pre-collected (${collectionTimestamp from JSON})`
+- Extract the `releaseId` from the JSON if RELEASE_ID was not provided as a parameter
+
+**If the file does not exist or is stale (> 7 days old):**
+- Proceed with the manually provided TELEMETRY_DATA parameter as currently specified
+- Record: `TELEMETRY SOURCE: Manual input`
+
+**This step is non-blocking.** If pre-collected telemetry is unavailable, the swarm
+operates exactly as before. Pre-collected telemetry simply accelerates Phase 2 by
+giving qe-metrics-optimizer a validated starting point.
+
+---
+
 ### Step 1: Scan Production Context and Detect Flags
 
 Scan the production telemetry, incident reports, DORA data, and release context to SET these flags. Do not skip any flag.
