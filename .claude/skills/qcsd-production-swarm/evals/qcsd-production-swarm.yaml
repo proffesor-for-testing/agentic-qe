@@ -148,6 +148,7 @@ test_cases:
         HAS_INFRASTRUCTURE_CHANGE: true
         HAS_PERFORMANCE_SLA: true
         HAS_RECURRING_INCIDENTS: true
+        HAS_MIDDLEWARE: true
 
     expected_output:
       must_contain:
@@ -177,9 +178,11 @@ test_cases:
         sapHealth: null
         sodCompliance: 95
       domain_flags:
-        HAS_INFRASTRUCTURE_CHANGE: false
+        HAS_INFRASTRUCTURE_CHANGE: true
         HAS_PERFORMANCE_SLA: true
         HAS_RECURRING_INCIDENTS: false
+        HAS_MIDDLEWARE: true
+        HAS_AUTHORIZATION: true
 
     expected_output:
       must_contain:
@@ -212,6 +215,8 @@ test_cases:
         HAS_INFRASTRUCTURE_CHANGE: true
         HAS_PERFORMANCE_SLA: true
         HAS_RECURRING_INCIDENTS: false
+        HAS_MIDDLEWARE: true
+        HAS_SAP_INTEGRATION: true
 
     expected_output:
       must_contain:
