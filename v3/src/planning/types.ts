@@ -409,19 +409,3 @@ export interface GOAPPlanRecord {
   completed_at: string | null;
 }
 
-/**
- * Database record for goap_execution_steps table
- */
-export interface GOAPExecutionStepRecord {
-  id: string;
-  plan_id: string;
-  action_id: string;
-  step_order: number;
-  world_state_before: string | null; // JSON
-  world_state_after: string | null; // JSON
-  status: string;
-  duration_ms: number | null;
-  agent_id: string | null;
-  error_message: string | null;
-  created_at: string;
-}

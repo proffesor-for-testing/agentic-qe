@@ -116,7 +116,6 @@ export async function migrateToUnifiedMemory(
       'goap_goals',
       'goap_actions',
       'goap_plans',
-      'goap_execution_steps',
       'goap_plan_signatures',
       'concept_nodes',
       'concept_edges',

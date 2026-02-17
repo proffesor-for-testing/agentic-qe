@@ -28,7 +28,6 @@ import type {
   GOAPActionRecord,
   GOAPGoalRecord,
   GOAPPlanRecord,
-  GOAPExecutionStepRecord,
 } from './types.js';
 import { DEFAULT_V3_WORLD_STATE } from './types.js';
 import { getAllQEActions, QE_GOALS, toGOAPAction } from './actions/qe-action-library.js';

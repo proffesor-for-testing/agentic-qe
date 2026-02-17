@@ -194,7 +194,7 @@ export function getResolvedDefaultConfig(): UnifiedMemoryConfig {
 //
 // Tables actively wired (DO NOT remove):
 //   - embeddings, executed_steps, execution_results,
-//     goap_execution_steps, goap_goals, goap_plan_signatures,
+//     goap_goals, goap_plan_signatures,
 //     hypergraph_edges, hypergraph_nodes
 //
 // Tables partially wired (in allowlist, need INSERT code):
@@ -363,7 +363,6 @@ export class UnifiedMemoryManager {
 
     const v2IncompatibleTables = [
       { table: 'goap_plans', requiredColumn: 'status' },
-      { table: 'goap_execution_steps', requiredColumn: 'agent_id' },
       { table: 'goap_actions', requiredColumn: 'agent_type' },
       { table: 'concept_nodes', requiredColumn: 'concept_type' },
       { table: 'concept_edges', requiredColumn: 'edge_type' },

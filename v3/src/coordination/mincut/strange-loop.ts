@@ -540,6 +540,16 @@ export class StrangeLoopController {
         this.results.shift();
       }
 
+      // ADR-047: Persist healing action
+      if (result.success) {
+        await this.persistence.recordHealingAction({
+          ...result,
+          triggeredBy: 'strange-loop-cycle',
+        }).catch(e =>
+          console.warn('[StrangeLoopController] Failed to persist healing action:', e)
+        );
+      }
+
       // Persist observation
       await this.persistence.recordObservation({
         iteration: this.iteration,

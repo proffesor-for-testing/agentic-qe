@@ -16,6 +16,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Severity, DomainEvent } from '../../shared/types';
 import { EventBus } from '../../kernel/interfaces';
 import { MinCutPriority } from './interfaces';
+import { MinCutPersistence } from './mincut-persistence';
 import { SwarmGraph } from './swarm-graph';
 import { MinCutCalculator, createMinCutCalculator } from './mincut-calculator';
 import {
@@ -36,6 +37,7 @@ export class MinCutHealthMonitor {
   private readonly calculator: MinCutCalculator;
   private readonly config: MinCutHealthConfig;
   private readonly eventBus?: EventBus;
+  private readonly persistence?: MinCutPersistence;
 
   private graph: SwarmGraph;
   private history: MinCutHistoryEntry[] = [];
@@ -47,12 +49,14 @@ export class MinCutHealthMonitor {
   constructor(
     graph: SwarmGraph,
     config: Partial<MinCutHealthConfig> = {},
-    eventBus?: EventBus
+    eventBus?: EventBus,
+    persistence?: MinCutPersistence
   ) {
     this.graph = graph;
     this.config = { ...DEFAULT_MINCUT_HEALTH_CONFIG, ...config };
     this.calculator = createMinCutCalculator();
     this.eventBus = eventBus;
+    this.persistence = persistence;
   }
 
   // ==========================================================================
@@ -135,6 +139,13 @@ export class MinCutHealthMonitor {
     // Empty topology is expected for fresh installs
     if (!this.isEmptyTopology()) {
       this.checkAlertConditions(minCutValue, weakVertices, status);
+    }
+
+    // ADR-047: Persist weak vertices
+    if (this.persistence && weakVertices.length > 0) {
+      this.persistence.saveWeakVertices(weakVertices).catch(e =>
+        console.warn('[MinCutHealthMonitor] Failed to persist weak vertices:', e)
+      );
     }
 
     // Emit event
@@ -481,6 +492,14 @@ export class MinCutHealthMonitor {
     };
 
     this.alerts.set(alert.id, alert);
+
+    // ADR-047: Persist alert to database
+    if (this.persistence) {
+      this.persistence.saveAlert(alert).catch(e =>
+        console.warn('[MinCutHealthMonitor] Failed to persist alert:', e)
+      );
+    }
+
     this.lastAlertTime.set(alertKey, now);
 
     this.emitEvent('mincut.alert.generated', minCutValue, { alert });
@@ -520,7 +539,8 @@ export class MinCutHealthMonitor {
 export function createMinCutHealthMonitor(
   graph: SwarmGraph,
   config?: Partial<MinCutHealthConfig>,
-  eventBus?: EventBus
+  eventBus?: EventBus,
+  persistence?: MinCutPersistence
 ): MinCutHealthMonitor {
-  return new MinCutHealthMonitor(graph, config, eventBus);
+  return new MinCutHealthMonitor(graph, config, eventBus, persistence);
 }

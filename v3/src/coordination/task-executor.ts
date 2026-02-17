@@ -32,6 +32,7 @@ import {
 
 // ADR-051: Task Router for outcome recording
 import { getTaskRouter, type TaskRouterService } from '../mcp/services/task-router';
+import type { QualityFeedbackLoop, RoutingOutcomeInput } from '../feedback/feedback-loop.js';
 
 // CQ-005: Import domain types only (no runtime dependency on domain modules)
 import type { CoverageData, FileCoverage } from '../domains/coverage-analysis';
@@ -548,6 +549,9 @@ export class DomainTaskExecutor {
   private agentBooster: IAgentBoosterAdapter | null = null;
   private taskRouter: TaskRouterService | null = null;
 
+  // ADR-023: Quality Feedback Loop for routing outcome recording
+  private qualityFeedbackLoop: QualityFeedbackLoop | null = null;
+
   // Instance-level task handler registry
   private readonly taskHandlers: Map<TaskType, InstanceTaskHandler> = new Map();
 
@@ -567,6 +571,11 @@ export class DomainTaskExecutor {
     };
     this.resultSaver = createResultSaver(this.config.resultsDir);
     this.registerHandlers();
+  }
+
+  /** Connect QualityFeedbackLoop for routing outcome recording */
+  setQualityFeedbackLoop(loop: QualityFeedbackLoop | null): void {
+    this.qualityFeedbackLoop = loop;
   }
 
   // ============================================================================
@@ -1283,8 +1292,22 @@ export class DomainTaskExecutor {
         `model=${getModelForTier(tier)}, success=${success}, duration=${durationMs}ms`
       );
 
-      // Note: In a future enhancement, we could call router.recordOutcome()
-      // to feed back to the TinyDancer learning system
+      // ADR-023: Record routing outcome for learning feedback loop
+      if (this.qualityFeedbackLoop) {
+        const targetDomains = task.targetDomains || [];
+        await this.qualityFeedbackLoop.recordRoutingOutcome({
+          taskId: task.id,
+          taskDescription: task.type,
+          recommendedAgent: String(tier),
+          usedAgent: String(tier),
+          followedRecommendation: true,
+          success,
+          qualityScore: success ? 0.8 : 0.2,
+          durationMs,
+          timestamp: new Date(),
+          error: success ? undefined : 'Task execution failed',
+        });
+      }
     } catch (error) {
       // Don't fail task execution if metrics recording fails
       console.warn('[TaskExecutor] Failed to record outcome:', error);

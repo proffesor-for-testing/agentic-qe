@@ -85,6 +85,8 @@ export class EmbeddingCache {
   private storagePath: string;
   private useUnified: boolean;
   private unifiedMemory: UnifiedMemoryManager | null = null;
+  private pendingWrites: Array<{ key: string; embedding: IEmbedding; namespace: EmbeddingNamespace }> = [];
+  private dbInitializing = false;
 
   constructor(config: ExtendedCacheConfig = {}) {
     this.maxSize = config.maxSize || 10000;
@@ -116,17 +118,20 @@ export class EmbeddingCache {
       if (this.useUnified) {
         // ADR-046: Use unified storage via UnifiedMemoryManager
         this.unifiedMemory = getUnifiedMemory();
-        // Note: initialize() is async, but we're in a sync constructor
-        // The tables are created by UnifiedMemoryManager during its initialization
-        // We need to call initialize before using the database
+        this.dbInitializing = true;
         this.unifiedMemory.initialize().then(() => {
           this.db = this.unifiedMemory!.getDatabase();
+          this.dbInitializing = false;
           console.log(`[EmbeddingCache] Using unified storage: ${this.unifiedMemory!.getDbPath()}`);
           this.loadFromDisk();
+          // Flush any writes that arrived during async init
+          this.flushPendingWrites();
         }).catch((error) => {
           console.warn('[EmbeddingCache] Failed to initialize unified storage:', error);
           this.db = null;
+          this.dbInitializing = false;
           this.unifiedMemory = null;
+          this.pendingWrites = [];
         });
       } else {
         // Legacy: Create separate database
@@ -214,8 +219,13 @@ export class EmbeddingCache {
     cache.set(key, entry);
 
     // Persist to disk if enabled
-    if (this.persistent && this.db) {
-      this.persistToDisk(key, embedding, namespace);
+    if (this.persistent) {
+      if (this.db) {
+        this.persistToDisk(key, embedding, namespace);
+      } else if (this.dbInitializing) {
+        // Queue write for replay once DB is ready (fixes async init race)
+        this.pendingWrites.push({ key, embedding, namespace });
+      }
     }
   }
 
@@ -353,6 +363,24 @@ export class EmbeddingCache {
   }
 
   /**
+   * Flush writes that were queued during async DB initialization
+   */
+  private flushPendingWrites(): void {
+    if (this.pendingWrites.length === 0 || !this.db) return;
+
+    const writes = this.pendingWrites;
+    this.pendingWrites = [];
+
+    for (const { key, embedding, namespace } of writes) {
+      this.persistToDisk(key, embedding, namespace);
+    }
+
+    if (writes.length > 0) {
+      console.log(`[EmbeddingCache] Flushed ${writes.length} pending writes after DB init`);
+    }
+  }
+
+  /**
    * Load entries from disk
    */
   private loadFromDisk(): void {
@@ -474,6 +502,8 @@ export class EmbeddingCache {
       }
       this.db = null;
       this.unifiedMemory = null;
+      this.pendingWrites = [];
+      this.dbInitializing = false;
     }
   }
 

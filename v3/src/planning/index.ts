@@ -20,7 +20,6 @@ export type {
   GOAPGoalRecord,
   GOAPActionRecord,
   GOAPPlanRecord,
-  GOAPExecutionStepRecord,
 } from './types.js';
 
 // Constant exports

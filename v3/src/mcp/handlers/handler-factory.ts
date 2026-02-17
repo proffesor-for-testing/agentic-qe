@@ -19,6 +19,7 @@ import { getTaskRouter, type TaskRoutingResult, type PatternHint } from '../serv
 import { Priority } from '../../shared/types';
 import type { QEDomain as LearningDomain } from '../../learning/qe-patterns.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { createInitializedFeedbackLoop } from '../../feedback/feedback-loop.js';
 
 // ============================================================================
 // Types
@@ -350,6 +351,13 @@ export function getTaskExecutor(): DomainTaskExecutor {
       throw new Error('Kernel not initialized');
     }
     taskExecutor = createTaskExecutor(kernel);
+    // Wire QualityFeedbackLoop for routing outcome persistence
+    const executor = taskExecutor;
+    createInitializedFeedbackLoop().then(loop => {
+      executor.setQualityFeedbackLoop(loop);
+    }).catch(e => {
+      console.warn('[HandlerFactory] Failed to initialize QualityFeedbackLoop:', e);
+    });
   }
   return taskExecutor;
 }

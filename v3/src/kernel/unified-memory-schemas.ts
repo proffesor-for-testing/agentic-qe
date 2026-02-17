@@ -128,23 +128,6 @@ export const GOAP_SCHEMA = `
     FOREIGN KEY (goal_id) REFERENCES goap_goals(id)
   );
 
-  -- GOAP Execution Steps
-  CREATE TABLE IF NOT EXISTS goap_execution_steps (
-    id TEXT PRIMARY KEY,
-    plan_id TEXT NOT NULL,
-    action_id TEXT NOT NULL,
-    step_order INTEGER NOT NULL,
-    world_state_before TEXT,
-    world_state_after TEXT,
-    status TEXT DEFAULT 'pending',
-    duration_ms INTEGER,
-    agent_id TEXT,
-    error_message TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (plan_id) REFERENCES goap_plans(id),
-    FOREIGN KEY (action_id) REFERENCES goap_actions(id)
-  );
-
   -- Plan Signatures (for similarity matching)
   CREATE TABLE IF NOT EXISTS goap_plan_signatures (
     id TEXT PRIMARY KEY,
@@ -162,7 +145,6 @@ export const GOAP_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_goap_actions_category ON goap_actions(category);
   CREATE INDEX IF NOT EXISTS idx_goap_actions_agent ON goap_actions(agent_type);
   CREATE INDEX IF NOT EXISTS idx_goap_plans_status ON goap_plans(status);
-  CREATE INDEX IF NOT EXISTS idx_goap_steps_plan ON goap_execution_steps(plan_id);
   CREATE INDEX IF NOT EXISTS idx_goap_sig_goal ON goap_plan_signatures(goal_hash);
 `;
 
@@ -587,7 +569,6 @@ export const STATS_TABLES = [
   'goap_actions',
   'goap_goals',
   'goap_plans',
-  'goap_execution_steps',
   'goap_plan_signatures',
   'concept_nodes',
   'concept_edges',

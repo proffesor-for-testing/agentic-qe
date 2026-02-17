@@ -310,6 +310,17 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
         duration: indexResult.value.duration,
       } satisfies ProtocolKnowledgeGraphUpdatedPayload);
 
+      // Step 1b: Build Hypergraph from index result (if code intelligence supports it)
+      const codeIntelForHypergraph = this.kernel.getDomainAPI<CodeIntelligenceAPI & { buildHypergraphFromIndex?: (indexResult: unknown) => Promise<unknown> }>('code-intelligence');
+      if (codeIntelForHypergraph?.buildHypergraphFromIndex) {
+        try {
+          await codeIntelForHypergraph.buildHypergraphFromIndex(indexResult.value);
+        } catch (hypergraphError) {
+          // Non-fatal: hypergraph is supplementary to the core indexing pipeline
+          console.warn('[CodeIndexProtocol] Hypergraph build failed (continuing):', hypergraphError);
+        }
+      }
+
       // Step 2: Analyze Impact (if enabled and relevant trigger)
       let impactAnalysis: ImpactAnalysis | undefined;
       if (this.config.analyzeImpact && this.shouldAnalyzeImpact(trigger)) {

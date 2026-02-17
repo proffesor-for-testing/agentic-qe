@@ -14,7 +14,7 @@ export const ALLOWED_TABLE_NAMES = new Set([
   // Core kernel tables
   'schema_version', 'kv_store', 'vectors', 'rl_q_values',
   // GOAP tables
-  'goap_goals', 'goap_actions', 'goap_plans', 'goap_execution_steps', 'goap_plan_signatures',
+  'goap_goals', 'goap_actions', 'goap_plans', 'goap_plan_signatures',
   // Concept/dream tables
   'concept_nodes', 'concept_edges', 'dream_cycles', 'dream_insights',
   // QE pattern tables
