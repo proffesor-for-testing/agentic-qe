@@ -9,7 +9,7 @@
  * @module tests/unit/adapters/a2ui/renderer-surface-generator
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import {
   literal,
@@ -36,6 +36,10 @@ describe('SurfaceGenerator', () => {
       idGenerator: () => 'generated-id',
       timestampGenerator: () => '2026-01-30T12:00:00Z',
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('Surface Lifecycle', () => {

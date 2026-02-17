@@ -4,7 +4,7 @@
  * error handling, and edge cases.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Claim } from '../../../../src/agents/claim-verifier/interfaces';
 
 // We need to mock execAsync which is created via `promisify(exec)` at module scope.
@@ -46,6 +46,10 @@ describe('OutputBasedVerifier', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     verifier = new OutputBasedVerifier({ rootDir: '/workspace/project' });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('constructor defaults', () => {

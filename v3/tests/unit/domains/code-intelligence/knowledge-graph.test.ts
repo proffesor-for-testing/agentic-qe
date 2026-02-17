@@ -2,7 +2,7 @@
  * Agentic QE v3 - Knowledge Graph Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   KnowledgeGraphService,
   KnowledgeGraphConfig,
@@ -69,6 +69,10 @@ describe('KnowledgeGraphService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new KnowledgeGraphService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('index', () => {

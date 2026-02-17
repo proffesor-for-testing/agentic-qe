@@ -4,9 +4,9 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { Result, ok, err } from '../../../../shared/types/index.js';
-import { OSVClient, ParsedVulnerability } from '../../../../shared/security/index.js';
-import { toError } from '../../../../shared/error-utils.js';
+import { Result, ok, err } from '@shared/types/index.js';
+import { OSVClient, ParsedVulnerability } from '@shared/security/index.js';
+import { toError } from '@shared/error-utils.js';
 import type {
   SecurityScannerConfig,
   DependencyScanResult,
@@ -19,7 +19,7 @@ import type {
   MutableScanSummary,
   ScanStatus,
 } from './scanner-types.js';
-import { safeJsonParse } from '../../../../shared/safe-json.js';
+import { safeJsonParse } from '@shared/safe-json.js';
 
 // ============================================================================
 // Dependency Scanner Service

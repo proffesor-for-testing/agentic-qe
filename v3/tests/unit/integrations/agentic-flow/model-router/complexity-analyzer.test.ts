@@ -11,7 +11,7 @@
  * @module tests/unit/integrations/agentic-flow/model-router/complexity-analyzer
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   ComplexityAnalyzer,
   createComplexityAnalyzer,
@@ -107,6 +107,10 @@ describe('ComplexityAnalyzer', () => {
 
     beforeEach(() => {
       analyzer = createComplexityAnalyzer(createTestConfig());
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
     });
 
     it('should return a complexity score for a simple task', async () => {

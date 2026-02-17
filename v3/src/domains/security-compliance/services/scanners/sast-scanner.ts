@@ -4,8 +4,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { Result, ok, err } from '../../../../shared/types/index.js';
-import type { FilePath } from '../../../../shared/value-objects/index.js';
+import { Result, ok, err } from '@shared/types/index.js';
+import type { FilePath } from '@shared/value-objects/index.js';
 import type {
   SecurityPattern,
   SecurityScannerConfig,
@@ -25,8 +25,8 @@ import type {
   ScanStatus,
 } from './scanner-types.js';
 import { ALL_SECURITY_PATTERNS, BUILT_IN_RULE_SETS } from './security-patterns.js';
-import { toError } from '../../../../shared/error-utils.js';
-import { safeJsonParse } from '../../../../shared/safe-json.js';
+import { toError } from '@shared/error-utils.js';
+import { safeJsonParse } from '@shared/safe-json.js';
 
 // ============================================================================
 // SAST Scanner Service

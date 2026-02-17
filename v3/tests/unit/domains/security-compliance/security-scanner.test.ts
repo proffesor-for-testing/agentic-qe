@@ -3,7 +3,7 @@
  * Tests for SAST/DAST scanning and vulnerability detection
  */
 
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { SecurityScannerService } from '../../../../src/domains/security-compliance/services/security-scanner';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
 import type { FilePath } from '../../../../src/shared/value-objects';
@@ -41,6 +41,10 @@ describe('SecurityScannerService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new SecurityScannerService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('SAST Scanning', () => {

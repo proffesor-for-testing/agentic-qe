@@ -3,7 +3,7 @@
  * Tests MCP server configuration, file writing, and merge behavior.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MCPPhase } from '../../../../src/init/phases/08-mcp.js';
 import type { InitContext } from '../../../../src/init/phases/phase-interface.js';
 
@@ -46,6 +46,10 @@ describe('MCPPhase', () => {
     vi.mocked(mkdirSync).mockReturnValue(undefined as any);
     vi.mocked(readFileSync).mockReturnValue('{}');
     vi.mocked(writeFileSync).mockReturnValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('phase metadata', () => {

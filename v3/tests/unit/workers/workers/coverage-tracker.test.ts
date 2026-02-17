@@ -6,7 +6,7 @@
  * Tests coverage trend tracking and gap analysis
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { CoverageTrackerWorker } from '../../../../src/workers/workers/coverage-tracker';
 import { WorkerContext } from '../../../../src/workers/interfaces';
 
@@ -54,6 +54,10 @@ describe('CoverageTrackerWorker', () => {
 
   beforeEach(() => {
     worker = new CoverageTrackerWorker();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('instantiation', () => {

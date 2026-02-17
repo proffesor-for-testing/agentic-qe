@@ -8,7 +8,7 @@
  * - Level 3: Component - Internal structure of containers
  */
 
-import type { Severity, Priority } from '../../../../shared/types';
+import type { Severity, Priority } from '@shared/types';
 
 // ============================================================================
 // C4 Base Types

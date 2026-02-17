@@ -3,7 +3,7 @@
  * Tests database initialization, directory creation, and error handling.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DatabasePhase } from '../../../../src/init/phases/04-database.js';
 import type { InitContext } from '../../../../src/init/phases/phase-interface.js';
 
@@ -82,6 +82,10 @@ describe('DatabasePhase', () => {
       }),
     } as any);
     vi.mocked(resetUnifiedMemory).mockReturnValue(undefined as any);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('phase metadata', () => {

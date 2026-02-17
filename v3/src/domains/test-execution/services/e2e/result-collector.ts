@@ -7,7 +7,7 @@
  * @module test-execution/services/e2e/result-collector
  */
 
-import type { ScreenshotResult, AccessibilityResult } from '../../../../integrations/vibium';
+import type { ScreenshotResult, AccessibilityResult } from '@integrations/vibium';
 import type {
   E2EStepResult,
   E2ETestCase,

@@ -26,7 +26,7 @@ import {
   AutomationFitness,
   generateTestId,
 } from '../types/index.js';
-import { safeJsonParse } from '../../../../../shared/safe-json.js';
+import { safeJsonParse } from '@shared/safe-json.js';
 
 /**
  * Configuration for CodebaseAnalyzer

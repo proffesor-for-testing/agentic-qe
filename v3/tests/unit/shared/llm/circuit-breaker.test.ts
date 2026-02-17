@@ -2,7 +2,7 @@
  * Agentic QE v3 - Circuit Breaker Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   CircuitBreaker,
   CircuitBreakerManager,
@@ -13,6 +13,7 @@ describe('CircuitBreaker', () => {
   let breaker: CircuitBreaker;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     breaker = new CircuitBreaker('claude', {
       failureThreshold: 3,
       resetTimeoutMs: 1000,
@@ -20,6 +21,11 @@ describe('CircuitBreaker', () => {
       failureWindowMs: 5000,
       includeTimeouts: true,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   describe('initial state', () => {
@@ -115,8 +121,8 @@ describe('CircuitBreaker', () => {
       fastBreaker.recordFailure(new Error('Test'));
       expect(fastBreaker.getState()).toBe('open');
 
-      // Wait for reset timeout
-      await new Promise((r) => setTimeout(r, 60));
+      // Advance past reset timeout
+      await vi.advanceTimersByTimeAsync(60);
 
       expect(fastBreaker.getState()).toBe('half-open');
       expect(fastBreaker.canExecute()).toBe(true);
@@ -218,7 +224,13 @@ describe('CircuitBreakerManager', () => {
   let manager: CircuitBreakerManager;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     manager = new CircuitBreakerManager();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   describe('breaker management', () => {

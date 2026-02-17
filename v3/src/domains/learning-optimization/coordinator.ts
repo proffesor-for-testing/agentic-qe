@@ -69,31 +69,15 @@ import {
   type EngineResult as DreamCycleResult,
 } from '../../learning/dream/index.js';
 
-// ============================================================================
-// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
-// ============================================================================
-
-import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
-  type IMinCutAwareDomain,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain.js';
-
-import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
-  type IConsensusEnabledDomain,
-  type ConsensusEnabledConfig,
-} from '../../coordination/mixins/consensus-enabled-domain.js';
-
-// ADR-058: Governance-aware mixin for MemoryWriteGate integration
-import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
-
+// V3 Integration: MinCut Awareness (ADR-047) - only import types needed beyond base
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
+
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+  type BaseWorkflowStatus,
+} from '../base-domain-coordinator.js';
 
 import {
   type DomainFinding,
@@ -121,11 +105,11 @@ export interface LearningWorkflowStatus {
 /**
  * Coordinator configuration
  */
-export interface LearningCoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
+/**
+ * CQ-002: Extends BaseDomainCoordinatorConfig — removes duplicate fields
+ */
+export interface LearningCoordinatorConfig extends BaseDomainCoordinatorConfig {
   enableAutoOptimization: boolean;
-  publishEvents: boolean;
   learningCycleIntervalMs: number;
 
   // Dream Scheduler configuration
@@ -143,16 +127,6 @@ export interface LearningCoordinatorConfig {
   autoApplyHighConfidenceInsights: boolean;
   /** Minimum confidence threshold for auto-applying insights (0-1) */
   autoApplyConfidenceThreshold: number;
-
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus integration config (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: LearningCoordinatorConfig = {
@@ -186,16 +160,19 @@ const DEFAULT_CONFIG: LearningCoordinatorConfig = {
  * Learning & Optimization Coordinator
  * Orchestrates cross-domain learning and optimization workflows
  */
+type LearningWorkflowType = 'learning-cycle' | 'optimization' | 'transfer' | 'export' | 'import';
+
+/**
+ * CQ-002: Extends BaseDomainCoordinator
+ */
 export class LearningOptimizationCoordinator
+  extends BaseDomainCoordinator<LearningCoordinatorConfig, LearningWorkflowType>
   implements ILearningOptimizationCoordinator
 {
-  private readonly config: LearningCoordinatorConfig;
-  private readonly workflows: Map<string, LearningWorkflowStatus> = new Map();
   private readonly learningService: LearningCoordinatorService;
   private readonly transferService: TransferSpecialistService;
   private readonly optimizerService: MetricsOptimizerService;
   private readonly productionIntel: ProductionIntelService;
-  private initialized = false;
 
   /**
    * QESONA (Self-Optimizing Neural Architecture) for pattern learning
@@ -210,47 +187,17 @@ export class LearningOptimizationCoordinator
    */
   private dreamScheduler: DreamScheduler | null = null;
 
-  // MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // Consensus verification mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
-  // Domain identifier for mixin initialization
-  private readonly domainName = 'learning-optimization';
-
-  // ADR-058: Governance mixin for MemoryWriteGate integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
-
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<LearningCoordinatorConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: LearningCoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
+    super(eventBus, 'learning-optimization', fullConfig, {
       verifyFindingTypes: ['pattern-recommendation', 'optimization-suggestion', 'cross-domain-insight'],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
     });
-
-    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
-    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.learningService = new LearningCoordinatorService({ memory });
     this.transferService = new TransferSpecialistService(memory);
@@ -258,13 +205,16 @@ export class LearningOptimizationCoordinator
     this.productionIntel = new ProductionIntelService(memory);
   }
 
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
+
   /**
    * Initialize the coordinator.
+   * CQ-002: Domain-specific initialization
    * Throws if QESONA fails to initialize.
    */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
-
+  protected async onInitialize(): Promise<void> {
     // Initialize QESONA for neural pattern learning (persistent patterns)
     try {
       this.sona = await createPersistentSONAEngine({
@@ -316,40 +266,15 @@ export class LearningOptimizationCoordinator
 
     // Load any persisted workflow state
     await this.loadWorkflowState();
-
-    // Initialize Consensus engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await this.consensusMixin.initializeConsensus();
-        console.log(`[${this.domainName}] Consensus engine initialized`);
-      } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus verification`);
-      }
-    }
-
-    this.initialized = true;
   }
 
   /**
    * Dispose and cleanup
+   * CQ-002: Domain-specific disposal
    */
-  async dispose(): Promise<void> {
-    // Dispose Consensus engine (MM-001)
-    try {
-      await this.consensusMixin.disposeConsensus();
-    } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
-    }
-
-    // Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
-
+  protected async onDispose(): Promise<void> {
     // Save workflow state
     await this.saveWorkflowState();
-
-    // Clear active workflows
-    this.workflows.clear();
 
     // Dispose DreamScheduler
     if (this.dreamScheduler) {
@@ -370,17 +295,13 @@ export class LearningOptimizationCoordinator
         console.error('[LearningOptimizationCoordinator] Error closing SONA engine:', error);
       }
     }
-
-    this.initialized = false;
   }
 
   /**
-   * Get active workflow statuses
+   * Get active workflow statuses (typed override)
    */
-  getActiveWorkflows(): LearningWorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
-    );
+  override getActiveWorkflows(): LearningWorkflowStatus[] {
+    return super.getActiveWorkflows() as LearningWorkflowStatus[];
   }
 
   // ============================================================================
@@ -1326,7 +1247,7 @@ export class LearningOptimizationCoordinator
   // Event Handling
   // ============================================================================
 
-  private subscribeToEvents(): void {
+  protected subscribeToEvents(): void {
     // Subscribe to test execution events for learning
     this.eventBus.subscribe(
       'test-execution.TestRunCompleted',
@@ -1679,63 +1600,6 @@ export class LearningOptimizationCoordinator
   }
 
   // ============================================================================
-  // Workflow Management
-  // ============================================================================
-
-  private startWorkflow(
-    id: string,
-    type: LearningWorkflowStatus['type']
-  ): void {
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  private updateWorkflowProgress(id: string, progress: number): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.progress = Math.min(100, Math.max(0, progress));
-    }
-  }
-
-  // ============================================================================
   // State Persistence
   // ============================================================================
 
@@ -1852,69 +1716,8 @@ export class LearningOptimizationCoordinator
   }
 
   // ============================================================================
-  // MinCut Integration Methods (ADR-047)
+  // Domain-Specific Consensus Methods (MM-001)
   // ============================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
-  }
-
-  /**
-   * Check if topology is healthy
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  /**
-   * Get topology-based routing excluding weak domains
-   * Per ADR-047: Filters out domains that are currently weak points
-   *
-   * @param targetDomains - List of potential target domains
-   * @returns Filtered list of healthy domains for routing
-   */
-  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
-  }
-
-  /**
-   * Get weak vertices belonging to this domain
-   * Per ADR-047: Identifies agents that are single points of failure
-   */
-  getDomainWeakVertices() {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   * Per ADR-047: Returns true if any weak vertex belongs to learning-optimization domain
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
-  // ============================================================================
-  // Consensus Integration Methods (MM-001)
-  // ============================================================================
-
-  /**
-   * Check if consensus engine is available
-   */
-  isConsensusAvailable(): boolean {
-    return this.consensusMixin.isConsensusAvailable?.() ?? false;
-  }
-
-  /**
-   * Get consensus statistics
-   * Per MM-001: Returns metrics about consensus verification
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
-  }
 
   /**
    * Verify a pattern recommendation using multi-model consensus

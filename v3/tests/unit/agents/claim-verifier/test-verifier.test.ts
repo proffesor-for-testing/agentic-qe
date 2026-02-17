@@ -4,7 +4,7 @@
  * verification, coverage verification, error handling, and edge cases.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Claim } from '../../../../src/agents/claim-verifier/interfaces';
 
 // Use vi.hoisted() so the mock fn is available when vi.mock factory runs (hoisted above imports).
@@ -48,6 +48,10 @@ describe('TestBasedVerifier', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     verifier = new TestBasedVerifier({ rootDir: '/workspace/project' });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('constructor defaults', () => {

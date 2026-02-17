@@ -3,7 +3,7 @@
  * ADR-052 Phase 3 Action A3.2
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   MemoryCoherenceAuditor,
   createMemoryAuditor,
@@ -81,6 +81,10 @@ describe('MemoryCoherenceAuditor', () => {
     } as any;
 
     auditor = createMemoryAuditor(mockCoherenceService, mockEventBus);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('auditPatterns', () => {

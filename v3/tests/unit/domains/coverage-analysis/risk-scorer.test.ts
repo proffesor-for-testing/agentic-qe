@@ -5,7 +5,7 @@
  * adjustments, trend analysis, forecasting, and recommendations.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { RiskScorerService } from '../../../../src/domains/coverage-analysis/services/risk-scorer';
 import type { RiskCalculationRequest } from '../../../../src/domains/coverage-analysis/interfaces';
 
@@ -35,6 +35,10 @@ describe('RiskScorerService', () => {
   beforeEach(() => {
     memory = createMockMemory();
     service = new RiskScorerService(memory as any);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // =========================================================================

@@ -3,7 +3,7 @@
  * Tests the main init orchestration engine that runs phases in sequence.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   ModularInitOrchestrator,
   createModularInitOrchestrator,
@@ -55,6 +55,10 @@ describe('ModularInitOrchestrator', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('constructor', () => {

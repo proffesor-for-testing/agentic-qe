@@ -6,7 +6,7 @@
  * homotopy type classification, and topological coherence.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 /**
  * Mock WASM module for HomotopyEngine
@@ -271,6 +271,10 @@ describe('HomotopyAdapter', () => {
       dispose: vi.fn(),
     };
     adapter = new HomotopyAdapter(mockEngine);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {

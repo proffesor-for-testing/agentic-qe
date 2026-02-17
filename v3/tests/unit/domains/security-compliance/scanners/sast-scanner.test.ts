@@ -3,7 +3,7 @@
  * Tests for Static Application Security Testing scanner
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SASTScanner } from '../../../../../src/domains/security-compliance/services/scanners/sast-scanner';
 import type { MemoryBackend } from '../../../../../src/kernel/interfaces';
 import type { FilePath } from '../../../../../src/shared/value-objects';
@@ -74,6 +74,10 @@ describe('SASTScanner', () => {
     mockMemory = createMockMemory();
     config = createConfig();
     scanner = new SASTScanner(config, mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // =========================================================================

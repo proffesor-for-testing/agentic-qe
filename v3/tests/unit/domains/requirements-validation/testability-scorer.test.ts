@@ -2,7 +2,7 @@
  * Agentic QE v3 - Testability Scorer Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TestabilityScorerService } from '../../../../src/domains/requirements-validation/services/testability-scorer';
 import { MemoryBackend, StoreOptions } from '../../../../src/kernel/interfaces';
 import { Requirement, TestabilityScore } from '../../../../src/domains/requirements-validation/interfaces';
@@ -64,6 +64,10 @@ describe('TestabilityScorerService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     scorer = new TestabilityScorerService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('scoreRequirement', () => {

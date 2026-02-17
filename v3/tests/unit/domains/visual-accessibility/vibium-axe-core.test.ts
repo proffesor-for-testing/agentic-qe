@@ -4,7 +4,7 @@
  * GOAP Action A2.2: Tests for axe-core-integration service
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { VibiumClient } from '../../../../src/integrations/vibium/types.js';
 
 import {
@@ -46,6 +46,10 @@ describe('axe-core-integration', () => {
       waitForElement: vi.fn(),
       compareScreenshots: vi.fn(),
     } as unknown as VibiumClient;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('injectAxeCore', () => {

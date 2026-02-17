@@ -5,7 +5,7 @@
  * These tests verify the real end-to-end flow, not mocked data.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   AccessibilityTesterService,
   type AccessibilityTesterConfig,
@@ -60,6 +60,10 @@ describe('EU Compliance Integration Tests', () => {
       useBrowserMode: false, // Use static analysis mode for tests
     });
     euComplianceService = new EUComplianceService(memory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('AccessibilityTesterService.validateEUCompliance() Integration', () => {

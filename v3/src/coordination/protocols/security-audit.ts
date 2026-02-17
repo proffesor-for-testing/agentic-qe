@@ -40,37 +40,70 @@ import type {
   DetectedSecret,
   ScanSummary,
 } from '../../domains/security-compliance/interfaces.js';
-import type {
-  ISecurityScannerService,
-} from '../../domains/security-compliance/services/security-scanner.js';
+import type { ISecurityScannerService } from '../../domains/security-compliance/services/security-scanner.js';
+import type { SemgrepFinding } from '../../domains/security-compliance/services/semgrep-integration.js';
 import { toError } from '../../shared/error-utils.js';
-import type {
-  SemgrepFinding,
-} from '../../domains/security-compliance/services/semgrep-integration.js';
+
+// CQ-005: Use DomainServiceRegistry instead of dynamic imports from domains/
+import { DomainServiceRegistry, ServiceKeys } from '../../shared/domain-service-registry.js';
 
 // ============================================================================
-// Lazy Domain Imports (break circular dependency: coordination -> domains)
-// These use dynamic import() to avoid static module graph edges.
+// CQ-005: Domain Service Resolution via Registry (no coordination -> domains imports)
+// Domain modules register their factories in their index.ts files.
+// Coordination resolves them from the shared registry at runtime.
 // ============================================================================
 
-async function lazySecurityScannerService(memory: MemoryBackend): Promise<ISecurityScannerService> {
-  const { SecurityScannerService } = await import('../../domains/security-compliance/services/security-scanner.js');
-  return new SecurityScannerService(memory);
+function resolveSecurityScannerService(memory: MemoryBackend): ISecurityScannerService {
+  const factory = DomainServiceRegistry.resolve<(m: MemoryBackend) => ISecurityScannerService>(
+    ServiceKeys.SecurityScannerService
+  );
+  return factory(memory);
 }
 
-async function lazyIsSemgrepAvailable(): Promise<boolean> {
-  const { isSemgrepAvailable } = await import('../../domains/security-compliance/services/semgrep-integration.js');
-  return isSemgrepAvailable();
+function resolveIsSemgrepAvailable(): Promise<boolean> {
+  const fn = DomainServiceRegistry.resolve<() => Promise<boolean>>(
+    ServiceKeys.isSemgrepAvailable
+  );
+  return fn();
 }
 
-async function lazyRunSemgrepWithRules(targetPath: string, ruleSetIds: string[]) {
-  const { runSemgrepWithRules } = await import('../../domains/security-compliance/services/semgrep-integration.js');
-  return runSemgrepWithRules(targetPath, ruleSetIds);
+interface SemgrepResultLike {
+  success: boolean;
+  findings: SemgrepFinding[];
+  errors: string[];
+  version?: string;
 }
 
-async function lazyConvertSemgrepFindings(findings: SemgrepFinding[]) {
-  const { convertSemgrepFindings } = await import('../../domains/security-compliance/services/semgrep-integration.js');
-  return convertSemgrepFindings(findings);
+interface ConvertedFinding {
+  id: string;
+  title: string;
+  description: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  file: string;
+  line: number;
+  column: number;
+  snippet: string;
+  cweId?: string;
+  owaspCategory?: string;
+  remediation: string;
+  references: string[];
+}
+
+function resolveRunSemgrepWithRules(
+  targetPath: string,
+  ruleSetIds: string[],
+): Promise<SemgrepResultLike> {
+  const fn = DomainServiceRegistry.resolve<
+    (t: string, r: string[]) => Promise<SemgrepResultLike>
+  >(ServiceKeys.runSemgrepWithRules);
+  return fn(targetPath, ruleSetIds);
+}
+
+function resolveConvertSemgrepFindings(findings: SemgrepFinding[]): ConvertedFinding[] {
+  const fn = DomainServiceRegistry.resolve<
+    (f: SemgrepFinding[]) => ConvertedFinding[]
+  >(ServiceKeys.convertSemgrepFindings);
+  return fn(findings);
 }
 
 // ============================================================================
@@ -284,9 +317,9 @@ export class SecurityAuditProtocol {
    * Get or create the SecurityScannerService instance
    * Lazily initialized via dynamic import to break circular dependency
    */
-  private async getSecurityScanner(): Promise<ISecurityScannerService> {
+  private getSecurityScanner(): ISecurityScannerService {
     if (!this.securityScanner) {
-      this.securityScanner = await lazySecurityScannerService(this.memory);
+      this.securityScanner = resolveSecurityScannerService(this.memory);
     }
     return this.securityScanner;
   }
@@ -434,7 +467,7 @@ export class SecurityAuditProtocol {
 
       // Try real SecurityScannerService first
       try {
-        const scanner = await this.getSecurityScanner();
+        const scanner = this.getSecurityScanner();
         const ruleSetIds = options.ruleSetIds || ['owasp-top-10', 'cwe-sans-25'];
         const scanResult = await scanner.scanWithRules(files, ruleSetIds);
 
@@ -452,16 +485,16 @@ export class SecurityAuditProtocol {
       }
 
       // Try semgrep if available as secondary option
-      const semgrepAvailable = await lazyIsSemgrepAvailable();
+      const semgrepAvailable = await resolveIsSemgrepAvailable();
       if (semgrepAvailable) {
         try {
-          const semgrepResult = await lazyRunSemgrepWithRules(
+          const semgrepResult = await resolveRunSemgrepWithRules(
             this.config.scanPaths[0] || '.',
             options.ruleSetIds || ['owasp-top-10']
           );
 
           if (semgrepResult.success && semgrepResult.findings.length > 0) {
-            const convertedFindings = await lazyConvertSemgrepFindings(semgrepResult.findings);
+            const convertedFindings = resolveConvertSemgrepFindings(semgrepResult.findings);
             const vulnerabilities: Vulnerability[] = convertedFindings.map(f => ({
               id: uuidv4(),
               cveId: undefined,
@@ -553,7 +586,7 @@ export class SecurityAuditProtocol {
 
       // Try real SecurityScannerService with OSV API integration
       try {
-        const scanner = await this.getSecurityScanner();
+        const scanner = this.getSecurityScanner();
 
         // Try to scan package.json if it exists
         const packageJsonPath = this.findPackageJsonPath();
@@ -656,7 +689,7 @@ export class SecurityAuditProtocol {
 
       // Try real SecurityScannerService for DAST
       try {
-        const scanner = await this.getSecurityScanner();
+        const scanner = this.getSecurityScanner();
         const scanResult = await scanner.scanUrl(targetUrl, {
           maxDepth: 5,
           activeScanning: false, // Passive by default for safety

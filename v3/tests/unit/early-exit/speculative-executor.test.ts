@@ -3,7 +3,7 @@
  * ADR-033: Early Exit Testing
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   SpeculativeExecutor,
   createSpeculativeExecutor,
@@ -21,6 +21,10 @@ describe('Speculative Test Executor', () => {
 
   beforeEach(() => {
     executor = new SpeculativeExecutor(DEFAULT_EXIT_CONFIG);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ============================================================================

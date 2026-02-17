@@ -9,7 +9,7 @@
  * Applied to defect intelligence for high-stakes defect predictions and root cause analysis.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { Mock } from 'vitest';
 
 import {
@@ -198,6 +198,10 @@ describe('defect-intelligence Consensus Integration', () => {
       { id: 'mock-gpt', name: 'Mock GPT', defaultAssessment: 'confirmed', defaultConfidence: 0.85 },
       { id: 'mock-gemini', name: 'Mock Gemini', defaultAssessment: 'confirmed', defaultConfidence: 0.8 },
     ]);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ==========================================================================

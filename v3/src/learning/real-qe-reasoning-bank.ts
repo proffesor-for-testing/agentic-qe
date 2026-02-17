@@ -16,7 +16,11 @@
  * 3. Standalone implementation gives us full control and better performance
  */
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../logging/index.js';
+import type { Logger } from '../logging/index.js';
 import { toError, toErrorMessage } from '../shared/error-utils.js';
+
+const logger: Logger = LoggerFactory.create('RealQEReasoningBank');
 import {
   computeRealEmbedding,
   computeBatchEmbeddings,
@@ -322,11 +326,11 @@ export class RealQEReasoningBank {
 
     // Initialize SQLite persistence
     await this.sqliteStore.initialize();
-    console.log('[RealQEReasoningBank] SQLite persistence initialized');
+    logger.info('SQLite persistence initialized');
 
     // Initialize HNSW index
     await this.initializeHNSW();
-    console.log('[RealQEReasoningBank] HNSW index initialized');
+    logger.info('HNSW index initialized');
 
     // Load existing patterns into HNSW
     await this.loadPatternsIntoHNSW();
@@ -339,7 +343,7 @@ export class RealQEReasoningBank {
 
     this.initialized = true;
     const initTime = performance.now() - startTime;
-    console.log(`[RealQEReasoningBank] Fully initialized in ${initTime.toFixed(0)}ms`);
+    logger.info('Fully initialized', { durationMs: Math.round(initTime) });
   }
 
   /**
@@ -369,9 +373,9 @@ export class RealQEReasoningBank {
       );
       this.hnswIndex!.setEf(this.qeConfig.hnsw.efSearch);
 
-      console.log(`[RealQEReasoningBank] HNSW initialized: dim=${dimension}, M=${this.qeConfig.hnsw.M}`);
+      logger.info('HNSW initialized', { dimension, M: this.qeConfig.hnsw.M });
     } catch (error) {
-      console.error('[RealQEReasoningBank] HNSW initialization failed:', error);
+      logger.error('HNSW initialization failed', error instanceof Error ? error : undefined);
       throw error; // Don't silently fall back - fail explicitly
     }
   }
@@ -401,9 +405,9 @@ export class RealQEReasoningBank {
     }
 
     if (skipped > 0) {
-      console.warn(`[RealQEReasoningBank] Skipped ${skipped} invalid embeddings (expected dim=${expectedDim})`);
+      logger.warn('Skipped invalid embeddings', { skipped, expectedDim });
     }
-    console.log(`[RealQEReasoningBank] Loaded ${loaded} patterns into HNSW index`);
+    logger.info('Loaded patterns into HNSW index', { count: loaded });
   }
 
   /**
@@ -456,11 +460,11 @@ export class RealQEReasoningBank {
       try {
         await this.storeQEPattern(options);
       } catch (error) {
-        console.warn(`[RealQEReasoningBank] Failed to load foundational pattern: ${options.name}`, error);
+        logger.warn('Failed to load foundational pattern', { name: options.name, error });
       }
     }
 
-    console.log(`[RealQEReasoningBank] Loaded ${foundationalPatterns.length} foundational patterns`);
+    logger.info('Loaded foundational patterns', { count: foundationalPatterns.length });
   }
 
   /**
@@ -497,11 +501,11 @@ export class RealQEReasoningBank {
           const decision = await memoryWriteGateIntegration.evaluateWrite(memoryPattern);
 
           if (!decision.allowed) {
-            console.warn(
-              `[RealQEReasoningBank] Pattern blocked by MemoryWriteGate: ${options.name}`,
-              `Reason: ${decision.reason}`,
-              `Conflicts: ${decision.conflictingPatterns?.join(', ') || 'none'}`
-            );
+            logger.warn('Pattern blocked by MemoryWriteGate', {
+              name: options.name,
+              reason: decision.reason,
+              conflicts: decision.conflictingPatterns?.join(', ') || 'none',
+            });
 
             // In non-strict mode, log and continue; in strict mode, reject
             if (decision.reason?.includes('strict')) {
@@ -511,7 +515,7 @@ export class RealQEReasoningBank {
           }
         } catch (govError) {
           // Non-fatal: log but continue if governance check fails
-          console.warn('[RealQEReasoningBank] MemoryWriteGate check error (continuing):', govError);
+          logger.warn('MemoryWriteGate check error (continuing)', { error: govError });
         }
       }
 
@@ -567,7 +571,7 @@ export class RealQEReasoningBank {
           });
         } catch (regError) {
           // Non-fatal: registration failure doesn't affect storage
-          console.warn('[RealQEReasoningBank] Pattern registration with MemoryWriteGate failed:', regError);
+          logger.warn('Pattern registration with MemoryWriteGate failed', { error: regError });
         }
       }
 
@@ -627,7 +631,7 @@ export class RealQEReasoningBank {
 
       const searchTime = performance.now() - startTime;
       if (searchTime > 10) {
-        console.warn(`[RealQEReasoningBank] Slow search: ${searchTime.toFixed(1)}ms`);
+        logger.warn('Slow search', { searchTimeMs: Number(searchTime.toFixed(1)) });
       }
 
       return ok(patterns);
@@ -767,7 +771,7 @@ export class RealQEReasoningBank {
         // Check for quarantine
         const quarantineDecision = this.asymmetricEngine.shouldQuarantine(newConfidence, domain);
         if (quarantineDecision.shouldQuarantine) {
-          console.log(`[RealQEReasoningBank] Pattern quarantined (asymmetric drop): ${pattern.name}`);
+          logger.info('Pattern quarantined (asymmetric drop)', { name: pattern.name });
         }
 
         // Apply the asymmetric confidence update
@@ -778,7 +782,7 @@ export class RealQEReasoningBank {
         // Check if pattern should be promoted (with coherence gate)
         if (await this.checkPatternPromotionWithCoherence(pattern)) {
           this.sqliteStore.promotePattern(outcome.patternId);
-          console.log(`[RealQEReasoningBank] Pattern promoted to long-term: ${pattern.name}`);
+          logger.info('Pattern promoted to long-term', { name: pattern.name });
         }
       }
 
@@ -823,16 +827,15 @@ export class RealQEReasoningBank {
       if (coherenceResult.energy >= (this.qeConfig.coherenceThreshold || 0.4)) {
         // Promotion blocked due to coherence violation
         // Note: RealQEReasoningBank doesn't have eventBus, so we just log
-        console.log(
-          `[RealQEReasoningBank] Pattern promotion blocked due to coherence violation: ` +
-          `${pattern.name} (energy: ${coherenceResult.energy.toFixed(3)})`
-        );
+        logger.info('Pattern promotion blocked due to coherence violation', {
+          name: pattern.name,
+          energy: coherenceResult.energy,
+        });
 
         if (coherenceResult.contradictions && coherenceResult.contradictions.length > 0) {
-          console.log(
-            `[RealQEReasoningBank] Conflicts with existing patterns: ` +
-            coherenceResult.contradictions.map(c => c.nodeIds).flat().join(', ')
-          );
+          logger.info('Conflicts with existing patterns', {
+            conflictingNodeIds: coherenceResult.contradictions.map(c => c.nodeIds).flat(),
+          });
         }
 
         return false;
@@ -1066,7 +1069,7 @@ export class RealQEReasoningBank {
     if (currentIndex > 0) {
       const newTier = tierOrder[currentIndex - 1];
       this.sqliteStore.updatePattern(patternId, { tier: newTier });
-      console.log(`[RealQEReasoningBank] Pattern demoted to ${newTier}: ${pattern.name}`);
+      logger.info('Pattern demoted', { name: pattern.name, newTier });
     }
   }
 
@@ -1101,7 +1104,7 @@ export class RealQEReasoningBank {
     }
 
     if (cleaned > 0) {
-      console.log(`[RealQEReasoningBank] Cleaned ${cleaned} stale patternIdMap entries`);
+      logger.info('Cleaned stale patternIdMap entries', { count: cleaned });
     }
 
     return cleaned;
@@ -1119,7 +1122,7 @@ export class RealQEReasoningBank {
     for (const [hnswIdx, id] of Array.from(this.patternIdMap.entries())) {
       if (id === patternId) {
         this.patternIdMap.delete(hnswIdx);
-        console.log(`[RealQEReasoningBank] Removed pattern ${patternId} from HNSW mapping`);
+        logger.info('Removed pattern from HNSW mapping', { patternId });
         return true;
       }
     }
@@ -1296,7 +1299,7 @@ export class RealQEReasoningBank {
     this.stats.learningOutcomes = 0;
     this.stats.successfulOutcomes = 0;
     this.initialized = false;
-    console.log('[RealQEReasoningBank] Disposed');
+    logger.info('Disposed');
   }
 
   /**

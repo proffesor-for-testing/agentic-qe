@@ -3,7 +3,7 @@
  * Tests learning system initialization, HNSW setup, and pattern loading.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LearningPhase } from '../../../../src/init/phases/05-learning.js';
 import type { InitContext } from '../../../../src/init/phases/phase-interface.js';
 import type { AQEInitConfig } from '../../../../src/init/types.js';
@@ -61,6 +61,10 @@ describe('LearningPhase', () => {
     vi.mocked(existsSync).mockReturnValue(false);
     vi.mocked(mkdirSync).mockReturnValue(undefined as any);
     vi.mocked(writeFileSync).mockReturnValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('phase metadata', () => {

@@ -10,6 +10,8 @@
  * V3 Integrations (ADR-047, CONSENSUS-MIXIN-001):
  * - MinCutAwareDomainMixin: Topology-aware routing and health monitoring
  * - ConsensusEnabledMixin: Multi-model consensus for high-stakes quality decisions
+ *
+ * CQ-002: Extends BaseDomainCoordinator for lifecycle deduplication
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -19,8 +21,8 @@ import type {
   RLState,
   RLAction,
   RLExperience,
-  DomainName,
 } from '../../integrations/rl-suite/interfaces';
+import type { DomainName } from '../../shared/types';
 import {
   EventBus,
   MemoryBackend,
@@ -83,32 +85,18 @@ import * as RLIntegration from './coordinator-rl-integration.js';
 import * as ClaimVerifierHelpers from './coordinator-claim-verifier.js';
 import * as GateEvalHelpers from './coordinator-gate-evaluation.js';
 
-// V3 Integration: MinCut Awareness (ADR-047)
-import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain';
-import { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
+// V3 Integration: MinCut Awareness (ADR-047) - only import types needed beyond base
+import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 
 // V3 Integration: Consensus Verification (CONSENSUS-MIXIN-001)
-import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
-  type ConsensusEnabledConfig,
-} from '../../coordination/mixins/consensus-enabled-domain';
-import {
-  DomainFinding,
-  createDomainFinding,
-  type FindingSeverity,
-} from '../../coordination/consensus/domain-findings';
-import type { ConsensusResult, ConsensusStats } from '../../coordination/consensus';
+import type { ConsensusStats } from '../../coordination/consensus';
 
-// ADR-058: Governance-aware mixin for MemoryWriteGate integration
+// CQ-002: Base domain coordinator
 import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+  type BaseWorkflowStatus,
+} from '../base-domain-coordinator.js';
 
 /**
  * Interface for the quality assessment coordinator
@@ -142,11 +130,10 @@ export interface WorkflowStatus {
 
 /**
  * Coordinator configuration
+ *
+ * CQ-002: Extends BaseDomainCoordinatorConfig — removes duplicate fields
  */
-export interface CoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
-  publishEvents: boolean;
+export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
   enableAutoGating: boolean;
   // Intelligent features
   enableRLThresholdTuning: boolean;
@@ -158,19 +145,7 @@ export interface CoordinatorConfig {
   /** Root directory for claim verifier file operations */
   claimVerifierRootDir?: string;
 
-  // V3 Integration: MinCut Awareness (ADR-047)
-  /** Enable MinCut topology awareness for routing decisions */
-  enableMinCutAwareness: boolean;
-  /** Topology health threshold (0-1) */
-  topologyHealthThreshold: number;
-
   // V3 Integration: Consensus Verification (CONSENSUS-MIXIN-001)
-  /** Enable multi-model consensus for borderline quality decisions */
-  enableConsensus: boolean;
-  /** Consensus threshold for quality gate verdicts */
-  consensusThreshold: number;
-  /** Minimum models required for consensus */
-  consensusMinModels: number;
   /** Margin (percentage) for determining borderline cases */
   borderlineMargin: number;
 }
@@ -192,12 +167,16 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   // V3: MinCut Awareness enabled by default
   enableMinCutAwareness: true,
   topologyHealthThreshold: 0.5,
+  pauseOnCriticalTopology: false,
   // V3: Consensus enabled by default for quality decisions
   enableConsensus: true,
   consensusThreshold: 0.7,
+  consensusStrategy: 'weighted',
   consensusMinModels: 2,
   borderlineMargin: 0.05, // 5% margin for borderline detection
 };
+
+type QualityWorkflowType = 'gate-evaluation' | 'quality-analysis' | 'deployment-advice' | 'complexity-analysis';
 
 /**
  * Quality Assessment Coordinator
@@ -211,14 +190,16 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
  * V3 Integrations (ADR-047, CONSENSUS-MIXIN-001):
  * - MinCutAwareDomainMixin: Topology-aware routing and health monitoring
  * - ConsensusEnabledMixin: Multi-model consensus for high-stakes quality decisions
+ *
+ * CQ-002: Extends BaseDomainCoordinator
  */
-export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinator {
-  private readonly config: CoordinatorConfig;
+export class QualityAssessmentCoordinator
+  extends BaseDomainCoordinator<CoordinatorConfig, QualityWorkflowType>
+  implements IQualityAssessmentCoordinator
+{
   private readonly qualityGate: IQualityGateService;
   private readonly qualityAnalyzer: IQualityAnalyzerService;
   private readonly deploymentAdvisor: IDeploymentAdvisorService;
-  private readonly workflows: Map<string, WorkflowStatus> = new Map();
-  private initialized = false;
 
   // Ruvector integration instances
   private actorCritic?: ActorCriticAlgorithm;
@@ -228,17 +209,8 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
   // V3 Integration: ClaimVerifier for report verification
   private claimVerifier?: ClaimVerifierService;
 
-  // V3 Integration: MinCut Awareness (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // V3 Integration: Consensus Verification (CONSENSUS-MIXIN-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
   // Quality domain name for SONA
   private readonly domain: DomainName = 'quality-assessment';
-
-  // ADR-058: Governance mixin for MemoryWriteGate integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
 
   // Cache of recent dream insights for quality assessment enhancement
   private recentDreamInsights: Array<{
@@ -253,30 +225,14 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
   }> = [];
 
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
-    this.qualityGate = new QualityGateService(memory);
-    this.qualityAnalyzer = new QualityAnalyzerService(memory);
-    this.deploymentAdvisor = new DeploymentAdvisorService(memory);
+    const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
-    // V3 Integration: Initialize MinCut Awareness Mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domain, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: false, // Quality assessment continues even in degraded topology
-      monitoredDomains: [], // Monitor all domains
-    });
-
-    // V3 Integration: Initialize Consensus Mixin (CONSENSUS-MIXIN-001)
-    // Configured for quality-assessment specific finding types
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
-      minModels: this.config.consensusMinModels,
+    super(eventBus, 'quality-assessment', fullConfig, {
       // Quality-specific finding types that require consensus
       verifyFindingTypes: [
         'gate-verdict',           // Pass/fail quality gate decisions
@@ -284,24 +240,23 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
         'release-readiness',      // Go/no-go deployment decisions
         'risk-scoring',           // High-risk deployment detection
       ],
-      strategy: 'weighted',
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
     });
 
-    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
-    this.governanceMixin = createGovernanceAwareMixin(this.domain);
+    this.qualityGate = new QualityGateService(memory);
+    this.qualityAnalyzer = new QualityAnalyzerService(memory);
+    this.deploymentAdvisor = new DeploymentAdvisorService(memory);
   }
+
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
 
   /**
    * Initialize the coordinator
    * Sets up Ruvector integrations: ActorCritic, QESONA, QEFlashAttention
    * V3: Also initializes MinCut awareness and Consensus verification
    */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
-
+  protected async onInitialize(): Promise<void> {
     try {
       // Subscribe to relevant events
       this.subscribeToEvents();
@@ -328,13 +283,6 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       if (this.config.enableClaimVerification) {
         await this.initializeClaimVerifier();
       }
-
-      // V3 Integration: Initialize Consensus Engine (CONSENSUS-MIXIN-001)
-      if (this.config.enableConsensus) {
-        await this.initializeConsensus();
-      }
-
-      this.initialized = true;
     } catch (error) {
       const errorMsg = `Failed to initialize quality-assessment coordinator: ${toErrorMessage(error)}`;
       throw new Error(errorMsg);
@@ -342,26 +290,10 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
   }
 
   /**
-   * V3 Integration: Initialize the consensus engine for multi-model verification
-   * @private
-   */
-  private async initializeConsensus(): Promise<void> {
-    try {
-      // The mixin handles provider registration and engine creation
-      await (this.consensusMixin as unknown as { initializeConsensus(): Promise<void> }).initializeConsensus();
-      console.log('[quality-assessment] Consensus engine initialized for quality gate decisions');
-    } catch (error) {
-      // Log and continue - consensus is enhancement, not critical
-      console.warn('[quality-assessment] Failed to initialize consensus engine:', error);
-      console.warn('[quality-assessment] Continuing without multi-model consensus verification');
-    }
-  }
-
-  /**
    * Dispose and cleanup
-   * V3: Also disposes MinCut mixin and Consensus engine
+   * V3: Also disposes domain-specific resources
    */
-  async dispose(): Promise<void> {
+  protected async onDispose(): Promise<void> {
     await this.saveWorkflowState();
 
     // Dispose Flash Attention
@@ -372,47 +304,18 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       await this.qesona.close();
       this.qesona = undefined;
     }
-
-    // V3 Integration: Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
-
-    // V3 Integration: Dispose Consensus engine (CONSENSUS-MIXIN-001)
-    await (this.consensusMixin as unknown as { disposeConsensus(): Promise<void> }).disposeConsensus();
-
-    this.workflows.clear();
-    this.initialized = false;
   }
 
   /**
-   * Get active workflow statuses
+   * Get active workflow statuses (typed override)
    */
-  getActiveWorkflows(): WorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
-    );
+  override getActiveWorkflows(): WorkflowStatus[] {
+    return super.getActiveWorkflows() as WorkflowStatus[];
   }
 
   // ============================================================================
-  // V3 Integration: MinCut Awareness (ADR-047)
+  // V3 Integration: MinCut Awareness (ADR-047) — domain-specific extras
   // ============================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   * Uses dependency injection pattern for testability
-   *
-   * @param bridge - The QueenMinCutBridge instance
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-  }
-
-  /**
-   * Check if the overall topology is healthy
-   * Returns true if status is not 'critical'
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
 
   /**
    * Get domains that are healthy for routing
@@ -420,47 +323,6 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
    */
   getHealthyRoutingDomains(): DomainName[] {
     return this.minCutMixin.getHealthyRoutingDomains();
-  }
-
-  /**
-   * Check if this domain itself is a weak point in the topology
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
-  /**
-   * Get weak vertices belonging to this domain
-   * Per ADR-047: Identifies agents that are single points of failure
-   */
-  getDomainWeakVertices() {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Get topology-aware routing for cross-domain coordination
-   * Per ADR-047: Routes to healthy domains, avoiding weak points
-   */
-  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
-  }
-
-  // ============================================================================
-  // V3 Integration: Consensus Verification (CONSENSUS-MIXIN-001)
-  // ============================================================================
-
-  /**
-   * Get consensus statistics
-   */
-  getConsensusStats(): ConsensusStats | undefined {
-    return this.consensusMixin.getConsensusStats();
-  }
-
-  /**
-   * Check if consensus verification is available
-   */
-  isConsensusAvailable(): boolean {
-    return (this.consensusMixin as unknown as { isConsensusAvailable(): boolean }).isConsensusAvailable();
   }
 
   // ============================================================================
@@ -1051,60 +913,10 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
   }
 
   // ============================================================================
-  // Workflow Management
-  // ============================================================================
-
-  private startWorkflow(
-    id: string,
-    type: WorkflowStatus['type']
-  ): void {
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  // ============================================================================
   // Event Handling
   // ============================================================================
 
-  private subscribeToEvents(): void {
+  protected subscribeToEvents(): void {
     // Subscribe to test execution events
     this.eventBus.subscribe(
       'test-execution.TestRunCompleted',

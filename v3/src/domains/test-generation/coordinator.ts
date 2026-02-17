@@ -57,26 +57,23 @@ import {
 // ============================================================================
 
 import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
   type IMinCutAwareDomain,
   type MinCutAwareConfig,
 } from '../../coordination/mixins/mincut-aware-domain';
 
 import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
   type IConsensusEnabledDomain,
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 
-// ADR-058: Governance-aware mixin for MemoryWriteGate integration
-import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
-
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
+
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+  type BaseWorkflowStatus,
+} from '../base-domain-coordinator.js';
 
 import {
   type DomainFinding,
@@ -165,11 +162,8 @@ export interface WorkflowStatus {
 /**
  * Coordinator configuration
  */
-export interface CoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
+export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
   enablePatternLearning: boolean;
-  publishEvents: boolean;
   // @ruvector integration configs (ADR-040)
   enableQESONA: boolean;
   enableFlashAttention: boolean;
@@ -180,16 +174,10 @@ export interface CoordinatorConfig {
   enableCoherenceGate: boolean;
   blockOnIncoherentRequirements: boolean;
   enrichOnRetrievalLane: boolean;
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus integration config (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
+  consensusConfig?: Partial<ConsensusEnabledConfig>;
 }
+
+type TestGenWorkflowType = 'generate' | 'tdd' | 'property' | 'data' | 'learn';
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
   maxConcurrentWorkflows: 5,
@@ -234,27 +222,18 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
  * - Consensus verification for high-stakes test design decisions
  * - Verifies test patterns, mock strategies, and edge cases
  */
-export class TestGenerationCoordinator implements ITestGenerationCoordinator {
-  private readonly config: CoordinatorConfig;
+export class TestGenerationCoordinator
+  extends BaseDomainCoordinator<CoordinatorConfig, TestGenWorkflowType>
+  implements ITestGenerationCoordinator
+{
   private readonly testGenerator: ITestGenerationService;
   private readonly patternMatcher: IPatternMatchingService;
-  private readonly workflows: Map<string, WorkflowStatus> = new Map();
-  private initialized = false;
 
   // @ruvector integrations (ADR-040)
   private qesona: PersistentSONAEngine | null = null;
   private flashAttention: QEFlashAttention | null = null;
   private decisionTransformer: DecisionTransformerAlgorithm | null = null;
   private testEmbeddings: Map<string, Float32Array> = new Map();
-
-  // MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // Consensus verification mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
-  // Domain identifier for dream insight filtering
-  private readonly domainName = 'test-generation';
 
   // Cache of recent dream insights for test enhancement
   private recentDreamInsights: Array<{
@@ -272,17 +251,25 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   // Coherence gate (ADR-052)
   private coherenceGate: TestGenerationCoherenceGate | null = null;
 
-  // ADR-058: Governance mixin for MemoryWriteGate integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
-
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {},
     private readonly coherenceService?: ICoherenceService | null
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
+
+    super(eventBus, 'test-generation', fullConfig, {
+      verifyFindingTypes: [
+        'test-pattern-selection',
+        'mock-strategy',
+        'edge-case-generation',
+        'assertion-strategy',
+      ],
+      ...fullConfig.consensusConfig,
+    });
+
     this.testGenerator = createTestGeneratorService(memory);
     this.patternMatcher = new PatternMatcherService(memory);
 
@@ -298,42 +285,13 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
         }
       );
     }
-
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    // Verifies test patterns, mock strategies, and edge case generation
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
-      verifyFindingTypes: [
-        'test-pattern-selection',
-        'mock-strategy',
-        'edge-case-generation',
-        'assertion-strategy',
-      ],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
-    });
-
-    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
-    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
   }
 
-  /**
-   * Initialize the coordinator with @ruvector integrations
-   */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
 
+  protected async onInitialize(): Promise<void> {
     // Initialize PersistentSONAEngine for pattern learning (patterns survive restarts)
     if (this.config.enableQESONA) {
       try {
@@ -387,38 +345,11 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
 
     // Load any persisted workflow state
     await this.loadWorkflowState();
-
-    // Initialize Consensus engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await this.consensusMixin.initializeConsensus();
-        console.log('[TestGenerationCoordinator] Consensus engine initialized for test design verification');
-      } catch (error) {
-        // Log and continue - consensus is enhancement, not critical
-        console.error('[TestGenerationCoordinator] Failed to initialize consensus engine:', error);
-        console.warn('[TestGenerationCoordinator] Continuing without consensus verification');
-      }
-    }
-
-    this.initialized = true;
   }
 
-  /**
-   * Dispose and cleanup
-   */
-  async dispose(): Promise<void> {
+  protected async onDispose(): Promise<void> {
     // Save workflow state
     await this.saveWorkflowState();
-
-    // Dispose Consensus engine (MM-001)
-    try {
-      await this.consensusMixin.disposeConsensus();
-    } catch (error) {
-      console.error('[TestGenerationCoordinator] Error disposing consensus engine:', error);
-    }
-
-    // Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
 
     // Dispose @ruvector integrations
     if (this.flashAttention) {
@@ -437,22 +368,15 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
       this.qesona = null;
     }
 
-    // Clear active workflows
-    this.workflows.clear();
-
     // Clear embeddings cache
     this.testEmbeddings.clear();
-
-    this.initialized = false;
   }
 
   /**
-   * Get active workflow statuses
+   * Get active workflow statuses (typed override)
    */
-  getActiveWorkflows(): WorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
-    );
+  override getActiveWorkflows(): WorkflowStatus[] {
+    return super.getActiveWorkflows() as WorkflowStatus[];
   }
 
   // ============================================================================
@@ -854,64 +778,6 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
     await this.eventBus.publish(event);
   }
 
-  // ============================================================================
-  // Workflow Management
-  // ============================================================================
-
-  private startWorkflow(
-    id: string,
-    type: WorkflowStatus['type']
-  ): void {
-    // Check workflow limit
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  private updateWorkflowProgress(id: string, progress: number): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.progress = Math.min(100, Math.max(0, progress));
-    }
-  }
-
   private getTDDProgress(phase: TDDRequest['phase']): number {
     switch (phase) {
       case 'red':
@@ -929,7 +795,7 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   // Event Handling
   // ============================================================================
 
-  private subscribeToEvents(): void {
+  protected subscribeToEvents(): void {
     // Subscribe to coverage gap events to trigger test generation
     this.eventBus.subscribe(
       'coverage-analysis.CoverageGapDetected',
@@ -1530,78 +1396,6 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
     }
 
     throw result.error;
-  }
-
-  // ============================================================================
-  // MinCut Topology Awareness Methods (ADR-047)
-  // ============================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   * Per ADR-047: Enables topology-based routing and health monitoring
-   *
-   * @param bridge - QueenMinCutBridge instance for topology awareness
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log('[TestGenerationCoordinator] MinCut bridge connected for topology awareness');
-  }
-
-  /**
-   * Check if the overall topology is healthy
-   * Per ADR-047: Returns true if topology status is not 'critical'
-   *
-   * @returns true if topology is healthy for test generation operations
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  /**
-   * Get weak vertices belonging to this domain
-   * Per ADR-047: Identifies agents that are single points of failure
-   */
-  getDomainWeakVertices() {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   * Per ADR-047: Returns true if any weak vertex belongs to test-generation domain
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
-  /**
-   * Get topology-based routing excluding weak domains
-   * Per ADR-047: Filters out domains that are currently weak points
-   *
-   * @param targetDomains - List of potential target domains
-   * @returns Filtered list of healthy domains for routing
-   */
-  getTopologyBasedRouting(targetDomains: string[]): string[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains as any);
-  }
-
-  // ============================================================================
-  // Consensus Verification Methods (MM-001)
-  // ============================================================================
-
-  /**
-   * Check if consensus verification is available
-   * Per MM-001: Returns true if consensus engine is initialized
-   */
-  isConsensusAvailable(): boolean {
-    return this.consensusMixin.isConsensusAvailable?.() ?? false;
-  }
-
-  /**
-   * Get consensus statistics
-   * Per MM-001: Returns metrics about consensus verification
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
   }
 
   /**

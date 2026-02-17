@@ -4,7 +4,7 @@
  * error handling, and edge cases.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Claim } from '../../../../src/agents/claim-verifier/interfaces';
 
 // Mock external dependencies before importing the module under test
@@ -48,6 +48,10 @@ describe('FileBasedVerifier', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     verifier = new FileBasedVerifier({ rootDir: '/workspace/project' });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('constructor defaults', () => {

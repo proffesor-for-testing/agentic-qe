@@ -2,7 +2,7 @@
  * Agentic QE v3 - Root Cause Analyzer Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { RootCauseAnalyzerService } from '../../../../src/domains/defect-intelligence/services/root-cause-analyzer';
 import { MemoryBackend, StoreOptions, VectorSearchResult } from '../../../../src/kernel/interfaces';
 import { TimelineEvent } from '../../../../src/domains/defect-intelligence/interfaces';
@@ -46,6 +46,10 @@ describe('RootCauseAnalyzerService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new RootCauseAnalyzerService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('analyzeRootCause', () => {

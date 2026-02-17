@@ -44,16 +44,6 @@ import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.j
 // ============================================================================
 
 import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
-  type IMinCutAwareDomain,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain';
-
-import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
-  type IConsensusEnabledDomain,
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 
@@ -69,6 +59,12 @@ import {
   type DomainFinding,
   createDomainFinding,
 } from '../../coordination/consensus/domain-findings';
+
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+} from '../base-domain-coordinator.js';
 
 /**
  * Interface for the chaos resilience coordinator
@@ -101,23 +97,14 @@ export interface WorkflowStatus {
 /**
  * Coordinator configuration
  */
-export interface CoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
+export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
   enableAutomatedExperiments: boolean;
-  publishEvents: boolean;
   enablePolicyGradient: boolean;
   enableQESONA: boolean;
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus integration config (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
+  consensusConfig?: Partial<ConsensusEnabledConfig>;
 }
+
+type ChaosWorkflowType = 'chaos-suite' | 'load-suite' | 'assessment' | 'experiment-generation';
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
   maxConcurrentWorkflows: 3,
@@ -141,12 +128,13 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
  * Chaos Resilience Coordinator
  * Orchestrates chaos engineering workflows and coordinates with agents
  */
-export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorExtended {
-  private readonly config: CoordinatorConfig;
+export class ChaosResilienceCoordinator
+  extends BaseDomainCoordinator<CoordinatorConfig, ChaosWorkflowType>
+  implements IChaosResilienceCoordinatorExtended
+{
   private readonly chaosEngineer: ChaosEngineerService;
   private readonly loadTester: LoadTesterService;
   private readonly performanceProfiler: PerformanceProfilerService;
-  private readonly workflows: Map<string, WorkflowStatus> = new Map();
 
   // RL Integration: PolicyGradient for chaos engineering strategy
   private policyGradient?: PolicyGradientAlgorithm;
@@ -154,67 +142,40 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
   // SONA Integration: PersistentSONAEngine for resilience pattern learning (patterns survive restarts)
   private qesona?: PersistentSONAEngine;
 
-  // MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // Consensus verification mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
-  // Domain identifier for mixin initialization
-  private readonly domainName = 'chaos-resilience';
-
   // ADR-058: Governance mixin for MemoryWriteGate and ConstitutionalEnforcer integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
-
-  private initialized = false;
+  private readonly chaosGovernanceMixin: GovernanceAwareDomainMixin;
 
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    // Verifies chaos experiments, resilience assessments, and failure injections
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
+    super(eventBus, 'chaos-resilience', fullConfig, {
       verifyFindingTypes: [
         'chaos-experiment',
         'resilience-assessment',
         'failure-injection',
       ],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
+      ...fullConfig.consensusConfig,
     });
 
     // ADR-058: Initialize governance mixin for backup-before-delete enforcement
     // Chaos resilience performs destructive operations, so use specialized mixin
-    this.governanceMixin = createDestructiveOpsGovernanceMixin(this.domainName);
+    this.chaosGovernanceMixin = createDestructiveOpsGovernanceMixin(this.domainName);
 
     this.chaosEngineer = new ChaosEngineerService({ memory });
     this.loadTester = new LoadTesterService(memory);
     this.performanceProfiler = new PerformanceProfilerService(memory);
   }
 
-  /**
-   * Initialize the coordinator
-   */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
 
+  protected async onInitialize(): Promise<void> {
     // Initialize PolicyGradient if enabled
     if (this.config.enablePolicyGradient) {
       try {
@@ -255,36 +216,10 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
 
     // Load any persisted workflow state
     await this.loadWorkflowState();
-
-    // Initialize Consensus engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await this.consensusMixin.initializeConsensus();
-        console.log(`[${this.domainName}] Consensus engine initialized`);
-      } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus verification`);
-      }
-    }
-
-    this.initialized = true;
   }
 
-  /**
-   * Dispose and cleanup
-   */
-  async dispose(): Promise<void> {
+  protected async onDispose(): Promise<void> {
     await this.saveWorkflowState();
-
-    // Dispose Consensus engine (MM-001)
-    try {
-      await this.consensusMixin.disposeConsensus();
-    } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
-    }
-
-    // Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
 
     // Dispose PersistentSONAEngine (flushes pending saves)
     if (this.qesona) {
@@ -294,18 +229,13 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
 
     // Clear PolicyGradient (no explicit dispose method exists)
     this.policyGradient = undefined;
-
-    this.workflows.clear();
-    this.initialized = false;
   }
 
   /**
-   * Get active workflow statuses
+   * Get active workflow statuses (typed override)
    */
-  getActiveWorkflows(): WorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
-    );
+  override getActiveWorkflows(): WorkflowStatus[] {
+    return super.getActiveWorkflows() as WorkflowStatus[];
   }
 
   // ============================================================================
@@ -980,60 +910,6 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
   }
 
   // ============================================================================
-  // Workflow Management
-  // ============================================================================
-
-  private startWorkflow(id: string, type: WorkflowStatus['type']): void {
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  private updateWorkflowProgress(id: string, progress: number): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.progress = Math.min(100, Math.max(0, progress));
-    }
-  }
-
-  // ============================================================================
   // Helper Methods
   // ============================================================================
 
@@ -1648,7 +1524,7 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
   // Event Handling
   // ============================================================================
 
-  private subscribeToEvents(): void {
+  protected subscribeToEvents(): void {
     // Subscribe to deployment events to trigger chaos tests
     this.eventBus.subscribe(
       'quality-assessment.DeploymentApproved',
@@ -1719,71 +1595,6 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
       workflows,
       { namespace: 'chaos-resilience', persist: true }
     );
-  }
-
-  // ============================================================================
-  // MinCut Integration Methods (ADR-047)
-  // ============================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
-  }
-
-  /**
-   * Check if topology is healthy
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  /**
-   * Get topology-based routing excluding weak domains
-   * Per ADR-047: Filters out domains that are currently weak points
-   *
-   * @param targetDomains - List of potential target domains
-   * @returns Filtered list of healthy domains for routing
-   */
-  getTopologyBasedRouting(targetDomains: string[]): string[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains as any);
-  }
-
-  /**
-   * Get weak vertices belonging to this domain
-   * Per ADR-047: Identifies agents that are single points of failure
-   */
-  getDomainWeakVertices() {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   * Per ADR-047: Returns true if any weak vertex belongs to chaos-resilience domain
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
-  // ============================================================================
-  // Consensus Integration Methods (MM-001)
-  // ============================================================================
-
-  /**
-   * Check if consensus engine is available
-   */
-  isConsensusAvailable(): boolean {
-    return this.consensusMixin.isConsensusAvailable?.() ?? false;
-  }
-
-  /**
-   * Get consensus statistics
-   * Per MM-001: Returns metrics about consensus verification
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
   }
 
   /**

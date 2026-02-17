@@ -6,7 +6,7 @@
  * functor verification, and categorical coherence analysis.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 /**
  * Mock WASM module for CategoryEngine
@@ -288,6 +288,10 @@ describe('CategoryAdapter', () => {
       dispose: vi.fn(),
     };
     adapter = new CategoryAdapter(mockEngine);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {

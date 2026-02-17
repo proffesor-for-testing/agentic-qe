@@ -3,7 +3,7 @@
  * Tests for audit functionality and dependency scanning
  */
 
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { SecurityAuditorService } from '../../../../src/domains/security-compliance/services/security-auditor';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
 import type { FilePath } from '../../../../src/shared/value-objects';
@@ -41,6 +41,10 @@ describe('SecurityAuditorService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new SecurityAuditorService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('Dependency Scanning', () => {

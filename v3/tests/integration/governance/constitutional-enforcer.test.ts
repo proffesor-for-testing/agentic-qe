@@ -13,7 +13,7 @@
  * @see ADR-058-guidance-governance-integration.md
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   governanceFlags,
   DEFAULT_GOVERNANCE_FLAGS,
@@ -43,6 +43,10 @@ describe('Constitutional Enforcer Integration - ADR-058 Phase 4', () => {
     // Reset to defaults before each test
     governanceFlags.reset();
     constitutionalEnforcer.reset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('Initialization and Constitution Loading', () => {

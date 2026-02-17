@@ -3,7 +3,7 @@
  * ADR-035: STDP-based spike timing correlation for root cause analysis
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   CausalRootCauseAnalyzerService,
   createCausalRootCauseAnalyzer,
@@ -35,6 +35,10 @@ describe('CausalRootCauseAnalyzerService', () => {
   beforeEach(() => {
     mockMemory = createMockMemory();
     service = new CausalRootCauseAnalyzerService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {

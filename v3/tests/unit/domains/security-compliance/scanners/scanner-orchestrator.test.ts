@@ -3,7 +3,7 @@
  * Tests for the scanner orchestrator that coordinates SAST, DAST, and Dependency scanning
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SecurityScannerService } from '../../../../../src/domains/security-compliance/services/scanners/scanner-orchestrator';
 import type { MemoryBackend } from '../../../../../src/kernel/interfaces';
 import type { FilePath } from '../../../../../src/shared/value-objects';
@@ -88,6 +88,10 @@ describe('SecurityScannerService (Orchestrator)', () => {
       defaultRuleSets: ['owasp-top-10'],
       enableLLMAnalysis: false,
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // =========================================================================

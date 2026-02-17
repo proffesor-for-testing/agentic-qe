@@ -4,7 +4,7 @@
  * Tests: violation recording, filtering, scoring, report generation,
  * alert thresholds, and statistics.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock dependencies before importing the module under test
 vi.mock('../../../src/governance/feature-flags.js', () => ({
@@ -54,6 +54,10 @@ describe('ComplianceReporter', () => {
       alertOnCritical: true,
       generateDailyReport: false,
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ============================================================================

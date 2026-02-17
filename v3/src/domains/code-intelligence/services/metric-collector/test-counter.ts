@@ -23,7 +23,7 @@ import {
   MetricCollectorConfig,
   DEFAULT_METRIC_CONFIG,
 } from './interfaces.js';
-import { safeJsonParse } from '../../../../shared/safe-json.js';
+import { safeJsonParse } from '@shared/safe-json.js';
 
 // ============================================================================
 // Main Test Counting Function

@@ -3,7 +3,7 @@
  * Tests for Dynamic Application Security Testing scanner
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { DASTScanner } from '../../../../../src/domains/security-compliance/services/scanners/dast-scanner';
 import type { MemoryBackend } from '../../../../../src/kernel/interfaces';
 import type {
@@ -89,6 +89,10 @@ describe('DASTScanner', () => {
         text: vi.fn().mockResolvedValue('<html><body>Hello</body></html>'),
       }),
     }));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // =========================================================================

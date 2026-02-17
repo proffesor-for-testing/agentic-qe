@@ -4,7 +4,7 @@
  * Tests: invariant loading, specific invariant checks (all 7),
  * enforcement, escalation, statistics, and flag management.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock feature-flags with controllable return values
 const mockGetFlags = vi.fn().mockReturnValue({
@@ -43,6 +43,10 @@ describe('ConstitutionalEnforcer', () => {
       constitutionPath: '/nonexistent/constitution.md',
       logAllChecks: false,
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ============================================================================

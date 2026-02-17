@@ -7,7 +7,7 @@
  * @module tests/unit/adapters/a2a/agent-cards
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFile, readdir, stat } from 'fs/promises';
 import { join } from 'path';
 
@@ -645,6 +645,10 @@ version: '1.0.0'
       generator = createAgentCardGenerator({
         baseUrl: 'https://aqe.example.com',
       });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
     });
 
     it('should generate valid agent card from markdown', () => {

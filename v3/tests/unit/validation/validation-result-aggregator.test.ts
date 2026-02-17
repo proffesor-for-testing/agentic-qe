@@ -3,7 +3,7 @@
  * ADR-056 Phase 5: Validation result aggregation and reporting
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   ValidationResultAggregator,
   createValidationResultAggregator,
@@ -119,6 +119,10 @@ describe('ValidationResultAggregator', () => {
   beforeEach(() => {
     mockLearner = createMockLearner();
     aggregator = createValidationResultAggregator(mockLearner, mockManifestPath);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('aggregateResults', () => {

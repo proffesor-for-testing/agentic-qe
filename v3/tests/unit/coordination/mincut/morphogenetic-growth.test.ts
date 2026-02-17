@@ -353,6 +353,7 @@ describe('MorphogeneticController', () => {
   let graph: SwarmGraph;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     graph = createTestGraph();
     controller = createMorphogeneticController(graph, {
       enabled: false, // Disable auto-start for tests
@@ -363,6 +364,8 @@ describe('MorphogeneticController', () => {
 
   afterEach(() => {
     controller.stop();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   // ==========================================================================
@@ -653,7 +656,7 @@ describe('MorphogeneticController', () => {
 
     it('should mark low priority tests as pruned', async () => {
       // Wait for tests to age
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await vi.advanceTimersByTimeAsync(150);
 
       const pruned = controller.prune();
       expect(pruned).toBeDefined();
@@ -696,7 +699,7 @@ describe('MorphogeneticController', () => {
       await fastController.runGrowthCycle();
 
       // Wait for tests to mature
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       const result = fastController.harvest();
 
@@ -720,7 +723,7 @@ describe('MorphogeneticController', () => {
       ];
       fastController.plantSeeds(weakVertices);
       await fastController.runGrowthCycle();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       const result = fastController.harvest();
 
@@ -751,7 +754,7 @@ describe('MorphogeneticController', () => {
       for (let i = 0; i < 3; i++) {
         await fastController.runGrowthCycle();
       }
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       const result = fastController.harvest();
 
@@ -776,7 +779,7 @@ describe('MorphogeneticController', () => {
       ];
       fastController.plantSeeds(weakVertices);
       await fastController.runGrowthCycle();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       const result = fastController.harvest();
 
@@ -858,7 +861,7 @@ describe('MorphogeneticController', () => {
       ];
       fastController.plantSeeds(weakVertices);
       await fastController.runGrowthCycle();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       const statsBefore = fastController.getStats();
       expect(statsBefore.growingTests).toBeGreaterThanOrEqual(0);

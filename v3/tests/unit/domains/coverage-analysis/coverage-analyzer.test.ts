@@ -5,7 +5,7 @@
  * delta tracking, recommendations, and LLM analysis integration.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   CoverageAnalyzerService,
   createCoverageAnalyzerService,
@@ -71,6 +71,10 @@ describe('CoverageAnalyzerService', () => {
   beforeEach(() => {
     memory = createMockMemory();
     service = createCoverageAnalyzerService(memory as any);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // =========================================================================

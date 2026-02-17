@@ -4,7 +4,7 @@
  * Tests: envelope creation/signing, chain management, verification,
  * tamper detection, queries, Merkle tree, and export/import.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHash, createHmac } from 'node:crypto';
 
 vi.mock('../../../src/governance/wasm-kernel-integration.js', () => {
@@ -58,6 +58,10 @@ describe('ProofEnvelopeIntegration', () => {
   beforeEach(async () => {
     pei = createProofEnvelopeIntegration(wasmKernelIntegration as any);
     await pei.initialize('test-signing-key');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ============================================================================

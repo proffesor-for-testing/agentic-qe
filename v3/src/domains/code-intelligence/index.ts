@@ -57,6 +57,19 @@ export {
 // Interfaces (Types Only)
 // ============================================================================
 
+// ============================================================================
+// CQ-005: Register domain services in the shared DomainServiceRegistry
+// so coordination/ can resolve them without importing from domains/.
+// ============================================================================
+import { DomainServiceRegistry, ServiceKeys } from '../../shared/domain-service-registry';
+import type { MemoryBackend } from '../../kernel/interfaces';
+import { KnowledgeGraphService as _KnowledgeGraphService } from './services/knowledge-graph';
+
+DomainServiceRegistry.register(
+  ServiceKeys.KnowledgeGraphService,
+  (memory: MemoryBackend) => new _KnowledgeGraphService(memory),
+);
+
 export type {
   // API interface
   CodeIntelligenceAPI,

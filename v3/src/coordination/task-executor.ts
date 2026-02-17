@@ -33,46 +33,59 @@ import {
 // ADR-051: Task Router for outcome recording
 import { getTaskRouter, type TaskRouterService } from '../mcp/services/task-router';
 
-// Import domain types only (no runtime dependency on domain modules)
+// CQ-005: Import domain types only (no runtime dependency on domain modules)
 import type { CoverageData, FileCoverage } from '../domains/coverage-analysis';
 import type { FullScanResult } from '../domains/security-compliance';
 import type { TestGeneratorService, GeneratedTests } from '../domains/test-generation';
 import type { QualityReport } from '../domains/quality-assessment';
 
-// ============================================================================
-// Lazy Domain Service Imports (break circular dependency: coordination -> domains)
-// These use dynamic import() to avoid static module graph edges.
-// The services are only loaded when first needed at runtime.
-// ============================================================================
+// CQ-005: Use DomainServiceRegistry instead of dynamic imports from domains/
+import { DomainServiceRegistry, ServiceKeys } from '../shared/domain-service-registry';
 
 type CoverageAnalyzerService = import('../domains/coverage-analysis').CoverageAnalyzerService;
 type SecurityScannerService = import('../domains/security-compliance').SecurityScannerService;
 type KnowledgeGraphService = import('../domains/code-intelligence').KnowledgeGraphService;
 type QualityAnalyzerService = import('../domains/quality-assessment').QualityAnalyzerService;
 
-async function lazyCoverageAnalyzerService(memory: MemoryBackend): Promise<CoverageAnalyzerService> {
-  const mod = await import('../domains/coverage-analysis');
-  return new mod.CoverageAnalyzerService(memory);
+// ============================================================================
+// CQ-005: Domain Service Resolution via Registry (no coordination -> domains imports)
+// Domain modules register their factories in their index.ts files.
+// Coordination resolves them from the shared registry at runtime.
+// ============================================================================
+
+function resolveCoverageAnalyzerService(memory: MemoryBackend): CoverageAnalyzerService {
+  const factory = DomainServiceRegistry.resolve<(m: MemoryBackend) => CoverageAnalyzerService>(
+    ServiceKeys.CoverageAnalyzerService
+  );
+  return factory(memory);
 }
 
-async function lazySecurityScannerService(memory: MemoryBackend): Promise<SecurityScannerService> {
-  const mod = await import('../domains/security-compliance');
-  return new mod.SecurityScannerService(memory);
+function resolveSecurityScannerService(memory: MemoryBackend): SecurityScannerService {
+  const factory = DomainServiceRegistry.resolve<(m: MemoryBackend) => SecurityScannerService>(
+    ServiceKeys.SecurityScannerService
+  );
+  return factory(memory);
 }
 
-async function lazyTestGeneratorService(memory: MemoryBackend): Promise<TestGeneratorService> {
-  const mod = await import('../domains/test-generation');
-  return mod.createTestGeneratorService(memory);
+function resolveTestGeneratorService(memory: MemoryBackend): TestGeneratorService {
+  const factory = DomainServiceRegistry.resolve<(m: MemoryBackend) => TestGeneratorService>(
+    ServiceKeys.createTestGeneratorService
+  );
+  return factory(memory);
 }
 
-async function lazyKnowledgeGraphService(memory: MemoryBackend): Promise<KnowledgeGraphService> {
-  const mod = await import('../domains/code-intelligence');
-  return new mod.KnowledgeGraphService(memory);
+function resolveKnowledgeGraphService(memory: MemoryBackend): KnowledgeGraphService {
+  const factory = DomainServiceRegistry.resolve<(m: MemoryBackend) => KnowledgeGraphService>(
+    ServiceKeys.KnowledgeGraphService
+  );
+  return factory(memory);
 }
 
-async function lazyQualityAnalyzerService(memory: MemoryBackend): Promise<QualityAnalyzerService> {
-  const mod = await import('../domains/quality-assessment');
-  return new mod.QualityAnalyzerService(memory);
+function resolveQualityAnalyzerService(memory: MemoryBackend): QualityAnalyzerService {
+  const factory = DomainServiceRegistry.resolve<(m: MemoryBackend) => QualityAnalyzerService>(
+    ServiceKeys.QualityAnalyzerService
+  );
+  return factory(memory);
 }
 
 // ============================================================================
@@ -560,37 +573,37 @@ export class DomainTaskExecutor {
   // Instance-level service getters (lazy initialization)
   // ============================================================================
 
-  private async getCoverageAnalyzer(): Promise<CoverageAnalyzerService> {
+  private getCoverageAnalyzer(): CoverageAnalyzerService {
     if (!this.coverageAnalyzer) {
-      this.coverageAnalyzer = await lazyCoverageAnalyzerService(this.kernel.memory);
+      this.coverageAnalyzer = resolveCoverageAnalyzerService(this.kernel.memory);
     }
     return this.coverageAnalyzer;
   }
 
-  private async getSecurityScanner(): Promise<SecurityScannerService> {
+  private getSecurityScanner(): SecurityScannerService {
     if (!this.securityScanner) {
-      this.securityScanner = await lazySecurityScannerService(this.kernel.memory);
+      this.securityScanner = resolveSecurityScannerService(this.kernel.memory);
     }
     return this.securityScanner;
   }
 
-  private async getTestGenerator(): Promise<TestGeneratorService> {
+  private getTestGenerator(): TestGeneratorService {
     if (!this.testGenerator) {
-      this.testGenerator = await lazyTestGeneratorService(this.kernel.memory);
+      this.testGenerator = resolveTestGeneratorService(this.kernel.memory);
     }
     return this.testGenerator;
   }
 
-  private async getKnowledgeGraph(): Promise<KnowledgeGraphService> {
+  private getKnowledgeGraph(): KnowledgeGraphService {
     if (!this.knowledgeGraph) {
-      this.knowledgeGraph = await lazyKnowledgeGraphService(this.kernel.memory);
+      this.knowledgeGraph = resolveKnowledgeGraphService(this.kernel.memory);
     }
     return this.knowledgeGraph;
   }
 
-  private async getQualityAnalyzer(): Promise<QualityAnalyzerService> {
+  private getQualityAnalyzer(): QualityAnalyzerService {
     if (!this.qualityAnalyzer) {
-      this.qualityAnalyzer = await lazyQualityAnalyzerService(this.kernel.memory);
+      this.qualityAnalyzer = resolveQualityAnalyzerService(this.kernel.memory);
     }
     return this.qualityAnalyzer;
   }
@@ -642,7 +655,7 @@ export class DomainTaskExecutor {
       };
 
       try {
-        const generator = await this.getTestGenerator();
+        const generator = this.getTestGenerator();
 
         // Determine source files to analyze
         let sourceFiles: string[] = [];
@@ -710,7 +723,7 @@ export class DomainTaskExecutor {
       };
 
       try {
-        const analyzer = await this.getCoverageAnalyzer();
+        const analyzer = this.getCoverageAnalyzer();
         const targetPath = payload.target || process.cwd();
         const threshold = payload.threshold || 80;
 
@@ -785,7 +798,7 @@ export class DomainTaskExecutor {
       };
 
       try {
-        const scanner = await this.getSecurityScanner();
+        const scanner = this.getSecurityScanner();
         const targetPath = payload.target || process.cwd();
 
         // Discover files to scan
@@ -897,7 +910,7 @@ export class DomainTaskExecutor {
       };
 
       try {
-        const kg = await this.getKnowledgeGraph();
+        const kg = this.getKnowledgeGraph();
         const targetPath = payload.target || process.cwd();
         const startTime = Date.now();
 
@@ -969,7 +982,7 @@ export class DomainTaskExecutor {
       };
 
       try {
-        const analyzer = await this.getQualityAnalyzer();
+        const analyzer = this.getQualityAnalyzer();
         const threshold = payload.threshold || 80;
 
         // Determine source files to analyze

@@ -6,7 +6,7 @@
  * Tests ML-based defect prediction and hotspot identification
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { DefectPredictorWorker } from '../../../../src/workers/workers/defect-predictor';
 import { WorkerContext } from '../../../../src/workers/interfaces';
 
@@ -39,6 +39,10 @@ describe('DefectPredictorWorker', () => {
 
   beforeEach(() => {
     worker = new DefectPredictorWorker();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('instantiation', () => {

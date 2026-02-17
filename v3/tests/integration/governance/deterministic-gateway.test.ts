@@ -11,7 +11,7 @@
  * @see ADR-058-guidance-governance-integration.md
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   governanceFlags,
   DEFAULT_GOVERNANCE_FLAGS,
@@ -32,6 +32,10 @@ describe('DeterministicGateway Integration - ADR-058 Phase 2', () => {
     // Reset to defaults before each test
     governanceFlags.reset();
     deterministicGatewayIntegration.reset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('Feature Flags', () => {

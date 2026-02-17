@@ -15,7 +15,7 @@
  * @module coverage-analysis/ghost-coverage-analyzer
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Severity } from '../../../../src/shared/types';
 import type {
   CoverageData,
@@ -227,6 +227,10 @@ describe('GhostCoverageAnalyzer', () => {
     analyzer = createGhostCoverageAnalyzer({ hnswIndex: mockIndex, embedder: mockEmbedder });
     await analyzer.initialize();
     projectContext = createDefaultProjectContext();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ===========================================================================

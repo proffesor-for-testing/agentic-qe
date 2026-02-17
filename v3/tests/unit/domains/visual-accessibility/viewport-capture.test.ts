@@ -2,7 +2,7 @@
  * Tests for ViewportCaptureService
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   ViewportCaptureService,
   createViewportCaptureService,
@@ -39,6 +39,10 @@ describe('ViewportCaptureService', () => {
     memory = createMockMemory();
     // Disable preferAgentBrowser to prevent real browser client creation in tests
     service = new ViewportCaptureService(memory, undefined, { preferAgentBrowser: false });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('VIEWPORT_PRESETS', () => {

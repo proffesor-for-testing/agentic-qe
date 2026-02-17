@@ -63,6 +63,39 @@ export {
 // Interfaces (Types Only)
 // ============================================================================
 
+// ============================================================================
+// CQ-005: Register domain services in the shared DomainServiceRegistry
+// so coordination/ can resolve them without importing from domains/.
+// ============================================================================
+import { DomainServiceRegistry, ServiceKeys } from '../../shared/domain-service-registry';
+import type { MemoryBackend } from '../../kernel/interfaces';
+import { SecurityScannerService as _SecurityScannerService } from './services/security-scanner.js';
+import {
+  isSemgrepAvailable,
+  runSemgrepWithRules,
+  convertSemgrepFindings,
+} from './services/semgrep-integration.js';
+
+DomainServiceRegistry.register(
+  ServiceKeys.SecurityScannerService,
+  (memory: MemoryBackend) => new _SecurityScannerService(memory),
+);
+
+DomainServiceRegistry.register(
+  ServiceKeys.isSemgrepAvailable,
+  isSemgrepAvailable,
+);
+
+DomainServiceRegistry.register(
+  ServiceKeys.runSemgrepWithRules,
+  runSemgrepWithRules,
+);
+
+DomainServiceRegistry.register(
+  ServiceKeys.convertSemgrepFindings,
+  convertSemgrepFindings,
+);
+
 export type {
   // Value Objects
   Vulnerability,

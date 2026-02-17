@@ -5,7 +5,7 @@
  * condition evaluation, and cleanup behavior.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock dependencies before importing the module under test
 vi.mock('fs', () => ({
@@ -77,6 +77,10 @@ describe('CrossPhaseHookExecutor', () => {
     vi.clearAllMocks();
     resetCrossPhaseHookExecutor();
     executor = new CrossPhaseHookExecutor('/fake/config.yaml');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // -------------------------------------------------------------------------

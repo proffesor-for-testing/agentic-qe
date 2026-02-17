@@ -3,8 +3,8 @@
  * Coordinates SAST, DAST, and Dependency scanning activities
  */
 
-import { Result, ok, err } from '../../../../shared/types/index.js';
-import type { FilePath } from '../../../../shared/value-objects/index.js';
+import { Result, ok, err } from '@shared/types/index.js';
+import type { FilePath } from '@shared/value-objects/index.js';
 import type {
   SecurityScannerConfig,
   SecurityScannerDependencies,
@@ -27,7 +27,7 @@ import { DEFAULT_CONFIG } from './scanner-types.js';
 import { SASTScanner } from './sast-scanner.js';
 import { DASTScanner } from './dast-scanner.js';
 import { DependencyScanner } from './dependency-scanner.js';
-import { toError } from '../../../../shared/error-utils.js';
+import { toError } from '@shared/error-utils.js';
 
 // ============================================================================
 // Scanner Orchestrator Service

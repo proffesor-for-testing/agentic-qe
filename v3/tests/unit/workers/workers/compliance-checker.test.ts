@@ -6,7 +6,7 @@
  * Tests ADR and DDD compliance checking functionality
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ComplianceCheckerWorker } from '../../../../src/workers/workers/compliance-checker';
 import { WorkerContext } from '../../../../src/workers/interfaces';
 
@@ -61,6 +61,10 @@ describe('ComplianceCheckerWorker', () => {
 
   beforeEach(() => {
     worker = new ComplianceCheckerWorker();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('instantiation', () => {

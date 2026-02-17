@@ -8,8 +8,8 @@
  * @module test-execution/services/e2e/step-executors
  */
 
-import type { VibiumClient } from '../../../../integrations/vibium';
-import type { IBrowserClient, IAgentBrowserClient } from '../../../../integrations/browser';
+import type { VibiumClient } from '@integrations/vibium';
+import type { IBrowserClient, IAgentBrowserClient } from '@integrations/browser';
 import {
   type E2EStep,
   type E2EStepResult,
@@ -41,7 +41,7 @@ import {
 } from './browser-orchestrator';
 import { AssertionHandlers, createAssertionHandlers } from './assertion-handlers';
 import { WaitConditionHandler, createWaitConditionHandler } from './wait-condition-handler';
-import { safeJsonParse } from '../../../../shared/safe-json.js';
+import { safeJsonParse } from '@shared/safe-json.js';
 
 // ============================================================================
 // Step Executor Class

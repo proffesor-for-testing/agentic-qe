@@ -6,7 +6,7 @@
  * fires correctly, publishes events, and handles errors.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QEReasoningBank } from '../../src/learning/qe-reasoning-bank.js';
 import type { QEPattern } from '../../src/learning/qe-patterns.js';
 import type { MemoryBackend, EventBus } from '../../src/kernel/interfaces.js';
@@ -140,6 +140,10 @@ describe('QEReasoningBank promotePattern (ADR-064 Phase 3)', () => {
 
     // Initialize (skips pretrained patterns since store has 0 patterns)
     await bank.initialize();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ---------- Successful promotion ----------

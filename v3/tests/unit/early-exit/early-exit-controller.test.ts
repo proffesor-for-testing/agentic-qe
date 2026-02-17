@@ -3,7 +3,7 @@
  * ADR-033: Early Exit Testing
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   EarlyExitController,
   createEarlyExitController,
@@ -23,6 +23,10 @@ describe('Early Exit Controller', () => {
 
   beforeEach(() => {
     controller = new EarlyExitController(DEFAULT_EXIT_CONFIG, 4);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ============================================================================

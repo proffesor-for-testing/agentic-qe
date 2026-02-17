@@ -4,7 +4,7 @@
  * GOAP Action A2.4: Tests for visual-regression service
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ok, err } from '../../../../src/shared/types/index.js';
 import { FilePath } from '../../../../src/shared/value-objects/index.js';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces.js';
@@ -51,6 +51,10 @@ describe('visual-regression', () => {
       close: vi.fn(),
       isAvailable: vi.fn().mockResolvedValue(false),
     } as unknown as VibiumClient;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('createVisualRegressionService', () => {

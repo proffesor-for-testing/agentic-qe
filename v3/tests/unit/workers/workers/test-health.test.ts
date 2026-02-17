@@ -6,7 +6,7 @@
  * Tests test suite health monitoring
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TestHealthWorker } from '../../../../src/workers/workers/test-health';
 import { WorkerContext } from '../../../../src/workers/interfaces';
 
@@ -86,6 +86,10 @@ describe('TestHealthWorker', () => {
 
   beforeEach(() => {
     worker = new TestHealthWorker();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('instantiation', () => {

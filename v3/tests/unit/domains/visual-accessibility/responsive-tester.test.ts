@@ -2,7 +2,7 @@
  * Agentic QE v3 - Responsive Tester Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   ResponsiveTesterService,
   ResponsiveTestConfig,
@@ -64,6 +64,10 @@ describe('ResponsiveTesterService', () => {
   beforeEach(() => {
     mockMemory = new MockMemoryBackend();
     service = new ResponsiveTesterService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('DEVICE_VIEWPORTS', () => {

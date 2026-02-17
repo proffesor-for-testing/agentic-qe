@@ -3,7 +3,7 @@
  * ADR-064, Phase 1C: Quality gate validation and pattern training
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   QualityGateEnforcer,
   DEFAULT_QUALITY_GATE_CONFIG,
@@ -211,6 +211,10 @@ describe('TaskCompletedHook', () => {
 
   beforeEach(() => {
     store = mockPatternStore();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ---------- Accept / Reject ----------

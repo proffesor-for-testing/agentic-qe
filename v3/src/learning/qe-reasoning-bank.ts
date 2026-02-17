@@ -15,7 +15,11 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../logging/index.js';
+import type { Logger } from '../logging/index.js';
 import type { MemoryBackend, EventBus } from '../kernel/interfaces.js';
+
+const logger: Logger = LoggerFactory.create('QEReasoningBank');
 import type { Result, DomainName } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { toError, toErrorMessage } from '../shared/error-utils.js';
@@ -412,13 +416,13 @@ export class QEReasoningBank implements IQEReasoningBank {
         await this.seedCrossDomainPatterns();
       } else {
         const stats = await this.patternStore.getStats();
-        console.log(`[QEReasoningBank] Cross-domain transfer already complete (${stats.totalPatterns} patterns)`);
+        logger.info('Cross-domain transfer already complete', { totalPatterns: stats.totalPatterns });
       }
     } catch (error) {
-      console.warn('[QEReasoningBank] Cross-domain seeding failed (non-fatal):', error);
+      logger.warn('Cross-domain seeding failed (non-fatal)', { error });
     }
 
-    console.log('[QEReasoningBank] Initialized');
+    logger.info('Initialized');
   }
 
   /**
@@ -428,7 +432,7 @@ export class QEReasoningBank implements IQEReasoningBank {
     // Check if we already have patterns
     const stats = await this.patternStore.getStats();
     if (stats.totalPatterns > 0) {
-      console.log(`[QEReasoningBank] Found ${stats.totalPatterns} existing patterns`);
+      logger.info('Found existing patterns', { totalPatterns: stats.totalPatterns });
       return;
     }
 
@@ -1158,11 +1162,11 @@ On promotion:
       try {
         await this.patternStore.create(options);
       } catch (error) {
-        console.warn(`[QEReasoningBank] Failed to load pattern ${options.name}:`, error);
+        logger.warn('Failed to load pattern', { name: options.name, error });
       }
     }
 
-    console.log(`[QEReasoningBank] Loaded ${foundationalPatterns.length} foundational patterns`);
+    logger.info('Loaded foundational patterns', { count: foundationalPatterns.length });
   }
 
   /**
@@ -1264,9 +1268,7 @@ On promotion:
       }
     }
 
-    console.log(
-      `[QEReasoningBank] Cross-domain transfer complete: ${transferred} transferred, ${skipped} skipped`
-    );
+    logger.info('Cross-domain transfer complete', { transferred, skipped });
 
     return { transferred, skipped };
   }
@@ -1373,7 +1375,7 @@ On promotion:
       );
     } catch (analyticsError) {
       // Non-critical — don't fail if analytics insert fails
-      console.warn(`[QEReasoningBank] Analytics write failed: ${toErrorMessage(analyticsError)}`);
+      logger.warn('Analytics write failed', { error: toErrorMessage(analyticsError) });
     }
 
     if (result.success) {
@@ -1386,7 +1388,7 @@ On promotion:
       const pattern = await this.getPattern(outcome.patternId);
       if (pattern && await this.checkPatternPromotionWithCoherence(pattern)) {
         await this.promotePattern(outcome.patternId);
-        console.log(`[QEReasoningBank] Pattern promoted to long-term: ${pattern.name}`);
+        logger.info('Pattern promoted to long-term', { name: pattern.name });
       }
     }
 
@@ -1446,10 +1448,10 @@ On promotion:
           });
         }
 
-        console.log(
-          `[QEReasoningBank] Pattern promotion blocked due to coherence violation: ` +
-          `${pattern.name} (energy: ${coherenceResult.energy.toFixed(3)})`
-        );
+        logger.info('Pattern promotion blocked due to coherence violation', {
+          name: pattern.name,
+          energy: coherenceResult.energy,
+        });
 
         return false;
       }
@@ -1476,7 +1478,7 @@ On promotion:
   private async promotePattern(patternId: string): Promise<void> {
     const result = await this.patternStore.promote(patternId);
     if (result.success) {
-      console.log(`[QEReasoningBank] Promoted pattern ${patternId} to long-term`);
+      logger.info('Promoted pattern to long-term', { patternId });
       if (this.eventBus) {
         await this.eventBus.publish({
           id: `pattern-promoted-${patternId}`,
@@ -1487,7 +1489,7 @@ On promotion:
         });
       }
     } else {
-      console.error(`[QEReasoningBank] Failed to promote pattern ${patternId}: ${result.error.message}`);
+      logger.error('Failed to promote pattern', result.error, { patternId });
     }
   }
 
@@ -1660,10 +1662,9 @@ On promotion:
         // ARM64 ONNX compatibility issue or module not available
         // Fall through to hash-based embedding silently
         if (process.env.DEBUG) {
-          console.warn(
-            '[QEReasoningBank] ONNX embeddings unavailable, using hash fallback:',
-            toErrorMessage(error)
-          );
+          logger.warn('ONNX embeddings unavailable, using hash fallback', {
+            error: toErrorMessage(error),
+          });
         }
       }
     }

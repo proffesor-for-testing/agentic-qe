@@ -23,8 +23,15 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@shared/*": ["src/shared/*"],
+      "@kernel/*": ["src/kernel/*"],
+      "@domains/*": ["src/domains/*"],
+      "@coordination/*": ["src/coordination/*"],
+      "@adapters/*": ["src/adapters/*"],
+      "@integrations/*": ["src/integrations/*"]
     }
   },
   "include": ["src/**/*"],

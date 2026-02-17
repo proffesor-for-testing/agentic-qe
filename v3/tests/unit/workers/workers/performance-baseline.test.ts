@@ -6,7 +6,7 @@
  * Tests performance baseline tracking and anomaly detection
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PerformanceBaselineWorker } from '../../../../src/workers/workers/performance-baseline';
 import { WorkerContext } from '../../../../src/workers/interfaces';
 
@@ -48,6 +48,10 @@ describe('PerformanceBaselineWorker', () => {
 
   beforeEach(() => {
     worker = new PerformanceBaselineWorker();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('instantiation', () => {

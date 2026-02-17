@@ -229,10 +229,7 @@ export class QueenCoordinator implements IQueenCoordinator {
     await this.router.initialize();
 
     // Subscribe to domain events
-    this.eventSubscriptionIds = subscribeToEvents(
-      this.createEventHandlerContext(),
-      ALL_DOMAINS,
-    );
+    this.subscribeToEvents();
 
     // Start work stealing if enabled
     if (this.config.workStealing.enabled) {
@@ -679,6 +676,11 @@ export class QueenCoordinator implements IQueenCoordinator {
   // ============================================================================
   // Private Helpers
   // ============================================================================
+
+  /** Kept as a method so tests that cast to `{ subscribeToEvents() }` still work. */
+  private subscribeToEvents(): void {
+    this.eventSubscriptionIds = subscribeToEvents(this.createEventHandlerContext(), ALL_DOMAINS);
+  }
 
   private enqueueTaskInternal(task: QueenTask): void {
     enqueueTask(this.taskQueue, this.domainQueues, task);

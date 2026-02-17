@@ -3,7 +3,7 @@
  * Tests ViewportCaptureService with mock browser client integration
  */
 
-import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import {
   ViewportCaptureService,
   VIEWPORT_PRESETS,
@@ -161,6 +161,10 @@ describe('ViewportCaptureService with Browser Client Integration', () => {
     mockMemory = new MockMemoryBackend();
     mockBrowserClient = createMockAgentBrowserClient();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('device emulation via setDevice', () => {

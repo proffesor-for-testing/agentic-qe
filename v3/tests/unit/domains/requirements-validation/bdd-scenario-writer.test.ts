@@ -2,7 +2,7 @@
  * Agentic QE v3 - BDD Scenario Writer Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BDDScenarioWriterService } from '../../../../src/domains/requirements-validation/services/bdd-scenario-writer';
 import { MemoryBackend, StoreOptions } from '../../../../src/kernel/interfaces';
 import { Requirement, BDDScenario } from '../../../../src/domains/requirements-validation/interfaces';
@@ -63,6 +63,10 @@ describe('BDDScenarioWriterService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     writer = new BDDScenarioWriterService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('generateScenarios', () => {

@@ -4,7 +4,7 @@
  * Tests: benchmark creation, outcome recording, statistical significance,
  * winner determination, and validation.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock dependencies
 vi.mock('../../../src/governance/feature-flags.js', () => ({
@@ -63,6 +63,10 @@ describe('ABBenchmarkingFramework', () => {
   beforeEach(async () => {
     framework = new ABBenchmarkingFramework();
     await framework.initialize();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ============================================================================

@@ -5,7 +5,7 @@
  * Uses a mock UnifiedMemoryManager to isolate from SQLite.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import {
   CrossPhaseMemoryService,
@@ -64,6 +64,10 @@ describe('CrossPhaseMemoryService', () => {
       memoryManager: mockMemory as any,
     });
     resetCrossPhaseMemory();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {

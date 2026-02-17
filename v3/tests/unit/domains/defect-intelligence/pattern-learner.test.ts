@@ -2,7 +2,7 @@
  * Agentic QE v3 - Pattern Learner Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PatternLearnerService } from '../../../../src/domains/defect-intelligence/services/pattern-learner';
 import { MemoryBackend, StoreOptions, VectorSearchResult } from '../../../../src/kernel/interfaces';
 import { DefectInfo, DefectPattern } from '../../../../src/domains/defect-intelligence/interfaces';
@@ -59,6 +59,10 @@ describe('PatternLearnerService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new PatternLearnerService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('learnPatterns', () => {

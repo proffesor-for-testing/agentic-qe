@@ -5,7 +5,7 @@
  * test suggestion generation, and risk scoring.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   GapDetectorService,
   createGapDetectorService,
@@ -76,6 +76,10 @@ describe('GapDetectorService', () => {
   beforeEach(() => {
     memory = createMockMemory();
     service = createGapDetectorService(memory as any);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // =========================================================================

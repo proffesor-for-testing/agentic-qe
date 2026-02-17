@@ -2,7 +2,7 @@
  * Agentic QE v3 - API Compatibility Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ApiCompatibilityService } from '../../../../src/domains/contract-testing/services/api-compatibility';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
 import type { ApiContract, BreakingChange } from '../../../../src/domains/contract-testing/interfaces';
@@ -73,6 +73,10 @@ describe('ApiCompatibilityService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new ApiCompatibilityService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('compareVersions', () => {

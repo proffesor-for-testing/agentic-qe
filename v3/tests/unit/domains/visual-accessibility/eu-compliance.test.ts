@@ -4,7 +4,7 @@
  * Tests for EN 301 549 and EU Accessibility Act compliance validation
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   EUComplianceService,
   EN_301_549_WEB_CLAUSES,
@@ -58,6 +58,10 @@ describe('EUComplianceService', () => {
   beforeEach(() => {
     mockMemory = createMockMemory();
     service = new EUComplianceService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('EN 301 549 Clauses', () => {

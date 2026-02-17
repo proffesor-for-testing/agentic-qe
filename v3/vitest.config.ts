@@ -46,6 +46,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@shared': path.resolve(__dirname, './src/shared'),
+      '@kernel': path.resolve(__dirname, './src/kernel'),
+      '@domains': path.resolve(__dirname, './src/domains'),
+      '@coordination': path.resolve(__dirname, './src/coordination'),
+      '@adapters': path.resolve(__dirname, './src/adapters'),
+      '@integrations': path.resolve(__dirname, './src/integrations'),
       '@': path.resolve(__dirname, './src'),
     },
   },

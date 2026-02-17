@@ -68,6 +68,19 @@ export * from './coherence';
 // Interfaces (Types Only)
 // ============================================================================
 
+// ============================================================================
+// CQ-005: Register domain services in the shared DomainServiceRegistry
+// so coordination/ can resolve them without importing from domains/.
+// ============================================================================
+import { DomainServiceRegistry, ServiceKeys } from '../../shared/domain-service-registry';
+import type { MemoryBackend } from '../../kernel/interfaces';
+import { QualityAnalyzerService as _QualityAnalyzerService } from './services/quality-analyzer';
+
+DomainServiceRegistry.register(
+  ServiceKeys.QualityAnalyzerService,
+  (memory: MemoryBackend) => new _QualityAnalyzerService(memory),
+);
+
 export type {
   // API interface
   QualityAssessmentAPI,

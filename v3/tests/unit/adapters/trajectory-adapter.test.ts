@@ -3,7 +3,7 @@
  * Comprehensive test coverage for trajectory-to-pattern adaptation
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TrajectoryAdapter, createTrajectoryAdapter } from '../../../src/adapters/trajectory-adapter.js';
 import type { Trajectory, TrajectoryStep, TrajectoryMetrics } from '../../../src/integrations/agentic-flow/reasoning-bank/trajectory-tracker.js';
 import type { QEPattern } from '../../../src/learning/qe-patterns.js';
@@ -80,6 +80,10 @@ describe('TrajectoryAdapter', () => {
     };
 
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('agenticFlowToQEPattern', () => {

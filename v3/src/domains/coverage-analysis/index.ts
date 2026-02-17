@@ -117,3 +117,16 @@ export {
   CoverageAnalysisPlugin,
   createCoverageAnalysisPlugin,
 } from './plugin';
+
+// ============================================================================
+// CQ-005: Register domain services in the shared DomainServiceRegistry
+// so coordination/ can resolve them without importing from domains/.
+// ============================================================================
+import { DomainServiceRegistry, ServiceKeys } from '../../shared/domain-service-registry';
+import type { MemoryBackend } from '../../kernel/interfaces';
+import { CoverageAnalyzerService as _CoverageAnalyzerService } from './services/coverage-analyzer';
+
+DomainServiceRegistry.register(
+  ServiceKeys.CoverageAnalyzerService,
+  (memory: MemoryBackend) => new _CoverageAnalyzerService(memory),
+);

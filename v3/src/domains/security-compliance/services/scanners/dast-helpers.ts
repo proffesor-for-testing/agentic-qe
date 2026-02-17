@@ -4,7 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { toErrorMessage } from '../../../../shared/error-utils.js';
+import { toErrorMessage } from '@shared/error-utils.js';
 import type {
   Vulnerability,
   VulnerabilitySeverity,

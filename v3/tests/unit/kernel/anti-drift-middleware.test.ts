@@ -9,7 +9,7 @@
  * are fully controllable without a transformer model.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { DomainEvent, SemanticFingerprint } from '../../../src/shared/types/index.js';
 import {
   SemanticAntiDriftMiddleware,
@@ -74,6 +74,10 @@ describe('SemanticAntiDriftMiddleware', () => {
 
   beforeEach(() => {
     middleware = new SemanticAntiDriftMiddleware(DEFAULT_TEST_CONFIG);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ==========================================================================

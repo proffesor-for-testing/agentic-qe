@@ -16,6 +16,7 @@ export * from './security';
 export * from './metrics';
 export * from './safe-json';
 export * from './error-utils';
+export { DomainServiceRegistry, ServiceKeys, type ServiceKey } from './domain-service-registry';
 
 // LLM module - explicit exports to avoid conflicts with http/io modules
 export type {

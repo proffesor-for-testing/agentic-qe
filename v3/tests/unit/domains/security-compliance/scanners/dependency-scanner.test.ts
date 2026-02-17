@@ -3,7 +3,7 @@
  * Tests for OSV-based dependency vulnerability scanning
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { DependencyScanner } from '../../../../../src/domains/security-compliance/services/scanners/dependency-scanner';
 import type { MemoryBackend } from '../../../../../src/kernel/interfaces';
 import type { SecurityScannerConfig } from '../../../../../src/domains/security-compliance/services/scanners/scanner-types';
@@ -61,6 +61,10 @@ describe('DependencyScanner', () => {
     vi.clearAllMocks();
     mockMemory = createMockMemory();
     scanner = new DependencyScanner(createConfig(), mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // =========================================================================
