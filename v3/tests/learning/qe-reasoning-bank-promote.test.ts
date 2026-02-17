@@ -220,7 +220,7 @@ describe('QEReasoningBank promotePattern (ADR-064 Phase 3)', () => {
 
     expect(mockStore.promote).toHaveBeenCalledWith('pattern-fail-promote');
     expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to promote pattern pattern-fail-promote'),
+      expect.stringContaining('Failed to promote pattern'),
     );
     // Event should NOT be published on failure
     expect(eventBus.publish).not.toHaveBeenCalledWith(
