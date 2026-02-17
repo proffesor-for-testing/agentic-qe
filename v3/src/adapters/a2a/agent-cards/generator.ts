@@ -10,6 +10,7 @@
 import { readFile, readdir, stat } from 'fs/promises';
 import { join, basename, dirname } from 'path';
 
+import { toError } from '../../../shared/error-utils.js';
 import {
   AgentCard,
   AgentSkill,
@@ -634,7 +635,7 @@ export class AgentCardGenerator {
             const card = await this.generateFromFile(fullPath);
             cards.set(card.name, card);
           } catch (error) {
-            errors.set(fullPath, error instanceof Error ? error : new Error(String(error)));
+            errors.set(fullPath, toError(error));
           }
         }
       }

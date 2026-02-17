@@ -3,7 +3,7 @@
  * ADR-052: Comprehensive tests for requirement coherence verification
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   TestGenerationCoherenceGate,
   createTestGenerationCoherenceGate,
@@ -724,6 +724,10 @@ describe('enrichSpecification', () => {
   beforeEach(() => {
     const mockService = createMockCoherenceService();
     gate = new TestGenerationCoherenceGate(mockService);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should return original spec when no recommendations', async () => {

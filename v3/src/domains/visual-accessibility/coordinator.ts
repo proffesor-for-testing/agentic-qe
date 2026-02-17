@@ -4,12 +4,14 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import {
   Result,
   ok,
   err,
   DomainEvent,
 } from '../../shared/types/index.js';
+import { FilePath } from '../../shared/value-objects/index.js';
 import { cosineSimilarity } from '../../shared/utils/vector-math.js';
 import {
   EventBus,
@@ -52,31 +54,15 @@ import { A2CAlgorithm } from '../../integrations/rl-suite/algorithms/a2c.js';
 import { QEFlashAttention, createQEFlashAttention } from '../../integrations/ruvector/wrappers.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 
-// ============================================================================
-// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
-// ============================================================================
-
-import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
-  type IMinCutAwareDomain,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain';
-
-import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
-  type IConsensusEnabledDomain,
-  type ConsensusEnabledConfig,
-} from '../../coordination/mixins/consensus-enabled-domain';
-
-// ADR-058: Governance-aware mixin for MemoryWriteGate integration
-import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
-
+// V3 Integration: MinCut Awareness (ADR-047) - only import types needed beyond base
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
+
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+  type BaseWorkflowStatus,
+} from '../base-domain-coordinator.js';
 
 import {
   type DomainFinding,
@@ -100,22 +86,13 @@ export interface WorkflowStatus {
 /**
  * Coordinator configuration
  */
-export interface CoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
-  publishEvents: boolean;
+/**
+ * CQ-002: Extends BaseDomainCoordinatorConfig — removes duplicate fields
+ */
+export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
   enableParallelViewportTesting: boolean;
   enableA2C: boolean;
   enableFlashAttention: boolean;
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus integration config (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -154,13 +131,19 @@ export interface IVisualAccessibilityCoordinatorExtended extends IVisualAccessib
  * Visual & Accessibility Coordinator
  * Orchestrates visual regression, accessibility, and responsive testing workflows
  */
-export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoordinatorExtended {
-  private readonly config: CoordinatorConfig;
+type VisualAccessibilityWorkflowType = 'visual' | 'accessibility' | 'responsive' | 'combined';
+
+/**
+ * CQ-002: Extends BaseDomainCoordinator
+ */
+export class VisualAccessibilityCoordinator
+  extends BaseDomainCoordinator<CoordinatorConfig, VisualAccessibilityWorkflowType>
+  implements IVisualAccessibilityCoordinatorExtended
+{
   private readonly visualTester: VisualTesterService;
   private readonly accessibilityTester: AccessibilityTesterService;
   // Used for responsive design testing workflows
   public readonly responsiveTester: ResponsiveTesterService;
-  private readonly workflows: Map<string, WorkflowStatus> = new Map();
 
   // RL Integration: A2C for visual test prioritization
   private a2cAlgorithm?: A2CAlgorithm;
@@ -168,22 +151,8 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
   // Flash Attention Integration: QEFlashAttention for image similarity
   private flashAttention?: QEFlashAttention;
 
-  // MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // Consensus verification mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
-  // Domain identifier for mixin initialization
-  private readonly domainName = 'visual-accessibility';
-
-  // ADR-058: Governance mixin for MemoryWriteGate integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
-
-  private initialized = false;
-
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {},
@@ -191,46 +160,30 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
     accessibilityConfig: Partial<AccessibilityTesterConfig> = {},
     responsiveConfig: Partial<ResponsiveTestConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    // Verifies accessibility violations, visual regressions, and WCAG non-compliance
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
+    super(eventBus, 'visual-accessibility', fullConfig, {
       verifyFindingTypes: [
         'accessibility-violation',
         'visual-regression',
         'wcag-non-compliance',
       ],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
     });
-
-    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
-    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.visualTester = createVisualTesterService(memory, visualConfig);
     this.accessibilityTester = new AccessibilityTesterService(memory, accessibilityConfig);
     this.responsiveTester = new ResponsiveTesterService(memory, responsiveConfig);
   }
 
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
+
   /**
    * Initialize the coordinator
+   * CQ-002: Domain-specific initialization
    */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
-
+  protected async onInitialize(): Promise<void> {
     // Initialize A2C algorithm if enabled
     if (this.config.enableA2C) {
       try {
@@ -245,7 +198,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
         console.log('[visual-accessibility] A2C algorithm created successfully');
       } catch (error) {
         console.error('[visual-accessibility] Failed to create A2C:', error);
-        throw new Error(`A2C creation failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`A2C creation failed: ${toErrorMessage(error)}`);
       }
     }
 
@@ -256,42 +209,20 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
         console.log('[visual-accessibility] QEFlashAttention initialized successfully');
       } catch (error) {
         console.error('[visual-accessibility] Failed to initialize Flash Attention:', error);
-        throw new Error(`Flash Attention initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`Flash Attention initialization failed: ${toErrorMessage(error)}`);
       }
     }
 
     this.subscribeToEvents();
     await this.loadWorkflowState();
-
-    // Initialize Consensus engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await (this.consensusMixin as any).initializeConsensus();
-        console.log(`[${this.domainName}] Consensus engine initialized`);
-      } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus verification`);
-      }
-    }
-
-    this.initialized = true;
   }
 
   /**
    * Dispose and cleanup
+   * CQ-002: Domain-specific disposal
    */
-  async dispose(): Promise<void> {
+  protected async onDispose(): Promise<void> {
     await this.saveWorkflowState();
-
-    // Dispose Consensus engine (MM-001)
-    try {
-      await (this.consensusMixin as any).disposeConsensus();
-    } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
-    }
-
-    // Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
 
     // Dispose Flash Attention
     if (this.flashAttention) {
@@ -301,18 +232,13 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
     // Clear A2C (no explicit dispose method exists)
     this.a2cAlgorithm = undefined;
-
-    this.workflows.clear();
-    this.initialized = false;
   }
 
   /**
-   * Get active workflow statuses
+   * Get active workflow statuses (typed override)
    */
-  getActiveWorkflows(): WorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
-    );
+  override getActiveWorkflows(): WorkflowStatus[] {
+    return super.getActiveWorkflows() as WorkflowStatus[];
   }
 
   // ============================================================================
@@ -412,7 +338,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
                 url,
                 viewport,
                 timestamp: new Date(),
-                path: { value: '', extension: '', directory: '', filename: '' } as any,
+                path: FilePath.create('error-placeholder.png'),
                 metadata: { browser: '', os: '', fullPage: false, loadTime: 0 },
               },
             });
@@ -491,7 +417,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok(report);
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -582,7 +508,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok(auditReport);
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -623,7 +549,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -656,7 +582,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok(plan);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -715,7 +641,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok(status);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -802,7 +728,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok({ differences });
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -870,7 +796,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
         passed: true,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -907,7 +833,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok({ issues });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -949,7 +875,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
       return ok({ viewportResults });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1113,60 +1039,6 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
     };
 
     await this.eventBus.publish(event);
-  }
-
-  // ============================================================================
-  // Workflow Management
-  // ============================================================================
-
-  private startWorkflow(id: string, type: WorkflowStatus['type']): void {
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  private updateWorkflowProgress(id: string, progress: number): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.progress = Math.min(100, Math.max(0, progress));
-    }
   }
 
   // ============================================================================
@@ -1619,7 +1491,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
   // Event Handling
   // ============================================================================
 
-  private subscribeToEvents(): void {
+  protected subscribeToEvents(): void {
     // Subscribe to code change events to trigger visual regression tests
     this.eventBus.subscribe(
       'code-intelligence.FileChanged',
@@ -1672,34 +1544,8 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
   }
 
   // ============================================================================
-  // MinCut Integration Methods (ADR-047)
+  // Domain-Specific Consensus Methods (MM-001)
   // ============================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
-  }
-
-  /**
-   * Check if topology is healthy
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  // ============================================================================
-  // Consensus Integration Methods (MM-001)
-  // ============================================================================
-
-  /**
-   * Check if consensus engine is available
-   */
-  isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
-  }
 
   /**
    * Check if a finding requires consensus verification
@@ -1713,13 +1559,6 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
    */
   async verifyFinding<T>(finding: DomainFinding<T>): Promise<Result<import('../../coordination/consensus').ConsensusResult, Error>> {
     return this.consensusMixin.verifyFinding(finding);
-  }
-
-  /**
-   * Get consensus statistics
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
   }
 
   /**
@@ -1786,34 +1625,6 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
       return false;
     }
     return true;
-  }
-
-  // ============================================================================
-  // Extended MinCut Integration Methods (ADR-047)
-  // ============================================================================
-
-  /**
-   * Get topology-based routing excluding weak domains
-   * @param targetDomains - List of potential target domains
-   * @returns Filtered list of healthy domains for routing
-   */
-  getTopologyBasedRouting(targetDomains: import('../../shared/types').DomainName[]): import('../../shared/types').DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
-  }
-
-  /**
-   * Get weak vertices in this domain (for diagnostics)
-   */
-  getDomainWeakVertices() {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   * Returns true if any weak vertex belongs to visual-accessibility
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
   }
 
   /**

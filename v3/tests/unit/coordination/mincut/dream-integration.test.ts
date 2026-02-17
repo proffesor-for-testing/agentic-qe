@@ -5,7 +5,7 @@
  * Tests for the dream meta-learning integration with MinCut.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   DreamMinCutBridge,
   MetaLearningTracker,
@@ -119,6 +119,10 @@ describe('DreamMinCutBridge', () => {
 
   beforeEach(() => {
     bridge = createDreamMinCutBridge();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('bufferObservation', () => {

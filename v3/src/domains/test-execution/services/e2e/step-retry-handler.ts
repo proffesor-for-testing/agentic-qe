@@ -10,8 +10,9 @@
 import type { E2EStep, E2EStepResult } from '../../types';
 import type { StepExecutionContext, StepExecutionData, E2ERunnerConfig } from './types';
 import { E2ERunnerError, StepTimeoutError } from './types';
-import { safeEvaluateBoolean } from '../../../../shared/utils/safe-expression-evaluator.js';
+import { safeEvaluateBoolean } from '@shared/utils/safe-expression-evaluator.js';
 import { StepExecutors } from './step-executors';
+import { toError } from '@shared/error-utils.js';
 
 // ============================================================================
 // Step Retry Handler Class
@@ -83,7 +84,7 @@ export class StepRetryHandler {
               : undefined,
         };
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
         totalDurationMs += Date.now() - startedAt.getTime();
 
         if (attempt < maxAttempts) {

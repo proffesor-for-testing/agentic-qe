@@ -5,6 +5,26 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.9] - 2026-02-17
+
+### Fixed
+
+- **ESM TypeScript import failure in devcontainers** (#267) — Build scripts failed with ESM resolution errors in devcontainer environments. Fixed CLI and MCP esbuild scripts to handle TypeScript imports correctly.
+- **DomainServiceRegistry not registered in kernel** — CQ-005 wired `DomainServiceRegistry` into the kernel bootstrap so domain services are discoverable at runtime.
+- **ONNX adapter and shard-embeddings using wrong vectors table** — Wired ONNX embedding adapter and governance shard-embeddings to the unified `vectors` table instead of separate storage.
+- **10 empty persistence tables and async race condition** — Wired persistence for mincut health monitor, strange loop, code-intelligence index, embedding cache, GOAP planner, and 5 other modules. Fixed async race condition in handler factory initialization.
+- **Self-learning feedback loop not closing** (#265) — Test generation coordinator, pattern store, and reasoning bank were not feeding outcomes back into the learning system. Closed the loop so learning experiences actually improve future generations.
+- **Queen coordinator missing tasksCompleted counter** — Task context lacked a `tasksCompleted` counter, preventing accurate progress tracking in swarm orchestration.
+
+### Changed
+
+- **Eliminated all 77 `as any` type casts** — Replaced unsafe casts across 20 files with proper typed interfaces, improving type safety across adapters, learning, MCP handlers, and security modules.
+- **P0 security and performance fixes** — Applied critical security hardening (JWT validation, input sanitization, safe JSON parsing) and performance fixes identified by QE fleet analysis.
+- **Code quality overhaul (41 goals across 6 phases)** — Completed comprehensive improvement plan covering all 13 domain coordinators with consistent error handling, proper typing, and reduced complexity.
+- **God file splits** — Split oversized queen-coordinator (CQ-004) and code-intelligence/learning-optimization coordinators into focused modules (event handlers, lifecycle, task management, work stealing).
+- **P1 code quality improvements** — Added error utilities, improved typing across all domain coordinators, and expanded test coverage.
+- **Consolidated .db gitignore** — Unified database file exclusions and added `.agentic-qe/.claude/memory/` to gitignore.
+
 ## [3.6.8] - 2026-02-15
 
 ### Fixed

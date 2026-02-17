@@ -26,6 +26,7 @@ import {
   AutomationFitness,
   generateTestId,
 } from '../types/index.js';
+import { safeJsonParse } from '@shared/safe-json.js';
 
 /**
  * Configuration for CodebaseAnalyzer
@@ -202,7 +203,7 @@ export class CodebaseAnalyzer {
       }
 
       const content = await fs.readFile(packageJsonPath, 'utf-8');
-      const pkg = JSON.parse(content);
+      const pkg = safeJsonParse(content);
 
       const allDeps = {
         ...pkg.dependencies,
@@ -607,7 +608,7 @@ export class CodebaseAnalyzer {
     try {
       const packageJsonPath = path.join(this.config.rootDir, 'package.json');
       const content = await fs.readFile(packageJsonPath, 'utf-8');
-      const pkg = JSON.parse(content);
+      const pkg = safeJsonParse(content);
       return {
         name: pkg.name || 'Project',
         description: pkg.description || 'Application system',

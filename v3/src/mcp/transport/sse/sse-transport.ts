@@ -4,7 +4,7 @@
  */
 
 import { v4 as uuid } from 'uuid';
-import { safeJsonParse } from '../../../cli/helpers/safe-json.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { ConnectionManager, createConnectionManager } from './connection-manager.js';
 import type {

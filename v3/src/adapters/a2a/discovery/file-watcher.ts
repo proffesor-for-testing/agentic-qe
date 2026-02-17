@@ -13,6 +13,7 @@ import { EventEmitter } from 'events';
 import { watch, FSWatcher, Stats } from 'fs';
 import { stat, readdir } from 'fs/promises';
 import { join, relative, resolve } from 'path';
+import { toError } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -212,7 +213,7 @@ export class AgentFileWatcher extends EventEmitter {
       try {
         await this.initializeWatcher(watchPath);
       } catch (error) {
-        this.emit('error', error instanceof Error ? error : new Error(String(error)));
+        this.emit('error', toError(error));
       }
     }
 
@@ -418,7 +419,7 @@ export class AgentFileWatcher extends EventEmitter {
         }
       }
     } catch (error) {
-      this.emit('error', error instanceof Error ? error : new Error(String(error)));
+      this.emit('error', toError(error));
     }
   }
 

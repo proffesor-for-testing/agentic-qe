@@ -3,7 +3,7 @@
  * Verifies that DI pattern enables proper testing and mocking
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   TestGeneratorService,
   createTestGeneratorService,
@@ -75,6 +75,10 @@ describe('TestGeneratorService - Dependency Injection', () => {
         seed: 12345,
       }),
     };
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('Factory Functions', () => {

@@ -23,6 +23,7 @@ import {
   type ConsensusResult,
 } from '../../../integrations/coherence/index.js';
 import type { AgentType } from '../../../shared/types/index.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -254,7 +255,7 @@ export class CoherenceConsensusTool extends MCPToolBase<
 
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }

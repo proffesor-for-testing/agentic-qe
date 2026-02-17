@@ -9,6 +9,9 @@
  */
 
 import { createRequire } from 'module';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('agent-booster-wasm');
 
 // Language constants (const object instead of enum for ESM compatibility)
 // This pattern works consistently across tsx dev mode, node, and bundled builds
@@ -221,7 +224,8 @@ function applyPatternFallback(
       try {
         const result = pattern.apply(original, edit);
         return { success: true, code: result, pattern: pattern.name };
-      } catch {
+      } catch (e) {
+        logger.debug('Pattern transform failed, trying next', { pattern: pattern.name, error: e instanceof Error ? e.message : String(e) });
         continue;
       }
     }

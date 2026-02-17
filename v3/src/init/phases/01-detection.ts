@@ -6,6 +6,7 @@
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { createRequire } from 'module';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 import {
   BasePhase,
@@ -163,7 +164,7 @@ export class DetectionPhase extends BasePhase<DetectionResult> {
         db.close();
 
         if (row) {
-          return JSON.parse(row.value) as string;
+          return safeJsonParse<string>(row.value);
         }
         return undefined;
       } catch {

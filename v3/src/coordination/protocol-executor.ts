@@ -13,6 +13,7 @@ import {
 } from '../shared/types';
 import { EventBus, MemoryBackend } from '../kernel/interfaces';
 import { createEvent } from '../shared/events';
+import { toErrorMessage, toError } from '../shared/error-utils.js';
 import {
   Protocol,
   ProtocolExecution,
@@ -428,12 +429,12 @@ export class DefaultProtocolExecutor implements ProtocolExecutor {
         {
           executionId,
           protocolId: protocol.id,
-          error: error instanceof Error ? error.message : String(error),
+          error: toErrorMessage(error),
         },
         correlationId
       );
 
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -585,7 +586,7 @@ export class DefaultProtocolExecutor implements ProtocolExecutor {
           retryAttempts: attempts > 1 ? attempts - 1 : undefined,
         };
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         // Retry if configured and not last attempt
         if (attempts < maxAttempts && action.retry) {

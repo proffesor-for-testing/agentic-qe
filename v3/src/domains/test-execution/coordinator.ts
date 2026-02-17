@@ -48,24 +48,14 @@ import type { VibiumClient } from '../../integrations/vibium';
 // ============================================================================
 
 import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
   type IMinCutAwareDomain,
   type MinCutAwareConfig,
 } from '../../coordination/mixins/mincut-aware-domain';
 
 import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
   type IConsensusEnabledDomain,
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
-
-// ADR-058: Governance-aware mixin for MemoryWriteGate integration
-import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
 
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 
@@ -77,8 +67,15 @@ import {
 import type { DomainName } from '../../shared/types';
 import type { WeakVertex } from '../../coordination/mincut/interfaces';
 
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+} from '../base-domain-coordinator.js';
+
 // ADR-057: Infrastructure self-healing integration
 import type { InfraHealingOrchestrator } from '../../strange-loop/infra-healing/infra-healing-orchestrator.js';
+import { toError } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Coordinator Configuration
@@ -87,7 +84,7 @@ import type { InfraHealingOrchestrator } from '../../strange-loop/infra-healing/
 /**
  * Configuration for the test execution coordinator
  */
-export interface TestExecutionCoordinatorConfig {
+export interface TestExecutionCoordinatorConfig extends BaseDomainCoordinatorConfig {
   /**
    * When true, enables simulation mode for all services (for unit testing).
    * When false (default), services operate in deterministic production mode.
@@ -122,15 +119,6 @@ export interface TestExecutionCoordinatorConfig {
    * Vibium client for E2E testing (dependency injection)
    */
   vibiumClient?: VibiumClient;
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus integration config (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
   /**
    * ADR-057: Optional infrastructure healing orchestrator.
    * When provided, failed test error output is fed to the infra-healing observer
@@ -150,11 +138,15 @@ export interface TestExecutionCoordinatorConfig {
    * @default 1
    */
   infraMaxAutoRecoveryAttempts?: number;
+  consensusConfig?: Partial<ConsensusEnabledConfig>;
 }
 
 const DEFAULT_COORDINATOR_CONFIG: TestExecutionCoordinatorConfig = {
   simulateForTesting: false,
   enablePrioritization: true,
+  maxConcurrentWorkflows: 5,
+  defaultTimeout: 60000,
+  publishEvents: true,
   // MinCut integration defaults (ADR-047)
   enableMinCutAwareness: true,
   topologyHealthThreshold: 0.5,
@@ -200,30 +192,19 @@ export interface ITestExecutionCoordinator extends TestExecutionAPI {
 // Test Execution Coordinator
 // ============================================================================
 
-export class TestExecutionCoordinator implements ITestExecutionCoordinator {
+export class TestExecutionCoordinator
+  extends BaseDomainCoordinator<TestExecutionCoordinatorConfig>
+  implements ITestExecutionCoordinator
+{
   private readonly executor: TestExecutorService;
   private readonly flakyDetector: FlakyDetectorService;
   private readonly retryHandler: RetryHandlerService;
   private readonly prioritizer: TestPrioritizerService;
   private readonly e2eRunner?: E2ETestRunnerService;
   private readonly activeRuns = new Set<string>();
-  private readonly config: TestExecutionCoordinatorConfig;
-  private initialized = false;
-
-  // MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // Consensus verification mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
-  // Domain identifier for mixin initialization
-  private readonly domainName = 'test-execution';
-
-  // ADR-058: Governance mixin for MemoryWriteGate integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
 
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     memory: MemoryBackend,
     config: Partial<TestExecutionCoordinatorConfig> = {}
   ) {
@@ -231,29 +212,11 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
       ...DEFAULT_COORDINATOR_CONFIG,
       ...config,
     };
-    this.config = fullConfig;
 
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
+    super(eventBus, 'test-execution', fullConfig, {
       verifyFindingTypes: ['flaky-test-detection', 'test-failure-analysis', 'retry-strategy'],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
+      ...fullConfig.consensusConfig,
     });
-
-    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
-    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     // Create services with appropriate configuration
     this.executor = new TestExecutorService({ memory }, {
@@ -279,14 +242,11 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
     }
   }
 
-  /**
-   * Initialize the coordinator
-   */
-  async initialize(): Promise<void> {
-    if (this.initialized) {
-      return;
-    }
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
 
+  protected async onInitialize(): Promise<void> {
     // Initialize test prioritizer
     if (this.config.enablePrioritization) {
       await this.prioritizer.initialize();
@@ -294,42 +254,15 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
 
     // Subscribe to relevant events from other domains
     this.subscribeToEvents();
-
-    // Initialize Consensus engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await (this.consensusMixin as any).initializeConsensus();
-        console.log(`[${this.domainName}] Consensus engine initialized`);
-      } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus verification`);
-      }
-    }
-
-    this.initialized = true;
   }
 
-  /**
-   * Dispose resources
-   */
-  async dispose(): Promise<void> {
-    // Dispose Consensus engine (MM-001)
-    try {
-      await (this.consensusMixin as any).disposeConsensus();
-    } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
-    }
-
-    // Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
-
+  protected async onDispose(): Promise<void> {
     // Cancel all active runs
     for (const runId of this.activeRuns) {
       await this.cancelRun(runId);
     }
 
     this.activeRuns.clear();
-    this.initialized = false;
   }
 
   /**
@@ -514,7 +447,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
         try {
           if (this.eventBus) {
             await this.eventBus.publish(createEvent(
-              'AsymmetricLearningOutcome' as any,
+              'AsymmetricLearningOutcome',
               'test-execution',
               {
                 runId: result.value.runId,
@@ -549,7 +482,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
       return result;
     } catch (error) {
       this.activeRuns.delete(runId);
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -656,7 +589,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
         try {
           if (this.eventBus) {
             await this.eventBus.publish(createEvent(
-              'AsymmetricLearningOutcome' as any,
+              'AsymmetricLearningOutcome',
               'test-execution',
               {
                 runId: result.value.runId,
@@ -691,7 +624,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
       return result;
     } catch (error) {
       this.activeRuns.delete(runId);
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -853,7 +786,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
   // Private Methods
   // ============================================================================
 
-  private subscribeToEvents(): void {
+  protected subscribeToEvents(): void {
     // Subscribe to test generation events
     this.eventBus.subscribe('test-generation.TestSuiteCreated', async (event) => {
       // Could auto-execute newly generated tests
@@ -1017,7 +950,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
         },
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1130,7 +1063,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1189,73 +1122,8 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
-  }
-
-  // ============================================================================
-  // MinCut Integration Methods (ADR-047)
-  // ============================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
-  }
-
-  /**
-   * Check if topology is healthy
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  /**
-   * Get topology-based routing excluding weak domains
-   * Per ADR-047: Filters out domains that are currently weak points
-   *
-   * @param targetDomains - List of potential target domains
-   * @returns Filtered list of healthy domains for routing
-   */
-  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
-  }
-
-  /**
-   * Get weak vertices belonging to this domain
-   * Per ADR-047: Identifies agents that are single points of failure
-   */
-  getDomainWeakVertices(): WeakVertex[] {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   * Per ADR-047: Returns true if any weak vertex belongs to test-execution domain
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
-  // ============================================================================
-  // Consensus Integration Methods (MM-001)
-  // ============================================================================
-
-  /**
-   * Check if consensus engine is available
-   */
-  isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
-  }
-
-  /**
-   * Get consensus statistics
-   * Per MM-001: Returns metrics about consensus verification
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
   }
 
   /**

@@ -10,6 +10,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { DataReader, SyncSource } from '../interfaces.js';
 import { validateTableName } from '../../shared/sql-safety.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('sqlite-reader');
 
 /**
  * SQLite reader configuration
@@ -71,7 +76,7 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
       console.log(`[SQLiteReader:${this.name}] Initialized: ${this.dbPath}`);
     } catch (error) {
       throw new Error(
-        `Failed to open SQLite database ${this.dbPath}: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to open SQLite database ${this.dbPath}: ${toErrorMessage(error)}`
       );
     }
   }
@@ -100,7 +105,7 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
       return rows.map(row => this.transformRecord(row));
     } catch (error) {
       throw new Error(
-        `Failed to read from ${this.name}: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to read from ${this.name}: ${toErrorMessage(error)}`
       );
     }
   }
@@ -157,6 +162,7 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
       const result = stmt.get() as { count: number };
       return result.count;
     } catch (error) {
+      logger.debug('Record count query failed', { table: tableName, error: toErrorMessage(error) });
       return 0;
     }
   }
@@ -203,7 +209,8 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
       );
       const result = stmt.get(tableName);
       return !!result;
-    } catch {
+    } catch (e) {
+      logger.debug('Table existence check failed', { table: tableName, error: e instanceof Error ? e.message : String(e) });
       return false;
     }
   }
@@ -227,7 +234,8 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
           return candidate;
         }
       }
-    } catch {
+    } catch (e) {
+      logger.debug('Timestamp column detection failed', { table: tableName, error: e instanceof Error ? e.message : String(e) });
       return null;
     }
 
@@ -247,9 +255,10 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
     for (const [key, value] of Object.entries(transformed)) {
       if (typeof value === 'string' && this.looksLikeJson(value)) {
         try {
-          transformed[key] = JSON.parse(value);
-        } catch {
+          transformed[key] = safeJsonParse(value);
+        } catch (e) {
           // Keep as string if not valid JSON
+          logger.debug('JSON parse failed for record field', { key, error: e instanceof Error ? e.message : String(e) });
         }
       }
 

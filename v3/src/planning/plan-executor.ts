@@ -25,6 +25,8 @@ import type {
 import { DEFAULT_V3_WORLD_STATE } from './types.js';
 import type { GOAPPlanner } from './goap-planner.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+import { toErrorMessage } from '../shared/error-utils.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
 // Configuration Types
@@ -566,7 +568,7 @@ export class PlanExecutor {
       return {
         success: false,
         newState: currentState,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }
@@ -693,7 +695,7 @@ export class PlanExecutor {
           stepsFailed: row.steps_failed,
           totalDurationMs: row.total_duration_ms,
           finalWorldState: row.final_world_state
-            ? JSON.parse(row.final_world_state)
+            ? safeJsonParse(row.final_world_state)
             : undefined,
           error: row.error_message ?? undefined,
           steps,
@@ -736,10 +738,10 @@ export class PlanExecutor {
       completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
       agentOutput: row.agent_output ?? undefined,
       worldStateBefore: row.world_state_before
-        ? JSON.parse(row.world_state_before)
+        ? safeJsonParse(row.world_state_before)
         : undefined,
       worldStateAfter: row.world_state_after
-        ? JSON.parse(row.world_state_after)
+        ? safeJsonParse(row.world_state_after)
         : undefined,
     }));
   }
@@ -1162,7 +1164,7 @@ export class ClaudeFlowSpawner implements AgentSpawner {
         agentId,
         output: '',
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }

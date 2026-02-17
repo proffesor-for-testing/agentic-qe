@@ -23,6 +23,7 @@ import {
 } from '../interfaces';
 import { CostTracker } from '../cost-tracker';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
+import { toError } from '../../error-utils.js';
 
 /**
  * Default OpenAI configuration
@@ -602,7 +603,7 @@ export class OpenAIProvider implements LLMProvider {
 
         return response;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         // Only retry on network/timeout errors
         if (attempt < maxRetries - 1) {

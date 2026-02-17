@@ -9,6 +9,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 import {
   BasePhase,
@@ -54,7 +55,7 @@ export class MCPPhase extends BasePhase<MCPResult> {
     if (existsSync(rootMcpPath)) {
       try {
         const content = readFileSync(rootMcpPath, 'utf-8');
-        rootMcpConfig = JSON.parse(content);
+        rootMcpConfig = safeJsonParse<Record<string, unknown>>(content);
       } catch {
         rootMcpConfig = {};
       }
@@ -81,7 +82,7 @@ export class MCPPhase extends BasePhase<MCPResult> {
     if (existsSync(claudeMcpPath)) {
       try {
         const content = readFileSync(claudeMcpPath, 'utf-8');
-        claudeMcpConfig = JSON.parse(content);
+        claudeMcpConfig = safeJsonParse<Record<string, unknown>>(content);
       } catch {
         claudeMcpConfig = {};
       }

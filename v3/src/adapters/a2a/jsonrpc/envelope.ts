@@ -18,6 +18,7 @@ import {
   createInvalidParamsError,
   type JsonRpcErrorObject,
 } from './errors.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 import {
   isValidMethod,
   methodRequiresParams,
@@ -455,7 +456,7 @@ export function parseRequest(json: string): Result<JsonRpcRequest, JsonRpcError>
   // Parse JSON
   let parsed: unknown;
   try {
-    parsed = JSON.parse(json);
+    parsed = safeJsonParse(json);
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown parse error';
     return err(createParseError(message));
@@ -506,7 +507,7 @@ export function parseA2ARequest(json: string): Result<A2ARequest, JsonRpcError> 
 export function parseBatchRequest(json: string): Result<JsonRpcRequest[], JsonRpcError> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(json);
+    parsed = safeJsonParse(json);
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown parse error';
     return err(createParseError(message));
@@ -548,7 +549,7 @@ export function parseBatchRequest(json: string): Result<JsonRpcRequest[], JsonRp
 export function parseResponse(json: string): Result<JsonRpcResponse, JsonRpcError> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(json);
+    parsed = safeJsonParse(json);
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown parse error';
     return err(createParseError(message));
@@ -696,7 +697,7 @@ export function isResponse(obj: unknown): obj is JsonRpcResponse {
  */
 export function extractRequestId(json: string): string | number | null {
   try {
-    const parsed = JSON.parse(json);
+    const parsed = safeJsonParse<Record<string, unknown>>(json);
     if (typeof parsed === 'object' && parsed !== null) {
       const id = (parsed as Record<string, unknown>).id;
       if (typeof id === 'string' || typeof id === 'number') {

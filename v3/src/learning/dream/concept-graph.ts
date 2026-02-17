@@ -32,6 +32,8 @@ import type {
 } from './types.js';
 
 import { DEFAULT_CONCEPT_GRAPH_CONFIG } from './types.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // ConceptGraph Class
@@ -94,7 +96,7 @@ export class ConceptGraph {
       }
     } catch (error) {
       throw new Error(
-        `Failed to initialize ConceptGraph: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize ConceptGraph: ${toErrorMessage(error)}`
       );
     }
   }
@@ -574,8 +576,8 @@ export class ConceptGraph {
     // Group by domain
     const domainGroups = new Map<string, NodeRow[]>();
     for (const node of patternNodes) {
-      const metadata = node.metadata ? JSON.parse(node.metadata) : {};
-      const domain = metadata.domain || 'unknown';
+      const metadata = node.metadata ? safeJsonParse<Record<string, unknown>>(node.metadata) : {};
+      const domain = String(metadata.domain || 'unknown');
       if (!domainGroups.has(domain)) {
         domainGroups.set(domain, []);
       }
@@ -731,7 +733,7 @@ export class ConceptGraph {
       activationLevel: row.activation_level || 0,
       lastActivated: row.last_activated ? new Date(row.last_activated) : undefined,
       patternId: row.pattern_id || undefined,
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      metadata: row.metadata ? safeJsonParse(row.metadata) : undefined,
       createdAt: row.created_at ? new Date(row.created_at) : undefined,
     };
   }

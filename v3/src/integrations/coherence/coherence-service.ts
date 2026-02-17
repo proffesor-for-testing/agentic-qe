@@ -65,6 +65,7 @@ import {
   CoherenceTimeoutError,
 } from './types';
 
+import { toErrorMessage, toError } from '../../shared/error-utils.js';
 import {
   CohomologyAdapter,
   SpectralAdapter,
@@ -367,7 +368,7 @@ export class CoherenceService implements ICoherenceService {
     } catch (error) {
       this.logger.error(
         'Coherence check failed',
-        error instanceof Error ? error : new Error(String(error))
+        toError(error)
       );
 
       // Return safe fallback result
@@ -545,7 +546,7 @@ export class CoherenceService implements ICoherenceService {
       } catch (error) {
         // WASM error - fall back to heuristic analysis
         this.logger.warn('Spectral collapse prediction failed, using fallback', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toErrorMessage(error),
           agentCount: state.agents.length,
         });
         return this.predictCollapseWithFallback(state);
@@ -844,7 +845,7 @@ export class CoherenceService implements ICoherenceService {
       } catch (error) {
         // WASM error - fall back to simple majority analysis
         this.logger.warn('Spectral consensus verification failed, using fallback', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toErrorMessage(error),
           voteCount: votes.length,
         });
         return this.verifyConsensusWithFallback(votes, startTime);

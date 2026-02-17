@@ -33,6 +33,7 @@ import {
   ITestGenerationService,
   TestGeneratorConfig,
 } from './services/test-generator';
+import { toError } from '../../shared/error-utils.js';
 import {
   PatternMatcherService,
   IPatternMatchingService,
@@ -448,7 +449,7 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
   }
 
   private handleError<T>(error: unknown): import('../../shared/types').Result<T, Error> {
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = toError(error);
 
     // Track error
     const currentHealth = this.getHealth();

@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
 import { join, dirname, basename, relative } from 'path';
 import { fileURLToPath } from 'url';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -263,7 +264,7 @@ export class SkillsInstaller {
           result.skipped.push(skillName);
         }
       } catch (error) {
-        result.errors.push(`Failed to install ${skillName}: ${error instanceof Error ? error.message : String(error)}`);
+        result.errors.push(`Failed to install ${skillName}: ${toErrorMessage(error)}`);
       }
     }
 

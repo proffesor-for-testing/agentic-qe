@@ -18,6 +18,7 @@ import {
   DiffStatus,
   CaptureOptions,
 } from '../interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import type {
   VibiumClient,
   VisualComparisonResult,
@@ -195,7 +196,7 @@ export class VisualTesterService implements IVisualTestingService {
 
       return ok(screenshot);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -237,7 +238,7 @@ export class VisualTesterService implements IVisualTestingService {
 
       return ok(screenshot);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -265,7 +266,7 @@ export class VisualTesterService implements IVisualTestingService {
 
       return ok(diffResult);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -334,7 +335,7 @@ export class VisualTesterService implements IVisualTestingService {
 
       return ok(diffResult);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -369,7 +370,7 @@ export class VisualTesterService implements IVisualTestingService {
 
       return ok(diff);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -451,7 +452,7 @@ export class VisualTesterService implements IVisualTestingService {
 
       return ok(baselineKey);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

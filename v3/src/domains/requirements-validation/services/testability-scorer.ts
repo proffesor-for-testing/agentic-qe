@@ -5,6 +5,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import {
   ITestabilityScoringService,
   Requirement,
@@ -100,7 +101,7 @@ export class TestabilityScorerService implements ITestabilityScoringService {
 
       return ok(score);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -122,7 +123,7 @@ export class TestabilityScorerService implements ITestabilityScoringService {
 
       return ok(scores);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -174,7 +175,7 @@ export class TestabilityScorerService implements ITestabilityScoringService {
 
       return ok(uniqueSuggestions.slice(0, 10)); // Limit to top 10
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

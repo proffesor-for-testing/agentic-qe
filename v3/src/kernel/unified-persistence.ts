@@ -20,6 +20,7 @@
  */
 
 import { type Database as DatabaseType } from 'better-sqlite3';
+import { toErrorMessage } from '../shared/error-utils.js';
 import {
   UnifiedMemoryManager,
   getUnifiedMemory,
@@ -27,6 +28,7 @@ import {
   UnifiedMemoryConfig,
   DEFAULT_UNIFIED_MEMORY_CONFIG,
 } from './unified-memory';
+import { MEMORY_CONSTANTS } from './constants.js';
 
 // ============================================================================
 // Configuration (delegates to unified-memory)
@@ -49,9 +51,9 @@ export interface UnifiedPersistenceConfig {
 export const DEFAULT_UNIFIED_CONFIG: UnifiedPersistenceConfig = {
   dbPath: DEFAULT_UNIFIED_MEMORY_CONFIG.dbPath, // '.agentic-qe/memory.db'
   walMode: true,
-  mmapSize: 64 * 1024 * 1024, // 64MB
-  cacheSize: -32000, // 32MB
-  busyTimeout: 5000,
+  mmapSize: MEMORY_CONSTANTS.MMAP_SIZE_BYTES,
+  cacheSize: MEMORY_CONSTANTS.CACHE_SIZE_KB,
+  busyTimeout: MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
 };
 
 // ============================================================================
@@ -169,7 +171,7 @@ export class UnifiedPersistenceManager {
       // Allow retry on failure by clearing the promise
       this.initPromise = null;
       throw new Error(
-        `Failed to initialize UnifiedPersistenceManager: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize UnifiedPersistenceManager: ${toErrorMessage(error)}`
       );
     }
   }

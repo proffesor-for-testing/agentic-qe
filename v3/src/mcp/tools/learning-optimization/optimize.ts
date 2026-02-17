@@ -17,6 +17,7 @@ import { TimeRange } from '../../../shared/value-objects/index.js';
 import { LearningCoordinatorService } from '../../../domains/learning-optimization/services/learning-coordinator.js';
 import { MetricsOptimizerService } from '../../../domains/learning-optimization/services/metrics-optimizer.js';
 import { TransferSpecialistService } from '../../../domains/learning-optimization/services/transfer-specialist.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import {
   Experience,
   PatternContext,
@@ -219,7 +220,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     } catch (error) {
       return {
         success: false,
-        error: `Learning optimization failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Learning optimization failed: ${toErrorMessage(error)}`,
       };
     }
   }

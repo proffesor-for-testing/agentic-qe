@@ -11,6 +11,9 @@
 import type { DomainEvent, SemanticFingerprint, Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('anti-drift-middleware');
 
 // ============================================================================
 // ADR-062: Loop Detection Types & Implementation
@@ -308,11 +311,13 @@ async function probeTransformer(): Promise<boolean> {
         await mod.computeRealEmbedding('probe');
         _computeRealEmbedding = mod.computeRealEmbedding;
         _transformerAvailable = true;
-      } catch {
+      } catch (e) {
+        logger.debug('Transformer probe embedding failed', { error: e instanceof Error ? e.message : String(e) });
         _transformerAvailable = false;
       }
     }
-  } catch {
+  } catch (e) {
+    logger.debug('Transformer module import failed', { error: e instanceof Error ? e.message : String(e) });
     _transformerAvailable = false;
   }
   return _transformerAvailable;
@@ -468,8 +473,9 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
     };
     try {
       await this.config.onDriftDetected(driftEvent);
-    } catch {
+    } catch (e) {
       // Swallow callback errors to avoid disrupting the pipeline.
+      logger.debug('onDriftDetected callback failed', { error: e instanceof Error ? e.message : String(e) });
     }
   }
 }

@@ -13,6 +13,7 @@ import {
   ModelCompletionOptions,
   ModelHealthResult,
 } from '../interfaces';
+import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import {
   BaseModelProvider,
   buildVerificationPrompt,
@@ -236,7 +237,7 @@ export class ClaudeModelProvider extends BaseModelProvider {
 
         return text;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         // Don't retry on certain errors
         if (this.isNonRetryableError(error)) {
@@ -316,7 +317,7 @@ export class ClaudeModelProvider extends BaseModelProvider {
     } catch (error) {
       return {
         healthy: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         availableModels: this.supportedModels,
       };
     }

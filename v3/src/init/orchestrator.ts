@@ -8,6 +8,7 @@
 
 import type { AQEInitConfig, InitResult, InitStepResult } from './types.js';
 import { createDefaultConfig } from './types.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 import {
   getDefaultPhases,
   type InitPhase,
@@ -134,7 +135,7 @@ export class ModularInitOrchestrator {
       steps.push({
         step: 'Initialization Failed',
         status: 'error',
-        message: error instanceof Error ? error.message : String(error),
+        message: toErrorMessage(error),
         durationMs: 0,
       });
 
@@ -164,14 +165,14 @@ export class ModularInitOrchestrator {
       summary: {
         projectAnalyzed: this.context.results.has('analysis'),
         configGenerated: this.context.results.has('configuration'),
-        codeIntelligenceIndexed: (codeIntelResult?.data as any)?.entries ?? 0,
-        patternsLoaded: (learningResult?.data as any)?.patternsLoaded ?? 0,
-        skillsInstalled: (assetsResult?.data as any)?.skillsInstalled ?? 0,
-        agentsInstalled: (assetsResult?.data as any)?.agentsInstalled ?? 0,
-        hooksConfigured: (hooksResult?.data as any)?.configured ?? false,
-        mcpConfigured: (mcpResult?.data as any)?.configured ?? false,
-        claudeMdGenerated: (claudeMdResult?.data as any)?.generated ?? false,
-        workersStarted: (workersResult?.data as any)?.workersConfigured ?? 0,
+        codeIntelligenceIndexed: (codeIntelResult?.data as Record<string, unknown> | undefined)?.entries as number ?? 0,
+        patternsLoaded: (learningResult?.data as Record<string, unknown> | undefined)?.patternsLoaded as number ?? 0,
+        skillsInstalled: (assetsResult?.data as Record<string, unknown> | undefined)?.skillsInstalled as number ?? 0,
+        agentsInstalled: (assetsResult?.data as Record<string, unknown> | undefined)?.agentsInstalled as number ?? 0,
+        hooksConfigured: (hooksResult?.data as Record<string, unknown> | undefined)?.configured as boolean ?? false,
+        mcpConfigured: (mcpResult?.data as Record<string, unknown> | undefined)?.configured as boolean ?? false,
+        claudeMdGenerated: (claudeMdResult?.data as Record<string, unknown> | undefined)?.generated as boolean ?? false,
+        workersStarted: (workersResult?.data as Record<string, unknown> | undefined)?.workersConfigured as number ?? 0,
       },
       totalDurationMs: Date.now() - startTime,
       timestamp: new Date(),

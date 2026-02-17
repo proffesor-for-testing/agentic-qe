@@ -7,6 +7,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import type {
   RfcConnection,
   BapiCall,
@@ -19,6 +20,7 @@ import type {
   SegmentValidation,
   FieldValidationError,
 } from '../interfaces.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Configuration for the SAP integration service
@@ -219,7 +221,7 @@ export class SapIntegrationService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -336,7 +338,7 @@ export class SapIntegrationService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -483,7 +485,7 @@ export class SapIntegrationService {
     // Or JSON format with segment arrays
     try {
       // Try JSON format first
-      const jsonContent = JSON.parse(content);
+      const jsonContent = safeJsonParse(content);
       if (typeof jsonContent === 'object' && jsonContent !== null) {
         for (const [segName, segData] of Object.entries(jsonContent)) {
           if (Array.isArray(segData)) {

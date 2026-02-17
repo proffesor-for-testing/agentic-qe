@@ -11,7 +11,11 @@
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
+import { LoggerFactory } from '../logging/index.js';
+import type { Logger } from '../logging/index.js';
 import { validateTableName } from '../shared/sql-safety.js';
+
+const logger: Logger = LoggerFactory.create('UnifiedMemoryMigration');
 
 export interface MigrationResult {
   success: boolean;
@@ -57,13 +61,11 @@ export async function migrateToUnifiedMemory(
   const memoryDbPath = path.join(opts.baseDir, 'memory.db');
   const aqeDbPath = path.join(opts.baseDir, 'aqe.db');
 
-  console.log(`[Migration] Starting unified memory migration`);
-  console.log(`[Migration] Target: ${memoryDbPath}`);
-  console.log(`[Migration] Source: ${aqeDbPath}`);
+  logger.info('Starting unified memory migration', { target: memoryDbPath, source: aqeDbPath });
 
   // Check if source exists
   if (!fs.existsSync(aqeDbPath)) {
-    console.log(`[Migration] No aqe.db found - nothing to migrate`);
+    logger.info('No aqe.db found - nothing to migrate');
     result.success = true;
     return result;
   }
@@ -77,18 +79,18 @@ export async function migrateToUnifiedMemory(
       const backupPath = `${memoryDbPath}.backup-${timestamp}`;
       fs.copyFileSync(memoryDbPath, backupPath);
       result.backupsCreated.push(backupPath);
-      console.log(`[Migration] Created backup: ${backupPath}`);
+      logger.info('Created backup', { path: backupPath });
     }
 
     // Backup aqe.db
     const aqeBackupPath = `${aqeDbPath}.backup-${timestamp}`;
     fs.copyFileSync(aqeDbPath, aqeBackupPath);
     result.backupsCreated.push(aqeBackupPath);
-    console.log(`[Migration] Created backup: ${aqeBackupPath}`);
+    logger.info('Created backup', { path: aqeBackupPath });
   }
 
   if (opts.dryRun) {
-    console.log(`[Migration] DRY RUN - showing what would be migrated:`);
+    logger.info('DRY RUN - showing what would be migrated');
   }
 
   let sourceDb: DatabaseType | null = null;
@@ -114,7 +116,6 @@ export async function migrateToUnifiedMemory(
       'goap_goals',
       'goap_actions',
       'goap_plans',
-      'goap_execution_steps',
       'goap_plan_signatures',
       'concept_nodes',
       'concept_edges',
@@ -141,7 +142,7 @@ export async function migrateToUnifiedMemory(
           continue;
         }
 
-        console.log(`[Migration] Table ${tableName}: ${rowCount} rows`);
+        logger.info('Table migration', { table: tableName, rows: rowCount });
 
         if (opts.dryRun) {
           result.tableseMigrated.push(tableName);
@@ -182,7 +183,7 @@ export async function migrateToUnifiedMemory(
 
       } catch (tableError) {
         const errMsg = `Failed to migrate ${tableName}: ${tableError}`;
-        console.error(`[Migration] ${errMsg}`);
+        logger.error(errMsg);
         result.errors.push(errMsg);
       }
     }
@@ -223,10 +224,10 @@ export async function migrateToUnifiedMemory(
           }
         }
 
-        console.log(`[Migration] KV store: ${kvRows.length} entries (new only, no overwrites)`);
+        logger.info('KV store migration', { entries: kvRows.length, mode: 'no overwrites' });
       }
     } catch (kvError) {
-      console.warn(`[Migration] KV migration skipped: ${kvError}`);
+      logger.warn('KV migration skipped', { error: kvError });
     }
 
     // Close databases
@@ -246,16 +247,16 @@ export async function migrateToUnifiedMemory(
       const shmPath = `${aqeDbPath}-shm`;
       if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
       if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
-      console.log(`[Migration] Deleted source: ${aqeDbPath}`);
+      logger.info('Deleted source', { path: aqeDbPath });
     }
 
     result.success = result.errors.length === 0;
 
-    console.log(`[Migration] Complete: ${result.tableseMigrated.length} tables, ${result.rowsMigrated} rows`);
+    logger.info('Migration complete', { tables: result.tableseMigrated.length, rows: result.rowsMigrated });
 
   } catch (error) {
     result.errors.push(`Migration failed: ${error}`);
-    console.error(`[Migration] Fatal error: ${error}`);
+    logger.error('Fatal migration error', error instanceof Error ? error : undefined);
 
   } finally {
     if (sourceDb) sourceDb.close();

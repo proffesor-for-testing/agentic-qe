@@ -40,6 +40,8 @@
 import type { MemoryBackend, EventBus } from '../kernel/interfaces.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
+import { toErrorMessage } from '../shared/error-utils.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 import {
   QEReasoningBank,
   createQEReasoningBank,
@@ -212,7 +214,7 @@ export class AQELearningEngine {
       // WASM not available - coherence service will use fallback
       console.log(
         '[AQELearningEngine] CoherenceService WASM unavailable, using fallback:',
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
     }
 
@@ -260,7 +262,7 @@ export class AQELearningEngine {
         if (process.env.DEBUG) {
           console.log(
             '[AQELearningEngine] Claude Flow not available, using standalone mode:',
-            error instanceof Error ? error.message : String(error)
+            toErrorMessage(error)
           );
         }
       }
@@ -471,7 +473,7 @@ export class AQELearningEngine {
     } catch (error) {
       console.warn(
         '[AQELearningEngine] Pattern search failed:',
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
       return ok([]);
     }
@@ -509,7 +511,7 @@ export class AQELearningEngine {
       // Non-critical - don't fail if tracking fails
       console.debug(
         '[AQELearningEngine] Failed to track pattern search:',
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
     }
   }
@@ -694,7 +696,7 @@ export class AQELearningEngine {
         this.claudeFlowErrors++;
         console.warn(
           `[AQELearningEngine] Claude Flow startTrajectory failed (${this.claudeFlowErrors} total errors):`,
-          error instanceof Error ? error.message : String(error)
+          toErrorMessage(error)
         );
         // Fall through to local tracking
       }
@@ -741,7 +743,7 @@ export class AQELearningEngine {
         this.claudeFlowErrors++;
         console.warn(
           `[AQELearningEngine] Claude Flow recordStep failed (${this.claudeFlowErrors} total errors):`,
-          error instanceof Error ? error.message : String(error)
+          toErrorMessage(error)
         );
         // Continue with local tracking
       }
@@ -784,7 +786,7 @@ export class AQELearningEngine {
         this.claudeFlowErrors++;
         console.warn(
           `[AQELearningEngine] Claude Flow endTrajectory failed (${this.claudeFlowErrors} total errors):`,
-          error instanceof Error ? error.message : String(error)
+          toErrorMessage(error)
         );
         // Continue with local completion
       }
@@ -983,7 +985,7 @@ export class AQELearningEngine {
       const packageJsonPath = join(targetPath, 'package.json');
       if (existsSync(packageJsonPath)) {
         try {
-          const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+          const pkg = safeJsonParse(readFileSync(packageJsonPath, 'utf-8'));
           const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
           if (deps.react) frameworks.add('react');
@@ -1013,7 +1015,7 @@ export class AQELearningEngine {
         success: false,
         repositoryPath: targetPath,
         depth,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }

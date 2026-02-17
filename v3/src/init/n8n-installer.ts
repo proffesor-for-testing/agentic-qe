@@ -16,6 +16,7 @@ import {
 } from 'fs';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ESM compatibility - __dirname is not available in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -221,7 +222,7 @@ export class N8nInstaller {
     } catch (error) {
       result.success = false;
       result.errors.push(
-        `Installation failed: ${error instanceof Error ? error.message : String(error)}`
+        `Installation failed: ${toErrorMessage(error)}`
       );
     }
 
@@ -281,7 +282,7 @@ export class N8nInstaller {
           installed.push(agent);
         } catch (error) {
           errors.push(
-            `Failed to install ${agent.name}: ${error instanceof Error ? error.message : String(error)}`
+            `Failed to install ${agent.name}: ${toErrorMessage(error)}`
           );
         }
       }
@@ -329,7 +330,7 @@ export class N8nInstaller {
         installed.push(skillName);
       } catch (error) {
         errors.push(
-          `Failed to install skill ${skillName}: ${error instanceof Error ? error.message : String(error)}`
+          `Failed to install skill ${skillName}: ${toErrorMessage(error)}`
         );
       }
     }

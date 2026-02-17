@@ -41,6 +41,7 @@ import {
   ApiCompatibilityService,
   ApiCompatibilityConfig,
 } from './services/api-compatibility.js';
+import { toErrorMessage, toError } from '../../shared/error-utils.js';
 import {
   SchemaValidatorService,
   SchemaValidatorConfig,
@@ -234,7 +235,7 @@ export class ContractTestingPlugin extends BaseDomainPlugin {
           const comparison = parsedNew.isNewerThan(parsedOld) ? 1 : parsedNew.equals(parsedOld) ? 0 : -1;
           return { success: true, value: { oldVersion, newVersion, comparison } };
         } catch (error) {
-          return err(error instanceof Error ? error : new Error(String(error)));
+          return err(toError(error));
         }
       }],
 
@@ -711,7 +712,7 @@ export class ContractTestingPlugin extends BaseDomainPlugin {
             providerName,
             version: payload.version,
             status: 'error',
-            error: error instanceof Error ? error.message : String(error),
+            error: toErrorMessage(error),
             completedAt: new Date().toISOString(),
           },
           { namespace: 'contract-testing', ttl: 86400 }
@@ -764,7 +765,7 @@ export class ContractTestingPlugin extends BaseDomainPlugin {
             providerName,
             version: payload.version,
             status: 'error',
-            error: error instanceof Error ? error.message : String(error),
+            error: toErrorMessage(error),
             completedAt: new Date().toISOString(),
           },
           { namespace: 'contract-testing', ttl: 86400 }
@@ -788,7 +789,7 @@ export class ContractTestingPlugin extends BaseDomainPlugin {
   }
 
   private handleError<T>(error: unknown): Result<T, Error> {
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = toError(error);
 
     // Track error
     const currentHealth = this.getHealth();

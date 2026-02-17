@@ -7,7 +7,7 @@
 
 import { EventEmitter } from 'events';
 import { v4 as uuid } from 'uuid';
-import { safeJsonParse } from '../../../cli/helpers/safe-json.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 import type { IncomingMessage, Server as HttpServer } from 'http';
 import type { Socket } from 'net';
 import type { WebSocket as WS, WebSocketServer as WSServer, RawData } from 'ws';

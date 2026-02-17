@@ -7,12 +7,12 @@
  * @module test-execution/services/e2e/types
  */
 
-import type { VibiumClient, ScreenshotResult, AccessibilityResult } from '../../../../integrations/vibium';
+import type { VibiumClient, ScreenshotResult, AccessibilityResult } from '@integrations/vibium';
 import type {
   IBrowserClient,
   IAgentBrowserClient,
   ParsedSnapshot,
-} from '../../../../integrations/browser';
+} from '@integrations/browser';
 import type { E2EStepResult, E2ETestCase } from '../../types';
 import { E2E_CONSTANTS } from '../../../constants.js';
 

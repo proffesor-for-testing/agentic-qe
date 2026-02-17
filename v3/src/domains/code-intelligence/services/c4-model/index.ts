@@ -10,9 +10,9 @@
  * - Integration with graph-boundaries analyzer
  */
 
-import { Result, ok, err, Severity, Priority } from '../../../../shared/types';
-import type { MemoryBackend, StoreOptions } from '../../../../kernel/interfaces';
-import { NomicEmbedder, type NomicEmbedderConfig } from '../../../../shared/embeddings';
+import { Result, ok, err, Severity, Priority } from '@shared/types';
+import type { MemoryBackend, StoreOptions } from '@kernel/interfaces';
+import { NomicEmbedder, type NomicEmbedderConfig } from '@shared/embeddings';
 import type {
   C4ContextDiagram,
   C4ContainerDiagram,

@@ -5,6 +5,7 @@
  * Falls back to rule-based classification when RuVector is unavailable.
  */
 
+import { toErrorMessage } from '../../shared/error-utils.js';
 import type {
   DiffRiskClassifier,
   RiskClassification,
@@ -125,7 +126,7 @@ export class RuVectorDiffRiskClassifier implements DiffRiskClassifier {
       if (!this.db.isInitialized()) await this.db.initialize();
       await this.loadFromKv();
     } catch (error) {
-      console.warn('[RuVectorDiffRiskClassifier] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[RuVectorDiffRiskClassifier] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
   }
@@ -150,7 +151,7 @@ export class RuVectorDiffRiskClassifier implements DiffRiskClassifier {
       const snapshot = Object.fromEntries(entries);
       this.db.kvSet('cache', snapshot, RuVectorDiffRiskClassifier.NAMESPACE, RuVectorDiffRiskClassifier.TTL_SECONDS).catch(() => {});
     } catch (error) {
-      console.warn('[RuVectorDiffRiskClassifier] Persist failed:', error instanceof Error ? error.message : String(error));
+      console.warn('[RuVectorDiffRiskClassifier] Persist failed:', toErrorMessage(error));
     }
   }
 

@@ -27,6 +27,10 @@
 import type { RealQEReasoningBank } from './real-qe-reasoning-bank.js';
 import type { QualityFeedbackLoop, RoutingOutcomeInput } from '../feedback/feedback-loop.js';
 import type { QEPattern, QEPatternType } from './qe-patterns.js';
+import { safeJsonParse } from '../shared/safe-json.js';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('skill-validation-learner');
 
 // ============================================================================
 // Types
@@ -328,7 +332,7 @@ export class SkillValidationLearner {
         const pattern = existingPatterns.value[0].pattern;
         const templateContent = pattern.template?.content;
         if (templateContent) {
-          const parsed = JSON.parse(templateContent);
+          const parsed = safeJsonParse(templateContent);
           // Validate that it has the expected structure
           if (parsed && typeof parsed === 'object' && Array.isArray(parsed.outcomes)) {
             history = parsed;
@@ -338,7 +342,8 @@ export class SkillValidationLearner {
         } else {
           history = this.createEmptyConfidence(outcome.skillName);
         }
-      } catch {
+      } catch (e) {
+        logger.debug('Confidence history parse failed', { skill: outcome.skillName, error: e instanceof Error ? e.message : String(e) });
         history = this.createEmptyConfidence(outcome.skillName);
       }
     } else {
@@ -400,7 +405,7 @@ export class SkillValidationLearner {
         const pattern = existingPatterns.value[0].pattern;
         const templateContent = pattern.template?.content;
         if (templateContent) {
-          const parsed = JSON.parse(templateContent);
+          const parsed = safeJsonParse(templateContent);
           // Validate that it has the expected structure
           if (parsed && typeof parsed === 'object' && typeof parsed.models === 'object') {
             crossModel = parsed;
@@ -410,7 +415,8 @@ export class SkillValidationLearner {
         } else {
           crossModel = this.createEmptyCrossModelAnalysis();
         }
-      } catch {
+      } catch (e) {
+        logger.debug('Cross-model analysis parse failed', { error: e instanceof Error ? e.message : String(e) });
         crossModel = this.createEmptyCrossModelAnalysis();
       }
     } else {
@@ -518,10 +524,11 @@ export class SkillValidationLearner {
       try {
         const templateContent = patterns.value[0].pattern.template?.content;
         if (templateContent) {
-          return JSON.parse(templateContent);
+          return safeJsonParse(templateContent);
         }
-      } catch {
+      } catch (e) {
         // Pattern exists but content is invalid
+        logger.debug('Skill confidence pattern content invalid', { skill: skillName, error: e instanceof Error ? e.message : String(e) });
       }
     }
 
@@ -539,10 +546,11 @@ export class SkillValidationLearner {
       try {
         const templateContent = patterns.value[0].pattern.template?.content;
         if (templateContent) {
-          return JSON.parse(templateContent);
+          return safeJsonParse(templateContent);
         }
-      } catch {
+      } catch (e) {
         // Pattern exists but content is invalid
+        logger.debug('Cross-model pattern content invalid', { skill: skillName, error: e instanceof Error ? e.message : String(e) });
       }
     }
 
@@ -617,14 +625,15 @@ export class SkillValidationLearner {
 
     for (const pattern of patterns) {
       try {
-        const content = JSON.parse(pattern.template?.content || '{}');
+        const content = safeJsonParse(pattern.template?.content || '{}');
         const category = content.outcome?.metadata?.category || 'general';
         if (!byCategory.has(category)) {
           byCategory.set(category, []);
         }
         byCategory.get(category)!.push(pattern);
-      } catch {
+      } catch (e) {
         // Skip invalid patterns
+        logger.debug('Invalid pattern during category grouping', { error: e instanceof Error ? e.message : String(e) });
       }
     }
 
@@ -637,7 +646,7 @@ export class SkillValidationLearner {
 
       for (const pattern of categoryPatterns) {
         try {
-          const content = JSON.parse(pattern.template?.content || '{}');
+          const content = safeJsonParse(pattern.template?.content || '{}');
           const outcome = content.outcome;
           if (!outcome) continue;
 
@@ -653,8 +662,9 @@ export class SkillValidationLearner {
             tags.filter((t: string) => !['skill-validation', skillName].includes(t))
               .forEach((t: string) => failureIndicators.add(t));
           }
-        } catch {
+        } catch (e) {
           // Skip invalid patterns
+          logger.debug('Invalid pattern during category extraction', { error: e instanceof Error ? e.message : String(e) });
         }
       }
 

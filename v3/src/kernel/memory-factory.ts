@@ -9,6 +9,17 @@
 import { MemoryBackend } from './interfaces';
 import { InMemoryBackend } from './memory-backend';
 import { HybridMemoryBackend, HybridBackendConfig, SQLiteConfig } from './hybrid-backend';
+import { MEMORY_CONSTANTS, DATABASE_POOL_CONSTANTS } from './constants.js';
+
+// ============================================================================
+// Module Constants
+// ============================================================================
+
+/** Default cleanup interval for development mode (1 minute) */
+const DEV_CLEANUP_INTERVAL_MS = MEMORY_CONSTANTS.CLEANUP_INTERVAL_MS;
+
+/** Default database path for unified storage */
+const DEFAULT_MEMORY_DB_PATH = '.agentic-qe/memory.db';
 
 // ============================================================================
 // Factory Types
@@ -117,7 +128,7 @@ export async function createMemoryBackend(
       // AgentDB now maps to HybridMemoryBackend which has HNSW built-in
       // This maintains backward compatibility while using unified storage
       backend = new HybridMemoryBackend({
-        sqlite: { path: config.agentdb?.path ?? '.agentic-qe/memory.db' },
+        sqlite: { path: config.agentdb?.path ?? DEFAULT_MEMORY_DB_PATH },
         enableFallback: true,
       });
       break;
@@ -231,7 +242,7 @@ export function getRecommendedConfig(
         type: 'hybrid',
         hybrid: {
           enableFallback: true,
-          cleanupInterval: 60000,
+          cleanupInterval: DEV_CLEANUP_INTERVAL_MS,
         },
       };
 
@@ -243,8 +254,8 @@ export function getRecommendedConfig(
           enableFallback: false, // Fail fast in production
           sqlite: {
             walMode: true,
-            poolSize: 10,
-            busyTimeout: 10000,
+            poolSize: DATABASE_POOL_CONSTANTS.DEFAULT_POOL_SIZE,
+            busyTimeout: DATABASE_POOL_CONSTANTS.POOL_BUSY_TIMEOUT_MS,
           },
         },
       };

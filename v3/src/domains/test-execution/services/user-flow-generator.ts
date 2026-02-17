@@ -1045,41 +1045,125 @@ export class UserFlowGeneratorService implements IUserFlowGeneratorService {
     }
   }
 
+  // ==========================================================================
+  // Framework Code Generation Strategy Tables
+  // ==========================================================================
+
+  /**
+   * Lookup table for test block opening code per framework
+   */
+  private static readonly TEST_BLOCK_OPENERS: Record<string, (name: string, timeout: number) => string> = {
+    playwright: (name, timeout) =>
+      `test('${name}', async ({ page }) => {\n  test.setTimeout(${timeout});\n\n`,
+    cypress: (name) =>
+      `describe('${name}', () => {\n  it('should complete the flow', () => {\n`,
+    puppeteer: (name) =>
+      `describe('${name}', () => {\n` +
+      `  let browser: Browser;\n` +
+      `  let page: Page;\n\n` +
+      `  beforeAll(async () => {\n` +
+      `    browser = await puppeteer.launch({ headless: true });\n` +
+      `    page = await browser.newPage();\n` +
+      `  });\n\n` +
+      `  afterAll(async () => {\n` +
+      `    await browser.close();\n` +
+      `  });\n\n` +
+      `  it('should complete the flow', async () => {\n`,
+  };
+
+  /**
+   * Lookup table for test block closing code per framework
+   */
+  private static readonly TEST_BLOCK_CLOSERS: Record<string, string> = {
+    cypress: `  });\n});\n`,
+    puppeteer: `  });\n});\n`,
+  };
+
+  /**
+   * Lookup table for navigate code per framework
+   */
+  private static readonly NAVIGATE_CODE: Record<string, (url: string, indent: string) => string> = {
+    playwright: (url, indent) => `${indent}await page.goto('${url}');\n`,
+    cypress: (url, indent) => `${indent}cy.visit('${url}');\n`,
+    puppeteer: (url, indent) => `${indent}await page.goto('${url}', { waitUntil: 'networkidle0' });\n`,
+    webdriverio: (url, indent) => `${indent}await browser.url('${url}');\n`,
+    testcafe: (url, indent) => `${indent}await t.navigateTo('${url}');\n`,
+  };
+
+  /**
+   * Lookup table for click code per framework
+   */
+  private static readonly CLICK_CODE: Record<string, (sel: string, indent: string) => string> = {
+    playwright: (sel, indent) => `${indent}await page.click('${sel}');\n`,
+    cypress: (sel, indent) => `${indent}cy.get('${sel}').click();\n`,
+    puppeteer: (sel, indent) => `${indent}await page.click('${sel}');\n`,
+    webdriverio: (sel, indent) => `${indent}await $('${sel}').click();\n`,
+    testcafe: (sel, indent) => `${indent}await t.click(Selector('${sel}'));\n`,
+  };
+
+  /**
+   * Lookup table for type code per framework (clear variant and default variant)
+   */
+  private static readonly TYPE_CODE: Record<string, { clear: (sel: string, val: string, indent: string) => string; default: (sel: string, val: string, indent: string) => string }> = {
+    playwright: {
+      clear: (sel, val, indent) => `${indent}await page.fill('${sel}', '${val}');\n`,
+      default: (sel, val, indent) => `${indent}await page.type('${sel}', '${val}');\n`,
+    },
+    cypress: {
+      clear: (sel, val, indent) => `${indent}cy.get('${sel}').clear().type('${val}');\n`,
+      default: (sel, val, indent) => `${indent}cy.get('${sel}').type('${val}');\n`,
+    },
+    puppeteer: {
+      clear: (sel, val, indent) => `${indent}await page.click('${sel}', { clickCount: 3 });\n${indent}await page.type('${sel}', '${val}');\n`,
+      default: (sel, val, indent) => `${indent}await page.type('${sel}', '${val}');\n`,
+    },
+    webdriverio: {
+      clear: (sel, val, indent) => `${indent}await $('${sel}').clearValue();\n${indent}await $('${sel}').setValue('${val}');\n`,
+      default: (sel, val, indent) => `${indent}await $('${sel}').setValue('${val}');\n`,
+    },
+    testcafe: {
+      clear: (sel, val, indent) => `${indent}await t.selectText(Selector('${sel}')).typeText(Selector('${sel}'), '${val}', { replace: true });\n`,
+      default: (sel, val, indent) => `${indent}await t.typeText(Selector('${sel}'), '${val}');\n`,
+    },
+  };
+
+  /**
+   * Lookup table for assert code per framework and assertion type
+   */
+  private static readonly ASSERT_CODE: Record<string, Record<string, (sel: string, expected: string, indent: string) => string>> = {
+    playwright: {
+      'element-exists': (sel, _exp, indent) => `${indent}await expect(page.locator('${sel}')).toBeVisible();\n`,
+      'element-visible': (sel, _exp, indent) => `${indent}await expect(page.locator('${sel}')).toBeVisible();\n`,
+      'element-text': (sel, exp, indent) => `${indent}await expect(page.locator('${sel}')).toContainText('${exp}');\n`,
+      'url-equals': (_sel, exp, indent) => `${indent}await expect(page).toHaveURL('${exp}');\n`,
+      'url-contains': (_sel, exp, indent) => `${indent}await expect(page).toHaveURL(/${exp}/);\n`,
+      'title-equals': (_sel, exp, indent) => `${indent}await expect(page).toHaveTitle('${exp}');\n`,
+    },
+    cypress: {
+      'element-exists': (sel, _exp, indent) => `${indent}cy.get('${sel}').should('exist');\n`,
+      'element-visible': (sel, _exp, indent) => `${indent}cy.get('${sel}').should('be.visible');\n`,
+      'element-text': (sel, exp, indent) => `${indent}cy.get('${sel}').should('contain', '${exp}');\n`,
+      'url-equals': (_sel, exp, indent) => `${indent}cy.url().should('eq', '${exp}');\n`,
+      'url-contains': (_sel, exp, indent) => `${indent}cy.url().should('include', '${exp}');\n`,
+      'title-equals': (_sel, exp, indent) => `${indent}cy.title().should('eq', '${exp}');\n`,
+    },
+    puppeteer: {
+      'element-exists': (sel, _exp, indent) => `${indent}const element = await page.$('${sel}');\n${indent}expect(element).not.toBeNull();\n`,
+      'element-visible': (sel, _exp, indent) => `${indent}const element = await page.$('${sel}');\n${indent}expect(element).not.toBeNull();\n`,
+      'url-equals': (_sel, exp, indent) => `${indent}expect(page.url()).toBe('${exp}');\n`,
+      'url-contains': (_sel, exp, indent) => `${indent}expect(page.url()).toContain('${exp}');\n`,
+      'title-equals': (_sel, exp, indent) => `${indent}const title = await page.title();\n${indent}expect(title).toBe('${exp}');\n`,
+    },
+  };
+
   private generateTestBlock(flow: UserFlow, opts: CodeGenerationOptions): string {
-    const { framework, includeComments, includeErrorHandling, defaultTimeout } = opts;
+    const { framework, includeComments, defaultTimeout } = opts;
 
-    let code = '';
+    const opener = UserFlowGeneratorService.TEST_BLOCK_OPENERS[framework];
+    let code = opener
+      ? opener(flow.name, defaultTimeout)
+      : `test('${flow.name}', async ({ page }) => {\n`;
 
-    switch (framework) {
-      case 'playwright':
-        code += `test('${flow.name}', async ({ page }) => {\n`;
-        code += `  test.setTimeout(${defaultTimeout});\n\n`;
-        break;
-
-      case 'cypress':
-        code += `describe('${flow.name}', () => {\n`;
-        code += `  it('should complete the flow', () => {\n`;
-        break;
-
-      case 'puppeteer':
-        code += `describe('${flow.name}', () => {\n`;
-        code += `  let browser: Browser;\n`;
-        code += `  let page: Page;\n\n`;
-        code += `  beforeAll(async () => {\n`;
-        code += `    browser = await puppeteer.launch({ headless: true });\n`;
-        code += `    page = await browser.newPage();\n`;
-        code += `  });\n\n`;
-        code += `  afterAll(async () => {\n`;
-        code += `    await browser.close();\n`;
-        code += `  });\n\n`;
-        code += `  it('should complete the flow', async () => {\n`;
-        break;
-
-      default:
-        code += `test('${flow.name}', async ({ page }) => {\n`;
-    }
-
-    // Generate steps
     for (const step of flow.steps) {
       const stepCode = this.generateStepCode(step, framework, includeComments);
       if (stepCode) {
@@ -1087,24 +1171,20 @@ export class UserFlowGeneratorService implements IUserFlowGeneratorService {
       }
     }
 
-    // Close test block
-    switch (framework) {
-      case 'cypress':
-        code += `  });\n`;
-        code += `});\n`;
-        break;
-
-      case 'puppeteer':
-        code += `  });\n`;
-        code += `});\n`;
-        break;
-
-      default:
-        code += `});\n`;
-    }
-
+    code += UserFlowGeneratorService.TEST_BLOCK_CLOSERS[framework] ?? `});\n`;
     return code;
   }
+
+  /**
+   * Step type to code generator dispatch table
+   */
+  private readonly stepCodeGenerators: Record<string, (step: E2EStep, framework: string, indent: string) => string> = {
+    [E2EStepType.NAVIGATE]: (step, fw, indent) => this.generateNavigateCode(step as NavigateStep, fw, indent),
+    [E2EStepType.CLICK]: (step, fw, indent) => this.generateClickCode(step as ClickStep, fw, indent),
+    [E2EStepType.TYPE]: (step, fw, indent) => this.generateTypeCode(step as TypeStep, fw, indent),
+    [E2EStepType.WAIT]: (step, fw, indent) => this.generateWaitCode(step as WaitStep, fw, indent),
+    [E2EStepType.ASSERT]: (step, fw, indent) => this.generateAssertCode(step as AssertStep, fw, indent),
+  };
 
   private generateStepCode(
     step: E2EStep,
@@ -1118,29 +1198,9 @@ export class UserFlowGeneratorService implements IUserFlowGeneratorService {
       code += `${indent}// ${step.description}\n`;
     }
 
-    switch (step.type) {
-      case E2EStepType.NAVIGATE:
-        code += this.generateNavigateCode(step as NavigateStep, framework, indent);
-        break;
-
-      case E2EStepType.CLICK:
-        code += this.generateClickCode(step as ClickStep, framework, indent);
-        break;
-
-      case E2EStepType.TYPE:
-        code += this.generateTypeCode(step as TypeStep, framework, indent);
-        break;
-
-      case E2EStepType.WAIT:
-        code += this.generateWaitCode(step as WaitStep, framework, indent);
-        break;
-
-      case E2EStepType.ASSERT:
-        code += this.generateAssertCode(step as AssertStep, framework, indent);
-        break;
-
-      default:
-        break;
+    const generator = this.stepCodeGenerators[step.type];
+    if (generator) {
+      code += generator(step, framework, indent);
     }
 
     return code;
@@ -1148,129 +1208,52 @@ export class UserFlowGeneratorService implements IUserFlowGeneratorService {
 
   private generateNavigateCode(step: NavigateStep, framework: string, indent: string): string {
     const url = step.target;
-
-    switch (framework) {
-      case 'playwright':
-        return `${indent}await page.goto('${url}');\n`;
-
-      case 'cypress':
-        return `${indent}cy.visit('${url}');\n`;
-
-      case 'puppeteer':
-        return `${indent}await page.goto('${url}', { waitUntil: 'networkidle0' });\n`;
-
-      case 'webdriverio':
-        return `${indent}await browser.url('${url}');\n`;
-
-      case 'testcafe':
-        return `${indent}await t.navigateTo('${url}');\n`;
-
-      default:
-        return `${indent}await page.goto('${url}');\n`;
-    }
+    const gen = UserFlowGeneratorService.NAVIGATE_CODE[framework];
+    return gen ? gen(url, indent) : `${indent}await page.goto('${url}');\n`;
   }
 
   private generateClickCode(step: ClickStep, framework: string, indent: string): string {
     const selector = step.target;
-
-    switch (framework) {
-      case 'playwright':
-        return `${indent}await page.click('${selector}');\n`;
-
-      case 'cypress':
-        return `${indent}cy.get('${selector}').click();\n`;
-
-      case 'puppeteer':
-        return `${indent}await page.click('${selector}');\n`;
-
-      case 'webdriverio':
-        return `${indent}await $('${selector}').click();\n`;
-
-      case 'testcafe':
-        return `${indent}await t.click(Selector('${selector}'));\n`;
-
-      default:
-        return `${indent}await page.click('${selector}');\n`;
-    }
+    const gen = UserFlowGeneratorService.CLICK_CODE[framework];
+    return gen ? gen(selector, indent) : `${indent}await page.click('${selector}');\n`;
   }
 
   private generateTypeCode(step: TypeStep, framework: string, indent: string): string {
     const selector = step.target;
     const value = step.value;
-
-    switch (framework) {
-      case 'playwright':
-        if (step.options?.clear) {
-          return `${indent}await page.fill('${selector}', '${value}');\n`;
-        }
-        return `${indent}await page.type('${selector}', '${value}');\n`;
-
-      case 'cypress':
-        if (step.options?.clear) {
-          return `${indent}cy.get('${selector}').clear().type('${value}');\n`;
-        }
-        return `${indent}cy.get('${selector}').type('${value}');\n`;
-
-      case 'puppeteer':
-        let code = '';
-        if (step.options?.clear) {
-          code += `${indent}await page.click('${selector}', { clickCount: 3 });\n`;
-        }
-        code += `${indent}await page.type('${selector}', '${value}');\n`;
-        return code;
-
-      case 'webdriverio':
-        if (step.options?.clear) {
-          return `${indent}await $('${selector}').clearValue();\n${indent}await $('${selector}').setValue('${value}');\n`;
-        }
-        return `${indent}await $('${selector}').setValue('${value}');\n`;
-
-      case 'testcafe':
-        if (step.options?.clear) {
-          return `${indent}await t.selectText(Selector('${selector}')).typeText(Selector('${selector}'), '${value}', { replace: true });\n`;
-        }
-        return `${indent}await t.typeText(Selector('${selector}'), '${value}');\n`;
-
-      default:
-        return `${indent}await page.type('${selector}', '${value}');\n`;
+    const variant = step.options?.clear ? 'clear' : 'default';
+    const typeCode = UserFlowGeneratorService.TYPE_CODE[framework];
+    if (typeCode) {
+      return typeCode[variant](selector, value, indent);
     }
+    return `${indent}await page.type('${selector}', '${value}');\n`;
   }
 
   private generateWaitCode(step: WaitStep, framework: string, indent: string): string {
     const selector = step.target ?? '';
     const condition = step.options?.condition ?? 'element-visible';
 
-    switch (framework) {
-      case 'playwright':
-        if (condition === 'element-visible' && selector) {
-          return `${indent}await page.waitForSelector('${selector}', { state: 'visible' });\n`;
-        }
-        if (condition === 'element-hidden' && selector) {
-          return `${indent}await page.waitForSelector('${selector}', { state: 'hidden' });\n`;
-        }
+    const waitStrategies: Record<string, () => string> = {
+      playwright: () => {
+        if (condition === 'element-visible' && selector) return `${indent}await page.waitForSelector('${selector}', { state: 'visible' });\n`;
+        if (condition === 'element-hidden' && selector) return `${indent}await page.waitForSelector('${selector}', { state: 'hidden' });\n`;
         return `${indent}await page.waitForTimeout(1000);\n`;
-
-      case 'cypress':
-        if (condition === 'element-visible' && selector) {
-          return `${indent}cy.get('${selector}').should('be.visible');\n`;
-        }
-        if (condition === 'element-hidden' && selector) {
-          return `${indent}cy.get('${selector}').should('not.be.visible');\n`;
-        }
+      },
+      cypress: () => {
+        if (condition === 'element-visible' && selector) return `${indent}cy.get('${selector}').should('be.visible');\n`;
+        if (condition === 'element-hidden' && selector) return `${indent}cy.get('${selector}').should('not.be.visible');\n`;
         return `${indent}cy.wait(1000);\n`;
-
-      case 'puppeteer':
-        if (selector) {
-          return `${indent}await page.waitForSelector('${selector}');\n`;
-        }
+      },
+      puppeteer: () => {
+        if (selector) return `${indent}await page.waitForSelector('${selector}');\n`;
         return `${indent}await page.waitForTimeout(1000);\n`;
+      },
+    };
 
-      default:
-        if (selector) {
-          return `${indent}await page.waitForSelector('${selector}');\n`;
-        }
-        return `${indent}await page.waitForTimeout(1000);\n`;
-    }
+    const strategy = waitStrategies[framework];
+    if (strategy) return strategy();
+    if (selector) return `${indent}await page.waitForSelector('${selector}');\n`;
+    return `${indent}await page.waitForTimeout(1000);\n`;
   }
 
   private generateAssertCode(step: AssertStep, framework: string, indent: string): string {
@@ -1278,61 +1261,13 @@ export class UserFlowGeneratorService implements IUserFlowGeneratorService {
     const selector = step.target;
     const expected = step.options?.expected ?? step.value;
 
-    switch (framework) {
-      case 'playwright':
-        switch (assertion) {
-          case 'element-exists':
-            return `${indent}await expect(page.locator('${selector}')).toBeVisible();\n`;
-          case 'element-visible':
-            return `${indent}await expect(page.locator('${selector}')).toBeVisible();\n`;
-          case 'element-text':
-            return `${indent}await expect(page.locator('${selector}')).toContainText('${expected}');\n`;
-          case 'url-equals':
-            return `${indent}await expect(page).toHaveURL('${expected}');\n`;
-          case 'url-contains':
-            return `${indent}await expect(page).toHaveURL(/${expected}/);\n`;
-          case 'title-equals':
-            return `${indent}await expect(page).toHaveTitle('${expected}');\n`;
-          default:
-            return `${indent}// TODO: Implement assertion: ${assertion}\n`;
-        }
-
-      case 'cypress':
-        switch (assertion) {
-          case 'element-exists':
-            return `${indent}cy.get('${selector}').should('exist');\n`;
-          case 'element-visible':
-            return `${indent}cy.get('${selector}').should('be.visible');\n`;
-          case 'element-text':
-            return `${indent}cy.get('${selector}').should('contain', '${expected}');\n`;
-          case 'url-equals':
-            return `${indent}cy.url().should('eq', '${expected}');\n`;
-          case 'url-contains':
-            return `${indent}cy.url().should('include', '${expected}');\n`;
-          case 'title-equals':
-            return `${indent}cy.title().should('eq', '${expected}');\n`;
-          default:
-            return `${indent}// TODO: Implement assertion: ${assertion}\n`;
-        }
-
-      case 'puppeteer':
-        switch (assertion) {
-          case 'element-exists':
-          case 'element-visible':
-            return `${indent}const element = await page.$('${selector}');\n${indent}expect(element).not.toBeNull();\n`;
-          case 'url-equals':
-            return `${indent}expect(page.url()).toBe('${expected}');\n`;
-          case 'url-contains':
-            return `${indent}expect(page.url()).toContain('${expected}');\n`;
-          case 'title-equals':
-            return `${indent}const title = await page.title();\n${indent}expect(title).toBe('${expected}');\n`;
-          default:
-            return `${indent}// TODO: Implement assertion: ${assertion}\n`;
-        }
-
-      default:
-        return `${indent}// Assertion: ${assertion}\n`;
+    const frameworkAssertions = UserFlowGeneratorService.ASSERT_CODE[framework];
+    if (frameworkAssertions) {
+      const gen = frameworkAssertions[assertion];
+      if (gen) return gen(selector ?? '', String(expected ?? ''), indent);
+      return `${indent}// TODO: Implement assertion: ${assertion}\n`;
     }
+    return `${indent}// Assertion: ${assertion}\n`;
   }
 
   // ==========================================================================

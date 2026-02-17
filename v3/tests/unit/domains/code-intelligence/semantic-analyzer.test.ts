@@ -2,7 +2,7 @@
  * Agentic QE v3 - Semantic Analyzer Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   SemanticAnalyzerService,
   SemanticAnalyzerConfig,
@@ -101,6 +101,10 @@ describe('SemanticAnalyzerService', () => {
       embeddingProvider: mockEmbeddingProvider,
       useNomicEmbeddings: false, // Disable Nomic to use mock provider
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('search', () => {

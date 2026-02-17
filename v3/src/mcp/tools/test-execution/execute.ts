@@ -9,6 +9,7 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -214,7 +215,7 @@ export class TestExecuteTool extends MCPToolBase<TestExecuteParams, TestExecuteR
     } catch (error) {
       return {
         success: false,
-        error: `Test execution failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Test execution failed: ${toErrorMessage(error)}`,
       };
     }
   }

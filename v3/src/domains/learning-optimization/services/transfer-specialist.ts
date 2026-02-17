@@ -6,6 +6,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName, AgentId, ALL_DOMAINS } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import {
   Knowledge,
   KnowledgeType,
@@ -96,7 +97,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -149,7 +150,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
 
       return ok(results.slice(0, query.limit || 100));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -212,7 +213,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
 
       return ok(synthesized);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -270,7 +271,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
 
       return ok(transferred);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -312,7 +313,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
 
       return ok(Math.min(1, Math.max(0, relevance)));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -361,7 +362,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
 
       return ok(knowledge);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -439,7 +440,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
 
       return ok(results);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

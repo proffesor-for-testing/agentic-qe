@@ -26,6 +26,8 @@ import {
   createLLMError,
 } from '../interfaces';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
+import { toError } from '../../error-utils.js';
+import { safeJsonParse } from '../../safe-json.js';
 
 /**
  * Gemini-specific configuration
@@ -440,7 +442,7 @@ export class GeminiProvider implements LLMProvider {
           if (!trimmed || !trimmed.startsWith('data: ')) continue;
 
           try {
-            const chunk = JSON.parse(trimmed.slice(6)) as GeminiStreamChunk;
+            const chunk = safeJsonParse(trimmed.slice(6)) as GeminiStreamChunk;
             const text = chunk.candidates?.[0]?.content?.parts
               ?.map(p => p.text ?? '')
               .join('') ?? '';
@@ -839,7 +841,7 @@ export class GeminiProvider implements LLMProvider {
 
         return response;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         if (attempt < maxRetries - 1) {
           const delay = Math.min(1000 * Math.pow(2, attempt), 30000);

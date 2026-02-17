@@ -14,6 +14,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { toErrorMessage } from '../../shared/error-utils.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Pattern Type Definitions
@@ -1005,14 +1007,14 @@ export class PatternLoader {
       }
 
       const content = readFileSync(filePath, 'utf-8');
-      return JSON.parse(content) as T;
+      return safeJsonParse(content) as T;
     } catch (error) {
       if (error instanceof PatternLoaderError) {
         throw error;
       }
 
       const errorMsg = `Failed to load pattern file ${filename}: ${
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       }`;
       this.patterns.errors.push(errorMsg);
 

@@ -2,7 +2,7 @@
  * Agentic QE v3 - Schema Validator Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SchemaValidatorService } from '../../../../src/domains/contract-testing/services/schema-validator';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
 import type { SchemaDefinition } from '../../../../src/domains/contract-testing/interfaces';
@@ -29,6 +29,10 @@ describe('SchemaValidatorService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new SchemaValidatorService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('validateJsonSchema', () => {

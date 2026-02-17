@@ -43,6 +43,8 @@ import { TestDataGeneratorService, type ITestDataGeneratorService } from './test
 
 // ADR-051: LLM Router for AI-enhanced test generation
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import { toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Interface for the test generation service
@@ -280,7 +282,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
           // Try to parse JSON from response
           const jsonMatch = response.content.match(/\[[\s\S]*\]/);
           if (jsonMatch) {
-            const suggestions = JSON.parse(jsonMatch[0]);
+            const suggestions = safeJsonParse(jsonMatch[0]);
             return suggestions.map((s: { name: string }) => s.name);
           }
         } catch {
@@ -338,7 +340,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         patternsUsed: Array.from(new Set(patternsUsed)),
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -370,7 +372,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
 
       return ok(tests);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -382,7 +384,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       const result = await this.tddGenerator.generateTDDTests(request);
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -394,7 +396,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       const result = await this.propertyTestGenerator.generatePropertyTests(request);
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -406,7 +408,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       const result = await this.testDataGenerator.generateTestData(request);
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -714,20 +716,54 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
   ): Promise<Pattern[]> {
     const patterns: Pattern[] = [];
 
-    for (const patternName of requestedPatterns) {
-      const stored = await this.memory.get<Pattern>(`pattern:${patternName}`);
-      if (stored) {
-        patterns.push(stored);
-      }
-    }
+    // Query qe_patterns table directly instead of broken memory.get('pattern:...')
+    try {
+      const { getUnifiedMemory } = await import('../../../kernel/unified-memory.js');
+      const db = getUnifiedMemory().getDatabase();
 
-    const extension = sourceFile.split('.').pop() || '';
-    const searchResults = await this.memory.search(`pattern:*:${extension}`, 5);
-    for (const key of searchResults) {
-      const pattern = await this.memory.get<Pattern>(key);
-      if (pattern && !patterns.some((p) => p.id === pattern.id)) {
-        patterns.push(pattern);
+      // Look up requested patterns by name or ID
+      for (const patternName of requestedPatterns) {
+        const row = db.prepare(
+          `SELECT id, name, description, pattern_type, usage_count, quality_score
+           FROM qe_patterns WHERE id = ? OR name = ? LIMIT 1`
+        ).get(patternName, patternName) as { id: string; name: string; description: string; pattern_type: string; usage_count: number; quality_score: number } | undefined;
+
+        if (row) {
+          patterns.push({
+            id: row.id,
+            name: row.name,
+            structure: row.pattern_type,
+            examples: row.usage_count,
+            applicability: row.quality_score,
+          });
+        }
       }
+
+      // Find patterns relevant to the file extension/domain
+      const extension = sourceFile.split('.').pop() || '';
+      const domainPatterns = db.prepare(
+        `SELECT id, name, description, pattern_type, usage_count, quality_score
+         FROM qe_patterns
+         WHERE qe_domain = 'test-generation'
+           AND context_json LIKE ?
+         ORDER BY quality_score DESC
+         LIMIT 5`
+      ).all(`%${extension}%`) as Array<{ id: string; name: string; description: string; pattern_type: string; usage_count: number; quality_score: number }>;
+
+      for (const row of domainPatterns) {
+        if (!patterns.some((p) => p.id === row.id)) {
+          patterns.push({
+            id: row.id,
+            name: row.name,
+            structure: row.pattern_type,
+            examples: row.usage_count,
+            applicability: row.quality_score,
+          });
+        }
+      }
+    } catch (e) {
+      // Fallback: if unified memory is not available, return empty
+      // This preserves backward compatibility
     }
 
     return patterns;

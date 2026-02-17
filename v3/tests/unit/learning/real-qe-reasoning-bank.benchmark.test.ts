@@ -385,7 +385,7 @@ describe('SQLite Persistence Benchmarks', () => {
 
     const transaction = db.transaction(() => {
       for (let i = 0; i < COUNT; i++) {
-        insert.run(`${prefix}-${i}`, `Bench Pattern ${i}`);
+        insert.run(`${prefix}-${i}`, `${prefix} Pattern ${i}`);
       }
     });
 

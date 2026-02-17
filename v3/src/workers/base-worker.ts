@@ -6,6 +6,7 @@
  * Provides common functionality for scheduling, retries, and health tracking.
  */
 
+import { toError } from '../shared/error-utils.js';
 import {
   Worker,
   WorkerConfig,
@@ -94,7 +95,7 @@ export abstract class BaseWorker implements Worker {
 
         break; // Success, exit retry loop
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
         context.logger.warn(
           `Worker ${this.config.id} attempt ${attempt + 1} failed: ${lastError.message}`
         );

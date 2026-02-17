@@ -4,7 +4,15 @@
  */
 
 import { ToolRegistry, createToolRegistry } from './tool-registry';
-import { ToolDefinition } from './types';
+import { ToolDefinition, ToolHandler, ToolResult } from './types';
+
+/**
+ * A tool entry pairs a definition with a handler function.
+ * We use a widened handler signature here so that handlers with specific
+ * parameter types (e.g., TaskSubmitParams) are assignable without `as any`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ToolEntry = { definition: ToolDefinition; handler: (params: any) => Promise<ToolResult<any>> };
 import {
   // Core handlers
   handleFleetInit,
@@ -56,7 +64,7 @@ import {
 // Tool Definitions
 // ============================================================================
 
-const CORE_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
+const CORE_TOOLS: ToolEntry[] = [
   // Fleet Init
   {
     definition: {
@@ -107,7 +115,7 @@ const CORE_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
   },
 ];
 
-const TASK_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
+const TASK_TOOLS: ToolEntry[] = [
   // Task Submit
   {
     definition: {
@@ -186,7 +194,7 @@ const TASK_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
   },
 ];
 
-const AGENT_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
+const AGENT_TOOLS: ToolEntry[] = [
   // Agent List
   {
     definition: {
@@ -245,7 +253,7 @@ const AGENT_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
   },
 ];
 
-const DOMAIN_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
+const DOMAIN_TOOLS: ToolEntry[] = [
   // Test Generate
   {
     definition: {
@@ -451,7 +459,7 @@ const DOMAIN_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
   },
 ];
 
-const MEMORY_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
+const MEMORY_TOOLS: ToolEntry[] = [
   // Memory Store
   {
     definition: {
@@ -544,7 +552,7 @@ const MEMORY_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
   },
 ];
 
-const CROSS_PHASE_TOOLS: Array<{ definition: ToolDefinition; handler: Function }> = [
+const CROSS_PHASE_TOOLS: ToolEntry[] = [
   // Cross-Phase Store
   {
     definition: {
@@ -672,35 +680,16 @@ export class MCPServer {
       return;
     }
 
-    // Register core tools (always loaded)
-    for (const tool of CORE_TOOLS) {
-      this.registry.register(tool.definition, tool.handler as any);
-    }
-
-    // Register task tools
-    for (const tool of TASK_TOOLS) {
-      this.registry.register(tool.definition, tool.handler as any);
-    }
-
-    // Register agent tools
-    for (const tool of AGENT_TOOLS) {
-      this.registry.register(tool.definition, tool.handler as any);
-    }
-
-    // Register domain tools (lazy loaded)
-    for (const tool of DOMAIN_TOOLS) {
-      this.registry.register(tool.definition, tool.handler as any);
-    }
-
-    // Register memory tools
-    for (const tool of MEMORY_TOOLS) {
-      this.registry.register(tool.definition, tool.handler as any);
-    }
-
-    // Register cross-phase tools
-    for (const tool of CROSS_PHASE_TOOLS) {
-      this.registry.register(tool.definition, tool.handler as any);
-    }
+    // Register all tools in a single consolidated loop
+    const allTools = [
+      ...CORE_TOOLS,
+      ...TASK_TOOLS,
+      ...AGENT_TOOLS,
+      ...DOMAIN_TOOLS,
+      ...MEMORY_TOOLS,
+      ...CROSS_PHASE_TOOLS,
+    ];
+    this.registry.registerAll(allTools);
 
     this.initialized = true;
   }

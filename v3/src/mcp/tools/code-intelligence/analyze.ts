@@ -17,6 +17,7 @@ import { ImpactAnalyzerService } from '../../../domains/code-intelligence/servic
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import * as fs from 'fs';
 import * as path from 'path';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -126,7 +127,7 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
    */
   private async getKnowledgeGraph(context: MCPToolContext): Promise<KnowledgeGraphService> {
     if (!this.knowledgeGraph) {
-      const memory = (context as any).memory as MemoryBackend | undefined;
+      const memory = context.memory;
       this.knowledgeGraph = new KnowledgeGraphService(
         memory || await getSharedMemoryBackend()
       );
@@ -139,7 +140,7 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
    */
   private async getSemanticAnalyzer(context: MCPToolContext): Promise<SemanticAnalyzerService> {
     if (!this.semanticAnalyzer) {
-      const memory = (context as any).memory as MemoryBackend | undefined;
+      const memory = context.memory;
       this.semanticAnalyzer = new SemanticAnalyzerService(
         memory || await getSharedMemoryBackend()
       );
@@ -152,7 +153,7 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
    */
   private async getImpactAnalyzer(context: MCPToolContext): Promise<ImpactAnalyzerService> {
     if (!this.impactAnalyzer) {
-      const memory = (context as any).memory as MemoryBackend | undefined;
+      const memory = context.memory;
       const knowledgeGraph = await this.getKnowledgeGraph(context);
       this.impactAnalyzer = new ImpactAnalyzerService(
         memory || await getSharedMemoryBackend(),
@@ -213,7 +214,7 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
     } catch (error) {
       return {
         success: false,
-        error: `Code analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Code analysis failed: ${toErrorMessage(error)}`,
       };
     }
   }

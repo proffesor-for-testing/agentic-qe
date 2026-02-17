@@ -18,6 +18,9 @@ import {
   DEFAULT_UNIFIED_MEMORY_CONFIG
 } from './unified-memory';
 import { MEMORY_CONSTANTS } from './constants.js';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('hybrid-backend');
 
 // ============================================================================
 // Configuration Types (backward compatible)
@@ -375,6 +378,7 @@ export class HybridMemoryBackend implements MemoryBackend {
           }
         } catch (e) {
           // Non-critical
+          logger.debug('TTL expiration cleanup failed', { error: e instanceof Error ? e.message : String(e) });
         }
 
         this.cleanupCount++;
@@ -396,6 +400,7 @@ export class HybridMemoryBackend implements MemoryBackend {
             }
           } catch (e) {
             // Non-critical — don't fail cleanup
+            logger.debug('KV store retention pruning failed', { error: e instanceof Error ? e.message : String(e) });
           }
 
           // VACUUM removed — it requires exclusive DB access and corrupts

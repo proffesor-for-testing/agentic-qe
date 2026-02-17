@@ -42,6 +42,7 @@ import type {
   ScreenshotResult,
   VisualComparisonResult,
 } from '../../../integrations/vibium/types.js';
+import { toError } from '../../../shared/error-utils.js';
 import {
   getBrowserClientForUseCase,
   type IBrowserClient,
@@ -464,7 +465,7 @@ export class VisualRegressionService implements IVisualRegressionService {
         durationMs: Date.now() - startTime,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -532,7 +533,7 @@ export class VisualRegressionService implements IVisualRegressionService {
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -600,7 +601,7 @@ export class VisualRegressionService implements IVisualRegressionService {
 
       return ok(metadata);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -657,7 +658,7 @@ export class VisualRegressionService implements IVisualRegressionService {
 
       return ok(updated);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -682,7 +683,7 @@ export class VisualRegressionService implements IVisualRegressionService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -728,7 +729,7 @@ export class VisualRegressionService implements IVisualRegressionService {
       // Fallback: Use deterministic comparison
       return ok(this.calculateDeterministicDiff(baseline, current, effectiveThreshold));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -823,7 +824,7 @@ export class VisualRegressionService implements IVisualRegressionService {
 
       return ok(diff);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -902,7 +903,7 @@ export class VisualRegressionService implements IVisualRegressionService {
 
       return ok(screenshot);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -990,7 +991,7 @@ export class VisualRegressionService implements IVisualRegressionService {
           await client.quit();
         }
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         if (attempt < this.config.retryAttempts) {
           await new Promise(resolve => setTimeout(resolve, this.config.retryDelay));
@@ -1091,7 +1092,7 @@ export class VisualRegressionService implements IVisualRegressionService {
 
         return ok(screenshot);
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         if (attempt < this.config.retryAttempts) {
           await new Promise(resolve => setTimeout(resolve, this.config.retryDelay));

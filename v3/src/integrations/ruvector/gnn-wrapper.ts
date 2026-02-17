@@ -25,6 +25,7 @@ import type {
   EmbeddingNamespace,
   ISearchOptions,
 } from '../embeddings/base/types';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Initialize @ruvector/gnn
@@ -486,7 +487,7 @@ export class QEGNNEmbeddingIndex {
   async loadIndex(namespace: EmbeddingNamespace, path: string): Promise<void> {
     const fs = await import('fs/promises');
     const content = await fs.readFile(path, 'utf-8');
-    const data = JSON.parse(content) as Array<{
+    const data = safeJsonParse(content) as Array<{
       id: number;
       vector: number[];
       metadata?: unknown;

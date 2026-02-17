@@ -3,7 +3,7 @@
  * ADR-014: Background Workers for QE Monitoring
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BaseWorker } from '../../../src/workers/base-worker';
 import {
   WorkerConfig,
@@ -112,6 +112,10 @@ describe('BaseWorker', () => {
   beforeEach(() => {
     worker = new TestWorker();
     context = createMockContext();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {

@@ -15,6 +15,26 @@ import type {
 import { QE_AGENT_REGISTRY, getAgentById } from './qe-agent-registry.js';
 import type { QETaskRouter } from './qe-task-router.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+import { safeJsonParse } from '../shared/safe-json.js';
+import { toErrorMessage } from '../shared/error-utils.js';
+
+// ============================================================================
+// Database Row Types
+// ============================================================================
+
+/** Database row structure for routing_outcomes table */
+interface RoutingOutcomeRow {
+  id: string;
+  task_json: string;
+  decision_json: string;
+  used_agent: string;
+  followed_recommendation: number;
+  success: number;
+  quality_score: number;
+  duration_ms: number;
+  error: string | null;
+  created_at: string;
+}
 
 // ============================================================================
 // In-Memory Storage (can be replaced with SQLite)
@@ -98,7 +118,7 @@ export class RoutingFeedbackCollector {
       }
       await this.loadFromDb();
     } catch (error) {
-      console.warn('[RoutingFeedbackCollector] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[RoutingFeedbackCollector] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
   }
@@ -111,13 +131,13 @@ export class RoutingFeedbackCollector {
     const database = this.db.getDatabase();
     const rows = database.prepare(`
       SELECT * FROM routing_outcomes ORDER BY created_at DESC LIMIT ?
-    `).all(this.maxOutcomes) as any[];
+    `).all(this.maxOutcomes) as RoutingOutcomeRow[];
 
     for (const row of rows.reverse()) {
       const outcome: RoutingOutcome = {
         id: row.id,
-        task: JSON.parse(row.task_json),
-        decision: JSON.parse(row.decision_json),
+        task: safeJsonParse(row.task_json),
+        decision: safeJsonParse(row.decision_json),
         usedAgent: row.used_agent,
         followedRecommendation: Boolean(row.followed_recommendation),
         outcome: {
@@ -164,7 +184,7 @@ export class RoutingFeedbackCollector {
         this.enforceRetention(database);
       }
     } catch (error) {
-      console.warn('[RoutingFeedbackCollector] Failed to persist outcome:', error instanceof Error ? error.message : String(error));
+      console.warn('[RoutingFeedbackCollector] Failed to persist outcome:', toErrorMessage(error));
     }
   }
 
@@ -180,7 +200,7 @@ export class RoutingFeedbackCollector {
         )
       `).run(maxRows);
     } catch (error) {
-      console.warn('[RoutingFeedbackCollector] Retention cleanup failed:', error instanceof Error ? error.message : String(error));
+      console.warn('[RoutingFeedbackCollector] Retention cleanup failed:', toErrorMessage(error));
     }
   }
 

@@ -9,6 +9,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainEvent } from '../../shared/types/index.js';
+import { toError } from '../../shared/error-utils.js';
 import {
   EventBus,
   MemoryBackend,
@@ -48,31 +49,15 @@ import {
   type QEPatternType,
 } from '../../integrations/ruvector/wrappers.js';
 
-// ============================================================================
-// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
-// ============================================================================
-
-import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
-  type IMinCutAwareDomain,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain.js';
-
-import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
-  type IConsensusEnabledDomain,
-  type ConsensusEnabledConfig,
-} from '../../coordination/mixins/consensus-enabled-domain.js';
-
-// ADR-058: Governance-aware mixin for MemoryWriteGate integration
-import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
-
+// V3 Integration: MinCut Awareness (ADR-047) - only import types needed beyond base
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
+
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+  type BaseWorkflowStatus,
+} from '../base-domain-coordinator.js';
 
 import {
   type DomainFinding,
@@ -95,23 +80,14 @@ export const RequirementsValidationEvents = {
 // Coordinator Configuration
 // ============================================================================
 
-export interface CoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
-  publishEvents: boolean;
+/**
+ * CQ-002: Extends BaseDomainCoordinatorConfig — removes duplicate fields
+ */
+export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
   minTestabilityThreshold: number;
   // V3: Enable RL and SONA integrations
   enablePPO: boolean;
   enableSONA: boolean;
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus integration config (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -198,61 +174,36 @@ class InMemoryRequirementRepository implements IRequirementRepository {
 // Coordinator Implementation
 // ============================================================================
 
-export class RequirementsValidationCoordinator implements IRequirementsValidationCoordinator {
-  private readonly config: CoordinatorConfig;
+type RequirementsWorkflowType = 'analyze' | 'generate-artifacts' | 'validate-sprint';
+
+/**
+ * CQ-002: Extends BaseDomainCoordinator
+ */
+export class RequirementsValidationCoordinator
+  extends BaseDomainCoordinator<CoordinatorConfig, RequirementsWorkflowType>
+  implements IRequirementsValidationCoordinator
+{
   private readonly validator: RequirementsValidatorService;
   private readonly bddWriter: BDDScenarioWriterService;
   private readonly testabilityScorer: TestabilityScorerService;
   private readonly repository: IRequirementRepository;
-  private readonly workflows: Map<string, WorkflowStatus> = new Map();
-  private initialized = false;
 
   // V3: RL and SONA integrations
   private ppoAlgorithm?: PPOAlgorithm;
   private sonaEngine?: PersistentSONAEngine;
   private rlInitialized = false;
 
-  // MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // Consensus verification mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
-  // Domain identifier for mixin initialization
-  private readonly domainName = 'requirements-validation';
-
-  // ADR-058: Governance mixin for MemoryWriteGate integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
-
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
+    super(eventBus, 'requirements-validation', fullConfig, {
       verifyFindingTypes: ['requirement-conflict', 'testability-assessment', 'ambiguous-requirement'],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
     });
-
-    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
-    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.validator = new RequirementsValidatorService(memory);
     this.bddWriter = new BDDScenarioWriterService(memory);
@@ -260,12 +211,15 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
     this.repository = new InMemoryRequirementRepository(memory);
   }
 
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
+
   /**
    * Initialize the coordinator
+   * CQ-002: Domain-specific initialization
    */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
-
+  protected async onInitialize(): Promise<void> {
     this.subscribeToEvents();
     await this.loadWorkflowState();
 
@@ -273,19 +227,6 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
     if (this.config.enablePPO || this.config.enableSONA) {
       await this.initializeRLIntegrations();
     }
-
-    // Initialize Consensus engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await (this.consensusMixin as any).initializeConsensus();
-        console.log(`[${this.domainName}] Consensus engine initialized`);
-      } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus verification`);
-      }
-    }
-
-    this.initialized = true;
   }
 
   /**
@@ -336,20 +277,10 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
 
   /**
    * Dispose and cleanup
+   * CQ-002: Domain-specific disposal
    */
-  async dispose(): Promise<void> {
-    // Dispose Consensus engine (MM-001)
-    try {
-      await (this.consensusMixin as any).disposeConsensus();
-    } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
-    }
-
-    // Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
-
+  protected async onDispose(): Promise<void> {
     await this.saveWorkflowState();
-    this.workflows.clear();
 
     // V3: Clean up SONA engine (persistent patterns)
     if (this.sonaEngine) {
@@ -360,17 +291,13 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
         console.error('[RequirementsValidation] Error closing SONA engine:', error);
       }
     }
-
-    this.initialized = false;
   }
 
   /**
-   * Get active workflow statuses
+   * Get active workflow statuses (typed override)
    */
-  getActiveWorkflows(): WorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
-    );
+  override getActiveWorkflows(): WorkflowStatus[] {
+    return super.getActiveWorkflows() as WorkflowStatus[];
   }
 
   // ============================================================================
@@ -475,7 +402,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
 
       return ok(analysis);
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       if (this.config.publishEvents) {
         await this.publishValidationFailed(err, 'analyzeRequirement');
@@ -576,7 +503,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
 
       return ok(artifacts);
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -689,7 +616,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
 
       return ok(validation);
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -719,7 +646,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
       const prediction = await this.ppoAlgorithm.predict(state);
       return ok(prediction);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1068,64 +995,10 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
   }
 
   // ============================================================================
-  // Workflow Management
-  // ============================================================================
-
-  private startWorkflow(id: string, type: WorkflowStatus['type']): void {
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  private updateWorkflowProgress(id: string, progress: number): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.progress = Math.min(100, Math.max(0, progress));
-    }
-  }
-
-  // ============================================================================
   // Event Handling
   // ============================================================================
 
-  private subscribeToEvents(): void {
+  protected subscribeToEvents(): void {
     // Listen for code changes that might impact requirements
     this.eventBus.subscribe(
       'code-intelligence.ImpactAnalysisCompleted',
@@ -1305,34 +1178,8 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
   }
 
   // ============================================================================
-  // MinCut Integration Methods (ADR-047)
+  // Domain-Specific Consensus Methods (MM-001)
   // ============================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
-  }
-
-  /**
-   * Check if topology is healthy
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  // ============================================================================
-  // Consensus Integration Methods (MM-001)
-  // ============================================================================
-
-  /**
-   * Check if consensus engine is available
-   */
-  isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
-  }
 
   /**
    * Check if a finding requires consensus verification
@@ -1346,13 +1193,6 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
    */
   async verifyFinding<T>(finding: DomainFinding<T>): Promise<Result<import('../../coordination/consensus').ConsensusResult, Error>> {
     return this.consensusMixin.verifyFinding(finding);
-  }
-
-  /**
-   * Get consensus statistics
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
   }
 
   /**
@@ -1413,34 +1253,6 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
       return false;
     }
     return true;
-  }
-
-  // ============================================================================
-  // Extended MinCut Integration Methods (ADR-047)
-  // ============================================================================
-
-  /**
-   * Get topology-based routing excluding weak domains
-   * @param targetDomains - List of potential target domains
-   * @returns Filtered list of healthy domains for routing
-   */
-  getTopologyBasedRouting(targetDomains: import('../../shared/types').DomainName[]): import('../../shared/types').DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
-  }
-
-  /**
-   * Get weak vertices in this domain (for diagnostics)
-   */
-  getDomainWeakVertices() {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   * Returns true if any weak vertex belongs to requirements-validation
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
   }
 
   /**

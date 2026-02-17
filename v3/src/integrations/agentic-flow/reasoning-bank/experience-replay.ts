@@ -25,6 +25,7 @@ import type { Trajectory, TrajectoryMetrics } from './trajectory-tracker.js';
 import { CircularBuffer } from '../../../shared/utils/circular-buffer.js';
 import { HNSWEmbeddingIndex } from '../../embeddings/index/HNSWIndex.js';
 import type { IEmbedding } from '../../embeddings/base/types.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -673,7 +674,7 @@ export class ExperienceReplay {
       if (!experienceId) continue;
 
       if (getStmt) {
-        const row = getStmt.get(experienceId) as any;
+        const row = getStmt.get(experienceId) as ExperienceRow | undefined;
         if (row) {
           // Filter by domain if specified
           if (domain && row.domain !== domain) continue;
@@ -734,7 +735,7 @@ export class ExperienceReplay {
     const stmt = this.prepared.get('getExperience');
     if (!stmt) return null;
 
-    const row = stmt.get(id) as any;
+    const row = stmt.get(id) as ExperienceRow | undefined;
     return row ? this.rowToExperience(row) : null;
   }
 
@@ -747,7 +748,7 @@ export class ExperienceReplay {
     const stmt = this.prepared.get('getExperiencesByDomain');
     if (!stmt) return [];
 
-    const rows = stmt.all(domain, limit) as any[];
+    const rows = stmt.all(domain, limit) as ExperienceRow[];
     return rows.map(r => this.rowToExperience(r)).filter((e): e is Experience => e !== null);
   }
 
@@ -849,7 +850,7 @@ export class ExperienceReplay {
       task: row.task,
       domain: row.domain as QEDomain,
       strategy: row.agent, // agent column stores strategy/agent name
-      keyActions: JSON.parse(row.steps_json || '[]'),
+      keyActions: safeJsonParse(row.steps_json || '[]'),
       qualityScore: row.quality,
       applicationCount: row.application_count ?? 0,
       successRate: row.success ? 1.0 : 0.0,
@@ -859,8 +860,8 @@ export class ExperienceReplay {
         : undefined,
       createdAt: new Date(row.started_at),
       lastAppliedAt: row.last_applied_at ? new Date(row.last_applied_at) : undefined,
-      originalMetrics: JSON.parse(row.routing_json || '{}'),
-      tags: JSON.parse(row.tags || '[]'),
+      originalMetrics: safeJsonParse(row.routing_json || '{}'),
+      tags: safeJsonParse(row.tags || '[]'),
     };
   }
 

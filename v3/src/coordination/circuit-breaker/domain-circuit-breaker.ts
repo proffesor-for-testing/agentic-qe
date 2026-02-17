@@ -8,6 +8,7 @@
  * thresholds and cascade support.
  */
 
+import { toErrorMessage, toError } from '../../shared/error-utils.js';
 import type {
   DomainBreakerState,
   DomainBreakerStats,
@@ -160,7 +161,7 @@ export class DomainCircuitBreaker {
       return result;
     } catch (error) {
       this.recordFailure(
-        error instanceof Error ? error : new Error(String(error))
+        toError(error)
       );
       throw error;
     }
@@ -413,7 +414,7 @@ export class DomainCircuitBreaker {
       } catch (err) {
         console.log(
           `[DomainCircuitBreaker:${this.domain}] State change handler error: ` +
-          `${err instanceof Error ? err.message : String(err)}`
+          `${toErrorMessage(err)}`
         );
       }
     }

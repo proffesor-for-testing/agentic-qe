@@ -23,6 +23,8 @@ import * as path from 'path';
 import type { MetricsTracker } from './metrics-tracker';
 import { getMetricsTracker } from './metrics-tracker';
 import type { MetricComponent, TimeWindow } from './types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -168,7 +170,7 @@ export class PatternUpdater {
       } catch (error) {
         summary.errors.push({
           file: COMPONENT_PATTERN_FILES[component],
-          error: error instanceof Error ? error.message : String(error),
+          error: toErrorMessage(error),
         });
       }
     }
@@ -179,7 +181,7 @@ export class PatternUpdater {
     } catch (error) {
       summary.errors.push({
         file: 'index.json',
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       });
     }
 
@@ -235,7 +237,7 @@ export class PatternUpdater {
 
     // Read current file
     const content = fs.readFileSync(filepath, 'utf-8');
-    const patternFile: PatternFile = JSON.parse(content);
+    const patternFile: PatternFile = safeJsonParse(content);
 
     // Backup if enabled
     if (this.config.backup) {
@@ -304,7 +306,7 @@ export class PatternUpdater {
 
     // Read current index
     const content = fs.readFileSync(indexPath, 'utf-8');
-    const index: PatternIndex = JSON.parse(content);
+    const index: PatternIndex = safeJsonParse(content);
 
     // Backup if enabled
     if (this.config.backup) {

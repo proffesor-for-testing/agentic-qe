@@ -14,9 +14,13 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../../logging/index.js';
+import type { Logger } from '../../logging/index.js';
 import type { EventBus, Subscription, MemoryBackend } from '../../kernel/interfaces.js';
 import type { DomainEvent } from '../../shared/types/index.js';
 import type { DreamEngine, DreamCycleResult } from './dream-engine.js';
+
+const logger: Logger = LoggerFactory.create('DreamScheduler');
 
 // ============================================================================
 // Configuration Types
@@ -279,7 +283,7 @@ export class DreamScheduler {
     await this.restoreState();
 
     this.initialized = true;
-    console.log('[DreamScheduler] Initialized');
+    logger.info('Initialized');
   }
 
   /**
@@ -293,7 +297,7 @@ export class DreamScheduler {
 
     this.running = true;
     this.scheduleNextDream();
-    console.log('[DreamScheduler] Started');
+    logger.info('Started');
   }
 
   /**
@@ -306,7 +310,7 @@ export class DreamScheduler {
 
     this.running = false;
     this.clearScheduledDream();
-    console.log('[DreamScheduler] Stopped');
+    logger.info('Stopped');
   }
 
   /**
@@ -327,7 +331,7 @@ export class DreamScheduler {
     await this.saveState();
 
     this.initialized = false;
-    console.log('[DreamScheduler] Disposed');
+    logger.info('Disposed');
   }
 
   // ==========================================================================
@@ -393,12 +397,12 @@ export class DreamScheduler {
       this.canDream() &&
       !this.dreaming
     ) {
-      console.log(
-        `[DreamScheduler] Experience threshold (${this.config.experienceThreshold}) reached, triggering dream`
-      );
+      logger.info('Experience threshold reached, triggering dream', {
+        threshold: this.config.experienceThreshold,
+      });
       // Fire and forget - don't block the caller
       this.executeDream(this.config.defaultDreamDurationMs).catch((err) => {
-        console.error('[DreamScheduler] Experience-triggered dream failed:', err);
+        logger.error('Experience-triggered dream failed', err instanceof Error ? err : undefined);
       });
     }
   }
@@ -468,9 +472,15 @@ export class DreamScheduler {
     }
 
     this.dreaming = true;
-    console.log(`[DreamScheduler] Starting dream cycle (${durationMs}ms)`);
+    logger.info('Starting dream cycle', { durationMs });
 
     try {
+      // Ensure concepts are loaded before dreaming
+      const loaded = await this.dreamEngine.ensureConceptsLoaded();
+      if (loaded > 0) {
+        logger.info('Auto-loaded concepts for dream', { loaded });
+      }
+
       // Run the dream
       const result = await this.dreamEngine.dream(durationMs);
 
@@ -495,9 +505,7 @@ export class DreamScheduler {
         this.scheduleNextDream();
       }
 
-      console.log(
-        `[DreamScheduler] Dream completed: ${result.insights.length} insights generated`
-      );
+      logger.info('Dream completed', { insightsGenerated: result.insights.length });
       return result;
     } finally {
       this.dreaming = false;
@@ -518,12 +526,10 @@ export class DreamScheduler {
       try {
         const applyResult = await this.dreamEngine.applyInsight(insight.id);
         if (applyResult.success) {
-          console.log(
-            `[DreamScheduler] Auto-applied insight ${insight.id}: ${applyResult.patternId}`
-          );
+          logger.info('Auto-applied insight', { insightId: insight.id, patternId: applyResult.patternId });
         }
       } catch (err) {
-        console.error(`[DreamScheduler] Failed to auto-apply insight ${insight.id}:`, err);
+        logger.error('Failed to auto-apply insight', err instanceof Error ? err : undefined, { insightId: insight.id });
       }
     }
   }
@@ -547,7 +553,7 @@ export class DreamScheduler {
       try {
         await this.executeDream(this.config.defaultDreamDurationMs);
       } catch (err) {
-        console.error('[DreamScheduler] Scheduled dream failed:', err);
+        logger.error('Scheduled dream failed', err instanceof Error ? err : undefined);
         // Reschedule even on failure
         if (this.running) {
           this.scheduleNextDream();
@@ -555,9 +561,7 @@ export class DreamScheduler {
       }
     }, nextDreamDelay);
 
-    console.log(
-      `[DreamScheduler] Next dream scheduled in ${Math.ceil(nextDreamDelay / 1000)}s`
-    );
+    logger.info('Next dream scheduled', { delaySeconds: Math.ceil(nextDreamDelay / 1000) });
   }
 
   /**
@@ -630,17 +634,15 @@ export class DreamScheduler {
     if (event.payload.passed) return; // Only trigger on failures
 
     if (!this.canDream() || this.dreaming) {
-      console.log(
-        '[DreamScheduler] Quality gate failed but cannot start dream yet'
-      );
+      logger.info('Quality gate failed but cannot start dream yet');
       return;
     }
 
-    console.log('[DreamScheduler] Quality gate failed, triggering analysis dream');
+    logger.info('Quality gate failed, triggering analysis dream');
     try {
       await this.executeDream(this.config.quickDreamDurationMs);
     } catch (err) {
-      console.error('[DreamScheduler] Quality gate triggered dream failed:', err);
+      logger.error('Quality gate triggered dream failed', err instanceof Error ? err : undefined);
     }
   }
 
@@ -652,15 +654,15 @@ export class DreamScheduler {
     event: DomainEvent<unknown>
   ): Promise<void> {
     if (!this.canDream() || this.dreaming) {
-      console.log('[DreamScheduler] Milestone reached but cannot start dream yet');
+      logger.info('Milestone reached but cannot start dream yet');
       return;
     }
 
-    console.log('[DreamScheduler] Domain milestone reached, triggering consolidation dream');
+    logger.info('Domain milestone reached, triggering consolidation dream');
     try {
       await this.executeDream(this.config.defaultDreamDurationMs);
     } catch (err) {
-      console.error('[DreamScheduler] Milestone triggered dream failed:', err);
+      logger.error('Milestone triggered dream failed', err instanceof Error ? err : undefined);
     }
   }
 
@@ -686,7 +688,7 @@ export class DreamScheduler {
         },
       });
     } catch (err) {
-      console.error('[DreamScheduler] Failed to publish dream completed event:', err);
+      logger.error('Failed to publish dream completed event', err instanceof Error ? err : undefined);
     }
   }
 
@@ -711,7 +713,7 @@ export class DreamScheduler {
         { namespace: 'learning-optimization', persist: true }
       );
     } catch (err) {
-      console.error('[DreamScheduler] Failed to save state:', err);
+      logger.error('Failed to save state', err instanceof Error ? err : undefined);
     }
   }
 
@@ -734,12 +736,13 @@ export class DreamScheduler {
           : null;
         this.totalDreamsCompleted = state.totalDreamsCompleted ?? 0;
         this.experienceBuffer = state.experienceBuffer ?? [];
-        console.log(
-          `[DreamScheduler] Restored state: ${this.totalDreamsCompleted} dreams, ${this.experienceBuffer.length} experiences`
-        );
+        logger.info('Restored state', {
+          totalDreamsCompleted: this.totalDreamsCompleted,
+          experienceCount: this.experienceBuffer.length,
+        });
       }
     } catch (err) {
-      console.error('[DreamScheduler] Failed to restore state:', err);
+      logger.error('Failed to restore state', err instanceof Error ? err : undefined);
     }
   }
 

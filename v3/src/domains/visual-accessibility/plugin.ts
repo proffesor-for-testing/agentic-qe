@@ -40,6 +40,7 @@ import {
   AccessibilityTesterService,
   AccessibilityTesterConfig,
 } from './services/accessibility-tester.js';
+import { toError } from '../../shared/error-utils.js';
 import {
   ResponsiveTesterService,
   ResponsiveTestConfig,
@@ -599,7 +600,7 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
   }
 
   private handleError<T>(error: unknown): Result<T, Error> {
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = toError(error);
 
     // Track error
     const currentHealth = this.getHealth();
@@ -693,7 +694,7 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
 
           return err(result.error);
         } catch (error) {
-          return err(error instanceof Error ? error : new Error(String(error)));
+          return err(toError(error));
         }
       }
     );
@@ -740,7 +741,7 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
 
           return err(result.error);
         } catch (error) {
-          return err(error instanceof Error ? error : new Error(String(error)));
+          return err(toError(error));
         }
       }
     );

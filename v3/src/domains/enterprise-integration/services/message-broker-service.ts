@@ -8,6 +8,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import type {
   MessageBrokerConfig,
   MessageTestCase,
@@ -19,6 +20,7 @@ import type {
   DlqError,
   MiddlewareProtocol,
 } from '../interfaces.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Configuration for the message broker service
@@ -166,7 +168,7 @@ export class MessageBrokerService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -210,7 +212,7 @@ export class MessageBrokerService {
 
       return ok(errors);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -304,7 +306,7 @@ export class MessageBrokerService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -394,7 +396,7 @@ export class MessageBrokerService {
     // Validate format-specific payload structure
     if (payload.format === 'json') {
       try {
-        JSON.parse(payload.body);
+        safeJsonParse(payload.body);
       } catch {
         errors.push('Message body is not valid JSON');
       }
@@ -518,8 +520,8 @@ export class MessageBrokerService {
 
   private validateJsonMessage(body: string, schema: string, errors: string[]): void {
     try {
-      const data = JSON.parse(body);
-      const schemaDef = JSON.parse(schema);
+      const data = safeJsonParse(body);
+      const schemaDef = safeJsonParse(schema);
 
       // Basic JSON Schema validation
       if (schemaDef.type && typeof data !== schemaDef.type) {
@@ -592,7 +594,7 @@ export class MessageBrokerService {
     // Validate required elements from schema (basic check)
     if (schema) {
       try {
-        const schemaDef = JSON.parse(schema);
+        const schemaDef = safeJsonParse(schema);
         if (schemaDef.requiredElements && Array.isArray(schemaDef.requiredElements)) {
           for (const element of schemaDef.requiredElements) {
             const elementRegex = new RegExp(`<(?:\\w+:)?${element}[\\s>]`, 'i');
@@ -614,7 +616,7 @@ export class MessageBrokerService {
     }
 
     try {
-      const schemaDef = JSON.parse(schema);
+      const schemaDef = safeJsonParse(schema);
       const lines = body.split('\n');
 
       // Validate record length if specified
@@ -669,7 +671,7 @@ export class MessageBrokerService {
 
     // Validate against schema if provided
     try {
-      const schemaDef = JSON.parse(schema);
+      const schemaDef = safeJsonParse(schema);
       if (schemaDef.columns && Array.isArray(schemaDef.columns)) {
         const headerColumns = lines[0].split(delimiter).map(c => c.trim());
         for (const expectedCol of schemaDef.columns) {

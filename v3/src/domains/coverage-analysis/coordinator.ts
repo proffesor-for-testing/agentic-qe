@@ -5,6 +5,7 @@
  */
 
 import { Result, ok, err, DomainName, Severity } from '../../shared/types';
+import { toError } from '../../shared/error-utils.js';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
 import {
   createEvent,
@@ -55,24 +56,14 @@ import { COVERAGE_REWARDS } from '../../integrations/rl-suite/interfaces';
 // ============================================================================
 
 import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
   type IMinCutAwareDomain,
   type MinCutAwareConfig,
 } from '../../coordination/mixins/mincut-aware-domain';
 
 import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
   type IConsensusEnabledDomain,
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
-
-// ADR-058: Governance-aware mixin for MemoryWriteGate integration
-import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
 
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 
@@ -84,6 +75,12 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import type { WeakVertex } from '../../coordination/mincut/interfaces';
 
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+} from '../base-domain-coordinator.js';
+
 // ============================================================================
 // Coordinator Interface
 // ============================================================================
@@ -91,19 +88,14 @@ import type { WeakVertex } from '../../coordination/mincut/interfaces';
 /**
  * Configuration for the coverage analysis coordinator
  */
-export interface CoverageAnalysisCoordinatorConfig {
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus integration config (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
+export interface CoverageAnalysisCoordinatorConfig extends BaseDomainCoordinatorConfig {
+  consensusConfig?: Partial<ConsensusEnabledConfig>;
 }
 
 const DEFAULT_CONFIG: CoverageAnalysisCoordinatorConfig = {
+  maxConcurrentWorkflows: 5,
+  defaultTimeout: 60000,
+  publishEvents: true,
   // MinCut integration defaults (ADR-047)
   enableMinCutAwareness: true,
   topologyHealthThreshold: 0.5,
@@ -154,28 +146,15 @@ export interface ICoverageAnalysisCoordinator extends CoverageAnalysisAPI {
 // Coordinator Implementation
 // ============================================================================
 
-export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator {
+export class CoverageAnalysisCoordinator
+  extends BaseDomainCoordinator<CoverageAnalysisCoordinatorConfig>
+  implements ICoverageAnalysisCoordinator
+{
   private readonly coverageAnalyzer: CoverageAnalyzerService;
   private readonly gapDetector: GapDetectorService;
   private readonly riskScorer: RiskScorerService;
   private ghostAnalyzer: GhostCoverageAnalyzerService | null = null;
   private readonly qLearning: QLearningAlgorithm;
-  private _initialized = false;
-
-  // MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // Consensus verification mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
-  // Domain identifier for mixin initialization
-  private readonly domainName = 'coverage-analysis';
-
-  // Coordinator configuration
-  private readonly config: CoverageAnalysisCoordinatorConfig;
-
-  // ADR-058: Governance mixin for MemoryWriteGate integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
 
   private readonly qlConfig = {
     stateSize: 12,
@@ -187,33 +166,16 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
   };
 
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     config: Partial<CoverageAnalysisCoordinatorConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: CoverageAnalysisCoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
+    super(eventBus, 'coverage-analysis', fullConfig, {
       verifyFindingTypes: ['coverage-gap', 'risk-zone', 'quality-regression'],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
+      ...fullConfig.consensusConfig,
     });
-
-    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
-    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.coverageAnalyzer = new CoverageAnalyzerService(memory);
     this.gapDetector = new GapDetectorService(memory);
@@ -223,45 +185,21 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
     this.qLearning = new QLearningAlgorithm(this.qlConfig, COVERAGE_REWARDS);
   }
 
-  /**
-   * Initialize the coordinator and its services
-   */
-  async initialize(): Promise<void> {
-    if (this._initialized) return;
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
 
-    // Services are stateless, no initialization needed
-
-    // Initialize Consensus engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await (this.consensusMixin as any).initializeConsensus();
-        console.log(`[${this.domainName}] Consensus engine initialized`);
-      } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus verification`);
-      }
-    }
-
-    // ADR-059: Initialize ghost coverage analyzer (lazy — created on first use)
-
-    this._initialized = true;
+  protected async onInitialize(): Promise<void> {
+    // Services are stateless, no domain-specific initialization needed
+    // ADR-059: Ghost coverage analyzer is lazy-initialized on first use
   }
 
-  /**
-   * Dispose resources
-   */
-  async dispose(): Promise<void> {
-    // Dispose Consensus engine (MM-001)
-    try {
-      await (this.consensusMixin as any).disposeConsensus();
-    } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
-    }
+  protected async onDispose(): Promise<void> {
+    // No domain-specific cleanup needed
+  }
 
-    // Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
-
-    this._initialized = false;
+  protected subscribeToEvents(): void {
+    // No domain-specific event subscriptions
   }
 
   // ============================================================================
@@ -312,7 +250,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
         reasoning: `Q-Learning prioritized ${prioritized.length} tests based on coverage optimization potential`,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -568,7 +506,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
    * Check if coordinator is ready
    */
   isReady(): boolean {
-    return this._initialized;
+    return this.initialized;
   }
 
   // ============================================================================
@@ -600,7 +538,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
       return result;
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -653,7 +591,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
       return result;
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -700,7 +638,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
       return result;
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -762,7 +700,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
         forecast,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -814,7 +752,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
         searchTime,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -887,7 +825,7 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
 
       return ok(phantomSurface);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1110,71 +1048,6 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
       default:
         return 0;
     }
-  }
-
-  // ============================================================================
-  // MinCut Integration Methods (ADR-047)
-  // ============================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
-  }
-
-  /**
-   * Check if topology is healthy
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  /**
-   * Get topology-based routing excluding weak domains
-   * Per ADR-047: Filters out domains that are currently weak points
-   *
-   * @param targetDomains - List of potential target domains
-   * @returns Filtered list of healthy domains for routing
-   */
-  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
-  }
-
-  /**
-   * Get weak vertices belonging to this domain
-   * Per ADR-047: Identifies agents that are single points of failure
-   */
-  getDomainWeakVertices(): WeakVertex[] {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   * Per ADR-047: Returns true if any weak vertex belongs to coverage-analysis domain
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
-  // ============================================================================
-  // Consensus Integration Methods (MM-001)
-  // ============================================================================
-
-  /**
-   * Check if consensus engine is available
-   */
-  isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
-  }
-
-  /**
-   * Get consensus statistics
-   * Per MM-001: Returns metrics about consensus verification
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
   }
 
   /**

@@ -18,6 +18,16 @@ import { QueenTask, TaskType } from '../../../src/coordination/queen-coordinator
 import { QEKernel, EventBus, MemoryBackend, AgentCoordinator, Subscription, VectorSearchResult, StoreOptions, AgentSpawnConfig, AgentFilter, AgentInfo } from '../../../src/kernel/interfaces';
 import { DomainEvent, DomainName, Result, ok, err, AgentStatus } from '../../../src/shared/types';
 
+// CQ-005: Side-effect imports to trigger DomainServiceRegistry.register() calls.
+// Before CQ-005, task-executor.ts had runtime imports from domains/ which
+// transitively triggered registration. After CQ-005, those became `import type`
+// (erased at compile time), so we must explicitly import domains here.
+import '../../../src/domains/test-generation';
+import '../../../src/domains/coverage-analysis';
+import '../../../src/domains/security-compliance';
+import '../../../src/domains/code-intelligence';
+import '../../../src/domains/quality-assessment';
+
 // ============================================================================
 // Mock Implementations
 // ============================================================================

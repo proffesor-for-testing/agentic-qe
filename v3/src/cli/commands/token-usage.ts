@@ -25,6 +25,7 @@ import {
 } from '../../learning/token-tracker.js';
 import { TokenOptimizerService } from '../../optimization/token-optimizer-service.js';
 import * as fs from 'fs';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -87,7 +88,7 @@ async function executeTokenUsage(options: TokenUsageOptions): Promise<void> {
       await showSessionSummary(timeframe, options);
     }
   } catch (error) {
-    console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+    console.error(chalk.red(`Error: ${toErrorMessage(error)}`));
     process.exit(1);
   }
 }

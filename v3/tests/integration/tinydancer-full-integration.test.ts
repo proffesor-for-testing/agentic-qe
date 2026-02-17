@@ -8,8 +8,7 @@
 import { describe, it, expect } from 'vitest';
 
 describe('TinyDancer Full Integration', () => {
-  it.skip('should be implemented when TinyDancer visualization is ready', () => {
-    // Placeholder test - skip until implementation
-    expect(true).toBe(true);
-  });
+  // SKIP: TinyDancer visualization layer is not yet implemented.
+  // Remove this placeholder once the visualization module ships.
+  it.skip('should be implemented when TinyDancer visualization is ready', () => {});
 });

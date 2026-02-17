@@ -31,6 +31,7 @@ import {
 } from '../services/reasoning-bank-service';
 import type { ModelTier } from '../../integrations/agentic-flow';
 import type { QEDomain } from '../../learning/qe-patterns.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Task Type to Workflow Mapping (Issue #206)
@@ -92,7 +93,7 @@ export async function handleTaskSubmit(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to submit task: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to submit task: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -147,7 +148,7 @@ export async function handleTaskList(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to list tasks: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to list tasks: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -202,7 +203,7 @@ export async function handleTaskStatus(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to get task status: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to get task status: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -243,7 +244,7 @@ export async function handleTaskCancel(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to cancel task: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to cancel task: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -465,7 +466,7 @@ export async function handleTaskOrchestrate(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to orchestrate task: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to orchestrate task: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -563,7 +564,7 @@ export async function handleModelRoute(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to route task: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to route task: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -630,7 +631,7 @@ export async function handleRoutingMetrics(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to get routing metrics: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to get routing metrics: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -805,7 +806,7 @@ export async function handleTaskOutcomeRecord(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to record task outcome: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to record task outcome: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -875,7 +876,7 @@ export async function handleReasoningBankStats(): Promise<ToolResult<ReasoningBa
   } catch (error) {
     return {
       success: false,
-      error: `Failed to get ReasoningBank stats: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to get ReasoningBank stats: ${toErrorMessage(error)}`,
     };
   }
 }
@@ -1002,7 +1003,7 @@ export async function handleTaskStatusWithLearning(
   } catch (error) {
     return {
       success: false,
-      error: `Failed to get task status: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to get task status: ${toErrorMessage(error)}`,
     };
   }
 }

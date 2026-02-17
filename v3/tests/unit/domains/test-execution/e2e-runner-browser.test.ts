@@ -3,7 +3,7 @@
  * Tests E2ETestRunnerService with mock browser client integration
  */
 
-import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import {
   E2ETestRunnerService,
   createE2ETestRunnerServiceWithBrowserClient,
@@ -141,6 +141,10 @@ describe('E2ETestRunnerService with Browser Client Integration', () => {
   beforeEach(() => {
     mockBrowserClient = createMockAgentBrowserClient();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('step execution with ElementTarget', () => {

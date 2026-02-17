@@ -11,6 +11,7 @@
  * See: cli/commands/ for additional command modules
  */
 
+import { toErrorMessage } from '../shared/error-utils.js';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { QEKernel } from '../kernel/interfaces';
@@ -98,7 +99,7 @@ function registerDomainWorkflowActions(
       visualAccessibilityAPI.registerWorkflowActions(orchestrator);
     } catch (error) {
       console.error(
-        chalk.yellow(`  Warning: Could not register visual-accessibility workflow actions: ${error instanceof Error ? error.message : String(error)}`)
+        chalk.yellow(`  Warning: Could not register visual-accessibility workflow actions: ${toErrorMessage(error)}`)
       );
     }
   }
@@ -110,7 +111,7 @@ function registerDomainWorkflowActions(
       requirementsValidationAPI.registerWorkflowActions(orchestrator);
     } catch (error) {
       console.error(
-        chalk.yellow(`  Warning: Could not register requirements-validation workflow actions: ${error instanceof Error ? error.message : String(error)}`)
+        chalk.yellow(`  Warning: Could not register requirements-validation workflow actions: ${toErrorMessage(error)}`)
       );
     }
   }

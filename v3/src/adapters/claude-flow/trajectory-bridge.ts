@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 /**
  * Trajectory Bridge
  * Connects AQE task execution to Claude Flow SONA trajectories
@@ -42,7 +44,7 @@ export class TrajectoryBridge {
    * Start a new trajectory
    */
   async startTrajectory(task: string, agent?: string): Promise<string> {
-    const id = `trajectory-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const id = `trajectory-${randomUUID()}`;
 
     if (this.claudeFlowAvailable) {
       try {

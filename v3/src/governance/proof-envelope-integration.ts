@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { safeJsonParse } from '../shared/safe-json.js';
+
 /**
  * Proof Envelope Integration for Agentic QE Fleet
  *
@@ -613,7 +616,7 @@ export class ProofEnvelopeIntegration {
       jsonStr = decoder.decode(data);
     }
 
-    const importData = JSON.parse(jsonStr);
+    const importData = safeJsonParse<Record<string, unknown>>(jsonStr);
 
     if (!importData.envelopes || !Array.isArray(importData.envelopes)) {
       throw new Error('Invalid chain data: missing envelopes array');
@@ -777,9 +780,7 @@ export class ProofEnvelopeIntegration {
    * Generate a unique envelope ID
    */
   private generateEnvelopeId(): string {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substring(2, 10);
-    return `env_${timestamp}_${random}`;
+    return `env_${randomUUID()}`;
   }
 
   /**

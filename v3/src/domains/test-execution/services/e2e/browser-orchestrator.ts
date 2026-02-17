@@ -12,16 +12,17 @@ import type {
   ScreenshotResult,
   AccessibilityResult,
   ElementInfo,
-} from '../../../../integrations/vibium';
+} from '@integrations/vibium';
 import type {
   IBrowserClient,
   IAgentBrowserClient,
   ElementTarget,
   BrowserScreenshotResult,
   ParsedSnapshot,
-} from '../../../../integrations/browser';
+} from '@integrations/browser';
 import type { E2ETestCase } from '../../types';
 import type { UnifiedBrowserClient, E2ERunnerConfig } from './types';
+import { toErrorMessage } from '@shared/error-utils.js';
 
 // ============================================================================
 // Type Guards
@@ -227,7 +228,7 @@ export class BrowserOrchestrator {
         return null;
       }
     } catch (error) {
-      return error instanceof Error ? error.message : String(error);
+      return toErrorMessage(error);
     }
   }
 

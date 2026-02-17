@@ -24,7 +24,10 @@ import {
   A11yAuditTool,
   ChaosInjectTool,
   LearningOptimizeTool,
+  type FaultType,
 } from '../../mcp/tools';
+import type { LearningOptimizeParams } from '../../mcp/tools/learning-optimization/optimize.js';
+import { parseJsonOption } from '../../shared/safe-json.js';
 import { runTestGenerationWizard, type TestWizardResult } from '../wizards/test-wizard.js';
 import {
   runCoverageAnalysisWizard,
@@ -776,7 +779,7 @@ export function registerVisualCommands(program: Command): void {
         baselineUrl: baseline,
         currentUrl: current,
         threshold: parseFloat(options.threshold),
-        ignoreRegions: options.ignoreRegions ? JSON.parse(options.ignoreRegions) : undefined,
+        ignoreRegions: options.ignoreRegions ? parseJsonOption(options.ignoreRegions, 'ignoreRegions') : undefined,
         generateDiff: options.generateDiff,
       }, options.streaming ? createStreamHandler() : {});
 
@@ -850,7 +853,7 @@ export function registerChaosCommands(program: Command): void {
 
       const start = Date.now();
       const result = await tool.invoke({
-        faultType: fault as any,
+        faultType: fault as FaultType,
         target,
         duration: parseInt(options.duration, 10),
         intensity: parseInt(options.intensity, 10),
@@ -891,7 +894,7 @@ export function registerLearningCommands(program: Command): void {
 
       const start = Date.now();
       const result = await tool.invoke({
-        action: action as any,
+        action: action as LearningOptimizeParams['action'],
         domain: options.domain,
         targetDomain: options.targetDomain,
         experienceIds: options.experienceIds?.split(','),

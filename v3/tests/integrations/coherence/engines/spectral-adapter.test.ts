@@ -6,7 +6,7 @@
  * of graph structures using spectral graph theory.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 /**
  * Mock WASM module for SpectralEngine
@@ -227,6 +227,10 @@ describe('SpectralAdapter', () => {
       dispose: vi.fn(),
     };
     adapter = new SpectralAdapter(mockEngine);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {

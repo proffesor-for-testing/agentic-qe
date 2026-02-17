@@ -20,6 +20,7 @@ import type {
   SkillTrustTier,
 } from '../learning/skill-validation-learner.js';
 import type { SwarmValidationResult as BaseSwarmValidationResult } from './swarm-skill-validator.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -687,7 +688,7 @@ export class ValidationResultAggregator {
       throw new Error(`Manifest file not found: ${this.manifestPath}`);
     }
 
-    const manifest = JSON.parse(readFileSync(this.manifestPath, 'utf-8'));
+    const manifest = safeJsonParse(readFileSync(this.manifestPath, 'utf-8'));
 
     // Update skill pass rates and validation status
     for (const [skillName, summary] of report.skillResults.entries()) {

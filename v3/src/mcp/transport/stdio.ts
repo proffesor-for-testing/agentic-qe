@@ -6,7 +6,7 @@
 
 import * as readline from 'readline';
 import { Readable, Writable } from 'stream';
-import { safeJsonParse } from '../../cli/helpers/safe-json.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Types

@@ -19,6 +19,7 @@ import {
 } from '../../../domains/coverage-analysis/services/coverage-parser';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import { FileCoverage as DomainFileCoverage, CoverageSummary as DomainCoverageSummary } from '../../../domains/coverage-analysis/interfaces';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -193,7 +194,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
 
   private async getService(context: MCPToolContext): Promise<CoverageAnalyzerService> {
     if (!this.analyzerService) {
-      const memory = (context as any).memory as MemoryBackend | undefined;
+      const memory = context.memory;
       this.analyzerService = new CoverageAnalyzerService(
         memory || await getSharedMemoryBackend()
       );
@@ -242,7 +243,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
           // Return error - don't silently fall back to fake data
           return {
             success: false,
-            error: `Failed to parse coverage file '${coverageFile}': ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            error: `Failed to parse coverage file '${coverageFile}': ${toErrorMessage(parseError)}`,
           };
         }
       } else {
@@ -361,7 +362,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
     } catch (error) {
       return {
         success: false,
-        error: `Coverage analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Coverage analysis failed: ${toErrorMessage(error)}`,
       };
     }
   }
@@ -447,7 +448,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
 
   private async getService(context: MCPToolContext): Promise<GapDetectorService> {
     if (!this.gapService) {
-      const memory = (context as any).memory as MemoryBackend | undefined;
+      const memory = context.memory;
       this.gapService = new GapDetectorService(memory || await getSharedMemoryBackend());
     }
     return this.gapService;
@@ -484,7 +485,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
         } catch (parseError) {
           return {
             success: false,
-            error: `Failed to parse coverage file: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            error: `Failed to parse coverage file: ${toErrorMessage(parseError)}`,
           };
         }
       } else {
@@ -554,10 +555,14 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
       }));
 
       // ADR-059: Include ghost coverage analysis if requested
-      let ghostGaps: Array<{ category: string; severity: string; description: string; confidence: number }> | undefined;
+      interface GhostCoverageGap { category: string; severity: string; description: string; confidence: number }
+      interface GhostCoverageAPI { analyzeGhostCoverage?(files: string[], target: string): Promise<{ success: boolean; value?: { gaps?: GhostCoverageGap[] } }> }
+      interface GhostKernel { getDomainAPIAsync(name: string): Promise<GhostCoverageAPI | undefined> }
+      let ghostGaps: GhostCoverageGap[] | undefined;
       if (params.includeGhost) {
         try {
-          const kernel = (context as any).kernel;
+          const contextExt = context as MCPToolContext & { kernel?: GhostKernel };
+          const kernel = contextExt.kernel;
           if (kernel) {
             const coordAPI = await kernel.getDomainAPIAsync('coverage-analysis');
             if (coordAPI?.analyzeGhostCoverage) {
@@ -566,7 +571,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
                 target,
               );
               if (ghostResult?.success && ghostResult.value) {
-                ghostGaps = (ghostResult.value.gaps || []).map((g: { category: string; severity: string; description: string; confidence: number }) => ({
+                ghostGaps = (ghostResult.value.gaps || []).map((g: GhostCoverageGap) => ({
                   category: g.category,
                   severity: g.severity,
                   description: g.description,
@@ -599,7 +604,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
     } catch (error) {
       return {
         success: false,
-        error: `Gap detection failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Gap detection failed: ${toErrorMessage(error)}`,
       };
     }
   }

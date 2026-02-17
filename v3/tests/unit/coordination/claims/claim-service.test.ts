@@ -142,6 +142,7 @@ describe('ClaimService', () => {
   let service: ClaimService;
 
   beforeEach(async () => {
+    vi.useFakeTimers();
     repository = createInMemoryClaimRepository();
     eventBus = new MockEventBus();
     service = new ClaimService(repository, eventBus, {
@@ -161,6 +162,8 @@ describe('ClaimService', () => {
 
   afterEach(async () => {
     await service.dispose();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   describe('createClaim', () => {
@@ -602,8 +605,8 @@ describe('ClaimService', () => {
         ttlMs: 1, // Very short TTL
       });
 
-      // Wait for expiry
-      await new Promise(resolve => setTimeout(resolve, 10));
+      // Advance past expiry
+      await vi.advanceTimersByTimeAsync(10);
 
       const expired = await service.expireStale();
       expect(expired).toBe(1);

@@ -22,6 +22,7 @@ import type {
 import type { Message, MessageRole } from '../interfaces';
 import { translateTools, getToolSchemaFormat } from './tool-translator';
 import { handleSystemPrompt, formatResponse } from './message-formatter';
+import { safeJsonParse } from '../../safe-json.js';
 
 // ============================================================================
 // Content Block Types (Provider-specific formats)
@@ -259,7 +260,7 @@ export function openAIToolCallsToAnthropic(
     type: 'tool_use' as const,
     id: call.id,
     name: call.function.name,
-    input: JSON.parse(call.function.arguments),
+    input: safeJsonParse(call.function.arguments),
   }));
 }
 

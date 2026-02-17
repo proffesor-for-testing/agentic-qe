@@ -38,6 +38,7 @@ import {
   ISemanticAnalyzerService,
   SemanticAnalyzerConfig,
 } from './services/semantic-analyzer';
+import { toError } from '../../shared/error-utils.js';
 import {
   ImpactAnalyzerService,
   IImpactAnalyzerService,
@@ -498,7 +499,7 @@ export class CodeIntelligencePlugin extends BaseDomainPlugin {
   }
 
   private handleError<T>(error: unknown): Result<T, Error> {
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = toError(error);
 
     // Track error
     const currentHealth = this.getHealth();

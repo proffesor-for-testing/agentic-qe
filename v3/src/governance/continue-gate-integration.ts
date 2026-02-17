@@ -10,6 +10,7 @@
 
 import { governanceFlags, isContinueGateEnabled, isStrictMode } from './feature-flags.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 /**
  * Agent action record for loop detection
@@ -64,7 +65,7 @@ export class ContinueGateIntegration {
       if (!this.db.isInitialized()) await this.db.initialize();
       await this.loadFromKv();
     } catch (error) {
-      console.warn('[ContinueGateIntegration] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[ContinueGateIntegration] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
     this.initialized = true;
@@ -103,7 +104,7 @@ export class ContinueGateIntegration {
         ContinueGateIntegration.KV_TTL
       );
     } catch (error) {
-      console.warn('[ContinueGateIntegration] Persist failed:', error instanceof Error ? error.message : String(error));
+      console.warn('[ContinueGateIntegration] Persist failed:', toErrorMessage(error));
     }
   }
 

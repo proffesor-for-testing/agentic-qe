@@ -20,6 +20,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'yaml';
+import { toErrorMessage } from '../shared/error-utils.js';
 import {
   SkillValidationLearner,
   TestCaseResult,
@@ -27,6 +28,73 @@ import {
   SkillTrustTier,
   ValidationLevel,
 } from '../learning/skill-validation-learner.js';
+
+// ============================================================================
+// Module Constants
+// ============================================================================
+
+/** Default maximum number of concurrent eval workers */
+const DEFAULT_MAX_WORKERS = 5;
+
+/** Default number of test cases per worker batch */
+const DEFAULT_BATCH_SIZE = 4;
+
+/** Default timeout per test case in milliseconds (30 seconds) */
+const DEFAULT_TEST_TIMEOUT_MS = 30000;
+
+/** Default directory containing skill eval suites */
+const DEFAULT_SKILLS_DIR = '.claude/skills';
+
+/** Default progress reporting interval in milliseconds */
+const DEFAULT_PROGRESS_INTERVAL_MS = 5000;
+
+/** Maximum simulated LLM delay for mock executor in milliseconds */
+const MOCK_LLM_MAX_DELAY_MS = 500;
+
+/** Minimum simulated LLM delay for mock executor in milliseconds */
+const MOCK_LLM_MIN_DELAY_MS = 100;
+
+/** Maximum simulated token count for mock executor */
+const MOCK_LLM_MAX_TOKENS = 1000;
+
+/** Minimum simulated token count for mock executor */
+const MOCK_LLM_MIN_TOKENS = 500;
+
+/** Default keyword match threshold for validation */
+const DEFAULT_KEYWORD_MATCH_THRESHOLD = 0.8;
+
+/** Reasoning quality score for substantial content (>200 chars) */
+const REASONING_SCORE_SUBSTANTIAL_CONTENT = 0.2;
+
+/** Reasoning quality score for extended content (>500 chars) */
+const REASONING_SCORE_EXTENDED_CONTENT = 0.1;
+
+/** Reasoning quality score per structural element */
+const REASONING_SCORE_STRUCTURE = 0.1;
+
+/** Reasoning quality score for WCAG reference */
+const REASONING_SCORE_WCAG_REFERENCE = 0.1;
+
+/** Reasoning quality score for remediation advice */
+const REASONING_SCORE_REMEDIATION = 0.1;
+
+/** Reasoning quality score for severity classification */
+const REASONING_SCORE_SEVERITY = 0.1;
+
+/** Minimum content length for substantial content check */
+const REASONING_SUBSTANTIAL_CONTENT_LENGTH = 200;
+
+/** Minimum content length for extended content check */
+const REASONING_EXTENDED_CONTENT_LENGTH = 500;
+
+/** Minimum content length for rubric completeness check */
+const REASONING_RUBRIC_COMPLETENESS_LENGTH = 300;
+
+/** Critical pass rate threshold for tier 3 trust */
+const TRUST_TIER_3_CRITICAL_PASS_RATE = 1.0;
+
+/** Critical pass rate threshold for tier 2 trust */
+const TRUST_TIER_2_CRITICAL_PASS_RATE = 0.9;
 
 // ============================================================================
 // Types
@@ -59,12 +127,12 @@ export interface ParallelEvalConfig {
  * Default configuration values
  */
 export const DEFAULT_PARALLEL_EVAL_CONFIG: ParallelEvalConfig = {
-  maxWorkers: 5,
-  batchSize: 4,
+  maxWorkers: DEFAULT_MAX_WORKERS,
+  batchSize: DEFAULT_BATCH_SIZE,
   retryFailedTests: true,
-  timeout: 30000,
-  skillsDir: '.claude/skills',
-  progressIntervalMs: 5000,
+  timeout: DEFAULT_TEST_TIMEOUT_MS,
+  skillsDir: DEFAULT_SKILLS_DIR,
+  progressIntervalMs: DEFAULT_PROGRESS_INTERVAL_MS,
 };
 
 /**
@@ -296,7 +364,7 @@ export class MockLLMExecutor implements LLMExecutor {
     options?: { timeout?: number }
   ): Promise<{ output: string; tokensUsed: number; durationMs: number }> {
     // Simulate LLM response time
-    const delay = Math.random() * 500 + 100;
+    const delay = Math.random() * MOCK_LLM_MAX_DELAY_MS + MOCK_LLM_MIN_DELAY_MS;
     await new Promise((resolve) => setTimeout(resolve, delay));
 
     // Generate mock response based on test case content
@@ -304,7 +372,7 @@ export class MockLLMExecutor implements LLMExecutor {
 
     return {
       output,
-      tokensUsed: Math.floor(Math.random() * 1000) + 500,
+      tokensUsed: Math.floor(Math.random() * MOCK_LLM_MAX_TOKENS) + MOCK_LLM_MIN_TOKENS,
       durationMs: delay,
     };
   }
@@ -401,7 +469,7 @@ class EvalWorker {
           reasoningQuality: 0,
           category: task.testCase.category,
           priority: task.testCase.priority,
-          error: error instanceof Error ? error.message : String(error),
+          error: toErrorMessage(error),
         });
       }
     }
@@ -519,7 +587,7 @@ Provide a detailed analysis including:
     // Calculate keyword match rate
     const keywordMatchRate =
       mustContain.length > 0 ? matchedCount / mustContain.length : 1;
-    const threshold = validation?.keyword_match_threshold ?? 0.8;
+    const threshold = validation?.keyword_match_threshold ?? DEFAULT_KEYWORD_MATCH_THRESHOLD;
     const passedKeywords = keywordMatchRate >= threshold;
 
     // Calculate reasoning quality (simplified heuristic)
@@ -550,27 +618,27 @@ Provide a detailed analysis including:
     let score = 0;
 
     // Length check (should have substantial content)
-    if (output.length > 200) score += 0.2;
-    if (output.length > 500) score += 0.1;
+    if (output.length > REASONING_SUBSTANTIAL_CONTENT_LENGTH) score += REASONING_SCORE_SUBSTANTIAL_CONTENT;
+    if (output.length > REASONING_EXTENDED_CONTENT_LENGTH) score += REASONING_SCORE_EXTENDED_CONTENT;
 
     // Structure check (has lists, code blocks, etc.)
-    if (output.includes('\n')) score += 0.1;
-    if (output.includes('1.') || output.includes('-')) score += 0.1;
-    if (output.includes('```')) score += 0.1;
+    if (output.includes('\n')) score += REASONING_SCORE_STRUCTURE;
+    if (output.includes('1.') || output.includes('-')) score += REASONING_SCORE_STRUCTURE;
+    if (output.includes('```')) score += REASONING_SCORE_STRUCTURE;
 
     // Content quality indicators
-    if (output.includes('WCAG')) score += 0.1;
+    if (output.includes('WCAG')) score += REASONING_SCORE_WCAG_REFERENCE;
     if (output.includes('remediation') || output.includes('recommendation'))
-      score += 0.1;
+      score += REASONING_SCORE_REMEDIATION;
     if (output.includes('severity') || output.includes('critical'))
-      score += 0.1;
+      score += REASONING_SCORE_SEVERITY;
 
     // Apply grading rubric if provided
     if (validation?.grading_rubric) {
       const rubric = validation.grading_rubric;
       let rubricScore = 0;
 
-      if (rubric.completeness && output.length > 300) {
+      if (rubric.completeness && output.length > REASONING_RUBRIC_COMPLETENESS_LENGTH) {
         rubricScore += rubric.completeness;
       }
       if (rubric.accuracy && output.includes('WCAG')) {
@@ -849,9 +917,9 @@ export class ParallelEvalRunner {
     const hasLearning = suite.learning?.cross_model_comparison ?? false;
     const criticalPassRate = suite.success_criteria.critical_pass_rate ?? 0;
 
-    if (hasMcp && hasLearning && criticalPassRate >= 1.0) {
+    if (hasMcp && hasLearning && criticalPassRate >= TRUST_TIER_3_CRITICAL_PASS_RATE) {
       return 3; // Highest tier
-    } else if (hasMcp || criticalPassRate >= 0.9) {
+    } else if (hasMcp || criticalPassRate >= TRUST_TIER_2_CRITICAL_PASS_RATE) {
       return 2;
     }
     return 1;

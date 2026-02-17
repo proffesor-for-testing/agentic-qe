@@ -9,6 +9,7 @@
  */
 
 import type { ORSet, ORSetState } from './types.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // =============================================================================
 // Tag Generation
@@ -58,7 +59,7 @@ function deserializeElement<T>(key: string): T {
     case 'b:':
       return (value === 'true') as unknown as T;
     case 'j:':
-      return JSON.parse(value) as T;
+      return safeJsonParse<T>(value);
     default:
       throw new Error(`Unknown serialization type: ${type}`);
   }

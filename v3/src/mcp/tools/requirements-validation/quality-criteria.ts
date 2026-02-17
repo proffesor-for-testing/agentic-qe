@@ -26,6 +26,7 @@ import {
   NEVER_OMIT_CATEGORIES,
 } from '../../../domains/requirements-validation/index.js';
 import { existsSync, readFileSync } from 'fs';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -285,7 +286,7 @@ export class QualityCriteriaTool extends MCPToolBase<QualityCriteriaParams, Qual
     } catch (error) {
       return {
         success: false,
-        error: `Quality Criteria tool failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Quality Criteria tool failed: ${toErrorMessage(error)}`,
       };
     }
   }

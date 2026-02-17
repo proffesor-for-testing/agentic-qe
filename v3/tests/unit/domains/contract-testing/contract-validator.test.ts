@@ -2,7 +2,7 @@
  * Agentic QE v3 - Contract Validator Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ContractValidatorService } from '../../../../src/domains/contract-testing/services/contract-validator';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
 import type { ApiContract, SchemaDefinition } from '../../../../src/domains/contract-testing/interfaces';
@@ -71,6 +71,10 @@ describe('ContractValidatorService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new ContractValidatorService({ memory: mockMemory });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('validateContract', () => {

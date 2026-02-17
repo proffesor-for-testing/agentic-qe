@@ -3,7 +3,7 @@
  * Common types, interfaces, and patterns used across all scanner modules
  */
 
-import type { MemoryBackend } from '../../../../kernel/interfaces.js';
+import type { MemoryBackend } from '@kernel/interfaces.js';
 import type {
   Vulnerability,
   VulnerabilitySeverity,
@@ -22,7 +22,7 @@ import type {
 } from '../../interfaces.js';
 
 // ADR-051: LLM Router for AI-enhanced security analysis
-import type { HybridRouter, ChatResponse } from '../../../../shared/llm/index.js';
+import type { HybridRouter, ChatResponse } from '@shared/llm/index.js';
 
 // ============================================================================
 // Configuration

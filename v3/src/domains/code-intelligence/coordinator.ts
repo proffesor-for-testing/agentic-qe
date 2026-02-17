@@ -9,6 +9,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Result, err, DomainEvent } from '../../shared/types';
+import { toError } from '../../shared/error-utils.js';
 import {
   EventBus,
   MemoryBackend,
@@ -100,39 +101,28 @@ import {
 } from '../../integrations/ruvector/hypergraph-engine.js';
 import { type HypergraphNode } from '../../integrations/ruvector/hypergraph-schema.js';
 
-// ============================================================================
-// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
-// ============================================================================
-
-import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
-  type IMinCutAwareDomain,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain';
-
-import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
-  type IConsensusEnabledDomain,
-  type ConsensusEnabledConfig,
-} from '../../coordination/mixins/consensus-enabled-domain';
-
-// ADR-058: Governance-aware mixin for MemoryWriteGate integration
-import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
-
+// V3 Integration: MinCut Awareness (ADR-047) - only import types needed beyond base
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 import type { WeakVertex } from '../../coordination/mincut/interfaces';
 import type { ConsensusStats } from '../../coordination/mixins/consensus-enabled-domain';
 import type { DomainName } from '../../shared/types';
 
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+  type BaseWorkflowStatus,
+} from '../base-domain-coordinator.js';
+
 import {
   type DomainFinding,
   createDomainFinding,
 } from '../../coordination/consensus/domain-findings';
+
+// CQ-004: Extracted modules
+import * as GNNHelpers from './coordinator-gnn.js';
+import * as HypergraphHelpers from './coordinator-hypergraph.js';
+import * as ConsensusHelpers from './coordinator-consensus.js';
 
 /**
  * Interface for the code intelligence coordinator
@@ -236,10 +226,10 @@ export interface WorkflowStatus {
 /**
  * Coordinator configuration
  */
-export interface CoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
-  publishEvents: boolean;
+/**
+ * CQ-002: Extends BaseDomainCoordinatorConfig — removes duplicate fields
+ */
+export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
   enableIncrementalIndex: boolean;
   // V3: Enable GNN and SONA integrations
   enableGNN: boolean;
@@ -250,15 +240,6 @@ export interface CoordinatorConfig {
   enableHypergraph: boolean;
   // V3: Optional database path for hypergraph persistence
   hypergraphDbPath?: string;
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus integration config (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -287,14 +268,19 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
  * Code Intelligence Coordinator
  * Orchestrates code intelligence workflows and coordinates with agents
  */
-export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator {
-  private readonly config: CoordinatorConfig;
+type CodeIntelligenceWorkflowType = 'index' | 'search' | 'impact' | 'dependency' | 'query';
+
+/**
+ * CQ-002: Extends BaseDomainCoordinator
+ */
+export class CodeIntelligenceCoordinator
+  extends BaseDomainCoordinator<CoordinatorConfig, CodeIntelligenceWorkflowType>
+  implements ICodeIntelligenceCoordinator
+{
   private readonly knowledgeGraph: IKnowledgeGraphService;
   private readonly semanticAnalyzer: ISemanticAnalyzerService;
   private readonly impactAnalyzer: IImpactAnalyzerService;
   private readonly fileReader: FileReader;
-  private readonly workflows: Map<string, WorkflowStatus> = new Map();
-  private initialized = false;
 
   // V3: GNN and SONA integrations
   private gnnIndex?: QEGNNEmbeddingIndex;
@@ -311,47 +297,17 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
   // V3: Product Factors Bridge for cross-domain C4 access
   private productFactorsBridge: ProductFactorsBridgeService;
 
-  // MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // Consensus verification mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
-  // Domain identifier for mixin initialization
-  private readonly domainName = 'code-intelligence';
-
-  // ADR-058: Governance mixin for MemoryWriteGate integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
-
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
+    super(eventBus, 'code-intelligence', fullConfig, {
       verifyFindingTypes: ['code-pattern-detection', 'impact-analysis', 'dependency-mapping'],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
     });
-
-    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
-    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.knowledgeGraph = new KnowledgeGraphService(memory);
     this.semanticAnalyzer = new SemanticAnalyzerService(memory);
@@ -364,12 +320,15 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     });
   }
 
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
+
   /**
    * Initialize the coordinator
+   * CQ-002: Domain-specific initialization
    */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
-
+  protected async onInitialize(): Promise<void> {
     // Subscribe to relevant events
     this.subscribeToEvents();
 
@@ -397,19 +356,6 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
     // V3: Initialize Product Factors Bridge
     await this.productFactorsBridge.initialize();
-
-    // Initialize Consensus engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await (this.consensusMixin as any).initializeConsensus();
-        console.log(`[${this.domainName}] Consensus engine initialized`);
-      } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus verification`);
-      }
-    }
-
-    this.initialized = true;
   }
 
   /**
@@ -500,23 +446,11 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
   /**
    * Dispose and cleanup
+   * CQ-002: Domain-specific disposal
    */
-  async dispose(): Promise<void> {
-    // Dispose Consensus engine (MM-001)
-    try {
-      await (this.consensusMixin as any).disposeConsensus();
-    } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
-    }
-
-    // Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
-
+  protected async onDispose(): Promise<void> {
     // Save workflow state
     await this.saveWorkflowState();
-
-    // Clear active workflows
-    this.workflows.clear();
 
     // Clean up GNN index
     if (this.gnnIndex) {
@@ -546,17 +480,13 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
     // Dispose Product Factors Bridge
     await this.productFactorsBridge.dispose();
-
-    this.initialized = false;
   }
 
   /**
-   * Get active workflow statuses
+   * Get active workflow statuses (typed override)
    */
-  getActiveWorkflows(): WorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
-    );
+  override getActiveWorkflows(): WorkflowStatus[] {
+    return super.getActiveWorkflows() as WorkflowStatus[];
   }
 
   // ============================================================================
@@ -643,7 +573,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -707,7 +637,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -783,7 +713,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -811,7 +741,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -837,7 +767,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -851,164 +781,20 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
    * Index code embeddings in GNN for fast similarity search
    */
   private async indexCodeEmbeddings(paths: string[]): Promise<void> {
-    if (!this.gnnIndex || !this.rlInitialized) {
-      return;
-    }
-
-    try {
-      // Generate embeddings for each code file
-      for (const path of paths) {
-        try {
-          const result = await this.fileReader.readFile(path);
-          if (result.success && result.value) {
-            // Create embedding from code content
-            const embedding = await this.generateCodeEmbedding(path, result.value);
-
-            // Add to GNN index
-            const embeddingObj: IEmbedding = {
-              vector: embedding,
-              dimension: 384,
-              namespace: 'code' as EmbeddingNamespace,
-              text: result.value.slice(0, 1000), // First 1000 chars for context
-              timestamp: Date.now(),
-              quantization: 'none',
-              metadata: { path },
-            };
-
-            this.gnnIndex.addEmbedding(embeddingObj);
-          }
-        } catch (error) {
-          console.error(`Failed to index ${path}:`, error);
-        }
-      }
-
-      console.log(`[GNN] Indexed ${paths.length} code embeddings`);
-    } catch (error) {
-      console.error('Failed to index code embeddings:', error);
-    }
+    if (!this.gnnIndex || !this.rlInitialized) return;
+    await GNNHelpers.indexCodeEmbeddings(this.gnnIndex, this.fileReader, paths);
   }
 
-  /**
-   * Generate code embedding using semantic features
-   */
-  private async generateCodeEmbedding(
-    path: string,
-    content: string
-  ): Promise<number[]> {
-    // Simple embedding based on code features
-    const features: number[] = [];
-
-    // File type feature
-    const ext = path.split('.').pop();
-    const typeHash = this.hashCode(ext || '');
-    features.push((typeHash % 1000) / 1000);
-
-    // Content length feature
-    features.push(Math.min(1, content.length / 10000));
-
-    // Function/class count
-    const functionMatches = content.match(/function\s+\w+/g) || [];
-    const classMatches = content.match(/class\s+\w+/g) || [];
-    features.push(Math.min(1, (functionMatches.length + classMatches.length) / 50));
-
-    // Import/require count
-    const importMatches = content.match(/import\s+.*from|require\s*\(/g) || [];
-    features.push(Math.min(1, importMatches.length / 20));
-
-    // Complexity indicators
-    const loopMatches = content.match(/for\s*\(|while\s*\(/g) || [];
-    const ifMatches = content.match(/if\s*\(/g) || [];
-    features.push(Math.min(1, (loopMatches.length + ifMatches.length) / 30));
-
-    // Comment density
-    const commentMatches = content.match(/\/\/.*|\/\*[\s\S]*?\*\//g) || [];
-    features.push(Math.min(1, commentMatches.length / 50));
-
-    // Fill with hashed content features
-    const contentHash = this.hashCode(content.slice(0, 500));
-    for (let i = features.length; i < 384; i++) {
-      features.push(((contentHash * (i + 1)) % 10000) / 10000);
-    }
-
-    return features.slice(0, 384);
-  }
-
-  /**
-   * Search code with GNN for enhanced similarity
-   */
   private async searchCodeWithGNN(
     request: SearchRequest
   ): Promise<Array<{ file: string; similarity: number }>> {
-    if (!this.gnnIndex || !this.rlInitialized) {
-      return [];
-    }
-
-    try {
-      // Create query embedding
-      const queryEmbedding = await this.generateCodeEmbedding('query', request.query);
-
-      const queryIEmbedding: IEmbedding = {
-        vector: queryEmbedding,
-        dimension: 384,
-        namespace: 'code' as EmbeddingNamespace,
-        text: request.query,
-        timestamp: Date.now(),
-        quantization: 'none',
-      };
-
-      // Search in GNN index
-      const results = this.gnnIndex.search(queryIEmbedding, {
-        limit: 10,
-        namespace: 'code' as EmbeddingNamespace,
-      });
-
-      return results.map((r: { id: number; distance: number; metadata?: { path?: string } }) => ({
-        file: r.metadata?.path ?? `file-${r.id}`,
-        similarity: 1 - r.distance,
-      }));
-    } catch (error) {
-      console.error('Failed to search with GNN:', error);
-      return [];
-    }
+    if (!this.gnnIndex || !this.rlInitialized) return [];
+    return GNNHelpers.searchCodeWithGNN(this.gnnIndex, request.query);
   }
 
-  /**
-   * Enhance impact analysis with GNN semantic similarity
-   */
   private async enhanceImpactAnalysisWithGNN(request: ImpactRequest): Promise<void> {
-    if (!this.gnnIndex || !this.rlInitialized) {
-      return;
-    }
-
-    try {
-      // Find semantically similar files to changed files
-      for (const changedFile of request.changedFiles) {
-        const result = await this.fileReader.readFile(changedFile);
-        if (result.success && result.value) {
-          const embedding = await this.generateCodeEmbedding(changedFile, result.value);
-
-          const embeddingObj: IEmbedding = {
-            vector: embedding,
-            dimension: 384,
-            namespace: 'code' as EmbeddingNamespace,
-            text: result.value.slice(0, 1000),
-            timestamp: Date.now(),
-            quantization: 'none',
-            metadata: { path: changedFile },
-          };
-
-          // Search for similar files
-          const similar = this.gnnIndex.search(embeddingObj, {
-            limit: 5,
-            namespace: 'code' as EmbeddingNamespace,
-          });
-
-          console.log(`[GNN] Found ${similar.length} semantically similar files to ${changedFile}`);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to enhance impact analysis:', error);
-    }
+    if (!this.gnnIndex || !this.rlInitialized) return;
+    await GNNHelpers.enhanceImpactAnalysisWithGNN(this.gnnIndex, this.fileReader, request);
   }
 
   // ============================================================================
@@ -1124,52 +910,11 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     semanticResults: SearchResult[],
     gnnResults: Array<{ file: string; similarity: number }>
   ): SearchResult[] {
-    const scoreMap = new Map<string, number>();
-    const resultMap = new Map<string, SearchResult>();
-
-    // Add semantic results
-    for (const result of semanticResults) {
-      scoreMap.set(result.file, result.score);
-      resultMap.set(result.file, result);
-    }
-
-    // Merge GNN results (weighted average)
-    for (const gnnResult of gnnResults) {
-      const existingScore = scoreMap.get(gnnResult.file);
-      if (existingScore !== undefined) {
-        scoreMap.set(gnnResult.file, (existingScore + gnnResult.similarity) / 2);
-      } else {
-        // Create a new SearchResult for GNN-only results
-        scoreMap.set(gnnResult.file, gnnResult.similarity * 0.8);
-        resultMap.set(gnnResult.file, {
-          file: gnnResult.file,
-          snippet: '',
-          score: gnnResult.similarity * 0.8,
-          highlights: [],
-        });
-      }
-    }
-
-    // Update scores and sort
-    return Array.from(resultMap.values())
-      .map(result => ({
-        ...result,
-        score: scoreMap.get(result.file) ?? result.score,
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20); // Top 20 results
+    return GNNHelpers.mergeSearchResults(semanticResults, gnnResults);
   }
 
-  /**
-   * Simple hash function for strings
-   */
   private hashCode(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = ((hash << 5) - hash) + str.charCodeAt(i);
-      hash = hash | 0;
-    }
-    return Math.abs(hash);
+    return GNNHelpers.hashCode(str);
   }
 
   // ============================================================================
@@ -1297,65 +1042,10 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
   }
 
   // ============================================================================
-  // Workflow Management
-  // ============================================================================
-
-  private startWorkflow(id: string, type: WorkflowStatus['type']): void {
-    // Check workflow limit
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  private updateWorkflowProgress(id: string, progress: number): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.progress = Math.min(100, Math.max(0, progress));
-    }
-  }
-
-  // ============================================================================
   // Event Handling
   // ============================================================================
 
-  private subscribeToEvents(): void {
+  protected subscribeToEvents(): void {
     // Subscribe to test execution events for impact correlation
     this.eventBus.subscribe(
       'test-execution.TestRunCompleted',
@@ -1516,7 +1206,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
@@ -1617,7 +1307,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
       return { success: true, value: metrics };
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       console.error('[CodeIntelligence] Failed to collect metrics:', errorObj.message);
       return err(errorObj);
     }
@@ -1719,37 +1409,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     if (!this.hypergraph) {
       return err(new Error('Hypergraph is not enabled or not initialized'));
     }
-
-    try {
-      const untestedFunctions = await this.hypergraph.findUntestedFunctions();
-
-      console.log(
-        `[CodeIntelligence] Found ${untestedFunctions.length} untested functions via hypergraph`
-      );
-
-      // Publish event
-      if (this.config.publishEvents) {
-        const event = createEvent(
-          'code-intelligence.UntestedFunctionsFound',
-          'code-intelligence',
-          {
-            count: untestedFunctions.length,
-            functions: untestedFunctions.slice(0, 10).map((f) => ({
-              name: f.name,
-              file: f.filePath,
-              complexity: f.complexity,
-            })),
-          }
-        );
-        await this.eventBus.publish(event);
-      }
-
-      return { success: true, value: untestedFunctions };
-    } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
-      console.error('[CodeIntelligence] Failed to find untested functions:', errorObj.message);
-      return err(errorObj);
-    }
+    return HypergraphHelpers.findUntestedFunctions(this.hypergraph, this.eventBus, this.config.publishEvents);
   }
 
   /**
@@ -1767,42 +1427,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     if (!this.hypergraph) {
       return err(new Error('Hypergraph is not enabled or not initialized'));
     }
-
-    if (changedFiles.length === 0) {
-      return { success: true, value: [] };
-    }
-
-    try {
-      const impactedTests = await this.hypergraph.findImpactedTests(changedFiles);
-
-      console.log(
-        `[CodeIntelligence] Found ${impactedTests.length} impacted tests for ` +
-          `${changedFiles.length} changed files via hypergraph`
-      );
-
-      // Publish event
-      if (this.config.publishEvents) {
-        const event = createEvent(
-          'code-intelligence.ImpactedTestsFound',
-          'code-intelligence',
-          {
-            changedFiles,
-            testCount: impactedTests.length,
-            tests: impactedTests.slice(0, 10).map((t) => ({
-              name: t.name,
-              file: t.filePath,
-            })),
-          }
-        );
-        await this.eventBus.publish(event);
-      }
-
-      return { success: true, value: impactedTests };
-    } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
-      console.error('[CodeIntelligence] Failed to find impacted tests:', errorObj.message);
-      return err(errorObj);
-    }
+    return HypergraphHelpers.findImpactedTestsFromHypergraph(this.hypergraph, changedFiles, this.eventBus, this.config.publishEvents);
   }
 
   /**
@@ -1820,40 +1445,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     if (!this.hypergraph) {
       return err(new Error('Hypergraph is not enabled or not initialized'));
     }
-
-    try {
-      const coverageGaps = await this.hypergraph.findCoverageGaps(maxCoverage);
-
-      console.log(
-        `[CodeIntelligence] Found ${coverageGaps.length} coverage gaps ` +
-          `(functions with <=${maxCoverage}% coverage) via hypergraph`
-      );
-
-      // Publish event
-      if (this.config.publishEvents) {
-        const event = createEvent(
-          'code-intelligence.CoverageGapsFound',
-          'code-intelligence',
-          {
-            maxCoverage,
-            gapCount: coverageGaps.length,
-            gaps: coverageGaps.slice(0, 10).map((g) => ({
-              name: g.name,
-              file: g.filePath,
-              coverage: g.coverage,
-              complexity: g.complexity,
-            })),
-          }
-        );
-        await this.eventBus.publish(event);
-      }
-
-      return { success: true, value: coverageGaps };
-    } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
-      console.error('[CodeIntelligence] Failed to find coverage gaps:', errorObj.message);
-      return err(errorObj);
-    }
+    return HypergraphHelpers.findCoverageGapsFromHypergraph(this.hypergraph, maxCoverage, this.eventBus, this.config.publishEvents);
   }
 
   /**
@@ -1872,54 +1464,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     if (!this.hypergraph) {
       return err(new Error('Hypergraph is not enabled or not initialized'));
     }
-
-    try {
-      console.log(
-        `[CodeIntelligence] Building hypergraph from ${indexResult.files.length} indexed files`
-      );
-
-      const buildResult = await this.hypergraph.buildFromIndexResult(indexResult);
-
-      console.log(
-        `[CodeIntelligence] Hypergraph built: ` +
-          `${buildResult.nodesCreated} nodes created, ` +
-          `${buildResult.nodesUpdated} nodes updated, ` +
-          `${buildResult.edgesCreated} edges created ` +
-          `(${buildResult.durationMs}ms)`
-      );
-
-      // Store build result in memory
-      await this.memory.set(
-        `hypergraph:build:latest`,
-        {
-          timestamp: new Date().toISOString(),
-          ...buildResult,
-        },
-        { namespace: 'code-intelligence', persist: true }
-      );
-
-      // Publish event
-      if (this.config.publishEvents) {
-        const event = createEvent(
-          'code-intelligence.HypergraphBuilt',
-          'code-intelligence',
-          {
-            nodesCreated: buildResult.nodesCreated,
-            nodesUpdated: buildResult.nodesUpdated,
-            edgesCreated: buildResult.edgesCreated,
-            durationMs: buildResult.durationMs,
-            errorCount: buildResult.errors.length,
-          }
-        );
-        await this.eventBus.publish(event);
-      }
-
-      return { success: true, value: buildResult };
-    } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
-      console.error('[CodeIntelligence] Failed to build hypergraph:', errorObj.message);
-      return err(errorObj);
-    }
+    return HypergraphHelpers.buildHypergraphFromIndex(this.hypergraph, indexResult, this.memory, this.eventBus, this.config.publishEvents);
   }
 
   /**
@@ -1942,87 +1487,12 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     if (!this.hypergraph) {
       return baseAnalysis;
     }
-
-    try {
-      // Find additional impacted tests using hypergraph
-      const hypergraphTests = await this.hypergraph.findImpactedTests(request.changedFiles);
-
-      // Merge with existing impacted tests (deduplicate)
-      const allTests = new Set([
-        ...baseAnalysis.impactedTests,
-        ...hypergraphTests.map((t) => t.filePath || t.name),
-      ]);
-
-      // Update risk level if hypergraph found more impacted tests
-      let newRiskLevel = baseAnalysis.riskLevel;
-      if (hypergraphTests.length > baseAnalysis.impactedTests.length) {
-        // Hypergraph found additional tests - might indicate higher risk
-        const totalImpact =
-          baseAnalysis.directImpact.length + baseAnalysis.transitiveImpact.length;
-        if (totalImpact > 10 && allTests.size > 20) {
-          newRiskLevel = 'critical';
-        } else if (totalImpact > 5 && allTests.size > 10) {
-          newRiskLevel = 'high';
-        }
-      }
-
-      // Add recommendation about hypergraph-discovered tests
-      const newRecommendations = [...baseAnalysis.recommendations];
-      if (hypergraphTests.length > 0) {
-        newRecommendations.push(
-          `Hypergraph analysis found ${hypergraphTests.length} additional test(s) to run`
-        );
-      }
-
-      return {
-        ...baseAnalysis,
-        impactedTests: Array.from(allTests),
-        riskLevel: newRiskLevel,
-        recommendations: newRecommendations,
-      };
-    } catch (error) {
-      console.error('[CodeIntelligence] Failed to enhance impact with hypergraph:', error);
-      return baseAnalysis;
-    }
+    return HypergraphHelpers.enhanceImpactWithHypergraph(this.hypergraph, request, baseAnalysis);
   }
 
   // ============================================================================
-  // MinCut Integration Methods (ADR-047)
+  // Domain-Specific Consensus Methods (MM-001)
   // ============================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
-  }
-
-  /**
-   * Check if topology is healthy
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  // ============================================================================
-  // Consensus Integration Methods (MM-001)
-  // ============================================================================
-
-  /**
-   * Check if consensus engine is available
-   */
-  isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
-  }
-
-  /**
-   * Get consensus statistics
-   * Per MM-001: Returns metrics about consensus verification
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
-  }
 
   /**
    * Verify a code pattern detection using multi-model consensus
@@ -2036,124 +1506,21 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     pattern: { id: string; name: string; type: string; location: string },
     confidence: number
   ): Promise<boolean> {
-    const finding: DomainFinding<typeof pattern> = createDomainFinding({
-      id: uuidv4(),
-      type: 'code-pattern-detection',
-      confidence,
-      description: `Verify code pattern: ${pattern.name} (${pattern.type}) at ${pattern.location}`,
-      payload: pattern,
-      detectedBy: 'code-intelligence-coordinator',
-      severity: confidence > 0.9 ? 'high' : 'medium',
-    });
-
-    if (this.consensusMixin.requiresConsensus(finding)) {
-      const result = await this.consensusMixin.verifyFinding(finding);
-      if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Code pattern '${pattern.name}' verified by consensus`);
-        return true;
-      }
-      console.warn(`[${this.domainName}] Code pattern '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
-      return false;
-    }
-    return true; // No consensus needed
+    return ConsensusHelpers.verifyCodePatternDetection(pattern, confidence, this.consensusMixin, this.domainName);
   }
 
-  /**
-   * Verify an impact analysis using multi-model consensus
-   * Per MM-001: Impact analysis decisions can have significant deployment impact
-   *
-   * @param impact - The impact analysis to verify
-   * @param confidence - Initial confidence in the analysis
-   * @returns true if the analysis is verified or doesn't require consensus
-   */
   async verifyImpactAnalysis(
     impact: { changedFiles: string[]; riskLevel: string; impactedTests: string[] },
     confidence: number
   ): Promise<boolean> {
-    const finding: DomainFinding<typeof impact> = createDomainFinding({
-      id: uuidv4(),
-      type: 'impact-analysis',
-      confidence,
-      description: `Verify impact analysis: ${impact.changedFiles.length} files, risk=${impact.riskLevel}, ${impact.impactedTests.length} tests`,
-      payload: impact,
-      detectedBy: 'code-intelligence-coordinator',
-      severity: impact.riskLevel === 'critical' || impact.riskLevel === 'high' ? 'high' : 'medium',
-    });
-
-    if (this.consensusMixin.requiresConsensus(finding)) {
-      const result = await this.consensusMixin.verifyFinding(finding);
-      if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Impact analysis verified by consensus (risk=${impact.riskLevel})`);
-        return true;
-      }
-      console.warn(`[${this.domainName}] Impact analysis NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
-      return false;
-    }
-    return true; // No consensus needed
+    return ConsensusHelpers.verifyImpactAnalysis(impact, confidence, this.consensusMixin, this.domainName);
   }
 
-  /**
-   * Verify a dependency mapping using multi-model consensus
-   * Per MM-001: Dependency analysis can affect downstream decisions
-   *
-   * @param dependency - The dependency mapping to verify
-   * @param confidence - Initial confidence in the mapping
-   * @returns true if the mapping is verified or doesn't require consensus
-   */
   async verifyDependencyMapping(
     dependency: { source: string; targets: string[]; type: string },
     confidence: number
   ): Promise<boolean> {
-    const finding: DomainFinding<typeof dependency> = createDomainFinding({
-      id: uuidv4(),
-      type: 'dependency-mapping',
-      confidence,
-      description: `Verify dependency: ${dependency.source} -> ${dependency.targets.length} targets (${dependency.type})`,
-      payload: dependency,
-      detectedBy: 'code-intelligence-coordinator',
-      severity: confidence > 0.85 ? 'high' : 'medium',
-    });
-
-    if (this.consensusMixin.requiresConsensus(finding)) {
-      const result = await this.consensusMixin.verifyFinding(finding);
-      if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Dependency mapping verified by consensus`);
-        return true;
-      }
-      console.warn(`[${this.domainName}] Dependency mapping NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
-      return false;
-    }
-    return true; // No consensus needed
+    return ConsensusHelpers.verifyDependencyMapping(dependency, confidence, this.consensusMixin, this.domainName);
   }
 
-  // ============================================================================
-  // Topology Routing Methods (ADR-047)
-  // ============================================================================
-
-  /**
-   * Get weak vertices belonging to this domain
-   * Per ADR-047: Identifies agents that are single points of failure
-   */
-  getDomainWeakVertices() {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   * Per ADR-047: Returns true if any weak vertex belongs to code-intelligence domain
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
-  /**
-   * Get topology-based routing excluding weak domains
-   * Per ADR-047: Filters out domains that are currently weak points
-   *
-   * @param targetDomains - List of potential target domains
-   * @returns Filtered list of healthy domains for routing
-   */
-  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
-  }
 }

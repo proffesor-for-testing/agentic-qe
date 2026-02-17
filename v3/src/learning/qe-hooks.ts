@@ -15,9 +15,15 @@ import {
   QERoutingRequest,
   QERoutingResult,
 } from './qe-reasoning-bank.js';
+import { toErrorMessage } from '../shared/error-utils.js';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('qe-hooks');
+
 import {
   QEPatternType,
   QEDomain,
+  QEPatternContext,
   CreateQEPatternOptions,
   detectQEDomain,
 } from './qe-patterns.js';
@@ -131,10 +137,10 @@ export function createQEHookHandlers(
         task: `Generate ${testType} tests for ${targetFile}`,
         taskType: 'test-generation',
         context: {
-          framework: framework as any,
-          language: language as any,
-          testType: testType as any,
-        },
+          framework,
+          language,
+          testType,
+        } as Partial<QEPatternContext>,
       });
 
       if (!routingResult.success) {
@@ -144,6 +150,23 @@ export function createQEHookHandlers(
         };
       }
 
+      // Query recent experiences for this domain to inform generation
+      let recentExperiences: Array<{ patternId: string; success: boolean; feedback: string | null }> = [];
+      try {
+        const { getUnifiedMemory } = await import('../kernel/unified-memory.js');
+        const db = getUnifiedMemory().getDatabase();
+        recentExperiences = db.prepare(`
+          SELECT u.pattern_id, u.success, u.feedback
+          FROM qe_pattern_usage u
+          JOIN qe_patterns p ON u.pattern_id = p.id
+          WHERE p.qe_domain = 'test-generation'
+          ORDER BY u.created_at DESC
+          LIMIT 10
+        `).all() as Array<{ patternId: string; success: boolean; feedback: string | null }>;
+      } catch {
+        // Non-critical — experience query is best-effort
+      }
+
       return {
         success: true,
         routing: routingResult.value,
@@ -151,6 +174,7 @@ export function createQEHookHandlers(
         data: {
           recommendedAgent: routingResult.value.recommendedAgent,
           patterns: routingResult.value.patterns.map((p) => p.id),
+          recentExperiences,
         },
       };
     },
@@ -193,18 +217,19 @@ export function createQEHookHandlers(
               variables: [],
             },
             context: {
-              framework: framework as any,
-              language: language as any,
+              framework,
+              language,
               testType: 'unit',
               tags: ['generated', 'test-template', framework as string, language as string],
-            },
+            } as Partial<QEPatternContext>,
           });
 
           if (result.success) {
             patternsLearned = 1;
           }
-        } catch {
+        } catch (e) {
           // Pattern learning is best-effort
+          logger.debug('Pattern learning failed', { error: e instanceof Error ? e.message : String(e) });
         }
       }
 
@@ -263,10 +288,30 @@ export function createQEHookHandlers(
         return { success: false, error: routingResult.error.message };
       }
 
+      // Query recent coverage-analysis experiences
+      let recentExperiences: Array<{ patternId: string; success: boolean; feedback: string | null }> = [];
+      try {
+        const { getUnifiedMemory } = await import('../kernel/unified-memory.js');
+        const db = getUnifiedMemory().getDatabase();
+        recentExperiences = db.prepare(`
+          SELECT u.pattern_id, u.success, u.feedback
+          FROM qe_pattern_usage u
+          JOIN qe_patterns p ON u.pattern_id = p.id
+          WHERE p.qe_domain = 'coverage-analysis'
+          ORDER BY u.created_at DESC
+          LIMIT 10
+        `).all() as Array<{ patternId: string; success: boolean; feedback: string | null }>;
+      } catch {
+        // Non-critical
+      }
+
       return {
         success: true,
         routing: routingResult.value,
         guidance: routingResult.value.guidance,
+        data: {
+          recentExperiences,
+        },
       };
     },
 
@@ -315,8 +360,9 @@ export function createQEHookHandlers(
           if (result.success) {
             patternsLearned = 1;
           }
-        } catch {
+        } catch (e) {
           // Best effort
+          logger.debug('Coverage strategy pattern storage failed', { error: e instanceof Error ? e.message : String(e) });
         }
       }
 
@@ -346,8 +392,9 @@ export function createQEHookHandlers(
               tags: ['coverage-gap', 'high-risk', 'suggested-tests'],
             },
           });
-        } catch {
+        } catch (e) {
           // Best effort
+          logger.debug('Coverage gap pattern storage failed', { error: e instanceof Error ? e.message : String(e) });
         }
       }
 
@@ -368,7 +415,7 @@ export function createQEHookHandlers(
         task: task as string,
         taskType: taskType as QERoutingRequest['taskType'],
         capabilities: capabilities as string[],
-        context: context as any,
+        context: context as Partial<QEPatternContext>,
       });
 
       if (!routingResult.success) {
@@ -451,8 +498,9 @@ export function createQEHookHandlers(
               tags: ['risk', 'high-priority', 'assessment'],
             },
           });
-        } catch {
+        } catch (e) {
           // Best effort
+          logger.debug('Risk assessment pattern storage failed', { error: e instanceof Error ? e.message : String(e) });
         }
       }
 
@@ -597,7 +645,7 @@ export class QEHookRegistry {
       } catch (error) {
         results.push({
           success: false,
-          error: error instanceof Error ? error.message : String(error),
+          error: toErrorMessage(error),
         });
       }
     }

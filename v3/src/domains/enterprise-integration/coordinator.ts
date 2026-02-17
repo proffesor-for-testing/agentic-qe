@@ -4,6 +4,7 @@
  * SAP interfaces, ESB middleware, and observability systems.
  *
  * ADR-063: Enterprise Integration Testing Gap Closure
+ * CQ-002: Extends BaseDomainCoordinator for lifecycle deduplication
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -16,22 +17,6 @@ import type {
   AgentSpawnConfig,
 } from '../../kernel/interfaces.js';
 
-// MinCut & Consensus & Governance Mixin Imports (ADR-047, MM-001, ADR-058)
-import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
-} from '../../coordination/mixins/mincut-aware-domain.js';
-
-import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
-} from '../../coordination/mixins/consensus-enabled-domain.js';
-
-import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
-
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
 
 import {
@@ -39,6 +24,14 @@ import {
   createDomainFinding,
 } from '../../coordination/consensus/domain-findings.js';
 
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+  type BaseWorkflowStatus,
+} from '../base-domain-coordinator.js';
+
+import { toError } from '../../shared/error-utils.js';
 import type {
   IEnterpriseIntegrationCoordinator,
   WsdlDefinition,
@@ -96,19 +89,8 @@ export interface WorkflowStatus {
 // Coordinator Configuration
 // ============================================================================
 
-export interface CoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
-  publishEvents: boolean;
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus integration config (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
+export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
+  // No additional fields beyond base
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -124,40 +106,25 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   consensusMinModels: 2,
 };
 
+type EnterpriseWorkflowType = 'soap' | 'messaging' | 'rfc' | 'idoc' | 'odata' | 'middleware' | 'sod';
+
 // ============================================================================
 // Enterprise Integration Coordinator
 // ============================================================================
 
-export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationCoordinator {
-  private readonly config: CoordinatorConfig;
-  private readonly workflows: Map<string, WorkflowStatus> = new Map();
-  private readonly domainName = 'enterprise-integration';
-  private initialized = false;
-
-  // Mixins (ADR-047, MM-001, ADR-058)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-  private readonly consensusMixin: ConsensusEnabledMixin;
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
-
+export class EnterpriseIntegrationCoordinator
+  extends BaseDomainCoordinator<CoordinatorConfig, EnterpriseWorkflowType>
+  implements IEnterpriseIntegrationCoordinator
+{
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
+    super(eventBus, 'enterprise-integration', fullConfig, {
       verifyFindingTypes: [
         'soap-fault',
         'message-ordering-violation',
@@ -166,52 +133,43 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
         'odata-contract-break',
         'sod-conflict',
       ],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
       modelTimeout: 120000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
     });
-
-    // ADR-058: Initialize governance mixin
-    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
   }
 
-  // ============================================================================
-  // Lifecycle
-  // ============================================================================
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
 
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
-
-    // Subscribe to relevant events
+  protected async onInitialize(): Promise<void> {
     this.subscribeToEvents();
-
-    // Initialize Consensus engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await (this.consensusMixin as any).initializeConsensus();
-        console.log(`[${this.domainName}] Consensus engine initialized`);
-      } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus verification`);
-      }
-    }
-
-    this.initialized = true;
     console.log(`[${this.domainName}] Enterprise Integration Coordinator initialized`);
   }
 
-  async dispose(): Promise<void> {
-    try {
-      await (this.consensusMixin as any).disposeConsensus();
-    } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
-    }
+  protected async onDispose(): Promise<void> {
+    // No domain-specific cleanup needed
+  }
 
-    this.minCutMixin.dispose();
-    this.workflows.clear();
-    this.initialized = false;
+  protected subscribeToEvents(): void {
+    // Listen for contract testing events to coordinate with SOAP contracts
+    this.eventBus.subscribe(
+      'contract-testing.ContractVerified',
+      this.handleContractVerified.bind(this)
+    );
+
+    // Listen for chaos engineering events to coordinate middleware resilience testing
+    this.eventBus.subscribe(
+      'chaos-resilience.FaultInjected',
+      this.handleFaultInjected.bind(this)
+    );
+  }
+
+  // ==========================================================================
+  // Workflow status (typed override)
+  // ==========================================================================
+
+  override getActiveWorkflows(): WorkflowStatus[] {
+    return super.getActiveWorkflows() as WorkflowStatus[];
   }
 
   // ============================================================================
@@ -255,7 +213,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
       return ok(wsdl);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -304,7 +262,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
       return ok(result);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -356,7 +314,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
       return ok(result);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -391,7 +349,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
       return ok(result);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -458,7 +416,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
       return ok(result);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -510,7 +468,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
       return ok(result);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -551,7 +509,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
       return ok(metadata);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -598,7 +556,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
       return ok(result);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -650,7 +608,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
       return ok(result);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -679,7 +637,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
       return ok(true);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -743,7 +701,7 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
       return ok(result);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -777,41 +735,8 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
   }
 
   // ============================================================================
-  // MinCut Integration (ADR-047)
+  // Consensus Integration (MM-001) - Domain-specific methods
   // ============================================================================
-
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected`);
-  }
-
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  getDomainWeakVertices() {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
-  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
-  }
-
-  // ============================================================================
-  // Consensus Integration (MM-001)
-  // ============================================================================
-
-  isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
-  }
-
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
-  }
 
   async verifyCriticalFinding(
     finding: { type: string; description: string; payload: unknown },
@@ -840,75 +765,8 @@ export class EnterpriseIntegrationCoordinator implements IEnterpriseIntegrationC
   }
 
   // ============================================================================
-  // Workflow Management
-  // ============================================================================
-
-  getActiveWorkflows(): WorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
-    );
-  }
-
-  private startWorkflow(id: string, type: WorkflowStatus['type']): void {
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  // ============================================================================
   // Event Handling
   // ============================================================================
-
-  private subscribeToEvents(): void {
-    // Listen for contract testing events to coordinate with SOAP contracts
-    this.eventBus.subscribe(
-      'contract-testing.ContractVerified',
-      this.handleContractVerified.bind(this)
-    );
-
-    // Listen for chaos engineering events to coordinate middleware resilience testing
-    this.eventBus.subscribe(
-      'chaos-resilience.FaultInjected',
-      this.handleFaultInjected.bind(this)
-    );
-  }
 
   private async handleContractVerified(event: any): Promise<void> {
     // When a contract is verified, check if it has enterprise integration implications

@@ -22,6 +22,7 @@ import {
   C4DiagramsGeneratedPayload,
   createEvent,
 } from '../../../shared/events/domain-events';
+import { toError } from '../../../shared/error-utils.js';
 import {
   C4Diagrams,
   C4DiagramResult,
@@ -40,6 +41,7 @@ import {
   inferComponentType,
   IC4DiagramGenerator,
 } from '../../../shared/c4-model';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Configuration
@@ -290,7 +292,7 @@ export class ProductFactorsBridgeService
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       return err(errorObj);
     }
   }
@@ -380,7 +382,7 @@ export class ProductFactorsBridgeService
         couplingAnalysis,
       });
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       return err(errorObj);
     }
   }
@@ -509,7 +511,7 @@ export class ProductFactorsBridgeService
     try {
       const packageJsonPath = path.join(projectPath, 'package.json');
       const content = await fs.readFile(packageJsonPath, 'utf-8');
-      const pkg = JSON.parse(content);
+      const pkg = safeJsonParse(content);
       return {
         name: pkg.name || 'Project',
         description: pkg.description || 'Application system',
@@ -538,7 +540,7 @@ export class ProductFactorsBridgeService
       }
 
       const content = await fs.readFile(packageJsonPath, 'utf-8');
-      const pkg = JSON.parse(content);
+      const pkg = safeJsonParse(content);
 
       const allDeps = {
         ...pkg.dependencies,
@@ -916,7 +918,7 @@ export class ProductFactorsBridgeService
       const systems = await this.detectExternalSystems(projectPath);
       return ok(systems);
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       return err(errorObj);
     }
   }
@@ -933,7 +935,7 @@ export class ProductFactorsBridgeService
       const { components } = await this.analyzeComponents(projectPath);
       return ok(components);
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj = toError(error);
       return err(errorObj);
     }
   }

@@ -40,6 +40,7 @@ import {
   VibiumInteractionError,
   createVibiumError,
 } from './errors';
+import { toError } from '../../shared/error-utils.js';
 import {
   getVibiumFeatureFlags,
   isBrowserModeEnabled,
@@ -96,7 +97,7 @@ async function withRetry<T>(
     try {
       return await operation();
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
+      lastError = toError(error);
 
       if (attempt < maxAttempts) {
         const delayMs = Math.min(100 * Math.pow(2, attempt - 1), 2000);

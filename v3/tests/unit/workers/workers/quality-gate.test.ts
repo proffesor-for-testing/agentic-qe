@@ -6,7 +6,7 @@
  * Tests quality gate evaluation and release readiness
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { QualityGateWorker } from '../../../../src/workers/workers/quality-gate';
 import { WorkerContext } from '../../../../src/workers/interfaces';
 
@@ -48,6 +48,10 @@ describe('QualityGateWorker', () => {
 
   beforeEach(() => {
     worker = new QualityGateWorker();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('instantiation', () => {

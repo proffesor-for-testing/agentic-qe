@@ -3,7 +3,7 @@
  * Tests for compliance standards validation (GDPR, HIPAA, SOC2, PCI-DSS)
  */
 
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { ComplianceValidatorService } from '../../../../src/domains/security-compliance/services/compliance-validator';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
 import type { FilePath } from '../../../../src/shared/value-objects';
@@ -52,6 +52,10 @@ describe('ComplianceValidatorService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new ComplianceValidatorService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('getAvailableStandards', () => {

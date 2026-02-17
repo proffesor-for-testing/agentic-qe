@@ -9,6 +9,7 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import type {
   E2ETestCase,
   E2ETestSuite,
@@ -165,7 +166,7 @@ export class E2EExecuteTool extends MCPToolBase<E2EExecuteParams, E2EExecuteResu
     } catch (error) {
       return {
         success: false,
-        error: `E2E test execution failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `E2E test execution failed: ${toErrorMessage(error)}`,
       };
     }
   }

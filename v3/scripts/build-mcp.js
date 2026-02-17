@@ -58,6 +58,24 @@ const esmExternals = [
 ];
 
 /**
+ * esbuild plugin: Rewrite bare "typescript" import to explicit subpath.
+ *
+ * TypeScript's package.json has no "exports" field — only "main": "./lib/typescript.js".
+ * Node.js 22+ ESM legacyMainResolve fails to resolve the bare specifier in some
+ * environments (devcontainers, NVM-managed Node). Rewriting to the explicit subpath
+ * bypasses legacyMainResolve entirely (see issue #267).
+ */
+const typescriptResolvePlugin = {
+  name: 'typescript-resolve',
+  setup(build) {
+    build.onResolve({ filter: /^typescript$/ }, () => ({
+      path: 'typescript/lib/typescript.js',
+      external: true,
+    }));
+  },
+};
+
+/**
  * esbuild plugin: Rewrite native/CJS module imports to use createRequire()
  */
 const nativeRequirePlugin = {
@@ -100,7 +118,7 @@ try {
     platform: 'node',
     format: 'esm',
     external: esmExternals,
-    plugins: [nativeRequirePlugin],
+    plugins: [typescriptResolvePlugin, nativeRequirePlugin],
     outfile: join(__dirname, '..', 'dist/mcp/bundle.js'),
     define: {
       '__CLI_VERSION__': JSON.stringify(version),

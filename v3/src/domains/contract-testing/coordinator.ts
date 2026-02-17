@@ -1,10 +1,13 @@
 /**
  * Agentic QE v3 - Contract Testing Coordinator
  * Orchestrates the contract testing workflow across services
+ *
+ * CQ-002: Extends BaseDomainCoordinator for lifecycle deduplication
  */
 
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainEvent, type DomainName } from '../../shared/types/index.js';
+import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import { FilePath, Version } from '../../shared/value-objects/index.js';
 import { HttpClient, createHttpClient } from '../../shared/http/index.js';
 import { FileReader } from '../../shared/io/index.js';
@@ -37,36 +40,20 @@ import { SARSAAlgorithm } from '../../integrations/rl-suite/algorithms/sarsa.js'
 import { PersistentSONAEngine, createPersistentSONAEngine } from '../../integrations/ruvector/sona-persistence.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 
-// ============================================================================
-// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
-// ============================================================================
-
-import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
-  type IMinCutAwareDomain,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain.js';
-
-import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
-  type IConsensusEnabledDomain,
-  type ConsensusEnabledConfig,
-} from '../../coordination/mixins/consensus-enabled-domain.js';
-
-// ADR-058: Governance-aware mixin for MemoryWriteGate integration
-import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
-
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
 
 import {
   type DomainFinding,
   createDomainFinding,
 } from '../../coordination/consensus/domain-findings.js';
+
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+  type BaseWorkflowStatus,
+} from '../base-domain-coordinator.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 /**
  * Contract Testing Events
@@ -96,22 +83,10 @@ export interface WorkflowStatus {
 /**
  * Coordinator configuration
  */
-export interface CoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
+export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
   enableAutoVerification: boolean;
-  publishEvents: boolean;
   enableSARSA: boolean;
   enableQESONA: boolean;
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus integration config (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -132,18 +107,23 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   consensusMinModels: 2,
 };
 
+type ContractWorkflowType = 'verify' | 'compare' | 'import' | 'export';
+
 /**
  * Contract Testing Coordinator
  * Orchestrates contract testing workflows and coordinates with agents
+ *
+ * CQ-002: Extends BaseDomainCoordinator
  */
-export class ContractTestingCoordinator implements IContractTestingCoordinator {
-  private readonly config: CoordinatorConfig;
+export class ContractTestingCoordinator
+  extends BaseDomainCoordinator<CoordinatorConfig, ContractWorkflowType>
+  implements IContractTestingCoordinator
+{
   private readonly contractValidator: ContractValidatorService;
   private readonly apiCompatibility: ApiCompatibilityService;
   private readonly httpClient: HttpClient;
   private readonly fileReader: FileReader;
   // SchemaValidatorService reserved for future use
-  private readonly workflows: Map<string, WorkflowStatus> = new Map();
   private readonly contractStore: Map<string, ApiContract> = new Map();
 
   // RL Integration: SARSA for contract validation ordering
@@ -152,49 +132,17 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
   // SONA Integration: PersistentSONAEngine for contract pattern learning (patterns survive restarts)
   private qesona?: PersistentSONAEngine;
 
-  private initialized = false;
-
-  // MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // Consensus verification mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
-  // Domain identifier for mixin initialization
-  private readonly domainName = 'contract-testing';
-
-  // ADR-058: Governance mixin for MemoryWriteGate integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
-
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
+    super(eventBus, 'contract-testing', fullConfig, {
       verifyFindingTypes: ['contract-violation', 'breaking-change', 'schema-incompatibility'],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
     });
-
-    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
-    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.contractValidator = new ContractValidatorService({ memory });
     this.apiCompatibility = new ApiCompatibilityService(memory);
@@ -203,12 +151,11 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     // Note: schemaValidator initialized when needed for schema operations
   }
 
-  /**
-   * Initialize the coordinator
-   */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
 
+  protected async onInitialize(): Promise<void> {
     // Initialize SARSA algorithm if enabled
     if (this.config.enableSARSA) {
       try {
@@ -221,7 +168,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
         console.log('[contract-testing] SARSA algorithm created successfully');
       } catch (error) {
         console.error('[contract-testing] Failed to create SARSA:', error);
-        throw new Error(`SARSA creation failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`SARSA creation failed: ${toErrorMessage(error)}`);
       }
     }
 
@@ -249,35 +196,9 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
 
     // Load any persisted contracts
     await this.loadContracts();
-
-    // Initialize Consensus engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await (this.consensusMixin as any).initializeConsensus();
-        console.log(`[${this.domainName}] Consensus engine initialized`);
-      } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus verification`);
-      }
-    }
-
-    this.initialized = true;
   }
 
-  /**
-   * Dispose and cleanup
-   */
-  async dispose(): Promise<void> {
-    // Dispose Consensus engine (MM-001)
-    try {
-      await (this.consensusMixin as any).disposeConsensus();
-    } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
-    }
-
-    // Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
-
+  protected async onDispose(): Promise<void> {
     // Save workflow state
     await this.saveContracts();
 
@@ -290,20 +211,24 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     // Clear SARSA (no explicit dispose method exists)
     this.sarsaAlgorithm = undefined;
 
-    // Clear active workflows
-    this.workflows.clear();
+    // Clear contract store
     this.contractStore.clear();
-
-    this.initialized = false;
   }
 
-  /**
-   * Get active workflow statuses
-   */
-  getActiveWorkflows(): WorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
+  protected subscribeToEvents(): void {
+    // Subscribe to code change events for auto-verification
+    this.eventBus.subscribe(
+      'code-intelligence.ImpactAnalysisCompleted',
+      this.handleImpactAnalysis.bind(this)
     );
+  }
+
+  // ==========================================================================
+  // Workflow status (typed override)
+  // ==========================================================================
+
+  override getActiveWorkflows(): WorkflowStatus[] {
+    return super.getActiveWorkflows() as WorkflowStatus[];
   }
 
   // ============================================================================
@@ -342,7 +267,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
 
       return ok(contract.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -457,7 +382,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       });
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -574,7 +499,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       });
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -622,7 +547,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       return ok(contract);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -650,7 +575,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       return ok(openAPISpec);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -704,7 +629,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
             type: 'connection-error',
             expected: 'reachable',
             actual: 'error',
-            message: `Failed to verify endpoint: ${error instanceof Error ? error.message : String(error)}`,
+            message: `Failed to verify endpoint: ${toErrorMessage(error)}`,
           });
         }
       } else {
@@ -853,7 +778,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
 
       if (filePath.endsWith('.json')) {
         // Parse as JSON contract or OpenAPI spec
-        const parsed = JSON.parse(content);
+        const parsed = safeJsonParse(content);
 
         // Check if it's an OpenAPI spec
         if (parsed.openapi || parsed.swagger) {
@@ -870,11 +795,11 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       }
 
       // Try parsing as JSON anyway
-      return JSON.parse(content) as ApiContract;
+      return safeJsonParse(content) as ApiContract;
     } catch (error) {
       console.error(
         `Failed to parse contract from ${path.value}:`,
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
       return null;
     }
@@ -893,7 +818,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
   }
 
   private parseOpenAPIToContract(specContent: string): ApiContract {
-    const spec = JSON.parse(specContent) as Record<string, unknown>;
+    const spec = safeJsonParse(specContent) as Record<string, unknown>;
     const info = (spec.info || {}) as Record<string, unknown>;
     const paths = (spec.paths || {}) as Record<string, Record<string, unknown>>;
 
@@ -1019,12 +944,12 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       paths[endpoint.path][endpoint.method.toLowerCase()] = operation;
     }
 
-    const schemas: Record<string, unknown> = {};
+    const schemasObj: Record<string, unknown> = {};
     for (const schema of contract.schemas) {
       try {
-        schemas[schema.id] = JSON.parse(schema.content);
+        schemasObj[schema.id] = safeJsonParse(schema.content);
       } catch {
-        schemas[schema.id] = { type: 'object' };
+        schemasObj[schema.id] = { type: 'object' };
       }
     }
 
@@ -1036,7 +961,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       },
       paths,
       components: {
-        schemas,
+        schemas: schemasObj,
       },
     };
 
@@ -1126,60 +1051,6 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     });
 
     await this.eventBus.publish(event);
-  }
-
-  // ============================================================================
-  // Workflow Management
-  // ============================================================================
-
-  private startWorkflow(id: string, type: WorkflowStatus['type']): void {
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  private updateWorkflowProgress(id: string, progress: number): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.progress = Math.min(100, Math.max(0, progress));
-    }
   }
 
   // ============================================================================
@@ -1463,14 +1334,6 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
   // Event Handling
   // ============================================================================
 
-  private subscribeToEvents(): void {
-    // Subscribe to code change events for auto-verification
-    this.eventBus.subscribe(
-      'code-intelligence.ImpactAnalysisCompleted',
-      this.handleImpactAnalysis.bind(this)
-    );
-  }
-
   private async handleImpactAnalysis(event: DomainEvent): Promise<void> {
     // Auto-verify contracts when code changes affect API endpoints
     const payload = event.payload as {
@@ -1519,50 +1382,11 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
   }
 
   // ============================================================================
-  // MinCut Integration Methods (ADR-047)
+  // Consensus Integration (MM-001) - Domain-specific methods
   // ============================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
-  }
-
-  /**
-   * Check if topology is healthy
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  // ============================================================================
-  // Consensus Integration Methods (MM-001)
-  // ============================================================================
-
-  /**
-   * Check if consensus engine is available
-   */
-  isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
-  }
-
-  /**
-   * Get consensus statistics
-   * Per MM-001: Returns metrics about consensus verification
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
-  }
 
   /**
    * Verify a contract violation using multi-model consensus
-   * Per MM-001: High-stakes contract decisions require verification
-   *
-   * @param violation - The contract violation to verify
-   * @param confidence - Initial confidence in the violation detection
-   * @returns true if the violation is verified or doesn't require consensus
    */
   async verifyContractViolation(
     violation: { consumer: string; provider: string; endpoint: string; type: string },
@@ -1592,11 +1416,6 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
 
   /**
    * Verify a breaking change detection using multi-model consensus
-   * Per MM-001: Breaking changes have significant deployment impact
-   *
-   * @param change - The breaking change to verify
-   * @param confidence - Initial confidence in the detection
-   * @returns true if the change is verified or doesn't require consensus
    */
   async verifyBreakingChange(
     change: { path: string; type: string; affectedConsumers: string[]; description: string },
@@ -1626,11 +1445,6 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
 
   /**
    * Verify a schema incompatibility using multi-model consensus
-   * Per MM-001: Schema incompatibilities can cause integration failures
-   *
-   * @param incompatibility - The schema incompatibility to verify
-   * @param confidence - Initial confidence in the detection
-   * @returns true if the incompatibility is verified or doesn't require consensus
    */
   async verifySchemaIncompatibility(
     incompatibility: { schema: string; field: string; expected: string; actual: string },
@@ -1656,36 +1470,5 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       return false;
     }
     return true; // No consensus needed
-  }
-
-  // ============================================================================
-  // Topology Routing Methods (ADR-047)
-  // ============================================================================
-
-  /**
-   * Get weak vertices belonging to this domain
-   * Per ADR-047: Identifies agents that are single points of failure
-   */
-  getDomainWeakVertices() {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   * Per ADR-047: Returns true if any weak vertex belongs to contract-testing domain
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
-  /**
-   * Get topology-based routing excluding weak domains
-   * Per ADR-047: Filters out domains that are currently weak points
-   *
-   * @param targetDomains - List of potential target domains
-   * @returns Filtered list of healthy domains for routing
-   */
-  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
   }
 }

@@ -27,6 +27,7 @@ import {
 import { BaseModelProvider } from '../model-provider';
 import type { IPatternStore, PatternSearchResult } from '../../../learning/pattern-store';
 import type { Severity } from '../../../shared/types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -308,7 +309,7 @@ export class NativeLearningProvider extends BaseModelProvider {
           {
             limit: 1,
             minConfidence: this.config.minConfidence,
-            domain: 'security-compliance' as any,
+            domain: 'security-compliance',
           }
         );
 
@@ -404,10 +405,10 @@ export class NativeLearningProvider extends BaseModelProvider {
         agrees: false,
         assessment: 'inconclusive' as VoteAssessment,
         confidence: 0,
-        reasoning: `Fallback provider failed: ${error instanceof Error ? error.message : String(error)}`,
+        reasoning: `Fallback provider failed: ${toErrorMessage(error)}`,
         executionTime: Date.now() - startTime,
         votedAt: new Date(),
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }
@@ -465,18 +466,18 @@ export class NativeLearningProvider extends BaseModelProvider {
       try {
         await this.patternStore.store({
           id: patternKey,
-          domain: 'security-compliance' as any,
-          type: 'security-pattern' as any,
+          domain: 'security-compliance',
+          type: 'security-pattern',
           context: {
-            finding: finding as any,
-            vote: vote as any,
+            finding: finding as unknown as Record<string, unknown>,
+            vote: vote as unknown as Record<string, unknown>,
           },
           confidence: vote.confidence,
           metadata: {
             category: finding.category,
             findingType: finding.type,
           },
-        } as any);
+        } as unknown as Parameters<IPatternStore['store']>[0]);
       } catch (error) {
         if (this.config.enableLogging) {
           console.error('[NativeLearning] Failed to persist pattern:', error);

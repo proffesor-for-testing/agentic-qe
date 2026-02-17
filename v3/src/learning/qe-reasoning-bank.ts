@@ -15,9 +15,14 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../logging/index.js';
+import type { Logger } from '../logging/index.js';
 import type { MemoryBackend, EventBus } from '../kernel/interfaces.js';
+
+const logger: Logger = LoggerFactory.create('QEReasoningBank');
 import type { Result, DomainName } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
+import { toError, toErrorMessage } from '../shared/error-utils.js';
 import {
   QEPattern,
   QEPatternContext,
@@ -47,6 +52,10 @@ import {
   PatternSearchResult,
   createPatternStore,
 } from './pattern-store.js';
+import {
+  SQLitePatternStore,
+  createSQLitePatternStore,
+} from './sqlite-persistence.js';
 
 // ============================================================================
 // QEReasoningBank Configuration
@@ -267,6 +276,14 @@ export interface QEReasoningBankStats {
 
   /** Pattern store stats */
   patternStoreStats: import('./pattern-store.js').PatternStoreStats;
+
+  /** ADR-061: Asymmetric learning metrics (optional, available in RealQEReasoningBank) */
+  asymmetricLearning?: {
+    failurePenaltyRatio: string;
+    quarantinedPatterns: number;
+    rehabilitatedPatterns: number;
+    avgConfidenceDelta: number;
+  };
 }
 
 // ============================================================================
@@ -300,6 +317,23 @@ export class QEReasoningBank implements IQEReasoningBank {
   private readonly config: QEReasoningBankConfig;
   private patternStore: PatternStore;
   private initialized = false;
+  private sqliteStore: SQLitePatternStore | null = null;
+
+  /**
+   * Lazy getter for SQLitePatternStore — persists pattern usage/promotion
+   * to the qe_patterns table (same DB as UnifiedMemory).
+   */
+  private getSqliteStore(): SQLitePatternStore {
+    if (!this.sqliteStore) {
+      this.sqliteStore = createSQLitePatternStore();
+      // initialize() is sync-safe when useUnified=true (already open)
+      // but we call it defensively; it no-ops if already initialized
+      this.sqliteStore.initialize().catch((e) => {
+        logger.warn('SQLitePatternStore init failed', { error: toErrorMessage(e) });
+      });
+    }
+    return this.sqliteStore;
+  }
 
   // Statistics
   private stats = {
@@ -393,6 +427,15 @@ export class QEReasoningBank implements IQEReasoningBank {
 
     await this.patternStore.initialize();
 
+    // Wire SQLitePatternStore into PatternStore for delete/promote persistence
+    try {
+      const store = this.getSqliteStore();
+      await store.initialize();
+      this.patternStore.setSqliteStore(store);
+    } catch (e) {
+      logger.warn('Failed to wire SQLitePatternStore into PatternStore', { error: toErrorMessage(e) });
+    }
+
     // Load any pre-trained patterns
     await this.loadPretrainedPatterns();
 
@@ -411,13 +454,13 @@ export class QEReasoningBank implements IQEReasoningBank {
         await this.seedCrossDomainPatterns();
       } else {
         const stats = await this.patternStore.getStats();
-        console.log(`[QEReasoningBank] Cross-domain transfer already complete (${stats.totalPatterns} patterns)`);
+        logger.info('Cross-domain transfer already complete', { totalPatterns: stats.totalPatterns });
       }
     } catch (error) {
-      console.warn('[QEReasoningBank] Cross-domain seeding failed (non-fatal):', error);
+      logger.warn('Cross-domain seeding failed (non-fatal)', { error });
     }
 
-    console.log('[QEReasoningBank] Initialized');
+    logger.info('Initialized');
   }
 
   /**
@@ -427,7 +470,7 @@ export class QEReasoningBank implements IQEReasoningBank {
     // Check if we already have patterns
     const stats = await this.patternStore.getStats();
     if (stats.totalPatterns > 0) {
-      console.log(`[QEReasoningBank] Found ${stats.totalPatterns} existing patterns`);
+      logger.info('Found existing patterns', { totalPatterns: stats.totalPatterns });
       return;
     }
 
@@ -1157,11 +1200,11 @@ On promotion:
       try {
         await this.patternStore.create(options);
       } catch (error) {
-        console.warn(`[QEReasoningBank] Failed to load pattern ${options.name}:`, error);
+        logger.warn('Failed to load pattern', { name: options.name, error });
       }
     }
 
-    console.log(`[QEReasoningBank] Loaded ${foundationalPatterns.length} foundational patterns`);
+    logger.info('Loaded foundational patterns', { count: foundationalPatterns.length });
   }
 
   /**
@@ -1263,9 +1306,7 @@ On promotion:
       }
     }
 
-    console.log(
-      `[QEReasoningBank] Cross-domain transfer complete: ${transferred} transferred, ${skipped} skipped`
-    );
+    logger.info('Cross-domain transfer complete', { transferred, skipped });
 
     return { transferred, skipped };
   }
@@ -1357,22 +1398,18 @@ On promotion:
       outcome.success
     );
 
-    // Write to qe_pattern_usage table for analytics/feedback loop
+    // Persist usage to SQLite (updates qe_patterns row AND inserts qe_pattern_usage)
     try {
-      const { getUnifiedMemory } = await import('../kernel/unified-memory.js');
-      const db = getUnifiedMemory().getDatabase();
-      db.prepare(`
-        INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json, feedback)
-        VALUES (?, ?, ?, ?)
-      `).run(
+      const store = this.getSqliteStore();
+      store.recordUsage(
         outcome.patternId,
-        outcome.success ? 1 : 0,
-        outcome.metrics ? JSON.stringify(outcome.metrics) : null,
-        outcome.feedback || null
+        outcome.success,
+        outcome.metrics as Record<string, unknown> | undefined,
+        outcome.feedback
       );
-    } catch (analyticsError) {
-      // Non-critical — don't fail if analytics insert fails
-      console.warn(`[QEReasoningBank] Analytics write failed: ${analyticsError instanceof Error ? analyticsError.message : String(analyticsError)}`);
+    } catch (persistError) {
+      // Non-critical — don't fail if persistence fails
+      logger.warn('SQLite pattern usage persist failed', { error: toErrorMessage(persistError) });
     }
 
     if (result.success) {
@@ -1385,7 +1422,7 @@ On promotion:
       const pattern = await this.getPattern(outcome.patternId);
       if (pattern && await this.checkPatternPromotionWithCoherence(pattern)) {
         await this.promotePattern(outcome.patternId);
-        console.log(`[QEReasoningBank] Pattern promoted to long-term: ${pattern.name}`);
+        logger.info('Pattern promoted to long-term', { name: pattern.name });
       }
     }
 
@@ -1445,10 +1482,10 @@ On promotion:
           });
         }
 
-        console.log(
-          `[QEReasoningBank] Pattern promotion blocked due to coherence violation: ` +
-          `${pattern.name} (energy: ${coherenceResult.energy.toFixed(3)})`
-        );
+        logger.info('Pattern promotion blocked due to coherence violation', {
+          name: pattern.name,
+          energy: coherenceResult.energy,
+        });
 
         return false;
       }
@@ -1475,7 +1512,13 @@ On promotion:
   private async promotePattern(patternId: string): Promise<void> {
     const result = await this.patternStore.promote(patternId);
     if (result.success) {
-      console.log(`[QEReasoningBank] Promoted pattern ${patternId} to long-term`);
+      // Persist promotion to SQLite
+      try {
+        this.getSqliteStore().promotePattern(patternId);
+      } catch (e) {
+        logger.warn('SQLite pattern promotion persist failed', { error: toErrorMessage(e) });
+      }
+      logger.info('Promoted pattern to long-term', { patternId });
       if (this.eventBus) {
         await this.eventBus.publish({
           id: `pattern-promoted-${patternId}`,
@@ -1486,7 +1529,7 @@ On promotion:
         });
       }
     } else {
-      console.error(`[QEReasoningBank] Failed to promote pattern ${patternId}: ${result.error.message}`);
+      logger.error('Failed to promote pattern', result.error, { patternId });
     }
   }
 
@@ -1610,7 +1653,7 @@ On promotion:
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1659,10 +1702,9 @@ On promotion:
         // ARM64 ONNX compatibility issue or module not available
         // Fall through to hash-based embedding silently
         if (process.env.DEBUG) {
-          console.warn(
-            '[QEReasoningBank] ONNX embeddings unavailable, using hash fallback:',
-            error instanceof Error ? error.message : String(error)
-          );
+          logger.warn('ONNX embeddings unavailable, using hash fallback', {
+            error: toErrorMessage(error),
+          });
         }
       }
     }
@@ -1790,6 +1832,10 @@ On promotion:
    */
   async dispose(): Promise<void> {
     await this.patternStore.dispose();
+    if (this.sqliteStore) {
+      this.sqliteStore.close();
+      this.sqliteStore = null;
+    }
     this.initialized = false;
   }
 }

@@ -14,6 +14,7 @@ import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 import type { RLAlgorithmType } from '../interfaces.js';
 import { getUnifiedPersistence, type UnifiedPersistenceManager } from '../../../kernel/unified-persistence.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -125,7 +126,7 @@ export class QValueStore {
       console.log(`[QValueStore] Initialized: ${this.persistence.getDbPath()}`);
     } catch (error) {
       throw new Error(
-        `Failed to initialize QValueStore: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize QValueStore: ${toErrorMessage(error)}`
       );
     }
   }
@@ -316,7 +317,7 @@ export class QValueStore {
     if (!stmt) throw new Error('Statement not prepared');
 
     const alg = algorithm ?? this.config.defaultAlgorithm;
-    const rows = stmt.all(agentId, stateKey, alg, limit) as any[];
+    const rows = stmt.all(agentId, stateKey, alg, limit) as QValueRow[];
 
     return rows.map((row) => this.rowToEntry(row));
   }
@@ -338,14 +339,14 @@ export class QValueStore {
     if (!stmt) throw new Error('Statement not prepared');
 
     const alg = algorithm ?? this.config.defaultAlgorithm;
-    const rows = stmt.all(agentId, alg) as any[];
+    const rows = stmt.all(agentId, alg) as QValueRow[];
 
     const qTable = new Map<string, Map<string, number>>();
 
     for (const row of rows) {
-      const stateKey = row.state_key as string;
-      const actionKey = row.action_key as string;
-      const qValue = row.q_value as number;
+      const stateKey = row.state_key;
+      const actionKey = row.action_key;
+      const qValue = row.q_value;
 
       if (!qTable.has(stateKey)) {
         qTable.set(stateKey, new Map<string, number>());
@@ -416,9 +417,29 @@ export class QValueStore {
       throw new Error('Statements not prepared');
     }
 
-    const statsRow = statsStmt.get() as any;
-    const algRows = algStmt.all() as any[];
-    const domainRows = domainStmt.all() as any[];
+    interface QValueStatsRow {
+      total_entries: number;
+      unique_agents: number;
+      unique_states: number;
+      avg_visits: number | null;
+      avg_q_value: number | null;
+      oldest_entry: string | null;
+      newest_entry: string | null;
+    }
+
+    interface AlgorithmCountRow {
+      algorithm: string;
+      count: number;
+    }
+
+    interface DomainCountRow {
+      domain: string | null;
+      count: number;
+    }
+
+    const statsRow = statsStmt.get() as QValueStatsRow;
+    const algRows = algStmt.all() as AlgorithmCountRow[];
+    const domainRows = domainStmt.all() as DomainCountRow[];
 
     const byAlgorithm: Record<string, number> = {};
     for (const row of algRows) {
@@ -474,7 +495,7 @@ export class QValueStore {
     if (!stmt) throw new Error('Statement not prepared');
 
     const alg = algorithm ?? this.config.defaultAlgorithm;
-    const row = stmt.get(agentId, stateKey, actionKey, alg) as any;
+    const row = stmt.get(agentId, stateKey, actionKey, alg) as QValueRow | undefined;
 
     return row ? this.rowToEntry(row) : null;
   }

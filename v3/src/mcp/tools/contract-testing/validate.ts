@@ -11,10 +11,11 @@
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base.js';
 import { ToolResult } from '../../types.js';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
-import { safeJsonParse } from '../../../cli/helpers/safe-json.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 import { Version } from '../../../shared/value-objects/index.js';
 import { ContractValidatorService } from '../../../domains/contract-testing/services/contract-validator.js';
 import { ApiCompatibilityService } from '../../../domains/contract-testing/services/api-compatibility.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import {
   ApiContract,
   SchemaDefinition,
@@ -356,7 +357,7 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
     } catch (error) {
       return {
         success: false,
-        error: `Contract validation failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Contract validation failed: ${toErrorMessage(error)}`,
       };
     }
   }
@@ -600,7 +601,7 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
         // Network error or other issue
         warnings.push({
           endpoint: `${endpoint.method} ${endpoint.path}`,
-          message: `Failed to verify: ${error instanceof Error ? error.message : String(error)}`,
+          message: `Failed to verify: ${toErrorMessage(error)}`,
           severity: 'high',
         });
       }

@@ -55,6 +55,37 @@ export abstract class BaseTestGenerator implements ITestGenerator {
   // ============================================================================
 
   /**
+   * Name-based value generators. Each entry is [nameSubstring, generatorFn].
+   * Checked in order; first match wins.
+   */
+  private static readonly NAME_VALUE_TABLE: ReadonlyArray<[string, () => string]> = [
+    ['id', () => `'${faker.string.uuid()}'`],
+    ['email', () => `'${faker.internet.email()}'`],
+    ['name', () => `'${faker.person.fullName()}'`],
+    ['url', () => `'${faker.internet.url()}'`],
+    ['date', () => `new Date('${faker.date.recent().toISOString()}')`],
+    ['phone', () => `'${faker.phone.number()}'`],
+    ['address', () => `'${faker.location.streetAddress()}'`],
+  ];
+
+  /**
+   * Type-based value generators. Each entry is [typeSubstring, generatorFn].
+   * Checked in order; first match wins.
+   */
+  private static readonly TYPE_VALUE_TABLE: ReadonlyArray<[string, () => string]> = [
+    ['string', () => `'${faker.lorem.word()}'`],
+    ['number', () => String(faker.number.int({ min: 1, max: 100 }))],
+    ['boolean', () => 'true'],
+    ['[]', () => '[]'],
+    ['array', () => '[]'],
+    ['object', () => '{}'],
+    ['{', () => '{}'],
+    ['function', () => '() => {}'],
+    ['promise', () => 'Promise.resolve()'],
+    ['date', () => 'new Date()'],
+  ];
+
+  /**
    * Generate a test value for a parameter based on its type and name
    * Uses @faker-js/faker for realistic test data
    *
@@ -70,23 +101,14 @@ export abstract class BaseTestGenerator implements ITestGenerator {
     const name = param.name.toLowerCase();
 
     // Infer from param name first (more specific)
-    if (name.includes('id')) return `'${faker.string.uuid()}'`;
-    if (name.includes('email')) return `'${faker.internet.email()}'`;
-    if (name.includes('name')) return `'${faker.person.fullName()}'`;
-    if (name.includes('url')) return `'${faker.internet.url()}'`;
-    if (name.includes('date')) return `new Date('${faker.date.recent().toISOString()}')`;
-    if (name.includes('phone')) return `'${faker.phone.number()}'`;
-    if (name.includes('address')) return `'${faker.location.streetAddress()}'`;
+    for (const [nameKey, generator] of BaseTestGenerator.NAME_VALUE_TABLE) {
+      if (name.includes(nameKey)) return generator();
+    }
 
     // Then by type
-    if (type.includes('string')) return `'${faker.lorem.word()}'`;
-    if (type.includes('number')) return String(faker.number.int({ min: 1, max: 100 }));
-    if (type.includes('boolean')) return 'true';
-    if (type.includes('[]') || type.includes('array')) return '[]';
-    if (type.includes('object') || type.includes('{')) return '{}';
-    if (type.includes('function')) return '() => {}';
-    if (type.includes('promise')) return 'Promise.resolve()';
-    if (type.includes('date')) return 'new Date()';
+    for (const [typeKey, generator] of BaseTestGenerator.TYPE_VALUE_TABLE) {
+      if (type.includes(typeKey)) return generator();
+    }
 
     // Default: generate a mock variable name
     return `mock${param.name.charAt(0).toUpperCase() + param.name.slice(1)}`;

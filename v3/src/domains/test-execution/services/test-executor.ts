@@ -17,6 +17,8 @@ import {
 import { MemoryBackend } from '../../../kernel/interfaces';
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { TEST_EXECUTION_CONSTANTS, LLM_ANALYSIS_CONSTANTS } from '../../constants.js';
+import { toErrorMessage, toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Configuration
@@ -164,7 +166,7 @@ export class TestExecutorService implements ITestExecutionService {
 
       return ok(runResult);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -230,7 +232,7 @@ export class TestExecutorService implements ITestExecutionService {
 
       return ok(runResult);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -569,7 +571,7 @@ Provide:
       }
     } catch (error) {
       return err(new Error(
-        `Failed to parse test output for ${file}: ${error instanceof Error ? error.message : String(error)}\n` +
+        `Failed to parse test output for ${file}: ${toErrorMessage(error)}\n` +
         `stdout: ${stdout.slice(0, 500)}\nstderr: ${stderr.slice(0, 500)}`
       ));
     }
@@ -589,7 +591,7 @@ Provide:
 
     if (jsonMatch) {
       try {
-        const json = JSON.parse(jsonMatch[0]);
+        const json = safeJsonParse(jsonMatch[0]);
         const testResults = json.testResults || [];
 
         let passed = 0;
@@ -646,7 +648,7 @@ Provide:
   ): Result<TestExecutionResult, Error> {
     try {
       // Jest outputs JSON to stdout when --json flag is used
-      const json = JSON.parse(stdout);
+      const json = safeJsonParse(stdout);
 
       let passed = 0;
       let failed = 0;
@@ -696,7 +698,7 @@ Provide:
     exitCode: number | null
   ): Result<TestExecutionResult, Error> {
     try {
-      const json = JSON.parse(stdout);
+      const json = safeJsonParse(stdout);
 
       const passed = json.stats?.passes || 0;
       const failed = json.stats?.failures || 0;

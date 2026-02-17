@@ -14,6 +14,7 @@ import type {
   TaskResult,
   TaskMetrics,
 } from './quality-gate-enforcer.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 import {
   QualityGateEnforcer,
   DEFAULT_QUALITY_GATE_CONFIG,
@@ -402,7 +403,7 @@ export class TaskCompletedHook {
         stored++;
       } catch (error) {
         console.error(
-          `[TaskCompletedHook] Failed to store pattern: ${error instanceof Error ? error.message : String(error)}`
+          `[TaskCompletedHook] Failed to store pattern: ${toErrorMessage(error)}`
         );
       }
     }
@@ -465,7 +466,7 @@ export class TaskCompletedHook {
         handler(taskId, action);
       } catch (error) {
         console.error(
-          `[TaskCompletedHook] Completion handler error: ${error instanceof Error ? error.message : String(error)}`
+          `[TaskCompletedHook] Completion handler error: ${toErrorMessage(error)}`
         );
       }
     }

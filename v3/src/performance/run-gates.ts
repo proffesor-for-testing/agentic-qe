@@ -22,6 +22,7 @@
 
 import { createBenchmarkSuite } from './benchmarks.js';
 import { CIPerformanceGates } from './ci-gates.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Configuration
@@ -114,7 +115,7 @@ async function main(): Promise<void> {
   } catch (error) {
     console.error('');
     console.error('❌ FATAL ERROR running benchmarks:');
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(toErrorMessage(error));
     if (error instanceof Error && error.stack) {
       console.error(error.stack);
     }

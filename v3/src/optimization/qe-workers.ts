@@ -21,6 +21,7 @@ import type {
 } from '../workers/interfaces.js';
 import type { DreamCycleResult } from '../learning/dream/dream-engine.js';
 import type { DreamInsight } from '../learning/dream/insight-generator.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Worker Configurations
@@ -402,7 +403,7 @@ export class DreamConsolidatorWorker extends BaseWorker {
         recommendations
       );
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+      const errorMsg = toErrorMessage(error);
 
       // Handle expected errors gracefully
       if (errorMsg.includes('Insufficient concepts')) {

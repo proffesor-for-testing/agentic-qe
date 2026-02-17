@@ -16,6 +16,7 @@ import {
   createQEReasoningBank,
   QERoutingRequest,
 } from '../../learning/qe-reasoning-bank.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 import {
   QEHookRegistry,
   QE_HOOK_EVENTS,
@@ -740,7 +741,7 @@ Examples:
 
         let data: Record<string, unknown>;
         try {
-          data = JSON.parse(options.data);
+          data = safeJsonParse<Record<string, unknown>>(options.data);
         } catch {
           throw new Error(`Invalid JSON data: ${options.data}`);
         }

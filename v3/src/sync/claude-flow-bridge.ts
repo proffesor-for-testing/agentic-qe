@@ -19,6 +19,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import secureJsonParse from 'secure-json-parse';
 import { findProjectRoot } from '../kernel/unified-memory.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 /**
  * Memory entry from Claude Flow store.json
@@ -288,7 +289,7 @@ export async function syncClaudeFlowToAQE(options: SyncOptions = {}): Promise<Sy
       db.close();
     }
   } catch (error) {
-    result.errors.push(`Sync failed: ${error instanceof Error ? error.message : String(error)}`);
+    result.errors.push(`Sync failed: ${toErrorMessage(error)}`);
   }
 
   result.duration = Date.now() - startTime;

@@ -24,6 +24,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName } from '../../shared/types/index.js';
 import { MemoryBackend } from '../../kernel/interfaces.js';
 import type { WorkflowOrchestrator, WorkflowContext } from '../../../src/coordination/workflow-orchestrator.js';
+import { toErrorMessage, toError } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -383,7 +384,7 @@ export class QCSDIdeationPlugin {
         },
       });
     } catch (error) {
-      return err(new Error(`Website extraction failed: ${error instanceof Error ? error.message : String(error)}`));
+      return err(new Error(`Website extraction failed: ${toErrorMessage(error)}`));
     }
   }
 
@@ -408,7 +409,7 @@ export class QCSDIdeationPlugin {
       const html = await response.text();
       return ok(html);
     } catch (error) {
-      return err(new Error(`Fetch failed: ${error instanceof Error ? error.message : String(error)}`));
+      return err(new Error(`Fetch failed: ${toErrorMessage(error)}`));
     }
   }
 
@@ -642,7 +643,7 @@ export class QCSDIdeationPlugin {
 
       return ok({ qualityCriteria: criteria, qualityScore });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -687,7 +688,7 @@ export class QCSDIdeationPlugin {
 
       return ok(assessment);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -735,7 +736,7 @@ export class QCSDIdeationPlugin {
 
       return ok(assessment);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -792,7 +793,7 @@ export class QCSDIdeationPlugin {
 
       return ok({ valid, issues, suggestions });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -835,7 +836,7 @@ export class QCSDIdeationPlugin {
 
       return ok(model);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -929,7 +930,7 @@ export class QCSDIdeationPlugin {
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -983,7 +984,7 @@ export class QCSDIdeationPlugin {
 
       return ok({ stored: true, patternId });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1571,7 +1572,7 @@ export class QCSDIdeationPlugin {
 
       return ok({ wcagLevel, violations, recommendations });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1653,7 +1654,7 @@ export class QCSDIdeationPlugin {
 
       return ok({ journeys, frictionPoints, recommendations });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

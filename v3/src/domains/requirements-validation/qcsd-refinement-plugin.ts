@@ -22,6 +22,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName } from '../../shared/types/index.js';
 import { MemoryBackend } from '../../kernel/interfaces.js';
 import type { WorkflowOrchestrator, WorkflowContext } from '../../../src/coordination/workflow-orchestrator.js';
+import { toError } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -311,7 +312,7 @@ export class QCSDRefinementPlugin {
 
       return ok(assessment);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -379,7 +380,7 @@ export class QCSDRefinementPlugin {
 
       return ok(scenarioSet);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -485,7 +486,7 @@ export class QCSDRefinementPlugin {
 
       return ok({ valid, investScore, completeness, gaps, suggestions });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -589,7 +590,7 @@ export class QCSDRefinementPlugin {
 
       return ok({ couplingScore, circularDeps, metrics, recommendations });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -670,7 +671,7 @@ export class QCSDRefinementPlugin {
 
       return ok({ valid, breakingChanges, recommendations });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -797,7 +798,7 @@ export class QCSDRefinementPlugin {
 
       return ok({ blastRadius, affectedServices, testSelection: uniqueTestSelection });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -869,7 +870,7 @@ export class QCSDRefinementPlugin {
 
       return ok({ original: uniqueIdeas, rewritten, transformCount });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -994,7 +995,7 @@ export class QCSDRefinementPlugin {
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1022,7 +1023,7 @@ export class QCSDRefinementPlugin {
 
       return this.persistLearningPattern(targetId, report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1083,7 +1084,7 @@ export class QCSDRefinementPlugin {
 
       return ok({ tacticalSignals, qualitySignals, insights });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

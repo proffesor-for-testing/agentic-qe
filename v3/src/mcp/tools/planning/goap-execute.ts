@@ -15,6 +15,7 @@ import {
   MCPToolSchema,
 } from '../base.js';
 import { ToolResult } from '../../types.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import {
   GOAPPlanner,
   getSharedGOAPPlanner,
@@ -238,7 +239,7 @@ export class GOAPExecuteTool extends MCPToolBase<GOAPExecuteParams, GOAPExecuteR
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }

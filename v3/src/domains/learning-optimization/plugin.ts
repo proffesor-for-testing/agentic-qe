@@ -36,6 +36,7 @@ import {
   LearningCoordinatorConfig,
   LearningWorkflowStatus,
 } from './coordinator.js';
+import { toError } from '../../shared/error-utils.js';
 import {
   LearningCoordinatorService,
   LearningCoordinatorConfig as ServiceConfig,
@@ -852,7 +853,7 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
   }
 
   private handleError<T>(error: unknown): Result<T, Error> {
-    const errorObj = error instanceof Error ? error : new Error(String(error));
+    const errorObj = toError(error);
 
     // Track error
     const currentHealth = this.getHealth();

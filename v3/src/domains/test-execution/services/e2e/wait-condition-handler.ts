@@ -7,7 +7,7 @@
  * @module test-execution/services/e2e/wait-condition-handler
  */
 
-import type { VibiumClient } from '../../../../integrations/vibium';
+import type { VibiumClient } from '@integrations/vibium';
 import type { E2EStepResult, WaitStep, WaitConditionType } from '../../types';
 import { StepTimeoutError } from './types';
 import { BrowserOrchestrator } from './browser-orchestrator';

@@ -11,6 +11,11 @@
 
 import type { CloudWriter, UpsertOptions, CloudConfig } from '../interfaces.js';
 import type { TunnelManager } from './tunnel-manager.js';
+import { validateIdentifier } from '../../shared/sql-safety.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('postgres-writer');
 
 // Note: pg module is optional - will use mock if not available
 
@@ -92,8 +97,9 @@ export class PostgresWriter implements CloudWriter {
       } else {
         throw new Error('pg Client not found');
       }
-    } catch {
+    } catch (e) {
       // pg module not available - use mock mode
+      logger.debug('pg module not available, using mock mode', { error: e instanceof Error ? e.message : String(e) });
       console.warn('[PostgresWriter] pg module not available, running in mock mode');
       this.client = this.createMockClient();
       this.connected = true;
@@ -194,19 +200,25 @@ export class PostgresWriter implements CloudWriter {
       valuePlaceholders.push(`(${recordValues.join(', ')})`);
     }
 
+    // Validate all identifiers before interpolating into SQL
+    const safeTable = validateIdentifier(table);
+    const safeColumns = columns.map(validateIdentifier);
+    const safeConflictColumns = conflictColumns.map(validateIdentifier);
+    const safeUpdateColumns = updateColumns.map(validateIdentifier);
+
     // Build ON CONFLICT clause
     let conflictClause = '';
-    if (conflictColumns.length > 0) {
+    if (safeConflictColumns.length > 0) {
       if (skipIfExists) {
-        conflictClause = `ON CONFLICT (${conflictColumns.join(', ')}) DO NOTHING`;
-      } else if (updateColumns.length > 0) {
-        const updateSet = updateColumns.map(col => `${col} = EXCLUDED.${col}`).join(', ');
-        conflictClause = `ON CONFLICT (${conflictColumns.join(', ')}) DO UPDATE SET ${updateSet}`;
+        conflictClause = `ON CONFLICT (${safeConflictColumns.join(', ')}) DO NOTHING`;
+      } else if (safeUpdateColumns.length > 0) {
+        const updateSet = safeUpdateColumns.map(col => `${col} = EXCLUDED.${col}`).join(', ');
+        conflictClause = `ON CONFLICT (${safeConflictColumns.join(', ')}) DO UPDATE SET ${updateSet}`;
       }
     }
 
     const sql = `
-      INSERT INTO ${table} (${columns.join(', ')})
+      INSERT INTO ${safeTable} (${safeColumns.join(', ')})
       VALUES ${valuePlaceholders.join(', ')}
       ${conflictClause}
     `;
@@ -215,7 +227,7 @@ export class PostgresWriter implements CloudWriter {
       const result = await this.client.query(sql, params);
       return result.rowCount || 0;
     } catch (error) {
-      console.error(`[PostgresWriter] Upsert failed: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(`[PostgresWriter] Upsert failed: ${toErrorMessage(error)}`);
       throw error;
     }
   }
@@ -273,8 +285,9 @@ export class PostgresWriter implements CloudWriter {
         if (floats.length > 0 && floats.length <= 1024) {
           return `[${Array.from(floats).join(',')}]`;
         }
-      } catch {
+      } catch (e) {
         // Not a valid float array
+        logger.debug('Buffer to float array conversion failed', { error: e instanceof Error ? e.message : String(e) });
       }
       return null;  // Skip invalid embeddings
     }

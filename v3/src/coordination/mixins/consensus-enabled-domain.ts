@@ -28,6 +28,7 @@ import {
   isHighStakesFinding,
 } from '../consensus/domain-findings';
 import { Result, ok, err, Severity } from '../../shared/types';
+import { toError } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Configuration Interface
@@ -84,6 +85,25 @@ export const DEFAULT_CONSENSUS_ENABLED_CONFIG: ConsensusEnabledConfig = {
  * Interface for consensus-enabled domain coordinators
  */
 export interface IConsensusEnabledDomain {
+  /**
+   * Initialize the consensus engine
+   *
+   * Call this in the domain coordinator's initialize() method.
+   */
+  initializeConsensus(): Promise<void>;
+
+  /**
+   * Dispose the consensus engine
+   *
+   * Call this in the domain coordinator's dispose() method.
+   */
+  disposeConsensus(): Promise<void>;
+
+  /**
+   * Check if consensus engine is available
+   */
+  isConsensusAvailable(): boolean;
+
   /**
    * Verify a single finding using multi-model consensus
    *
@@ -249,7 +269,7 @@ export class ConsensusEnabledMixin implements IConsensusEnabledDomain {
    *
    * @throws Error if consensus initialization fails
    */
-  protected async initializeConsensus(): Promise<void> {
+  async initializeConsensus(): Promise<void> {
     if (!this.consensusConfig.enableConsensus) {
       if (this.consensusConfig.enableLogging) {
         console.log('[ConsensusEnabledMixin] Consensus verification disabled');
@@ -302,7 +322,7 @@ export class ConsensusEnabledMixin implements IConsensusEnabledDomain {
    *
    * Call this in the domain coordinator's dispose() method.
    */
-  protected async disposeConsensus(): Promise<void> {
+  async disposeConsensus(): Promise<void> {
     if (this.consensusEngine) {
       await this.consensusEngine.dispose();
       this.consensusEngine = undefined;
@@ -354,7 +374,7 @@ export class ConsensusEnabledMixin implements IConsensusEnabledDomain {
 
       return result;
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -429,7 +449,7 @@ export class ConsensusEnabledMixin implements IConsensusEnabledDomain {
 
       return result;
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -447,7 +467,7 @@ export class ConsensusEnabledMixin implements IConsensusEnabledDomain {
   /**
    * Check if consensus engine is available
    */
-  protected isConsensusAvailable(): boolean {
+  isConsensusAvailable(): boolean {
     return this.consensusInitialized && this.consensusEngine !== undefined;
   }
 
@@ -587,7 +607,7 @@ export function withConsensusEnabled<TBase extends Constructor>(
       };
     }
 
-    protected async initializeConsensus(): Promise<void> {
+    async initializeConsensus(): Promise<void> {
       if (!this.consensusConfig.enableConsensus) {
         return;
       }
@@ -612,12 +632,16 @@ export function withConsensusEnabled<TBase extends Constructor>(
       this.consensusInitialized = true;
     }
 
-    protected async disposeConsensus(): Promise<void> {
+    async disposeConsensus(): Promise<void> {
       if (this.consensusEngine) {
         await this.consensusEngine.dispose();
         this.consensusEngine = undefined;
         this.consensusInitialized = false;
       }
+    }
+
+    isConsensusAvailable(): boolean {
+      return this.consensusInitialized && this.consensusEngine !== undefined;
     }
 
     async verifyFinding<T>(

@@ -8,6 +8,7 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext } from '../base';
 import { ToolResult } from '../../types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import {
   createONNXEmbeddingsAdapter,
   ONNXEmbeddingsAdapter,
@@ -241,7 +242,7 @@ export class EmbeddingGenerateTool extends MCPToolBase<
     } catch (error) {
       return {
         success: false,
-        error: `Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Embedding generation failed: ${toErrorMessage(error)}`,
       };
     }
   }
@@ -319,7 +320,7 @@ export class EmbeddingCompareTool extends MCPToolBase<
     } catch (error) {
       return {
         success: false,
-        error: `Similarity comparison failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Similarity comparison failed: ${toErrorMessage(error)}`,
       };
     }
   }
@@ -403,7 +404,7 @@ export class EmbeddingSearchTool extends MCPToolBase<
     } catch (error) {
       return {
         success: false,
-        error: `Search failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Search failed: ${toErrorMessage(error)}`,
       };
     }
   }
@@ -477,7 +478,7 @@ export class EmbeddingStoreTool extends MCPToolBase<
     } catch (error) {
       return {
         success: false,
-        error: `Store failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Store failed: ${toErrorMessage(error)}`,
       };
     }
   }
@@ -534,7 +535,7 @@ export class EmbeddingStatsTool extends MCPToolBase<
     } catch (error) {
       return {
         success: false,
-        error: `Stats failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Stats failed: ${toErrorMessage(error)}`,
       };
     }
   }

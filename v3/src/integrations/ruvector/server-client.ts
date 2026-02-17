@@ -60,6 +60,10 @@
 import { spawn, type ChildProcess } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
 import type { QESONAPattern } from './sona-wrapper.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('ruvector-server-client');
 
 // ============================================================================
 // Configuration Types
@@ -321,7 +325,7 @@ export class RuVectorServerClient {
         this.pollForHealth(timeout, resolve, reject);
       } catch (err) {
         clearTimeout(timeout);
-        reject(new Error(`Failed to spawn ruvector server: ${err instanceof Error ? err.message : String(err)}`));
+        reject(new Error(`Failed to spawn ruvector server: ${toErrorMessage(err)}`));
       }
     });
   }
@@ -343,8 +347,9 @@ export class RuVectorServerClient {
           this.isRunning = true;
           resolve();
         }
-      } catch {
+      } catch (e) {
         // Continue polling
+        logger.debug('Server health check poll failed, retrying', { error: e instanceof Error ? e.message : String(e) });
       }
     }, 500);
 
@@ -399,7 +404,16 @@ export class RuVectorServerClient {
       const responseTimeMs = Date.now() - startTime;
 
       if (response.ok) {
-        // TODO: Parse actual health response when API is available
+        // Parse health response for feature detection
+        let features: string[] = [];
+        try {
+          const body = await response.json() as Record<string, unknown>;
+          if (Array.isArray(body.features)) {
+            features = body.features as string[];
+          }
+        } catch {
+          // Response may not have JSON body - no features detected
+        }
         this.lastHealthCheck = {
           healthy: true,
           status: 'running',
@@ -407,7 +421,7 @@ export class RuVectorServerClient {
           grpcEndpoint: `localhost:${this.config.grpcPort}`,
           lastChecked: new Date(),
           responseTimeMs,
-          features: ['vector-store', 'similarity-search'],
+          features,
         };
       } else {
         this.lastHealthCheck = {
@@ -447,12 +461,10 @@ export class RuVectorServerClient {
    * @returns true if vector operations (store/search/delete) are supported
    */
   supportsVectorOperations(): boolean {
-    // TODO: When server API becomes available, check health response for features
-    // return this.lastHealthCheck?.features?.includes('vector-store') ?? false;
-
-    // Currently the server REST API is "Coming Soon"
-    // See: npx ruvector server --info
-    return false;
+    if (!this.isRunning) {
+      return false;
+    }
+    return this.lastHealthCheck?.features?.includes('vector-store') ?? false;
   }
 
   /**
@@ -892,7 +904,7 @@ export async function createRuVectorServerClient(
       // Log warning but don't fail - server is optional
       console.warn(
         '[RuVectorServerClient] Failed to start server:',
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
       console.warn(
         '[RuVectorServerClient] Server operations will not be available. ' +

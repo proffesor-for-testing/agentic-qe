@@ -6,7 +6,7 @@
  * Tests regression detection across test, performance, and coverage metrics
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { RegressionMonitorWorker } from '../../../../src/workers/workers/regression-monitor';
 import { WorkerContext } from '../../../../src/workers/interfaces';
 
@@ -64,6 +64,10 @@ describe('RegressionMonitorWorker', () => {
 
   beforeEach(() => {
     worker = new RegressionMonitorWorker();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('instantiation', () => {

@@ -37,6 +37,11 @@ import {
 import type { RLState, RLAction, DomainName } from '../rl-suite/interfaces.js';
 import { getUnifiedPersistence, type UnifiedPersistenceManager } from '../../kernel/unified-persistence.js';
 import type { RuVectorServerClient } from './server-client.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const logger = LoggerFactory.create('sona-persistence');
 
 // ============================================================================
 // Schema (added to unified-memory.ts as part of migration)
@@ -230,7 +235,7 @@ export class PersistentSONAEngine {
     } catch (error) {
       this.initPromise = null;
       throw new Error(
-        `Failed to initialize PersistentSONAEngine: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize PersistentSONAEngine: ${toErrorMessage(error)}`
       );
     }
   }
@@ -968,7 +973,7 @@ export class PersistentSONAEngine {
       // Log but don't throw - graceful degradation
       console.warn(
         '[PersistentSONAEngine] Cross-process pattern search failed:',
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
       return [];
     }
@@ -988,7 +993,7 @@ export class PersistentSONAEngine {
       if (process.env.RUVECTOR_DEBUG === 'true') {
         console.warn(
           '[PersistentSONAEngine] Pattern sharing failed:',
-          error instanceof Error ? error.message : String(error)
+          toErrorMessage(error)
         );
       }
     });
@@ -1123,9 +1128,10 @@ export class PersistentSONAEngine {
     let actionValue: number | string | object = row.action_value ?? '';
     if (row.action_value) {
       try {
-        actionValue = JSON.parse(row.action_value) as number | string | object;
-      } catch {
+        actionValue = safeJsonParse(row.action_value) as number | string | object;
+      } catch (e) {
         // Keep as string
+        logger.debug('SONA action value parse failed', { patternId: row.id, error: e instanceof Error ? e.message : String(e) });
         actionValue = row.action_value;
       }
     }
@@ -1148,7 +1154,7 @@ export class PersistentSONAEngine {
       usageCount: row.usage_count,
       createdAt: new Date(row.created_at),
       lastUsedAt: row.last_used_at ? new Date(row.last_used_at) : undefined,
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      metadata: row.metadata ? safeJsonParse(row.metadata) : undefined,
     };
   }
 

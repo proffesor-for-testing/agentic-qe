@@ -34,6 +34,7 @@ import {
   CoverageVectorMetadata,
   createHNSWIndex,
 } from './hnsw-index';
+import { toError } from '../../../shared/error-utils.js';
 import {
   CoverageEmbedder,
   ICoverageEmbedder,
@@ -351,7 +352,7 @@ export class SublinearCoverageAnalyzer implements ISublinearCoverageAnalyzer {
         estimatedEffort,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -391,7 +392,7 @@ export class SublinearCoverageAnalyzer implements ISublinearCoverageAnalyzer {
         searchTime,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -423,7 +424,7 @@ export class SublinearCoverageAnalyzer implements ISublinearCoverageAnalyzer {
 
       return ok(zones);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

@@ -5,6 +5,7 @@
  * Falls back to estimation-based analysis when RuVector is unavailable.
  */
 
+import { toErrorMessage } from '../../shared/error-utils.js';
 import type {
   ASTComplexityAnalyzer,
   FileComplexityResult,
@@ -65,7 +66,7 @@ export class RuVectorASTComplexityAnalyzer implements ASTComplexityAnalyzer {
       if (!this.db.isInitialized()) await this.db.initialize();
       await this.loadFromKv();
     } catch (error) {
-      console.warn('[RuVectorASTComplexityAnalyzer] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[RuVectorASTComplexityAnalyzer] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
   }
@@ -90,7 +91,7 @@ export class RuVectorASTComplexityAnalyzer implements ASTComplexityAnalyzer {
       const snapshot = Object.fromEntries(entries);
       this.db.kvSet('cache', snapshot, RuVectorASTComplexityAnalyzer.NAMESPACE, RuVectorASTComplexityAnalyzer.TTL_SECONDS).catch(() => {});
     } catch (error) {
-      console.warn('[RuVectorASTComplexityAnalyzer] Persist failed:', error instanceof Error ? error.message : String(error));
+      console.warn('[RuVectorASTComplexityAnalyzer] Persist failed:', toErrorMessage(error));
     }
   }
 

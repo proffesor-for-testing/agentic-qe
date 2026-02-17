@@ -29,6 +29,7 @@ import {
 } from '../interfaces';
 import { CostTracker } from '../cost-tracker';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
+import { toError } from '../../error-utils.js';
 
 // ============================================================================
 // Bedrock-Specific Types
@@ -527,7 +528,7 @@ export class BedrockProvider implements LLMProvider {
 
         return response;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         if (attempt < maxRetries - 1) {
           const delay = Math.min(1000 * Math.pow(2, attempt), 30000);

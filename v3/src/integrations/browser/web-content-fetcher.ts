@@ -20,6 +20,8 @@ import * as path from 'path';
 import { createBrowserClient, isVibiumAvailable, isAgentBrowserAvailable } from './client-factory';
 import type { IBrowserClient } from './types';
 import { BrowserError } from './types';
+import { toErrorMessage } from '../../shared/error-utils.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 const execAsync = promisify(exec);
 
@@ -198,7 +200,7 @@ export class WebContentFetcher {
           return result;
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = toErrorMessage(error);
         result.tierErrors[tier] = errorMessage;
         console.log(`[WebContentFetcher] ${tier} failed: ${errorMessage}`);
       }
@@ -506,7 +508,7 @@ const DISMISS_COOKIES = ${options.dismissCookieBanners};
         timeout: options.timeout! + 30000,
       });
 
-      const result = JSON.parse(stdout.trim());
+      const result = safeJsonParse(stdout.trim());
 
       if (!result.success) {
         throw new Error(result.error || 'Playwright fetch failed');

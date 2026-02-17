@@ -13,6 +13,7 @@ import type { Database as DatabaseType, Statement } from 'better-sqlite3';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../../../kernel/unified-memory.js';
 import type { QEDomain } from '../../../learning/qe-patterns.js';
 import { CircularBuffer } from '../../../shared/utils/circular-buffer.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -394,7 +395,7 @@ export class TrajectoryTracker {
     const stmt = this.prepared.get('getRecentTrajectories');
     if (!stmt) return;
 
-    const rows = stmt.all(this.config.recentBufferSize) as any[];
+    const rows = stmt.all(this.config.recentBufferSize) as TrajectoryRow[];
 
     for (const row of rows) {
       const trajectory = await this.rowToTrajectory(row);
@@ -627,7 +628,7 @@ export class TrajectoryTracker {
     const stmt = this.prepared.get('getTrajectory');
     if (!stmt) return null;
 
-    const row = stmt.get(id) as any;
+    const row = stmt.get(id) as TrajectoryRow | undefined;
     if (!row) return null;
 
     return this.rowToTrajectory(row);
@@ -645,7 +646,7 @@ export class TrajectoryTracker {
     const stmt = this.prepared.get('getTrajectoryByDomain');
     if (!stmt) return [];
 
-    const rows = stmt.all(domain, limit) as any[];
+    const rows = stmt.all(domain, limit) as TrajectoryRow[];
     const trajectories: Trajectory[] = [];
 
     for (const row of rows) {
@@ -817,26 +818,26 @@ export class TrajectoryTracker {
         action: s.action,
         result: {
           outcome: s.outcome as TrajectoryStepResult['outcome'],
-          data: s.result_data ? JSON.parse(s.result_data) : undefined,
+          data: s.result_data ? safeJsonParse(s.result_data) : undefined,
           error: s.error_message ?? undefined,
-          metrics: s.metrics_json ? JSON.parse(s.metrics_json) : undefined,
+          metrics: s.metrics_json ? safeJsonParse(s.metrics_json) : undefined,
         },
         quality: s.quality,
         durationMs: s.duration_ms,
         timestamp: new Date(s.timestamp),
-        context: s.context_json ? JSON.parse(s.context_json) : undefined,
+        context: s.context_json ? safeJsonParse(s.context_json) : undefined,
         tokensUsed: s.tokens_used ?? undefined,
       }));
     } else if (row.steps_json) {
       // Fallback to JSON blob
       try {
-        steps = JSON.parse(row.steps_json);
+        steps = safeJsonParse(row.steps_json);
       } catch {
         steps = [];
       }
     }
 
-    const metadata = row.metadata_json ? JSON.parse(row.metadata_json) : {};
+    const metadata = row.metadata_json ? safeJsonParse(row.metadata_json) : {};
     const metrics = metadata.metrics ?? this.calculateMetrics(steps);
 
     return {
@@ -851,7 +852,7 @@ export class TrajectoryTracker {
       endedAt: row.ended_at ? new Date(row.ended_at) : undefined,
       feedback: row.feedback ?? undefined,
       embedding: row.embedding ? this.bufferToFloatArray(row.embedding) : undefined,
-      relatedPatternIds: row.related_patterns ? JSON.parse(row.related_patterns) : undefined,
+      relatedPatternIds: row.related_patterns ? safeJsonParse(row.related_patterns) : undefined,
     };
   }
 

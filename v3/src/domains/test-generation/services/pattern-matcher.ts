@@ -14,6 +14,7 @@ import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import { Pattern, LearnPatternsRequest, LearnedPatterns } from '../interfaces';
 import { NomicEmbedder, IEmbeddingProvider, EMBEDDING_CONFIG } from '../../../shared/embeddings';
+import { toError } from '../../../shared/error-utils.js';
 
 /**
  * Interface for the pattern matching service
@@ -161,7 +162,7 @@ export class PatternMatcherService implements IPatternMatchingService {
 
       return this.matchTestablePatternsFromCode(content, filePath);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -196,7 +197,7 @@ export class PatternMatcherService implements IPatternMatchingService {
 
       return ok(patterns);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -415,6 +416,26 @@ export class PatternMatcherService implements IPatternMatchingService {
   }
 
   /**
+   * Lookup table for type-based mock value generation.
+   * Each entry is [typeSubstring, mockValue].
+   * Order matters: first match wins.
+   */
+  private static readonly MOCK_VALUE_TABLE: ReadonlyArray<[string, string]> = [
+    ['string', "'test-{{name}}'"],
+    ['number', '42'],
+    ['boolean', 'true'],
+    ['[]', '[]'],
+    ['array', '[]'],
+    ['object', '{}'],
+    ['{', '{}'],
+    ['function', '() => {}'],
+    ['promise', 'Promise.resolve()'],
+    ['date', 'new Date()'],
+    ['null', 'null'],
+    ['undefined', 'undefined'],
+  ];
+
+  /**
    * Generate a mock value for a parameter based on its type
    */
   private generateMockValue(param: ParameterInfo): string {
@@ -424,16 +445,11 @@ export class PatternMatcherService implements IPatternMatchingService {
 
     const type = param.type?.toLowerCase() || 'unknown';
 
-    if (type.includes('string')) return `'test-${param.name}'`;
-    if (type.includes('number')) return '42';
-    if (type.includes('boolean')) return 'true';
-    if (type.includes('[]') || type.includes('array')) return '[]';
-    if (type.includes('object') || type.includes('{')) return '{}';
-    if (type.includes('function')) return '() => {}';
-    if (type.includes('promise')) return 'Promise.resolve()';
-    if (type.includes('date')) return 'new Date()';
-    if (type.includes('null')) return 'null';
-    if (type.includes('undefined')) return 'undefined';
+    for (const [typeKey, template] of PatternMatcherService.MOCK_VALUE_TABLE) {
+      if (type.includes(typeKey)) {
+        return template.replace('{{name}}', param.name);
+      }
+    }
 
     return `mock${param.name.charAt(0).toUpperCase() + param.name.slice(1)}`;
   }
@@ -487,7 +503,7 @@ export class PatternMatcherService implements IPatternMatchingService {
 
       return ok(filteredMatches);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -546,7 +562,7 @@ export class PatternMatcherService implements IPatternMatchingService {
         confidence,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -591,7 +607,7 @@ export class PatternMatcherService implements IPatternMatchingService {
 
       return ok(pattern);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -628,7 +644,7 @@ export class PatternMatcherService implements IPatternMatchingService {
         confidence,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -850,24 +866,23 @@ export class PatternMatcherService implements IPatternMatchingService {
     return identifiers;
   }
 
+  /**
+   * Control flow patterns that each contribute +1 to cyclomatic complexity
+   */
+  private static readonly COMPLEXITY_PATTERNS: ReadonlyArray<RegExp> = [
+    /if\s*\(/g,
+    /else\s*{/g,
+    /for\s*\(/g,
+    /while\s*\(/g,
+    /switch\s*\(/g,
+    /\?\s*:/g, // ternary
+  ];
+
   private estimateComplexity(code: string): number {
-    // Simple complexity estimation based on control flow statements
-    const controlFlowPatterns = [
-      /if\s*\(/g,
-      /else\s*{/g,
-      /for\s*\(/g,
-      /while\s*\(/g,
-      /switch\s*\(/g,
-      /\?\s*:/g, // ternary
-    ];
-
-    let complexity = 1;
-    for (const pattern of controlFlowPatterns) {
-      const matches = code.match(pattern);
-      complexity += matches ? matches.length : 0;
-    }
-
-    return complexity;
+    return PatternMatcherService.COMPLEXITY_PATTERNS.reduce(
+      (complexity, pattern) => complexity + (code.match(pattern)?.length ?? 0),
+      1
+    );
   }
 
   private extractPlaceholders(structure: string): string[] {

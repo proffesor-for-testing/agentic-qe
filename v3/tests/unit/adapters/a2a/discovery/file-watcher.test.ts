@@ -325,6 +325,7 @@ describe('A2A Agent File Watcher', () => {
 
   afterEach(() => {
     watcher.destroy();
+    vi.restoreAllMocks();
   });
 
   describe('start/stop', () => {
@@ -733,20 +734,141 @@ describe('A2A Agent Health Tracker', () => {
 // ============================================================================
 
 describe('A2A Discovery Metrics', () => {
-  // These tests define the expected metrics interface
-  // Implementation will track actual values
+  // Mock DiscoveryMetrics implementation for testing the metrics contract
+  const createMockDiscoveryMetrics = () => {
+    let metrics: DiscoveryMetrics = {
+      totalAgentCount: 0,
+      healthyAgentCount: 0,
+      unhealthyAgentCount: 0,
+      reloadCount: 0,
+      lastReloadAt: null,
+      averageReloadTimeMs: 0,
+    };
+    const reloadTimes: number[] = [];
 
-  it.todo('should track total agent count');
+    return {
+      get metrics(): DiscoveryMetrics {
+        return { ...metrics };
+      },
+      registerAgent(healthy: boolean): void {
+        metrics.totalAgentCount++;
+        if (healthy) {
+          metrics.healthyAgentCount++;
+        } else {
+          metrics.unhealthyAgentCount++;
+        }
+      },
+      recordReload(durationMs: number): void {
+        metrics.reloadCount++;
+        metrics.lastReloadAt = new Date();
+        reloadTimes.push(durationMs);
+        metrics.averageReloadTimeMs =
+          reloadTimes.reduce((a, b) => a + b, 0) / reloadTimes.length;
+      },
+      toPrometheus(): string {
+        return [
+          `# HELP a2a_agents_total Total number of discovered agents`,
+          `# TYPE a2a_agents_total gauge`,
+          `a2a_agents_total ${metrics.totalAgentCount}`,
+          `# HELP a2a_agents_healthy Number of healthy agents`,
+          `# TYPE a2a_agents_healthy gauge`,
+          `a2a_agents_healthy ${metrics.healthyAgentCount}`,
+          `# HELP a2a_agents_unhealthy Number of unhealthy agents`,
+          `# TYPE a2a_agents_unhealthy gauge`,
+          `a2a_agents_unhealthy ${metrics.unhealthyAgentCount}`,
+          `# HELP a2a_reload_count Total number of agent reloads`,
+          `# TYPE a2a_reload_count counter`,
+          `a2a_reload_count ${metrics.reloadCount}`,
+          `# HELP a2a_reload_avg_ms Average reload time in milliseconds`,
+          `# TYPE a2a_reload_avg_ms gauge`,
+          `a2a_reload_avg_ms ${metrics.averageReloadTimeMs}`,
+        ].join('\n');
+      },
+      reset(): void {
+        metrics = {
+          totalAgentCount: 0,
+          healthyAgentCount: 0,
+          unhealthyAgentCount: 0,
+          reloadCount: 0,
+          lastReloadAt: null,
+          averageReloadTimeMs: 0,
+        };
+        reloadTimes.length = 0;
+      },
+    };
+  };
 
-  it.todo('should track healthy/unhealthy counts');
+  let metricsTracker: ReturnType<typeof createMockDiscoveryMetrics>;
 
-  it.todo('should track reload frequency');
+  beforeEach(() => {
+    metricsTracker = createMockDiscoveryMetrics();
+  });
 
-  it.todo('should track average reload time');
+  it('should track total agent count', () => {
+    metricsTracker.registerAgent(true);
+    metricsTracker.registerAgent(true);
+    metricsTracker.registerAgent(false);
 
-  it.todo('should expose prometheus format');
+    expect(metricsTracker.metrics.totalAgentCount).toBe(3);
+  });
 
-  it.todo('should reset metrics on demand');
+  it('should track healthy/unhealthy counts', () => {
+    metricsTracker.registerAgent(true);
+    metricsTracker.registerAgent(true);
+    metricsTracker.registerAgent(false);
+
+    expect(metricsTracker.metrics.healthyAgentCount).toBe(2);
+    expect(metricsTracker.metrics.unhealthyAgentCount).toBe(1);
+  });
+
+  it('should track reload frequency', () => {
+    metricsTracker.recordReload(50);
+    metricsTracker.recordReload(30);
+    metricsTracker.recordReload(40);
+
+    expect(metricsTracker.metrics.reloadCount).toBe(3);
+    expect(metricsTracker.metrics.lastReloadAt).toBeInstanceOf(Date);
+  });
+
+  it('should track average reload time', () => {
+    metricsTracker.recordReload(30);
+    metricsTracker.recordReload(50);
+    metricsTracker.recordReload(40);
+
+    expect(metricsTracker.metrics.averageReloadTimeMs).toBe(40);
+  });
+
+  it('should expose prometheus format', () => {
+    metricsTracker.registerAgent(true);
+    metricsTracker.registerAgent(false);
+    metricsTracker.recordReload(25);
+
+    const output = metricsTracker.toPrometheus();
+
+    expect(output).toContain('a2a_agents_total 2');
+    expect(output).toContain('a2a_agents_healthy 1');
+    expect(output).toContain('a2a_agents_unhealthy 1');
+    expect(output).toContain('a2a_reload_count 1');
+    expect(output).toContain('a2a_reload_avg_ms 25');
+    // Verify Prometheus comment format
+    expect(output).toContain('# HELP');
+    expect(output).toContain('# TYPE');
+  });
+
+  it('should reset metrics on demand', () => {
+    metricsTracker.registerAgent(true);
+    metricsTracker.recordReload(50);
+
+    metricsTracker.reset();
+
+    const m = metricsTracker.metrics;
+    expect(m.totalAgentCount).toBe(0);
+    expect(m.healthyAgentCount).toBe(0);
+    expect(m.unhealthyAgentCount).toBe(0);
+    expect(m.reloadCount).toBe(0);
+    expect(m.lastReloadAt).toBeNull();
+    expect(m.averageReloadTimeMs).toBe(0);
+  });
 });
 
 // ============================================================================

@@ -26,6 +26,7 @@ import { SwarmGraph, createSwarmGraph } from './swarm-graph';
 import { MinCutCalculator, createMinCutCalculator } from './mincut-calculator';
 import { MinCutHealthMonitor } from './mincut-health-monitor';
 import { MinCutPersistence } from './mincut-persistence';
+import { toErrorMessage } from '../../shared/error-utils.js';
 import {
   SwarmObservation,
   SelfModelPrediction,
@@ -539,6 +540,16 @@ export class StrangeLoopController {
         this.results.shift();
       }
 
+      // ADR-047: Persist healing action
+      if (result.success) {
+        await this.persistence.recordHealingAction({
+          ...result,
+          triggeredBy: 'strange-loop-cycle',
+        }).catch(e =>
+          console.warn('[StrangeLoopController] Failed to persist healing action:', e)
+        );
+      }
+
       // Persist observation
       await this.persistence.recordObservation({
         iteration: this.iteration,
@@ -554,7 +565,7 @@ export class StrangeLoopController {
       return result;
     } catch (error) {
       await this.emitEvent('mincut.healing.failed', 0, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       });
       return null;
     }
@@ -670,7 +681,7 @@ export class StrangeLoopController {
         minCutBefore,
         minCutAfter: minCutBefore,
         improvement: 0,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         durationMs: Date.now() - startTime,
       };
     }

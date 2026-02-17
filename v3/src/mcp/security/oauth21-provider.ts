@@ -171,6 +171,23 @@ export interface OAuth21ProviderConfig {
 }
 
 // ============================================================================
+// OAuth Provider Error
+// ============================================================================
+
+/**
+ * Error class that carries an OAuthError payload for structured error responses
+ */
+export class OAuthProviderError extends Error {
+  readonly oauthError: OAuthError;
+
+  constructor(message: string, oauthError: OAuthError) {
+    super(message);
+    this.name = 'OAuthProviderError';
+    this.oauthError = oauthError;
+  }
+}
+
+// ============================================================================
 // OAuth 2.1 Provider Implementation
 // ============================================================================
 
@@ -744,14 +761,12 @@ export class OAuth21Provider {
     }
   }
 
-  private createError(error: OAuthErrorCode, description?: string): Error {
+  private createError(error: OAuthErrorCode, description?: string): OAuthProviderError {
     const oauthError: OAuthError = {
       error,
       errorDescription: description,
     };
-    const err = new Error(description || error);
-    (err as any).oauthError = oauthError;
-    return err;
+    return new OAuthProviderError(description || error, oauthError);
   }
 
   private startCleanup(): void {

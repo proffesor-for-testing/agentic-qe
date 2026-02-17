@@ -20,6 +20,8 @@
 import { existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
+import { safeJsonParse } from '../../shared/safe-json.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 import {
   detectClaudeFlow as smartDetectClaudeFlow,
   getClaudeFlowNotFoundMessage,
@@ -182,7 +184,7 @@ function updateMCPConfig(projectRoot: string): void {
   let settings: Record<string, unknown> = {};
   if (existsSync(claudeSettingsPath)) {
     try {
-      settings = JSON.parse(readFileSync(claudeSettingsPath, 'utf-8'));
+      settings = safeJsonParse<Record<string, unknown>>(readFileSync(claudeSettingsPath, 'utf-8'));
     } catch {
       // Start fresh
     }
@@ -225,7 +227,7 @@ async function runPretrainAnalysis(projectRoot: string, debug?: boolean): Promis
     if (debug) console.log('[ClaudeFlow] Pretrain analysis complete');
   } catch (error) {
     if (debug) {
-      console.log('[ClaudeFlow] Pretrain analysis skipped:', error instanceof Error ? error.message : String(error));
+      console.log('[ClaudeFlow] Pretrain analysis skipped:', toErrorMessage(error));
     }
     // Non-critical, continue
   }
@@ -296,7 +298,7 @@ export async function setupClaudeFlowIntegration(
       available: detection.available,
       version: detection.version,
       features,
-      error: `Failed to write config: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Failed to write config: ${toErrorMessage(error)}`,
     };
   }
 
@@ -305,7 +307,7 @@ export async function setupClaudeFlowIntegration(
     updateMCPConfig(projectRoot);
   } catch (error) {
     if (debug) {
-      console.log('[ClaudeFlow] MCP config update failed:', error instanceof Error ? error.message : String(error));
+      console.log('[ClaudeFlow] MCP config update failed:', toErrorMessage(error));
     }
     // Non-critical, continue
   }
@@ -345,7 +347,7 @@ export function getClaudeFlowConfig(projectRoot: string): object | null {
   }
 
   try {
-    return JSON.parse(readFileSync(configPath, 'utf-8'));
+    return safeJsonParse(readFileSync(configPath, 'utf-8'));
   } catch {
     return null;
   }

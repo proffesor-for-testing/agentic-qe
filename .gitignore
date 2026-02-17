@@ -115,9 +115,7 @@ memory/agents/*
 coordination/memory_bank/*
 coordination/subtasks/*
 coordination/orchestration/*
-*.db
-*.db-journal
-*.db-wal
+*.db*
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
@@ -222,3 +220,4 @@ v3/docs/reports/
 
 v3/.agentic-qe-REMOVED/
 :memory:
+.agentic-qe/.claude/memory/

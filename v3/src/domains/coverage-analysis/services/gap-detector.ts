@@ -6,6 +6,7 @@
  */
 
 import { Result, ok, err, Severity } from '../../../shared/types';
+import { toError } from '../../../shared/error-utils.js';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import {
   GapDetectionRequest,
@@ -16,6 +17,7 @@ import {
 
 // ADR-051: LLM Router for AI-enhanced gap analysis
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Service Interface
@@ -231,7 +233,7 @@ Return JSON in this exact format:
       return err(new Error('Empty response from LLM'));
     } catch (error) {
       console.warn('[GapDetector] LLM analysis failed:', error);
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -272,7 +274,7 @@ Return JSON in this exact format:
       // Try to extract JSON from response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = safeJsonParse(jsonMatch[0]);
         return {
           prioritizedGaps: parsed.prioritizedGaps || [],
           suggestedTests: parsed.suggestedTests || [],
@@ -370,7 +372,7 @@ Return JSON in this exact format:
         estimatedEffort,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -460,7 +462,7 @@ Return JSON in this exact format:
 
       return ok(suggestions);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

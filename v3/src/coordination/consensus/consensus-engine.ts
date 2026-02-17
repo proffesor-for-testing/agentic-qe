@@ -27,6 +27,7 @@ import {
   ModelProviderRegistry,
 } from './model-provider';
 import { Result, ok, err, Severity } from '../../shared/types';
+import { toErrorMessage, toError } from '../../shared/error-utils.js';
 import {
   ConsensusStrategyType,
   MajorityStrategy,
@@ -161,7 +162,7 @@ export class ConsensusEngineImpl implements ConsensusEngine {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -198,7 +199,7 @@ export class ConsensusEngineImpl implements ConsensusEngine {
 
       return ok(successResults);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -405,7 +406,7 @@ export class ConsensusEngineImpl implements ConsensusEngine {
           reasoning: 'Model query failed',
           executionTime: 0,
           votedAt: new Date(),
-          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          error: toErrorMessage(result.reason),
         };
       }
     });
@@ -474,7 +475,7 @@ export class ConsensusEngineImpl implements ConsensusEngine {
         reasoning: 'Query failed',
         executionTime: Date.now() - startTime,
         votedAt: new Date(),
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }
@@ -642,6 +643,6 @@ export function setConsensusStrategy(
     humanReviewThreshold: engine.getConfig().humanReviewThreshold,
   });
 
-  // Update strategy via reflection (accessing private field)
-  (engine as any).strategy = strategy;
+  // Update strategy via indexed access (accessing private field)
+  engine['strategy'] = strategy;
 }

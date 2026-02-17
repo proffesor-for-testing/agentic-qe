@@ -6,7 +6,7 @@
  * contradictory beliefs detected by the CoherenceService.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   BeliefReconciler,
   createBeliefReconciler,
@@ -118,6 +118,10 @@ describe('BeliefReconciler', () => {
 
     beforeEach(() => {
       reconciler = createBeliefReconciler({ defaultStrategy: 'latest' });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
     });
 
     it('should get current strategy', () => {

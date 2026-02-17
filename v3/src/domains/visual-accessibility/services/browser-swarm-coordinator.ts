@@ -29,6 +29,7 @@ import {
   Screenshot,
   AccessibilityReport,
 } from '../interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import {
   createBrowserClient,
   getBrowserClientForUseCase,
@@ -326,7 +327,7 @@ export class BrowserSwarmCoordinator {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -373,7 +374,7 @@ export class BrowserSwarmCoordinator {
           } catch (error) {
             results.set(
               session.id,
-              err(error instanceof Error ? error : new Error(String(error)))
+              err(toError(error))
             );
           }
         }
@@ -391,7 +392,7 @@ export class BrowserSwarmCoordinator {
           } catch (error) {
             results.set(
               session.id,
-              err(error instanceof Error ? error : new Error(String(error)))
+              err(toError(error))
             );
           }
         });
@@ -485,7 +486,7 @@ export class BrowserSwarmCoordinator {
 
       return ok(swarmResult);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -563,7 +564,7 @@ export class BrowserSwarmCoordinator {
 
       return ok(swarmResult);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -632,7 +633,7 @@ export class BrowserSwarmCoordinator {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     } finally {
       this.shuttingDown = false;
     }
@@ -680,7 +681,7 @@ export class BrowserSwarmCoordinator {
 
       return ok(session);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

@@ -18,6 +18,7 @@ import {
   buildVerificationPrompt,
 } from '../model-provider';
 import { CONSENSUS_CONSTANTS } from '../../constants.js';
+import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -256,7 +257,7 @@ export class OpenAIModelProvider extends BaseModelProvider {
 
         return response.choices[0].message.content;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         // Don't retry on certain errors
         if (this.isNonRetryableError(error)) {
@@ -341,7 +342,7 @@ export class OpenAIModelProvider extends BaseModelProvider {
     } catch (error) {
       return {
         healthy: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         availableModels: this.supportedModels,
       };
     }

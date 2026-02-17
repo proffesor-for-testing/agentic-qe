@@ -8,6 +8,7 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -168,7 +169,7 @@ export class RequirementsValidateTool extends MCPToolBase<RequirementsValidatePa
     } catch (error) {
       return {
         success: false,
-        error: `Validation failed: ${error instanceof Error ? error.message : String(error)}`,
+        error: `Validation failed: ${toErrorMessage(error)}`,
       };
     }
   }

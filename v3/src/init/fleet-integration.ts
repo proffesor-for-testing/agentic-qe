@@ -10,6 +10,7 @@ import { InitOrchestrator, InitOrchestratorOptions } from './init-wizard.js';
 import chalk from 'chalk';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -205,7 +206,7 @@ export class FleetInitEnhancer {
       console.log(chalk.yellow('  ⚠ Code intelligence scan completed with warnings'));
       return { success: false, entries: 0 };
     } catch (error) {
-      console.error(chalk.red('  ✗ Code intelligence scan failed:'), error instanceof Error ? error.message : String(error));
+      console.error(chalk.red('  ✗ Code intelligence scan failed:'), toErrorMessage(error));
       return { success: false, entries: 0 };
     }
   }

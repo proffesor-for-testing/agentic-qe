@@ -38,6 +38,7 @@ import {
   IQualityAnalyzerService,
   QualityAnalyzerConfig,
 } from './services/quality-analyzer';
+import { toError } from '../../shared/error-utils.js';
 import {
   DeploymentAdvisorService,
   IDeploymentAdvisorService,
@@ -523,7 +524,7 @@ export class QualityAssessmentPlugin extends BaseDomainPlugin {
   }
 
   private handleError<T>(error: unknown): Result<T, Error> {
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = toError(error);
 
     // Track error
     const currentHealth = this.getHealth();

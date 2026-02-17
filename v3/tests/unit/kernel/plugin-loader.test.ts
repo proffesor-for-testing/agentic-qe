@@ -288,20 +288,10 @@ describe('DefaultPluginLoader', () => {
   // ===========================================================================
 
   describe('Topological Sort', () => {
-    it.skip('should detect circular dependencies', async () => {
-      // Create plugins with circular dependency
-      // Note: The topological sort only runs when dependencies are already loaded
-      // or during loadAll. The actual circular detection happens during loadPlugin
-      // when it tries to load dependencies.
-
-      // For now, we verify that the topological sort handles independent plugins
-      // Circular dependency detection happens at the factory level when
-      // dependencies are being resolved.
-
-      // Skip this test - circular dependency detection in the current implementation
-      // is handled via the loading map preventing infinite recursion, not via
-      // explicit circular detection in topologicalSort
-    });
+    // SKIP: Circular dependency detection is handled via the loading map preventing
+    // infinite recursion at the factory level, not via explicit detection in
+    // topologicalSort. This test is not applicable to the current architecture.
+    it.skip('should detect circular dependencies', () => {});
 
     it('should handle plugins with no dependencies', async () => {
       const plugin1 = createTestPlugin('test-generation');

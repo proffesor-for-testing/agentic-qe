@@ -4,6 +4,7 @@
  */
 
 import { Result, ok, err } from '../types';
+import { toError } from '../error-utils.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -312,7 +313,7 @@ export class HttpClient {
 
         return ok(response);
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         // Record failure for circuit breaker
         if (useCircuitBreaker) {

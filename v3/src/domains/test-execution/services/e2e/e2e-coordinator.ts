@@ -8,11 +8,11 @@
  * @module test-execution/services/e2e/e2e-coordinator
  */
 
-import type { VibiumClient, ScreenshotResult, AccessibilityResult } from '../../../../integrations/vibium';
-import type { IBrowserClient } from '../../../../integrations/browser';
+import type { VibiumClient, ScreenshotResult, AccessibilityResult } from '@integrations/vibium';
+import type { IBrowserClient } from '@integrations/browser';
 import {
   getBrowserClientForUseCase,
-} from '../../../../integrations/browser';
+} from '@integrations/browser';
 import type {
   E2EStep,
   E2EStepResult,
@@ -32,6 +32,7 @@ import { BrowserOrchestrator, createBrowserOrchestrator } from './browser-orches
 import { StepExecutors, createStepExecutors } from './step-executors';
 import { StepRetryHandler, createStepRetryHandler } from './step-retry-handler';
 import { ResultCollector, createResultCollector } from './result-collector';
+import { toErrorMessage } from '@shared/error-utils.js';
 
 // ============================================================================
 // E2E Test Runner Service Implementation
@@ -247,7 +248,7 @@ export class E2ETestRunnerService implements IE2ETestRunnerService {
         accessibilityResults
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       return this.resultCollector.createErrorResult(testCase, startedAt, errorMessage, stepResults);
     }
   }

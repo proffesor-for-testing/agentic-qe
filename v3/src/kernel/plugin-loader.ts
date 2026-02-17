@@ -5,6 +5,9 @@
 
 import { DomainName } from '../shared/types';
 import { DomainPlugin, PluginLoader, EventBus, MemoryBackend } from './interfaces';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('plugin-loader');
 
 type PluginFactory = (eventBus: EventBus, memory: MemoryBackend) => Promise<DomainPlugin>;
 
@@ -177,8 +180,9 @@ export class DefaultPluginLoader implements PluginLoader {
     for (const domain of loaded) {
       try {
         await this.unload(domain);
-      } catch {
+      } catch (e) {
         // Force remove on error
+        logger.debug('Plugin unload failed, force removing', { domain, error: e instanceof Error ? e.message : String(e) });
         this.plugins.delete(domain);
       }
     }

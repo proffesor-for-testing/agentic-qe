@@ -6,6 +6,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import {
   IBDDGenerationService,
   Requirement,
@@ -100,7 +101,7 @@ export class BDDScenarioWriterService implements IBDDGenerationService {
 
       return ok(limitedScenarios);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -127,7 +128,7 @@ export class BDDScenarioWriterService implements IBDDGenerationService {
 
       return ok(scenariosWithExamples);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -306,7 +307,7 @@ export class BDDScenarioWriterService implements IBDDGenerationService {
 
       return ok(scenarios);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

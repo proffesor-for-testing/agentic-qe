@@ -13,6 +13,7 @@ import type {
   RLExperience,
 } from '../../../integrations/rl-suite/interfaces';
 import { DecisionTransformerAlgorithm } from '../../../integrations/rl-suite/algorithms/decision-transformer';
+import { toError } from '../../../shared/error-utils.js';
 import {
   createTestPrioritizationState,
   mapToFeatures,
@@ -217,7 +218,7 @@ export class TestPrioritizerService {
         learningStatus,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

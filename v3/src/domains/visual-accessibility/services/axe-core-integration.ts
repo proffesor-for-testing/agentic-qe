@@ -21,6 +21,7 @@ import type {
   IncompleteCheck,
 } from '../interfaces.js';
 import type { VibiumClient } from '../../../integrations/vibium/index.js';
+import { toError } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // axe-core Type Definitions
@@ -514,7 +515,7 @@ export async function injectAxeCore(
   } catch (error) {
     return err(new AxeCoreInjectionError(
       'Failed to inject axe-core',
-      error instanceof Error ? error : new Error(String(error))
+      toError(error)
     ));
   }
 }
@@ -591,7 +592,7 @@ export async function runAxeAudit(
   } catch (error) {
     return err(new AxeCoreAuditError(
       'Failed to run axe-core audit',
-      error instanceof Error ? error : new Error(String(error))
+      toError(error)
     ));
   }
 }
@@ -760,7 +761,7 @@ export async function runCompleteAxeAudit(
 
     return ok(report);
   } catch (error) {
-    return err(error instanceof Error ? error : new Error(String(error)));
+    return err(toError(error));
   }
 }
 
@@ -799,7 +800,7 @@ async function executeInBrowser(
       return err(new Error(errorMessage));
     }
   } catch (error) {
-    return err(error instanceof Error ? error : new Error(String(error)));
+    return err(toError(error));
   }
 }
 

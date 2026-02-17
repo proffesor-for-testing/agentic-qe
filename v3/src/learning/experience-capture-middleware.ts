@@ -15,6 +15,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import type { QEDomain } from './qe-patterns.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -538,7 +539,7 @@ export function wrapWithExperienceCapture<TParams, TResult>(
         expId,
         false,
         undefined,
-        error instanceof Error ? error.message : String(error)
+        toErrorMessage(error)
       );
 
       throw error;

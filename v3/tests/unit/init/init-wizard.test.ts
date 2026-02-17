@@ -3,7 +3,7 @@
  * ADR-025: Enhanced Init with Self-Configuration
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   InitOrchestrator,
   createInitOrchestrator,
@@ -72,6 +72,10 @@ describe('InitOrchestrator', () => {
     // Reset write mocks - they should succeed by default
     mockMkdirSync.mockReturnValue(undefined);
     mockWriteFileSync.mockReturnValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('createInitOrchestrator', () => {

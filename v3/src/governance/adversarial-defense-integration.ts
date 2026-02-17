@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 /**
  * Adversarial Defense Integration for Agentic QE Fleet
  *
@@ -403,7 +405,7 @@ export class AdversarialDefenseIntegration {
       sanitizedInput,
       recommendations,
       timestamp: Date.now(),
-      assessmentId: `assess-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      assessmentId: `assess-${randomUUID()}`,
     };
 
     // Update statistics

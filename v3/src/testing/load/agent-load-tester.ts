@@ -18,6 +18,7 @@ import {
   LoadTestReport,
   MetricsCollectorConfig,
 } from './metrics-collector.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 import {
   BottleneckAnalyzer,
   createBottleneckAnalyzer,
@@ -376,7 +377,7 @@ export class AgentLoadTester {
         bottlenecks: this.analyzer.analyze(this.metrics),
         config: this.config,
         duration: Date.now() - startTime,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     } finally {
       await this.cleanup();

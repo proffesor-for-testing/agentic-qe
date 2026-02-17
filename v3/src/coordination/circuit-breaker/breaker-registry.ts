@@ -17,6 +17,7 @@ import type {
   DomainCriticalityConfig,
 } from './types.js';
 
+import { toErrorMessage } from '../../shared/error-utils.js';
 import {
   DomainCircuitBreaker,
   DEFAULT_DOMAIN_BREAKER_CONFIG,
@@ -369,7 +370,7 @@ export class DomainBreakerRegistry {
       } catch (err) {
         console.log(
           `[DomainBreakerRegistry] Global handler error: ` +
-          `${err instanceof Error ? err.message : String(err)}`
+          `${toErrorMessage(err)}`
         );
       }
     }
@@ -427,7 +428,7 @@ export class DomainBreakerRegistry {
           } catch (err) {
             console.log(
               `[DomainBreakerRegistry] Cascade event handler error: ` +
-              `${err instanceof Error ? err.message : String(err)}`
+              `${toErrorMessage(err)}`
             );
           }
         }

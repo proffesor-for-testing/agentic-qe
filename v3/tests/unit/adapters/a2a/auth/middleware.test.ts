@@ -6,7 +6,7 @@
  * @module tests/unit/adapters/a2a/auth/middleware
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Types for middleware (implementation will be created by other agents)
 interface Request {
@@ -296,6 +296,10 @@ describe('JWT Authentication Middleware', () => {
       issuer: 'https://qe.example.com',
       audience: 'https://api.example.com',
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ==========================================================================

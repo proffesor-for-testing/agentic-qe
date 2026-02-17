@@ -23,6 +23,7 @@ import {
   type InitResult,
 } from '../../init/index.js';
 import { setupClaudeFlowIntegration, type ClaudeFlowSetupResult } from './claude-flow-setup.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Init Command
@@ -137,7 +138,7 @@ async function runInit(options: InitOptions): Promise<void> {
     result = await orchestrator.initialize();
   } catch (error) {
     console.error(chalk.red('\n  ✗ Initialization failed:'));
-    console.error(chalk.gray(`    ${error instanceof Error ? error.message : String(error)}`));
+    console.error(chalk.gray(`    ${toErrorMessage(error)}`));
     process.exit(1);
   }
 

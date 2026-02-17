@@ -12,6 +12,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import type {
   AccessibilityReport,
   AccessibilityViolation,
@@ -625,7 +626,7 @@ export class EUComplianceService {
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

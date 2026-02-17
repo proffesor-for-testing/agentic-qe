@@ -20,6 +20,7 @@ import type {
   VerificationResult,
   VerificationOptions,
 } from '../interfaces';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 const execAsync = promisify(exec);
 
@@ -480,7 +481,7 @@ export class TestBasedVerifier {
   private async getCoverageData(): Promise<CoverageData> {
     const reportPath = join(this.config.rootDir, this.config.coverageReportPath);
     const content = await readFile(reportPath, 'utf-8');
-    const data = JSON.parse(content);
+    const data = safeJsonParse(content);
 
     // Handle common coverage report formats
     const total = data.total || data;

@@ -9,6 +9,7 @@
 import { mkdir, access, readdir, stat, unlink } from 'fs/promises';
 import { join, dirname } from 'path';
 import type { AgentBrowserClient } from '../../../integrations/browser/agent-browser/client';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -415,7 +416,7 @@ export class AuthStateManager {
     try {
       const { readFile } = await import('fs/promises');
       const content = await readFile(metaPath, 'utf-8');
-      const parsed = JSON.parse(content);
+      const parsed = safeJsonParse(content);
 
       const metadata: AuthStateMetadata = {
         ...parsed,

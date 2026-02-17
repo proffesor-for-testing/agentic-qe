@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 /**
  * Compliance Reporter for Governance Audits
  *
@@ -25,6 +27,7 @@ import {
   type ProofEnvelope,
 } from './proof-envelope-integration.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -347,7 +350,7 @@ export class ComplianceReporter {
       if (!this.db.isInitialized()) await this.db.initialize();
       await this.loadFromKv();
     } catch (error) {
-      console.warn('[ComplianceReporter] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[ComplianceReporter] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
 
@@ -1000,7 +1003,7 @@ export class ComplianceReporter {
       };
       this.db.kvSet('snapshot', snapshot, ComplianceReporter.NAMESPACE, ComplianceReporter.TTL_SECONDS).catch(() => {});
     } catch (error) {
-      console.warn('[ComplianceReporter] Persist failed:', error instanceof Error ? error.message : String(error));
+      console.warn('[ComplianceReporter] Persist failed:', toErrorMessage(error));
     }
   }
 
@@ -1012,18 +1015,14 @@ export class ComplianceReporter {
    * Generate a unique violation ID
    */
   private generateViolationId(): string {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substring(2, 10);
-    return `viol_${timestamp}_${random}`;
+    return `viol_${randomUUID()}`;
   }
 
   /**
    * Generate a unique alert ID
    */
   private generateAlertId(): string {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substring(2, 6);
-    return `alert_${timestamp}_${random}`;
+    return `alert_${randomUUID()}`;
   }
 
   /**

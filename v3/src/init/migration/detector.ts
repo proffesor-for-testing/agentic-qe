@@ -6,6 +6,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { createRequire } from 'module';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 const require = createRequire(import.meta.url);
 
@@ -117,7 +118,7 @@ export class V2Detector {
         db.close();
 
         if (row) {
-          return JSON.parse(row.value) as string;
+          return safeJsonParse<string>(row.value);
         }
         return undefined;
       } catch {

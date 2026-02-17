@@ -8,6 +8,7 @@
 
 // Re-export cosineSimilarity from shared utility for backward compatibility
 export { cosineSimilarity } from '../shared/utils/vector-math.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 /**
  * Type for the @xenova/transformers pipeline function
@@ -102,7 +103,7 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
       console.log(`[RealEmbeddings] Model loaded in ${loadTime.toFixed(0)}ms`);
     } catch (error) {
       initializationFailed = true;
-      failureReason = error instanceof Error ? error.message : String(error);
+      failureReason = toErrorMessage(error);
       throw new Error(`Failed to initialize transformer model: ${failureReason}`);
     }
   })();

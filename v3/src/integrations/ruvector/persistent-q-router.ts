@@ -36,6 +36,41 @@ import type {
 import { RuVectorQLearningRouter, type QLearningParams, createQLearningRouterSync } from './q-learning-router';
 import { QValueStore, type QValueStoreConfig, createQValueStore } from '../rl-suite/persistence/q-value-store';
 import type { RLAlgorithmType } from '../rl-suite/interfaces';
+import { toErrorMessage } from '../../shared/error-utils.js';
+
+// ============================================================================
+// Module Constants
+// ============================================================================
+
+/** Default EWC++ regularization strength (lambda) */
+const DEFAULT_EWC_LAMBDA = 1000;
+
+/** Default interval between EWC++ consolidation cycles (5 minutes) */
+const DEFAULT_CONSOLIDATION_INTERVAL_MS = 5 * 60 * 1000;
+
+/** Default sample count for Fisher Information estimation */
+const DEFAULT_FISHER_SAMPLE_SIZE = 200;
+
+/** Default decay factor for blending old/new Fisher Information estimates */
+const DEFAULT_FISHER_DECAY = 0.9;
+
+/** Minimum improvement threshold before triggering consolidation (1%) */
+const DEFAULT_CONSOLIDATION_THRESHOLD = 0.01;
+
+/** Reward weight for successful task completion */
+const REWARD_SUCCESS_WEIGHT = 0.5;
+
+/** Reward penalty for task failure */
+const REWARD_FAILURE_PENALTY = 0.3;
+
+/** Reward weight for quality score contribution */
+const REWARD_QUALITY_WEIGHT = 0.3;
+
+/** Maximum speed bonus for fast task completion */
+const REWARD_MAX_SPEED_BONUS = 0.2;
+
+/** Duration baseline for speed bonus calculation (1 minute) */
+const REWARD_SPEED_BASELINE_MS = 60000;
 
 // ============================================================================
 // EWC++ Configuration (ADR-046: Future Catastrophic Forgetting Prevention)
@@ -99,11 +134,11 @@ export interface EWCConfig {
  */
 export const DEFAULT_EWC_CONFIG: EWCConfig = {
   enabled: false, // Not yet implemented
-  lambda: 1000,
-  consolidationInterval: 5 * 60 * 1000, // 5 minutes
-  fisherSampleSize: 200,
-  fisherDecay: 0.9,
-  consolidationThreshold: 0.01,
+  lambda: DEFAULT_EWC_LAMBDA,
+  consolidationInterval: DEFAULT_CONSOLIDATION_INTERVAL_MS,
+  fisherSampleSize: DEFAULT_FISHER_SAMPLE_SIZE,
+  fisherDecay: DEFAULT_FISHER_DECAY,
+  consolidationThreshold: DEFAULT_CONSOLIDATION_THRESHOLD,
 };
 
 // ============================================================================
@@ -239,7 +274,7 @@ export class PersistentQLearningRouter implements QLearningRouter {
     } catch (error) {
       this.initPromise = null;
       throw new Error(
-        `Failed to initialize PersistentQLearningRouter: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize PersistentQLearningRouter: ${toErrorMessage(error)}`
       );
     }
   }
@@ -526,16 +561,16 @@ export class PersistentQLearningRouter implements QLearningRouter {
 
     // Success is primary factor
     if (result.success) {
-      reward += 0.5;
+      reward += REWARD_SUCCESS_WEIGHT;
     } else {
-      reward -= 0.3;
+      reward -= REWARD_FAILURE_PENALTY;
     }
 
     // Quality bonus
-    reward += result.quality * 0.3;
+    reward += result.quality * REWARD_QUALITY_WEIGHT;
 
-    // Speed bonus (faster is better, up to 0.2)
-    const speedBonus = Math.max(0, 1 - result.durationMs / 60000) * 0.2;
+    // Speed bonus (faster is better, up to REWARD_MAX_SPEED_BONUS)
+    const speedBonus = Math.max(0, 1 - result.durationMs / REWARD_SPEED_BASELINE_MS) * REWARD_MAX_SPEED_BONUS;
     reward += speedBonus;
 
     return Math.max(-1, Math.min(1, reward));

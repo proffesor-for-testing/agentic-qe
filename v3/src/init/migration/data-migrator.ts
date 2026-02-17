@@ -6,6 +6,8 @@
 import { existsSync, copyFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { createRequire } from 'module';
+import { toErrorMessage } from '../../shared/error-utils.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 const require = createRequire(import.meta.url);
 
@@ -101,7 +103,7 @@ export class V2DataMigrator {
       result.success = true;
       this.report('complete', 'Migration completed successfully');
     } catch (error) {
-      result.errors.push(error instanceof Error ? error.message : String(error));
+      result.errors.push(toErrorMessage(error));
     }
 
     return result;
@@ -202,9 +204,9 @@ export class V2DataMigrator {
 
       for (const row of v2Patterns) {
         try {
-          const data = JSON.parse(row.value);
+          const data = safeJsonParse<Record<string, unknown>>(row.value);
           const id = `migrated-${row.namespace}-${row.key}`;
-          const type = data.type || 'unknown';
+          const type = (data as Record<string, unknown>).type || 'unknown';
           const content = JSON.stringify(data);
           const domain = row.namespace.replace(':patterns', '') || 'general';
 
@@ -246,9 +248,9 @@ export class V2DataMigrator {
 
       for (const row of v2Experiences) {
         try {
-          const data = JSON.parse(row.value);
+          const data = safeJsonParse<Record<string, unknown>>(row.value);
           const id = `migrated-${row.namespace}-${row.key}`;
-          const taskDescription = data.description || data.task || '';
+          const taskDescription = (data as Record<string, unknown>).description || (data as Record<string, unknown>).task || '';
           const agent = data.agent || 'unknown';
           const domain = data.domain || data.taskType || data.task_type || '';
           const success = data.success ? 1 : 0;

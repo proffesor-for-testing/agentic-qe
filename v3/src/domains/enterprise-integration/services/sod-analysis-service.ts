@@ -8,6 +8,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
+import { toError } from '../../../shared/error-utils.js';
 import type {
   SodRuleset,
   SodRule,
@@ -156,7 +157,7 @@ export class SodAnalysisService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -294,7 +295,7 @@ export class SodAnalysisService {
 
       return ok(results);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

@@ -87,24 +87,30 @@ describe('QEKernel', () => {
       expect(kernel.memory).toBeInstanceOf(InMemoryBackend);
     });
 
-    it('should use hybrid backend when configured', () => {
+    it('should use hybrid backend when configured', async () => {
+      // PERF-005: Backend setup moved to initialize(), must call it first
       const kernel = createKernel({
         memoryBackend: 'hybrid',
         dataDir: TEST_DATA_DIR,
       });
+      await kernel.initialize();
       expect(kernel.memory).toBeInstanceOf(HybridMemoryBackend);
     });
 
-    it('should default to hybrid backend', () => {
+    it('should default to hybrid backend', async () => {
+      // PERF-005: Backend setup moved to initialize(), must call it first
       const kernel = createKernel({ dataDir: TEST_DATA_DIR });
+      await kernel.initialize();
       expect(kernel.memory).toBeInstanceOf(HybridMemoryBackend);
     });
 
-    it('should create data directory if it does not exist', () => {
+    it('should create data directory if it does not exist', async () => {
       const customDataDir = path.join(TEST_DATA_DIR, 'custom-data');
       expect(fs.existsSync(customDataDir)).toBe(false);
 
-      createKernel({ dataDir: customDataDir });
+      // PERF-005: Directory creation moved to initialize()
+      const kernel = createKernel({ dataDir: customDataDir });
+      await kernel.initialize();
 
       expect(fs.existsSync(customDataDir)).toBe(true);
     });
@@ -538,10 +544,12 @@ describe('QEKernel', () => {
       expect(kernel).toBeInstanceOf(QEKernelImpl);
     });
 
-    it('should create kernel with no config (uses defaults)', () => {
+    it('should create kernel with no config (uses defaults)', async () => {
       const kernel = createKernel({ dataDir: TEST_DATA_DIR });
 
       expect(kernel).toBeDefined();
+      // PERF-005: Backend setup moved to initialize(), must call it first
+      await kernel.initialize();
       // Default is hybrid backend
       expect(kernel.memory).toBeInstanceOf(HybridMemoryBackend);
     });

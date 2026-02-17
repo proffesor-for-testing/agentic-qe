@@ -31,6 +31,7 @@ import {
   type PatternLifecycleStats,
 } from '../../learning/pattern-lifecycle.js';
 import { getUnifiedMemory } from '../../kernel/unified-memory.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 const CONFIG: WorkerConfig = {
   id: 'learning-consolidation',
@@ -345,7 +346,7 @@ export class LearningConsolidationWorker extends BaseWorker {
       });
     } catch (error) {
       context.logger.warn('Continuous learning loop partially failed', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       });
     }
 
@@ -495,7 +496,7 @@ export class LearningConsolidationWorker extends BaseWorker {
         const domainPatterns = await this.getDomainPatterns(context, domain);
         patterns.push(...domainPatterns);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = toErrorMessage(error);
         errors.push(`${domain}: ${errorMessage}`);
         context.logger.warn(`Failed to collect patterns from ${domain}`, { error });
       }
@@ -719,7 +720,7 @@ export class LearningConsolidationWorker extends BaseWorker {
     } catch (error) {
       // Log but don't fail the consolidation on dream errors
       context.logger.warn('Dream cycle failed', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       });
       return { insights: 0, patternsCreated: 0 };
     } finally {

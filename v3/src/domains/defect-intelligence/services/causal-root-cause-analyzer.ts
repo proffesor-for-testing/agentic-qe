@@ -8,6 +8,7 @@
 
 import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
+import { toError } from '../../../shared/error-utils.js';
 import {
   CausalDiscoveryEngine,
   TestEvent,
@@ -270,7 +271,7 @@ export class CausalRootCauseAnalyzerService implements ICausalRootCauseAnalyzerS
         summary,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -349,7 +350,7 @@ export class CausalRootCauseAnalyzerService implements ICausalRootCauseAnalyzerS
       this.lastPersist = Date.now();
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -377,7 +378,7 @@ export class CausalRootCauseAnalyzerService implements ICausalRootCauseAnalyzerS
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

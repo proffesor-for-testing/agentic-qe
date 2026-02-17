@@ -5,6 +5,7 @@
 
 import { Result, ok, err, Severity } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
+import { toError } from '../../../shared/error-utils.js';
 import {
   RiskCalculationRequest,
   RiskReport,
@@ -107,7 +108,7 @@ export class RiskScorerService implements IRiskScoringService {
         recommendations,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -184,7 +185,7 @@ export class RiskScorerService implements IRiskScoringService {
         forecast,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

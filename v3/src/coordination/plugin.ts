@@ -16,7 +16,7 @@ import {
   MemoryBackend,
   AgentCoordinator,
 } from '../kernel/interfaces.js';
-import { BaseDomainPlugin } from '../domains/domain-interface.js';
+import { BaseDomainPlugin } from '../shared/base-domain-plugin.js';
 import {
   IWorkflowOrchestrator,
   createWorkflowOrchestrator,

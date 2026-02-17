@@ -16,6 +16,11 @@
  * 3. Standalone implementation gives us full control and better performance
  */
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../logging/index.js';
+import type { Logger } from '../logging/index.js';
+import { toError, toErrorMessage } from '../shared/error-utils.js';
+
+const logger: Logger = LoggerFactory.create('RealQEReasoningBank');
 import {
   computeRealEmbedding,
   computeBatchEmbeddings,
@@ -42,6 +47,8 @@ import {
   QE_DOMAIN_LIST,
   PromotionCheck,
   shouldPromotePattern,
+  type TestFramework,
+  type ProgrammingLanguage,
 } from './qe-patterns.js';
 import {
   QEGuidance,
@@ -54,6 +61,7 @@ import { AsymmetricLearningEngine } from './asymmetric-learning.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { CircularBuffer } from '../shared/utils/circular-buffer.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ADR-058: @claude-flow/guidance governance integration
 import {
@@ -320,11 +328,11 @@ export class RealQEReasoningBank {
 
     // Initialize SQLite persistence
     await this.sqliteStore.initialize();
-    console.log('[RealQEReasoningBank] SQLite persistence initialized');
+    logger.info('SQLite persistence initialized');
 
     // Initialize HNSW index
     await this.initializeHNSW();
-    console.log('[RealQEReasoningBank] HNSW index initialized');
+    logger.info('HNSW index initialized');
 
     // Load existing patterns into HNSW
     await this.loadPatternsIntoHNSW();
@@ -337,7 +345,7 @@ export class RealQEReasoningBank {
 
     this.initialized = true;
     const initTime = performance.now() - startTime;
-    console.log(`[RealQEReasoningBank] Fully initialized in ${initTime.toFixed(0)}ms`);
+    logger.info('Fully initialized', { durationMs: Math.round(initTime) });
   }
 
   /**
@@ -349,17 +357,19 @@ export class RealQEReasoningBank {
       // Note: Dynamic import returns { default: { HierarchicalNSW, ... } } structure
       const hnswModule = await import('hnswlib-node');
       // Access through default due to ES module interop
-      const HierarchicalNSW = (hnswModule.default as any)?.HierarchicalNSW || hnswModule.HierarchicalNSW;
+      const hnswDefault = hnswModule.default as unknown as Record<string, unknown> | undefined;
+      const HierarchicalNSWCandidate = hnswDefault?.HierarchicalNSW || hnswModule.HierarchicalNSW;
 
-      if (typeof HierarchicalNSW !== 'function') {
+      if (typeof HierarchicalNSWCandidate !== 'function') {
         throw new Error('HierarchicalNSW not found in hnswlib-node module');
       }
 
+      const HierarchicalNSWConstructor = HierarchicalNSWCandidate as new (...args: unknown[]) => HierarchicalNSW;
       const dimension = getEmbeddingDimension();
 
       // Create HNSW index with metric and dimensions (2 arguments)
       // metric: 'cosine' | 'l2' | 'ip'
-      this.hnswIndex = new HierarchicalNSW('cosine', dimension) as unknown as HierarchicalNSW;
+      this.hnswIndex = new HierarchicalNSWConstructor('cosine', dimension);
       this.hnswIndex!.initIndex(
         100000, // max elements
         this.qeConfig.hnsw.M,
@@ -367,9 +377,9 @@ export class RealQEReasoningBank {
       );
       this.hnswIndex!.setEf(this.qeConfig.hnsw.efSearch);
 
-      console.log(`[RealQEReasoningBank] HNSW initialized: dim=${dimension}, M=${this.qeConfig.hnsw.M}`);
+      logger.info('HNSW initialized', { dimension, M: this.qeConfig.hnsw.M });
     } catch (error) {
-      console.error('[RealQEReasoningBank] HNSW initialization failed:', error);
+      logger.error('HNSW initialization failed', error instanceof Error ? error : undefined);
       throw error; // Don't silently fall back - fail explicitly
     }
   }
@@ -399,9 +409,9 @@ export class RealQEReasoningBank {
     }
 
     if (skipped > 0) {
-      console.warn(`[RealQEReasoningBank] Skipped ${skipped} invalid embeddings (expected dim=${expectedDim})`);
+      logger.warn('Skipped invalid embeddings', { skipped, expectedDim });
     }
-    console.log(`[RealQEReasoningBank] Loaded ${loaded} patterns into HNSW index`);
+    logger.info('Loaded patterns into HNSW index', { count: loaded });
   }
 
   /**
@@ -454,11 +464,11 @@ export class RealQEReasoningBank {
       try {
         await this.storeQEPattern(options);
       } catch (error) {
-        console.warn(`[RealQEReasoningBank] Failed to load foundational pattern: ${options.name}`, error);
+        logger.warn('Failed to load foundational pattern', { name: options.name, error });
       }
     }
 
-    console.log(`[RealQEReasoningBank] Loaded ${foundationalPatterns.length} foundational patterns`);
+    logger.info('Loaded foundational patterns', { count: foundationalPatterns.length });
   }
 
   /**
@@ -495,11 +505,11 @@ export class RealQEReasoningBank {
           const decision = await memoryWriteGateIntegration.evaluateWrite(memoryPattern);
 
           if (!decision.allowed) {
-            console.warn(
-              `[RealQEReasoningBank] Pattern blocked by MemoryWriteGate: ${options.name}`,
-              `Reason: ${decision.reason}`,
-              `Conflicts: ${decision.conflictingPatterns?.join(', ') || 'none'}`
-            );
+            logger.warn('Pattern blocked by MemoryWriteGate', {
+              name: options.name,
+              reason: decision.reason,
+              conflicts: decision.conflictingPatterns?.join(', ') || 'none',
+            });
 
             // In non-strict mode, log and continue; in strict mode, reject
             if (decision.reason?.includes('strict')) {
@@ -509,7 +519,7 @@ export class RealQEReasoningBank {
           }
         } catch (govError) {
           // Non-fatal: log but continue if governance check fails
-          console.warn('[RealQEReasoningBank] MemoryWriteGate check error (continuing):', govError);
+          logger.warn('MemoryWriteGate check error (continuing)', { error: govError });
         }
       }
 
@@ -565,13 +575,13 @@ export class RealQEReasoningBank {
           });
         } catch (regError) {
           // Non-fatal: registration failure doesn't affect storage
-          console.warn('[RealQEReasoningBank] Pattern registration with MemoryWriteGate failed:', regError);
+          logger.warn('Pattern registration with MemoryWriteGate failed', { error: regError });
         }
       }
 
       return ok(pattern);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -625,12 +635,12 @@ export class RealQEReasoningBank {
 
       const searchTime = performance.now() - startTime;
       if (searchTime > 10) {
-        console.warn(`[RealQEReasoningBank] Slow search: ${searchTime.toFixed(1)}ms`);
+        logger.warn('Slow search', { searchTimeMs: Number(searchTime.toFixed(1)) });
       }
 
       return ok(patterns);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -702,8 +712,8 @@ export class RealQEReasoningBank {
       const guidance: string[] = [];
       if (this.qeConfig.enableGuidance && detectedDomains.length > 0) {
         const domainGuidance = getCombinedGuidance(detectedDomains[0], {
-          framework: request.context?.framework as any,
-          language: request.context?.language as any,
+          framework: request.context?.framework,
+          language: request.context?.language,
           includeAntiPatterns: true,
         });
         guidance.push(...domainGuidance.slice(0, 5));
@@ -725,7 +735,7 @@ export class RealQEReasoningBank {
         latencyMs,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -765,7 +775,7 @@ export class RealQEReasoningBank {
         // Check for quarantine
         const quarantineDecision = this.asymmetricEngine.shouldQuarantine(newConfidence, domain);
         if (quarantineDecision.shouldQuarantine) {
-          console.log(`[RealQEReasoningBank] Pattern quarantined (asymmetric drop): ${pattern.name}`);
+          logger.info('Pattern quarantined (asymmetric drop)', { name: pattern.name });
         }
 
         // Apply the asymmetric confidence update
@@ -776,13 +786,13 @@ export class RealQEReasoningBank {
         // Check if pattern should be promoted (with coherence gate)
         if (await this.checkPatternPromotionWithCoherence(pattern)) {
           this.sqliteStore.promotePattern(outcome.patternId);
-          console.log(`[RealQEReasoningBank] Pattern promoted to long-term: ${pattern.name}`);
+          logger.info('Pattern promoted to long-term', { name: pattern.name });
         }
       }
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -821,16 +831,15 @@ export class RealQEReasoningBank {
       if (coherenceResult.energy >= (this.qeConfig.coherenceThreshold || 0.4)) {
         // Promotion blocked due to coherence violation
         // Note: RealQEReasoningBank doesn't have eventBus, so we just log
-        console.log(
-          `[RealQEReasoningBank] Pattern promotion blocked due to coherence violation: ` +
-          `${pattern.name} (energy: ${coherenceResult.energy.toFixed(3)})`
-        );
+        logger.info('Pattern promotion blocked due to coherence violation', {
+          name: pattern.name,
+          energy: coherenceResult.energy,
+        });
 
         if (coherenceResult.contradictions && coherenceResult.contradictions.length > 0) {
-          console.log(
-            `[RealQEReasoningBank] Conflicts with existing patterns: ` +
-            coherenceResult.contradictions.map(c => c.nodeIds).flat().join(', ')
-          );
+          logger.info('Conflicts with existing patterns', {
+            conflictingNodeIds: coherenceResult.contradictions.map(c => c.nodeIds).flat(),
+          });
         }
 
         return false;
@@ -877,7 +886,7 @@ export class RealQEReasoningBank {
     domain: QEDomain,
     context?: { framework?: string; language?: string }
   ): string {
-    return generateGuidanceContext(domain, context as any || {});
+    return generateGuidanceContext(domain, (context || {}) as { framework?: TestFramework; language?: ProgrammingLanguage });
   }
 
   /**
@@ -924,9 +933,9 @@ export class RealQEReasoningBank {
       asymmetricLearning: {
         failurePenaltyRatio: '10:1',
         quarantinedPatterns: this.sqliteStore.getPatterns({ limit: 10000 })
-          .filter(p => (p as any).quarantined === true).length,
+          .filter(p => p.quarantined === true).length,
         rehabilitatedPatterns: this.sqliteStore.getPatterns({ limit: 10000 })
-          .filter(p => (p as any).quarantined === false && (p as any).quarantinedAt).length,
+          .filter(p => p.quarantined === false && p.quarantinedAt).length,
         avgConfidenceDelta: this.stats.learningOutcomes > 0
           ? (this.stats.successfulOutcomes / this.stats.learningOutcomes) - 0.5
           : 0,
@@ -977,7 +986,7 @@ export class RealQEReasoningBank {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }
@@ -1058,13 +1067,14 @@ export class RealQEReasoningBank {
     const pattern = this.sqliteStore.getPattern(patternId);
     if (!pattern) return;
 
-    const tierOrder: Array<'short-term' | 'working' | 'long-term'> = ['short-term', 'working', 'long-term'];
-    const currentIndex = tierOrder.indexOf(pattern.tier as any);
+    type TierLevel = 'short-term' | 'working' | 'long-term';
+    const tierOrder: TierLevel[] = ['short-term', 'working', 'long-term'];
+    const currentIndex = tierOrder.indexOf(pattern.tier);
 
     if (currentIndex > 0) {
       const newTier = tierOrder[currentIndex - 1];
       this.sqliteStore.updatePattern(patternId, { tier: newTier });
-      console.log(`[RealQEReasoningBank] Pattern demoted to ${newTier}: ${pattern.name}`);
+      logger.info('Pattern demoted', { name: pattern.name, newTier });
     }
   }
 
@@ -1099,7 +1109,7 @@ export class RealQEReasoningBank {
     }
 
     if (cleaned > 0) {
-      console.log(`[RealQEReasoningBank] Cleaned ${cleaned} stale patternIdMap entries`);
+      logger.info('Cleaned stale patternIdMap entries', { count: cleaned });
     }
 
     return cleaned;
@@ -1117,7 +1127,7 @@ export class RealQEReasoningBank {
     for (const [hnswIdx, id] of Array.from(this.patternIdMap.entries())) {
       if (id === patternId) {
         this.patternIdMap.delete(hnswIdx);
-        console.log(`[RealQEReasoningBank] Removed pattern ${patternId} from HNSW mapping`);
+        logger.info('Removed pattern from HNSW mapping', { patternId });
         return true;
       }
     }
@@ -1217,7 +1227,18 @@ export class RealQEReasoningBank {
     sql += ' ORDER BY ended_at DESC LIMIT ?';
     params.push(limit);
 
-    const rows = db.prepare(sql).all(...params) as any[];
+    /** Database row structure for qe_trajectories table */
+    interface TrajectoryRow {
+      id: string;
+      task: string;
+      agent: string | null;
+      domain: string | null;
+      success: number;
+      steps_json: string | null;
+      metadata_json: string | null;
+    }
+
+    const rows = db.prepare(sql).all(...params) as TrajectoryRow[];
 
     return rows.map(row => ({
       id: row.id,
@@ -1225,8 +1246,8 @@ export class RealQEReasoningBank {
       agent: row.agent ?? undefined,
       domain: row.domain as QEDomain | undefined,
       success: row.success === 1,
-      steps: JSON.parse(row.steps_json || '[]'),
-      metrics: row.metadata_json ? JSON.parse(row.metadata_json) : undefined,
+      steps: safeJsonParse<unknown[]>(row.steps_json || '[]'),
+      metrics: row.metadata_json ? safeJsonParse<Record<string, unknown>>(row.metadata_json) : undefined,
     }));
   }
 
@@ -1283,7 +1304,7 @@ export class RealQEReasoningBank {
     this.stats.learningOutcomes = 0;
     this.stats.successfulOutcomes = 0;
     this.initialized = false;
-    console.log('[RealQEReasoningBank] Disposed');
+    logger.info('Disposed');
   }
 
   /**

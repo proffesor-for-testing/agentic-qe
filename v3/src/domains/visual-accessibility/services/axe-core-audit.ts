@@ -16,6 +16,7 @@
 
 import { readFileSync } from 'fs';
 import { createRequire } from 'module';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -289,7 +290,7 @@ export class AccessibilityAuditor {
           axeCoreAvailable: this.toolsAvailable.axeCore,
           vibiumAvailable: this.toolsAvailable.vibium,
         },
-        errors: [error instanceof Error ? error.message : String(error)],
+        errors: [toErrorMessage(error)],
       };
     }
   }

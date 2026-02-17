@@ -11,6 +11,7 @@ import {
 } from '../../../shared/security';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
 import type { FilePath } from '../../../shared/value-objects/index.js';
+import { toError } from '../../../shared/error-utils.js';
 import type {
   IComplianceValidationService,
   ComplianceStandard,
@@ -393,7 +394,7 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
 
       return ok(report);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -474,7 +475,7 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
         prioritizedActions,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -538,7 +539,7 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
         crossCuttingViolations,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -589,7 +590,7 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
         recommendations: [...new Set(recommendations)],
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -648,7 +649,7 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
 
       return ok(evidence);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

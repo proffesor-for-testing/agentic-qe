@@ -12,6 +12,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import { BrowserResultAdapter } from '../../../adapters/browser-result-adapter.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Interfaces
@@ -295,12 +296,12 @@ export class BrowserSecurityScanner {
       const mcpResult = await this.callMcpTool('aidefence_has_pii', { input: content });
 
       if (typeof mcpResult === 'object' && mcpResult !== null) {
-        const result = mcpResult as any;
+        const result = mcpResult as Record<string, unknown>;
 
         const hasPII = result.hasPII === true || result.detected === true;
-        const detectedTypes: string[] = result.types || result.detectedTypes || [];
+        const detectedTypes: string[] = (result.types || result.detectedTypes || []) as string[];
         const locations: Array<{ type: string; start: number; end: number }> =
-          result.locations || [];
+          (result.locations || []) as Array<{ type: string; start: number; end: number }>;
 
         return ok({ hasPII, detectedTypes, locations });
       }
@@ -371,7 +372,7 @@ export class BrowserSecurityScanner {
 
       return ok({ safe, threats, score });
     } catch (error) {
-      return err(new Error(`Invalid URL: ${error instanceof Error ? error.message : String(error)}`));
+      return err(new Error(`Invalid URL: ${toErrorMessage(error)}`));
     }
   }
 
@@ -420,7 +421,7 @@ export class BrowserSecurityScanner {
 
       return ok({ isPhishing, confidence, indicators });
     } catch (error) {
-      return err(new Error(`Invalid URL: ${error instanceof Error ? error.message : String(error)}`));
+      return err(new Error(`Invalid URL: ${toErrorMessage(error)}`));
     }
   }
 

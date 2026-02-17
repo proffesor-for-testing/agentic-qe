@@ -16,6 +16,7 @@ import {
   ToolParameter,
 } from './types';
 import { sanitizeInput } from './security/cve-prevention';
+import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Security: Input Validation (SEC-001 Fix)
@@ -453,7 +454,7 @@ export class ToolRegistry {
       this.stats.errors++;
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         metadata: this.createMetadata(startTime, requestId, tool.definition.domain),
       };
     }

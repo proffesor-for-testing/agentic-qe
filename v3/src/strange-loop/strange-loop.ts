@@ -15,6 +15,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../logging/index.js';
+import type { Logger } from '../logging/index.js';
 import type {
   SwarmHealthObservation,
   SelfHealingAction,
@@ -98,6 +100,8 @@ export interface BeliefReconciliationResult {
  * - Trigger belief reconciliation when contradictions are detected
  * - Predict swarm collapse using spectral analysis
  */
+const logger: Logger = LoggerFactory.create('StrangeLoop');
+
 export class StrangeLoopOrchestrator {
   private observer: SwarmObserver;
   private model: SwarmSelfModel;
@@ -156,7 +160,7 @@ export class StrangeLoopOrchestrator {
   setCoherenceService(service: ICoherenceService): void {
     this.coherenceService = service;
     if (this.config.verboseLogging) {
-      console.log('[StrangeLoop] Coherence service attached');
+      logger.info('Coherence service attached');
     }
   }
 
@@ -169,7 +173,7 @@ export class StrangeLoopOrchestrator {
   setBeliefReconciler(reconciler: IBeliefReconciler): void {
     this.beliefReconciler = reconciler;
     if (this.config.verboseLogging) {
-      console.log('[StrangeLoop] Belief reconciler attached');
+      logger.info('Belief reconciler attached');
     }
   }
 
@@ -201,7 +205,7 @@ export class StrangeLoopOrchestrator {
     this.emit('loop_started', { config: this.config });
 
     if (this.config.verboseLogging) {
-      console.log('[StrangeLoop] Starting self-observation cycle');
+      logger.info('Starting self-observation cycle');
     }
 
     // Run first cycle immediately
@@ -232,7 +236,7 @@ export class StrangeLoopOrchestrator {
     this.emit('loop_stopped', { stats: this.getStats() });
 
     if (this.config.verboseLogging) {
-      console.log('[StrangeLoop] Stopped self-observation cycle');
+      logger.info('Stopped self-observation cycle');
     }
   }
 
@@ -320,7 +324,7 @@ export class StrangeLoopOrchestrator {
 
       if (actions.length > 0) {
         if (this.config.verboseLogging) {
-          console.log(`[StrangeLoop] Detected ${actions.length} healing opportunities`);
+          logger.info('Detected healing opportunities', { count: actions.length });
         }
 
         // ACT: Execute healing actions
@@ -346,7 +350,7 @@ export class StrangeLoopOrchestrator {
               this.stats.totalActionsExecuted;
 
             if (this.config.verboseLogging) {
-              console.log(`[StrangeLoop] Executed ${action.type}: ${result.message}`);
+              logger.info('Executed healing action', { type: action.type, message: result.message });
             }
           }
         }
@@ -364,7 +368,7 @@ export class StrangeLoopOrchestrator {
       return { observation, delta, actions, results, coherenceResult };
     } catch (error) {
       if (this.config.verboseLogging) {
-        console.error('[StrangeLoop] Error in self-observation cycle:', error);
+        logger.error('Error in self-observation cycle', error instanceof Error ? error : undefined);
       }
       throw error;
     }
@@ -486,7 +490,7 @@ export class StrangeLoopOrchestrator {
         }
       } catch (error) {
         if (this.config.verboseLogging) {
-          console.error('[StrangeLoop] Coherence check failed during self-diagnosis:', error);
+          logger.error('Coherence check failed during self-diagnosis', error instanceof Error ? error : undefined);
         }
         // Continue with diagnosis even if coherence check fails
       }
@@ -592,10 +596,11 @@ export class StrangeLoopOrchestrator {
     });
 
     if (this.config.verboseLogging) {
-      console.log(
-        `[StrangeLoop] Loop detected for agent ${loopData.agentId}: ` +
-        `${loopData.toolName} called ${loopData.callCount} times`
-      );
+      logger.info('Loop detected', {
+        agentId: loopData.agentId,
+        toolName: loopData.toolName,
+        callCount: loopData.callCount,
+      });
     }
   }
 
@@ -621,7 +626,7 @@ export class StrangeLoopOrchestrator {
           listener(event);
         } catch (error) {
           if (this.config.verboseLogging) {
-            console.error(`[StrangeLoop] Event listener error:`, error);
+            logger.error('Event listener error', error instanceof Error ? error : undefined);
           }
         }
       }
@@ -808,7 +813,7 @@ export class StrangeLoopOrchestrator {
       return coherenceResult;
     } catch (error) {
       if (this.config.verboseLogging) {
-        console.error('[StrangeLoop] Coherence check failed:', error);
+        logger.error('Coherence check failed', error instanceof Error ? error : undefined);
       }
       return undefined;
     }
@@ -890,7 +895,7 @@ export class StrangeLoopOrchestrator {
       }
     } catch (error) {
       if (this.config.verboseLogging) {
-        console.warn('[StrangeLoop] Collapse prediction failed:', error);
+        logger.warn('Collapse prediction failed', { error });
       }
     }
   }
@@ -930,13 +935,14 @@ export class StrangeLoopOrchestrator {
       this.emit('belief_reconciled', reconciledData);
 
       if (this.config.verboseLogging) {
-        console.log(
-          `[StrangeLoop] Reconciled ${result.resolvedCount}/${contradictions.length} contradictions`
-        );
+        logger.info('Reconciled contradictions', {
+          resolved: result.resolvedCount,
+          total: contradictions.length,
+        });
       }
     } catch (error) {
       if (this.config.verboseLogging) {
-        console.error('[StrangeLoop] Reconciliation failed:', error);
+        logger.error('Reconciliation failed', error instanceof Error ? error : undefined);
       }
       this.stats.invalidConsensusCount++;
     }

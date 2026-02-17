@@ -48,6 +48,7 @@ import {
   type IdeationReport,
 } from './qcsd-ideation-plugin.js';
 import type { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator.js';
+import { toError } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Plugin Configuration
@@ -641,7 +642,7 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
   }
 
   private handleError<T>(error: unknown): Result<T, Error> {
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = toError(error);
 
     const currentHealth = this.getHealth();
     this.updateHealth({

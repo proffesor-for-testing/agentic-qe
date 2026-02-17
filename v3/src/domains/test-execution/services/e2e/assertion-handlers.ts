@@ -7,8 +7,8 @@
  * @module test-execution/services/e2e/assertion-handlers
  */
 
-import type { VibiumClient } from '../../../../integrations/vibium';
-import type { IBrowserClient } from '../../../../integrations/browser';
+import type { VibiumClient } from '@integrations/vibium';
+import type { IBrowserClient } from '@integrations/browser';
 import type { AssertStep, AssertionType } from '../../types';
 import type { StepExecutionContext } from './types';
 import { E2ERunnerError, AssertionError } from './types';

@@ -4,8 +4,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { Result, ok, err } from '../../../../shared/types/index.js';
-import type { FilePath } from '../../../../shared/value-objects/index.js';
+import { Result, ok, err } from '@shared/types/index.js';
+import type { FilePath } from '@shared/value-objects/index.js';
 import type {
   SecurityPattern,
   SecurityScannerConfig,
@@ -25,6 +25,8 @@ import type {
   ScanStatus,
 } from './scanner-types.js';
 import { ALL_SECURITY_PATTERNS, BUILT_IN_RULE_SETS } from './security-patterns.js';
+import { toError } from '@shared/error-utils.js';
+import { safeJsonParse } from '@shared/safe-json.js';
 
 // ============================================================================
 // SAST Scanner Service
@@ -128,7 +130,7 @@ export class SASTScanner {
       });
     } catch (error) {
       this.activeScans.set(scanId, 'failed');
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -171,7 +173,7 @@ export class SASTScanner {
 
       return ok(analysis);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -560,7 +562,7 @@ Provide detailed remediation advice specific to this code.`,
         try {
           const jsonMatch = response.content.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const analysis = JSON.parse(jsonMatch[0]);
+            const analysis = safeJsonParse(jsonMatch[0]);
             return {
               description: analysis.description || vuln.remediation?.description || 'Review and fix the vulnerability',
               fixExample: analysis.fixExample || vuln.remediation?.fixExample,

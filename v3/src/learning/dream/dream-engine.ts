@@ -15,6 +15,12 @@
  * @module v3/learning/dream/dream-engine
  */
 
+import { safeJsonParse } from '../../shared/safe-json.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
+import { LoggerFactory } from '../../logging/index.js';
+
+const dreamLogger = LoggerFactory.create('dream-engine');
+
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -320,7 +326,7 @@ export class DreamEngine {
       console.log(`[DreamEngine] Initialized: ${this.persistence.getDbPath()}`);
     } catch (error) {
       throw new Error(
-        `Failed to initialize DreamEngine: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to initialize DreamEngine: ${toErrorMessage(error)}`
       );
     }
   }
@@ -370,8 +376,9 @@ export class DreamEngine {
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_type ON dream_insights(insight_type)');
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_novelty ON dream_insights(novelty_score DESC)');
       }
-    } catch {
+    } catch (e) {
       // Ignore migration errors — table may not exist yet
+      dreamLogger.debug('Dream schema migration skipped', { error: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -480,7 +487,7 @@ export class DreamEngine {
         if (this.currentCycle.status === 'running') {
           this.currentCycle.status = 'failed';
         }
-        this.currentCycle.error = error instanceof Error ? error.message : String(error);
+        this.currentCycle.error = toErrorMessage(error);
         this.currentCycle.endTime = new Date();
         this.currentCycle.durationMs = Date.now() - startTime;
         await this.updateCycle(this.currentCycle);
@@ -506,6 +513,37 @@ export class DreamEngine {
   async loadPatternsAsConcepts(patterns: PatternImportData[]): Promise<number> {
     this.ensureInitialized();
     return this.graph!.loadFromPatterns(patterns);
+  }
+
+  /**
+   * Ensure sufficient concepts are loaded for dreaming.
+   * If the concept graph has fewer nodes than minConceptsRequired,
+   * auto-loads patterns from the qe_patterns table.
+   *
+   * @returns Number of concepts loaded (0 if already sufficient)
+   */
+  async ensureConceptsLoaded(): Promise<number> {
+    this.ensureInitialized();
+    const existing = await this.graph!.getActiveNodes(0);
+    if (existing.length >= this.config.minConceptsRequired) {
+      return 0;
+    }
+
+    // Load patterns from qe_patterns table in the shared unified DB
+    const rows = this.db!.prepare(
+      `SELECT id, name, description, qe_domain as domain, pattern_type as patternType,
+              confidence, success_rate as successRate
+       FROM qe_patterns
+       WHERE confidence >= 0.3
+       ORDER BY quality_score DESC
+       LIMIT 200`
+    ).all() as PatternImportData[];
+
+    if (rows.length === 0) {
+      return 0;
+    }
+
+    return this.graph!.loadFromPatterns(rows);
   }
 
   // ==========================================================================
@@ -555,7 +593,7 @@ export class DreamEngine {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }
@@ -758,7 +796,7 @@ export class DreamEngine {
       id: row.id,
       cycleId: row.cycle_id,
       type: row.insight_type as DreamInsight['type'],
-      sourceConcepts: JSON.parse(row.source_concepts),
+      sourceConcepts: safeJsonParse<string[]>(row.source_concepts),
       description: row.description,
       noveltyScore: row.novelty_score,
       confidenceScore: row.confidence_score,

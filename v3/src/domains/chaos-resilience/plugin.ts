@@ -49,6 +49,7 @@ import {
   LoadTesterService,
   LoadTesterConfig,
 } from './services/load-tester';
+import { toError } from '../../shared/error-utils.js';
 import {
   PerformanceProfilerService,
   PerformanceProfilerConfig,
@@ -771,7 +772,7 @@ export class ChaosResiliencePlugin extends BaseDomainPlugin {
   }
 
   private handleError<T>(error: unknown): Result<T, Error> {
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = toError(error);
 
     // Track error
     const currentHealth = this.getHealth();

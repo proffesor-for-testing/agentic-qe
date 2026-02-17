@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types';
 import { HttpClient, createHttpClient } from '../../../shared/http';
 import { MemoryBackend } from '../../../kernel/interfaces';
+import { toError } from '../../../shared/error-utils.js';
 import {
   FaultType,
   RecoveryTestResult,
@@ -19,6 +20,7 @@ import {
   RateLimitResponse,
   IResilienceTestingService,
 } from '../interfaces';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Configuration for the performance profiler service
@@ -169,7 +171,7 @@ export class PerformanceProfilerService implements IResilienceTestingService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -291,7 +293,7 @@ export class PerformanceProfilerService implements IResilienceTestingService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -390,7 +392,7 @@ export class PerformanceProfilerService implements IResilienceTestingService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -455,7 +457,7 @@ export class PerformanceProfilerService implements IResilienceTestingService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -599,7 +601,7 @@ export class PerformanceProfilerService implements IResilienceTestingService {
 
   private parseRecordCount(content: string): number {
     try {
-      const json = JSON.parse(content);
+      const json = safeJsonParse(content);
       // Look for common record count fields
       return json.records ?? json.count ?? json.total ?? json.length ?? 0;
     } catch {

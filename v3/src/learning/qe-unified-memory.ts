@@ -20,6 +20,10 @@
  * @module learning/qe-unified-memory
  */
 
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('qe-unified-memory');
+
 import type { MemoryBackend, StoreOptions, VectorSearchResult } from '../kernel/interfaces.js';
 import type { QEDomain } from './qe-patterns.js';
 import type { Result } from '../shared/types/index.js';
@@ -37,6 +41,7 @@ import type {
   HNSWIndexStats,
 } from '../domains/coverage-analysis/services/hnsw-index.js';
 
+import { toErrorMessage } from '../shared/error-utils.js';
 import {
   DEFAULT_HNSW_CONFIG,
   HNSWIndex,
@@ -691,17 +696,16 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
 
         this.hnswEnabled[domain] = true;
 
-        console.log(`[QEUnifiedMemory] HNSW enabled for domain: ${domain}`);
+        logger.info('HNSW enabled for domain', { domain });
       }
     }
 
     this.initialized = true;
-    console.log('[QEUnifiedMemory] Initialized with HNSW domains:',
-      Object.entries(this.hnswEnabled)
+    logger.info('Initialized with HNSW domains', {
+      domains: Object.entries(this.hnswEnabled)
         .filter(([_, enabled]) => enabled)
-        .map(([domain, _]) => domain)
-        .join(', ')
-    );
+        .map(([domain]) => domain),
+    });
   }
 
   /**
@@ -712,7 +716,7 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
     for (const [domain, index] of Object.entries(this.hnswIndices)) {
       if (index) {
         await index.clear();
-        console.log(`[QEUnifiedMemory] Disposed HNSW for domain: ${domain}`);
+        logger.info('Disposed HNSW for domain', { domain });
       }
     }
 
@@ -915,8 +919,9 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
           if (filter && result.metadata) {
             try {
               if (!filter(result.metadata)) continue;
-            } catch {
+            } catch (e) {
               // Filter error, skip this result
+              logger.debug('Search result filter callback failed', { error: e instanceof Error ? e.message : String(e) });
               continue;
             }
           }
@@ -934,7 +939,7 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
   async getStats(): Promise<QEUnifiedMemoryStats> {
     this.ensureInitialized();
 
-    const byDomain: Record<QEMemoryDomain, QEMemoryDomainStats> = {} as any;
+    const byDomain: Partial<Record<QEMemoryDomain, QEMemoryDomainStats>> = {};
     let totalEntries = 0;
     let totalVectors = 0;
     let totalIndexSize = 0;
@@ -972,7 +977,8 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
     }
 
     return {
-      byDomain,
+      // All domains are populated by the loop above over QE_MEMORY_DOMAINS
+      byDomain: byDomain as Record<QEMemoryDomain, QEMemoryDomainStats>,
       totalEntries,
       totalVectors,
       totalIndexSize,
@@ -1080,7 +1086,7 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
         success: false,
         itemsMigrated,
         itemsSkipped,
-        errors: [error instanceof Error ? error.message : String(error)],
+        errors: [toErrorMessage(error)],
       };
     }
   }
@@ -1095,40 +1101,44 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
 
     // For V2 to V3 migration, use the dedicated migrator
     if (config.domain === 'learning' || config.migrateAll) {
-      console.log(`[QEUnifiedMemory] Starting V2 to V3 migration from: ${sourcePath}`);
+      logger.info('Starting V2 to V3 migration', { sourcePath });
 
       const result = await migrateV2ToV3(
         sourcePath,
         '.agentic-qe/memory.db',
         (progress) => {
-          console.log(`[QEUnifiedMemory] Migration progress: [${progress.stage}] ${progress.message}`);
-          if (progress.table) {
-            console.log(`  Table: ${progress.table} (${progress.current}/${progress.total})`);
-          }
+          logger.info('Migration progress', {
+            stage: progress.stage,
+            message: progress.message,
+            table: progress.table,
+            current: progress.current,
+            total: progress.total,
+          });
         }
       );
 
       if (result.success) {
-        console.log(`[QEUnifiedMemory] V2 migration completed successfully:`);
-        console.log(`  - Tables migrated: ${result.tablesMigrated.join(', ')}`);
-        console.log(`  - Total records: ${Object.values(result.counts).reduce((a, b) => a + b, 0)}`);
-        console.log(`  - Duration: ${(result.duration / 1000).toFixed(2)}s`);
+        logger.info('V2 migration completed successfully', {
+          tablesMigrated: result.tablesMigrated,
+          totalRecords: Object.values(result.counts).reduce((a, b) => a + b, 0),
+          durationSeconds: Number((result.duration / 1000).toFixed(2)),
+        });
       } else {
-        console.error(`[QEUnifiedMemory] V2 migration failed:`, result.errors);
+        logger.error('V2 migration failed', undefined, { errors: result.errors });
       }
 
       return Object.values(result.counts).reduce((a, b) => a + b, 0);
     }
 
     // Generic SQLite migration for other domains
-    console.warn(`[QEUnifiedMemory] Generic SQLite migration not yet implemented for domain: ${config.domain}`);
+    logger.warn('Generic SQLite migration not yet implemented', { domain: config.domain });
     return 0;
   }
 
   private async migrateFromJSON(config: MigrationConfig): Promise<number> {
     // TODO: Implement JSON migration
     // This would read from a JSON file and import into unified memory
-    console.warn(`[QEUnifiedMemory] JSON migration not yet implemented for domain: ${config.domain}`);
+    logger.warn('JSON migration not yet implemented', { domain: config.domain });
     return 0;
   }
 

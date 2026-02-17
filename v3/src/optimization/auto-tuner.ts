@@ -31,6 +31,7 @@ import {
   MetricCollectorRegistry,
   createDefaultCollectorRegistry,
 } from './metric-collectors.js';
+import { toError } from '../shared/error-utils.js';
 import {
   TuningAlgorithm,
   createTuningAlgorithm,
@@ -89,7 +90,7 @@ export class DefaultParameterApplicatorRegistry implements ParameterApplicatorRe
           }
           await applicator.setValue(value);
         } catch (error) {
-          errors.push(error instanceof Error ? error : new Error(String(error)));
+          errors.push(toError(error));
         }
       }
     }

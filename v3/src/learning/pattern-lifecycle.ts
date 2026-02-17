@@ -12,6 +12,10 @@
 import type { Database as DatabaseType } from 'better-sqlite3';
 import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
 import { AsymmetricLearningEngine, type AsymmetricLearningConfig } from './asymmetric-learning.js';
+import { safeJsonParse } from '../shared/safe-json.js';
+import { LoggerFactory } from '../logging/index.js';
+
+const logger = LoggerFactory.create('pattern-lifecycle');
 
 // ============================================================================
 // Configuration
@@ -170,8 +174,9 @@ export class PatternLifecycleManager {
       this.db.prepare(`
         SELECT deprecated_at FROM qe_patterns LIMIT 1
       `).get();
-    } catch {
+    } catch (e) {
       // Column doesn't exist, add it
+      logger.debug('Adding missing deprecated_at column', { error: e instanceof Error ? e.message : String(e) });
       this.db.exec(`
         ALTER TABLE qe_patterns ADD COLUMN deprecated_at TEXT DEFAULT NULL
       `);
@@ -183,7 +188,8 @@ export class PatternLifecycleManager {
       this.db.prepare(`
         SELECT consecutive_failures FROM qe_patterns LIMIT 1
       `).get();
-    } catch {
+    } catch (e) {
+      logger.debug('Adding missing consecutive_failures column', { error: e instanceof Error ? e.message : String(e) });
       this.db.exec(`
         ALTER TABLE qe_patterns ADD COLUMN consecutive_failures INTEGER DEFAULT 0
       `);
@@ -195,7 +201,8 @@ export class PatternLifecycleManager {
       this.db.prepare(`
         SELECT promotion_date FROM qe_patterns LIMIT 1
       `).get();
-    } catch {
+    } catch (e) {
+      logger.debug('Adding missing promotion_date column', { error: e instanceof Error ? e.message : String(e) });
       this.db.exec(`
         ALTER TABLE qe_patterns ADD COLUMN promotion_date TEXT DEFAULT NULL
       `);
@@ -904,8 +911,8 @@ Pattern extracted from ${exp.count} successful experiences.`;
       successRate: row.success_rate,
       qualityScore: row.quality_score,
       tier: row.tier as 'short-term' | 'long-term',
-      template: JSON.parse(row.template_json || '{}'),
-      context: JSON.parse(row.context_json || '{}'),
+      template: safeJsonParse(row.template_json || '{}'),
+      context: safeJsonParse(row.context_json || '{}'),
       createdAt: new Date(row.created_at),
       lastUsedAt: row.last_used_at ? new Date(row.last_used_at) : new Date(row.created_at),
       successfulUses: row.successful_uses,

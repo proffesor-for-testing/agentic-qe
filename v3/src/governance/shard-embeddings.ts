@@ -19,6 +19,9 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { governanceFlags } from './feature-flags.js';
+import { toErrorMessage } from '../shared/error-utils.js';
+import { safeJsonParse } from '../shared/safe-json.js';
+import { getUnifiedMemory } from '../kernel/unified-memory.js';
 import {
   ShardRetrieverIntegration,
   shardRetrieverIntegration,
@@ -782,7 +785,23 @@ export class ShardEmbeddingsManager {
       await fs.writeFile(persistPath, JSON.stringify(data, null, 2), 'utf-8');
       this.persistedToFile = true;
     } catch (error) {
-      this.logError(`Failed to persist embeddings: ${error instanceof Error ? error.message : String(error)}`);
+      this.logError(`Failed to persist embeddings to file: ${toErrorMessage(error)}`);
+    }
+
+    // Also persist to unified vectors table for cross-system access
+    try {
+      const mem = getUnifiedMemory();
+      await mem.initialize();
+      for (const [key, emb] of this.embeddings) {
+        await mem.vectorStore(
+          `shard:${key}`,
+          emb.embedding,
+          `shard:${emb.domain}`,
+          { domain: emb.domain, sectionType: emb.sectionType, content: emb.content, metadata: emb.metadata }
+        );
+      }
+    } catch {
+      // Non-fatal: JSON file persistence still works as fallback
     }
   }
 
@@ -795,7 +814,7 @@ export class ShardEmbeddingsManager {
 
     try {
       const content = await fs.readFile(persistPath, 'utf-8');
-      const data = JSON.parse(content);
+      const data = safeJsonParse(content);
 
       // Validate version
       if (data.version !== 1) {

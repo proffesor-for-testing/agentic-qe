@@ -17,6 +17,7 @@ import {
   ProviderRoutingMetrics,
   RouterMetrics,
   RoutingAuditEntry,
+  SelectionReason,
   ALL_PROVIDER_TYPES,
 } from '../router/types';
 import { TokenUsage, CostInfo } from '../interfaces';
@@ -440,7 +441,7 @@ export class RouterMetricsCollector {
         providerType: d.provider,
         model: d.model,
         providerModelId: d.model,
-        reason: d.reason as any,
+        reason: d.reason as SelectionReason,
         confidence: 1,
         metadata: {
           decisionTimeMs: d.decisionTimeMs,

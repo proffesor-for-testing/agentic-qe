@@ -14,6 +14,34 @@ import type {
 import { DEFAULT_FEEDBACK_CONFIG } from './types.js';
 import type { RealQEReasoningBank } from '../learning/real-qe-reasoning-bank.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+import { toErrorMessage } from '../shared/error-utils.js';
+import { safeJsonParse } from '../shared/safe-json.js';
+
+// ============================================================================
+// Database Row Types
+// ============================================================================
+
+/** Database row structure for coverage_sessions table */
+interface CoverageSessionRow {
+  id: string;
+  target_path: string;
+  agent_id: string;
+  technique: string;
+  before_lines: number;
+  before_branches: number;
+  before_functions: number;
+  after_lines: number;
+  after_branches: number;
+  after_functions: number;
+  tests_generated: number;
+  tests_passed: number;
+  gaps_json: string | null;
+  duration_ms: number;
+  started_at: string;
+  completed_at: string;
+  context_json: string | null;
+  created_at: string;
+}
 
 // ============================================================================
 // Coverage Session Store
@@ -112,7 +140,7 @@ export class CoverageLearner {
       }
       await this.loadFromDb();
     } catch (error) {
-      console.warn('[CoverageLearner] DB init failed, using memory-only:', error instanceof Error ? error.message : String(error));
+      console.warn('[CoverageLearner] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
     }
   }
@@ -125,7 +153,7 @@ export class CoverageLearner {
     const database = this.db.getDatabase();
     const rows = database.prepare(`
       SELECT * FROM coverage_sessions ORDER BY created_at DESC LIMIT ?
-    `).all(this.config.maxOutcomesInMemory) as any[];
+    `).all(this.config.maxOutcomesInMemory) as CoverageSessionRow[];
 
     for (const row of rows.reverse()) {
       const session: CoverageSession = {
@@ -145,11 +173,11 @@ export class CoverageLearner {
         },
         testsGenerated: row.tests_generated,
         testsPassed: row.tests_passed,
-        gapsTargeted: row.gaps_json ? JSON.parse(row.gaps_json) : [],
+        gapsTargeted: row.gaps_json ? safeJsonParse(row.gaps_json) : [],
         durationMs: row.duration_ms,
         startedAt: new Date(row.started_at),
         completedAt: new Date(row.completed_at),
-        context: row.context_json ? JSON.parse(row.context_json) : undefined,
+        context: row.context_json ? safeJsonParse(row.context_json) : undefined,
       };
       this.sessionStore.add(session);
 
@@ -222,7 +250,7 @@ export class CoverageLearner {
         this.enforceRetention(database);
       }
     } catch (error) {
-      console.warn('[CoverageLearner] Failed to persist session:', error instanceof Error ? error.message : String(error));
+      console.warn('[CoverageLearner] Failed to persist session:', toErrorMessage(error));
     }
   }
 
@@ -238,7 +266,7 @@ export class CoverageLearner {
         )
       `).run(maxRows);
     } catch (error) {
-      console.warn('[CoverageLearner] Retention cleanup failed:', error instanceof Error ? error.message : String(error));
+      console.warn('[CoverageLearner] Retention cleanup failed:', toErrorMessage(error));
     }
   }
 

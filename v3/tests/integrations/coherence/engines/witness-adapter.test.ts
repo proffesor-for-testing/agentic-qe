@@ -6,7 +6,7 @@
  * audit trails, and reproducible computation records.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 /**
  * Mock WASM module for WitnessEngine
@@ -351,6 +351,10 @@ describe('WitnessAdapter', () => {
       dispose: vi.fn(),
     };
     adapter = new WitnessAdapter(mockEngine);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {

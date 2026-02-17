@@ -40,6 +40,7 @@ import type {
   SodRuleset,
   SodAnalysisResult,
 } from './interfaces.js';
+import { toError } from '../../shared/error-utils.js';
 import {
   EnterpriseIntegrationCoordinator,
   EnterpriseIntegrationEvents,
@@ -685,7 +686,7 @@ export class EnterpriseIntegrationPlugin extends BaseDomainPlugin {
   }
 
   private handleError<T>(error: unknown): Result<T, Error> {
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = toError(error);
 
     // Track error
     const currentHealth = this.getHealth();

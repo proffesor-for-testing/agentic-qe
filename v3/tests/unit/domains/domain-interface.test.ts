@@ -9,7 +9,7 @@
  * 4. Integration hooks are called correctly
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   BaseDomainPlugin,
   TaskHandler,
@@ -148,6 +148,10 @@ describe('BaseDomainPlugin - Domain Interface', () => {
       removeVertex: vi.fn().mockReturnValue(true),
       refreshGraph: vi.fn().mockResolvedValue(undefined),
     } as unknown as QueenMinCutBridge;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   // ==========================================================================

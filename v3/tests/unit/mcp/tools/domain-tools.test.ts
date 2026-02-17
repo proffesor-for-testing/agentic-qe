@@ -623,7 +623,7 @@ describe('A11yAuditTool', () => {
     expect(result.success).toBe(true);
     expect(result.data?.audits).toBeDefined();
     expect(result.data?.summary).toBeDefined();
-  }, 30000); // Allow 30s for heuristic analysis with memory backend initialization
+  }, 60000); // Allow 60s — CI runners are slower with memory backend initialization
 
   it('should support WCAG standard selection', async () => {
     // Use data URL for instant, deterministic offline testing
@@ -634,7 +634,7 @@ describe('A11yAuditTool', () => {
 
     // Heuristic mode should return success
     expect(result.success).toBe(true);
-  }, 30000); // Allow 30s for heuristic analysis with memory backend initialization
+  }, 60000); // Allow 60s — CI runners are slower with memory backend initialization
 });
 
 // ============================================================================

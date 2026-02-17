@@ -15,7 +15,7 @@ import { createServer, type Server } from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { safeJsonParse } from '../cli/helpers/safe-json.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // AG-UI imports
 import {

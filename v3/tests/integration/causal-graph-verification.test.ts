@@ -6,7 +6,7 @@
  * intervention-based causal verification using Prime Radiant CausalEngine.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { CausalGraphImpl } from '../../src/causal-discovery/causal-graph.js';
 import type { CausalEdge, TestEventType } from '../../src/causal-discovery/types.js';
 import {
@@ -68,6 +68,10 @@ describe('CausalGraph Integration with CausalVerifier', () => {
 
   beforeEach(() => {
     wasmLoader = createMockWasmLoader();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('Basic Integration', () => {

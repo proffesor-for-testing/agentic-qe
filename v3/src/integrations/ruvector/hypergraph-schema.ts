@@ -19,6 +19,7 @@ import {
   HYPERGRAPH_INDEXES_SCHEMA,
   isMigrationApplied,
 } from '../../migrations/20260120_add_hypergraph_tables.js';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Type Definitions
@@ -320,7 +321,7 @@ export function rowToNode(row: HypergraphNodeRow): HypergraphNode {
     lineEnd: row.line_end ?? undefined,
     complexity: row.complexity ?? undefined,
     coverage: row.coverage ?? undefined,
-    metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+    metadata: row.metadata ? safeJsonParse(row.metadata) : undefined,
     embedding: row.embedding ? bufferToFloatArray(row.embedding) : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -357,7 +358,7 @@ export function rowToEdge(row: HypergraphEdgeRow): HypergraphEdge {
     targetId: row.target_id,
     type: row.type as EdgeType,
     weight: row.weight,
-    properties: row.properties ? JSON.parse(row.properties) : undefined,
+    properties: row.properties ? safeJsonParse(row.properties) : undefined,
     createdAt: row.created_at,
   };
 }

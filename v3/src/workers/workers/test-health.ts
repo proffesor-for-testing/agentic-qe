@@ -18,6 +18,7 @@ import {
   WorkerRecommendation,
 } from '../interfaces';
 import { TestExecutionAPI } from '../../domains/test-execution/interfaces';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 const CONFIG: WorkerConfig = {
   id: 'test-health',
@@ -181,7 +182,7 @@ export class TestHealthWorker extends BaseWorker {
         },
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       throw new Error(
         `Failed to collect test health metrics: ${errorMessage}. ` +
         'Check memory service connectivity and test result data availability.'

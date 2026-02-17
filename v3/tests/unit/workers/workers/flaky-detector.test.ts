@@ -6,7 +6,7 @@
  * Tests flaky test detection and pattern analysis
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FlakyDetectorWorker } from '../../../../src/workers/workers/flaky-detector';
 import { WorkerContext } from '../../../../src/workers/interfaces';
 
@@ -97,6 +97,10 @@ describe('FlakyDetectorWorker', () => {
 
   beforeEach(() => {
     worker = new FlakyDetectorWorker();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('instantiation', () => {

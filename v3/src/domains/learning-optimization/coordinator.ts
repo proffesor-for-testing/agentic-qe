@@ -4,6 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { toError } from '../../shared/error-utils.js';
 import {
   Result,
   ok,
@@ -68,36 +69,24 @@ import {
   type EngineResult as DreamCycleResult,
 } from '../../learning/dream/index.js';
 
-// ============================================================================
-// MinCut & Consensus Mixin Imports (ADR-047, MM-001)
-// ============================================================================
-
-import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
-  type IMinCutAwareDomain,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain.js';
-
-import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
-  type IConsensusEnabledDomain,
-  type ConsensusEnabledConfig,
-} from '../../coordination/mixins/consensus-enabled-domain.js';
-
-// ADR-058: Governance-aware mixin for MemoryWriteGate integration
-import {
-  GovernanceAwareDomainMixin,
-  createGovernanceAwareMixin,
-} from '../../coordination/mixins/governance-aware-domain.js';
-
+// V3 Integration: MinCut Awareness (ADR-047) - only import types needed beyond base
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
+
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+  type BaseWorkflowStatus,
+} from '../base-domain-coordinator.js';
 
 import {
   type DomainFinding,
   createDomainFinding,
 } from '../../coordination/consensus/domain-findings.js';
+
+// CQ-004: Extracted modules
+import * as LearningHelpers from './coordinator-helpers.js';
+import * as ConsensusHelpers from './coordinator-consensus.js';
 
 /**
  * Workflow status tracking
@@ -116,11 +105,11 @@ export interface LearningWorkflowStatus {
 /**
  * Coordinator configuration
  */
-export interface LearningCoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
+/**
+ * CQ-002: Extends BaseDomainCoordinatorConfig — removes duplicate fields
+ */
+export interface LearningCoordinatorConfig extends BaseDomainCoordinatorConfig {
   enableAutoOptimization: boolean;
-  publishEvents: boolean;
   learningCycleIntervalMs: number;
 
   // Dream Scheduler configuration
@@ -138,16 +127,6 @@ export interface LearningCoordinatorConfig {
   autoApplyHighConfidenceInsights: boolean;
   /** Minimum confidence threshold for auto-applying insights (0-1) */
   autoApplyConfidenceThreshold: number;
-
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus integration config (MM-001)
-  enableConsensus: boolean;
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
 }
 
 const DEFAULT_CONFIG: LearningCoordinatorConfig = {
@@ -181,16 +160,19 @@ const DEFAULT_CONFIG: LearningCoordinatorConfig = {
  * Learning & Optimization Coordinator
  * Orchestrates cross-domain learning and optimization workflows
  */
+type LearningWorkflowType = 'learning-cycle' | 'optimization' | 'transfer' | 'export' | 'import';
+
+/**
+ * CQ-002: Extends BaseDomainCoordinator
+ */
 export class LearningOptimizationCoordinator
+  extends BaseDomainCoordinator<LearningCoordinatorConfig, LearningWorkflowType>
   implements ILearningOptimizationCoordinator
 {
-  private readonly config: LearningCoordinatorConfig;
-  private readonly workflows: Map<string, LearningWorkflowStatus> = new Map();
   private readonly learningService: LearningCoordinatorService;
   private readonly transferService: TransferSpecialistService;
   private readonly optimizerService: MetricsOptimizerService;
   private readonly productionIntel: ProductionIntelService;
-  private initialized = false;
 
   /**
    * QESONA (Self-Optimizing Neural Architecture) for pattern learning
@@ -205,47 +187,17 @@ export class LearningOptimizationCoordinator
    */
   private dreamScheduler: DreamScheduler | null = null;
 
-  // MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // Consensus verification mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
-  // Domain identifier for mixin initialization
-  private readonly domainName = 'learning-optimization';
-
-  // ADR-058: Governance mixin for MemoryWriteGate integration
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
-
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<LearningCoordinatorConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: LearningCoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
+    super(eventBus, 'learning-optimization', fullConfig, {
       verifyFindingTypes: ['pattern-recommendation', 'optimization-suggestion', 'cross-domain-insight'],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
     });
-
-    // ADR-058: Initialize governance mixin for MemoryWriteGate integration
-    this.governanceMixin = createGovernanceAwareMixin(this.domainName);
 
     this.learningService = new LearningCoordinatorService({ memory });
     this.transferService = new TransferSpecialistService(memory);
@@ -253,13 +205,16 @@ export class LearningOptimizationCoordinator
     this.productionIntel = new ProductionIntelService(memory);
   }
 
+  // ==========================================================================
+  // BaseDomainCoordinator Template Methods
+  // ==========================================================================
+
   /**
    * Initialize the coordinator.
+   * CQ-002: Domain-specific initialization
    * Throws if QESONA fails to initialize.
    */
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
-
+  protected async onInitialize(): Promise<void> {
     // Initialize QESONA for neural pattern learning (persistent patterns)
     try {
       this.sona = await createPersistentSONAEngine({
@@ -311,40 +266,15 @@ export class LearningOptimizationCoordinator
 
     // Load any persisted workflow state
     await this.loadWorkflowState();
-
-    // Initialize Consensus engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await (this.consensusMixin as any).initializeConsensus();
-        console.log(`[${this.domainName}] Consensus engine initialized`);
-      } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus verification`);
-      }
-    }
-
-    this.initialized = true;
   }
 
   /**
    * Dispose and cleanup
+   * CQ-002: Domain-specific disposal
    */
-  async dispose(): Promise<void> {
-    // Dispose Consensus engine (MM-001)
-    try {
-      await (this.consensusMixin as any).disposeConsensus();
-    } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
-    }
-
-    // Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
-
+  protected async onDispose(): Promise<void> {
     // Save workflow state
     await this.saveWorkflowState();
-
-    // Clear active workflows
-    this.workflows.clear();
 
     // Dispose DreamScheduler
     if (this.dreamScheduler) {
@@ -365,17 +295,13 @@ export class LearningOptimizationCoordinator
         console.error('[LearningOptimizationCoordinator] Error closing SONA engine:', error);
       }
     }
-
-    this.initialized = false;
   }
 
   /**
-   * Get active workflow statuses
+   * Get active workflow statuses (typed override)
    */
-  getActiveWorkflows(): LearningWorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
-    );
+  override getActiveWorkflows(): LearningWorkflowStatus[] {
+    return super.getActiveWorkflows() as LearningWorkflowStatus[];
   }
 
   // ============================================================================
@@ -503,7 +429,7 @@ export class LearningOptimizationCoordinator
       return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -602,7 +528,7 @@ export class LearningOptimizationCoordinator
       return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -711,7 +637,7 @@ export class LearningOptimizationCoordinator
       return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -782,7 +708,7 @@ export class LearningOptimizationCoordinator
 
       return ok(dashboard);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1144,7 +1070,7 @@ export class LearningOptimizationCoordinator
       return ok(modelExport);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1313,7 +1239,7 @@ export class LearningOptimizationCoordinator
       return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -1321,7 +1247,7 @@ export class LearningOptimizationCoordinator
   // Event Handling
   // ============================================================================
 
-  private subscribeToEvents(): void {
+  protected subscribeToEvents(): void {
     // Subscribe to test execution events for learning
     this.eventBus.subscribe(
       'test-execution.TestRunCompleted',
@@ -1674,63 +1600,6 @@ export class LearningOptimizationCoordinator
   }
 
   // ============================================================================
-  // Workflow Management
-  // ============================================================================
-
-  private startWorkflow(
-    id: string,
-    type: LearningWorkflowStatus['type']
-  ): void {
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  private updateWorkflowProgress(id: string, progress: number): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.progress = Math.min(100, Math.max(0, progress));
-    }
-  }
-
-  // ============================================================================
   // State Persistence
   // ============================================================================
 
@@ -1823,81 +1692,19 @@ export class LearningOptimizationCoordinator
     domain: DomainName,
     strategy: { name: string; parameters: Record<string, unknown>; expectedOutcome: Record<string, number> }
   ): Promise<void> {
-    await this.memory.set(`learning:strategy:current:${domain}`, strategy, {
-      namespace: 'learning-optimization',
-      persist: true,
-    });
+    await LearningHelpers.storeStrategy(this.memory, domain, strategy);
   }
 
-  private calculateMetricValue(
-    experiences: Experience[],
-    metric: string
-  ): number {
-    const values = experiences
-      .map((e) => (e.result.outcome[metric] as number) ?? 0)
-      .filter((v) => !isNaN(v));
-
-    if (values.length === 0) return 0;
-    return values.reduce((a, b) => a + b, 0) / values.length;
+  private calculateMetricValue(experiences: Experience[], metric: string): number {
+    return LearningHelpers.calculateMetricValue(experiences, metric);
   }
 
   private getRelatedDomains(domain: DomainName): DomainName[] {
-    const relationships: Record<DomainName, DomainName[]> = {
-      'test-generation': ['test-execution', 'coverage-analysis'],
-      'test-execution': ['test-generation', 'coverage-analysis', 'quality-assessment'],
-      'coverage-analysis': ['test-generation', 'test-execution', 'quality-assessment'],
-      'quality-assessment': ['test-execution', 'coverage-analysis', 'defect-intelligence'],
-      'defect-intelligence': ['quality-assessment', 'code-intelligence'],
-      'requirements-validation': ['test-generation', 'quality-assessment'],
-      'code-intelligence': ['defect-intelligence', 'security-compliance'],
-      'security-compliance': ['code-intelligence', 'quality-assessment'],
-      'contract-testing': ['test-generation', 'test-execution'],
-      'visual-accessibility': ['quality-assessment'],
-      'chaos-resilience': ['test-execution', 'quality-assessment'],
-      'learning-optimization': ALL_DOMAINS.filter((d) => d !== 'learning-optimization'),
-      'enterprise-integration': ['contract-testing', 'security-compliance', 'quality-assessment'],
-      'coordination': ALL_DOMAINS.filter((d) => d !== 'coordination'),
-    };
-
-    return relationships[domain] || [];
+    return LearningHelpers.getRelatedDomains(domain);
   }
 
   private findSimilarPatterns(patterns: LearnedPattern[]): LearnedPattern[][] {
-    const groups: LearnedPattern[][] = [];
-    const assigned = new Set<string>();
-
-    for (const pattern of patterns) {
-      if (assigned.has(pattern.id)) continue;
-
-      const group = [pattern];
-      assigned.add(pattern.id);
-
-      for (const other of patterns) {
-        if (assigned.has(other.id)) continue;
-
-        if (
-          pattern.type === other.type &&
-          pattern.domain === other.domain &&
-          this.contextsOverlap(pattern.context, other.context)
-        ) {
-          group.push(other);
-          assigned.add(other.id);
-        }
-      }
-
-      if (group.length >= 2) {
-        groups.push(group);
-      }
-    }
-
-    return groups;
-  }
-
-  private contextsOverlap(
-    a: { tags: string[] },
-    b: { tags: string[] }
-  ): boolean {
-    return a.tags.some((tag) => b.tags.includes(tag));
+    return LearningHelpers.findSimilarPatterns(patterns);
   }
 
   private calculateChecksum(
@@ -1905,90 +1712,12 @@ export class LearningOptimizationCoordinator
     knowledge: Knowledge[],
     strategies: OptimizedStrategy[]
   ): string {
-    const data = JSON.stringify({
-      patternCount: patterns.length,
-      knowledgeCount: knowledge.length,
-      strategyCount: strategies.length,
-      patternIds: patterns.map((p) => p.id).sort(),
-      knowledgeIds: knowledge.map((k) => k.id).sort(),
-      strategyIds: strategies.map((s) => s.id).sort(),
-    });
-
-    // Simple hash function
-    let hash = 0;
-    for (let i = 0; i < data.length; i++) {
-      const char = data.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-
-    return Math.abs(hash).toString(16);
+    return LearningHelpers.calculateChecksum(patterns, knowledge, strategies);
   }
 
   // ============================================================================
-  // MinCut Integration Methods (ADR-047)
+  // Domain-Specific Consensus Methods (MM-001)
   // ============================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
-  }
-
-  /**
-   * Check if topology is healthy
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  /**
-   * Get topology-based routing excluding weak domains
-   * Per ADR-047: Filters out domains that are currently weak points
-   *
-   * @param targetDomains - List of potential target domains
-   * @returns Filtered list of healthy domains for routing
-   */
-  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
-  }
-
-  /**
-   * Get weak vertices belonging to this domain
-   * Per ADR-047: Identifies agents that are single points of failure
-   */
-  getDomainWeakVertices() {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   * Per ADR-047: Returns true if any weak vertex belongs to learning-optimization domain
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
-  // ============================================================================
-  // Consensus Integration Methods (MM-001)
-  // ============================================================================
-
-  /**
-   * Check if consensus engine is available
-   */
-  isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
-  }
-
-  /**
-   * Get consensus statistics
-   * Per MM-001: Returns metrics about consensus verification
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
-  }
 
   /**
    * Verify a pattern recommendation using multi-model consensus
@@ -2002,93 +1731,20 @@ export class LearningOptimizationCoordinator
     pattern: { id: string; name: string; type: string; domain: DomainName },
     confidence: number
   ): Promise<boolean> {
-    const finding: DomainFinding<typeof pattern> = createDomainFinding({
-      id: uuidv4(),
-      type: 'pattern-recommendation',
-      confidence,
-      description: `Verify pattern recommendation: ${pattern.name} (${pattern.type}) for domain ${pattern.domain}`,
-      payload: pattern,
-      detectedBy: 'learning-optimization-coordinator',
-      severity: confidence > 0.9 ? 'high' : 'medium',
-    });
-
-    if (this.consensusMixin.requiresConsensus(finding)) {
-      const result = await this.consensusMixin.verifyFinding(finding);
-      if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Pattern recommendation '${pattern.name}' verified by consensus`);
-        return true;
-      }
-      console.warn(`[${this.domainName}] Pattern recommendation '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
-      return false;
-    }
-    return true; // No consensus needed
+    return ConsensusHelpers.verifyPatternRecommendation(pattern, confidence, this.consensusMixin, this.domainName);
   }
 
-  /**
-   * Verify an optimization suggestion using multi-model consensus
-   * Per MM-001: Optimization suggestions can have significant impact
-   *
-   * @param suggestion - The optimization suggestion to verify
-   * @param confidence - Initial confidence in the suggestion
-   * @returns true if the suggestion is verified or doesn't require consensus
-   */
   async verifyOptimizationSuggestion(
     suggestion: { metric: string; currentValue: number; targetValue: number; strategy: string },
     confidence: number
   ): Promise<boolean> {
-    const finding: DomainFinding<typeof suggestion> = createDomainFinding({
-      id: uuidv4(),
-      type: 'optimization-suggestion',
-      confidence,
-      description: `Verify optimization: ${suggestion.metric} from ${suggestion.currentValue} to ${suggestion.targetValue} via ${suggestion.strategy}`,
-      payload: suggestion,
-      detectedBy: 'learning-optimization-coordinator',
-      severity: confidence > 0.85 ? 'high' : 'medium',
-    });
-
-    if (this.consensusMixin.requiresConsensus(finding)) {
-      const result = await this.consensusMixin.verifyFinding(finding);
-      if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Optimization suggestion for '${suggestion.metric}' verified by consensus`);
-        return true;
-      }
-      console.warn(`[${this.domainName}] Optimization suggestion for '${suggestion.metric}' NOT verified`);
-      return false;
-    }
-    return true; // No consensus needed
+    return ConsensusHelpers.verifyOptimizationSuggestion(suggestion, confidence, this.consensusMixin, this.domainName);
   }
 
-  /**
-   * Verify a cross-domain insight using multi-model consensus
-   * Per MM-001: Cross-domain insights require verification before propagation
-   *
-   * @param insight - The cross-domain insight to verify
-   * @param confidence - Initial confidence in the insight
-   * @returns true if the insight is verified or doesn't require consensus
-   */
   async verifyCrossDomainInsight(
     insight: { sourceDomain: DomainName; targetDomains: DomainName[]; description: string; impact: string },
     confidence: number
   ): Promise<boolean> {
-    const finding: DomainFinding<typeof insight> = createDomainFinding({
-      id: uuidv4(),
-      type: 'cross-domain-insight',
-      confidence,
-      description: `Verify cross-domain insight: ${insight.description}`,
-      payload: insight,
-      detectedBy: 'learning-optimization-coordinator',
-      severity: 'high', // Cross-domain insights always have high impact
-    });
-
-    if (this.consensusMixin.requiresConsensus(finding)) {
-      const result = await this.consensusMixin.verifyFinding(finding);
-      if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Cross-domain insight verified by consensus for ${insight.targetDomains.length} target domains`);
-        return true;
-      }
-      console.warn(`[${this.domainName}] Cross-domain insight NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
-      return false;
-    }
-    return true; // No consensus needed
+    return ConsensusHelpers.verifyCrossDomainInsight(insight, confidence, this.consensusMixin, this.domainName);
   }
 }

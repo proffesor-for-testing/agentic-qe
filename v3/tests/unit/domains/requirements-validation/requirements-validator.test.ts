@@ -2,7 +2,7 @@
  * Agentic QE v3 - Requirements Validator Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { RequirementsValidatorService } from '../../../../src/domains/requirements-validation/services/requirements-validator';
 import { MemoryBackend, StoreOptions } from '../../../../src/kernel/interfaces';
 import { Requirement, ValidationCriteria } from '../../../../src/domains/requirements-validation/interfaces';
@@ -64,6 +64,10 @@ describe('RequirementsValidatorService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     validator = new RequirementsValidatorService(mockMemory);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('validate', () => {

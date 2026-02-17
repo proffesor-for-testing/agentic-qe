@@ -2,7 +2,7 @@
  * Agentic QE v3 - Accessibility Tester Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   AccessibilityTesterService,
   AccessibilityTesterConfig,
@@ -72,6 +72,10 @@ describe('AccessibilityTesterService', () => {
       useBrowserMode: false,
       preferAgentBrowser: false,
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('audit', () => {

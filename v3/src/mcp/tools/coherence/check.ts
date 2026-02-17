@@ -15,6 +15,7 @@ import {
   MCPToolSchema,
 } from '../base.js';
 import { ToolResult } from '../../types.js';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import {
   CoherenceService,
   createCoherenceService,
@@ -267,7 +268,7 @@ export class CoherenceCheckTool extends MCPToolBase<
 
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }

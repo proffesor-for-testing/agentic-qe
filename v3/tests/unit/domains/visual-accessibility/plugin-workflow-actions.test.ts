@@ -3,7 +3,7 @@
  * Issue #206: visual-accessibility domain actions not registered with WorkflowOrchestrator
  */
 
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { ok, err } from '../../../../src/shared/types/index.js';
 import type { Result } from '../../../../src/shared/types/index.js';
 import type { EventBus, MemoryBackend, AgentCoordinator } from '../../../../src/kernel/interfaces.js';
@@ -65,6 +65,10 @@ describe('VisualAccessibilityPlugin Workflow Actions (Issue #206)', () => {
     mockMemory = createMockMemory();
     mockAgentCoordinator = createMockAgentCoordinator();
     mockOrchestrator = createMockWorkflowOrchestrator();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('registerWorkflowActions', () => {

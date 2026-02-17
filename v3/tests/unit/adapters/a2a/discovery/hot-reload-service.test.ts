@@ -82,6 +82,7 @@ describe('HotReloadService', () => {
   let service: HotReloadService;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     generator = createMockGenerator();
     discoveryService = createMockDiscoveryService();
     watcher = createMockWatcher();
@@ -91,7 +92,8 @@ describe('HotReloadService', () => {
     if (service) {
       service.stop();
     }
-    vi.clearAllMocks();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   describe('constructor', () => {
@@ -208,7 +210,7 @@ describe('HotReloadService', () => {
       });
 
       // Wait for async processing
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       expect(generator.generateFromFile).toHaveBeenCalledWith('/path/to/agents/qe-test-agent.md');
       expect(discoveryService.registerCard).toHaveBeenCalledWith(mockCard);
@@ -232,7 +234,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       expect(generator.generateFromFile).toHaveBeenCalled();
       expect(discoveryService.invalidateCache).toHaveBeenCalledWith('qe-test-agent');
@@ -253,7 +255,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       const removedHandler = vi.fn();
       service.on('card-removed', removedHandler);
@@ -266,7 +268,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       expect(discoveryService.invalidateCache).toHaveBeenCalledWith('qe-test-agent');
       expect(removedHandler).toHaveBeenCalledWith('qe-test-agent');
@@ -297,7 +299,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       expect(onCardRegenerated).toHaveBeenCalledWith('qe-callback-test', mockCard);
     });
@@ -326,7 +328,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       // Then remove
       (watcher as EventEmitter).emit('agent-change', {
@@ -336,7 +338,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       expect(onCardRemoved).toHaveBeenCalledWith('qe-remove-test');
     });
@@ -368,7 +370,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       expect(onError).toHaveBeenCalled();
       expect(errorHandler).toHaveBeenCalled();
@@ -397,7 +399,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       const cachedCard = service.getCachedCard('qe-cache-test');
       expect(cachedCard).toEqual(mockCard);
@@ -430,7 +432,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       const agentIds = service.getCachedAgentIds();
       expect(agentIds).toContain('qe-agent-1');
@@ -448,7 +450,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       expect(service.getCachedCard('qe-invalidate-test')).not.toBeNull();
 
@@ -535,7 +537,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       expect(discoveryService.invalidateAllCaches).toHaveBeenCalled();
       expect(discoveryService.getPlatformCard).toHaveBeenCalled();
@@ -562,7 +564,7 @@ describe('HotReloadService', () => {
         timestamp: Date.now(),
       });
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       expect(discoveryService.invalidateAllCaches).not.toHaveBeenCalled();
     });

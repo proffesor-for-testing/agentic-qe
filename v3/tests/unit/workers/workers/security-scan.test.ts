@@ -6,7 +6,7 @@
  * Tests security vulnerability scanning functionality
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SecurityScanWorker } from '../../../../src/workers/workers/security-scan';
 import { WorkerContext } from '../../../../src/workers/interfaces';
 
@@ -39,6 +39,10 @@ describe('SecurityScanWorker', () => {
 
   beforeEach(() => {
     worker = new SecurityScanWorker();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('instantiation', () => {

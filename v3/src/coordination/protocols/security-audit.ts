@@ -40,16 +40,71 @@ import type {
   DetectedSecret,
   ScanSummary,
 } from '../../domains/security-compliance/interfaces.js';
-import {
-  SecurityScannerService,
-  type ISecurityScannerService,
-} from '../../domains/security-compliance/services/security-scanner.js';
-import {
-  runSemgrepWithRules,
-  isSemgrepAvailable,
-  convertSemgrepFindings,
-  type SemgrepFinding,
-} from '../../domains/security-compliance/services/semgrep-integration.js';
+import type { ISecurityScannerService } from '../../domains/security-compliance/services/security-scanner.js';
+import type { SemgrepFinding } from '../../domains/security-compliance/services/semgrep-integration.js';
+import { toError } from '../../shared/error-utils.js';
+
+// CQ-005: Use DomainServiceRegistry instead of dynamic imports from domains/
+import { DomainServiceRegistry, ServiceKeys } from '../../shared/domain-service-registry.js';
+
+// ============================================================================
+// CQ-005: Domain Service Resolution via Registry (no coordination -> domains imports)
+// Domain modules register their factories in their index.ts files.
+// Coordination resolves them from the shared registry at runtime.
+// ============================================================================
+
+function resolveSecurityScannerService(memory: MemoryBackend): ISecurityScannerService {
+  const factory = DomainServiceRegistry.resolve<(m: MemoryBackend) => ISecurityScannerService>(
+    ServiceKeys.SecurityScannerService
+  );
+  return factory(memory);
+}
+
+function resolveIsSemgrepAvailable(): Promise<boolean> {
+  const fn = DomainServiceRegistry.resolve<() => Promise<boolean>>(
+    ServiceKeys.isSemgrepAvailable
+  );
+  return fn();
+}
+
+interface SemgrepResultLike {
+  success: boolean;
+  findings: SemgrepFinding[];
+  errors: string[];
+  version?: string;
+}
+
+interface ConvertedFinding {
+  id: string;
+  title: string;
+  description: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  file: string;
+  line: number;
+  column: number;
+  snippet: string;
+  cweId?: string;
+  owaspCategory?: string;
+  remediation: string;
+  references: string[];
+}
+
+function resolveRunSemgrepWithRules(
+  targetPath: string,
+  ruleSetIds: string[],
+): Promise<SemgrepResultLike> {
+  const fn = DomainServiceRegistry.resolve<
+    (t: string, r: string[]) => Promise<SemgrepResultLike>
+  >(ServiceKeys.runSemgrepWithRules);
+  return fn(targetPath, ruleSetIds);
+}
+
+function resolveConvertSemgrepFindings(findings: SemgrepFinding[]): ConvertedFinding[] {
+  const fn = DomainServiceRegistry.resolve<
+    (f: SemgrepFinding[]) => ConvertedFinding[]
+  >(ServiceKeys.convertSemgrepFindings);
+  return fn(findings);
+}
 
 // ============================================================================
 // Protocol Types
@@ -260,11 +315,11 @@ export class SecurityAuditProtocol {
 
   /**
    * Get or create the SecurityScannerService instance
-   * Lazily initialized to avoid constructor complexity
+   * Lazily initialized via dynamic import to break circular dependency
    */
   private getSecurityScanner(): ISecurityScannerService {
     if (!this.securityScanner) {
-      this.securityScanner = new SecurityScannerService(this.memory);
+      this.securityScanner = resolveSecurityScannerService(this.memory);
     }
     return this.securityScanner;
   }
@@ -388,7 +443,7 @@ export class SecurityAuditProtocol {
       this.updatePhase('failed');
       await this.cleanupAgents();
       this.currentAudit = null;
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -430,16 +485,16 @@ export class SecurityAuditProtocol {
       }
 
       // Try semgrep if available as secondary option
-      const semgrepAvailable = await isSemgrepAvailable();
+      const semgrepAvailable = await resolveIsSemgrepAvailable();
       if (semgrepAvailable) {
         try {
-          const semgrepResult = await runSemgrepWithRules(
+          const semgrepResult = await resolveRunSemgrepWithRules(
             this.config.scanPaths[0] || '.',
             options.ruleSetIds || ['owasp-top-10']
           );
 
           if (semgrepResult.success && semgrepResult.findings.length > 0) {
-            const convertedFindings = convertSemgrepFindings(semgrepResult.findings);
+            const convertedFindings = resolveConvertSemgrepFindings(semgrepResult.findings);
             const vulnerabilities: Vulnerability[] = convertedFindings.map(f => ({
               id: uuidv4(),
               cveId: undefined,
@@ -492,7 +547,7 @@ export class SecurityAuditProtocol {
         'Install semgrep (pip install semgrep) or ensure SecurityScannerService is properly configured.'
       ));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -564,7 +619,7 @@ export class SecurityAuditProtocol {
         'Ensure package.json exists and SecurityScannerService is properly configured.'
       ));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -617,7 +672,7 @@ export class SecurityAuditProtocol {
         filesScanned: this.config.scanPaths.length * 10, // Estimate
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -661,7 +716,7 @@ export class SecurityAuditProtocol {
         'Ensure the target URL is accessible and SecurityScannerService is properly configured.'
       ));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -686,7 +741,7 @@ export class SecurityAuditProtocol {
 
       return ok(reports);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 

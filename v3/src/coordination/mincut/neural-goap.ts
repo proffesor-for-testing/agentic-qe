@@ -27,6 +27,7 @@ import { SwarmGraph } from './swarm-graph';
 import { MinCutCalculator, createMinCutCalculator } from './mincut-calculator';
 import { StrangeLoopController } from './strange-loop';
 import { WeakVertex, ReorganizationAction, ReorganizationResult } from './interfaces';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // GOAP State - Current World State
@@ -1215,7 +1216,7 @@ export class GOAPController {
           break;
         }
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
+        const errorMsg = toErrorMessage(error);
         errors.push(`Action ${action.name} failed: ${errorMsg}`);
 
         if (this.config.replanOnFailure && replanAttempts < this.config.maxReplanAttempts) {

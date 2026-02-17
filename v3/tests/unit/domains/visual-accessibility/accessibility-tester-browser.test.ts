@@ -3,7 +3,7 @@
  * Tests AccessibilityTesterService with mock browser client integration
  */
 
-import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import {
   AccessibilityTesterService,
   AccessibilityTesterConfig,
@@ -206,6 +206,10 @@ describe('AccessibilityTesterService with Browser Client Integration', () => {
     mockMemory = new MockMemoryBackend();
     mockBrowserClient = createMockAgentBrowserClient();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('preferAgentBrowser configuration', () => {

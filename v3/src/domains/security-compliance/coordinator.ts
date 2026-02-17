@@ -8,6 +8,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { toError } from '../../shared/error-utils.js';
 import {
   Result,
   ok,
@@ -78,15 +79,11 @@ import {
 // ============================================================================
 
 import {
-  MinCutAwareDomainMixin,
-  createMinCutAwareMixin,
   type IMinCutAwareDomain,
   type MinCutAwareConfig,
 } from '../../coordination/mixins/mincut-aware-domain';
 
 import {
-  ConsensusEnabledMixin,
-  createConsensusEnabledMixin,
   type IConsensusEnabledDomain,
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
@@ -103,6 +100,12 @@ import {
   type DomainFinding,
   createDomainFinding,
 } from '../../coordination/consensus/domain-findings';
+
+// CQ-002: Base domain coordinator
+import {
+  BaseDomainCoordinator,
+  type BaseDomainCoordinatorConfig,
+} from '../base-domain-coordinator.js';
 
 // ============================================================================
 // Coordinator Interface Extension
@@ -159,27 +162,18 @@ export interface WorkflowStatus {
 // Configuration
 // ============================================================================
 
-export interface CoordinatorConfig {
-  maxConcurrentWorkflows: number;
-  defaultTimeout: number;
-  publishEvents: boolean;
+export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
   autoTriageVulnerabilities: boolean;
   riskThreshold: number;
   // V3: Enable DQN and Flash Attention integrations
   enableDQN: boolean;
   enableFlashAttention: boolean;
   // V3: Multi-Model Consensus for security finding verification (MM-006)
-  enableConsensus: boolean;
-  consensusConfig?: Partial<ConsensusEngineConfig>;
-  // MinCut integration config (ADR-047)
-  enableMinCutAwareness: boolean;
-  topologyHealthThreshold: number;
-  pauseOnCriticalTopology: boolean;
-  // Consensus mixin config (MM-001)
-  consensusThreshold: number;
-  consensusStrategy: 'majority' | 'weighted' | 'unanimous';
-  consensusMinModels: number;
+  consensusEngineConfig?: Partial<ConsensusEngineConfig>;
+  consensusMixinConfig?: Partial<ConsensusEnabledConfig>;
 }
+
+type SecurityWorkflowType = 'audit' | 'scan' | 'compliance' | 'posture';
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
   maxConcurrentWorkflows: 3,
@@ -206,14 +200,12 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
 // ============================================================================
 
 export class SecurityComplianceCoordinator
+  extends BaseDomainCoordinator<CoordinatorConfig, SecurityWorkflowType>
   implements IExtendedSecurityComplianceCoordinator
 {
-  private readonly config: CoordinatorConfig;
   private readonly securityScanner: ISecurityScannerService;
   private readonly securityAuditor: ISecurityAuditorService;
   private readonly complianceValidator: IExtendedComplianceValidationService;
-  private readonly workflows: Map<string, WorkflowStatus> = new Map();
-  private initialized = false;
 
   // V3: DQN and Flash Attention integrations
   private dqnAlgorithm?: DQNAlgorithm;
@@ -223,48 +215,24 @@ export class SecurityComplianceCoordinator
   // V3: Multi-Model Consensus for security finding verification (MM-006)
   private consensusEngine?: ConsensusEngine;
 
-  // MinCut topology awareness mixin (ADR-047)
-  private readonly minCutMixin: MinCutAwareDomainMixin;
-
-  // Consensus verification mixin (MM-001)
-  private readonly consensusMixin: ConsensusEnabledMixin;
-
   // ADR-058: Governance-aware mixin for security scan requirement enforcement
-  private readonly governanceMixin: GovernanceAwareDomainMixin;
-
-  // Domain identifier for mixin initialization
-  private readonly domainName = 'security-compliance';
+  private readonly securityGovernanceMixin: GovernanceAwareDomainMixin;
 
   constructor(
-    private readonly eventBus: EventBus,
+    eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {}
   ) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
-    // Initialize MinCut-aware mixin (ADR-047)
-    this.minCutMixin = createMinCutAwareMixin(this.domainName, {
-      enableMinCutAwareness: this.config.enableMinCutAwareness,
-      topologyHealthThreshold: this.config.topologyHealthThreshold,
-      pauseOnCriticalTopology: this.config.pauseOnCriticalTopology,
-    });
-
-    // Initialize Consensus-enabled mixin (MM-001)
-    // Verifies security vulnerabilities, compliance violations, and credential exposures
-    this.consensusMixin = createConsensusEnabledMixin({
-      enableConsensus: this.config.enableConsensus,
-      consensusThreshold: this.config.consensusThreshold,
+    super(eventBus, 'security-compliance', fullConfig, {
       verifyFindingTypes: [
         'security-vulnerability',
         'compliance-violation',
         'credential-exposure',
       ],
-      strategy: this.config.consensusStrategy,
-      minModels: this.config.consensusMinModels,
-      modelTimeout: 60000,
-      verifySeverities: ['critical', 'high'],
-      enableLogging: false,
+      ...fullConfig.consensusMixinConfig,
     });
 
     // ADR-058: Initialize Governance-aware mixin for security scan enforcement
@@ -272,7 +240,7 @@ export class SecurityComplianceCoordinator
     // - MemoryWriteGate for pattern contradiction detection
     // - Constitutional Invariant #2: Security scan required for auth code changes
     // - Constitutional Invariant #3: Backup required before destructive operations
-    this.governanceMixin = createSecurityGovernanceMixin(this.domainName);
+    this.securityGovernanceMixin = createSecurityGovernanceMixin(this.domainName);
 
     this.securityScanner = new SecurityScannerService(memory);
     this.securityAuditor = new SecurityAuditorService(memory);
@@ -283,9 +251,7 @@ export class SecurityComplianceCoordinator
   // Lifecycle Methods
   // ==========================================================================
 
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
-
+  protected async onInitialize(): Promise<void> {
     this.subscribeToEvents();
     await this.loadWorkflowState();
 
@@ -293,19 +259,6 @@ export class SecurityComplianceCoordinator
     if (this.config.enableDQN || this.config.enableFlashAttention || this.config.enableConsensus) {
       await this.initializeRLIntegrations();
     }
-
-    // Initialize Consensus mixin engine if enabled (MM-001)
-    if (this.config.enableConsensus) {
-      try {
-        await (this.consensusMixin as any).initializeConsensus();
-        console.log(`[${this.domainName}] Consensus mixin engine initialized`);
-      } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus mixin engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus mixin verification`);
-      }
-    }
-
-    this.initialized = true;
   }
 
   /**
@@ -349,7 +302,7 @@ export class SecurityComplianceCoordinator
             engineConfig: {
               minModels: Math.min(2, providers.length),
               defaultModelTimeout: 60000,
-              ...this.config.consensusConfig,
+              ...this.config.consensusEngineConfig,
             },
           });
           console.log(`[SecurityCompliance] Multi-Model Consensus initialized with ${providers.length} providers`);
@@ -365,27 +318,12 @@ export class SecurityComplianceCoordinator
     }
   }
 
-  async dispose(): Promise<void> {
+  protected async onDispose(): Promise<void> {
     await this.saveWorkflowState();
-
-    // Dispose Consensus mixin engine (MM-001)
-    try {
-      await (this.consensusMixin as any).disposeConsensus();
-    } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus mixin engine:`, error);
-    }
-
-    // Dispose MinCut mixin (ADR-047)
-    this.minCutMixin.dispose();
-
-    this.workflows.clear();
-    this.initialized = false;
   }
 
-  getActiveWorkflows(): WorkflowStatus[] {
-    return Array.from(this.workflows.values()).filter(
-      (w) => w.status === 'running' || w.status === 'pending'
-    );
+  override getActiveWorkflows(): WorkflowStatus[] {
+    return super.getActiveWorkflows() as WorkflowStatus[];
   }
 
   // ==========================================================================
@@ -408,14 +346,14 @@ export class SecurityComplianceCoordinator
 
       // ADR-058: Check if this audit affects auth code and validate security scan requirement
       const affectsAuthCode = this.detectAuthCodeInScope(options);
-      if (affectsAuthCode && this.governanceMixin.isGovernanceEnabled()) {
-        const validation = await this.governanceMixin.validateSecurityScanRequired(
+      if (affectsAuthCode && this.securityGovernanceMixin.isGovernanceEnabled()) {
+        const validation = await this.securityGovernanceMixin.validateSecurityScanRequired(
           workflowId,
           true, // affectsAuthCode
           undefined // No prior scan result - this IS the scan
         );
         // For security audits, we're the scan itself, so we just log the governance check
-        if (!validation.allowed && this.governanceMixin.isStrictMode()) {
+        if (!validation.allowed && this.securityGovernanceMixin.isStrictMode()) {
           console.log(`[${this.domainName}] Security audit for auth code registered with governance`);
         }
       }
@@ -487,7 +425,7 @@ export class SecurityComplianceCoordinator
 
       return result;
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -536,7 +474,7 @@ export class SecurityComplianceCoordinator
 
       return result;
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -587,7 +525,7 @@ export class SecurityComplianceCoordinator
 
       return result;
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -632,7 +570,7 @@ export class SecurityComplianceCoordinator
         return result as Result<SecurityPosture>;
       }
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = toError(error);
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
@@ -1135,53 +1073,6 @@ export class SecurityComplianceCoordinator
   }
 
   // ==========================================================================
-  // Workflow Management
-  // ==========================================================================
-
-  private startWorkflow(id: string, type: WorkflowStatus['type']): void {
-    const activeWorkflows = this.getActiveWorkflows();
-    if (activeWorkflows.length >= this.config.maxConcurrentWorkflows) {
-      throw new Error(
-        `Maximum concurrent workflows (${this.config.maxConcurrentWorkflows}) reached`
-      );
-    }
-
-    this.workflows.set(id, {
-      id,
-      type,
-      status: 'running',
-      startedAt: new Date(),
-      agentIds: [],
-      progress: 0,
-    });
-  }
-
-  private completeWorkflow(id: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'completed';
-      workflow.completedAt = new Date();
-      workflow.progress = 100;
-    }
-  }
-
-  private failWorkflow(id: string, error: string): void {
-    const workflow = this.workflows.get(id);
-    if (workflow) {
-      workflow.status = 'failed';
-      workflow.completedAt = new Date();
-      workflow.error = error;
-    }
-  }
-
-  private addAgentToWorkflow(workflowId: string, agentId: string): void {
-    const workflow = this.workflows.get(workflowId);
-    if (workflow) {
-      workflow.agentIds.push(agentId);
-    }
-  }
-
-  // ==========================================================================
   // ADR-058: Governance Helper Methods
   // ==========================================================================
 
@@ -1238,7 +1129,7 @@ export class SecurityComplianceCoordinator
   // Event Handling
   // ==========================================================================
 
-  private subscribeToEvents(): void {
+  protected subscribeToEvents(): void {
     this.eventBus.subscribe(
       'test-execution.TestRunCompleted',
       this.handleTestRunCompleted.bind(this)
@@ -1288,71 +1179,11 @@ export class SecurityComplianceCoordinator
     );
   }
 
-  // ==========================================================================
-  // MinCut Integration Methods (ADR-047)
-  // ==========================================================================
-
-  /**
-   * Set the MinCut bridge for topology awareness
-   */
-  setMinCutBridge(bridge: QueenMinCutBridge): void {
-    this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected for topology awareness`);
-  }
-
-  /**
-   * Check if topology is healthy
-   */
-  isTopologyHealthy(): boolean {
-    return this.minCutMixin.isTopologyHealthy();
-  }
-
-  /**
-   * Get topology-based routing excluding weak domains
-   * @param targetDomains - List of potential target domains
-   * @returns Filtered list of healthy domains for routing
-   */
-  getTopologyBasedRouting(targetDomains: DomainName[]): DomainName[] {
-    return this.minCutMixin.getTopologyBasedRouting(targetDomains);
-  }
-
-  /**
-   * Get weak vertices belonging to this domain
-   */
-  getDomainWeakVertices() {
-    return this.minCutMixin.getDomainWeakVertices();
-  }
-
-  /**
-   * Check if this domain is a weak point in the topology
-   */
-  isDomainWeakPoint(): boolean {
-    return this.minCutMixin.isDomainWeakPoint();
-  }
-
   /**
    * Get domains that are healthy for routing
    * Convenience method that considers monitored domains
    */
   getHealthyRoutingDomains(): DomainName[] {
     return this.minCutMixin.getHealthyRoutingDomains();
-  }
-
-  // ==========================================================================
-  // Consensus Integration Methods (MM-001)
-  // ==========================================================================
-
-  /**
-   * Check if consensus engine is available
-   */
-  isConsensusAvailable(): boolean {
-    return (this.consensusMixin as any).isConsensusAvailable?.() ?? false;
-  }
-
-  /**
-   * Get consensus statistics
-   */
-  getConsensusStats() {
-    return this.consensusMixin.getConsensusStats();
   }
 }

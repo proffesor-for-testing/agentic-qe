@@ -2,7 +2,7 @@
  * Agentic QE v3 - Impact Analyzer Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   ImpactAnalyzerService,
   ImpactAnalyzerConfig,
@@ -120,6 +120,10 @@ describe('ImpactAnalyzerService', () => {
     // Default mock with empty dependencies
     mockKnowledgeGraph = createMockKnowledgeGraph(new Map());
     service = new ImpactAnalyzerService(mockMemory, mockKnowledgeGraph);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('analyzeImpact', () => {

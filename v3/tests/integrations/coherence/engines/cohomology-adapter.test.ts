@@ -6,7 +6,7 @@
  * and cohomology dimension computations.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 /**
  * Mock WASM module for CohomologyEngine
@@ -226,6 +226,10 @@ describe('CohomologyAdapter', () => {
       dispose: vi.fn(),
     };
     adapter = new CohomologyAdapter(mockEngine);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {

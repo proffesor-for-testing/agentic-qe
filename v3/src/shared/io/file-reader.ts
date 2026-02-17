@@ -7,6 +7,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { Result, ok, err } from '../types';
 import { validatePath, PathValidationResult } from '../../mcp/security/cve-prevention';
+import { safeJsonParse } from '../safe-json.js';
 
 // ============================================================================
 // Types
@@ -409,7 +410,7 @@ export class FileReader {
     }
 
     try {
-      const parsed = JSON.parse(readResult.value) as T;
+      const parsed = safeJsonParse<T>(readResult.value);
       return ok(parsed);
     } catch (error) {
       const parseError = error as SyntaxError;

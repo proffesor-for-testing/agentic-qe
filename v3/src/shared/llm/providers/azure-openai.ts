@@ -45,6 +45,7 @@ import {
 } from '../interfaces';
 import { CostTracker } from '../cost-tracker';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
+import { toError } from '../../error-utils.js';
 
 /**
  * Azure OpenAI-specific configuration
@@ -726,7 +727,7 @@ export class AzureOpenAIProvider implements LLMProvider {
 
         return response;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        lastError = toError(error);
 
         // Only retry on network/timeout errors
         if (attempt < maxRetries - 1) {

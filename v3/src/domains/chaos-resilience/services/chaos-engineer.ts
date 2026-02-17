@@ -27,6 +27,8 @@ import {
 import * as net from 'net';
 import { execFile } from 'child_process';
 import { validateCommand } from '../../../mcp/security/cve-prevention';
+import { toErrorMessage, toError } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
 /**
  * Configuration for the chaos engineer service
@@ -139,7 +141,7 @@ export class ChaosEngineerService implements IChaosEngineeringService {
 
       return ok(experiment.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -228,7 +230,7 @@ export class ChaosEngineerService implements IChaosEngineeringService {
         execution.result.incidents.push({
           type: 'error',
           severity: 'critical',
-          message: error instanceof Error ? error.message : String(error),
+          message: toErrorMessage(error),
           timestamp: new Date(),
           resolved: false,
         });
@@ -244,7 +246,7 @@ export class ChaosEngineerService implements IChaosEngineeringService {
         this.activeExperiments.delete(experimentId);
       }
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -280,7 +282,7 @@ export class ChaosEngineerService implements IChaosEngineeringService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -301,7 +303,7 @@ export class ChaosEngineerService implements IChaosEngineeringService {
 
       return ok(allPassed);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -364,7 +366,7 @@ export class ChaosEngineerService implements IChaosEngineeringService {
         errors: [injectionResult.error.message],
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -385,7 +387,7 @@ export class ChaosEngineerService implements IChaosEngineeringService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error(String(error)));
+      return err(toError(error));
     }
   }
 
@@ -594,7 +596,7 @@ Provide:
       // Default: any 2xx status is success
       return response.ok;
     } catch (error) {
-      console.log(`HTTP probe error: ${probe.name} -> ${error instanceof Error ? error.message : String(error)}`);
+      console.log(`HTTP probe error: ${probe.name} -> ${toErrorMessage(error)}`);
       return false;
     }
   }
@@ -634,7 +636,7 @@ Provide:
           resolve(false);
         });
       } catch (error) {
-        console.log(`TCP probe exception: ${probe.name} -> ${error instanceof Error ? error.message : String(error)}`);
+        console.log(`TCP probe exception: ${probe.name} -> ${toErrorMessage(error)}`);
         resolve(false);
       }
     });
@@ -724,7 +726,7 @@ Provide:
       let metricValue: number;
 
       try {
-        const json = JSON.parse(text);
+        const json = safeJsonParse(text);
         metricValue = typeof json.value === 'number' ? json.value : parseFloat(json.value);
       } catch {
         // Try parsing as plain number
@@ -751,7 +753,7 @@ Provide:
 
       return true;
     } catch (error) {
-      console.log(`Metric probe error: ${probe.name} -> ${error instanceof Error ? error.message : String(error)}`);
+      console.log(`Metric probe error: ${probe.name} -> ${toErrorMessage(error)}`);
       return false;
     }
   }
@@ -868,7 +870,7 @@ Provide:
       console.log(`Memory stress active: ${allocatedMemory.length} chunks allocated`);
       return ok(1);
     } catch (error) {
-      return err(new Error(`Failed to allocate memory: ${error instanceof Error ? error.message : String(error)}`));
+      return err(new Error(`Failed to allocate memory: ${toErrorMessage(error)}`));
     }
   }
 
@@ -1062,7 +1064,7 @@ Provide:
         await this.executeRollbackAction(step.action, step.target, step.timeout);
       } catch (error) {
         console.error(
-          `Rollback step ${step.order} failed: ${error instanceof Error ? error.message : String(error)}`
+          `Rollback step ${step.order} failed: ${toErrorMessage(error)}`
         );
         // Continue with other rollback steps even if one fails
       }
