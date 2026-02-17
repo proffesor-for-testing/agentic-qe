@@ -475,6 +475,12 @@ export class DreamScheduler {
     logger.info('Starting dream cycle', { durationMs });
 
     try {
+      // Ensure concepts are loaded before dreaming
+      const loaded = await this.dreamEngine.ensureConceptsLoaded();
+      if (loaded > 0) {
+        logger.info('Auto-loaded concepts for dream', { loaded });
+      }
+
       // Run the dream
       const result = await this.dreamEngine.dream(durationMs);
 

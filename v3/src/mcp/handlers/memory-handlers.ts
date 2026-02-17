@@ -53,7 +53,7 @@ export async function handleMemoryStore(
       const memoryPattern = createMemoryPattern(
         params.key,
         params.value,
-        namespace as any, // Map namespace to domain
+        namespace,
         { tags: params.metadata?.tags as string[] }
       );
 
@@ -96,7 +96,7 @@ export async function handleMemoryStore(
     // ADR-058: Register pattern after successful write for future contradiction detection
     if (isMemoryWriteGateEnabled()) {
       memoryWriteGateIntegration.registerPattern(
-        createMemoryPattern(params.key, params.value, namespace as any)
+        createMemoryPattern(params.key, params.value, namespace)
       );
     }
 
@@ -384,7 +384,7 @@ export async function handleMemoryShare(
       const memoryPattern = createMemoryPattern(
         sharedKey,
         sharedContent,
-        params.knowledgeDomain as any,
+        params.knowledgeDomain,
         { agentId: params.sourceAgentId }
       );
 
@@ -424,7 +424,7 @@ export async function handleMemoryShare(
     // ADR-058: Register pattern after successful share
     if (isMemoryWriteGateEnabled()) {
       memoryWriteGateIntegration.registerPattern(
-        createMemoryPattern(sharedKey, sharedContent, params.knowledgeDomain as any)
+        createMemoryPattern(sharedKey, sharedContent, params.knowledgeDomain)
       );
     }
 

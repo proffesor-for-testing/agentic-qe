@@ -571,7 +571,7 @@ export class CostMetricsCollector {
     for (const alert of this.alerts) {
       if (!alert.active) continue;
 
-      const totalCost = this.getTotalCost(alert.period as any);
+      const totalCost = this.getTotalCost(alert.period);
 
       if (totalCost >= alert.threshold) {
         alert.active = false;

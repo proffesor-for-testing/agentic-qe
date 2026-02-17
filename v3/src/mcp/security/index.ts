@@ -61,6 +61,7 @@ export type {
 
 export {
   OAuth21Provider,
+  OAuthProviderError,
   createOAuth21Provider,
   getOAuth21Provider,
 } from './oauth21-provider';
@@ -231,7 +232,7 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig = {}) 
      */
     checkRateLimit(clientId?: string, endpoint?: string) {
       if (!rateLimiter) {
-        return { allowed: true, remaining: Infinity, headers: {} as any };
+        return { allowed: true, remaining: Infinity, headers: { 'X-RateLimit-Limit': 0, 'X-RateLimit-Remaining': 0, 'X-RateLimit-Reset': 0 } };
       }
 
       return rateLimiter.check(clientId, endpoint);

@@ -939,7 +939,7 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
   async getStats(): Promise<QEUnifiedMemoryStats> {
     this.ensureInitialized();
 
-    const byDomain: Record<QEMemoryDomain, QEMemoryDomainStats> = {} as any;
+    const byDomain: Partial<Record<QEMemoryDomain, QEMemoryDomainStats>> = {};
     let totalEntries = 0;
     let totalVectors = 0;
     let totalIndexSize = 0;
@@ -977,7 +977,8 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
     }
 
     return {
-      byDomain,
+      // All domains are populated by the loop above over QE_MEMORY_DOMAINS
+      byDomain: byDomain as Record<QEMemoryDomain, QEMemoryDomainStats>,
       totalEntries,
       totalVectors,
       totalIndexSize,

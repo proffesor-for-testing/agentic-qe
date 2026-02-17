@@ -29,6 +29,7 @@ import {
   WeakVertex,
   MinCutHealth,
 } from './interfaces';
+import type { DomainName } from '../../shared/types/index.js';
 import { StrangeLoopController, StrangeLoopConfig } from './strange-loop';
 import { MinCutPersistence } from './mincut-persistence';
 import { SwarmGraph } from './swarm-graph';
@@ -400,7 +401,7 @@ export class DreamMinCutBridge {
       case 'spawn':
         return {
           type: 'spawn_agent',
-          domain: insightData.domain as any,
+          domain: insightData.domain as DomainName,
           capabilities: insightData.capabilities || [],
         };
 

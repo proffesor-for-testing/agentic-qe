@@ -447,7 +447,7 @@ export class TestExecutionCoordinator
         try {
           if (this.eventBus) {
             await this.eventBus.publish(createEvent(
-              'AsymmetricLearningOutcome' as any,
+              'AsymmetricLearningOutcome',
               'test-execution',
               {
                 runId: result.value.runId,
@@ -589,7 +589,7 @@ export class TestExecutionCoordinator
         try {
           if (this.eventBus) {
             await this.eventBus.publish(createEvent(
-              'AsymmetricLearningOutcome' as any,
+              'AsymmetricLearningOutcome',
               'test-execution',
               {
                 runId: result.value.runId,

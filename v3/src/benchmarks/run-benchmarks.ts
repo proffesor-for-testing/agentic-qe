@@ -17,6 +17,27 @@ import {
 } from './performance-benchmarks.js';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import type { MemoryBackend } from '../kernel/interfaces.js';
+
+/**
+ * Create a minimal in-memory mock of MemoryBackend for benchmarks
+ */
+function createMockMemoryBackend(): MemoryBackend {
+  const store = new Map<string, unknown>();
+  return {
+    initialize: async () => {},
+    dispose: async () => {},
+    set: async (key: string, value: unknown) => { store.set(key, value); },
+    get: async <T>(key: string): Promise<T | undefined> => store.get(key) as T | undefined,
+    delete: async (key: string) => store.delete(key),
+    has: async (key: string) => store.has(key),
+    search: async () => [],
+    vectorSearch: async () => [],
+    storeVector: async () => {},
+    count: async () => store.size,
+    hasCodeIntelligenceIndex: async () => false,
+  };
+}
 
 // ============================================================================
 // Additional O(log n) Verification Tests
@@ -30,26 +51,12 @@ async function verifyGapDetectorComplexity(): Promise<void> {
       '../domains/coverage-analysis/services/gap-detector.js'
     );
 
-    // Create minimal memory backend
-    const store = new Map<string, unknown>();
-    const mockMemory = {
-      set: async (key: string, value: unknown) => { store.set(key, value); },
-      get: async <T>(key: string): Promise<T | null> => (store.get(key) as T) || null,
-      delete: async (key: string) => store.delete(key),
-      has: async (key: string) => store.has(key),
-      keys: async () => Array.from(store.keys()),
-      clear: async () => store.clear(),
-      close: async () => {},
-      vectorSearch: async () => [],
-      storeVector: async () => {},
-      getStats: async () => ({ keyCount: store.size }),
-      search: async () => [],
-    };
+    const mockMemory = createMockMemoryBackend();
 
     const result = await verifyLogNComplexity(
       'Gap Detector',
       async (size) => {
-        const service = new GapDetectorService(mockMemory as any);
+        const service = new GapDetectorService(mockMemory);
 
         // Generate coverage data with specified size
         const files = Array.from({ length: size }, (_, i) => ({
@@ -99,21 +106,12 @@ async function verifyCoverageAnalyzerComplexity(): Promise<void> {
       '../domains/coverage-analysis/services/coverage-analyzer.js'
     );
 
-    // Create minimal memory backend with vector support
-    const store = new Map<string, unknown>();
     const vectors = new Map<string, { embedding: number[]; metadata: unknown }>();
-
-    const mockMemory = {
-      set: async (key: string, value: unknown) => { store.set(key, value); },
-      get: async <T>(key: string): Promise<T | null> => (store.get(key) as T) || null,
-      delete: async (key: string) => store.delete(key),
-      has: async (key: string) => store.has(key),
-      keys: async () => Array.from(store.keys()),
-      clear: async () => { store.clear(); vectors.clear(); },
-      close: async () => {},
+    const mockMemory: MemoryBackend = {
+      ...createMockMemoryBackend(),
       vectorSearch: async (embedding: number[], k: number) => {
         // Simple brute force for testing
-        const results = Array.from(vectors.entries())
+        return Array.from(vectors.entries())
           .map(([key, data]) => ({
             key,
             score: cosineSimilarity(embedding, data.embedding),
@@ -121,19 +119,16 @@ async function verifyCoverageAnalyzerComplexity(): Promise<void> {
           }))
           .sort((a, b) => b.score - a.score)
           .slice(0, k);
-        return results;
       },
       storeVector: async (key: string, embedding: number[], metadata?: unknown) => {
         vectors.set(key, { embedding, metadata });
       },
-      getStats: async () => ({ keyCount: store.size }),
-      search: async () => [],
     };
 
     const result = await verifyLogNComplexity(
       'Coverage Analyzer',
       async (size) => {
-        const service = new CoverageAnalyzerService(mockMemory as any);
+        const service = new CoverageAnalyzerService(mockMemory);
 
         // Generate coverage data with specified size
         const files = Array.from({ length: size }, (_, i) => ({
@@ -179,22 +174,9 @@ async function verifyDefectPredictorComplexity(): Promise<void> {
       '../domains/defect-intelligence/services/defect-predictor.js'
     );
 
-    const store = new Map<string, unknown>();
-    const mockMemory = {
-      set: async (key: string, value: unknown) => { store.set(key, value); },
-      get: async <T>(key: string): Promise<T | null> => (store.get(key) as T) || null,
-      delete: async (key: string) => store.delete(key),
-      has: async (key: string) => store.has(key),
-      keys: async () => Array.from(store.keys()),
-      clear: async () => store.clear(),
-      close: async () => {},
-      vectorSearch: async () => [],
-      storeVector: async () => {},
-      getStats: async () => ({ keyCount: store.size }),
-      search: async () => [],
-    };
+    const mockMemory = createMockMemoryBackend();
 
-    const service = new DefectPredictorService(mockMemory as any);
+    const service = new DefectPredictorService(mockMemory);
 
     // Generate test files for different sizes
     const result = await verifyLogNComplexity(

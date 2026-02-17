@@ -108,7 +108,7 @@ export class DefectPredictTool extends MCPToolBase<DefectPredictParams, DefectPr
   private async getService(context: MCPToolContext): Promise<DefectPredictorService> {
     if (!this.predictorService) {
       // Create a memory backend from context or use shared persistent backend
-      const memory = (context as any).memory as MemoryBackend | undefined;
+      const memory = context.memory;
 
       if (memory) {
         this.predictorService = new DefectPredictorService(memory);

@@ -272,6 +272,14 @@ export interface QEReasoningBankStats {
 
   /** Pattern store stats */
   patternStoreStats: import('./pattern-store.js').PatternStoreStats;
+
+  /** ADR-061: Asymmetric learning metrics (optional, available in RealQEReasoningBank) */
+  asymmetricLearning?: {
+    failurePenaltyRatio: string;
+    quarantinedPatterns: number;
+    rehabilitatedPatterns: number;
+    avgConfidenceDelta: number;
+  };
 }
 
 // ============================================================================

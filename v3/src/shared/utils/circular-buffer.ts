@@ -60,7 +60,7 @@ export class CircularBuffer<T> {
   // Calculate percentile (useful for latency tracking)
   percentile(p: number): T | undefined {
     if (this.count === 0) return undefined;
-    const sorted = this.toArray().sort((a, b) => (a as any) - (b as any));
+    const sorted = this.toArray().sort((a, b) => Number(a) - Number(b));
     const idx = Math.floor((p / 100) * (sorted.length - 1));
     return sorted[idx];
   }

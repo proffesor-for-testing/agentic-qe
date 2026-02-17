@@ -515,6 +515,37 @@ export class DreamEngine {
     return this.graph!.loadFromPatterns(patterns);
   }
 
+  /**
+   * Ensure sufficient concepts are loaded for dreaming.
+   * If the concept graph has fewer nodes than minConceptsRequired,
+   * auto-loads patterns from the qe_patterns table.
+   *
+   * @returns Number of concepts loaded (0 if already sufficient)
+   */
+  async ensureConceptsLoaded(): Promise<number> {
+    this.ensureInitialized();
+    const existing = await this.graph!.getActiveNodes(0);
+    if (existing.length >= this.config.minConceptsRequired) {
+      return 0;
+    }
+
+    // Load patterns from qe_patterns table in the shared unified DB
+    const rows = this.db!.prepare(
+      `SELECT id, name, description, qe_domain as domain, pattern_type as patternType,
+              confidence, success_rate as successRate
+       FROM qe_patterns
+       WHERE confidence >= 0.3
+       ORDER BY quality_score DESC
+       LIMIT 200`
+    ).all() as PatternImportData[];
+
+    if (rows.length === 0) {
+      return 0;
+    }
+
+    return this.graph!.loadFromPatterns(rows);
+  }
+
   // ==========================================================================
   // Insight Management
   // ==========================================================================

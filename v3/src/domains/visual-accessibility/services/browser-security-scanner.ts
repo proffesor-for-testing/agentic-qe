@@ -296,12 +296,12 @@ export class BrowserSecurityScanner {
       const mcpResult = await this.callMcpTool('aidefence_has_pii', { input: content });
 
       if (typeof mcpResult === 'object' && mcpResult !== null) {
-        const result = mcpResult as any;
+        const result = mcpResult as Record<string, unknown>;
 
         const hasPII = result.hasPII === true || result.detected === true;
-        const detectedTypes: string[] = result.types || result.detectedTypes || [];
+        const detectedTypes: string[] = (result.types || result.detectedTypes || []) as string[];
         const locations: Array<{ type: string; start: number; end: number }> =
-          result.locations || [];
+          (result.locations || []) as Array<{ type: string; start: number; end: number }>;
 
         return ok({ hasPII, detectedTypes, locations });
       }

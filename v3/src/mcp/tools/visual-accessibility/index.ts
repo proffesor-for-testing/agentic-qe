@@ -173,7 +173,7 @@ export class VisualCompareTool extends MCPToolBase<VisualCompareParams, VisualCo
    */
   private async getService(context: MCPToolContext): Promise<VisualTesterService> {
     if (!this.visualTester) {
-      const memory = (context as any).memory as MemoryBackend | undefined;
+      const memory = context.memory;
       this.visualTester = createVisualTesterService(
         memory || await getSharedMemoryBackend()
       );
@@ -357,7 +357,7 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
    */
   private async getService(context: MCPToolContext): Promise<AccessibilityTesterService> {
     if (!this.accessibilityTester) {
-      const memory = (context as any).memory as MemoryBackend | undefined;
+      const memory = context.memory;
       this.accessibilityTester = new AccessibilityTesterService(
         memory || await getSharedMemoryBackend(),
         {

@@ -11,6 +11,7 @@ import {
   err,
   DomainEvent,
 } from '../../shared/types/index.js';
+import { FilePath } from '../../shared/value-objects/index.js';
 import { cosineSimilarity } from '../../shared/utils/vector-math.js';
 import {
   EventBus,
@@ -337,7 +338,7 @@ export class VisualAccessibilityCoordinator
                 url,
                 viewport,
                 timestamp: new Date(),
-                path: { value: '', extension: '', directory: '', filename: '' } as any,
+                path: FilePath.create('error-placeholder.png'),
                 metadata: { browser: '', os: '', fullPage: false, loadTime: 0 },
               },
             });

@@ -12,7 +12,7 @@ import type {
   PatternSearchResult,
   PatternSearchOptions,
 } from '../learning/pattern-store.js';
-import type { QEPattern, QEDomain } from '../learning/qe-patterns.js';
+import type { QEPattern, QEDomain, QEPatternContext } from '../learning/qe-patterns.js';
 import { detectQEDomain } from '../learning/qe-patterns.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 
@@ -338,10 +338,10 @@ export class EarlyExitTokenOptimizer {
 
       if (task.context) {
         searchOptions.context = {
-          language: task.context.language as any,
-          framework: task.context.framework as any,
-          testType: task.context.testType as any,
-        };
+          language: task.context.language,
+          framework: task.context.framework,
+          testType: task.context.testType,
+        } as Partial<QEPatternContext>;
       }
 
       // Search for matching patterns

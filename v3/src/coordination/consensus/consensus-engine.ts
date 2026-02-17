@@ -643,6 +643,6 @@ export function setConsensusStrategy(
     humanReviewThreshold: engine.getConfig().humanReviewThreshold,
   });
 
-  // Update strategy via reflection (accessing private field)
-  (engine as any).strategy = strategy;
+  // Update strategy via indexed access (accessing private field)
+  engine['strategy'] = strategy;
 }

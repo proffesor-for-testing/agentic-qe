@@ -863,16 +863,14 @@ function addTestOperations(
  */
 export function observe<T extends object>(
   document: T
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): { observer: any; generate: () => AQEJsonPatchOperation[] } {
+): { observer: fastJsonPatch.Observer<object>; generate: () => AQEJsonPatchOperation[] } {
   // Cast to object to satisfy fast-json-patch's generic constraint
   const observer = fastJsonPatch.observe(document as object);
 
   return {
     observer,
     generate: () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ops = fastJsonPatch.generate(observer as any);
+      const ops = fastJsonPatch.generate(observer);
       return ops.map((op): AQEJsonPatchOperation => ({
         op: op.op as AQEJsonPatchOperation['op'],
         path: op.path,

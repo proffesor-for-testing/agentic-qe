@@ -58,6 +58,7 @@ function createMockDreamEngine(): DreamEngine {
     } as DreamCycleResult),
     applyInsight: vi.fn().mockResolvedValue({ success: true, patternId: 'pattern-1' }),
     loadPatternsAsConcepts: vi.fn().mockResolvedValue(5),
+    ensureConceptsLoaded: vi.fn().mockResolvedValue(0),
     cancelDream: vi.fn().mockResolvedValue(undefined),
     isDreaming: vi.fn().mockReturnValue(false),
     getCurrentCycle: vi.fn().mockReturnValue(null),

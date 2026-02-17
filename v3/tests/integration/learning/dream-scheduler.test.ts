@@ -101,6 +101,7 @@ function createMockDreamEngine(options?: {
     isDreaming: vi.fn().mockReturnValue(false),
     getCurrentCycle: vi.fn().mockReturnValue(null),
     loadPatternsAsConcepts: vi.fn().mockResolvedValue(10),
+    ensureConceptsLoaded: vi.fn().mockResolvedValue(0),
     close: vi.fn().mockResolvedValue(undefined),
   } as unknown as DreamEngine;
 }

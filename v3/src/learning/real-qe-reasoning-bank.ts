@@ -47,6 +47,8 @@ import {
   QE_DOMAIN_LIST,
   PromotionCheck,
   shouldPromotePattern,
+  type TestFramework,
+  type ProgrammingLanguage,
 } from './qe-patterns.js';
 import {
   QEGuidance,
@@ -355,17 +357,19 @@ export class RealQEReasoningBank {
       // Note: Dynamic import returns { default: { HierarchicalNSW, ... } } structure
       const hnswModule = await import('hnswlib-node');
       // Access through default due to ES module interop
-      const HierarchicalNSW = (hnswModule.default as any)?.HierarchicalNSW || hnswModule.HierarchicalNSW;
+      const hnswDefault = hnswModule.default as unknown as Record<string, unknown> | undefined;
+      const HierarchicalNSWCandidate = hnswDefault?.HierarchicalNSW || hnswModule.HierarchicalNSW;
 
-      if (typeof HierarchicalNSW !== 'function') {
+      if (typeof HierarchicalNSWCandidate !== 'function') {
         throw new Error('HierarchicalNSW not found in hnswlib-node module');
       }
 
+      const HierarchicalNSWConstructor = HierarchicalNSWCandidate as new (...args: unknown[]) => HierarchicalNSW;
       const dimension = getEmbeddingDimension();
 
       // Create HNSW index with metric and dimensions (2 arguments)
       // metric: 'cosine' | 'l2' | 'ip'
-      this.hnswIndex = new HierarchicalNSW('cosine', dimension) as unknown as HierarchicalNSW;
+      this.hnswIndex = new HierarchicalNSWConstructor('cosine', dimension);
       this.hnswIndex!.initIndex(
         100000, // max elements
         this.qeConfig.hnsw.M,
@@ -708,8 +712,8 @@ export class RealQEReasoningBank {
       const guidance: string[] = [];
       if (this.qeConfig.enableGuidance && detectedDomains.length > 0) {
         const domainGuidance = getCombinedGuidance(detectedDomains[0], {
-          framework: request.context?.framework as any,
-          language: request.context?.language as any,
+          framework: request.context?.framework,
+          language: request.context?.language,
           includeAntiPatterns: true,
         });
         guidance.push(...domainGuidance.slice(0, 5));
@@ -882,7 +886,7 @@ export class RealQEReasoningBank {
     domain: QEDomain,
     context?: { framework?: string; language?: string }
   ): string {
-    return generateGuidanceContext(domain, context as any || {});
+    return generateGuidanceContext(domain, (context || {}) as { framework?: TestFramework; language?: ProgrammingLanguage });
   }
 
   /**
@@ -929,9 +933,9 @@ export class RealQEReasoningBank {
       asymmetricLearning: {
         failurePenaltyRatio: '10:1',
         quarantinedPatterns: this.sqliteStore.getPatterns({ limit: 10000 })
-          .filter(p => (p as any).quarantined === true).length,
+          .filter(p => p.quarantined === true).length,
         rehabilitatedPatterns: this.sqliteStore.getPatterns({ limit: 10000 })
-          .filter(p => (p as any).quarantined === false && (p as any).quarantinedAt).length,
+          .filter(p => p.quarantined === false && p.quarantinedAt).length,
         avgConfidenceDelta: this.stats.learningOutcomes > 0
           ? (this.stats.successfulOutcomes / this.stats.learningOutcomes) - 0.5
           : 0,
@@ -1063,8 +1067,9 @@ export class RealQEReasoningBank {
     const pattern = this.sqliteStore.getPattern(patternId);
     if (!pattern) return;
 
-    const tierOrder: Array<'short-term' | 'working' | 'long-term'> = ['short-term', 'working', 'long-term'];
-    const currentIndex = tierOrder.indexOf(pattern.tier as any);
+    type TierLevel = 'short-term' | 'working' | 'long-term';
+    const tierOrder: TierLevel[] = ['short-term', 'working', 'long-term'];
+    const currentIndex = tierOrder.indexOf(pattern.tier);
 
     if (currentIndex > 0) {
       const newTier = tierOrder[currentIndex - 1];

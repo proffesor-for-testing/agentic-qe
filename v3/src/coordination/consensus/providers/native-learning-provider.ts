@@ -309,7 +309,7 @@ export class NativeLearningProvider extends BaseModelProvider {
           {
             limit: 1,
             minConfidence: this.config.minConfidence,
-            domain: 'security-compliance' as any,
+            domain: 'security-compliance',
           }
         );
 
@@ -466,18 +466,18 @@ export class NativeLearningProvider extends BaseModelProvider {
       try {
         await this.patternStore.store({
           id: patternKey,
-          domain: 'security-compliance' as any,
-          type: 'security-pattern' as any,
+          domain: 'security-compliance',
+          type: 'security-pattern',
           context: {
-            finding: finding as any,
-            vote: vote as any,
+            finding: finding as unknown as Record<string, unknown>,
+            vote: vote as unknown as Record<string, unknown>,
           },
           confidence: vote.confidence,
           metadata: {
             category: finding.category,
             findingType: finding.type,
           },
-        } as any);
+        } as unknown as Parameters<IPatternStore['store']>[0]);
       } catch (error) {
         if (this.config.enableLogging) {
           console.error('[NativeLearning] Failed to persist pattern:', error);

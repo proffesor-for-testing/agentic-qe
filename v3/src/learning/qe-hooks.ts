@@ -23,6 +23,7 @@ const logger = LoggerFactory.create('qe-hooks');
 import {
   QEPatternType,
   QEDomain,
+  QEPatternContext,
   CreateQEPatternOptions,
   detectQEDomain,
 } from './qe-patterns.js';
@@ -136,10 +137,10 @@ export function createQEHookHandlers(
         task: `Generate ${testType} tests for ${targetFile}`,
         taskType: 'test-generation',
         context: {
-          framework: framework as any,
-          language: language as any,
-          testType: testType as any,
-        },
+          framework,
+          language,
+          testType,
+        } as Partial<QEPatternContext>,
       });
 
       if (!routingResult.success) {
@@ -198,11 +199,11 @@ export function createQEHookHandlers(
               variables: [],
             },
             context: {
-              framework: framework as any,
-              language: language as any,
+              framework,
+              language,
               testType: 'unit',
               tags: ['generated', 'test-template', framework as string, language as string],
-            },
+            } as Partial<QEPatternContext>,
           });
 
           if (result.success) {
@@ -376,7 +377,7 @@ export function createQEHookHandlers(
         task: task as string,
         taskType: taskType as QERoutingRequest['taskType'],
         capabilities: capabilities as string[],
-        context: context as any,
+        context: context as Partial<QEPatternContext>,
       });
 
       if (!routingResult.success) {

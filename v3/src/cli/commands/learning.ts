@@ -18,7 +18,7 @@ import { findProjectRoot } from '../../kernel/unified-memory.js';
 import { existsSync, writeFileSync, readFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { stat, unlink } from 'node:fs/promises';
-import type { QEDomain } from '../../learning/qe-patterns.js';
+import type { QEDomain, QEPatternType, QEPatternTemplate, QEPatternContext } from '../../learning/qe-patterns.js';
 import { QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
 import {
   createLearningMetricsTracker,
@@ -141,7 +141,7 @@ function registerStatsCommand(learning: Command): void {
           console.log(`  HNSW Native: ${stats.patternStoreStats.hnswStats.nativeAvailable ? chalk.green('✓') : chalk.dim('○')}`);
           console.log(`  Vector Count: ${stats.patternStoreStats.hnswStats.vectorCount}`);
 
-          const asymmetricStats = (stats as any).asymmetricLearning;
+          const asymmetricStats = stats.asymmetricLearning;
           if (asymmetricStats) {
             console.log(chalk.bold('\nAsymmetric Learning (ADR-061):'));
             console.log(`  Failure Penalty Ratio: ${asymmetricStats.failurePenaltyRatio || '10:1'}`);
@@ -477,7 +477,7 @@ function registerExtractCommand(learning: Command): void {
                   : `// ${p.name}\n// Extracted pattern with ${p.sourceCount} successful uses\n\n{{implementation}}`;
 
                 const result = await reasoningBank.storePattern({
-                  patternType: p.patternType as any, name: p.name,
+                  patternType: p.patternType as QEPatternType, name: p.name,
                   description: `Extracted from ${p.sourceCount} learning experiences with avg reward ${p.avgReward.toFixed(2)}`,
                   template: { type: 'code', content: templateContent, variables: [{ name: 'implementation', type: 'code', required: true, description: 'Implementation code for this pattern' }] },
                   context: { tags: [p.domain, p.patternType, `sources:${p.sourceCount}`, `reward:${p.avgReward.toFixed(2)}`] },
@@ -893,7 +893,7 @@ function registerImportMergeCommand(learning: Command): void {
             const isDuplicate = existingNames.has(pattern.name);
             if (isDuplicate && options.skipDuplicates) { skipped++; continue; }
             try {
-              const result = await reasoningBank.storePattern({ patternType: pattern.patternType as any, name: pattern.name, description: pattern.description, template: pattern.template as any, context: pattern.context as any });
+              const result = await reasoningBank.storePattern({ patternType: pattern.patternType as QEPatternType, name: pattern.name, description: pattern.description, template: pattern.template as Omit<QEPatternTemplate, 'example'>, context: pattern.context as Partial<QEPatternContext> });
               if (result.success) { if (isDuplicate) updated++; else imported++; }
               else { skipped++; errors.push(`${pattern.name}: ${result.error.message}`); }
             } catch (e) { skipped++; errors.push(`${pattern.name}: ${e instanceof Error ? e.message : 'unknown'}`); }

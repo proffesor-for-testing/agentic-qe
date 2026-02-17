@@ -563,14 +563,17 @@ export class PerformanceOptimizer {
 
     // Wrap emit method with batching
     const originalEmit = eventAdapter.emit.bind(eventAdapter);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (eventAdapter as any).emit = (event: string, ...args: unknown[]) => {
-      if (techniques.eventBatching.enabled && event !== 'batch') {
-        batcher.add({ event, args });
-        return true;
-      }
-      return originalEmit(event, ...args);
-    };
+    Object.defineProperty(eventAdapter, 'emit', {
+      value: (event: string, ...args: unknown[]) => {
+        if (techniques.eventBatching.enabled && event !== 'batch') {
+          batcher.add({ event, args });
+          return true;
+        }
+        return originalEmit(event, ...args);
+      },
+      writable: true,
+      configurable: true,
+    });
 
     // Setup batch emission
     batcher.on('batch', (events: Array<{ event: string; args: unknown[] }>) => {
@@ -580,11 +583,14 @@ export class PerformanceOptimizer {
     });
 
     // Add optimization stats method
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (eventAdapter as any).getOptimizationStats = () => ({
-      batching: batcher.getStats(),
-      caching: cache.getStats(),
-      pooling: this.eventPool.getStats(),
+    Object.defineProperty(eventAdapter, 'getOptimizationStats', {
+      value: () => ({
+        batching: batcher.getStats(),
+        caching: cache.getStats(),
+        pooling: this.eventPool.getStats(),
+      }),
+      writable: true,
+      configurable: true,
     });
 
     return eventAdapter as T & { getOptimizationStats: () => Record<string, unknown> };
@@ -628,27 +634,33 @@ export class PerformanceOptimizer {
 
     // Wrap getTask with caching
     const originalGetTask = taskManager.getTask.bind(taskManager);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (taskManager as any).getTask = (id: string) => {
-      if (techniques.caching.enabled) {
-        const cached = cache.get(id);
-        if (cached !== undefined) {
-          return cached;
+    Object.defineProperty(taskManager, 'getTask', {
+      value: (id: string) => {
+        if (techniques.caching.enabled) {
+          const cached = cache.get(id);
+          if (cached !== undefined) {
+            return cached;
+          }
         }
-      }
 
-      const task = originalGetTask(id);
-      if (task && techniques.caching.enabled) {
-        cache.set(id, task);
-      }
-      return task;
-    };
+        const task = originalGetTask(id);
+        if (task && techniques.caching.enabled) {
+          cache.set(id, task);
+        }
+        return task;
+      },
+      writable: true,
+      configurable: true,
+    });
 
     // Add optimization stats method
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (taskManager as any).getOptimizationStats = () => ({
-      caching: cache.getStats(),
-      pooling: this.messagePool.getStats(),
+    Object.defineProperty(taskManager, 'getOptimizationStats', {
+      value: () => ({
+        caching: cache.getStats(),
+        pooling: this.messagePool.getStats(),
+      }),
+      writable: true,
+      configurable: true,
     });
 
     return taskManager as T & { getOptimizationStats: () => Record<string, unknown> };
@@ -691,40 +703,47 @@ export class PerformanceOptimizer {
 
     // Wrap getSurface with caching
     const originalGetSurface = surfaceGenerator.getSurface.bind(surfaceGenerator);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (surfaceGenerator as any).getSurface = (id: string) => {
-      if (techniques.caching.enabled) {
-        const cached = cache.get(`surface:${id}`);
-        if (cached !== undefined) {
-          return cached;
+    Object.defineProperty(surfaceGenerator, 'getSurface', {
+      value: (id: string) => {
+        if (techniques.caching.enabled) {
+          const cached = cache.get(`surface:${id}`);
+          if (cached !== undefined) {
+            return cached;
+          }
         }
-      }
 
-      const surface = originalGetSurface(id);
-      if (surface && techniques.caching.enabled) {
-        cache.set(`surface:${id}`, surface);
-      }
-      return surface;
-    };
+        const surface = originalGetSurface(id);
+        if (surface && techniques.caching.enabled) {
+          cache.set(`surface:${id}`, surface);
+        }
+        return surface;
+      },
+      writable: true,
+      configurable: true,
+    });
 
     // Wrap generateSurfaceUpdate with caching
     const originalGenerate = surfaceGenerator.generateSurfaceUpdate.bind(surfaceGenerator);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (surfaceGenerator as any).generateSurfaceUpdate = (id: string) => {
-      const cacheKey = `update:${id}`;
+    Object.defineProperty(surfaceGenerator, 'generateSurfaceUpdate', {
+      value: (id: string) => {
+        // Invalidate surface cache on update
+        cache.delete(`surface:${id}`);
 
-      // Invalidate surface cache on update
-      cache.delete(`surface:${id}`);
-
-      const update = originalGenerate(id);
-      return update;
-    };
+        const update = originalGenerate(id);
+        return update;
+      },
+      writable: true,
+      configurable: true,
+    });
 
     // Add optimization stats method
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (surfaceGenerator as any).getOptimizationStats = () => ({
-      caching: cache.getStats(),
-      pooling: this.componentPool.getStats(),
+    Object.defineProperty(surfaceGenerator, 'getOptimizationStats', {
+      value: () => ({
+        caching: cache.getStats(),
+        pooling: this.componentPool.getStats(),
+      }),
+      writable: true,
+      configurable: true,
     });
 
     return surfaceGenerator as T & { getOptimizationStats: () => Record<string, unknown> };
@@ -789,8 +808,11 @@ export class PerformanceOptimizer {
     }
 
     // Add global stats method
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (components as any).getOptimizationStats = () => this.getStats();
+    Object.defineProperty(components, 'getOptimizationStats', {
+      value: () => this.getStats(),
+      writable: true,
+      configurable: true,
+    });
 
     return components as T & { getOptimizationStats: () => Record<string, unknown> };
   }
