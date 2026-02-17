@@ -40,6 +40,15 @@ import { createVisualAccessibilityPlugin } from '../domains/visual-accessibility
 import { createChaosResiliencePlugin } from '../domains/chaos-resilience/plugin';
 import { createLearningOptimizationPlugin } from '../domains/learning-optimization/plugin';
 import { createCoordinationPlugin } from '../coordination/plugin';
+
+// CQ-005: Import domain barrel exports to trigger DomainServiceRegistry.register() calls.
+// Domain index.ts files register service factories as side effects.
+// The kernel must import these so coordination/ can resolve services at runtime.
+import '../domains/test-generation';
+import '../domains/coverage-analysis';
+import '../domains/security-compliance';
+import '../domains/code-intelligence';
+import '../domains/quality-assessment';
 import { createEnterpriseIntegrationPlugin } from '../domains/enterprise-integration/plugin';
 
 // Domain factory map - returns plugin instances (not Promises)
