@@ -167,6 +167,11 @@
           "type": "string",
           "description": "Reason for skipping"
         },
+        "negative_control": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, grading logic inverts: test passes when must_contain items are ABSENT (skill correctly declines irrelevant prompts)"
+        },
         "input": {
           "$ref": "#/$defs/test_input"
         },
@@ -324,6 +329,11 @@
           "default": false,
           "description": "Allow partial matches"
         },
+        "adaptive_rubric": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, dynamically extracts keywords from test prompt (quoted strings, format words, standards) and adds them to must_contain checks"
+        },
         "grading_rubric": {
           "type": "object",
           "properties": {
@@ -331,7 +341,7 @@
             "accuracy": { "type": "number", "minimum": 0, "maximum": 1 },
             "actionability": { "type": "number", "minimum": 0, "maximum": 1 }
           },
-          "description": "Weighted grading rubric (weights should sum to 1.0)"
+          "description": "Weighted grading rubric (weights should sum to 1.0). Computes sub-scores: completeness (must_contain match ratio), accuracy (1 - violation ratio), actionability (code blocks, steps, recommendations)"
         }
       }
     },
