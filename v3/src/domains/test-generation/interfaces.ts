@@ -200,6 +200,23 @@ export interface ICodeAnalysis {
 }
 
 /**
+ * KG-sourced dependency context for a file
+ */
+export interface KGDependencyContext {
+  imports: string[];       // modules this file imports
+  importedBy: string[];    // modules that import this file
+  callees: string[];       // functions this module calls
+  callers: string[];       // functions that call into this module
+}
+
+/**
+ * KG-sourced similar code context
+ */
+export interface KGSimilarCodeContext {
+  snippets: Array<{ file: string; snippet: string; score: number }>;
+}
+
+/**
  * Context for test generation
  */
 export interface ITestGenerationContext {
@@ -208,6 +225,8 @@ export interface ITestGenerationContext {
   testType: TestType;
   patterns: IPattern[];
   analysis?: ICodeAnalysis;
+  dependencies?: KGDependencyContext;
+  similarCode?: KGSimilarCodeContext;
 }
 
 /**

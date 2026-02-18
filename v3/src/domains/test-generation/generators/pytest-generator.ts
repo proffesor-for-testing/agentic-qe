@@ -50,7 +50,7 @@ export class PytestGenerator extends BaseTestGenerator {
    * Generate complete test file from analysis
    */
   generateTests(context: TestGenerationContext): string {
-    const { moduleName, importPath, testType, patterns, analysis } = context;
+    const { moduleName, importPath, testType, patterns, analysis, dependencies } = context;
 
     if (!analysis || (analysis.functions.length === 0 && analysis.classes.length === 0)) {
       return this.generateStubTests(context);
@@ -65,8 +65,21 @@ export class PytestGenerator extends BaseTestGenerator {
         ? `from ${pythonImport} import ${exports.join(', ')}`
         : `import ${pythonImport} as ${moduleName}`;
 
+    // KG: Add mock imports for known dependencies
+    let mockImport = '';
+    if (dependencies && dependencies.imports.length > 0) {
+      mockImport = `from unittest.mock import patch, MagicMock\n`;
+    }
+
+    // KG: Build @patch decorator stack for known dependencies
+    const depsToMock = dependencies?.imports.slice(0, 5) || [];
+    const patchDecorators = depsToMock.map((dep) => {
+      const depModule = dep.replace(/\//g, '.').replace(/\.py$/, '');
+      return `@patch('${depModule}')`;
+    });
+
     let code = `${patternComment}import pytest
-${importStatement}
+${mockImport}${importStatement}
 
 
 class Test${this.pascalCase(moduleName)}:
@@ -75,7 +88,7 @@ class Test${this.pascalCase(moduleName)}:
 `;
 
     for (const fn of analysis.functions) {
-      code += this.generateFunctionTests(fn, testType);
+      code += this.generateFunctionTestsWithPatches(fn, testType, patchDecorators);
     }
 
     for (const cls of analysis.classes) {
@@ -89,17 +102,31 @@ class Test${this.pascalCase(moduleName)}:
    * Generate tests for a standalone function
    */
   generateFunctionTests(fn: FunctionInfo, _testType: TestType): string {
+    return this.generateFunctionTestsWithPatches(fn, _testType, []);
+  }
+
+  /**
+   * Generate tests for a function with @patch decorators from KG dependencies
+   */
+  private generateFunctionTestsWithPatches(fn: FunctionInfo, _testType: TestType, patchDecorators: string[]): string {
     const validParams = fn.parameters.map((p) => this.generatePythonTestValue(p)).join(', ');
 
-    let code = `    def test_${fn.name}_valid_input(self):\n`;
+    // Build mock params for patch decorators (injected right-to-left by Python)
+    const mockParams = patchDecorators.map((_, i) => `mock_dep_${i}`).reverse().join(', ');
+    const allParams = mockParams ? `self, ${mockParams}` : 'self';
+
+    // Indent patch decorators at class method level
+    const patchPrefix = patchDecorators.map((d) => `    ${d}\n`).join('');
+
+    let code = `${patchPrefix}    def test_${fn.name}_valid_input(${allParams}):\n`;
     code += `        """Test ${fn.name} with valid input"""\n`;
     code += `        result = ${fn.name}(${validParams})\n`;
     code += `        assert result is not None\n\n`;
 
-    // Test for edge cases
+    // Test for edge cases (no patches needed — they test the function directly)
     for (const param of fn.parameters) {
       if (!param.optional && param.type?.includes('str')) {
-        code += `    def test_${fn.name}_empty_${param.name}(self):\n`;
+        code += `${patchPrefix}    def test_${fn.name}_empty_${param.name}(${allParams}):\n`;
         code += `        """Test ${fn.name} with empty ${param.name}"""\n`;
         const paramsWithEmpty = fn.parameters
           .map((p) => (p.name === param.name ? '""' : this.generatePythonTestValue(p)))
@@ -145,7 +172,7 @@ class Test${this.pascalCase(moduleName)}:
    * Generate stub tests when no AST analysis is available
    */
   generateStubTests(context: TestGenerationContext): string {
-    const { moduleName, importPath, testType, patterns } = context;
+    const { moduleName, importPath, testType, patterns, dependencies, similarCode } = context;
     const patternComment = this.generatePythonPatternComment(patterns);
 
     // Determine if async tests needed based on patterns
@@ -156,14 +183,64 @@ class Test${this.pascalCase(moduleName)}:
     const asyncDecorator = isAsync ? '@pytest.mark.asyncio\n    ' : '';
     const asyncDef = isAsync ? 'async def' : 'def';
 
+    // KG: Generate mock patches for known dependencies
+    let mockImports = '';
+    let mockPatches = '';
+    if (dependencies && dependencies.imports.length > 0) {
+      mockImports = `from unittest.mock import patch, MagicMock\n`;
+      const depsToMock = dependencies.imports.slice(0, 5);
+      for (const dep of depsToMock) {
+        const depModule = dep.replace(/\//g, '.').replace(/\.py$/, '');
+        mockPatches += `    @patch('${depModule}')\n`;
+      }
+    }
+
+    // KG: Generate similarity-informed test hints
+    let similarityComment = '';
+    if (similarCode && similarCode.snippets.length > 0) {
+      similarityComment = `    # KG: Similar modules found - consider testing shared patterns:\n`;
+      for (const s of similarCode.snippets.slice(0, 3)) {
+        similarityComment += `    #   - ${s.file} (${(s.score * 100).toFixed(0)}% similar)\n`;
+      }
+      similarityComment += `\n`;
+    }
+
+    // KG: Generate dependency integration tests
+    let depTests = '';
+    if (dependencies && dependencies.imports.length > 0) {
+      depTests += `\n    def test_dependencies_importable(self):\n`;
+      depTests += `        """Verify all dependencies are importable (KG-informed)."""\n`;
+      for (const dep of dependencies.imports.slice(0, 5)) {
+        const depModule = dep.replace(/\//g, '.').replace(/\.py$/, '');
+        depTests += `        import importlib\n`;
+        depTests += `        mod = importlib.import_module('${depModule}')\n`;
+        depTests += `        assert mod is not None\n`;
+      }
+
+      depTests += `\n    def test_dependency_interactions(self):\n`;
+      depTests += `        """Test module interactions with its dependencies (KG-informed)."""\n`;
+      depTests += `        # Module should handle dependency failures gracefully\n`;
+      depTests += `        assert ${moduleName} is not None\n`;
+      depTests += `        assert hasattr(${moduleName}, '__name__') or hasattr(${moduleName}, '__class__')\n`;
+    }
+
+    // KG: Generate callers-aware API surface tests
+    let callerTests = '';
+    if (dependencies && dependencies.importedBy.length > 0) {
+      callerTests += `\n    def test_public_api_surface(self):\n`;
+      callerTests += `        """Verify public API used by ${dependencies.importedBy.length} consumers (KG-informed)."""\n`;
+      callerTests += `        public_attrs = [a for a in dir(${moduleName}) if not a.startswith('_')]\n`;
+      callerTests += `        assert len(public_attrs) > 0, "Module should expose public API"\n`;
+    }
+
     return `${patternComment}import pytest
-from ${importPath} import ${moduleName}
+${mockImports}from ${importPath} import ${moduleName}
 
 
 class Test${this.pascalCase(moduleName)}:
     """${testType} tests for ${moduleName}"""
 
-    def test_is_defined(self):
+${similarityComment}    def test_is_defined(self):
         """Verify the module is properly exported and defined."""
         assert ${moduleName} is not None
 
@@ -197,7 +274,7 @@ class Test${this.pascalCase(moduleName)}:
         except TypeError:
             # Expected if constructor requires arguments
             pass
-`;
+${depTests}${callerTests}`;
   }
 
   /**

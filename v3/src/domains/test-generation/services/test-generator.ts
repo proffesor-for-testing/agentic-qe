@@ -34,7 +34,10 @@ import type {
   PropertyInfo,
   CodeAnalysis,
   TestGenerationContext,
+  KGDependencyContext,
+  KGSimilarCodeContext,
 } from '../interfaces';
+import type { VectorSearchResult } from '../../../kernel/interfaces';
 import { TestGeneratorFactory } from '../factories/test-generator-factory';
 import type { ITestGeneratorFactory } from '../interfaces';
 import { TDDGeneratorService, type ITDDGeneratorService } from './tdd-generator';
@@ -162,12 +165,39 @@ export class TestGeneratorService implements ITestGenerationService {
   private async enhanceTestWithLLM(
     testCode: string,
     sourceCode: string,
-    analysis: CodeAnalysis | null
+    analysis: CodeAnalysis | null,
+    context?: TestGenerationContext
   ): Promise<string> {
     if (!this.llmRouter) return testCode;
 
     try {
-      const prompt = this.buildTestEnhancementPrompt(testCode, sourceCode, analysis);
+      let prompt = this.buildTestEnhancementPrompt(testCode, sourceCode, analysis);
+
+      // Append KG context if available
+      if (context?.dependencies) {
+        prompt += `\n## Dependency Context (from Knowledge Graph):\n`;
+        if (context.dependencies.imports.length > 0) {
+          prompt += `- Imports: ${context.dependencies.imports.join(', ')}\n`;
+          prompt += `  → Generate mock declarations for these dependencies\n`;
+        }
+        if (context.dependencies.importedBy.length > 0) {
+          prompt += `- Imported by: ${context.dependencies.importedBy.join(', ')}\n`;
+          prompt += `  → Focus tests on the public API surface these consumers use\n`;
+        }
+        if (context.dependencies.callers.length > 0) {
+          prompt += `- Called by: ${context.dependencies.callers.join(', ')}\n`;
+        }
+        if (context.dependencies.callees.length > 0) {
+          prompt += `- Calls: ${context.dependencies.callees.join(', ')}\n`;
+        }
+      }
+      if (context?.similarCode && context.similarCode.snippets.length > 0) {
+        prompt += `\n## Similar Code Patterns (from Knowledge Graph):\n`;
+        for (const s of context.similarCode.snippets.slice(0, 3)) {
+          prompt += `- ${s.file} (similarity: ${(s.score * 100).toFixed(0)}%): ${s.snippet}\n`;
+        }
+        prompt += `  → Use similar patterns as templates for assertions\n`;
+      }
       const modelId = this.getModelForTier(this.config.llmModelTier);
 
       const response: ChatResponse = await this.llmRouter.chat({
@@ -244,6 +274,7 @@ Return ONLY the enhanced test code, no explanations.`,
     prompt += `4. Add error handling tests if applicable\n`;
     prompt += `5. Keep the test framework style consistent\n`;
 
+    // KG context is appended separately via enhanceTestWithLLM caller
     return prompt;
   }
 
@@ -437,6 +468,19 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       // File doesn't exist or can't be read - use stub generation
     }
 
+    // Query KG for dependency and semantic context
+    let dependencies: KGDependencyContext | undefined;
+    let similarCode: KGSimilarCodeContext | undefined;
+
+    // Query KG context when code intelligence vectors exist
+    if (this.memory && sourceContent) {
+      const hasKGVectors = await this.hasKGVectors();
+      if (hasKGVectors) {
+        dependencies = await this.queryKGDependencies(sourceFile, sourceContent);
+        similarCode = await this.queryKGSimilarCode(sourceContent);
+      }
+    }
+
     const generator = this.generatorFactory.create(framework);
     const moduleName = this.extractModuleName(sourceFile);
     const importPath = this.getImportPath(sourceFile);
@@ -447,13 +491,15 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       testType,
       patterns: applicablePatterns,
       analysis: codeAnalysis ?? undefined,
+      dependencies,
+      similarCode,
     };
 
     let testCode = generator.generateTests(context);
 
     // ADR-051: Enhance with LLM if enabled and available
     if (this.isLLMEnhancementAvailable() && sourceContent) {
-      testCode = await this.enhanceTestWithLLM(testCode, sourceContent, codeAnalysis);
+      testCode = await this.enhanceTestWithLLM(testCode, sourceContent, codeAnalysis, context);
     }
 
     const test: GeneratedTest = {
@@ -704,6 +750,144 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
 
     ts.forEachChild(node, visit);
     return complexity;
+  }
+
+  // ============================================================================
+  // Private Helper Methods - Knowledge Graph Queries
+  // ============================================================================
+
+  /**
+   * Check if KG vectors exist by probing a vector search.
+   * Returns true if vectorSearch returns any results (indicating indexed code exists).
+   */
+  private async hasKGVectors(): Promise<boolean> {
+    try {
+      // Probe with a simple unit vector to see if any vectors exist
+      // Use 768 dimensions to match the standard MiniLM embedding size
+      const probe = new Array(768).fill(0);
+      probe[0] = 1.0; // Unit vector in first dimension
+      const results = await this.memory.vectorSearch(probe, 1);
+      return results.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Query KG for dependency information about a file.
+   * Extracts imports from source and cross-references with KG vector index
+   * to find which indexed modules this file depends on and which depend on it.
+   */
+  private async queryKGDependencies(filePath: string, sourceContent: string): Promise<KGDependencyContext | undefined> {
+    try {
+      const imports: string[] = [];
+      const importedBy: string[] = [];
+      const callees: string[] = [];
+      const callers: string[] = [];
+
+      // Extract imports via regex (supports TS/JS and Python)
+      const tsImports = sourceContent.matchAll(/(?:import|from)\s+['"]([^'"]+)['"]/g);
+      const pyImports = sourceContent.matchAll(/(?:^|\n)\s*(?:from\s+(\S+)\s+import|import\s+(\S+))/g);
+
+      for (const match of tsImports) {
+        imports.push(match[1]);
+      }
+      for (const match of pyImports) {
+        imports.push(match[1] || match[2]);
+      }
+
+      // Cross-reference with KG vectors to find callers (files that import this one)
+      const normalizedPath = filePath.replace(/\\/g, '/');
+      const baseName = normalizedPath.split('/').pop()?.replace(/\.(ts|js|tsx|jsx|py)$/, '') || '';
+
+      // Search KG node vectors for this file's name to find related nodes
+      const nodeKeys = await this.memory.search(`code-intelligence:kg:node:*${baseName}*`, 50);
+      for (const key of nodeKeys) {
+        // Nodes matching this file's name that are from other files indicate callers
+        if (!key.includes(baseName)) continue;
+
+        // Extract the file path from the vector key format:
+        // code-intelligence:kg:node:<path>:<type>:<name>
+        const parts = key.split(':');
+        const nodeType = parts[parts.length - 2]; // 'function', 'class', 'module'
+        const nodeName = parts[parts.length - 1];
+
+        if (nodeType === 'function') {
+          callees.push(nodeName);
+        }
+      }
+
+      // Only return if we found any data
+      if (imports.length === 0 && importedBy.length === 0 && callees.length === 0 && callers.length === 0) {
+        return undefined;
+      }
+
+      return { imports, importedBy, callees, callers };
+    } catch {
+      // KG is optional enrichment, never blocks generation
+      return undefined;
+    }
+  }
+
+  /**
+   * Query KG for semantically similar code snippets.
+   * Uses vector search against the persisted vectors table.
+   * KG nodes are stored as vectors with IDs like code-intelligence:kg:node:*
+   */
+  private async queryKGSimilarCode(sourceContent: string): Promise<KGSimilarCodeContext | undefined> {
+    try {
+      // Generate a pseudo-embedding for the source content
+      const embedding = this.generatePseudoEmbedding(sourceContent);
+
+      const results: VectorSearchResult[] = await this.memory.vectorSearch(embedding, 5);
+
+      if (results.length === 0) return undefined;
+
+      const snippets: KGSimilarCodeContext['snippets'] = [];
+      for (const result of results) {
+        if (result.score < 0.1) continue; // Skip low-relevance results
+
+        const metadata = result.metadata as { file?: string; name?: string; nodeId?: string; type?: string } | undefined;
+        const file = metadata?.file || result.key;
+        const snippet = metadata?.name || metadata?.type || result.key.split(':').pop() || '';
+
+        snippets.push({ file, snippet, score: result.score });
+      }
+
+      return snippets.length > 0 ? { snippets } : undefined;
+    } catch {
+      // KG is optional enrichment, never blocks generation
+      return undefined;
+    }
+  }
+
+  /**
+   * Generate a simple pseudo-embedding for vector search.
+   * Uses token-based feature extraction similar to semantic-analyzer.
+   */
+  private generatePseudoEmbedding(code: string): number[] {
+    const dimension = 768; // Match MiniLM embedding size used by code-intelligence indexer
+    const embedding = new Array(dimension).fill(0);
+
+    // Tokenize by splitting on non-alphanumeric chars
+    const tokens = code.split(/[^a-zA-Z0-9_$]+/).filter(t => t.length > 1);
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      for (let j = 0; j < token.length && j < embedding.length; j++) {
+        embedding[(i + j) % dimension] += token.charCodeAt(j) / 1000;
+      }
+    }
+
+    // Normalize
+    const magnitude = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0));
+    if (magnitude > 0) {
+      for (let i = 0; i < dimension; i++) {
+        embedding[i] /= magnitude;
+      }
+    }
+
+    return embedding;
   }
 
   // ============================================================================

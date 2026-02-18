@@ -79,13 +79,19 @@ export function createTestCommand(
           });
 
           if (result.success && result.value) {
-            const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; assertions: number }>; coverageEstimate: number; patternsUsed: string[] };
+            const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; testCode?: string; assertions: number }>; coverageEstimate: number; patternsUsed: string[] };
             console.log(chalk.green(`Generated ${generated.tests.length} tests\n`));
             console.log(chalk.cyan('  Tests:'));
             for (const test of generated.tests.slice(0, 10)) {
               console.log(`    ${chalk.white(test.name)}`);
               console.log(chalk.gray(`      Source: ${path.basename(test.sourceFile)}`));
               console.log(chalk.gray(`      Assertions: ${test.assertions}`));
+              if (test.testCode) {
+                console.log(chalk.gray(`      Test File: ${test.testFile}`));
+                console.log(`\n--- Generated Code ---`);
+                console.log(test.testCode);
+                console.log(`--- End Generated Code ---\n`);
+              }
             }
             if (generated.tests.length > 10) {
               console.log(chalk.gray(`    ... and ${generated.tests.length - 10} more`));

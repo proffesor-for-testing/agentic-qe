@@ -436,10 +436,40 @@ export function createQEHookHandlers(
     [QE_HOOK_EVENTS.QEAgentCompletion]: async (ctx) => {
       const { agentType, task, success, duration, patternId, feedback } = ctx.data;
 
-      // Record outcome for routing improvement
-      if (patternId) {
+      let patternsLearned = 0;
+      const effectivePatternId = patternId as string | undefined;
+
+      if (effectivePatternId) {
+        // Auto-create pattern if it doesn't exist yet (e.g. task:agent:taskId from CLI hooks)
+        try {
+          const existing = await reasoningBank.getPattern(effectivePatternId);
+          if (!existing) {
+            const agent = (agentType as string) || 'unknown';
+            const domain = detectQEDomain((task as string) || agent) || 'learning-optimization' as QEDomain;
+            await reasoningBank.storePattern({
+              patternType: 'test-template',
+              qeDomain: domain,
+              name: `Auto: ${agent} completion`,
+              description: `Auto-created pattern for ${agent} task completion tracking`,
+              template: {
+                type: 'prompt',
+                content: `Agent ${agent} task pattern`,
+                variables: [],
+              },
+              context: {
+                tags: ['auto-created', 'agent-completion', agent],
+              },
+              confidence: 0.5,
+            });
+            patternsLearned = 1;
+          }
+        } catch (e) {
+          // Best-effort auto-creation
+          logger.debug('Auto-create pattern failed', { error: e instanceof Error ? e.message : String(e) });
+        }
+
         await reasoningBank.recordOutcome({
-          patternId: patternId as string,
+          patternId: effectivePatternId,
           success: success as boolean,
           metrics: {
             executionTimeMs: duration as number,
@@ -450,6 +480,7 @@ export function createQEHookHandlers(
 
       return {
         success: true,
+        patternsLearned,
         data: { agentType, success, duration },
       };
     },
