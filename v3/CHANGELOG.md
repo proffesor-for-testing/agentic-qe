@@ -5,6 +5,31 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.11] - 2026-02-18
+
+### Added
+
+- **Smart settings merge for `aqe init --auto`** — Init now detects existing AQE hooks and updates them in-place instead of duplicating. Non-AQE user hooks are preserved. Both modular and wizard init paths share the same merge logic.
+- **Multi-language file discovery** — New shared `file-discovery.ts` utility supports 12+ languages (TypeScript, Python, Go, Rust, Java, Kotlin, Ruby, C#, PHP, Swift, C/C++, Scala). Used by all CLI commands.
+- **Accuracy indicator on metrics** (#281) — `ProjectMetrics` now includes an `accuracy` field (`accurate` | `approximate`) so consumers know whether LOC/test counts come from real file analysis or estimation.
+
+### Fixed
+
+- **MCP server crash on malformed requests** (#274) — Added try/catch safety wrapper on `onRequest` handler. Malformed tool calls now return structured errors instead of killing the MCP connection.
+- **`code_index` hardcoded to JS/TS only** (#275) — Replaced inline TypeScript-only file walkers in `code`, `coverage`, `security`, and `test` CLI commands with the shared multi-language discovery utility.
+- **`test_generate_enhanced` temp file extension** (#274) — Temp file now uses the correct extension based on the `language` parameter instead of always `.ts`.
+- **Coverage handler returned synthetic file paths** (#276) — Removed fabricated `src/module0.ts` placeholders from coverage results. Only real file paths are returned.
+- **Model router fallback score went negative** (#278) — Fixed `fallbackToLLM: -1` with `Math.max(0, ...)`. Improved complexity scoring with proper tier thresholds and domain-specific floors.
+- **HNSW index panic on dimension mismatch** (#277) — `validateVector()` now resizes vectors (averaging to shrink, zero-padding to grow) instead of throwing on 768→128 mismatch.
+- **LOC counter accuracy for node-native fallback** (#281) — Expanded `excludeDirs` with Python, Java, and framework directories. Added max file size guard (2MB), depth limit, and dot-directory exclusion. Renamed source from `'fallback'` to `'node-native'` since it reads real files.
+- **Init wizard missing `--json` flags on hooks** — Legacy wizard path hooks now include `--json` flags matching the working configuration.
+- **MCP server name mismatch** — Changed from `'aqe'` to `'agentic-qe'` with migration for old entries.
+
+### Changed
+
+- **Cross-language security scanning** — `task-executor.ts` now applies regex-based security patterns (hardcoded secrets, SQL injection, CORS misconfig) to non-JS/TS files during `test_generate_enhanced`.
+- **Model routing enrichment** — `task_orchestrate` and `model_route` MCP handlers now infer domain and criticality from task descriptions for better routing decisions.
+
 ## [3.6.10] - 2026-02-18
 
 ### Added

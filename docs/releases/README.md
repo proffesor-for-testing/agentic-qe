@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.6.11](v3.6.11.md) | 2026-02-18 | MCP stability, multi-language support, smart init merge, 9 issues fixed |
 | [v3.6.10](v3.6.10.md) | 2026-02-18 | QCSD Production Telemetry, eval-driven workflow, KG test generation |
 | [v3.6.9](v3.6.9.md) | 2026-02-17 | Code quality overhaul, self-learning feedback loop, P0 security fixes |
 | [v3.6.8](v3.6.8.md) | 2026-02-15 | MCP auto-init fleet, unified experience persistence, fix #262 |
