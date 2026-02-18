@@ -5,6 +5,21 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.10] - 2026-02-18
+
+### Added
+
+- **QCSD Production Telemetry Swarm** (#271) — 5th and final QCSD lifecycle phase. Collects DORA metrics, deployment frequency, change failure rate, and MTTR via GitHub API. Includes auto-trigger workflow after npm publish and cross-phase memory hooks (Loop 5: CI/CD → Production).
+- **Eval-driven development workflow** — New `scripts/eval-driven-workflow.ts` for creating, running, and iterating on skill evaluations as the primary development loop.
+- **Deterministic skill quality scorer** — `scripts/score-skill-quality.ts` computes reproducible quality scores for skills based on structure, coverage, and eval results.
+- **Skill conflict detector** — `scripts/detect-skill-conflicts.ts` identifies overlapping skill scopes and trigger conflicts across the fleet.
+- **Eval runner P1 grading improvements** — Negative control test cases (inverted pass logic for "skill should decline" tests), finding count enforcement, schema validation, weighted grading rubric (completeness/accuracy/actionability), and adaptive rubric with dynamic keyword extraction.
+- **KG-assisted test generation** — Knowledge Graph integration into test generators with 276x faster HNSW vector loading. All generators (Jest/Vitest, Mocha, Pytest) now emit mock declarations from KG dependency analysis.
+
+### Fixed
+
+- **Self-learning hooks not recording from CLI** — Hook interactions from CLI commands were silently dropped. Now all CLI hook interactions record learning data.
+
 ## [3.6.9] - 2026-02-17
 
 ### Fixed

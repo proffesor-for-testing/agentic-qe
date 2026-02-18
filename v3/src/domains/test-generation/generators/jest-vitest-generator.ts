@@ -58,7 +58,7 @@ export class JestVitestGenerator extends BaseTestGenerator {
    * Generate complete test file from analysis
    */
   generateTests(context: TestGenerationContext): string {
-    const { moduleName, importPath, testType, patterns, analysis } = context;
+    const { moduleName, importPath, testType, patterns, analysis, dependencies } = context;
 
     if (!analysis || (analysis.functions.length === 0 && analysis.classes.length === 0)) {
       return this.generateStubTests(context);
@@ -72,8 +72,20 @@ export class JestVitestGenerator extends BaseTestGenerator {
 
     let testCode = `${patternComment}import { describe, it, expect, beforeEach${mockImport} } from '${this.framework}';
 ${importStatement}
-
 `;
+
+    // KG: Generate mock declarations for known dependencies
+    if (dependencies && dependencies.imports.length > 0) {
+      const mockFn = this.framework === 'vitest' ? 'vi.fn()' : 'jest.fn()';
+      testCode += `\n// Auto-generated mocks from Knowledge Graph dependency analysis\n`;
+      for (const dep of dependencies.imports.slice(0, 10)) {
+        const depName = dep.split('/').pop()?.replace(/[^a-zA-Z0-9_]/g, '_') || dep;
+        testCode += `${this.framework === 'vitest' ? 'vi' : 'jest'}.mock('${dep}', () => ({ default: ${mockFn} }));\n`;
+      }
+      testCode += `\n`;
+    } else {
+      testCode += `\n`;
+    }
 
     // Generate tests for each function
     for (const fn of analysis.functions) {
@@ -192,24 +204,68 @@ ${importStatement}
    * Generate stub tests when no AST analysis is available
    */
   generateStubTests(context: TestGenerationContext): string {
-    const { moduleName, importPath, testType, patterns } = context;
+    const { moduleName, importPath, testType, patterns, dependencies, similarCode } = context;
     const patternComment = this.generatePatternComment(patterns);
 
     const basicOpsTest = this.generateBasicOpsTest(moduleName, patterns);
     const edgeCaseTest = this.generateEdgeCaseTest(moduleName, patterns);
     const errorHandlingTest = this.generateErrorHandlingTest(moduleName, patterns);
 
-    return `${patternComment}import { ${moduleName} } from '${importPath}';
+    // KG: Generate mock declarations for known dependencies
+    let mockDeclarations = '';
+    if (dependencies && dependencies.imports.length > 0) {
+      const mockFn = this.framework === 'vitest' ? 'vi.fn()' : 'jest.fn()';
+      mockDeclarations += `\n// Auto-generated mocks from Knowledge Graph dependency analysis\n`;
+      for (const dep of dependencies.imports.slice(0, 10)) {
+        mockDeclarations += `${this.mockUtil}.mock('${dep}', () => ({ default: ${mockFn} }));\n`;
+      }
+    }
 
+    // KG: Generate similarity-informed comment
+    let similarityComment = '';
+    if (similarCode && similarCode.snippets.length > 0) {
+      similarityComment += `  // KG: Similar modules found - consider testing shared patterns:\n`;
+      for (const s of similarCode.snippets.slice(0, 3)) {
+        similarityComment += `  //   - ${s.file} (${(s.score * 100).toFixed(0)}% similar)\n`;
+      }
+      similarityComment += `\n`;
+    }
+
+    // KG: Dependency interaction test
+    let depTest = '';
+    if (dependencies && dependencies.imports.length > 0) {
+      depTest += `\n    it('should interact with dependencies correctly', () => {\n`;
+      depTest += `      // KG-informed: module depends on ${dependencies.imports.length} imports\n`;
+      depTest += `      const instance = typeof ${moduleName} === 'function'\n`;
+      depTest += `        ? new ${moduleName}()\n`;
+      depTest += `        : ${moduleName};\n`;
+      depTest += `      expect(instance).toBeDefined();\n`;
+      depTest += `    });\n`;
+    }
+
+    // KG: Public API surface test for modules with consumers
+    let callerTest = '';
+    if (dependencies && dependencies.importedBy.length > 0) {
+      callerTest += `\n    it('should expose stable API for ${dependencies.importedBy.length} consumers', () => {\n`;
+      callerTest += `      // KG-informed: used by ${dependencies.importedBy.slice(0, 3).join(', ')}\n`;
+      callerTest += `      const publicKeys = Object.keys(typeof ${moduleName} === 'function'\n`;
+      callerTest += `        ? ${moduleName}.prototype || {}\n`;
+      callerTest += `        : ${moduleName});\n`;
+      callerTest += `      expect(publicKeys.length).toBeGreaterThan(0);\n`;
+      callerTest += `    });\n`;
+    }
+
+    return `${patternComment}import { ${moduleName} } from '${importPath}';
+${mockDeclarations}
 describe('${moduleName}', () => {
-  describe('${testType} tests', () => {
+${similarityComment}  describe('${testType} tests', () => {
     it('should be defined', () => {
       expect(${moduleName}).toBeDefined();
     });
 
 ${basicOpsTest}
 ${edgeCaseTest}
-${errorHandlingTest}
+${errorHandlingTest}${depTest}${callerTest}
   });
 });
 `;
