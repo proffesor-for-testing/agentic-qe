@@ -110,12 +110,23 @@ export class MetricCollectorService implements IMetricCollectorService {
     if (loc.source !== 'fallback') toolsUsed.push(loc.source);
     if (tests.source !== 'fallback') toolsUsed.push(tests.source);
 
+    // Fix #281: Surface accuracy indicator
+    // node-native, cloc, tokei are all accurate (read real files)
+    // Only 'fallback' (legacy estimation) is approximate
+    const locAccuracy = loc.source === 'fallback' ? 'approximate' as const : 'accurate' as const;
+    const testAccuracy = tests.source === 'fallback' ? 'approximate' as const : 'accurate' as const;
+
     const metrics: ProjectMetrics = {
       loc,
       tests,
       patterns,
       collectedAt: new Date(),
       toolsUsed,
+      accuracy: {
+        loc: locAccuracy,
+        tests: testAccuracy,
+        overall: (locAccuracy === 'accurate' && testAccuracy === 'accurate') ? 'accurate' : 'approximate',
+      },
     };
 
     // Cache the result

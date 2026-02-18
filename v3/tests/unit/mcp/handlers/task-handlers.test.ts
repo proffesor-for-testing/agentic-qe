@@ -443,6 +443,22 @@ describe('Task Handlers', () => {
 
       expect(result.success).toBe(true);
     }, 30000);
+
+    it('should infer domain from task description when context.project is missing (Fix #282)', async () => {
+      // Security task should infer security-compliance domain
+      const secResult = await handleTaskOrchestrate({
+        task: 'Scan for security vulnerabilities and XSS issues',
+      });
+      expect(secResult.success).toBe(true);
+      expect(secResult.data!.routing).toBeDefined();
+
+      // Coverage task should infer coverage-analysis domain
+      const covResult = await handleTaskOrchestrate({
+        task: 'Analyze test coverage gaps in the project',
+      });
+      expect(covResult.success).toBe(true);
+      expect(covResult.data!.routing).toBeDefined();
+    }, 30000);
   });
 
   // --------------------------------------------------------------------------
@@ -569,6 +585,18 @@ describe('Task Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.modelRouterMetrics.agentBoosterStats).toBeDefined();
       expect(result.data!.modelRouterMetrics.agentBoosterStats.eligible).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should never report negative fallbackToLLM (Fix #282)', async () => {
+      // Route some tasks first to populate metrics
+      await handleModelRoute({ task: 'Fix a typo' });
+      await handleModelRoute({ task: 'Refactor auth module' });
+
+      const result = await handleRoutingMetrics({});
+      expect(result.success).toBe(true);
+
+      const stats = result.data!.modelRouterMetrics.agentBoosterStats;
+      expect(stats.fallbackToLLM).toBeGreaterThanOrEqual(0);
     });
 
     it('should include budget stats', async () => {

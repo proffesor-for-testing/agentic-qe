@@ -1281,11 +1281,22 @@ export class CodeIntelligenceCoordinator
       // Collect all metrics using actual tooling
       const metrics = await this.metricCollector.collectAll(projectPath);
 
+      // Fix #281: Log tool source; node-native is accurate, only legacy 'fallback' is approximate
+      const toolsLabel = metrics.toolsUsed.length > 0
+        ? metrics.toolsUsed.join(', ')
+        : metrics.loc.source === 'node-native' ? 'node-native' : 'fallback';
+
       console.log(
         `[CodeIntelligence] Real metrics collected: ` +
           `${metrics.loc.total} LOC, ${metrics.tests.total} tests, ` +
-          `tools: ${metrics.toolsUsed.join(', ') || 'fallback'}`
+          `tools: ${toolsLabel}`
       );
+
+      if (metrics.loc.source === 'node-native') {
+        console.log(
+          `[CodeIntelligence] Using Node.js-native line counter (no cloc/tokei needed)`
+        );
+      }
 
       // Store metrics in memory for cross-domain access
       await this.storeProjectMetricsInMemory(projectPath, metrics);

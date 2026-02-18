@@ -163,9 +163,22 @@ export class MCPProtocolServer {
     // Initialize ADR-039 components
     await initializeConnectionPool();
 
-    // Set up request handler
+    // Set up request handler with safety wrapper to prevent crashes from killing the connection
     this.transport.onRequest(async (request) => {
-      return this.handleRequest(request);
+      try {
+        return await this.handleRequest(request);
+      } catch (err) {
+        // Last-resort safety net: catch anything that escapes handleToolsCall
+        // to prevent MCP connection from being killed (-32000)
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[MCP] Unhandled error in request handler: ${message}`);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ success: false, error: `Internal error: ${message}` }),
+          }],
+        };
+      }
     });
 
     // Set up notification handler

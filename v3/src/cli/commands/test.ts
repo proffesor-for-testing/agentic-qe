@@ -7,6 +7,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
+import { walkSourceFiles } from '../utils/file-discovery.js';
 
 export function createTestCommand(
   context: CLIContext,
@@ -35,34 +36,11 @@ export function createTestCommand(
             return;
           }
 
-          const fs = await import('fs');
           const path = await import('path');
           const targetPath = path.resolve(target || '.');
 
-          let sourceFiles: string[] = [];
-          if (fs.existsSync(targetPath)) {
-            if (fs.statSync(targetPath).isDirectory()) {
-              const walkDir = (dir: string, depth: number = 0): string[] => {
-                if (depth > 4) return [];
-                const result: string[] = [];
-                const items = fs.readdirSync(dir);
-                for (const item of items) {
-                  if (item === 'node_modules' || item === 'dist' || item === 'tests' || item.includes('.test.') || item.includes('.spec.')) continue;
-                  const fullPath = path.join(dir, item);
-                  const stat = fs.statSync(fullPath);
-                  if (stat.isDirectory()) {
-                    result.push(...walkDir(fullPath, depth + 1));
-                  } else if (item.endsWith('.ts') && !item.endsWith('.d.ts')) {
-                    result.push(fullPath);
-                  }
-                }
-                return result;
-              };
-              sourceFiles = walkDir(targetPath);
-            } else {
-              sourceFiles = [targetPath];
-            }
-          }
+          // Fix #280: Use shared file discovery supporting all languages
+          const sourceFiles = walkSourceFiles(targetPath, { includeTests: false });
 
           if (sourceFiles.length === 0) {
             console.log(chalk.yellow('No source files found'));
@@ -116,34 +94,11 @@ export function createTestCommand(
             return;
           }
 
-          const fs = await import('fs');
           const path = await import('path');
           const targetPath = path.resolve(target || '.');
 
-          let testFiles: string[] = [];
-          if (fs.existsSync(targetPath)) {
-            if (fs.statSync(targetPath).isDirectory()) {
-              const walkDir = (dir: string, depth: number = 0): string[] => {
-                if (depth > 4) return [];
-                const result: string[] = [];
-                const items = fs.readdirSync(dir);
-                for (const item of items) {
-                  if (item === 'node_modules' || item === 'dist') continue;
-                  const fullPath = path.join(dir, item);
-                  const stat = fs.statSync(fullPath);
-                  if (stat.isDirectory()) {
-                    result.push(...walkDir(fullPath, depth + 1));
-                  } else if ((item.includes('.test.') || item.includes('.spec.')) && item.endsWith('.ts')) {
-                    result.push(fullPath);
-                  }
-                }
-                return result;
-              };
-              testFiles = walkDir(targetPath);
-            } else {
-              testFiles = [targetPath];
-            }
-          }
+          // Fix #280: Use shared file discovery supporting all languages
+          const testFiles = walkSourceFiles(targetPath, { testsOnly: true });
 
           if (testFiles.length === 0) {
             console.log(chalk.yellow('No test files found'));

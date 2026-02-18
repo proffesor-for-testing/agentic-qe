@@ -270,7 +270,12 @@ function getLanguageForExtension(ext: string): string | null {
 }
 
 /**
- * Manual line counting fallback
+ * Node.js-native line counting — reads files and counts non-blank, non-comment lines.
+ * This is accurate (not an estimate) and requires no external tools.
+ *
+ * Fix #281: Renamed from 'fallback' to 'node-native' to distinguish from
+ * any heuristic/estimation approach. Uses readFileSync on every source file
+ * with proper comment stripping per language.
  */
 function manualLOCCount(
   projectPath: string,
@@ -278,28 +283,46 @@ function manualLOCCount(
 ): LOCMetrics {
   const byLanguage: Record<string, number> = {};
   let total = 0;
+  const excludeSet = new Set(config.excludeDirs);
 
-  function walkDirectory(dirPath: string): void {
-    if (!existsSync(dirPath)) {
+  // Max file size to read (2MB) — skip minified bundles, generated files
+  const MAX_FILE_SIZE = 2 * 1024 * 1024;
+
+  function walkDirectory(dirPath: string, depth: number): void {
+    if (!existsSync(dirPath) || depth > 20) {
       return;
     }
 
-    const entries = readdirSync(dirPath, { withFileTypes: true });
+    let entries;
+    try {
+      entries = readdirSync(dirPath, { withFileTypes: true });
+    } catch {
+      // Permission denied or other FS error — skip
+      return;
+    }
 
     for (const entry of entries) {
       const fullPath = join(dirPath, entry.name);
 
       if (entry.isDirectory()) {
-        // Skip excluded directories
-        if (config.excludeDirs.includes(entry.name)) {
+        // Skip excluded directories (exact match or glob-like suffix match)
+        if (excludeSet.has(entry.name) || entry.name.startsWith('.')) {
           continue;
         }
-        walkDirectory(fullPath);
+        walkDirectory(fullPath, depth + 1);
       } else if (entry.isFile()) {
         const ext = extname(entry.name);
         const language = getLanguageForExtension(ext);
 
         if (language) {
+          // Skip files that are too large (likely generated/minified)
+          try {
+            const stat = statSync(fullPath);
+            if (stat.size > MAX_FILE_SIZE) continue;
+          } catch {
+            continue;
+          }
+
           const lines = countFileLines(fullPath);
           byLanguage[language] = (byLanguage[language] || 0) + lines;
           total += lines;
@@ -308,12 +331,12 @@ function manualLOCCount(
     }
   }
 
-  walkDirectory(projectPath);
+  walkDirectory(projectPath, 0);
 
   return {
     total,
     byLanguage,
-    source: 'fallback',
+    source: 'node-native',
     excludedDirs: config.excludeDirs,
   };
 }

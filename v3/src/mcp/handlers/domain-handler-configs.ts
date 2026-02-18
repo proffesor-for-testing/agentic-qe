@@ -357,54 +357,63 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
 
     const learning = generateV2LearningFeedback('coverage-analyzer');
 
-    // Generate detailed gap analysis
+    // Map gap analysis from real data — never fabricate file paths
     const detailedGaps = gaps.map((gap: unknown, i: number) => {
       const g = gap as Record<string, unknown>;
+      // Only include gaps that have real file paths from the analyzer
+      if (!g?.file) return null;
       return {
         id: `gap-${Date.now()}-${i}`,
-        file: (g?.file as string) || `src/module${i}.ts`,
-        line: ((g?.lines as number[])?.[0]) || (10 + i * 5),
-        uncoveredLines: (g?.lines as number[]) || [10 + i * 5, 20 + i * 5],
-        type: ((g?.type as string) || 'uncovered-line') as 'uncovered-line' | 'uncovered-branch' | 'uncovered-function',
-        severity: ((g?.severity as string) || (i < 2 ? 'high' : 'medium')) as 'critical' | 'high' | 'medium' | 'low',
-        reason: (g?.reason as string) || 'Missing test case',
-        priority: (g?.priority as string) || (i < 2 ? 'high' : 'medium'),
-        suggestion: (g?.suggestedTest as string) || `Add test for line ${10 + i * 5}`,
-        suggestedTest: (g?.suggestedTest as string) || `Add test for line ${10 + i * 5}`,
-        riskScore: (g?.riskScore as number) || (0.8 - i * 0.1),
-        confidence: (g?.confidence as number) || 0.85,
+        file: g.file as string,
+        line: ((g.lines as number[])?.[0]) || 0,
+        uncoveredLines: (g.lines as number[]) || [],
+        type: ((g.type as string) || 'uncovered-line') as 'uncovered-line' | 'uncovered-branch' | 'uncovered-function',
+        severity: ((g.severity as string) || 'medium') as 'critical' | 'high' | 'medium' | 'low',
+        reason: (g.reason as string) || 'Missing test case',
+        priority: (g.priority as string) || 'medium',
+        suggestion: (g.suggestedTest as string) || 'Add test coverage',
+        suggestedTest: (g.suggestedTest as string) || 'Add test coverage',
+        riskScore: (g.riskScore as number) || 0.5,
+        confidence: (g.confidence as number) || 0.7,
       };
-    });
+    }).filter((g): g is NonNullable<typeof g> => g !== null);
+
+    // Use real file data from the analyzer if available, never fabricate file paths
+    const coverageByFileData = data.coverageByFile as Array<Record<string, unknown>> | undefined;
+    const realCoverageByFile = coverageByFileData
+      ? coverageByFileData.map(f => ({
+          file: f.file as string,
+          lineCoverage: (f.lineCoverage as number) || 0,
+          branchCoverage: (f.branchCoverage as number) || 0,
+          functionCoverage: (f.functionCoverage as number) || 0,
+        }))
+      : [];
 
     return {
-      // V2-compatible fields
-      coverageByFile: Array.from({ length: totalFiles }, (_, i) => {
-        const variation = ((i % 3) - 1) * 5;
-        return {
-          file: `src/module${i}.ts`,
-          lineCoverage: Math.max(0, Math.min(100, lineCoverage + variation)),
-          branchCoverage: Math.max(0, Math.min(100, branchCoverage + variation - 2)),
-          functionCoverage: Math.max(0, Math.min(100, functionCoverage + variation + 2)),
-        };
-      }),
+      // V2-compatible fields — only real data, no synthetic file paths
+      coverageByFile: realCoverageByFile,
       gapAnalysis: {
         totalGaps: detailedGaps.length,
         highPriority: detailedGaps.filter(g => g.priority === 'high').length,
         gaps: detailedGaps,
       },
       trends: {
-        lineCoverageTrend: 'stable',
-        branchCoverageTrend: 'improving',
-        weeklyChange: 2.5,
+        lineCoverageTrend: totalFiles > 0 ? 'stable' : 'no-data',
+        branchCoverageTrend: totalFiles > 0 ? 'stable' : 'no-data',
+        weeklyChange: 0,
       },
-      aiInsights: {
-        recommendations: [
-          'Focus on uncovered branches in authentication module',
-          'Add edge case tests for error handling paths',
-          'Consider property-based testing for utility functions',
+      aiInsights: totalFiles > 0 ? {
+        recommendations: (data.recommendations as string[]) || [
+          'Run tests with coverage enabled to get accurate metrics',
         ],
         riskAssessment: lineCoverage < 70 ? 'high' : lineCoverage < 85 ? 'medium' : 'low',
         confidence: 0.88,
+      } : {
+        recommendations: [
+          'No coverage data found. Run tests with coverage first (e.g., npm test -- --coverage, or pytest --cov)',
+        ],
+        riskAssessment: 'unknown',
+        confidence: 0,
       },
       learning,
       // V3 fields

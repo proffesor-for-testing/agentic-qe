@@ -66,12 +66,35 @@ describe.runIf(canTest.gnn)('HNSWIndex', () => {
       expect(stats.insertOperations).toBe(1);
     });
 
-    it('should reject vectors with wrong dimensions', async () => {
-      const wrongVector = createTestVector(64); // Wrong dimension
+    it('should auto-resize vectors with wrong dimensions (Fix #279)', async () => {
+      // 768-dim vector (e.g. from RealEmbeddings/MiniLM) should be resized to 128
+      const largeVector = createTestVector(768);
+      await index.insert('large-key', largeVector);
 
-      await expect(index.insert('test-key', wrongVector)).rejects.toThrow(
-        /dimension mismatch/i
-      );
+      const stats = await index.getStats();
+      expect(stats.vectorCount).toBe(1);
+
+      // Should be searchable with a correctly-sized query
+      const results = await index.search(createTestVector(128), 1);
+      expect(results.length).toBe(1);
+      expect(results[0].key).toBe('large-key');
+    });
+
+    it('should auto-resize small vectors by zero-padding (Fix #279)', async () => {
+      const smallVector = createTestVector(64);
+      await index.insert('small-key', smallVector);
+
+      const stats = await index.getStats();
+      expect(stats.vectorCount).toBe(1);
+    });
+
+    it('should allow search with mismatched query dimensions (Fix #279)', async () => {
+      // Insert with correct dimensions
+      await index.insert('correct-key', createTestVector(128));
+
+      // Search with 768-dim query (should auto-resize)
+      const results = await index.search(createTestVector(768), 1);
+      expect(results.length).toBe(1);
     });
 
     it('should reject vectors with non-finite values', async () => {

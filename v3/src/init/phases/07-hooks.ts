@@ -1,11 +1,22 @@
 /**
  * Phase 07: Hooks
- * Configures Claude Code hooks for learning integration
+ * Configures Claude Code hooks for learning integration.
+ *
+ * Smart merge strategy:
+ * - Detects existing AQE/agentic-qe hooks and REPLACES them (no duplicates)
+ * - Preserves any non-AQE hooks from the user's existing config
+ * - Adds full env vars and v3 settings sections
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import {
+  isAqeHookEntry,
+  mergeHooksSmart,
+  generateAqeEnvVars,
+  generateV3SettingsSections,
+} from '../settings-merge.js';
 
 import {
   BasePhase,
@@ -17,6 +28,7 @@ export interface HooksResult {
   configured: boolean;
   settingsPath: string;
   hookTypes: string[];
+  existingAqeDetected: boolean;
 }
 
 /**
@@ -43,6 +55,7 @@ export class HooksPhase extends BasePhase<HooksResult> {
         configured: false,
         settingsPath: '',
         hookTypes: [],
+        existingAqeDetected: false,
       };
     }
 
@@ -65,71 +78,42 @@ export class HooksPhase extends BasePhase<HooksResult> {
       }
     }
 
-    // Configure hooks
-    const hooks = this.generateHooksConfig(config);
-    const hookTypes = Object.keys(hooks);
+    // Generate new AQE hooks
+    const aqeHooks = this.generateHooksConfig(config);
+    const hookTypes = Object.keys(aqeHooks);
 
-    // Merge with existing hooks (deduplicate by command string)
-    const existingHooks = settings.hooks as Record<string, unknown[]> || {};
-    const mergedHooks: Record<string, unknown[]> = {};
+    // Detect if there are existing AQE hooks
+    const existingHooks = (settings.hooks as Record<string, unknown[]>) || {};
+    const existingAqeDetected = this.hasExistingAqeHooks(existingHooks);
 
-    for (const [hookType, hookArray] of Object.entries(hooks)) {
-      const existing = existingHooks[hookType] || [];
-      const newHooks = hookArray as Array<{ matcher?: string; hooks?: Array<{ command?: string }> }>;
-
-      // Build set of existing commands for deduplication
-      const existingCommands = new Set<string>();
-      for (const hook of existing) {
-        const h = hook as { matcher?: string; hooks?: Array<{ command?: string }> };
-        if (h.hooks) {
-          for (const innerHook of h.hooks) {
-            if (innerHook.command) {
-              existingCommands.add(innerHook.command);
-            }
-          }
-        }
-      }
-
-      // Only add hooks that don't already exist
-      const uniqueNewHooks = newHooks.filter(hook => {
-        if (!hook.hooks) return true;
-        // Check if any of the hook's commands already exist
-        return !hook.hooks.some(h => h.command && existingCommands.has(h.command));
-      });
-
-      mergedHooks[hookType] = [...existing, ...uniqueNewHooks];
+    if (existingAqeDetected) {
+      context.services.log('  Detected existing AQE hooks — replacing with updated config');
     }
 
-    // Preserve hooks not in our list
-    for (const [hookType, hookArray] of Object.entries(existingHooks)) {
-      if (!mergedHooks[hookType]) {
-        mergedHooks[hookType] = hookArray;
-      }
-    }
+    // Smart merge: remove old AQE hooks, keep user hooks, add new AQE hooks
+    settings.hooks = mergeHooksSmart(existingHooks, aqeHooks);
 
-    settings.hooks = mergedHooks;
-
-    // Add environment variables
-    const existingEnv = settings.env as Record<string, string> || {};
+    // Set full AQE environment variables
+    const existingEnv = (settings.env as Record<string, string>) || {};
     settings.env = {
       ...existingEnv,
-      AQE_MEMORY_PATH: '.agentic-qe/memory.db',
-      AQE_V3_MODE: 'true',
-      AQE_LEARNING_ENABLED: config.learning.enabled ? 'true' : 'false',
+      ...generateAqeEnvVars(config),
     };
 
-    // Add AQE metadata
-    settings.aqe = {
-      version: config.version,
-      initialized: new Date().toISOString(),
-      hooksConfigured: true,
-    };
-
-    // Enable MCP server
-    const existingMcp = settings.enabledMcpjsonServers as string[] || [];
-    if (!existingMcp.includes('aqe')) {
-      settings.enabledMcpjsonServers = [...existingMcp, 'aqe'];
+    // Apply v3 settings sections (statusLine, permissions, v3Configuration, v3Learning, etc.)
+    const v3Sections = generateV3SettingsSections(config);
+    for (const [key, value] of Object.entries(v3Sections)) {
+      settings[key] = value;
     }
+
+    // Enable MCP servers (deduplicate, replace old 'aqe' with 'agentic-qe')
+    let existingMcp = (settings.enabledMcpjsonServers as string[]) || [];
+    // Remove legacy 'aqe' entry if present (renamed to 'agentic-qe')
+    existingMcp = existingMcp.filter(s => s !== 'aqe');
+    if (!existingMcp.includes('agentic-qe')) {
+      existingMcp.push('agentic-qe');
+    }
+    settings.enabledMcpjsonServers = existingMcp;
 
     // Write settings
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
@@ -141,7 +125,21 @@ export class HooksPhase extends BasePhase<HooksResult> {
       configured: true,
       settingsPath,
       hookTypes,
+      existingAqeDetected,
     };
+  }
+
+  /**
+   * Check if existing hooks contain any AQE/agentic-qe entries
+   */
+  private hasExistingAqeHooks(hooks: Record<string, unknown[]>): boolean {
+    for (const hookArray of Object.values(hooks)) {
+      if (!Array.isArray(hookArray)) continue;
+      for (const entry of hookArray) {
+        if (isAqeHookEntry(entry)) return true;
+      }
+    }
+    return false;
   }
 
   /**

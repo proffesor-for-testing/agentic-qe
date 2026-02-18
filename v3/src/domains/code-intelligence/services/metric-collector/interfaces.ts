@@ -64,6 +64,12 @@ export interface ProjectMetrics {
   collectedAt: Date;
   /** Tools used for collection (e.g., ['cloc', 'vitest']) */
   toolsUsed: string[];
+  /** Fix #281: Accuracy indicator when fallback counting is used */
+  accuracy?: {
+    loc: 'accurate' | 'approximate';
+    tests: 'accurate' | 'approximate';
+    overall: 'accurate' | 'approximate';
+  };
 }
 
 /**
@@ -83,7 +89,7 @@ export interface LOCMetrics {
 /**
  * Available LOC counting tools
  */
-export type LOCSource = 'cloc' | 'tokei' | 'fallback';
+export type LOCSource = 'cloc' | 'tokei' | 'node-native' | 'fallback';
 
 /**
  * Test count metrics from test runners
@@ -161,7 +167,16 @@ export interface MetricCollectorConfig {
  */
 export const DEFAULT_METRIC_CONFIG: MetricCollectorConfig = {
   timeout: 60000,
-  excludeDirs: ['node_modules', 'dist', 'coverage', 'build', '.git', 'vendor', 'target'],
+  excludeDirs: [
+    // JS/TS ecosystem
+    'node_modules', 'dist', 'build', 'coverage', '.nyc_output', '.next', '.nuxt', '.output',
+    // Python ecosystem
+    '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', '.pytest_cache', '.eggs', '*.egg-info',
+    // Rust / Java / Go
+    'target', '.gradle', 'vendor', '.bundle',
+    // General
+    '.git', '.svn', '.hg',
+  ],
   testPatterns: ['**/*.test.ts', '**/*.spec.ts', '**/*.test.js', '**/*.spec.js'],
   enableCache: true,
   cacheTTL: 300000,

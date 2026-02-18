@@ -124,8 +124,14 @@ export class ScoreCalculator implements IScoreCalculator {
     scopeComplexity: number,
     signals: ComplexitySignals
   ): number {
-    // Mechanical transforms always score 0-10
-    if (signals.isMechanicalTransform) {
+    // Mechanical transforms score low ONLY if there are no other complexity signals
+    // A security analysis task that happens to contain "add types" should NOT be treated as mechanical
+    if (signals.isMechanicalTransform &&
+        !signals.hasSecurityScope &&
+        !signals.hasArchitectureScope &&
+        !signals.requiresMultiStepReasoning &&
+        !signals.requiresCrossDomainCoordination &&
+        codeComplexity === 0 && reasoningComplexity === 0 && scopeComplexity === 0) {
       return 5;
     }
 
@@ -133,7 +139,14 @@ export class ScoreCalculator implements IScoreCalculator {
     const weighted =
       codeComplexity * 0.3 + reasoningComplexity * 0.4 + scopeComplexity * 0.3;
 
-    return Math.min(Math.round(weighted), 100);
+    // Ensure minimum score when strong scope signals are present
+    // Security and architecture tasks should never score below moderate threshold
+    let minScore = 0;
+    if (signals.hasSecurityScope) minScore = Math.max(minScore, 50);
+    if (signals.hasArchitectureScope) minScore = Math.max(minScore, 55);
+    if (signals.requiresCrossDomainCoordination) minScore = Math.max(minScore, 35);
+
+    return Math.min(Math.max(Math.round(weighted), minScore), 100);
   }
 
   /**

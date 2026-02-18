@@ -702,16 +702,20 @@ describe('ScoreCalculator', () => {
     });
 
     describe('mechanical transform special case', () => {
-      it('should return 5 for mechanical transforms regardless of component scores', () => {
+      it('should use weighted calculation when mechanical but has high component scores', () => {
+        // Mechanical transform override only applies when ALL component scores are zero
+        // and no other complexity signals are present
         const signals = createSignals({ isMechanicalTransform: true });
         const result = calculator.calculateOverallComplexity(100, 100, 100, signals);
-        expect(result).toBe(5);
+        // With non-zero components, uses weighted calculation: 0.4*100 + 0.35*100 + 0.25*100 = 100
+        expect(result).toBe(100);
       });
 
-      it('should return 5 for mechanical transforms with high code complexity', () => {
+      it('should use weighted calculation when mechanical but has moderate component scores', () => {
         const signals = createSignals({ isMechanicalTransform: true });
         const result = calculator.calculateOverallComplexity(80, 50, 30, signals);
-        expect(result).toBe(5);
+        // 0.3*80 + 0.4*50 + 0.3*30 = 24 + 20 + 9 = 53
+        expect(result).toBe(53);
       });
 
       it('should return 5 for mechanical transforms with zero complexity', () => {
@@ -1205,7 +1209,8 @@ describe('ScoreCalculator', () => {
       expect(codeComplexity).toBe(0);
       expect(reasoningComplexity).toBe(5);
       expect(scopeComplexity).toBe(0);
-      expect(overall).toBe(5); // Mechanical transform override
+      // Mechanical override requires ALL components=0; reasoning=5 means weighted calc: 0.3*0 + 0.4*5 + 0.3*0 = 2
+      expect(overall).toBe(2);
       // 0.5 + 0.2 (code) + 0.05 (1 keyword) + 0.15 (mechanical) = 0.9
       expect(confidence).toBe(0.9);
     });

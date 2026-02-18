@@ -424,13 +424,36 @@ async function discoverSourceFiles(
   const { includeTests = true, languages } = options;
 
   // Determine file extensions to include
-  let extensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+  // Default: scan ALL common source languages unless explicitly filtered
+  let extensions = [
+    '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',  // JavaScript/TypeScript
+    '.py', '.pyw',                                   // Python
+    '.go',                                           // Go
+    '.rs',                                           // Rust
+    '.java', '.kt', '.kts',                          // Java/Kotlin
+    '.rb',                                           // Ruby
+    '.cs',                                           // C#
+    '.php',                                          // PHP
+    '.swift',                                        // Swift
+    '.c', '.h', '.cpp', '.hpp', '.cc',               // C/C++
+    '.scala',                                        // Scala
+  ];
   if (languages && languages.length > 0) {
     extensions = [];
     for (const lang of languages) {
       if (lang === 'typescript') extensions.push('.ts', '.tsx');
       if (lang === 'javascript') extensions.push('.js', '.jsx', '.mjs', '.cjs');
-      if (lang === 'python') extensions.push('.py');
+      if (lang === 'python') extensions.push('.py', '.pyw');
+      if (lang === 'go') extensions.push('.go');
+      if (lang === 'rust') extensions.push('.rs');
+      if (lang === 'java') extensions.push('.java');
+      if (lang === 'kotlin') extensions.push('.kt', '.kts');
+      if (lang === 'ruby') extensions.push('.rb');
+      if (lang === 'csharp' || lang === 'c#') extensions.push('.cs');
+      if (lang === 'php') extensions.push('.php');
+      if (lang === 'swift') extensions.push('.swift');
+      if (lang === 'c' || lang === 'cpp' || lang === 'c++') extensions.push('.c', '.h', '.cpp', '.hpp', '.cc');
+      if (lang === 'scala') extensions.push('.scala');
     }
   }
 
@@ -443,7 +466,9 @@ async function discoverSourceFiles(
 
         // Skip common non-source directories
         if (entry.isDirectory()) {
-          if (['node_modules', '.git', 'dist', 'build', 'coverage', '.nyc_output'].includes(entry.name)) {
+          if (['node_modules', '.git', 'dist', 'build', 'coverage', '.nyc_output',
+             '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', 'target',
+             '.gradle', 'vendor', '.bundle'].includes(entry.name)) {
             continue;
           }
           await walkDir(fullPath);
@@ -674,7 +699,15 @@ export class DomainTaskExecutor {
           sourceFiles = [payload.filePath];
         } else if (payload.sourceCode) {
           // Write temporary file for analysis if only source code provided
-          const tempPath = `/tmp/aqe-temp-${uuidv4()}.ts`;
+          // Use correct file extension based on language parameter
+          const langExtMap: Record<string, string> = {
+            python: '.py', typescript: '.ts', javascript: '.js',
+            go: '.go', rust: '.rs', java: '.java', ruby: '.rb',
+            kotlin: '.kt', csharp: '.cs', php: '.php', swift: '.swift',
+            cpp: '.cpp', c: '.c', scala: '.scala',
+          };
+          const ext = langExtMap[payload.language?.toLowerCase() || 'typescript'] || '.ts';
+          const tempPath = `/tmp/aqe-temp-${uuidv4()}${ext}`;
           await fs.writeFile(tempPath, payload.sourceCode, 'utf-8');
           sourceFiles = [tempPath];
         }
@@ -827,16 +860,126 @@ export class DomainTaskExecutor {
               sast: payload.sast !== false,
               dast: payload.dast || false,
             },
-            warning: `No TypeScript/JavaScript files found in ${targetPath}`,
+            warning: `No source files found in ${targetPath}`,
           });
         }
 
-        // Convert string paths to FilePath value objects
-        const filePathObjects = filesToScan.map(filePath => FilePath.create(filePath));
+        // Separate files by language capability
+        const jstsFiles = filesToScan.filter(f => /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(f));
+        const otherFiles = filesToScan.filter(f => !/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(f));
 
-        // Run SAST scan if requested
+        // Run basic cross-language security patterns on non-JS/TS files
+        const crossLangVulns: Array<{
+          title: string; severity: 'critical' | 'high' | 'medium' | 'low' | 'informational';
+          location: { file: string; line: number }; description: string; category: string;
+        }> = [];
+
+        for (const filePath of otherFiles) {
+          try {
+            const content = await fs.readFile(filePath, 'utf-8');
+            const lines = content.split('\n');
+            const relPath = filePath.startsWith(targetPath)
+              ? filePath.slice(targetPath.length).replace(/^\//, '')
+              : filePath;
+
+            // Pattern: Hardcoded secrets/keys
+            const secretPatterns = [
+              { regex: /(?:secret|password|api_key|apikey|token|jwt_secret|private_key)\s*[=:]\s*['"][^'"]{8,}['"]/gi, title: 'Hardcoded secret', severity: 'critical' as const },
+              { regex: /(?:AWS_SECRET|GITHUB_TOKEN|SLACK_TOKEN)\s*[=:]\s*['"][^'"]+['"]/gi, title: 'Hardcoded cloud credential', severity: 'critical' as const },
+            ];
+
+            for (const pattern of secretPatterns) {
+              for (let i = 0; i < lines.length; i++) {
+                if (pattern.regex.test(lines[i])) {
+                  crossLangVulns.push({
+                    title: pattern.title,
+                    severity: pattern.severity,
+                    location: { file: relPath, line: i + 1 },
+                    description: `Potential hardcoded secret found at line ${i + 1}`,
+                    category: 'sensitive-data',
+                  });
+                }
+                // Reset regex lastIndex for global regexes
+                pattern.regex.lastIndex = 0;
+              }
+            }
+
+            // Pattern: SQL injection risks
+            const sqlPatterns = /(?:execute|query|cursor\.execute)\s*\(\s*(?:f['"]|['"].*%s|['"].*\+\s*\w)/gi;
+            for (let i = 0; i < lines.length; i++) {
+              if (sqlPatterns.test(lines[i])) {
+                crossLangVulns.push({
+                  title: 'Potential SQL injection',
+                  severity: 'high',
+                  location: { file: relPath, line: i + 1 },
+                  description: 'String interpolation in SQL query — use parameterized queries',
+                  category: 'injection',
+                });
+              }
+              sqlPatterns.lastIndex = 0;
+            }
+
+            // Pattern: CORS wildcard
+            if (/allow_origins\s*=\s*\[?\s*['"]?\*['"]?\s*\]?/i.test(content)) {
+              crossLangVulns.push({
+                title: 'CORS wildcard origin',
+                severity: 'high',
+                location: { file: relPath, line: lines.findIndex(l => /allow_origins/i.test(l)) + 1 },
+                description: 'CORS configured with wildcard (*) origin — restrict to specific domains',
+                category: 'security-misconfiguration',
+              });
+            }
+
+            // Pattern: Debug/development mode enabled
+            if (/(?:DEBUG|debug)\s*[=:]\s*(?:True|true|1)/i.test(content)) {
+              crossLangVulns.push({
+                title: 'Debug mode enabled',
+                severity: 'medium',
+                location: { file: relPath, line: lines.findIndex(l => /DEBUG\s*[=:]\s*(?:True|true|1)/i.test(l)) + 1 },
+                description: 'Debug mode should be disabled in production',
+                category: 'security-misconfiguration',
+              });
+            }
+
+            // Pattern: Eval/exec usage
+            if (/\b(?:eval|exec)\s*\(/i.test(content)) {
+              crossLangVulns.push({
+                title: 'Dangerous eval/exec usage',
+                severity: 'high',
+                location: { file: relPath, line: lines.findIndex(l => /\b(?:eval|exec)\s*\(/.test(l)) + 1 },
+                description: 'eval/exec can lead to code injection — avoid using with user input',
+                category: 'injection',
+              });
+            }
+          } catch {
+            // Skip unreadable files
+          }
+        }
+
+        // Also check dependency manifests for known vulnerable packages
+        const depManifests = ['requirements.txt', 'pyproject.toml', 'Gemfile', 'go.mod', 'Cargo.toml'];
+        for (const manifest of depManifests) {
+          const manifestPath = path.join(targetPath, manifest);
+          try {
+            await fs.access(manifestPath);
+            crossLangVulns.push({
+              title: 'Dependency audit recommended',
+              severity: 'informational',
+              location: { file: manifest, line: 1 },
+              description: `Found ${manifest} — run language-specific dependency audit (e.g., pip-audit, npm audit, cargo audit)`,
+              category: 'dependencies',
+            });
+          } catch {
+            // Manifest doesn't exist
+          }
+        }
+
+        // Convert JS/TS file paths to FilePath value objects for the SAST scanner
+        const filePathObjects = jstsFiles.map(filePath => FilePath.create(filePath));
+
+        // Run SAST scan on JS/TS files if requested and files exist
         let sastResult = null;
-        if (payload.sast !== false) {
+        if (payload.sast !== false && filePathObjects.length > 0) {
           const result = await scanner.scanFiles(filePathObjects);
           if (result.success) {
             sastResult = result.value;
@@ -856,19 +999,28 @@ export class DomainTaskExecutor {
           }
         }
 
-        // Combine results - create mutable copy
-        const summary = {
-          critical: (sastResult?.summary?.critical || 0) + (dastResult?.summary?.critical || 0),
-          high: (sastResult?.summary?.high || 0) + (dastResult?.summary?.high || 0),
-          medium: (sastResult?.summary?.medium || 0) + (dastResult?.summary?.medium || 0),
-          low: (sastResult?.summary?.low || 0) + (dastResult?.summary?.low || 0),
-          informational: (sastResult?.summary?.informational || 0) + (dastResult?.summary?.informational || 0),
+        // Combine results from all scan sources - SAST, DAST, and cross-language patterns
+        const crossLangSeverityCounts = {
+          critical: crossLangVulns.filter(v => v.severity === 'critical').length,
+          high: crossLangVulns.filter(v => v.severity === 'high').length,
+          medium: crossLangVulns.filter(v => v.severity === 'medium').length,
+          low: crossLangVulns.filter(v => v.severity === 'low').length,
+          informational: crossLangVulns.filter(v => v.severity === 'informational').length,
         };
 
-        // Extract top vulnerabilities
+        const summary = {
+          critical: (sastResult?.summary?.critical || 0) + (dastResult?.summary?.critical || 0) + crossLangSeverityCounts.critical,
+          high: (sastResult?.summary?.high || 0) + (dastResult?.summary?.high || 0) + crossLangSeverityCounts.high,
+          medium: (sastResult?.summary?.medium || 0) + (dastResult?.summary?.medium || 0) + crossLangSeverityCounts.medium,
+          low: (sastResult?.summary?.low || 0) + (dastResult?.summary?.low || 0) + crossLangSeverityCounts.low,
+          informational: (sastResult?.summary?.informational || 0) + (dastResult?.summary?.informational || 0) + crossLangSeverityCounts.informational,
+        };
+
+        // Extract top vulnerabilities from all sources
         const allVulns = [
           ...(sastResult?.vulnerabilities || []),
           ...(dastResult?.vulnerabilities || []),
+          ...crossLangVulns,
         ];
 
         const topVulnerabilities = allVulns
@@ -902,7 +1054,12 @@ export class DomainTaskExecutor {
             dast: payload.dast || false,
           },
           filesScanned: filesToScan.length,
+          jstsFilesScanned: jstsFiles.length,
+          otherFilesScanned: otherFiles.length,
           coverage: sastResult?.coverage,
+          ...(otherFiles.length > 0 && jstsFiles.length === 0 ? {
+            note: 'Non-JS/TS files were scanned with cross-language pattern matching. For deeper analysis, use language-specific security tools.',
+          } : {}),
         });
       } catch (error) {
         return err(toError(error));
@@ -936,9 +1093,9 @@ export class DomainTaskExecutor {
             edgesCreated: 0,
             target: targetPath,
             incremental: payload.incremental || false,
-            languages: payload.languages || ['typescript', 'javascript'],
+            languages: payload.languages || [],
             duration: Date.now() - startTime,
-            warning: `No source files found in ${targetPath}`,
+            warning: `No source files found in ${targetPath}. Searched for: TypeScript, JavaScript, Python, Go, Rust, Java, Ruby, C/C++, and more.`,
           });
         }
 
@@ -958,11 +1115,20 @@ export class DomainTaskExecutor {
 
         // Detect languages from files
         const detectedLanguages = new Set<string>();
+        const extToLang: Record<string, string> = {
+          ts: 'typescript', tsx: 'typescript',
+          js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
+          py: 'python', pyw: 'python',
+          go: 'go', rs: 'rust',
+          java: 'java', kt: 'kotlin', kts: 'kotlin',
+          rb: 'ruby', cs: 'csharp', php: 'php', swift: 'swift',
+          c: 'c', h: 'c', cpp: 'cpp', hpp: 'cpp', cc: 'cpp',
+          scala: 'scala',
+        };
         for (const file of filesToIndex) {
           const ext = path.extname(file).slice(1);
-          if (['ts', 'tsx'].includes(ext)) detectedLanguages.add('typescript');
-          if (['js', 'jsx', 'mjs', 'cjs'].includes(ext)) detectedLanguages.add('javascript');
-          if (ext === 'py') detectedLanguages.add('python');
+          const lang = extToLang[ext];
+          if (lang) detectedLanguages.add(lang);
         }
 
         return ok({
@@ -1087,32 +1253,142 @@ export class DomainTaskExecutor {
       });
     });
 
-    // Register defect prediction handler
+    // Register defect prediction handler - REAL IMPLEMENTATION
     this.taskHandlers.set('predict-defects', async (task) => {
       const payload = task.payload as {
         target: string;
         minConfidence: number;
       };
 
-      return ok({
-        predictedDefects: [
-          {
-            file: `${payload.target}/complex-module.ts`,
-            probability: 0.78,
-            reason: 'High cyclomatic complexity combined with low test coverage',
-          },
-          {
-            file: `${payload.target}/legacy-handler.ts`,
-            probability: 0.65,
-            reason: 'Frequent changes in recent commits with error-prone patterns',
-          },
-        ],
-        riskScore: 42,
-        recommendations: [
-          'Add integration tests for complex-module.ts',
-          'Refactor legacy-handler.ts to reduce complexity',
-        ],
-      });
+      try {
+        const targetPath = payload.target || process.cwd();
+        const minConfidence = payload.minConfidence || 0.5;
+
+        // Discover actual source files in the target directory
+        const sourceFiles = await discoverSourceFiles(targetPath, { includeTests: false });
+
+        if (sourceFiles.length === 0) {
+          return ok({
+            predictedDefects: [],
+            riskScore: 0,
+            recommendations: [
+              `No source files found in ${targetPath}. Ensure the path contains source code files.`,
+            ],
+            warning: `No source files found in ${targetPath}`,
+            filesAnalyzed: 0,
+          });
+        }
+
+        // Analyze each file for defect indicators based on real metrics
+        const predictedDefects: Array<{ file: string; probability: number; reason: string }> = [];
+
+        for (const filePath of sourceFiles) {
+          try {
+            const content = await fs.readFile(filePath, 'utf-8');
+            const lines = content.split('\n');
+            const lineCount = lines.length;
+
+            // Calculate complexity indicators from real code
+            let probability = 0;
+            const reasons: string[] = [];
+
+            // Factor 1: File size (large files are more defect-prone)
+            if (lineCount > 500) {
+              probability += 0.25;
+              reasons.push(`Large file (${lineCount} lines)`);
+            } else if (lineCount > 300) {
+              probability += 0.15;
+              reasons.push(`Medium-large file (${lineCount} lines)`);
+            }
+
+            // Factor 2: Cyclomatic complexity indicators
+            const branchKeywords = content.match(/\b(if|else|switch|case|for|while|catch|&&|\|\|)\b/g) || [];
+            const branchDensity = branchKeywords.length / Math.max(lineCount, 1);
+            if (branchDensity > 0.15) {
+              probability += 0.25;
+              reasons.push(`High branch density (${branchKeywords.length} branches in ${lineCount} lines)`);
+            } else if (branchDensity > 0.08) {
+              probability += 0.10;
+              reasons.push('Moderate branch complexity');
+            }
+
+            // Factor 3: Deeply nested code
+            const maxIndent = Math.max(...lines.map(l => {
+              const match = l.match(/^(\s*)/);
+              return match ? match[1].length : 0;
+            }));
+            if (maxIndent > 20) {
+              probability += 0.15;
+              reasons.push('Deep nesting detected');
+            }
+
+            // Factor 4: TODO/FIXME/HACK comments
+            const debtComments = (content.match(/\b(TODO|FIXME|HACK|XXX|WORKAROUND)\b/gi) || []).length;
+            if (debtComments > 3) {
+              probability += 0.15;
+              reasons.push(`${debtComments} technical debt markers`);
+            }
+
+            // Factor 5: Long functions (heuristic)
+            const functionStarts = (content.match(/\b(function|def|func|async)\b/g) || []).length;
+            if (functionStarts > 0 && lineCount / functionStarts > 80) {
+              probability += 0.10;
+              reasons.push('Potentially long functions');
+            }
+
+            probability = Math.min(probability, 0.95);
+
+            if (probability >= minConfidence) {
+              // Use relative path for readability
+              const relativePath = filePath.startsWith(targetPath)
+                ? filePath.slice(targetPath.length).replace(/^\//, '')
+                : filePath;
+              predictedDefects.push({
+                file: relativePath,
+                probability: Math.round(probability * 100) / 100,
+                reason: reasons.join('; '),
+              });
+            }
+          } catch {
+            // Skip files that can't be read
+          }
+        }
+
+        // Sort by probability descending
+        predictedDefects.sort((a, b) => b.probability - a.probability);
+
+        // Calculate overall risk score
+        const avgProb = predictedDefects.length > 0
+          ? predictedDefects.reduce((sum, d) => sum + d.probability, 0) / predictedDefects.length
+          : 0;
+        const riskScore = Math.round(avgProb * 100);
+
+        // Generate recommendations from actual findings
+        const recommendations: string[] = [];
+        if (predictedDefects.length > 0) {
+          recommendations.push(`${predictedDefects.length} files flagged for potential defects out of ${sourceFiles.length} analyzed`);
+          const topFile = predictedDefects[0];
+          recommendations.push(`Highest risk: ${topFile.file} (${Math.round(topFile.probability * 100)}%) — ${topFile.reason}`);
+        }
+        if (predictedDefects.some(d => d.reason.includes('Large file'))) {
+          recommendations.push('Consider splitting large files to reduce complexity');
+        }
+        if (predictedDefects.some(d => d.reason.includes('technical debt'))) {
+          recommendations.push('Address TODO/FIXME comments to reduce technical debt');
+        }
+        if (predictedDefects.length === 0) {
+          recommendations.push('No files exceeded the defect probability threshold — code looks healthy');
+        }
+
+        return ok({
+          predictedDefects: predictedDefects.slice(0, 20), // Top 20
+          riskScore,
+          recommendations,
+          filesAnalyzed: sourceFiles.length,
+        });
+      } catch (error) {
+        return err(toError(error));
+      }
     });
 
     // Register requirements validation handler
