@@ -333,7 +333,7 @@ export class HNSWIndex implements IHNSWIndex {
       await this.initialize();
     }
 
-    this.validateVector(vector);
+    vector = this.validateVector(vector);
 
     // Check for duplicate
     if (this.keyToLabel.has(key)) {
@@ -382,7 +382,7 @@ export class HNSWIndex implements IHNSWIndex {
       await this.initialize();
     }
 
-    this.validateVector(query);
+    query = this.validateVector(query);
 
     const startTime = performance.now();
 
@@ -543,11 +543,15 @@ export class HNSWIndex implements IHNSWIndex {
   // Private Helper Methods
   // ============================================================================
 
-  private validateVector(vector: number[]): void {
+  /**
+   * Validate and auto-resize vectors to match HNSW configured dimensions.
+   * Fix #279: Prevents Rust WASM panic when RealEmbeddings (768-dim) are
+   * passed to a 128-dim HNSW index.
+   */
+  private validateVector(vector: number[]): number[] {
+    // Auto-resize if dimensions don't match
     if (vector.length !== this.config.dimensions) {
-      throw new Error(
-        `Vector dimension mismatch: expected ${this.config.dimensions}, got ${vector.length}`
-      );
+      return this.resizeVector(vector, this.config.dimensions);
     }
 
     for (let i = 0; i < vector.length; i++) {
@@ -555,6 +559,37 @@ export class HNSWIndex implements IHNSWIndex {
         throw new Error(`Invalid vector value at index ${i}: ${vector[i]}`);
       }
     }
+    return vector;
+  }
+
+  /**
+   * Resize vector to target dimensions using averaging (shrink) or zero-padding (grow).
+   */
+  private resizeVector(vector: number[], targetDim: number): number[] {
+    if (vector.length === targetDim) return vector;
+
+    if (vector.length > targetDim) {
+      // Shrink: average adjacent values to preserve information
+      const result = new Array(targetDim).fill(0);
+      const ratio = vector.length / targetDim;
+      for (let i = 0; i < targetDim; i++) {
+        const start = Math.floor(i * ratio);
+        const end = Math.floor((i + 1) * ratio);
+        let sum = 0;
+        for (let j = start; j < end; j++) {
+          sum += vector[j];
+        }
+        result[i] = sum / (end - start);
+      }
+      return result;
+    }
+
+    // Grow: zero-pad
+    const result = new Array(targetDim).fill(0);
+    for (let i = 0; i < vector.length; i++) {
+      result[i] = vector[i];
+    }
+    return result;
   }
 
   private buildKey(key: string): string {

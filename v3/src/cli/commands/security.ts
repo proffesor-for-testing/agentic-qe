@@ -7,6 +7,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
+import { walkSourceFiles } from '../utils/file-discovery.js';
 
 export function createSecurityCommand(
   context: CLIContext,
@@ -36,34 +37,11 @@ export function createSecurityCommand(
           return;
         }
 
-        const fs = await import('fs');
         const path = await import('path');
         const targetPath = path.resolve(options.target);
 
-        let files: string[] = [];
-        if (fs.existsSync(targetPath)) {
-          if (fs.statSync(targetPath).isDirectory()) {
-            const walkDir = (dir: string, depth: number = 0): string[] => {
-              if (depth > 4) return [];
-              const result: string[] = [];
-              const items = fs.readdirSync(dir);
-              for (const item of items) {
-                if (item === 'node_modules' || item === 'dist') continue;
-                const fullPath = path.join(dir, item);
-                const stat = fs.statSync(fullPath);
-                if (stat.isDirectory()) {
-                  result.push(...walkDir(fullPath, depth + 1));
-                } else if (item.endsWith('.ts') && !item.endsWith('.d.ts')) {
-                  result.push(fullPath);
-                }
-              }
-              return result;
-            };
-            files = walkDir(targetPath);
-          } else {
-            files = [targetPath];
-          }
-        }
+        // Fix #280: Use shared file discovery supporting all languages
+        const files = walkSourceFiles(targetPath, { includeTests: true });
 
         if (files.length === 0) {
           console.log(chalk.yellow('No files found to scan'));
