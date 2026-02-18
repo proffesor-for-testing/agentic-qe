@@ -58,7 +58,7 @@ export class JestVitestGenerator extends BaseTestGenerator {
    * Generate complete test file from analysis
    */
   generateTests(context: TestGenerationContext): string {
-    const { moduleName, importPath, testType, patterns, analysis } = context;
+    const { moduleName, importPath, testType, patterns, analysis, dependencies } = context;
 
     if (!analysis || (analysis.functions.length === 0 && analysis.classes.length === 0)) {
       return this.generateStubTests(context);
@@ -72,8 +72,20 @@ export class JestVitestGenerator extends BaseTestGenerator {
 
     let testCode = `${patternComment}import { describe, it, expect, beforeEach${mockImport} } from '${this.framework}';
 ${importStatement}
-
 `;
+
+    // KG: Generate mock declarations for known dependencies
+    if (dependencies && dependencies.imports.length > 0) {
+      const mockFn = this.framework === 'vitest' ? 'vi.fn()' : 'jest.fn()';
+      testCode += `\n// Auto-generated mocks from Knowledge Graph dependency analysis\n`;
+      for (const dep of dependencies.imports.slice(0, 10)) {
+        const depName = dep.split('/').pop()?.replace(/[^a-zA-Z0-9_]/g, '_') || dep;
+        testCode += `${this.framework === 'vitest' ? 'vi' : 'jest'}.mock('${dep}', () => ({ default: ${mockFn} }));\n`;
+      }
+      testCode += `\n`;
+    } else {
+      testCode += `\n`;
+    }
 
     // Generate tests for each function
     for (const fn of analysis.functions) {

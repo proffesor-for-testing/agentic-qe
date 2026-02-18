@@ -12,6 +12,21 @@
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { HNSW_CONSTANTS } from './constants.js';
 
+// Try to load @ruvector/gnn for native Rust-powered search
+let ruvectorDifferentiableSearch: ((
+  query: unknown, candidates: unknown[], k: number, temperature: number
+) => { indices: number[]; weights: number[] }) | null = null;
+let ruvectorInit: (() => string) | null = null;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const gnn = require('@ruvector/gnn');
+  ruvectorDifferentiableSearch = gnn.differentiableSearch;
+  ruvectorInit = gnn.init;
+} catch {
+  // @ruvector/gnn not available — RuvectorFlatIndex will fall back to JS cosine
+}
+
 // ============================================================================
 // Binary Heap (used by HNSW beam search)
 // ============================================================================
@@ -486,5 +501,142 @@ export class InMemoryHNSWIndex {
     this.nodes.clear();
     this.entryPoint = null;
     this.currentMaxLevel = -1;
+  }
+}
+
+// ============================================================================
+// Ruvector Flat Index (native Rust brute-force with differentiable search)
+// ============================================================================
+
+/** Compute L2 norm of a Float32Array. */
+function computeNorm(v: Float32Array): number {
+  let sum = 0;
+  for (let i = 0; i < v.length; i++) sum += v[i] * v[i];
+  return Math.sqrt(sum);
+}
+
+/** Cosine similarity using pre-computed norms — just a dot product + division. */
+function fastCosine(a: Float32Array, b: Float32Array, normA: number, normB: number): number {
+  const denom = normA * normB;
+  if (denom === 0) return 0;
+  let dot = 0;
+  for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
+  return dot / denom;
+}
+
+/**
+ * Flat vector index using @ruvector/gnn's native Rust differentiable search.
+ *
+ * Trade-offs vs InMemoryHNSWIndex:
+ * - Build: O(1) per vector (just store) vs O(efConstruction * log n) for HNSW
+ * - Search: O(n) brute-force vs O(log n) for HNSW
+ * - For n < ~50k vectors, brute-force is faster end-to-end because the HNSW
+ *   graph construction cost dominates at startup (16s vs 5ms for 5073 vectors).
+ * - 100% recall vs ~70% for HNSW approximate search.
+ *
+ * Same interface as InMemoryHNSWIndex: add/search/remove/clear/size.
+ */
+export class RuvectorFlatIndex {
+  private ids: string[] = [];
+  private vectors: Float32Array[] = [];
+  /** Pre-computed L2 norms for each vector (enables dot-product-only cosine). */
+  private norms: number[] = [];
+  private idToIndex: Map<string, number> = new Map();
+  private initialized = false;
+
+  constructor() {
+    if (ruvectorInit && !this.initialized) {
+      try {
+        ruvectorInit();
+        this.initialized = true;
+      } catch {
+        // Already initialized or not available
+        this.initialized = ruvectorDifferentiableSearch !== null;
+      }
+    }
+  }
+
+  add(id: string, embedding: number[]): void {
+    const f32 = new Float32Array(embedding);
+    const norm = computeNorm(f32);
+
+    // Handle duplicate: overwrite
+    if (this.idToIndex.has(id)) {
+      const idx = this.idToIndex.get(id)!;
+      this.vectors[idx] = f32;
+      this.norms[idx] = norm;
+      return;
+    }
+    const idx = this.ids.length;
+    this.ids.push(id);
+    this.vectors.push(f32);
+    this.norms.push(norm);
+    this.idToIndex.set(id, idx);
+  }
+
+  search(query: number[], k: number): Array<{ id: string; score: number }> {
+    if (this.ids.length === 0) return [];
+    const actualK = Math.min(k, this.ids.length);
+
+    // Use @ruvector/gnn native search for fast top-k ranking, then compute
+    // cosine scores using pre-cached norms (dot product + 1 division only).
+    if (ruvectorDifferentiableSearch && this.vectors.length > 0) {
+      const queryF32 = new Float32Array(query);
+      const queryNorm = computeNorm(queryF32);
+      const result = ruvectorDifferentiableSearch(
+        queryF32 as unknown as number[],
+        this.vectors as unknown as number[][],
+        actualK,
+        1.0
+      );
+      return result.indices.map((idx) => ({
+        id: this.ids[idx],
+        score: fastCosine(queryF32, this.vectors[idx], queryNorm, this.norms[idx]),
+      }));
+    }
+
+    // Fallback: JS brute-force with pre-cached norms
+    const queryF32 = new Float32Array(query);
+    const queryNorm = computeNorm(queryF32);
+    const scored: Array<{ id: string; score: number }> = [];
+    for (let i = 0; i < this.ids.length; i++) {
+      scored.push({
+        id: this.ids[i],
+        score: fastCosine(queryF32, this.vectors[i], queryNorm, this.norms[i]),
+      });
+    }
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, actualK);
+  }
+
+  remove(id: string): boolean {
+    const idx = this.idToIndex.get(id);
+    if (idx === undefined) return false;
+
+    // Swap with last element for O(1) removal
+    const lastIdx = this.ids.length - 1;
+    if (idx !== lastIdx) {
+      const lastId = this.ids[lastIdx];
+      this.ids[idx] = lastId;
+      this.vectors[idx] = this.vectors[lastIdx];
+      this.norms[idx] = this.norms[lastIdx];
+      this.idToIndex.set(lastId, idx);
+    }
+    this.ids.pop();
+    this.vectors.pop();
+    this.norms.pop();
+    this.idToIndex.delete(id);
+    return true;
+  }
+
+  clear(): void {
+    this.ids = [];
+    this.vectors = [];
+    this.norms = [];
+    this.idToIndex.clear();
+  }
+
+  size(): number {
+    return this.ids.length;
   }
 }
