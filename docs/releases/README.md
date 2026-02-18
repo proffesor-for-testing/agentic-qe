@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.6.10](v3.6.10.md) | 2026-02-18 | QCSD Production Telemetry, eval-driven workflow, KG test generation |
 | [v3.6.9](v3.6.9.md) | 2026-02-17 | Code quality overhaul, self-learning feedback loop, P0 security fixes |
 | [v3.6.8](v3.6.8.md) | 2026-02-15 | MCP auto-init fleet, unified experience persistence, fix #262 |
 | [v3.6.7](v3.6.7.md) | 2026-02-14 | Fix DB corruption, remove VACUUM, eliminate dual-DB split-brain |
