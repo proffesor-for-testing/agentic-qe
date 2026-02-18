@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Self-learning hooks not recording from CLI** — Hook interactions from CLI commands were silently dropped. Now all CLI hook interactions record learning data.
 
+### Security
+
+- **Dependency updates** (#272) — Bumped `tar` 7.5.7→7.5.9 (symlink path traversal fix) and `ajv` 8.17.1→8.18.0 (CVE-2025-69873 ReDoS mitigation).
+
 ## [3.6.9] - 2026-02-17
 
 ### Fixed
