@@ -61,7 +61,7 @@ jobs:
       - name: Run tests (excluding browser E2E - requires real browser)
         run: cd v3 && npm run test:ci
         env:
-          NODE_OPTIONS: '--max-old-space-size=1024'
+          NODE_OPTIONS: '--max-old-space-size=2048'
           CI: 'true'
 
       - name: Upload build artifacts
