@@ -1,0 +1,204 @@
+name: QCSD Production Telemetry Collection
+
+on:
+  # After npm publish workflow succeeds
+  workflow_run:
+    workflows: ["Publish to npm"]
+    types: [completed]
+
+  # Weekly health check - Monday 6 AM UTC
+  schedule:
+    - cron: '0 6 * * 1'
+
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: 'Release version (e.g., v3.6.9). Leave empty for latest.'
+        required: false
+        type: string
+      lookback_days:
+        description: 'Days of history to analyze'
+        required: false
+        default: '30'
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  actions: read
+
+jobs:
+  collect-telemetry:
+    name: Collect Production Telemetry
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Skip if workflow_run triggered by a failed publish
+    if: >
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    outputs:
+      release_id: ${{ steps.resolve.outputs.release_id }}
+      telemetry_file: ${{ steps.collect.outputs.telemetry_file }}
+      dora_summary: ${{ steps.collect.outputs.dora_summary }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve release ID
+        id: resolve
+        run: |
+          if [ -n "${{ inputs.release_id }}" ]; then
+            RELEASE_ID="${{ inputs.release_id }}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Get the release that triggered the publish workflow
+            RELEASE_ID=$(gh release view --json tagName -q '.tagName' 2>/dev/null || echo "unknown")
+          else
+            # Schedule or fallback: use latest release
+            RELEASE_ID=$(gh release view --json tagName -q '.tagName' 2>/dev/null || echo "unknown")
+          fi
+          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
+          echo "Resolved release ID: ${RELEASE_ID}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine trigger type
+        id: trigger
+        run: |
+          case "${{ github.event_name }}" in
+            workflow_run) echo "type=post-deploy" >> "$GITHUB_OUTPUT" ;;
+            schedule)     echo "type=scheduled" >> "$GITHUB_OUTPUT" ;;
+            *)            echo "type=manual" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Collect telemetry
+        id: collect
+        run: |
+          chmod +x scripts/collect-production-telemetry.sh
+          scripts/collect-production-telemetry.sh \
+            --release-id "${{ steps.resolve.outputs.release_id }}" \
+            --lookback "${{ inputs.lookback_days || '30' }}" \
+            --trigger-type "${{ steps.trigger.outputs.type }}"
+
+          TELEMETRY_FILE="docs/telemetry/production/latest.json"
+          echo "telemetry_file=${TELEMETRY_FILE}" >> "$GITHUB_OUTPUT"
+
+          # Extract summary for issue body
+          if [ -f "$TELEMETRY_FILE" ]; then
+            FREQ=$(jq -r '.dora.deploymentFrequency.value // "N/A"' "$TELEMETRY_FILE")
+            LEAD=$(jq -r '.dora.leadTime.value // "N/A"' "$TELEMETRY_FILE")
+            CFR=$(jq -r '.dora.changeFailureRate.value // "N/A"' "$TELEMETRY_FILE")
+            MTTR=$(jq -r '.dora.mttr.value // "N/A"' "$TELEMETRY_FILE")
+            BUGS=$(jq -r '.issues.openBugs // "N/A"' "$TELEMETRY_FILE")
+            SUMMARY="Freq: ${FREQ}/wk | Lead: ${LEAD}h | CFR: ${CFR}% | MTTR: ${MTTR}h | Bugs: ${BUGS}"
+            echo "dora_summary=${SUMMARY}" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit telemetry data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/telemetry/production/
+          if git diff --cached --quiet; then
+            echo "No telemetry changes to commit"
+          else
+            git commit -m "[skip ci] chore(telemetry): collect production metrics for ${{ steps.resolve.outputs.release_id }}"
+            git push
+          fi
+
+      - name: Upload telemetry artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-telemetry-${{ steps.resolve.outputs.release_id }}
+          path: docs/telemetry/production/
+          retention-days: 90
+
+      - name: Step summary
+        run: |
+          RELEASE_ID="${{ steps.resolve.outputs.release_id }}"
+          TRIGGER="${{ steps.trigger.outputs.type }}"
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+## QCSD Production Telemetry Collected
+
+| Field | Value |
+|-------|-------|
+| Release | \`${RELEASE_ID}\` |
+| Trigger | ${TRIGGER} |
+| DORA | ${{ steps.collect.outputs.dora_summary }} |
+
+### Invoke Production Swarm
+\`\`\`
+/qcsd-production-swarm TELEMETRY_DATA=docs/telemetry/production/latest.json RELEASE_ID=${RELEASE_ID}
+\`\`\`
+EOF
+
+  signal-readiness:
+    name: Signal Production Swarm Readiness
+    runs-on: ubuntu-latest
+    needs: collect-telemetry
+    timeout-minutes: 5
+
+    steps:
+      - name: Create or update trigger issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_ID="${{ needs.collect-telemetry.outputs.release_id }}"
+          DORA="${{ needs.collect-telemetry.outputs.dora_summary }}"
+          TRIGGER="${{ github.event_name }}"
+          TITLE="[QCSD] Production Health Check Ready - ${RELEASE_ID}"
+
+          BODY=$(cat <<'ISSUE_EOF'
+          ## Production Telemetry Collected
+
+          **Release:** `RELEASE_PLACEHOLDER`
+          **Trigger:** TRIGGER_PLACEHOLDER
+          **DORA:** DORA_PLACEHOLDER
+
+          ### Invoke Production Swarm
+
+          Run in Claude Code:
+          ```
+          /qcsd-production-swarm TELEMETRY_DATA=docs/telemetry/production/latest.json RELEASE_ID=RELEASE_PLACEHOLDER
+          ```
+
+          ### What This Does
+
+          The QCSD Production Swarm will:
+          1. Load pre-collected DORA metrics from `docs/telemetry/production/latest.json`
+          2. Detect domain flags from production context
+          3. Spawn 3 core agents (DORA optimizer, defect predictor, root cause analyzer)
+          4. Spawn conditional agents based on flags
+          5. Produce a **HEALTHY / DEGRADED / CRITICAL** verdict
+          6. Feed learnings back to Ideation and Refinement phases
+
+          ---
+          *Auto-generated by QCSD Production Telemetry workflow*
+          ISSUE_EOF
+          )
+
+          BODY="${BODY//RELEASE_PLACEHOLDER/$RELEASE_ID}"
+          BODY="${BODY//TRIGGER_PLACEHOLDER/$TRIGGER}"
+          BODY="${BODY//DORA_PLACEHOLDER/$DORA}"
+
+          # Ensure labels exist (gh issue create does not auto-create them)
+          gh label create "qcsd-production-trigger" --color "0E8A16" --force 2>/dev/null || true
+          gh label create "automated" --color "6C757D" --force 2>/dev/null || true
+
+          # Close any existing open trigger issues
+          EXISTING=$(gh issue list --label "qcsd-production-trigger" --state open --json number -q '.[].number' 2>/dev/null || echo "")
+          for ISSUE_NUM in $EXISTING; do
+            gh issue close "$ISSUE_NUM" --comment "Superseded by new telemetry collection for ${RELEASE_ID}"
+          done
+
+          # Create new issue
+          gh issue create \
+            --title "$TITLE" \
+            --body "$BODY" \
+            --label "qcsd-production-trigger,automated"
