@@ -914,13 +914,13 @@
         "url": "https://github.com/fndlalit"
       }
     ],
-    "notes": "This manifest tracks 46 Tier 3 verified QE skills. Total 75 QE skills on disk (46 Tier 3 + 29 additional). Claude Flow platform skills (33) are managed separately. Internal skills (5) are excluded from QE count.",
+    "notes": "This manifest tracks 46 Tier 3 verified QE skills. Total 75 QE skills on disk (46 Tier 3 + 29 additional). Claude Flow platform skills (36) are managed separately.",
     "skillBreakdown": {
       "qeSkillsTier3": 46,
       "qeSkillsAdditional": 21,
-      "totalQESkills": 67,
-      "platformSkills": 33,
-      "totalOnDisk": 100
+      "totalQESkills": 75,
+      "platformSkills": 36,
+      "totalOnDisk": 111
     },
     "excludedCategories": {
       "reason": "Platform skills are available but not tracked in this QE-focused manifest",
