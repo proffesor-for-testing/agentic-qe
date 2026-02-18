@@ -1,7 +1,7 @@
 # Cross-Phase Memory Hooks Configuration
 #
 # Defines automatic triggers for storing and querying cross-phase signals.
-# These hooks enable the 4 QCSD feedback loops to operate automatically.
+# These hooks enable the 5 QCSD feedback loops to operate automatically.
 #
 # Version: 1.0.0
 # Last Updated: 2026-01-25
@@ -177,6 +177,45 @@ hooks:
           - "qe-requirements-validator"
           - "qe-bdd-generator"
 
+  # ---------------------------------------------------------------------------
+  # Loop 5: CI/CD → Production (Deploy Trigger)
+  # ---------------------------------------------------------------------------
+
+  post-release-decision:
+    description: "Store release signal after CI/CD RELEASE decision for production consumption"
+    trigger:
+      event: "agent-complete"
+      agent: "qe-deployment-advisor"
+      conditions:
+        - "result.recommendation == 'RELEASE'"
+    actions:
+      - type: "store-signal"
+        loop: "deploy-trigger"
+        namespace: "qcsd-memory/cicd-patterns/release-signals"
+        extract:
+          releaseDecision: "result.recommendation"
+          deploymentRisk: "result.deploymentRiskScore"
+          qualityGateStatus: "result.qualityGateStatus"
+          knownIssues: "result.knownIssues"
+          monitoringRecommendations: "result.monitoringRecommendations"
+      - type: "notify-agent"
+        target: "qe-metrics-optimizer"
+        message: "New release deployed - production health assessment recommended"
+
+  pre-production:
+    description: "Query CI/CD release signals and GHA telemetry before production assessment"
+    trigger:
+      event: "phase-start"
+      phase: "production"
+    actions:
+      - type: "query-signals"
+        namespace: "qcsd-memory/cicd-patterns/release-signals"
+        maxAge: "7d"
+        injectInto:
+          - "qe-metrics-optimizer"
+          - "qe-defect-predictor"
+          - "qe-root-cause-analyzer"
+
 # =============================================================================
 # Cleanup Schedule
 # =============================================================================
@@ -231,6 +270,10 @@ routing:
       - "qe-requirements-validator"
       - "qe-bdd-generator"
       - "qe-gap-detector"
+    deploy-trigger:
+      - "qe-metrics-optimizer"
+      - "qe-defect-predictor"
+      - "qe-root-cause-analyzer"
 
   # Signal injection format
   injection_format: |
