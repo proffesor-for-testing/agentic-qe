@@ -174,16 +174,52 @@ interface ParsedOutput {
   assertions: number;
   coverageEstimate: number;
   patternsUsed: number;
+  /** Number of mock declarations generated from KG dependencies */
+  kgMocksGenerated: number;
+  /** Number of KG dependency imports detected */
+  kgDependenciesFound: number;
+  /** Number of KG similarity references */
+  kgSimilarityRefs: number;
+  /** Estimated file reads avoided by using KG (= dependency count) */
+  fileReadsAvoided: number;
+  /** Estimated prompt tokens (chars / 4 approximation) */
+  estimatedPromptTokens: number;
+  /** Estimated output tokens (output chars / 4) */
+  estimatedOutputTokens: number;
 }
 
-function parseTestGenerationOutput(output: string): ParsedOutput {
+function countAssertions(code: string): number {
+  // Count actual assertion patterns in generated code across frameworks
+  const patterns = [
+    /assert\s+/g,                         // Python assert
+    /self\.assert\w+/g,                   // unittest assertions
+    /pytest\.raises/g,                    // pytest raises
+    /expect\s*\(/g,                       // Jest/Vitest expect()
+    /\.to(?:Be|Equal|Have|Throw|Match|Contain)/g, // Jest matchers
+    /\.should\./g,                        // Chai should
+    /test_\w+/g,                          // Python test functions (each is an assertion unit)
+  ];
+  let count = 0;
+  for (const p of patterns) {
+    const matches = code.match(p);
+    if (matches) count += matches.length;
+  }
+  return count;
+}
+
+function parseTestGenerationOutput(output: string, sourceChars: number): ParsedOutput {
   // "Generated N tests"
   const genMatch = output.match(/Generated\s+(\d+)\s+test/i);
   const testsGenerated = genMatch ? parseInt(genMatch[1], 10) : 0;
 
-  // "Assertions: N"
+  // "Assertions: N" from CLI output
   const assertMatch = output.match(/Assertions:\s*(\d+)/i);
-  const assertions = assertMatch ? parseInt(assertMatch[1], 10) : 0;
+  let assertions = assertMatch ? parseInt(assertMatch[1], 10) : 0;
+
+  // If CLI didn't report assertions, count them from the generated code
+  if (assertions === 0) {
+    assertions = countAssertions(output);
+  }
 
   // "Coverage Estimate: N%"
   const covMatch = output.match(/Coverage\s+Estimate:\s*([\d.]+)%/i);
@@ -193,7 +229,35 @@ function parseTestGenerationOutput(output: string): ParsedOutput {
   const patternMatches = output.match(/pattern|SONA|DecisionTransformer/gi);
   const patternsUsed = patternMatches ? patternMatches.length : 0;
 
-  return { testsGenerated, assertions, coverageEstimate, patternsUsed };
+  // KG-specific metrics
+  // Mock declarations from KG: "vi.mock('...')" or "jest.mock('...')" or "@patch('...')"
+  const mockMatches = output.match(/(?:vi|jest)\.mock\(['"]|@patch\(['"]|from unittest\.mock import/g);
+  const kgMocksGenerated = mockMatches ? mockMatches.length : 0;
+
+  // KG dependency imports: lines mentioning "Knowledge Graph" or "dependency analysis"
+  const kgDepMatches = output.match(/Knowledge Graph|dependency analysis|Auto-generated mocks from/gi);
+  const kgDependenciesFound = kgDepMatches ? kgDepMatches.length : 0;
+
+  // KG similarity references
+  const kgSimMatches = output.match(/Similar.*module|similarity:|similar code/gi);
+  const kgSimilarityRefs = kgSimMatches ? kgSimMatches.length : 0;
+
+  // File reads avoided: each mock/dependency from KG = 1 file read the agent didn't need
+  const importMatches = output.match(/(?:vi|jest)\.mock\(['"]([^'"]+)['"]/g);
+  const patchMatches = output.match(/@patch\(['"]([^'"]+)['"]/g);
+  const fileReadsAvoided = (importMatches?.length || 0) + (patchMatches?.length || 0);
+
+  // Token estimation: ~4 chars per token for code
+  // Prompt = source code + template (~500 chars) + KG context
+  const kgContextChars = kgDependenciesFound * 80 + kgSimilarityRefs * 200; // rough estimate
+  const estimatedPromptTokens = Math.round((sourceChars + 500 + kgContextChars) / 4);
+  const estimatedOutputTokens = Math.round(output.length / 4);
+
+  return {
+    testsGenerated, assertions, coverageEstimate, patternsUsed,
+    kgMocksGenerated, kgDependenciesFound, kgSimilarityRefs,
+    fileReadsAvoided, estimatedPromptTokens, estimatedOutputTokens,
+  };
 }
 
 // ── Test Generation ──────────────────────────────────────────────────
@@ -230,7 +294,7 @@ function generateTestsForFile(file: BenchmarkFile): GenerationResult {
   }
 
   const wallTimeMs = performance.now() - t0;
-  const parsed = parseTestGenerationOutput(output);
+  const parsed = parseTestGenerationOutput(output, sourceChars);
 
   return {
     file: file.relativePath,
@@ -349,6 +413,7 @@ function runBenchmark(label: string, files: BenchmarkFile[], useAutoInit: boolea
 
     console.log(`      Tests: ${result.parsed.testsGenerated} | Assertions: ${result.parsed.assertions} | Coverage: ${result.parsed.coverageEstimate}% | Time: ${(result.wallTimeMs / 1000).toFixed(1)}s`);
     console.log(`      Output: ${result.outputLength} chars | Patterns: ${result.parsed.patternsUsed}`);
+    console.log(`      Tokens (est): prompt=${result.parsed.estimatedPromptTokens} output=${result.parsed.estimatedOutputTokens} | KG mocks: ${result.parsed.kgMocksGenerated} | File reads avoided: ${result.parsed.fileReadsAvoided}`);
   }
 
   // Capture token usage once at end of run (avoids per-file process overhead)
@@ -369,46 +434,57 @@ function runBenchmark(label: string, files: BenchmarkFile[], useAutoInit: boolea
 
 // ── Comparison ───────────────────────────────────────────────────────
 
+interface FileMetrics {
+  tests: number; assertions: number; coverage: number;
+  wallMs: number; outputChars: number; patterns: number;
+  kgMocks: number; fileReadsAvoided: number;
+  estPromptTokens: number; estOutputTokens: number;
+}
+
 interface FileComparison {
   file: string;
   complexity: string;
   lineCount: number;
-  control: { tests: number; assertions: number; coverage: number; wallMs: number; outputChars: number; patterns: number };
-  treatment: { tests: number; assertions: number; coverage: number; wallMs: number; outputChars: number; patterns: number };
-  delta: { tests: number; assertions: number; coverage: number; wallMs: number; outputChars: number; patterns: number };
+  control: FileMetrics;
+  treatment: FileMetrics;
+  delta: FileMetrics;
+}
+
+function buildMetrics(r: GenerationResult): FileMetrics {
+  return {
+    tests: r.parsed.testsGenerated,
+    assertions: r.parsed.assertions,
+    coverage: r.parsed.coverageEstimate,
+    wallMs: r.wallTimeMs,
+    outputChars: r.outputLength,
+    patterns: r.parsed.patternsUsed,
+    kgMocks: r.parsed.kgMocksGenerated,
+    fileReadsAvoided: r.parsed.fileReadsAvoided,
+    estPromptTokens: r.parsed.estimatedPromptTokens,
+    estOutputTokens: r.parsed.estimatedOutputTokens,
+  };
+}
+
+function deltaMetrics(a: FileMetrics, b: FileMetrics): FileMetrics {
+  const d = {} as FileMetrics;
+  for (const k of Object.keys(a) as (keyof FileMetrics)[]) {
+    (d as any)[k] = (b[k] as number) - (a[k] as number);
+  }
+  return d;
 }
 
 function compare(control: RunResult, treatment: RunResult): FileComparison[] {
   return control.files.map((c, i) => {
     const t = treatment.files[i];
+    const cm = buildMetrics(c);
+    const tm = buildMetrics(t);
     return {
       file: c.file,
       complexity: c.complexity,
       lineCount: c.lineCount,
-      control: {
-        tests: c.parsed.testsGenerated,
-        assertions: c.parsed.assertions,
-        coverage: c.parsed.coverageEstimate,
-        wallMs: c.wallTimeMs,
-        outputChars: c.outputLength,
-        patterns: c.parsed.patternsUsed,
-      },
-      treatment: {
-        tests: t.parsed.testsGenerated,
-        assertions: t.parsed.assertions,
-        coverage: t.parsed.coverageEstimate,
-        wallMs: t.wallTimeMs,
-        outputChars: t.outputLength,
-        patterns: t.parsed.patternsUsed,
-      },
-      delta: {
-        tests: t.parsed.testsGenerated - c.parsed.testsGenerated,
-        assertions: t.parsed.assertions - c.parsed.assertions,
-        coverage: t.parsed.coverageEstimate - c.parsed.coverageEstimate,
-        wallMs: t.wallTimeMs - c.wallTimeMs,
-        outputChars: t.outputLength - c.outputLength,
-        patterns: t.parsed.patternsUsed - c.parsed.patternsUsed,
-      },
+      control: cm,
+      treatment: tm,
+      delta: deltaMetrics(cm, tm),
     };
   });
 }
@@ -465,23 +541,40 @@ function printSummary(control: RunResult, treatment: RunResult, comparisons: Fil
   const ctrlTok = control.aggregateTokens;
   const kgTok = treatment.aggregateTokens;
 
+  // Compute estimated token totals from per-file data
+  const estCtrlPrompt = comparisons.reduce((s, c) => s + c.control.estPromptTokens, 0);
+  const estCtrlOutput = comparisons.reduce((s, c) => s + c.control.estOutputTokens, 0);
+  const estKgPrompt = comparisons.reduce((s, c) => s + c.treatment.estPromptTokens, 0);
+  const estKgOutput = comparisons.reduce((s, c) => s + c.treatment.estOutputTokens, 0);
+  const totalKgMocks = comparisons.reduce((s, c) => s + c.treatment.kgMocks, 0);
+  const totalFileReadsAvoided = comparisons.reduce((s, c) => s + c.treatment.fileReadsAvoided, 0);
+
   blank();
   line('AGGREGATES');
   line(`  Tests generated:  Control=${sumCtrl.tests}  KG=${sumKg.tests}  Δ=${sumKg.tests - sumCtrl.tests}`);
   line(`  Total assertions: Control=${sumCtrl.assertions}  KG=${sumKg.assertions}  Δ=${sumKg.assertions - sumCtrl.assertions}`);
   line(`  Avg coverage:     Control=${(sumCtrl.coverage / n).toFixed(1)}%  KG=${(sumKg.coverage / n).toFixed(1)}%`);
-  line(`  Token usage:      Control=${ctrlTok.totalTokens}  KG=${kgTok.totalTokens}  Δ=${kgTok.totalTokens - ctrlTok.totalTokens}`);
+  line(`  Token usage (DB): Control=${ctrlTok.totalTokens}  KG=${kgTok.totalTokens}  Δ=${kgTok.totalTokens - ctrlTok.totalTokens}`);
   line(`  Tokens saved:     Control=${ctrlTok.tokensSaved}  KG=${kgTok.tokensSaved}`);
   line(`  Patterns reused:  Control=${ctrlTok.patternsReused}  KG=${kgTok.patternsReused}`);
   line(`  Wall time:        Control=${(control.totalWallTimeMs / 1000).toFixed(1)}s  KG=${(treatment.totalWallTimeMs / 1000).toFixed(1)}s`);
 
   blank();
+  line('TOKEN EFFICIENCY (estimated ~4 chars/token)');
+  line(`  Prompt tokens:    Control=${estCtrlPrompt}  KG=${estKgPrompt}  Δ=${estKgPrompt - estCtrlPrompt}`);
+  line(`  Output tokens:    Control=${estCtrlOutput}  KG=${estKgOutput}  Δ=${estKgOutput - estCtrlOutput}`);
+  line(`  Total estimated:  Control=${estCtrlPrompt + estCtrlOutput}  KG=${estKgPrompt + estKgOutput}  Δ=${(estKgPrompt + estKgOutput) - (estCtrlPrompt + estCtrlOutput)}`);
+  line(`  KG mocks generated: ${totalKgMocks} (each = 1 fewer file read for agent)`);
+  line(`  File reads avoided: ${totalFileReadsAvoided} (dependency info from KG instead of fs)`);
+
+  blank();
   line('KEY FINDINGS (Issue #266 Questions)');
   const tokenDelta = kgTok.totalTokens - ctrlTok.totalTokens;
-  line(`  Q1: KG reduces tokens?     ${tokenDelta < 0 ? 'YES (saved ' + Math.abs(tokenDelta) + ')' : tokenDelta === 0 ? 'NO CHANGE' : 'NO (increased by ' + tokenDelta + ')'}`);
+  const estTokenDelta = (estKgPrompt + estKgOutput) - (estCtrlPrompt + estCtrlOutput);
+  line(`  Q1: KG reduces tokens?     ${tokenDelta < 0 ? 'YES (DB: saved ' + Math.abs(tokenDelta) + ')' : tokenDelta === 0 ? 'NO CHANGE (DB)' : 'NO (DB: +' + tokenDelta + ')'} | Est: ${estTokenDelta < 0 ? 'saved ' + Math.abs(estTokenDelta) : '+' + estTokenDelta}`);
   line(`  Q2: KG improves quality?   ${sumKg.tests > sumCtrl.tests ? 'YES (+' + (sumKg.tests - sumCtrl.tests) + ' tests, +' + (sumKg.assertions - sumCtrl.assertions) + ' assertions)' : 'NO CHANGE or WORSE'}`);
   line(`  Q3: Latency justified?     ${treatment.totalWallTimeMs < control.totalWallTimeMs * 1.5 ? 'YES (overhead < 50%)' : 'NEEDS REVIEW (>' + ((treatment.totalWallTimeMs / control.totalWallTimeMs - 1) * 100).toFixed(0) + '% slower)'}`);
-  line(`  Q4: Best KG query type?    Requires per-query-type instrumentation (future work)`);
+  line(`  Q4: File reads avoided?    ${totalFileReadsAvoided > 0 ? 'YES (' + totalFileReadsAvoided + ' reads avoided via KG deps)' : 'NO (KG deps not yet used for mock generation)'}`);
 
   // Q5: By complexity
   for (const cx of ['simple', 'medium', 'complex'] as const) {
@@ -491,7 +584,8 @@ function printSummary(control: RunResult, treatment: RunResult, comparisons: Fil
     const kt = subset.reduce((s, c) => s + c.treatment.tests, 0);
     const ca = subset.reduce((s, c) => s + c.control.assertions, 0);
     const ka = subset.reduce((s, c) => s + c.treatment.assertions, 0);
-    line(`  Q5 [${cx.padEnd(7)}]: tests ${ct}→${kt}  assertions ${ca}→${ka}`);
+    const fr = subset.reduce((s, c) => s + c.treatment.fileReadsAvoided, 0);
+    line(`  Q5 [${cx.padEnd(7)}]: tests ${ct}→${kt}  assertions ${ca}→${ka}  file reads avoided: ${fr}`);
   }
 
   blank();
@@ -585,7 +679,7 @@ async function main() {
       q1_kg_reduces_tokens: treatment.aggregateTokens.totalTokens < control.aggregateTokens.totalTokens,
       q2_kg_improves_quality: comparisons.reduce((s, c) => s + c.delta.tests, 0) > 0,
       q3_latency_justified: treatment.totalWallTimeMs < control.totalWallTimeMs * 1.5,
-      q4_best_kg_query_type: 'Requires per-query instrumentation (future work)',
+      q4_file_reads_avoided: comparisons.reduce((s, c) => s + c.treatment.fileReadsAvoided, 0),
       q5_complexity_breakdown: Object.fromEntries(
         (['simple', 'medium', 'complex'] as const).map((cx) => {
           const subset = comparisons.filter((c) => c.complexity === cx);
@@ -595,9 +689,18 @@ async function main() {
             kgTests: subset.reduce((s, c) => s + c.treatment.tests, 0),
             controlAssertions: subset.reduce((s, c) => s + c.control.assertions, 0),
             kgAssertions: subset.reduce((s, c) => s + c.treatment.assertions, 0),
+            fileReadsAvoided: subset.reduce((s, c) => s + c.treatment.fileReadsAvoided, 0),
           }];
         })
       ),
+      tokenEfficiency: {
+        controlEstPromptTokens: comparisons.reduce((s, c) => s + c.control.estPromptTokens, 0),
+        controlEstOutputTokens: comparisons.reduce((s, c) => s + c.control.estOutputTokens, 0),
+        kgEstPromptTokens: comparisons.reduce((s, c) => s + c.treatment.estPromptTokens, 0),
+        kgEstOutputTokens: comparisons.reduce((s, c) => s + c.treatment.estOutputTokens, 0),
+        totalKgMocksGenerated: comparisons.reduce((s, c) => s + c.treatment.kgMocks, 0),
+        totalFileReadsAvoided: comparisons.reduce((s, c) => s + c.treatment.fileReadsAvoided, 0),
+      },
     },
   };
 

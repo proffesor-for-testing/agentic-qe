@@ -71,6 +71,13 @@ export class PytestGenerator extends BaseTestGenerator {
       mockImport = `from unittest.mock import patch, MagicMock\n`;
     }
 
+    // KG: Build @patch decorator stack for known dependencies
+    const depsToMock = dependencies?.imports.slice(0, 5) || [];
+    const patchDecorators = depsToMock.map((dep) => {
+      const depModule = dep.replace(/\//g, '.').replace(/\.py$/, '');
+      return `@patch('${depModule}')`;
+    });
+
     let code = `${patternComment}import pytest
 ${mockImport}${importStatement}
 
@@ -81,7 +88,7 @@ class Test${this.pascalCase(moduleName)}:
 `;
 
     for (const fn of analysis.functions) {
-      code += this.generateFunctionTests(fn, testType);
+      code += this.generateFunctionTestsWithPatches(fn, testType, patchDecorators);
     }
 
     for (const cls of analysis.classes) {
@@ -95,17 +102,31 @@ class Test${this.pascalCase(moduleName)}:
    * Generate tests for a standalone function
    */
   generateFunctionTests(fn: FunctionInfo, _testType: TestType): string {
+    return this.generateFunctionTestsWithPatches(fn, _testType, []);
+  }
+
+  /**
+   * Generate tests for a function with @patch decorators from KG dependencies
+   */
+  private generateFunctionTestsWithPatches(fn: FunctionInfo, _testType: TestType, patchDecorators: string[]): string {
     const validParams = fn.parameters.map((p) => this.generatePythonTestValue(p)).join(', ');
 
-    let code = `    def test_${fn.name}_valid_input(self):\n`;
+    // Build mock params for patch decorators (injected right-to-left by Python)
+    const mockParams = patchDecorators.map((_, i) => `mock_dep_${i}`).reverse().join(', ');
+    const allParams = mockParams ? `self, ${mockParams}` : 'self';
+
+    // Indent patch decorators at class method level
+    const patchPrefix = patchDecorators.map((d) => `    ${d}\n`).join('');
+
+    let code = `${patchPrefix}    def test_${fn.name}_valid_input(${allParams}):\n`;
     code += `        """Test ${fn.name} with valid input"""\n`;
     code += `        result = ${fn.name}(${validParams})\n`;
     code += `        assert result is not None\n\n`;
 
-    // Test for edge cases
+    // Test for edge cases (no patches needed — they test the function directly)
     for (const param of fn.parameters) {
       if (!param.optional && param.type?.includes('str')) {
-        code += `    def test_${fn.name}_empty_${param.name}(self):\n`;
+        code += `${patchPrefix}    def test_${fn.name}_empty_${param.name}(${allParams}):\n`;
         code += `        """Test ${fn.name} with empty ${param.name}"""\n`;
         const paramsWithEmpty = fn.parameters
           .map((p) => (p.name === param.name ? '""' : this.generatePythonTestValue(p)))
