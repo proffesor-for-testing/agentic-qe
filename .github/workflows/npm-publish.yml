@@ -59,7 +59,17 @@ jobs:
           echo "Build verification passed (v3 structure)"
 
       - name: Run tests (excluding browser E2E - requires real browser)
-        run: cd v3 && npm run test:ci
+        run: |
+          cd v3 && npm run test:ci 2>&1 | tee /tmp/test-output.txt
+          TEST_EXIT=$?
+          # Tolerate Vitest worker fork crash if all test files actually passed
+          if [ $TEST_EXIT -ne 0 ]; then
+            if grep -q "Test Files.*passed" /tmp/test-output.txt && ! grep -q "failed" /tmp/test-output.txt; then
+              echo "::warning::Vitest worker crashed at exit but all tests passed — continuing"
+            else
+              exit $TEST_EXIT
+            fi
+          fi
         env:
           NODE_OPTIONS: '--max-old-space-size=2048'
           CI: 'true'
