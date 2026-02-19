@@ -62,7 +62,7 @@ export interface SublinearAnalyzerConfig {
   autoIndex: boolean;
   /** Batch size for bulk operations (default: 100) */
   batchSize: number;
-  /** Vector dimensions for embeddings (default: 128) */
+  /** Vector dimensions for embeddings (default: 768) */
   dimensions: number;
 }
 
@@ -76,7 +76,7 @@ export const DEFAULT_ANALYZER_CONFIG: SublinearAnalyzerConfig = {
   maxResults: 100,
   autoIndex: true,
   batchSize: 100,
-  dimensions: 128,
+  dimensions: 768,
 };
 
 // ============================================================================

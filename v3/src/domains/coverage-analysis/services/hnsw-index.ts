@@ -59,7 +59,7 @@ async function loadRuvectorGnn(): Promise<void> {
  * HNSW index configuration options
  */
 export interface HNSWIndexConfig {
-  /** Number of dimensions for vectors (default: 128) */
+  /** Number of dimensions for vectors (default: 768) */
   dimensions: number;
   /** Number of neighbors per node (default: 16) */
   M: number;
@@ -79,7 +79,7 @@ export interface HNSWIndexConfig {
  * Default HNSW configuration optimized for coverage analysis
  */
 export const DEFAULT_HNSW_CONFIG: HNSWIndexConfig = {
-  dimensions: 128,
+  dimensions: 768,
   M: 16,
   efConstruction: 200,
   efSearch: 100,
@@ -546,7 +546,7 @@ export class HNSWIndex implements IHNSWIndex {
   /**
    * Validate and auto-resize vectors to match HNSW configured dimensions.
    * Fix #279: Prevents Rust WASM panic when RealEmbeddings (768-dim) are
-   * passed to a 128-dim HNSW index.
+   * passed to a mismatched-dim HNSW index.
    */
   private validateVector(vector: number[]): number[] {
     // Auto-resize if dimensions don't match
@@ -723,7 +723,7 @@ export async function benchmarkHNSW(
   isNative: boolean;
   backendType: HNSWBackendType;
 }> {
-  const dimensions = 128;
+  const dimensions = 768;
   const startInsert = performance.now();
 
   // Insert vectors

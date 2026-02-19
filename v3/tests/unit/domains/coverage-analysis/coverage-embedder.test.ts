@@ -219,7 +219,7 @@ describe('CoverageEmbedder', () => {
 
   describe('DEFAULT_EMBEDDER_CONFIG', () => {
     it('should have sensible default values', () => {
-      expect(DEFAULT_EMBEDDER_CONFIG.dimensions).toBe(128);
+      expect(DEFAULT_EMBEDDER_CONFIG.dimensions).toBe(768);
       expect(DEFAULT_EMBEDDER_CONFIG.includePathFeatures).toBe(true);
       expect(DEFAULT_EMBEDDER_CONFIG.includeTemporalFeatures).toBe(true);
       expect(DEFAULT_EMBEDDER_CONFIG.normalization).toBe('l2');

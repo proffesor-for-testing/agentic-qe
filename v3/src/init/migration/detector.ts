@@ -5,10 +5,8 @@
 
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { createRequire } from 'module';
 import { safeJsonParse } from '../../shared/safe-json.js';
-
-const require = createRequire(import.meta.url);
+import { openDatabase } from '../../shared/safe-db.js';
 
 /**
  * V2 detection information
@@ -96,8 +94,7 @@ export class V2Detector {
    */
   private readVersionFromDb(dbPath: string): string | undefined {
     try {
-      const Database = require('better-sqlite3');
-      const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+      const db = openDatabase(dbPath, { readonly: true, fileMustExist: true });
 
       try {
         const tableExists = db.prepare(`

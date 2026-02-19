@@ -11,7 +11,7 @@ import type { IEmbedding } from '../../integrations/embeddings/base/types.js';
 import { SQLiteReader } from '../readers/sqlite-reader.js';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import Database from 'better-sqlite3';
+import { openDatabase } from '../../shared/safe-db.js';
 import { validateTableName } from '../../shared/sql-safety.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
@@ -136,7 +136,7 @@ export class SyncEmbeddingGenerator {
     await this.initialize();
 
     // Open database
-    const db = new Database(this.dbPath, { readonly: false });
+    const db = openDatabase(this.dbPath);
 
     try {
       // Check if embedding column exists
@@ -229,7 +229,7 @@ export class SyncEmbeddingGenerator {
       : Array.from(queryEmbedding.vector as Float32Array);
 
     // Get all patterns with embeddings
-    const db = new Database(this.dbPath, { readonly: true });
+    const db = openDatabase(this.dbPath, { readonly: true });
 
     try {
       const patterns = db

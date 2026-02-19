@@ -11,7 +11,8 @@
  * @module migration
  */
 
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
+import { openDatabase } from '../shared/safe-db.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { QEDomain, QEPatternType } from './qe-patterns.js';
 import type { QEMemoryDomain } from './qe-unified-memory.js';
@@ -258,12 +259,11 @@ export class V2ToV3Migrator {
 
   private async connect(): Promise<void> {
     // Connect to V2 database (readonly)
-    this.v2Db = new Database(this.config.v2DbPath, { readonly: true });
+    this.v2Db = openDatabase(this.config.v2DbPath, { readonly: true });
     // Skip WAL mode for readonly database
 
-    // Connect to V3 patterns database (readwrite)
-    this.v3Db = new Database(this.config.v3PatternsDbPath);
-    this.v3Db.pragma('journal_mode = WAL');
+    // Connect to V3 patterns database (readwrite, openDatabase sets WAL + busy_timeout)
+    this.v3Db = openDatabase(this.config.v3PatternsDbPath);
 
     // Ensure V3 schema exists
     this.createV3Schema();

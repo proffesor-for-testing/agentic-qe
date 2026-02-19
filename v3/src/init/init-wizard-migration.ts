@@ -7,14 +7,10 @@
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, unlinkSync, copyFileSync } from 'fs';
 import { join, dirname } from 'path';
-import { createRequire } from 'module';
-
 import { getAQEVersion } from './types.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { safeJsonParse } from '../shared/safe-json.js';
-
-// Create require for CommonJS modules (better-sqlite3) in ESM context
-const require = createRequire(import.meta.url);
+import { openDatabase } from '../shared/safe-db.js';
 
 // ============================================================================
 // V2 Detection Types
@@ -44,8 +40,7 @@ export interface V2DetectionResult {
  */
 export function readVersionFromDb(dbPath: string): string | undefined {
   try {
-    const Database = require('better-sqlite3');
-    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    const db = openDatabase(dbPath, { readonly: true, fileMustExist: true });
 
     try {
       const tableExists = db.prepare(`
@@ -91,8 +86,7 @@ export async function writeVersionToDb(projectRoot: string, version: string): Pr
       mkdirSync(dir, { recursive: true });
     }
 
-    const Database = require('better-sqlite3');
-    const db = new Database(memoryDbPath);
+    const db = openDatabase(memoryDbPath);
 
     try {
       db.exec(`

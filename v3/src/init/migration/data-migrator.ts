@@ -5,11 +5,9 @@
 
 import { existsSync, copyFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
-import { createRequire } from 'module';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
-
-const require = createRequire(import.meta.url);
+import { openDatabase } from '../../shared/safe-db.js';
 
 /**
  * Migration result
@@ -141,8 +139,7 @@ export class V2DataMigrator {
       mkdirSync(dir, { recursive: true });
     }
 
-    const Database = require('better-sqlite3');
-    const db = new Database(this.v3PatternsDbPath);
+    const db = openDatabase(this.v3PatternsDbPath);
 
     db.exec(`
       CREATE TABLE IF NOT EXISTS patterns (
@@ -185,9 +182,8 @@ export class V2DataMigrator {
    * Migrate patterns from v2 kv_store
    */
   private async migratePatterns(): Promise<number> {
-    const Database = require('better-sqlite3');
-    const v2Db = new Database(this.v2DbPath, { readonly: true });
-    const v3Db = new Database(this.v3PatternsDbPath);
+    const v2Db = openDatabase(this.v2DbPath, { readonly: true });
+    const v3Db = openDatabase(this.v3PatternsDbPath);
 
     try {
       // Find patterns in v2 database
@@ -229,9 +225,8 @@ export class V2DataMigrator {
    * Migrate experiences from v2
    */
   private async migrateExperiences(): Promise<number> {
-    const Database = require('better-sqlite3');
-    const v2Db = new Database(this.v2DbPath, { readonly: true });
-    const v3Db = new Database(this.v3PatternsDbPath);
+    const v2Db = openDatabase(this.v2DbPath, { readonly: true });
+    const v3Db = openDatabase(this.v3PatternsDbPath);
 
     try {
       // Find experiences in v2 database
