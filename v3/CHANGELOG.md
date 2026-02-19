@@ -5,6 +5,20 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.12] - 2026-02-19
+
+### Fixed
+
+- **HNSW native crash on vector dimension mismatch** (#284, #285) — All 13 HNSW-related source files were initialized with 128 dimensions while RealEmbeddings produces 768-dim vectors. The mismatch triggered a native Rust SIGABRT in ruvector-gnn, killing the MCP connection. All dimension constants now correctly use 768.
+- **Dimension guard for mismatched vectors** (#284) — `unified-memory-hnsw.ts` now skips mismatched vectors with a warning instead of producing garbage partial cosine similarity results.
+- **Security scan returned hardcoded fake findings** (#287) — Complete rewrite of `scan.ts` to perform real SAST file scanning using 40+ regex patterns from security-patterns.ts. Now scans security-relevant directories (.github, .docker, .aws) and checks dependency vulnerabilities.
+- **Coverage analyzer missing XML parser** (#286) — Added Cobertura XML parser with order-independent attribute extraction to `loadCoverageData()`. XML coverage files no longer silently fall through.
+- **Secret detection only found first match per line** (#286) — Changed from `test()` to `matchAll()` so multiple secrets on the same line are all reported.
+- **CORS detection too narrow** (#286) — Broadened from single Express pattern to 5 patterns covering Express, Spring Boot, Nginx, Go, and raw HTTP headers.
+- **Fake MCP handlers** (#286) — Replaced 6 stub handlers (execute-tests, validate-requirements, validate-contracts, test-accessibility, run-chaos, optimize-learning) with real implementations or honest guidance responses.
+- **`aqe init --auto` did not create .claude/hooks/ directory** (#288) — Init phase 07-hooks.ts now creates `.claude/hooks/`, installs real hook assets (cross-phase-memory.yaml, v3-domain-workers.json), and writes a README explaining the hook setup.
+- **Dangerous uncaughtException handler** — Removed `process.on('uncaughtException')` from protocol-server.ts that was masking bugs. The existing try/catch on `onRequest` handles JS errors; native SIGABRT from Rust cannot be caught by any JS handler.
+
 ## [3.6.11] - 2026-02-18
 
 ### Added
