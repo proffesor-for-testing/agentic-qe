@@ -153,7 +153,7 @@ describe('ShardEmbeddingsManager Integration - ADR-058 Phase 3', () => {
       await manager.generateEmbeddings();
 
       const stats = manager.getIndexStats();
-      expect(stats.dimensions).toBe(768);
+      expect(stats.dimensions).toBe(128);
     });
 
     it('should respect custom embedding dimensions', async () => {
@@ -533,7 +533,7 @@ describe('ShardEmbeddingsManager Integration - ADR-058 Phase 3', () => {
 
       const embedding = await manager.getEmbeddingForText('test generation quality');
 
-      expect(embedding.length).toBe(768);
+      expect(embedding.length).toBe(128);
     });
 
     it('should generate different embeddings for different text', async () => {
@@ -588,7 +588,7 @@ describe('ShardEmbeddingsManager Integration - ADR-058 Phase 3', () => {
 
       const embedding = await manager.getEmbeddingForText('');
 
-      expect(embedding.length).toBe(768);
+      expect(embedding.length).toBe(128);
       // Empty text should result in zero vector
       expect(embedding.every(v => v === 0)).toBe(true);
     });
@@ -629,7 +629,7 @@ describe('ShardEmbeddingsManager Integration - ADR-058 Phase 3', () => {
 
       expect(embeddings.length).toBeGreaterThan(0);
       expect(embeddings.every(e => e.domain === domain)).toBe(true);
-      expect(embeddings.every(e => e.embedding.length === 768)).toBe(true);
+      expect(embeddings.every(e => e.embedding.length === 128)).toBe(true);
     });
   });
 
