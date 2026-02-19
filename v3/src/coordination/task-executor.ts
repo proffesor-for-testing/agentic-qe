@@ -181,6 +181,15 @@ function getModelForTier(tier: number): string {
  * Returns null if no applicable transform is detected
  */
 function detectTransformType(task: QueenTask): TransformType | null {
+  // Agent Booster transforms only apply to code transformation tasks,
+  // NOT to test generation, coverage, security, or other domain tasks
+  const nonTransformTasks = [
+    'generate-tests', 'analyze-coverage', 'scan-security', 'execute-tests',
+    'assess-quality', 'validate-contracts', 'test-accessibility', 'chaos-test',
+    'predict-defects', 'validate-requirements', 'index-code',
+  ];
+  if (nonTransformTasks.includes(task.type)) return null;
+
   const codeContext = (task.payload as Record<string, unknown>)?.codeContext as string || '';
   const sourceCode = (task.payload as Record<string, unknown>)?.sourceCode as string || '';
   const code = codeContext || sourceCode;
@@ -894,6 +903,7 @@ export class DomainTaskExecutor {
             type: t.type,
             sourceFile: t.sourceFile,
             assertions: t.assertions,
+            testCode: t.testCode,
           })),
           patternsUsed: generatedTests.patternsUsed,
         });
@@ -916,20 +926,58 @@ export class DomainTaskExecutor {
         const threshold = payload.threshold || 80;
 
         // Try to find and read actual coverage files
-        const coverageData = await loadCoverageData(targetPath);
+        let coverageData = await loadCoverageData(targetPath);
 
         if (!coverageData) {
-          // No coverage data found - return informative error with fallback metrics
-          return ok({
-            lineCoverage: 0,
-            branchCoverage: 0,
-            functionCoverage: 0,
-            statementCoverage: 0,
-            totalFiles: 0,
-            gaps: [],
-            algorithm: 'sublinear-O(log n)',
-            warning: 'No coverage data found. Run tests with coverage first: npm test -- --coverage',
-          });
+          // No coverage data found — attempt to collect it by running tests with coverage
+          let collected = false;
+          try {
+            const { execSync } = await import('child_process');
+            // Detect test runner from package.json
+            let coverageCmd = 'npx vitest run --coverage --reporter=json 2>/dev/null';
+            try {
+              const pkgContent = await fs.readFile(path.join(targetPath, 'package.json'), 'utf-8');
+              const pkg = safeJsonParse<Record<string, unknown>>(pkgContent);
+              const deps = { ...(pkg.devDependencies as Record<string, string> || {}), ...(pkg.dependencies as Record<string, string> || {}) };
+              if (deps['jest'] || deps['@jest/core']) {
+                coverageCmd = 'npx jest --coverage --json 2>/dev/null';
+              } else if (deps['mocha'] || deps['nyc']) {
+                coverageCmd = 'npx nyc mocha 2>/dev/null';
+              }
+              // vitest is the default — covers vitest, @vitest/coverage-v8, etc.
+            } catch {
+              // No package.json — use default vitest
+            }
+
+            execSync(coverageCmd, {
+              cwd: targetPath,
+              timeout: 120000,
+              encoding: 'utf-8',
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
+            collected = true;
+          } catch {
+            // Test runner failed or not available — that's OK, we'll check for output anyway
+          }
+
+          // Re-check for coverage data after collection attempt
+          coverageData = await loadCoverageData(targetPath);
+
+          if (!coverageData) {
+            return ok({
+              lineCoverage: 0,
+              branchCoverage: 0,
+              functionCoverage: 0,
+              statementCoverage: 0,
+              totalFiles: 0,
+              coverageByFile: [],
+              gaps: [],
+              algorithm: 'sublinear-O(log n)',
+              warning: collected
+                ? 'Tests ran but no coverage output was generated. Ensure a coverage provider is configured (e.g., @vitest/coverage-v8, istanbul).'
+                : 'No coverage data found and could not run tests automatically. Run: npm test -- --coverage',
+            });
+          }
         }
 
         // Analyze coverage using the real CoverageAnalyzerService
@@ -964,6 +1012,12 @@ export class DomainTaskExecutor {
           functionCoverage: Math.round(report.summary.function * 10) / 10,
           statementCoverage: Math.round(report.summary.statement * 10) / 10,
           totalFiles: report.summary.files,
+          coverageByFile: coverageData.files.map(f => ({
+            file: f.path,
+            lineCoverage: f.lines.total > 0 ? Math.round((f.lines.covered / f.lines.total) * 1000) / 10 : 0,
+            branchCoverage: f.branches.total > 0 ? Math.round((f.branches.covered / f.branches.total) * 1000) / 10 : 0,
+            functionCoverage: f.functions.total > 0 ? Math.round((f.functions.covered / f.functions.total) * 1000) / 10 : 0,
+          })),
           gaps,
           meetsThreshold: report.meetsThreshold,
           delta: report.delta,
@@ -1020,7 +1074,8 @@ export class DomainTaskExecutor {
           location: { file: string; line: number }; description: string; category: string;
         }> = [];
 
-        for (const filePath of otherFiles) {
+        // Run secret/CORS patterns on ALL files (not just otherFiles) to catch JS/TS secrets too
+        for (const filePath of filesToScan) {
           try {
             const content = await fs.readFile(filePath, 'utf-8');
             const lines = content.split('\n');
@@ -1119,7 +1174,7 @@ export class DomainTaskExecutor {
         for (const manifest of depManifests) {
           const manifestPath = path.join(targetPath, manifest);
           try {
-            await fs.access(manifestPath);
+            const manifestContent = await fs.readFile(manifestPath, 'utf-8');
             crossLangVulns.push({
               title: 'Dependency audit recommended',
               severity: 'informational',
@@ -1127,6 +1182,27 @@ export class DomainTaskExecutor {
               description: `Found ${manifest} — run language-specific dependency audit (e.g., pip-audit, npm audit, cargo audit)`,
               category: 'dependencies',
             });
+
+            // Check for known high-severity CVEs in Python dependencies
+            if (manifest === 'requirements.txt' || manifest === 'pyproject.toml') {
+              const knownCVEs: Array<{ pkg: string; pattern: RegExp; cve: string; severity: 'critical' | 'high'; title: string; description: string }> = [
+                { pkg: 'python-jose', pattern: /python-jose/i, cve: 'CVE-2024-33663', severity: 'high', title: 'python-jose ECDSA key confusion (CVE-2024-33663)', description: 'python-jose allows ECDSA key confusion — upgrade to >=3.3.0 or switch to PyJWT' },
+                { pkg: 'python-jose', pattern: /python-jose/i, cve: 'CVE-2024-33664', severity: 'high', title: 'python-jose JWT algorithm confusion (CVE-2024-33664)', description: 'python-jose JWT algorithm confusion vulnerability — upgrade or switch to PyJWT' },
+                { pkg: 'python-multipart', pattern: /python-multipart/i, cve: 'CVE-2026-24486', severity: 'critical', title: 'python-multipart DoS (CVE-2026-24486)', description: 'python-multipart denial of service via crafted multipart data — upgrade to >=0.0.18' },
+              ];
+
+              for (const known of knownCVEs) {
+                if (known.pattern.test(manifestContent)) {
+                  crossLangVulns.push({
+                    title: known.title,
+                    severity: known.severity,
+                    location: { file: manifest, line: manifestContent.split('\n').findIndex(l => known.pattern.test(l)) + 1 },
+                    description: known.description,
+                    category: 'dependencies',
+                  });
+                }
+              }
+            }
           } catch {
             // Manifest doesn't exist
           }

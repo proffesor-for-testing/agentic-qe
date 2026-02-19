@@ -97,7 +97,7 @@ export interface ShardEmbeddingsFlags {
  */
 export const DEFAULT_SHARD_EMBEDDINGS_FLAGS: ShardEmbeddingsFlags = {
   enabled: true,
-  embeddingDimensions: 128,
+  embeddingDimensions: 768,
   persistEmbeddings: false,
   autoRebuildOnChange: true,
   ngramMin: 2,

@@ -198,7 +198,6 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
     const testsCount = (data.testsGenerated as number) || 6;
 
     const complexity = analyzeComplexity(sourceCode);
-    const v2Tests = generateV2Tests(sourceCode, testType, language, testsCount);
     const aiInsights = params?.aiEnhancement !== false
       ? generateV2AIInsights(complexity, testType)
       : { recommendations: [], estimatedTime: '0 minutes', confidence: 0 };
@@ -207,9 +206,35 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       : [];
     const learning = generateV2LearningFeedback('test-generator');
 
+    // Use real tests from domain service when available, fall back to V2 stubs
+    const domainTests = data.tests as Array<{
+      name: string; file?: string; testFile?: string; type: string;
+      sourceFile?: string; assertions?: number; testCode?: string;
+    }> | undefined;
+    const hasRealTests = Array.isArray(domainTests) && domainTests.length > 0
+      && domainTests[0].testCode;
+
+    const tests = hasRealTests
+      ? domainTests!.map((t, i) => ({
+          id: generateTestId(),
+          name: t.name || `test_${i}`,
+          type: t.type || testType,
+          parameters: [],
+          assertions: t.testCode
+            ? extractAssertionsFromCode(t.testCode)
+            : [`test assertion ${i}`],
+          expectedResult: null,
+          estimatedDuration: t.type === 'integration' ? 2000 : 1000,
+          aiGenerated: true,
+          testCode: t.testCode,
+          sourceFile: t.sourceFile,
+          testFile: t.testFile || t.file,
+        }))
+      : generateV2Tests(sourceCode, testType, language, testsCount);
+
     return {
       // V2-compatible fields
-      tests: v2Tests,
+      tests,
       antiPatterns,
       suggestions: antiPatterns.map(ap => `Fix: ${ap.type} - ${ap.suggestion}`),
       aiInsights,
@@ -218,7 +243,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
         confidence: 0.9,
         achievable: true,
       },
-      properties: v2Tests.filter(t => t.type === 'property').map(t => ({
+      properties: tests.filter(t => t.type === 'property').map(t => ({
         name: t.name,
         invariant: 'output_matches_expectation'
       })),
@@ -228,7 +253,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       // V3 fields
       taskId,
       status: 'completed',
-      testsGenerated: v2Tests.length,
+      testsGenerated: tests.length,
       coverageEstimate: (data.coverageEstimate as number) || params?.coverageGoal || 80,
       patternsUsed: (data.patternsUsed as string[]) || ['assertion-patterns', 'mock-generation', 'edge-case-detection'],
       duration,
@@ -706,6 +731,42 @@ export const codeIndexConfig: DomainHandlerConfig<CodeIndexParams, CodeIndexResu
     savedFiles,
   }),
 };
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Extract human-readable assertion descriptions from generated test code.
+ * Looks for expect(), assert(), it(), test() patterns in the test source.
+ */
+function extractAssertionsFromCode(testCode: string): string[] {
+  const assertions: string[] = [];
+  const lines = testCode.split('\n');
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Match expect(...).toBe/toEqual/toThrow patterns
+    const expectMatch = trimmed.match(/expect\((.+?)\)\.(to\w+)\((.+?)\)/);
+    if (expectMatch) {
+      assertions.push(`expect(${expectMatch[1]}).${expectMatch[2]}(${expectMatch[3]})`);
+      continue;
+    }
+    // Match assert patterns
+    const assertMatch = trimmed.match(/assert\w*\((.+)\)/);
+    if (assertMatch) {
+      assertions.push(assertMatch[0]);
+      continue;
+    }
+    // Match it()/test() descriptions
+    const itMatch = trimmed.match(/(?:it|test)\s*\(\s*['"`](.+?)['"`]/);
+    if (itMatch) {
+      assertions.push(itMatch[1]);
+    }
+  }
+
+  return assertions.length > 0 ? assertions : ['test generated from source analysis'];
+}
 
 // ============================================================================
 // All Configurations Export
