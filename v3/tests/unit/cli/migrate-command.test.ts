@@ -186,7 +186,7 @@ describe('Migrate Command', () => {
         migratedFrom: 'v2',
         migratedAt: new Date().toISOString(),
         hnswEnabled: true,
-        vectorDimensions: 128,
+        vectorDimensions: 768,
       };
 
       expect(indexContent.version).toBe('3.0.0');

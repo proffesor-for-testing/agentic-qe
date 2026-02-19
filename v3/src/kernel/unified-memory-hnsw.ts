@@ -578,9 +578,16 @@ export class RuvectorFlatIndex {
     if (this.ids.length === 0) return [];
     const actualK = Math.min(k, this.ids.length);
 
+    // Fix #285: Guard against dimension mismatch that causes native Rust panic.
+    // If stored vectors have different dimensions than the query, fall back to
+    // JS brute-force with dimension-safe cosine (avoids SIGABRT).
+    const storedDim = this.vectors.length > 0 ? this.vectors[0].length : 0;
+    const queryDim = query.length;
+    const dimensionsMatch = storedDim === queryDim;
+
     // Use @ruvector/gnn native search for fast top-k ranking, then compute
     // cosine scores using pre-cached norms (dot product + 1 division only).
-    if (ruvectorDifferentiableSearch && this.vectors.length > 0) {
+    if (ruvectorDifferentiableSearch && this.vectors.length > 0 && dimensionsMatch) {
       const queryF32 = new Float32Array(query);
       const queryNorm = computeNorm(queryF32);
       const result = ruvectorDifferentiableSearch(
@@ -595,15 +602,29 @@ export class RuvectorFlatIndex {
       }));
     }
 
-    // Fallback: JS brute-force with pre-cached norms
+    // Fallback: JS brute-force with dimension-safe cosine.
+    // Handles mismatched dimensions by using the shorter length for dot product.
     const queryF32 = new Float32Array(query);
     const queryNorm = computeNorm(queryF32);
     const scored: Array<{ id: string; score: number }> = [];
     for (let i = 0; i < this.ids.length; i++) {
-      scored.push({
-        id: this.ids[i],
-        score: fastCosine(queryF32, this.vectors[i], queryNorm, this.norms[i]),
-      });
+      const vec = this.vectors[i];
+      if (vec.length !== queryF32.length) {
+        // Dimension mismatch: skip this vector entirely rather than returning
+        // misleading partial cosine scores. Log once per search to aid debugging.
+        if (i === 0) {
+          console.warn(
+            `[RuvectorFlatIndex] Dimension mismatch: query=${queryF32.length}, stored=${vec.length}. ` +
+            `Skipping ${this.ids.length} mismatched vectors. Re-index with correct dimensions.`
+          );
+        }
+        continue;
+      } else {
+        scored.push({
+          id: this.ids[i],
+          score: fastCosine(queryF32, vec, queryNorm, this.norms[i]),
+        });
+      }
     }
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, actualK);

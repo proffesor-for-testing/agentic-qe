@@ -291,7 +291,7 @@ describe.runIf(canTest.gnn)('HNSWIndex', () => {
 
   describe('DEFAULT_HNSW_CONFIG', () => {
     it('should have sensible default values', () => {
-      expect(DEFAULT_HNSW_CONFIG.dimensions).toBe(128);
+      expect(DEFAULT_HNSW_CONFIG.dimensions).toBe(768);
       expect(DEFAULT_HNSW_CONFIG.M).toBe(16);
       expect(DEFAULT_HNSW_CONFIG.efConstruction).toBe(200);
       expect(DEFAULT_HNSW_CONFIG.efSearch).toBe(100);

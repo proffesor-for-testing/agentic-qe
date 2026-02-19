@@ -27,7 +27,7 @@ import { CoverageVectorMetadata } from './hnsw-index';
  * Configuration for coverage embedding generation
  */
 export interface CoverageEmbedderConfig {
-  /** Number of dimensions for the embedding (default: 128) */
+  /** Number of dimensions for the embedding (default: 768) */
   dimensions: number;
   /** Include file path features in embedding */
   includePathFeatures: boolean;
@@ -41,7 +41,7 @@ export interface CoverageEmbedderConfig {
  * Default embedder configuration
  */
 export const DEFAULT_EMBEDDER_CONFIG: CoverageEmbedderConfig = {
-  dimensions: 128,
+  dimensions: 768,
   includePathFeatures: true,
   includeTemporalFeatures: true,
   normalization: 'l2',
