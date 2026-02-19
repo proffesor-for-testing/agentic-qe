@@ -57,6 +57,12 @@ export const COMPLEXITY_KEYWORDS = {
     'error handling',
     'validation logic',
     'api integration',
+    'code index',
+    'coverage analysis',
+    'quality assessment',
+    'defect prediction',
+    'predict defect',
+    'analyze coverage',
   ],
 
   // Tier 3 - High complexity
@@ -69,6 +75,13 @@ export const COMPLEXITY_KEYWORDS = {
     'cross-domain',
     'workflow',
     'system design',
+    'analyze security',
+    'security scan',
+    'security analysis',
+    'vulnerability scan',
+    'chaos test',
+    'resilience test',
+    'contract validation',
   ],
 
   // Tier 4 - Critical/expert
@@ -81,6 +94,11 @@ export const COMPLEXITY_KEYWORDS = {
     'vulnerability',
     'cryptography',
     'performance critical',
+    'hardcoded secret',
+    'cve',
+    'owasp',
+    'penetration test',
+    'exploit',
   ],
 } as const;
 

@@ -181,6 +181,15 @@ function getModelForTier(tier: number): string {
  * Returns null if no applicable transform is detected
  */
 function detectTransformType(task: QueenTask): TransformType | null {
+  // Agent Booster transforms only apply to code transformation tasks,
+  // NOT to test generation, coverage, security, or other domain tasks
+  const nonTransformTasks = [
+    'generate-tests', 'analyze-coverage', 'scan-security', 'execute-tests',
+    'assess-quality', 'validate-contracts', 'test-accessibility', 'chaos-test',
+    'predict-defects', 'validate-requirements', 'index-code',
+  ];
+  if (nonTransformTasks.includes(task.type)) return null;
+
   const codeContext = (task.payload as Record<string, unknown>)?.codeContext as string || '';
   const sourceCode = (task.payload as Record<string, unknown>)?.sourceCode as string || '';
   const code = codeContext || sourceCode;
@@ -216,12 +225,18 @@ function detectTransformType(task: QueenTask): TransformType | null {
  * Load coverage data from common coverage file formats
  */
 async function loadCoverageData(targetPath: string): Promise<CoverageData | null> {
-  // Try various coverage file locations
+  // Try various coverage file locations (JS, Python, Java, etc.)
   const coverageLocations = [
+    // JavaScript/TypeScript (Istanbul/nyc/vitest)
     path.join(targetPath, 'coverage', 'coverage-final.json'),
     path.join(targetPath, 'coverage', 'lcov.info'),
     path.join(targetPath, '.nyc_output', 'coverage-final.json'),
     path.join(targetPath, 'coverage-final.json'),
+    // Python (pytest-cov, coverage.py)
+    path.join(targetPath, 'coverage.xml'),
+    path.join(targetPath, 'htmlcov', 'status.json'),
+    // Cobertura (generic)
+    path.join(targetPath, 'cobertura-coverage.xml'),
   ];
 
   for (const coveragePath of coverageLocations) {
@@ -232,6 +247,8 @@ async function loadCoverageData(targetPath: string): Promise<CoverageData | null
         return parseCoverageJson(content);
       } else if (coveragePath.endsWith('.info')) {
         return parseLcovInfo(content);
+      } else if (coveragePath.endsWith('.xml')) {
+        return parseCoberturaXml(content);
       }
     } catch {
       // File not found, try next
@@ -414,6 +431,144 @@ function parseLcovInfo(content: string): CoverageData {
 }
 
 /**
+ * Parse Cobertura XML format (Python coverage.py, Java JaCoCo, etc.)
+ * Handles both coverage.xml and cobertura-coverage.xml formats.
+ * Uses attribute-order-independent extraction to handle output from
+ * different tools (coverage.py, JaCoCo, Cobertura) that order attributes differently.
+ */
+function parseCoberturaXml(content: string): CoverageData {
+  const files: FileCoverage[] = [];
+
+  // Helper: extract a named attribute from an XML element string, order-independent
+  function attr(element: string, name: string): string | null {
+    const match = element.match(new RegExp(`${name}=["']([^"']*)["']`));
+    return match ? match[1] : null;
+  }
+
+  // Find all <class ...> elements (handles any attribute order)
+  const classRegex = /<class\s[^>]*?>/g;
+  let classMatch;
+  while ((classMatch = classRegex.exec(content)) !== null) {
+    const classTag = classMatch[0];
+    const filename = attr(classTag, 'filename');
+    if (!filename) continue;
+
+    const lineRate = parseFloat(attr(classTag, 'line-rate') || 'NaN');
+    const branchRate = parseFloat(attr(classTag, 'branch-rate') || 'NaN');
+
+    // Find the </class> boundary for this element
+    const classStart = classMatch.index;
+    const classEnd = content.indexOf('</class>', classStart);
+    const classContent = classEnd > classStart
+      ? content.slice(classStart, classEnd)
+      : '';
+
+    let linesTotal = 0, linesCovered = 0;
+    let branchesTotal = 0, branchesCovered = 0;
+    let functionsTotal = 0, functionsCovered = 0;
+    const uncoveredLines: number[] = [];
+    const uncoveredBranches: number[] = [];
+
+    // Parse <line> elements (attribute-order-independent)
+    const lineRegex = /<line\s([^>]*?)\/>/g;
+    let lineMatch;
+    while ((lineMatch = lineRegex.exec(classContent)) !== null) {
+      const lineTag = lineMatch[1];
+      const lineNum = parseInt(attr(lineTag, 'number') || '0', 10);
+      const hits = parseInt(attr(lineTag, 'hits') || '0', 10);
+      const isBranch = attr(lineTag, 'branch') === 'true';
+      const condCoverage = attr(lineTag, 'condition-coverage');
+
+      linesTotal++;
+      if (hits > 0) {
+        linesCovered++;
+      } else {
+        uncoveredLines.push(lineNum);
+      }
+
+      if (isBranch) {
+        branchesTotal++;
+        const condPct = condCoverage ? parseInt(condCoverage, 10) : (hits > 0 ? 100 : 0);
+        if (condPct === 100) {
+          branchesCovered++;
+        } else {
+          uncoveredBranches.push(lineNum);
+        }
+      }
+    }
+
+    // Parse <method> elements for function coverage
+    const methodRegex = /<method\s([^>]*?)>/g;
+    let methodMatch;
+    while ((methodMatch = methodRegex.exec(classContent)) !== null) {
+      functionsTotal++;
+      // Check if method has any line hits (look for <line> within this method)
+      const methodStart = methodMatch.index;
+      const methodEnd = classContent.indexOf('</method>', methodStart);
+      if (methodEnd > methodStart) {
+        const methodContent = classContent.slice(methodStart, methodEnd);
+        const methodLineRegex = /<line\s([^>]*?)\/>/g;
+        let hasHits = false;
+        let mLineMatch;
+        while ((mLineMatch = methodLineRegex.exec(methodContent)) !== null) {
+          if (parseInt(attr(mLineMatch[1], 'hits') || '0', 10) > 0) {
+            hasHits = true;
+            break;
+          }
+        }
+        if (hasHits) functionsCovered++;
+      }
+    }
+
+    // If no lines parsed, estimate from rates
+    if (linesTotal === 0 && !isNaN(lineRate)) {
+      linesTotal = 1;
+      linesCovered = lineRate >= 0.5 ? 1 : 0;
+    }
+
+    files.push({
+      path: filename,
+      lines: { covered: linesCovered, total: linesTotal },
+      branches: { covered: branchesCovered, total: branchesTotal },
+      functions: { covered: functionsCovered, total: functionsTotal },
+      statements: { covered: linesCovered, total: linesTotal },
+      uncoveredLines,
+      uncoveredBranches,
+    });
+  }
+
+  // Calculate summary
+  let totalLines = 0, totalCoveredLines = 0;
+  let totalBranches = 0, totalCoveredBranches = 0;
+  let totalFunctions = 0, totalCoveredFunctions = 0;
+
+  for (const file of files) {
+    totalLines += file.lines.total;
+    totalCoveredLines += file.lines.covered;
+    totalBranches += file.branches.total;
+    totalCoveredBranches += file.branches.covered;
+    totalFunctions += file.functions.total;
+    totalCoveredFunctions += file.functions.covered;
+  }
+
+  // Also try to extract top-level summary from <coverage> element (order-independent)
+  const coverageTag = content.match(/<coverage\s[^>]*?>/);
+  const summaryLineRate = coverageTag ? parseFloat(attr(coverageTag[0], 'line-rate') || 'NaN') * 100 : NaN;
+  const summaryBranchRate = coverageTag ? parseFloat(attr(coverageTag[0], 'branch-rate') || 'NaN') * 100 : NaN;
+
+  return {
+    files,
+    summary: {
+      line: !isNaN(summaryLineRate) ? summaryLineRate : (totalLines > 0 ? (totalCoveredLines / totalLines) * 100 : 0),
+      branch: !isNaN(summaryBranchRate) ? summaryBranchRate : (totalBranches > 0 ? (totalCoveredBranches / totalBranches) * 100 : 0),
+      function: totalFunctions > 0 ? (totalCoveredFunctions / totalFunctions) * 100 : 0,
+      statement: totalLines > 0 ? (totalCoveredLines / totalLines) * 100 : 0,
+      files: files.length,
+    },
+  };
+}
+
+/**
  * Discover source files in a directory
  */
 async function discoverSourceFiles(
@@ -424,13 +579,36 @@ async function discoverSourceFiles(
   const { includeTests = true, languages } = options;
 
   // Determine file extensions to include
-  let extensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+  // Default: scan ALL common source languages unless explicitly filtered
+  let extensions = [
+    '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',  // JavaScript/TypeScript
+    '.py', '.pyw',                                   // Python
+    '.go',                                           // Go
+    '.rs',                                           // Rust
+    '.java', '.kt', '.kts',                          // Java/Kotlin
+    '.rb',                                           // Ruby
+    '.cs',                                           // C#
+    '.php',                                          // PHP
+    '.swift',                                        // Swift
+    '.c', '.h', '.cpp', '.hpp', '.cc',               // C/C++
+    '.scala',                                        // Scala
+  ];
   if (languages && languages.length > 0) {
     extensions = [];
     for (const lang of languages) {
       if (lang === 'typescript') extensions.push('.ts', '.tsx');
       if (lang === 'javascript') extensions.push('.js', '.jsx', '.mjs', '.cjs');
-      if (lang === 'python') extensions.push('.py');
+      if (lang === 'python') extensions.push('.py', '.pyw');
+      if (lang === 'go') extensions.push('.go');
+      if (lang === 'rust') extensions.push('.rs');
+      if (lang === 'java') extensions.push('.java');
+      if (lang === 'kotlin') extensions.push('.kt', '.kts');
+      if (lang === 'ruby') extensions.push('.rb');
+      if (lang === 'csharp' || lang === 'c#') extensions.push('.cs');
+      if (lang === 'php') extensions.push('.php');
+      if (lang === 'swift') extensions.push('.swift');
+      if (lang === 'c' || lang === 'cpp' || lang === 'c++') extensions.push('.c', '.h', '.cpp', '.hpp', '.cc');
+      if (lang === 'scala') extensions.push('.scala');
     }
   }
 
@@ -443,7 +621,9 @@ async function discoverSourceFiles(
 
         // Skip common non-source directories
         if (entry.isDirectory()) {
-          if (['node_modules', '.git', 'dist', 'build', 'coverage', '.nyc_output'].includes(entry.name)) {
+          if (['node_modules', '.git', 'dist', 'build', 'coverage', '.nyc_output',
+             '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', 'target',
+             '.gradle', 'vendor', '.bundle'].includes(entry.name)) {
             continue;
           }
           await walkDir(fullPath);
@@ -674,7 +854,15 @@ export class DomainTaskExecutor {
           sourceFiles = [payload.filePath];
         } else if (payload.sourceCode) {
           // Write temporary file for analysis if only source code provided
-          const tempPath = `/tmp/aqe-temp-${uuidv4()}.ts`;
+          // Use correct file extension based on language parameter
+          const langExtMap: Record<string, string> = {
+            python: '.py', typescript: '.ts', javascript: '.js',
+            go: '.go', rust: '.rs', java: '.java', ruby: '.rb',
+            kotlin: '.kt', csharp: '.cs', php: '.php', swift: '.swift',
+            cpp: '.cpp', c: '.c', scala: '.scala',
+          };
+          const ext = langExtMap[payload.language?.toLowerCase() || 'typescript'] || '.ts';
+          const tempPath = `/tmp/aqe-temp-${uuidv4()}${ext}`;
           await fs.writeFile(tempPath, payload.sourceCode, 'utf-8');
           sourceFiles = [tempPath];
         }
@@ -715,6 +903,7 @@ export class DomainTaskExecutor {
             type: t.type,
             sourceFile: t.sourceFile,
             assertions: t.assertions,
+            testCode: t.testCode,
           })),
           patternsUsed: generatedTests.patternsUsed,
         });
@@ -737,20 +926,58 @@ export class DomainTaskExecutor {
         const threshold = payload.threshold || 80;
 
         // Try to find and read actual coverage files
-        const coverageData = await loadCoverageData(targetPath);
+        let coverageData = await loadCoverageData(targetPath);
 
         if (!coverageData) {
-          // No coverage data found - return informative error with fallback metrics
-          return ok({
-            lineCoverage: 0,
-            branchCoverage: 0,
-            functionCoverage: 0,
-            statementCoverage: 0,
-            totalFiles: 0,
-            gaps: [],
-            algorithm: 'sublinear-O(log n)',
-            warning: 'No coverage data found. Run tests with coverage first: npm test -- --coverage',
-          });
+          // No coverage data found — attempt to collect it by running tests with coverage
+          let collected = false;
+          try {
+            const { execSync } = await import('child_process');
+            // Detect test runner from package.json
+            let coverageCmd = 'npx vitest run --coverage --reporter=json 2>/dev/null';
+            try {
+              const pkgContent = await fs.readFile(path.join(targetPath, 'package.json'), 'utf-8');
+              const pkg = safeJsonParse<Record<string, unknown>>(pkgContent);
+              const deps = { ...(pkg.devDependencies as Record<string, string> || {}), ...(pkg.dependencies as Record<string, string> || {}) };
+              if (deps['jest'] || deps['@jest/core']) {
+                coverageCmd = 'npx jest --coverage --json 2>/dev/null';
+              } else if (deps['mocha'] || deps['nyc']) {
+                coverageCmd = 'npx nyc mocha 2>/dev/null';
+              }
+              // vitest is the default — covers vitest, @vitest/coverage-v8, etc.
+            } catch {
+              // No package.json — use default vitest
+            }
+
+            execSync(coverageCmd, {
+              cwd: targetPath,
+              timeout: 120000,
+              encoding: 'utf-8',
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
+            collected = true;
+          } catch {
+            // Test runner failed or not available — that's OK, we'll check for output anyway
+          }
+
+          // Re-check for coverage data after collection attempt
+          coverageData = await loadCoverageData(targetPath);
+
+          if (!coverageData) {
+            return ok({
+              lineCoverage: 0,
+              branchCoverage: 0,
+              functionCoverage: 0,
+              statementCoverage: 0,
+              totalFiles: 0,
+              coverageByFile: [],
+              gaps: [],
+              algorithm: 'sublinear-O(log n)',
+              warning: collected
+                ? 'Tests ran but no coverage output was generated. Ensure a coverage provider is configured (e.g., @vitest/coverage-v8, istanbul).'
+                : 'No coverage data found and could not run tests automatically. Run: npm test -- --coverage',
+            });
+          }
         }
 
         // Analyze coverage using the real CoverageAnalyzerService
@@ -785,6 +1012,12 @@ export class DomainTaskExecutor {
           functionCoverage: Math.round(report.summary.function * 10) / 10,
           statementCoverage: Math.round(report.summary.statement * 10) / 10,
           totalFiles: report.summary.files,
+          coverageByFile: coverageData.files.map(f => ({
+            file: f.path,
+            lineCoverage: f.lines.total > 0 ? Math.round((f.lines.covered / f.lines.total) * 1000) / 10 : 0,
+            branchCoverage: f.branches.total > 0 ? Math.round((f.branches.covered / f.branches.total) * 1000) / 10 : 0,
+            functionCoverage: f.functions.total > 0 ? Math.round((f.functions.covered / f.functions.total) * 1000) / 10 : 0,
+          })),
           gaps,
           meetsThreshold: report.meetsThreshold,
           delta: report.delta,
@@ -827,16 +1060,160 @@ export class DomainTaskExecutor {
               sast: payload.sast !== false,
               dast: payload.dast || false,
             },
-            warning: `No TypeScript/JavaScript files found in ${targetPath}`,
+            warning: `No source files found in ${targetPath}`,
           });
         }
 
-        // Convert string paths to FilePath value objects
-        const filePathObjects = filesToScan.map(filePath => FilePath.create(filePath));
+        // Separate files by language capability
+        const jstsFiles = filesToScan.filter(f => /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(f));
+        const otherFiles = filesToScan.filter(f => !/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(f));
 
-        // Run SAST scan if requested
+        // Run basic cross-language security patterns on non-JS/TS files
+        const crossLangVulns: Array<{
+          title: string; severity: 'critical' | 'high' | 'medium' | 'low' | 'informational';
+          location: { file: string; line: number }; description: string; category: string;
+        }> = [];
+
+        // Run secret/CORS patterns on ALL files (not just otherFiles) to catch JS/TS secrets too
+        for (const filePath of filesToScan) {
+          try {
+            const content = await fs.readFile(filePath, 'utf-8');
+            const lines = content.split('\n');
+            const relPath = filePath.startsWith(targetPath)
+              ? filePath.slice(targetPath.length).replace(/^\//, '')
+              : filePath;
+
+            // Pattern: Hardcoded secrets/keys
+            // Fix #287: Use \w* around keywords to match SECRET_KEY, JWT_SECRET, API_TOKEN, etc.
+            const secretPatterns = [
+              { regex: /\w*(?:secret|password|passwd|api_key|apikey|private_key|jwt_secret)\w*\s*[=:]\s*['"][^'"]{4,}['"]/gi, title: 'Hardcoded secret', severity: 'critical' as const },
+              { regex: /\w*(?:token|auth_token|access_key|secret_key)\w*\s*[=:]\s*['"][^'"]{8,}['"]/gi, title: 'Hardcoded credential', severity: 'critical' as const },
+              { regex: /(?:AWS_SECRET|GITHUB_TOKEN|SLACK_TOKEN|OPENAI_API_KEY)\s*[=:]\s*['"][^'"]+['"]/gi, title: 'Hardcoded cloud credential', severity: 'critical' as const },
+            ];
+
+            for (const pattern of secretPatterns) {
+              for (let i = 0; i < lines.length; i++) {
+                // Use matchAll to find ALL secrets on a single line (not just first)
+                const matches = [...lines[i].matchAll(pattern.regex)];
+                for (const _m of matches) {
+                  crossLangVulns.push({
+                    title: pattern.title,
+                    severity: pattern.severity,
+                    location: { file: relPath, line: i + 1 },
+                    description: `Potential hardcoded secret found at line ${i + 1}`,
+                    category: 'sensitive-data',
+                  });
+                }
+              }
+            }
+
+            // Pattern: SQL injection risks
+            const sqlPatterns = /(?:execute|query|cursor\.execute)\s*\(\s*(?:f['"]|['"].*%s|['"].*\+\s*\w)/gi;
+            for (let i = 0; i < lines.length; i++) {
+              if (sqlPatterns.test(lines[i])) {
+                crossLangVulns.push({
+                  title: 'Potential SQL injection',
+                  severity: 'high',
+                  location: { file: relPath, line: i + 1 },
+                  description: 'String interpolation in SQL query — use parameterized queries',
+                  category: 'injection',
+                });
+              }
+              sqlPatterns.lastIndex = 0;
+            }
+
+            // Pattern: CORS wildcard (multi-framework)
+            const corsPatterns = [
+              /allow_origins\s*=\s*\[?\s*['"]?\*['"]?\s*\]?/i,          // Python FastAPI/Flask
+              /cors\(\s*\{[^}]*origin:\s*['"]?\*['"]?/i,                 // Express.js cors()
+              /Access-Control-Allow-Origin['":\s]+\*/i,                   // Raw header / Nginx / .htaccess
+              /@CrossOrigin\(\s*origins?\s*=\s*["']\*["']/i,             // Spring Boot
+              /\.Header\(\)\.Set\(["']Access-Control-Allow-Origin["'],\s*["']\*["']/i, // Go
+            ];
+            for (const corsPattern of corsPatterns) {
+              if (corsPattern.test(content)) {
+                crossLangVulns.push({
+                  title: 'CORS wildcard origin',
+                  severity: 'high',
+                  location: { file: relPath, line: lines.findIndex(l => corsPattern.test(l)) + 1 },
+                  description: 'CORS configured with wildcard (*) origin — restrict to specific domains',
+                  category: 'security-misconfiguration',
+                });
+                break; // One CORS finding per file is enough
+              }
+            }
+
+            // Pattern: Debug/development mode enabled
+            if (/(?:DEBUG|debug)\s*[=:]\s*(?:True|true|1)/i.test(content)) {
+              crossLangVulns.push({
+                title: 'Debug mode enabled',
+                severity: 'medium',
+                location: { file: relPath, line: lines.findIndex(l => /DEBUG\s*[=:]\s*(?:True|true|1)/i.test(l)) + 1 },
+                description: 'Debug mode should be disabled in production',
+                category: 'security-misconfiguration',
+              });
+            }
+
+            // Pattern: Eval/exec usage
+            if (/\b(?:eval|exec)\s*\(/i.test(content)) {
+              crossLangVulns.push({
+                title: 'Dangerous eval/exec usage',
+                severity: 'high',
+                location: { file: relPath, line: lines.findIndex(l => /\b(?:eval|exec)\s*\(/.test(l)) + 1 },
+                description: 'eval/exec can lead to code injection — avoid using with user input',
+                category: 'injection',
+              });
+            }
+          } catch {
+            // Skip unreadable files
+          }
+        }
+
+        // Also check dependency manifests for known vulnerable packages
+        const depManifests = ['requirements.txt', 'pyproject.toml', 'Gemfile', 'go.mod', 'Cargo.toml'];
+        for (const manifest of depManifests) {
+          const manifestPath = path.join(targetPath, manifest);
+          try {
+            const manifestContent = await fs.readFile(manifestPath, 'utf-8');
+            crossLangVulns.push({
+              title: 'Dependency audit recommended',
+              severity: 'informational',
+              location: { file: manifest, line: 1 },
+              description: `Found ${manifest} — run language-specific dependency audit (e.g., pip-audit, npm audit, cargo audit)`,
+              category: 'dependencies',
+            });
+
+            // Check for known high-severity CVEs in Python dependencies
+            if (manifest === 'requirements.txt' || manifest === 'pyproject.toml') {
+              const knownCVEs: Array<{ pkg: string; pattern: RegExp; cve: string; severity: 'critical' | 'high'; title: string; description: string }> = [
+                { pkg: 'python-jose', pattern: /python-jose/i, cve: 'CVE-2024-33663', severity: 'high', title: 'python-jose ECDSA key confusion (CVE-2024-33663)', description: 'python-jose allows ECDSA key confusion — upgrade to >=3.3.0 or switch to PyJWT' },
+                { pkg: 'python-jose', pattern: /python-jose/i, cve: 'CVE-2024-33664', severity: 'high', title: 'python-jose JWT algorithm confusion (CVE-2024-33664)', description: 'python-jose JWT algorithm confusion vulnerability — upgrade or switch to PyJWT' },
+                { pkg: 'python-multipart', pattern: /python-multipart/i, cve: 'CVE-2026-24486', severity: 'critical', title: 'python-multipart DoS (CVE-2026-24486)', description: 'python-multipart denial of service via crafted multipart data — upgrade to >=0.0.18' },
+              ];
+
+              for (const known of knownCVEs) {
+                if (known.pattern.test(manifestContent)) {
+                  crossLangVulns.push({
+                    title: known.title,
+                    severity: known.severity,
+                    location: { file: manifest, line: manifestContent.split('\n').findIndex(l => known.pattern.test(l)) + 1 },
+                    description: known.description,
+                    category: 'dependencies',
+                  });
+                }
+              }
+            }
+          } catch {
+            // Manifest doesn't exist
+          }
+        }
+
+        // Convert JS/TS file paths to FilePath value objects for the SAST scanner
+        const filePathObjects = jstsFiles.map(filePath => FilePath.create(filePath));
+
+        // Run SAST scan on JS/TS files if requested and files exist
         let sastResult = null;
-        if (payload.sast !== false) {
+        if (payload.sast !== false && filePathObjects.length > 0) {
           const result = await scanner.scanFiles(filePathObjects);
           if (result.success) {
             sastResult = result.value;
@@ -856,19 +1233,28 @@ export class DomainTaskExecutor {
           }
         }
 
-        // Combine results - create mutable copy
-        const summary = {
-          critical: (sastResult?.summary?.critical || 0) + (dastResult?.summary?.critical || 0),
-          high: (sastResult?.summary?.high || 0) + (dastResult?.summary?.high || 0),
-          medium: (sastResult?.summary?.medium || 0) + (dastResult?.summary?.medium || 0),
-          low: (sastResult?.summary?.low || 0) + (dastResult?.summary?.low || 0),
-          informational: (sastResult?.summary?.informational || 0) + (dastResult?.summary?.informational || 0),
+        // Combine results from all scan sources - SAST, DAST, and cross-language patterns
+        const crossLangSeverityCounts = {
+          critical: crossLangVulns.filter(v => v.severity === 'critical').length,
+          high: crossLangVulns.filter(v => v.severity === 'high').length,
+          medium: crossLangVulns.filter(v => v.severity === 'medium').length,
+          low: crossLangVulns.filter(v => v.severity === 'low').length,
+          informational: crossLangVulns.filter(v => v.severity === 'informational').length,
         };
 
-        // Extract top vulnerabilities
+        const summary = {
+          critical: (sastResult?.summary?.critical || 0) + (dastResult?.summary?.critical || 0) + crossLangSeverityCounts.critical,
+          high: (sastResult?.summary?.high || 0) + (dastResult?.summary?.high || 0) + crossLangSeverityCounts.high,
+          medium: (sastResult?.summary?.medium || 0) + (dastResult?.summary?.medium || 0) + crossLangSeverityCounts.medium,
+          low: (sastResult?.summary?.low || 0) + (dastResult?.summary?.low || 0) + crossLangSeverityCounts.low,
+          informational: (sastResult?.summary?.informational || 0) + (dastResult?.summary?.informational || 0) + crossLangSeverityCounts.informational,
+        };
+
+        // Extract top vulnerabilities from all sources
         const allVulns = [
           ...(sastResult?.vulnerabilities || []),
           ...(dastResult?.vulnerabilities || []),
+          ...crossLangVulns,
         ];
 
         const topVulnerabilities = allVulns
@@ -902,7 +1288,12 @@ export class DomainTaskExecutor {
             dast: payload.dast || false,
           },
           filesScanned: filesToScan.length,
+          jstsFilesScanned: jstsFiles.length,
+          otherFilesScanned: otherFiles.length,
           coverage: sastResult?.coverage,
+          ...(otherFiles.length > 0 && jstsFiles.length === 0 ? {
+            note: 'Non-JS/TS files were scanned with cross-language pattern matching. For deeper analysis, use language-specific security tools.',
+          } : {}),
         });
       } catch (error) {
         return err(toError(error));
@@ -936,9 +1327,9 @@ export class DomainTaskExecutor {
             edgesCreated: 0,
             target: targetPath,
             incremental: payload.incremental || false,
-            languages: payload.languages || ['typescript', 'javascript'],
+            languages: payload.languages || [],
             duration: Date.now() - startTime,
-            warning: `No source files found in ${targetPath}`,
+            warning: `No source files found in ${targetPath}. Searched for: TypeScript, JavaScript, Python, Go, Rust, Java, Ruby, C/C++, and more.`,
           });
         }
 
@@ -958,11 +1349,20 @@ export class DomainTaskExecutor {
 
         // Detect languages from files
         const detectedLanguages = new Set<string>();
+        const extToLang: Record<string, string> = {
+          ts: 'typescript', tsx: 'typescript',
+          js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
+          py: 'python', pyw: 'python',
+          go: 'go', rs: 'rust',
+          java: 'java', kt: 'kotlin', kts: 'kotlin',
+          rb: 'ruby', cs: 'csharp', php: 'php', swift: 'swift',
+          c: 'c', h: 'c', cpp: 'cpp', hpp: 'cpp', cc: 'cpp',
+          scala: 'scala',
+        };
         for (const file of filesToIndex) {
           const ext = path.extname(file).slice(1);
-          if (['ts', 'tsx'].includes(ext)) detectedLanguages.add('typescript');
-          if (['js', 'jsx', 'mjs', 'cjs'].includes(ext)) detectedLanguages.add('javascript');
-          if (ext === 'py') detectedLanguages.add('python');
+          const lang = extToLang[ext];
+          if (lang) detectedLanguages.add(lang);
         }
 
         return ok({
@@ -1063,7 +1463,7 @@ export class DomainTaskExecutor {
       }
     });
 
-    // Register test execution handler
+    // Register test execution handler - runs real tests via child process
     this.taskHandlers.set('execute-tests', async (task) => {
       const payload = task.payload as {
         testFiles: string[];
@@ -1071,67 +1471,236 @@ export class DomainTaskExecutor {
         retryCount: number;
       };
 
-      // In production, would actually run tests via test runner
-      const testCount = payload.testFiles?.length || 10;
-      const passed = Math.floor(testCount * 0.9);
-      const failed = testCount - passed;
+      try {
+        const { execSync } = await import('child_process');
+        const testFiles = payload.testFiles || [];
 
-      return ok({
-        total: testCount,
-        passed,
-        failed,
-        skipped: 0,
-        duration: testCount * 50, // ~50ms per test
-        coverage: 82.5,
-        failedTests: failed > 0 ? ['example.test.ts:42'] : [],
-      });
+        if (testFiles.length === 0) {
+          return ok({
+            total: 0, passed: 0, failed: 0, skipped: 0,
+            duration: 0, coverage: 0, failedTests: [],
+            warning: 'No test files specified. Provide testFiles array with paths to test files.',
+          });
+        }
+
+        // Attempt to run tests using common test runners
+        const cwd = process.cwd();
+        let output: string;
+        try {
+          // Try vitest first, then jest, then mocha
+          output = execSync(
+            `npx vitest run ${testFiles.join(' ')} --reporter=json 2>/dev/null || npx jest ${testFiles.join(' ')} --json 2>/dev/null`,
+            { cwd, timeout: 120000, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+          );
+        } catch (execError) {
+          // Test runner may exit non-zero when tests fail — that's expected
+          output = (execError as { stdout?: string }).stdout || '';
+        }
+
+        // Try to parse JSON output from test runner
+        try {
+          const jsonStart = output.indexOf('{');
+          if (jsonStart >= 0) {
+            const json = JSON.parse(output.slice(jsonStart));
+            // vitest format
+            if (json.testResults) {
+              const total = json.numTotalTests || 0;
+              const passed = json.numPassedTests || 0;
+              const failed = json.numFailedTests || 0;
+              return ok({ total, passed, failed, skipped: total - passed - failed, duration: 0, coverage: 0, failedTests: [] });
+            }
+          }
+        } catch {
+          // JSON parsing failed — return raw info
+        }
+
+        return ok({
+          total: testFiles.length, passed: 0, failed: 0, skipped: 0,
+          duration: 0, coverage: 0, failedTests: [],
+          warning: 'Could not parse test runner output. Check that vitest or jest is installed.',
+          rawOutput: output.slice(0, 500),
+        });
+      } catch (error) {
+        return err(toError(error));
+      }
     });
 
-    // Register defect prediction handler
+    // Register defect prediction handler - REAL IMPLEMENTATION
     this.taskHandlers.set('predict-defects', async (task) => {
       const payload = task.payload as {
         target: string;
         minConfidence: number;
       };
 
-      return ok({
-        predictedDefects: [
-          {
-            file: `${payload.target}/complex-module.ts`,
-            probability: 0.78,
-            reason: 'High cyclomatic complexity combined with low test coverage',
-          },
-          {
-            file: `${payload.target}/legacy-handler.ts`,
-            probability: 0.65,
-            reason: 'Frequent changes in recent commits with error-prone patterns',
-          },
-        ],
-        riskScore: 42,
-        recommendations: [
-          'Add integration tests for complex-module.ts',
-          'Refactor legacy-handler.ts to reduce complexity',
-        ],
-      });
+      try {
+        const targetPath = payload.target || process.cwd();
+        const minConfidence = payload.minConfidence || 0.5;
+
+        // Discover actual source files in the target directory
+        const sourceFiles = await discoverSourceFiles(targetPath, { includeTests: false });
+
+        if (sourceFiles.length === 0) {
+          return ok({
+            predictedDefects: [],
+            riskScore: 0,
+            recommendations: [
+              `No source files found in ${targetPath}. Ensure the path contains source code files.`,
+            ],
+            warning: `No source files found in ${targetPath}`,
+            filesAnalyzed: 0,
+          });
+        }
+
+        // Analyze each file for defect indicators based on real metrics
+        const predictedDefects: Array<{ file: string; probability: number; reason: string }> = [];
+
+        for (const filePath of sourceFiles) {
+          try {
+            const content = await fs.readFile(filePath, 'utf-8');
+            const lines = content.split('\n');
+            const lineCount = lines.length;
+
+            // Calculate complexity indicators from real code
+            let probability = 0;
+            const reasons: string[] = [];
+
+            // Factor 1: File size (large files are more defect-prone)
+            if (lineCount > 500) {
+              probability += 0.25;
+              reasons.push(`Large file (${lineCount} lines)`);
+            } else if (lineCount > 300) {
+              probability += 0.15;
+              reasons.push(`Medium-large file (${lineCount} lines)`);
+            }
+
+            // Factor 2: Cyclomatic complexity indicators
+            const branchKeywords = content.match(/\b(if|else|switch|case|for|while|catch|&&|\|\|)\b/g) || [];
+            const branchDensity = branchKeywords.length / Math.max(lineCount, 1);
+            if (branchDensity > 0.15) {
+              probability += 0.25;
+              reasons.push(`High branch density (${branchKeywords.length} branches in ${lineCount} lines)`);
+            } else if (branchDensity > 0.08) {
+              probability += 0.10;
+              reasons.push('Moderate branch complexity');
+            }
+
+            // Factor 3: Deeply nested code
+            const maxIndent = Math.max(...lines.map(l => {
+              const match = l.match(/^(\s*)/);
+              return match ? match[1].length : 0;
+            }));
+            if (maxIndent > 20) {
+              probability += 0.15;
+              reasons.push('Deep nesting detected');
+            }
+
+            // Factor 4: TODO/FIXME/HACK comments
+            const debtComments = (content.match(/\b(TODO|FIXME|HACK|XXX|WORKAROUND)\b/gi) || []).length;
+            if (debtComments > 3) {
+              probability += 0.15;
+              reasons.push(`${debtComments} technical debt markers`);
+            }
+
+            // Factor 5: Long functions (heuristic)
+            const functionStarts = (content.match(/\b(function|def|func|async)\b/g) || []).length;
+            if (functionStarts > 0 && lineCount / functionStarts > 80) {
+              probability += 0.10;
+              reasons.push('Potentially long functions');
+            }
+
+            probability = Math.min(probability, 0.95);
+
+            if (probability >= minConfidence) {
+              // Use relative path for readability
+              const relativePath = filePath.startsWith(targetPath)
+                ? filePath.slice(targetPath.length).replace(/^\//, '')
+                : filePath;
+              predictedDefects.push({
+                file: relativePath,
+                probability: Math.round(probability * 100) / 100,
+                reason: reasons.join('; '),
+              });
+            }
+          } catch {
+            // Skip files that can't be read
+          }
+        }
+
+        // Sort by probability descending
+        predictedDefects.sort((a, b) => b.probability - a.probability);
+
+        // Calculate overall risk score
+        const avgProb = predictedDefects.length > 0
+          ? predictedDefects.reduce((sum, d) => sum + d.probability, 0) / predictedDefects.length
+          : 0;
+        const riskScore = Math.round(avgProb * 100);
+
+        // Generate recommendations from actual findings
+        const recommendations: string[] = [];
+        if (predictedDefects.length > 0) {
+          recommendations.push(`${predictedDefects.length} files flagged for potential defects out of ${sourceFiles.length} analyzed`);
+          const topFile = predictedDefects[0];
+          recommendations.push(`Highest risk: ${topFile.file} (${Math.round(topFile.probability * 100)}%) — ${topFile.reason}`);
+        }
+        if (predictedDefects.some(d => d.reason.includes('Large file'))) {
+          recommendations.push('Consider splitting large files to reduce complexity');
+        }
+        if (predictedDefects.some(d => d.reason.includes('technical debt'))) {
+          recommendations.push('Address TODO/FIXME comments to reduce technical debt');
+        }
+        if (predictedDefects.length === 0) {
+          recommendations.push('No files exceeded the defect probability threshold — code looks healthy');
+        }
+
+        return ok({
+          predictedDefects: predictedDefects.slice(0, 20), // Top 20
+          riskScore,
+          recommendations,
+          filesAnalyzed: sourceFiles.length,
+        });
+      } catch (error) {
+        return err(toError(error));
+      }
     });
 
     // Register requirements validation handler
     this.taskHandlers.set('validate-requirements', async (task) => {
       const payload = task.payload as {
+        requirementsPath?: string;
         generateBDD: boolean;
       };
 
-      return ok({
-        requirementsAnalyzed: 15,
-        testable: 12,
-        ambiguous: 2,
-        untestable: 1,
-        coverage: 80,
-        bddScenarios: payload.generateBDD ? [
-          'Given a user is logged in, When they view the dashboard, Then they see their metrics',
-          'Given an API request fails, When the retry limit is exceeded, Then an error is returned',
-        ] : [],
-      });
+      try {
+        const targetPath = payload.requirementsPath || process.cwd();
+        // Look for requirements files (markdown, feature files, etc.)
+        const reqFiles = await discoverSourceFiles(targetPath, {
+          includeTests: false,
+          languages: [],
+        });
+        // Scan for requirement-like files
+        const reqPatterns = ['.md', '.feature', '.gherkin', '.txt', '.rst'];
+        const requirementFiles: string[] = [];
+        for (const f of reqFiles) {
+          if (reqPatterns.some(ext => f.endsWith(ext))) {
+            requirementFiles.push(f);
+          }
+        }
+
+        return ok({
+          requirementsAnalyzed: requirementFiles.length,
+          testable: 0,
+          ambiguous: 0,
+          untestable: 0,
+          coverage: 0,
+          bddScenarios: [],
+          warning: requirementFiles.length === 0
+            ? 'No requirement files (.md, .feature, .gherkin) found. Provide requirementsPath or add requirement docs.'
+            : 'Requirements validation requires LLM analysis. File inventory returned — use task_orchestrate for deep analysis.',
+          files: requirementFiles.map(f => f.startsWith(targetPath) ? f.slice(targetPath.length + 1) : f).slice(0, 20),
+        });
+      } catch (error) {
+        return err(toError(error));
+      }
     });
 
     // Register contract validation handler
@@ -1141,15 +1710,50 @@ export class DomainTaskExecutor {
         checkBreakingChanges: boolean;
       };
 
-      return ok({
-        contractPath: payload.contractPath,
-        valid: true,
-        breakingChanges: [],
-        warnings: [
-          'Deprecated field "legacyId" should be removed in next major version',
-        ],
-        coverage: 95,
-      });
+      try {
+        if (!payload.contractPath) {
+          return ok({
+            contractPath: '',
+            valid: false,
+            breakingChanges: [],
+            warnings: [],
+            coverage: 0,
+            error: 'contractPath is required. Provide a path to an OpenAPI spec, JSON Schema, or Protocol Buffer file.',
+          });
+        }
+
+        // Check if the contract file exists
+        try {
+          const content = await fs.readFile(payload.contractPath, 'utf-8');
+          const isJson = payload.contractPath.endsWith('.json');
+          const isYaml = payload.contractPath.endsWith('.yaml') || payload.contractPath.endsWith('.yml');
+
+          // Basic structural validation
+          if (isJson) {
+            JSON.parse(content); // throws if invalid
+          }
+
+          return ok({
+            contractPath: payload.contractPath,
+            valid: true,
+            format: isJson ? 'json' : isYaml ? 'yaml' : 'unknown',
+            breakingChanges: [],
+            warnings: [],
+            linesAnalyzed: content.split('\n').length,
+            note: 'Structural validation passed. For semantic contract testing, use consumer-driven contract tests.',
+          });
+        } catch (readErr) {
+          return ok({
+            contractPath: payload.contractPath,
+            valid: false,
+            breakingChanges: [],
+            warnings: [],
+            error: `Could not read or parse contract file: ${toErrorMessage(readErr)}`,
+          });
+        }
+      } catch (error) {
+        return err(toError(error));
+      }
     });
 
     // Register accessibility test handler
@@ -1159,15 +1763,17 @@ export class DomainTaskExecutor {
         standard: string;
       };
 
+      // Accessibility testing requires a browser/DOM — return honest guidance
       return ok({
-        url: payload.url,
+        url: payload.url || '',
         standard: payload.standard || 'wcag21-aa',
-        passed: true,
+        passed: false,
         violations: [],
-        warnings: [
-          { rule: 'color-contrast', impact: 'minor', element: 'nav > a' },
-        ],
-        score: 94,
+        warnings: [],
+        score: 0,
+        note: 'Accessibility testing requires a browser environment (Puppeteer/Playwright). ' +
+              'Use tools like axe-core, pa11y, or Lighthouse CLI for WCAG compliance testing. ' +
+              'Example: npx pa11y ' + (payload.url || '<url>'),
       });
     });
 
@@ -1180,31 +1786,40 @@ export class DomainTaskExecutor {
         dryRun: boolean;
       };
 
+      // Chaos testing requires infrastructure access — return honest guidance
       return ok({
-        faultType: payload.faultType,
-        target: payload.target,
-        dryRun: payload.dryRun,
-        duration: payload.duration,
-        systemBehavior: payload.dryRun ? 'simulated' : 'tested',
-        resilience: {
-          recovered: true,
-          recoveryTime: 2500,
-          dataLoss: false,
-        },
+        faultType: payload.faultType || 'unknown',
+        target: payload.target || 'unknown',
+        dryRun: payload.dryRun ?? true,
+        duration: payload.duration || 0,
+        systemBehavior: 'not-executed',
+        resilience: null,
+        note: 'Chaos engineering requires infrastructure-level fault injection. ' +
+              'Use tools like Chaos Monkey, Litmus, or toxiproxy for real resilience testing. ' +
+              'For Node.js apps, consider: nock (HTTP faults), testcontainers (dependency failures).',
       });
     });
 
     // Register learning optimization handler
     this.taskHandlers.set('optimize-learning', async (_task) => {
-      return ok({
-        patternsLearned: 12,
-        modelsUpdated: 3,
-        memoryConsolidated: true,
-        recommendations: [
-          'Pattern recognition improved for error handling',
-          'Test generation templates optimized',
-        ],
-      });
+      // Check actual pattern store state
+      try {
+        const memUsage = await import('../kernel/unified-memory-hnsw.js');
+        return ok({
+          patternsLearned: 0,
+          modelsUpdated: 0,
+          memoryConsolidated: false,
+          note: 'Learning optimization runs during the dream cycle (SessionEnd hook). ' +
+                'Use "npx agentic-qe hooks session-end --save-state" to trigger pattern consolidation.',
+        });
+      } catch {
+        return ok({
+          patternsLearned: 0,
+          modelsUpdated: 0,
+          memoryConsolidated: false,
+          note: 'Learning system not initialized. Run "aqe init --auto" first.',
+        });
+      }
     });
   }
 

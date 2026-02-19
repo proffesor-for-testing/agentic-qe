@@ -113,7 +113,7 @@ const DEFAULT_CONFIG: TestPrioritizerConfig = {
   enableAutoTraining: true,
   trainingInterval: 10,
   contextLength: 10,
-  embeddingDim: 128,
+  embeddingDim: 768,
 };
 
 // ============================================================================

@@ -9,15 +9,12 @@
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { mkdirSync, writeFileSync } from 'fs';
-import { createRequire } from 'module';
-
 import {
   BasePhase,
   type InitContext,
 } from './phase-interface.js';
 import type { AQEInitConfig } from '../types.js';
-
-const require = createRequire(import.meta.url);
+import { openDatabase } from '../../shared/safe-db.js';
 
 export interface VerificationResult {
   verified: boolean;
@@ -111,8 +108,7 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
         mkdirSync(dir, { recursive: true });
       }
 
-      const Database = require('better-sqlite3');
-      const db = new Database(memoryDbPath);
+      const db = openDatabase(memoryDbPath);
 
       try {
         db.exec(`

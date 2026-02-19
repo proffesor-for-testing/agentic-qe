@@ -5,7 +5,7 @@
  *
  * Consolidates ALL persistence into one file:
  * - KV Store (v2 compatible)
- * - Vectors (BLOB storage, HNSW index built in-memory)
+ * - Vectors (BLOB storage, @ruvector/gnn flat index for fast loading)
  * - Q-Values (RL algorithms)
  * - GOAP (planning)
  * - Dreams (concept graph)
@@ -37,8 +37,8 @@ export { validateTableName, ALLOWED_TABLE_NAMES } from '../shared/sql-safety.js'
 import { validateTableName } from '../shared/sql-safety.js';
 
 // Re-export extracted modules for backward compatibility
-export { BinaryHeap, InMemoryHNSWIndex } from './unified-memory-hnsw.js';
-import { InMemoryHNSWIndex } from './unified-memory-hnsw.js';
+export { BinaryHeap, InMemoryHNSWIndex, RuvectorFlatIndex } from './unified-memory-hnsw.js';
+import { RuvectorFlatIndex } from './unified-memory-hnsw.js';
 
 // Import schemas
 import {
@@ -228,7 +228,7 @@ export class UnifiedMemoryManager {
   private vectorsLoaded = false;
   private initPromise: Promise<void> | null = null;
   private preparedStatements: Map<string, Statement> = new Map();
-  private vectorIndex: InMemoryHNSWIndex = new InMemoryHNSWIndex();
+  private vectorIndex: RuvectorFlatIndex = new RuvectorFlatIndex();
 
   // CRDT store for distributed state synchronization
   private crdtStore: CRDTStore | null = null;
@@ -438,7 +438,7 @@ export class UnifiedMemoryManager {
     }
 
     this.vectorsLoaded = true;
-    console.log(`[UnifiedMemory] Loaded ${rows.length} vectors into HNSW index`);
+    console.log(`[UnifiedMemory] Loaded ${rows.length} vectors into vector index (ruvector flat)`);
   }
 
   // ============================================================================
@@ -794,9 +794,8 @@ export class UnifiedMemoryManager {
   }
 
   private bufferToFloatArray(buffer: Buffer, dimensions: number): number[] {
-    const arr: number[] = [];
-    for (let i = 0; i < dimensions; i++) arr.push(buffer.readFloatLE(i * 4));
-    return arr;
+    const f32 = new Float32Array(buffer.buffer, buffer.byteOffset, dimensions);
+    return Array.from(f32);
   }
 }
 

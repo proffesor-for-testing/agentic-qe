@@ -335,7 +335,7 @@ export class TestGenerationCoordinator
       try {
         this.decisionTransformer = new DecisionTransformerAlgorithm({
           contextLength: 10,
-          embeddingDim: 128,
+          embeddingDim: 768,
         });
         // Note: DecisionTransformer will auto-initialize on first predict() call
         console.log('[TestGenerationCoordinator] DecisionTransformer created for test case selection');

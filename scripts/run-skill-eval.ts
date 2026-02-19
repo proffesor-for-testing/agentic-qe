@@ -42,6 +42,7 @@ interface TestCase {
   priority: 'critical' | 'high' | 'medium' | 'low';
   skip?: boolean;
   skip_reason?: string;
+  negative_control?: boolean;
   input: TestInput;
   expected_output: ExpectedOutput;
   validation?: ValidationConfig;
@@ -84,6 +85,7 @@ interface ValidationConfig {
   reasoning_quality_min?: number;
   semantic_similarity_min?: number;
   allow_partial?: boolean;
+  adaptive_rubric?: boolean;
   grading_rubric?: {
     completeness?: number;
     accuracy?: number;
@@ -165,6 +167,16 @@ interface TestCaseResult {
     regex_misses: string[];
     severity_matched: boolean;
     finding_count_matched: boolean;
+    negative_control_passed?: boolean;
+    finding_count_actual?: number;
+    schema_validation_passed?: boolean;
+    rubric_breakdown?: {
+      completeness: number;
+      accuracy: number;
+      actionability: number;
+      weighted_score: number;
+    };
+    adaptive_keywords_extracted?: string[];
   };
   raw_output?: string;
   error?: string;
@@ -568,7 +580,7 @@ class SkillEvaluationRunner {
       const executionTime = Date.now() - startTime;
 
       // Validate output against expectations
-      const validation = this.validateOutput(output, testCase.expected_output, testCase.validation);
+      const validation = this.validateOutput(output, testCase.expected_output, testCase.validation, testCase);
 
       return {
         id: testCase.id,
@@ -650,12 +662,19 @@ class SkillEvaluationRunner {
   }
 
   /**
-   * Validate LLM output against expected output criteria
+   * Validate LLM output against expected output criteria.
+   *
+   * Implements:
+   * - P1-6: Negative control (inverted pass logic for "should decline" tests)
+   * - P1-5a: Finding count enforcement + schema_path validation
+   * - P1-5b: Grading rubric weighted scoring (completeness/accuracy/actionability)
+   * - P1-4: Adaptive rubric (dynamic keyword extraction from prompt)
    */
   private validateOutput(
     output: string,
     expected: ExpectedOutput,
-    config?: ValidationConfig
+    config?: ValidationConfig,
+    testCase?: TestCase
   ): {
     passed: boolean;
     keywordMatchScore: number;
@@ -664,12 +683,39 @@ class SkillEvaluationRunner {
   } {
     const outputLower = output.toLowerCase();
     const threshold = config?.keyword_match_threshold ?? 0.8;
+    const isNegativeControl = testCase?.negative_control ?? false;
+
+    // --- P1-4: Adaptive Rubric — extract additional keywords from prompt ---
+    const adaptiveKeywords: string[] = [];
+    let effectiveMustContain = expected.must_contain || [];
+
+    if (config?.adaptive_rubric && testCase?.input?.prompt) {
+      const prompt = testCase.input.prompt;
+      // Extract quoted strings
+      const quoted = prompt.match(/"([^"]+)"/g)?.map((s) => s.replace(/"/g, '')) || [];
+      // Extract format keywords
+      const formatWords = prompt.match(/\b(JSON|YAML|markdown|XML|CSV|HTML|SQL)\b/gi) || [];
+      // Extract named standards
+      const standards =
+        prompt.match(/\b(OWASP|WCAG|PCI[-\s]DSS|HIPAA|SOC2|GDPR|ISO\s?\d+)\b/gi) || [];
+      // Extract meaningful numbers (>1 digit or >5)
+      const numbers = (prompt.match(/\b\d+(\.\d+)?\b/g) || []).filter(
+        (n) => n.length > 1 || parseInt(n) > 5
+      );
+
+      adaptiveKeywords.push(...quoted, ...formatWords, ...standards, ...numbers);
+
+      // Merge with existing must_contain (deduplicate)
+      const existingLower = new Set(effectiveMustContain.map((k) => k.toLowerCase()));
+      const newKeywords = adaptiveKeywords.filter((k) => !existingLower.has(k.toLowerCase()));
+      effectiveMustContain = [...effectiveMustContain, ...newKeywords];
+    }
 
     // Check must_contain
     const mustContainMatches: string[] = [];
     const mustContainMisses: string[] = [];
 
-    for (const keyword of expected.must_contain || []) {
+    for (const keyword of effectiveMustContain) {
       if (outputLower.includes(keyword.toLowerCase())) {
         mustContainMatches.push(keyword);
       } else {
@@ -702,7 +748,7 @@ class SkillEvaluationRunner {
     }
 
     // Calculate keyword match score
-    const totalKeywords = (expected.must_contain?.length || 0) + (expected.must_match_regex?.length || 0);
+    const totalKeywords = effectiveMustContain.length + (expected.must_match_regex?.length || 0);
     const matchedKeywords = mustContainMatches.length + regexMatches.length;
     const keywordMatchScore = totalKeywords > 0 ? matchedKeywords / totalKeywords : 1;
 
@@ -711,16 +757,165 @@ class SkillEvaluationRunner {
       !expected.severity_classification ||
       outputLower.includes(expected.severity_classification.toLowerCase());
 
-    // Check finding count (mock implementation)
-    const findingCountMatched = true; // Would parse JSON output in production
+    // --- P1-5a: Finding count enforcement ---
+    let findingCountMatched = true;
+    let findingCountActual: number | undefined;
 
-    // Calculate reasoning quality (simplified - would use embeddings in production)
-    const reasoningQualityScore = keywordMatchScore * 0.8 + (violations.length === 0 ? 0.2 : 0);
+    if (expected.finding_count) {
+      // Try JSON parsing first
+      try {
+        const parsed = JSON.parse(output);
+        if (Array.isArray(parsed?.findings)) {
+          findingCountActual = parsed.findings.length;
+        }
+      } catch {
+        // Fallback: count severity-keyword occurrences or numbered findings
+        const severityPattern =
+          /\b(critical|high|medium|low|info)\b.*?(vulnerability|finding|issue)/gi;
+        const numberedPattern = /^\s*\d+[.)]\s+/gm;
+        const severityCount = (output.match(severityPattern) || []).length;
+        const numberedCount = (output.match(numberedPattern) || []).length;
+        findingCountActual = Math.max(severityCount, numberedCount);
+      }
 
-    // Determine if test passed
+      if (findingCountActual !== undefined) {
+        if (
+          expected.finding_count.min !== undefined &&
+          findingCountActual < expected.finding_count.min
+        ) {
+          findingCountMatched = false;
+        }
+        if (
+          expected.finding_count.max !== undefined &&
+          findingCountActual > expected.finding_count.max
+        ) {
+          findingCountMatched = false;
+        }
+      }
+    }
+
+    // --- P1-5a: Schema validation ---
+    let schemaValidationPassed: boolean | undefined;
+    if (expected.schema_path) {
+      try {
+        const schemaContent = readFileSync(expected.schema_path, 'utf-8');
+        const schema = JSON.parse(schemaContent);
+        const parsed = JSON.parse(output);
+        // Structural check: verify all required fields exist
+        if (schema.required && Array.isArray(schema.required)) {
+          const missingFields = schema.required.filter(
+            (field: string) => !(field in parsed)
+          );
+          schemaValidationPassed = missingFields.length === 0;
+        } else {
+          schemaValidationPassed = true;
+        }
+      } catch {
+        schemaValidationPassed = false;
+      }
+    }
+
+    // --- P1-5b: Grading Rubric scoring ---
+    let rubricBreakdown:
+      | {
+          completeness: number;
+          accuracy: number;
+          actionability: number;
+          weighted_score: number;
+        }
+      | undefined;
+
+    if (config?.grading_rubric) {
+      const weights = config.grading_rubric;
+      const totalWeight =
+        (weights.completeness ?? 0) + (weights.accuracy ?? 0) + (weights.actionability ?? 0);
+
+      // Completeness = fraction of must_contain matched
+      const completenessScore = totalKeywords > 0 ? matchedKeywords / totalKeywords : 1;
+
+      // Accuracy = 1 - (violations / total_must_not_contain)
+      const totalMustNotContain = expected.must_not_contain?.length || 0;
+      const accuracyScore =
+        totalMustNotContain > 0 ? 1 - violations.length / totalMustNotContain : 1;
+
+      // Actionability = heuristic: code blocks, numbered steps, specific recommendations
+      let actionabilityScore = 0;
+      const hasCodeBlocks = /```[\s\S]*?```/.test(output) || /`[^`]+`/.test(output);
+      const hasNumberedSteps = /^\s*\d+[.)]\s+/m.test(output);
+      const hasRecommendations =
+        /\b(recommend|suggest|should|must|consider|implement|use|apply|ensure)\b/i.test(output);
+      const hasSpecificActions =
+        /\b(install|configure|update|replace|add|remove|change|set|enable|disable)\b/i.test(
+          output
+        );
+
+      if (hasCodeBlocks) actionabilityScore += 0.3;
+      if (hasNumberedSteps) actionabilityScore += 0.3;
+      if (hasRecommendations) actionabilityScore += 0.2;
+      if (hasSpecificActions) actionabilityScore += 0.2;
+      actionabilityScore = Math.min(1, actionabilityScore);
+
+      // Weighted sum
+      const weightedScore =
+        totalWeight > 0
+          ? ((weights.completeness ?? 0) * completenessScore +
+              (weights.accuracy ?? 0) * accuracyScore +
+              (weights.actionability ?? 0) * actionabilityScore) /
+            totalWeight
+          : completenessScore;
+
+      rubricBreakdown = {
+        completeness: completenessScore,
+        accuracy: accuracyScore,
+        actionability: actionabilityScore,
+        weighted_score: weightedScore,
+      };
+    }
+
+    // Calculate reasoning quality — use rubric if available, else simple heuristic
+    const reasoningQualityScore = rubricBreakdown
+      ? rubricBreakdown.weighted_score
+      : keywordMatchScore * 0.8 + (violations.length === 0 ? 0.2 : 0);
+
+    // --- P1-6: Negative Control logic ---
+    if (isNegativeControl) {
+      // For negative control: pass when must_contain items are ABSENT and no violations
+      const negativeControlPassed =
+        mustContainMatches.length === 0 && violations.length === 0;
+
+      return {
+        passed: negativeControlPassed,
+        keywordMatchScore,
+        reasoningQualityScore: negativeControlPassed ? 1.0 : 0.0,
+        details: {
+          must_contain_matches: mustContainMatches,
+          must_contain_misses: mustContainMisses,
+          must_not_contain_violations: violations,
+          regex_matches: regexMatches,
+          regex_misses: regexMisses,
+          severity_matched: severityMatched,
+          finding_count_matched: findingCountMatched,
+          negative_control_passed: negativeControlPassed,
+          finding_count_actual: findingCountActual,
+          schema_validation_passed: schemaValidationPassed,
+          rubric_breakdown: rubricBreakdown,
+          adaptive_keywords_extracted:
+            adaptiveKeywords.length > 0 ? adaptiveKeywords : undefined,
+        },
+      };
+    }
+
+    // --- Standard pass/fail determination ---
+    const rubricGate = rubricBreakdown
+      ? rubricBreakdown.weighted_score >= threshold
+      : true;
+
     const passed =
       keywordMatchScore >= threshold &&
       violations.length === 0 &&
+      findingCountMatched &&
+      rubricGate &&
+      (schemaValidationPassed === undefined || schemaValidationPassed) &&
       (config?.reasoning_quality_min === undefined ||
         reasoningQualityScore >= config.reasoning_quality_min) &&
       (config?.allow_partial || mustContainMisses.length === 0);
@@ -737,6 +932,11 @@ class SkillEvaluationRunner {
         regex_misses: regexMisses,
         severity_matched: severityMatched,
         finding_count_matched: findingCountMatched,
+        finding_count_actual: findingCountActual,
+        schema_validation_passed: schemaValidationPassed,
+        rubric_breakdown: rubricBreakdown,
+        adaptive_keywords_extracted:
+          adaptiveKeywords.length > 0 ? adaptiveKeywords : undefined,
       },
     };
   }

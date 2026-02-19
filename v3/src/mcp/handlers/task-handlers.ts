@@ -308,14 +308,25 @@ export async function handleTaskOrchestrate(
 
   try {
     // ADR-051: Route task to optimal model tier BEFORE execution
+    // Fix #282: Enrich routing input with inferred domain (same as handleModelRoute)
+    const inferredDomain = params.context?.project || inferDomainFromDescription(params.task);
+    const inferredIsCritical = params.priority === 'critical' ||
+      /\b(security|vulnerability|cve|owasp|critical|production|exploit)\b/i.test(params.task);
+
     const router = await getTaskRouter();
     const routingResult = await router.routeTask({
       task: params.task,
       codeContext: params.codeContext,
       filePaths: params.filePaths,
       manualTier: params.manualTier,
-      isCritical: params.priority === 'critical',
-      domain: params.context?.project,
+      isCritical: inferredIsCritical,
+      agentType: `qe-${inferredDomain}`,
+      domain: inferredDomain,
+      metadata: {
+        inferredDomain,
+        hasCodeContext: !!params.codeContext,
+        fileCount: params.filePaths?.length,
+      },
     });
 
     // INTEGRATION FIX: Get ReasoningBank guidance for the task
@@ -525,14 +536,27 @@ export async function handleModelRoute(
 ): Promise<ToolResult<ModelRouteResult>> {
   try {
     const router = await getTaskRouter();
+
+    // Enrich routing input: infer domain and metadata from task description
+    // when the caller doesn't provide them explicitly
+    const inferredDomain = params.domain || inferDomainFromDescription(params.task);
+    const inferredIsCritical = params.isCritical ??
+      /\b(security|vulnerability|cve|owasp|critical|production|exploit)\b/i.test(params.task);
+
     const result = await router.routeTask({
       task: params.task,
       codeContext: params.codeContext,
       filePaths: params.filePaths,
       manualTier: params.manualTier,
-      isCritical: params.isCritical,
-      agentType: params.agentType,
-      domain: params.domain,
+      isCritical: inferredIsCritical,
+      agentType: params.agentType || `qe-${inferredDomain}`,
+      domain: inferredDomain,
+      // Pass metadata to help the complexity analyzer
+      metadata: {
+        inferredDomain,
+        hasCodeContext: !!params.codeContext,
+        fileCount: params.filePaths?.length,
+      },
     });
 
     return {
@@ -639,6 +663,51 @@ export async function handleRoutingMetrics(
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/**
+ * Infer domain from task description for routing enrichment
+ * Maps task descriptions to QE domains so the complexity analyzer
+ * can apply domain-specific scoring (e.g., security → complex domain)
+ */
+function inferDomainFromDescription(description: string): string {
+  const lower = description.toLowerCase();
+
+  if (/\b(security|vulnerabilit|cve|owasp|secret|credential|injection|xss|csrf)\b/.test(lower)) {
+    return 'security-compliance';
+  }
+  if (/\b(chaos|resilience|fault.?inject|disaster|failover)\b/.test(lower)) {
+    return 'chaos-resilience';
+  }
+  if (/\b(defect|bug.?predict|risk.?assess|mutation)\b/.test(lower)) {
+    return 'defect-intelligence';
+  }
+  if (/\b(coverage|uncovered|gap.?analy)\b/.test(lower)) {
+    return 'coverage-analysis';
+  }
+  if (/\b(quality|code.?review|maintain|tech.?debt)\b/.test(lower)) {
+    return 'quality-assessment';
+  }
+  if (/\b(contract|api.?compat|breaking.?change|pact)\b/.test(lower)) {
+    return 'contract-testing';
+  }
+  if (/\b(index|knowledge.?graph|semantic|code.?intel)\b/.test(lower)) {
+    return 'code-intelligence';
+  }
+  if (/\b(accessib|a11y|wcag|screen.?read)\b/.test(lower)) {
+    return 'visual-accessibility';
+  }
+  if (/\b(requirement|bdd|acceptance|user.?stor)\b/.test(lower)) {
+    return 'requirements-validation';
+  }
+  if (/\b(generat.*test|test.*generat|write.*test|create.*test)\b/.test(lower)) {
+    return 'test-generation';
+  }
+  if (/\b(run.*test|execut.*test)\b/.test(lower)) {
+    return 'test-execution';
+  }
+
+  return 'test-generation'; // Default
+}
 
 /**
  * Infer task type from description

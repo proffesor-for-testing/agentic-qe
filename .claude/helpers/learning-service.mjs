@@ -589,6 +589,8 @@ class LearningService {
 
     // Initialize database
     this.db = new Database(DB_PATH);
+    this.db.pragma('busy_timeout = 5000');
+    this.db.pragma('journal_mode = WAL');
     initializeDatabase(this.db);
 
     // Initialize embedding service

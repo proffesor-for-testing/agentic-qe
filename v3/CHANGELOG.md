@@ -5,6 +5,79 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.13] - 2026-02-19
+
+### Fixed
+
+- **test_generate_enhanced returned placeholder stubs** (#292) — Agent Booster was intercepting generate-tests tasks via func-to-arrow pattern detection in source code. Added task-type blocklist to prevent Booster from hijacking domain tasks. Fixed mapToResult to use real testCode from domain service with extracted assertions instead of V2 `func() === null` stubs.
+- **MCP connection crash from uncaught exceptions** (#292) — Added uncaughtException and unhandledRejection handlers in MCP entry to keep the JSON-RPC connection alive. Wrapped QualityFeedbackLoop initialization in defensive try/catch.
+- **Vector dimension mismatch 128 vs 768 in 6 locations** (#292) — Changed embeddingDim defaults from 128 to 768 in decision-transformer, test-generation coordinator, test-prioritizer, feature-flags (2 locations), and shard-embeddings.
+- **coverage_analyze_sublinear returned empty coverageByFile** (#292) — Handler now attempts automatic coverage collection by running `npm test --coverage` when no existing data found. Detects test runner from package.json. Added per-file coverage data mapping in result.
+- **Security scan missed secrets in JS/TS files and known CVEs** (#292) — Cross-language secret patterns now run on ALL files (was only non-JS/TS). Added known-CVE checking for python-jose (CVE-2024-33663/33664) and python-multipart (CVE-2026-24486). Added generic SECRET assignment pattern.
+- **aqe init --auto hooks verification** (#292) — Added post-write verification after settings.json write to detect and warn about missing AQE hooks.
+
+### Added
+
+- Bug Fix Verification rules in CLAUDE.md (reproduction-first, MCP-CLI parity, per-issue verification, smoke test, evidence required, integration tests for MCP)
+
+## [3.6.12] - 2026-02-19
+
+### Fixed
+
+- **HNSW native crash on vector dimension mismatch** (#284, #285) — All 13 HNSW-related source files were initialized with 128 dimensions while RealEmbeddings produces 768-dim vectors. The mismatch triggered a native Rust SIGABRT in ruvector-gnn, killing the MCP connection. All dimension constants now correctly use 768.
+- **Dimension guard for mismatched vectors** (#284) — `unified-memory-hnsw.ts` now skips mismatched vectors with a warning instead of producing garbage partial cosine similarity results.
+- **Security scan returned hardcoded fake findings** (#287) — Complete rewrite of `scan.ts` to perform real SAST file scanning using 40+ regex patterns from security-patterns.ts. Now scans security-relevant directories (.github, .docker, .aws) and checks dependency vulnerabilities.
+- **Coverage analyzer missing XML parser** (#286) — Added Cobertura XML parser with order-independent attribute extraction to `loadCoverageData()`. XML coverage files no longer silently fall through.
+- **Secret detection only found first match per line** (#286) — Changed from `test()` to `matchAll()` so multiple secrets on the same line are all reported.
+- **CORS detection too narrow** (#286) — Broadened from single Express pattern to 5 patterns covering Express, Spring Boot, Nginx, Go, and raw HTTP headers.
+- **Fake MCP handlers** (#286) — Replaced 6 stub handlers (execute-tests, validate-requirements, validate-contracts, test-accessibility, run-chaos, optimize-learning) with real implementations or honest guidance responses.
+- **`aqe init --auto` did not create .claude/hooks/ directory** (#288) — Init phase 07-hooks.ts now creates `.claude/hooks/`, installs real hook assets (cross-phase-memory.yaml, v3-domain-workers.json), and writes a README explaining the hook setup.
+- **Dangerous uncaughtException handler** — Removed `process.on('uncaughtException')` from protocol-server.ts that was masking bugs. The existing try/catch on `onRequest` handles JS errors; native SIGABRT from Rust cannot be caught by any JS handler.
+
+## [3.6.11] - 2026-02-18
+
+### Added
+
+- **Smart settings merge for `aqe init --auto`** — Init now detects existing AQE hooks and updates them in-place instead of duplicating. Non-AQE user hooks are preserved. Both modular and wizard init paths share the same merge logic.
+- **Multi-language file discovery** — New shared `file-discovery.ts` utility supports 12+ languages (TypeScript, Python, Go, Rust, Java, Kotlin, Ruby, C#, PHP, Swift, C/C++, Scala). Used by all CLI commands.
+- **Accuracy indicator on metrics** (#281) — `ProjectMetrics` now includes an `accuracy` field (`accurate` | `approximate`) so consumers know whether LOC/test counts come from real file analysis or estimation.
+
+### Fixed
+
+- **MCP server crash on malformed requests** (#274) — Added try/catch safety wrapper on `onRequest` handler. Malformed tool calls now return structured errors instead of killing the MCP connection.
+- **`code_index` hardcoded to JS/TS only** (#275) — Replaced inline TypeScript-only file walkers in `code`, `coverage`, `security`, and `test` CLI commands with the shared multi-language discovery utility.
+- **`test_generate_enhanced` temp file extension** (#274) — Temp file now uses the correct extension based on the `language` parameter instead of always `.ts`.
+- **Coverage handler returned synthetic file paths** (#276) — Removed fabricated `src/module0.ts` placeholders from coverage results. Only real file paths are returned.
+- **Model router fallback score went negative** (#278) — Fixed `fallbackToLLM: -1` with `Math.max(0, ...)`. Improved complexity scoring with proper tier thresholds and domain-specific floors.
+- **HNSW index panic on dimension mismatch** (#277) — `validateVector()` now resizes vectors (averaging to shrink, zero-padding to grow) instead of throwing on 768→128 mismatch.
+- **LOC counter accuracy for node-native fallback** (#281) — Expanded `excludeDirs` with Python, Java, and framework directories. Added max file size guard (2MB), depth limit, and dot-directory exclusion. Renamed source from `'fallback'` to `'node-native'` since it reads real files.
+- **Init wizard missing `--json` flags on hooks** — Legacy wizard path hooks now include `--json` flags matching the working configuration.
+- **MCP server name mismatch** — Changed from `'aqe'` to `'agentic-qe'` with migration for old entries.
+
+### Changed
+
+- **Cross-language security scanning** — `task-executor.ts` now applies regex-based security patterns (hardcoded secrets, SQL injection, CORS misconfig) to non-JS/TS files during `test_generate_enhanced`.
+- **Model routing enrichment** — `task_orchestrate` and `model_route` MCP handlers now infer domain and criticality from task descriptions for better routing decisions.
+
+## [3.6.10] - 2026-02-18
+
+### Added
+
+- **QCSD Production Telemetry Swarm** (#271) — 5th and final QCSD lifecycle phase. Collects DORA metrics, deployment frequency, change failure rate, and MTTR via GitHub API. Includes auto-trigger workflow after npm publish and cross-phase memory hooks (Loop 5: CI/CD → Production).
+- **Eval-driven development workflow** — New `scripts/eval-driven-workflow.ts` for creating, running, and iterating on skill evaluations as the primary development loop.
+- **Deterministic skill quality scorer** — `scripts/score-skill-quality.ts` computes reproducible quality scores for skills based on structure, coverage, and eval results.
+- **Skill conflict detector** — `scripts/detect-skill-conflicts.ts` identifies overlapping skill scopes and trigger conflicts across the fleet.
+- **Eval runner P1 grading improvements** — Negative control test cases (inverted pass logic for "skill should decline" tests), finding count enforcement, schema validation, weighted grading rubric (completeness/accuracy/actionability), and adaptive rubric with dynamic keyword extraction.
+- **KG-assisted test generation** — Knowledge Graph integration into test generators with 276x faster HNSW vector loading. All generators (Jest/Vitest, Mocha, Pytest) now emit mock declarations from KG dependency analysis.
+
+### Fixed
+
+- **Self-learning hooks not recording from CLI** — Hook interactions from CLI commands were silently dropped. Now all CLI hook interactions record learning data.
+
+### Security
+
+- **Dependency updates** (#272) — Bumped `tar` 7.5.7→7.5.9 (symlink path traversal fix) and `ajv` 8.17.1→8.18.0 (CVE-2025-69873 ReDoS mitigation).
+
 ## [3.6.9] - 2026-02-17
 
 ### Fixed

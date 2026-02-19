@@ -41,7 +41,7 @@ export interface GhostCoverageConfig {
 }
 
 const DEFAULT_CONFIG: GhostCoverageConfig = {
-  dimensions: 128, minConfidence: 0.3, maxGaps: 50,
+  dimensions: 768, minConfidence: 0.3, maxGaps: 50,
   riskWeight: 0.6, distanceWeight: 0.4,
   namespace: 'ghost-surface', idealSurfaceDecay: 0.95,
 };

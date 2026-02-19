@@ -12,7 +12,8 @@
  * - Dashboard data generation
  */
 
-import Database, { type Database as DatabaseType } from 'better-sqlite3';
+import { type Database as DatabaseType } from 'better-sqlite3';
+import { openDatabase } from '../shared/safe-db.js';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import type { QEDomain } from './qe-patterns.js';
@@ -125,7 +126,7 @@ export class LearningMetricsTracker {
       throw new Error(`Database not found: ${this.dbPath}. Run "aqe init --auto" first.`);
     }
 
-    this.db = new Database(this.dbPath, { readonly: false });
+    this.db = openDatabase(this.dbPath);
 
     // Ensure learning_metrics table exists for snapshots
     this.ensureMetricsTable();

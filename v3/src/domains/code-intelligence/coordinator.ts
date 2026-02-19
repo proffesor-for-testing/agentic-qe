@@ -364,7 +364,7 @@ export class CodeIntelligenceCoordinator
   private async initializeHypergraph(): Promise<void> {
     try {
       // Import better-sqlite3 dynamically to avoid issues in environments where it's not available
-      const Database = (await import('better-sqlite3')).default;
+      const { openDatabase } = await import('../../shared/safe-db.js');
 
       // Use configured path or default — resolve relative to project root
       // to prevent creating shadow .agentic-qe directories in subdirectories
@@ -381,7 +381,7 @@ export class CodeIntelligenceCoordinator
       }
 
       // Create database connection
-      this.hypergraphDb = new Database(dbPath);
+      this.hypergraphDb = openDatabase(dbPath);
 
       // Create hypergraph engine
       this.hypergraph = await createHypergraphEngine({
@@ -1281,11 +1281,22 @@ export class CodeIntelligenceCoordinator
       // Collect all metrics using actual tooling
       const metrics = await this.metricCollector.collectAll(projectPath);
 
+      // Fix #281: Log tool source; node-native is accurate, only legacy 'fallback' is approximate
+      const toolsLabel = metrics.toolsUsed.length > 0
+        ? metrics.toolsUsed.join(', ')
+        : metrics.loc.source === 'node-native' ? 'node-native' : 'fallback';
+
       console.log(
         `[CodeIntelligence] Real metrics collected: ` +
           `${metrics.loc.total} LOC, ${metrics.tests.total} tests, ` +
-          `tools: ${metrics.toolsUsed.join(', ') || 'fallback'}`
+          `tools: ${toolsLabel}`
       );
+
+      if (metrics.loc.source === 'node-native') {
+        console.log(
+          `[CodeIntelligence] Using Node.js-native line counter (no cloc/tokei needed)`
+        );
+      }
 
       // Store metrics in memory for cross-domain access
       await this.storeProjectMetricsInMemory(projectPath, metrics);

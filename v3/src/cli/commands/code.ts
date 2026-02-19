@@ -7,6 +7,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
+import { walkSourceFiles } from '../utils/file-discovery.js';
 
 export function createCodeCommand(
   context: CLIContext,
@@ -35,38 +36,16 @@ export function createCodeCommand(
           return;
         }
 
-        const fs = await import('fs');
         const path = await import('path');
 
         if (action === 'index') {
           console.log(chalk.blue(`\n Indexing codebase at ${target || '.'}...\n`));
 
           const targetPath = path.resolve(target || '.');
-          let paths: string[] = [];
-
-          if (fs.existsSync(targetPath)) {
-            if (fs.statSync(targetPath).isDirectory()) {
-              const walkDir = (dir: string, depth: number = 0): string[] => {
-                if (depth > 4) return [];
-                const result: string[] = [];
-                const items = fs.readdirSync(dir);
-                for (const item of items) {
-                  if (item === 'node_modules' || item === 'dist') continue;
-                  const fullPath = path.join(dir, item);
-                  const stat = fs.statSync(fullPath);
-                  if (stat.isDirectory()) {
-                    result.push(...walkDir(fullPath, depth + 1));
-                  } else if (item.endsWith('.ts') && !item.endsWith('.d.ts')) {
-                    result.push(fullPath);
-                  }
-                }
-                return result;
-              };
-              paths = walkDir(targetPath);
-            } else {
-              paths = [targetPath];
-            }
-          }
+          // Fix #280: Use shared file discovery supporting all languages
+          const paths = walkSourceFiles(targetPath, {
+            includeTests: options.includeTests || false,
+          });
 
           console.log(chalk.gray(`  Found ${paths.length} files to index...\n`));
 
@@ -126,31 +105,8 @@ export function createCodeCommand(
           console.log(chalk.blue(`\n Analyzing impact for ${target || 'recent changes'}...\n`));
 
           const targetPath = path.resolve(target || '.');
-          let changedFiles: string[] = [];
-
-          if (fs.existsSync(targetPath)) {
-            if (fs.statSync(targetPath).isFile()) {
-              changedFiles = [targetPath];
-            } else {
-              const walkDir = (dir: string, depth: number = 0): string[] => {
-                if (depth > 2) return [];
-                const result: string[] = [];
-                const items = fs.readdirSync(dir);
-                for (const item of items) {
-                  if (item === 'node_modules' || item === 'dist') continue;
-                  const fullPath = path.join(dir, item);
-                  const stat = fs.statSync(fullPath);
-                  if (stat.isDirectory()) {
-                    result.push(...walkDir(fullPath, depth + 1));
-                  } else if (item.endsWith('.ts') && !item.endsWith('.d.ts')) {
-                    result.push(fullPath);
-                  }
-                }
-                return result;
-              };
-              changedFiles = walkDir(targetPath).slice(0, 10);
-            }
-          }
+          // Fix #280: Use shared file discovery supporting all languages
+          const changedFiles = walkSourceFiles(targetPath, { maxDepth: 2 }).slice(0, 10);
 
           const result = await codeAPI.analyzeImpact({
             changedFiles,
@@ -206,31 +162,8 @@ export function createCodeCommand(
           console.log(chalk.blue(`\n Mapping dependencies for ${target || '.'}...\n`));
 
           const targetPath = path.resolve(target || '.');
-          let files: string[] = [];
-
-          if (fs.existsSync(targetPath)) {
-            if (fs.statSync(targetPath).isFile()) {
-              files = [targetPath];
-            } else {
-              const walkDir = (dir: string, depth: number = 0): string[] => {
-                if (depth > 2) return [];
-                const result: string[] = [];
-                const items = fs.readdirSync(dir);
-                for (const item of items) {
-                  if (item === 'node_modules' || item === 'dist') continue;
-                  const fullPath = path.join(dir, item);
-                  const stat = fs.statSync(fullPath);
-                  if (stat.isDirectory()) {
-                    result.push(...walkDir(fullPath, depth + 1));
-                  } else if (item.endsWith('.ts') && !item.endsWith('.d.ts')) {
-                    result.push(fullPath);
-                  }
-                }
-                return result;
-              };
-              files = walkDir(targetPath).slice(0, 50);
-            }
-          }
+          // Fix #280: Use shared file discovery supporting all languages
+          const files = walkSourceFiles(targetPath, { maxDepth: 2 }).slice(0, 50);
 
           const result = await codeAPI.mapDependencies({
             files,

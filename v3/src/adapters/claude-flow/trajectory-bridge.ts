@@ -179,7 +179,7 @@ export class TrajectoryBridge {
       const { createRequire } = await import('module');
 
       const require = createRequire(import.meta.url);
-      const Database = require('better-sqlite3');
+      const { openDatabase } = require('../../shared/safe-db.js');
 
       const dbPath = join(this.options.projectRoot, '.agentic-qe', 'trajectories.db');
       const dir = join(this.options.projectRoot, '.agentic-qe');
@@ -188,7 +188,7 @@ export class TrajectoryBridge {
         mkdirSync(dir, { recursive: true });
       }
 
-      const db = new Database(dbPath);
+      const db = openDatabase(dbPath);
 
       // Create table if needed
       db.exec(`

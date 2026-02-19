@@ -40,7 +40,7 @@
 
 ## AQE Project Scope
 
-- This project contains ~63 AQE/QE skills and separate Claude Flow platform skills
+- This project contains ~75 AQE/QE skills and separate Claude Flow platform skills
 - When working with skills, ALWAYS distinguish between AQE/QE skills and Claude Flow platform skills
 - Only count/modify AQE skills unless explicitly told otherwise — do NOT include Claude Flow platform skills
 - AQE skills live under `.claude/skills/` but exclude platform infrastructure skills (v3-*, flow-nexus-*, agentdb-*, reasoningbank-*, swarm-*)
@@ -75,6 +75,15 @@ npm run lint
 - Before modifying adapter code or any module used in production, explain the change and its production impact before applying it
 - Wait for user confirmation on changes that could affect live users or published packages
 - When fixing bugs, grep for ALL instances of the problematic pattern across the entire codebase before patching — never assume a value only appears in one place
+
+## Bug Fix Verification (Mandatory)
+
+- **Reproduction-First**: Before closing any bug, run the **exact reproduction steps** from the issue on a real project — not just unit tests
+- **MCP-CLI Parity**: Every fix that touches a CLI code path MUST also be verified via MCP (and vice versa). The two paths diverge frequently.
+- **No Batch-Close Without Per-Issue Verification**: A single commit can fix multiple issues, but each issue needs its own reproduction test
+- **Smoke Test Before Release**: Run the top MCP tools and CLI commands against a fixture project before tagging a release. If any crash or return empty/fabricated data, block the release.
+- **Never Claim Fixed Without Evidence**: Post the actual output (command + result) in the issue/PR before marking fixed
+- **Integration Tests Required for MCP**: Unit tests of handler functions are insufficient. MCP fixes must be verified by making real MCP tool calls through the protocol server.
 
 ## Releases & Publishing
 

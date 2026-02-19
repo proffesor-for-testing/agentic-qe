@@ -46,7 +46,7 @@ export class MochaGenerator extends BaseTestGenerator {
    * Generate complete test file from analysis
    */
   generateTests(context: TestGenerationContext): string {
-    const { moduleName, importPath, testType, patterns, analysis } = context;
+    const { moduleName, importPath, testType, patterns, analysis, dependencies } = context;
 
     if (!analysis || (analysis.functions.length === 0 && analysis.classes.length === 0)) {
       return this.generateStubTests(context);
@@ -56,11 +56,32 @@ export class MochaGenerator extends BaseTestGenerator {
     const exports = this.extractExports(analysis.functions, analysis.classes);
     const importStatement = this.generateImportStatement(exports, importPath, moduleName);
 
+    // KG: Add sinon stubs for known dependencies
+    let sinonImport = '';
+    let stubSetup = '';
+    if (dependencies && dependencies.imports.length > 0) {
+      sinonImport = `import sinon from 'sinon';\n`;
+      const depsToMock = dependencies.imports.slice(0, 5);
+      stubSetup += `  // Auto-generated stubs from Knowledge Graph dependency analysis\n`;
+      stubSetup += `  let stubs;\n\n`;
+      stubSetup += `  beforeEach(function() {\n`;
+      stubSetup += `    stubs = {\n`;
+      for (const dep of depsToMock) {
+        const depName = dep.split('/').pop()?.replace(/[^a-zA-Z0-9_]/g, '_') || dep;
+        stubSetup += `      ${depName}: sinon.stub(),\n`;
+      }
+      stubSetup += `    };\n`;
+      stubSetup += `  });\n\n`;
+      stubSetup += `  afterEach(function() {\n`;
+      stubSetup += `    sinon.restore();\n`;
+      stubSetup += `  });\n\n`;
+    }
+
     let code = `${patternComment}import { expect } from 'chai';
-${importStatement}
+${sinonImport}${importStatement}
 
 describe('${moduleName} - ${testType} tests', function() {
-`;
+${stubSetup}`;
 
     for (const fn of analysis.functions) {
       code += this.generateFunctionTests(fn, testType);
@@ -138,7 +159,7 @@ describe('${moduleName} - ${testType} tests', function() {
    * Generate stub tests when no AST analysis is available
    */
   generateStubTests(context: TestGenerationContext): string {
-    const { moduleName, importPath, testType, patterns } = context;
+    const { moduleName, importPath, testType, patterns, dependencies, similarCode } = context;
     const patternComment = this.generatePatternComment(patterns);
 
     // Determine if async tests needed based on patterns
@@ -148,12 +169,68 @@ describe('${moduleName} - ${testType} tests', function() {
     );
     const asyncSetup = isAsync ? 'async ' : '';
 
+    // KG: Add sinon stubs for known dependencies
+    let sinonImport = '';
+    let stubSetup = '';
+    let stubTeardown = '';
+    if (dependencies && dependencies.imports.length > 0) {
+      sinonImport = `import sinon from 'sinon';\n`;
+      const depsToMock = dependencies.imports.slice(0, 5);
+      stubSetup += `\n    // Auto-generated stubs from Knowledge Graph dependency analysis\n`;
+      stubSetup += `    let stubs;\n\n`;
+      stubSetup += `    beforeEach(function() {\n`;
+      stubSetup += `      stubs = {\n`;
+      for (const dep of depsToMock) {
+        const depName = dep.split('/').pop()?.replace(/[^a-zA-Z0-9_]/g, '_') || dep;
+        stubSetup += `        ${depName}: sinon.stub(),\n`;
+      }
+      stubSetup += `      };\n`;
+      stubSetup += `    });\n\n`;
+      stubTeardown += `    afterEach(function() {\n`;
+      stubTeardown += `      sinon.restore();\n`;
+      stubTeardown += `    });\n\n`;
+    }
+
+    // KG: Similarity comment
+    let similarityComment = '';
+    if (similarCode && similarCode.snippets.length > 0) {
+      similarityComment += `    // KG: Similar modules found - consider testing shared patterns:\n`;
+      for (const s of similarCode.snippets.slice(0, 3)) {
+        similarityComment += `    //   - ${s.file} (${(s.score * 100).toFixed(0)}% similar)\n`;
+      }
+      similarityComment += `\n`;
+    }
+
+    // KG: Dependency interaction test
+    let depTest = '';
+    if (dependencies && dependencies.imports.length > 0) {
+      depTest += `\n    it('should interact with dependencies correctly', function() {\n`;
+      depTest += `      // KG-informed: module depends on ${dependencies.imports.length} imports\n`;
+      depTest += `      const instance = typeof ${moduleName} === 'function'\n`;
+      depTest += `        ? new ${moduleName}()\n`;
+      depTest += `        : ${moduleName};\n`;
+      depTest += `      expect(instance).to.exist;\n`;
+      depTest += `    });\n`;
+    }
+
+    // KG: Public API surface test for modules with consumers
+    let callerTest = '';
+    if (dependencies && dependencies.importedBy.length > 0) {
+      callerTest += `\n    it('should expose stable API for ${dependencies.importedBy.length} consumers', function() {\n`;
+      callerTest += `      // KG-informed: used by ${dependencies.importedBy.slice(0, 3).join(', ')}\n`;
+      callerTest += `      const publicKeys = Object.keys(typeof ${moduleName} === 'function'\n`;
+      callerTest += `        ? ${moduleName}.prototype || {}\n`;
+      callerTest += `        : ${moduleName});\n`;
+      callerTest += `      expect(publicKeys.length).to.be.greaterThan(0);\n`;
+      callerTest += `    });\n`;
+    }
+
     return `${patternComment}import { expect } from 'chai';
-import { ${moduleName} } from '${importPath}';
+${sinonImport}import { ${moduleName} } from '${importPath}';
 
 describe('${moduleName}', function() {
   describe('${testType} tests', function() {
-    it('should be defined', function() {
+${stubSetup}${stubTeardown}${similarityComment}    it('should be defined', function() {
       expect(${moduleName}).to.not.be.undefined;
     });
 
@@ -187,7 +264,7 @@ describe('${moduleName}', function() {
           : ${moduleName};
         return instance;
       }).to.not.throw();
-    });
+    });${depTest}${callerTest}
   });
 });
 `;

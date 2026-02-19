@@ -23,6 +23,7 @@ import { QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
 import {
   createLearningMetricsTracker,
 } from '../../learning/metrics-tracker.js';
+import { openDatabase } from '../../shared/safe-db.js';
 
 // Extracted helpers
 import {
@@ -403,8 +404,7 @@ function registerExtractCommand(learning: Command): void {
         console.log(`  Min reward threshold: ${minReward}`);
         console.log(`  Min occurrences: ${minCount}\n`);
 
-        const Database = (await import('better-sqlite3')).default;
-        const db = new Database(dbPath, { readonly: true });
+        const db = openDatabase(dbPath, { readonly: true });
 
         const experiences = db.prepare(`
           SELECT task_type, COUNT(*) as count, AVG(reward) as avg_reward, MAX(reward) as max_reward,
@@ -737,8 +737,7 @@ function registerVerifyCommand(learning: Command): void {
 
         let tableCounts: Record<string, number> = {};
         try {
-          const Database = (await import('better-sqlite3')).default;
-          const db = new Database(dbPath, { readonly: true });
+          const db = openDatabase(dbPath, { readonly: true });
           for (const table of ['qe_patterns', 'qe_trajectories', 'learning_experiences', 'kv_store', 'vectors']) {
             try { const r = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }; tableCounts[table] = r.count; } catch { /* table may not exist */ }
           }
@@ -807,8 +806,7 @@ function registerExportFullCommand(learning: Command): void {
 
         if (options.includeTrajectories) {
           try {
-            const Database = (await import('better-sqlite3')).default;
-            const db = new Database(dbPath, { readonly: true });
+            const db = openDatabase(dbPath, { readonly: true });
             const trajectories = db.prepare(`SELECT id, task, agent, domain, success, steps_json FROM qe_trajectories ORDER BY started_at DESC LIMIT 1000`).all() as Array<{ id: string; task: string; agent: string; domain: string; success: number; steps_json: string }>;
             exportData.trajectories = trajectories.map(t => ({ id: t.id, task: t.task, agent: t.agent, domain: t.domain, success: t.success, stepsJson: t.steps_json }));
             db.close();
@@ -817,8 +815,7 @@ function registerExportFullCommand(learning: Command): void {
 
         if (options.includeExperiences) {
           try {
-            const Database = (await import('better-sqlite3')).default;
-            const db = new Database(dbPath, { readonly: true });
+            const db = openDatabase(dbPath, { readonly: true });
             const experiences = db.prepare(`SELECT task_type, action, AVG(reward) as avg_reward, COUNT(*) as count FROM learning_experiences GROUP BY task_type, action ORDER BY count DESC LIMIT 500`).all() as Array<{ task_type: string; action: string; avg_reward: number; count: number }>;
             exportData.experiences = experiences.map(e => ({ taskType: e.task_type, action: e.action, reward: e.avg_reward, count: e.count }));
             const metaRow = db.prepare(`SELECT COUNT(*) as total, AVG(reward) as avg_reward FROM learning_experiences`).get() as { total: number; avg_reward: number };

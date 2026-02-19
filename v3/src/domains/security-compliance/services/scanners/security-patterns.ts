@@ -246,6 +246,18 @@ export const SECRET_PATTERNS: SecurityPattern[] = [
     cweId: 'CWE-798',
     remediation: 'Use environment variables for Slack tokens',
   },
+  {
+    id: 'secret-generic-assignment',
+    pattern: /\b\w*(?:SECRET|secret)(?:_KEY|_key|Key)?\s*[:=]\s*['"`][^'"`]{4,}['"`]/g,
+    category: 'sensitive-data',
+    severity: 'high',
+    title: 'Generic Secret Assignment Detected',
+    description: 'Hardcoded secret assignment (SECRET_KEY, JWT_SECRET, APP_SECRET, etc.) found in source code',
+    owaspId: 'A02:2021',
+    cweId: 'CWE-798',
+    remediation: 'Use environment variables or a secrets manager instead of hardcoding secrets',
+    fixExample: 'const secretKey = process.env.SECRET_KEY',
+  },
 ];
 
 // ============================================================================

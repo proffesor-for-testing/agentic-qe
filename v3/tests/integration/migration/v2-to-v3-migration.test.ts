@@ -177,7 +177,7 @@ describe('V2 to V3 Migration Integration', () => {
         migratedFrom: 'v2',
         migratedAt: new Date().toISOString(),
         hnswEnabled: true,
-        vectorDimensions: 128,
+        vectorDimensions: 768,
       };
 
       fs.writeFileSync(

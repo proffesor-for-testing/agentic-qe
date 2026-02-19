@@ -5,7 +5,8 @@
  * Handles: memory.db (consolidated database)
  */
 
-import Database, { type Database as DatabaseType } from 'better-sqlite3';
+import { type Database as DatabaseType } from 'better-sqlite3';
+import { openDatabase } from '../../shared/safe-db.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { DataReader, SyncSource } from '../interfaces.js';
@@ -67,7 +68,7 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
 
     try {
       // Open read-only
-      this.db = new Database(this.dbPath, { readonly: true });
+      this.db = openDatabase(this.dbPath, { readonly: true });
 
       // Enable performance settings for reads
       this.db.pragma('journal_mode = WAL');

@@ -86,7 +86,7 @@ export const HNSW_CONSTANTS = {
   /**
    * Vector dimension for coverage analysis embeddings.
    */
-  COVERAGE_VECTOR_DIMENSION: 128,
+  COVERAGE_VECTOR_DIMENSION: 768,
 } as const;
 
 // ============================================================================

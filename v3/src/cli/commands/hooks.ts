@@ -400,6 +400,47 @@ async function incrementDreamExperience(memoryBackend: MemoryBackend): Promise<n
   }
 }
 
+/**
+ * Persist a command/edit experience directly to the captured_experiences table.
+ * CLI hooks cannot use the MCP middleware wrapper, so they write directly.
+ */
+async function persistCommandExperience(opts: {
+  task: string;
+  agent: string;
+  domain: string;
+  success: boolean;
+  durationMs?: number;
+  source: string;
+}): Promise<void> {
+  try {
+    const { getUnifiedMemory } = await import('../../kernel/unified-memory.js');
+    const um = getUnifiedMemory();
+    if (!um.isInitialized()) {
+      await um.initialize();
+    }
+    const db = um.getDatabase();
+    const id = `cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    db.prepare(`
+      INSERT OR REPLACE INTO captured_experiences
+        (id, task, agent, domain, success, quality, duration_ms,
+         started_at, completed_at, source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)
+    `).run(
+      id,
+      opts.task.slice(0, 500),
+      opts.agent,
+      opts.domain,
+      opts.success ? 1 : 0,
+      opts.success ? 0.7 : 0.3,
+      opts.durationMs || 0,
+      opts.source
+    );
+  } catch (error) {
+    // Best-effort — don't fail the hook
+    console.error(chalk.dim(`[hooks] persistCommandExperience: ${error instanceof Error ? error.message : 'unknown'}`));
+  }
+}
+
 function printGuidance(guidance: string[]): void {
   if (guidance.length === 0) {
     console.log(chalk.dim('  No specific guidance'));
@@ -524,15 +565,48 @@ Examples:
 
         const success = options.success || !options.failure;
 
+        // Generate synthetic patternId from file path if none provided
+        const filePath = options.file || '';
+        const fileName = filePath.split('/').pop() || 'unknown';
+        const isTestFile = /\.(test|spec)\.(ts|js|tsx|jsx)$/.test(fileName);
+        const domain = isTestFile ? 'test-generation' : 'code-intelligence';
+        const syntheticPatternId = options.patternId || `edit:${domain}:${fileName}`;
+
         const results = await hookRegistry.emit(QE_HOOK_EVENTS.PostTestGeneration, {
           targetFile: options.file,
           success,
-          patternId: options.patternId,
+          patternId: syntheticPatternId,
           generatedTests: null,
           testCount: 0,
         });
 
         const result = results[0] || { success: true, patternsLearned: 0 };
+
+        // Also explicitly call recordOutcome so qe_pattern_usage gets a row
+        try {
+          const { reasoningBank } = await getHooksSystem();
+          await reasoningBank.recordOutcome({
+            patternId: syntheticPatternId,
+            success,
+            metrics: { executionTimeMs: 0 },
+            feedback: `Edit ${success ? 'succeeded' : 'failed'}: ${filePath}`,
+          });
+        } catch {
+          // best-effort
+        }
+
+        // Persist as captured experience
+        try {
+          await persistCommandExperience({
+            task: `edit: ${filePath}`,
+            agent: 'cli-hook',
+            domain,
+            success,
+            source: 'cli-hook-post-edit',
+          });
+        } catch {
+          // best-effort
+        }
 
         // Record experience for dream scheduler
         let dreamTriggered = false;
@@ -626,6 +700,47 @@ Examples:
           printGuidance(routing.guidance);
 
           console.log(chalk.bold('\n📖 Reasoning:'), chalk.dim(routing.reasoning));
+        }
+
+        // Persist routing decision for learning
+        try {
+          const { getUnifiedMemory } = await import('../../kernel/unified-memory.js');
+          const um = getUnifiedMemory();
+          if (!um.isInitialized()) {
+            await um.initialize();
+          }
+          const db = um.getDatabase();
+          const outcomeId = `route-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          db.prepare(`
+            INSERT OR REPLACE INTO routing_outcomes (
+              id, task_json, decision_json, used_agent,
+              followed_recommendation, success, quality_score,
+              duration_ms, error
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            outcomeId,
+            JSON.stringify({ description: options.task, domain: options.domain }),
+            JSON.stringify({
+              recommended: routing.recommendedAgent,
+              confidence: routing.confidence,
+              alternatives: routing.alternatives,
+            }),
+            routing.recommendedAgent,
+            1, // followed_recommendation = true (recommendation stage)
+            1, // success = true (routing itself succeeded)
+            routing.confidence,
+            0, // duration not tracked at routing stage
+            null
+          );
+
+          // Increment dream experience counter
+          const projectRoot = findProjectRoot();
+          const dataDir = path.join(projectRoot, '.agentic-qe');
+          const memoryBackend = await createHybridBackendWithTimeout(dataDir);
+          await incrementDreamExperience(memoryBackend);
+        } catch (persistError) {
+          // Best-effort — don't fail the hook
+          console.error(chalk.dim(`[hooks] route persist: ${persistError instanceof Error ? persistError.message : 'unknown'}`));
         }
 
         // Exit cleanly after successful routing (prevents hanging on db cleanup)
@@ -1360,13 +1475,70 @@ Examples:
       try {
         const success = options.success === 'true' || options.success === true;
         const exitCode = options.exitCode ? parseInt(options.exitCode, 10) : (success ? 0 : 1);
+        const command = (options.command || '').substring(0, 200);
+
+        // Determine if this is a test/build/lint command for richer learning
+        const isTestCmd = /\b(test|vitest|jest|pytest|mocha)\b/i.test(command);
+        const isBuildCmd = /\b(build|compile|tsc)\b/i.test(command);
+        const isLintCmd = /\b(lint|eslint|prettier)\b/i.test(command);
+
+        let patternsLearned = 0;
+        let experienceRecorded = false;
+
+        try {
+          const { reasoningBank } = await getHooksSystem();
+
+          // For test commands, emit TestExecutionResult for pattern learning
+          if (isTestCmd) {
+            const { hookRegistry } = await getHooksSystem();
+            await hookRegistry.emit(QE_HOOK_EVENTS.TestExecutionResult, {
+              runId: `cmd-${Date.now()}`,
+              patternId: `cmd:test:${command.split(/\s+/).slice(0, 3).join('-')}`,
+              passed: success ? 1 : 0,
+              failed: success ? 0 : 1,
+              duration: 0,
+              flaky: false,
+            });
+          }
+
+          // Record outcome for all commands
+          const cmdSlug = command.replace(/[^a-zA-Z0-9]/g, '-').slice(0, 80);
+          const domain = isTestCmd ? 'test-execution' : isBuildCmd ? 'code-intelligence' : isLintCmd ? 'quality-assessment' : 'code-intelligence';
+          await reasoningBank.recordOutcome({
+            patternId: `cmd:${cmdSlug}`,
+            success,
+            metrics: { executionTimeMs: 0 },
+            feedback: `Command: ${command}, exit: ${exitCode}`,
+          });
+          patternsLearned = 1;
+
+          // Persist as captured experience
+          await persistCommandExperience({
+            task: `bash: ${command}`,
+            agent: 'cli-hook',
+            domain,
+            success,
+            source: 'cli-hook-post-command',
+          });
+          experienceRecorded = true;
+
+          // Increment dream experience counter
+          const projectRoot = findProjectRoot();
+          const dataDir = path.join(projectRoot, '.agentic-qe');
+          const memoryBackend = await createHybridBackendWithTimeout(dataDir);
+          await incrementDreamExperience(memoryBackend);
+        } catch (initError) {
+          console.error(chalk.dim(`[hooks] post-command learning: ${initError instanceof Error ? initError.message : 'unknown'}`));
+        }
 
         if (options.json) {
           printJson({
             success: true,
-            command: (options.command || '').substring(0, 100),
+            command: command.substring(0, 100),
             commandSuccess: success,
             exitCode,
+            patternsLearned,
+            experienceRecorded,
           });
         }
         // Silent in non-JSON mode to avoid cluttering output

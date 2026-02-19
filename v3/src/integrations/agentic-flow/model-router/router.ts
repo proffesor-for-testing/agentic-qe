@@ -257,7 +257,7 @@ class InMemoryMetricsTracker {
       agentBoosterStats: {
         eligible: agentBoosterEligible,
         used: agentBoosterUsed,
-        fallbackToLLM: agentBoosterEligible - agentBoosterUsed,
+        fallbackToLLM: Math.max(0, agentBoosterEligible - agentBoosterUsed),
         successRate: agentBoosterUsed > 0 ? agentBoosterSuccess / agentBoosterUsed : 0,
       },
       budgetStats: {

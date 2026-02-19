@@ -189,7 +189,7 @@ export function createMigrateCommand(
             migratedFrom: 'v2',
             migratedAt: new Date().toISOString(),
             hnswEnabled: true,
-            vectorDimensions: 128,
+            vectorDimensions: 768,
           }, null, 2));
 
           const stats = fs.statSync(v2Files.memoryDb);
@@ -223,7 +223,7 @@ export function createMigrateCommand(
             domains: {
               'test-generation': { enabled: true },
               'test-execution': { enabled: true },
-              'coverage-analysis': { enabled: true, algorithm: 'hnsw', dimensions: 128 },
+              'coverage-analysis': { enabled: true, algorithm: 'hnsw', dimensions: 768 },
               'quality-assessment': { enabled: true },
               'defect-intelligence': { enabled: true },
               'requirements-validation': { enabled: true },

@@ -42,7 +42,7 @@ interface DTConfig {
 
 const DEFAULT_DT_CONFIG: DTConfig = {
   contextLength: 10,
-  embeddingDim: 128,
+  embeddingDim: 768,
   numHeads: 4,
   numLayers: 3,
   feedForwardDim: 256,

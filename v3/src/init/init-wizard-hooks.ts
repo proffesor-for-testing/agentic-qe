@@ -3,11 +3,21 @@
  *
  * Contains hook configuration, MCP server setup, and CLAUDE.md generation
  * logic used during AQE initialization. Extracted from init-wizard.ts.
+ *
+ * Uses shared settings-merge utilities to:
+ * - Detect and replace existing AQE hooks (no duplicates)
+ * - Preserve non-AQE hooks from the user's config
+ * - Add full env vars and v3 settings sections
  */
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync, copyFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { safeJsonParse } from '../shared/safe-json.js';
+import {
+  mergeHooksSmart,
+  generateAqeEnvVars,
+  generateV3SettingsSections,
+} from './settings-merge.js';
 
 import type { AQEInitConfig } from './types.js';
 
@@ -18,7 +28,9 @@ import type { AQEInitConfig } from './types.js';
 /**
  * Configure Claude Code hooks.
  * Creates or updates .claude/settings.json with AQE hooks.
- * Uses Claude Code's actual environment variables ($TOOL_INPUT_*, $TOOL_SUCCESS, etc.)
+ *
+ * Smart merge: detects existing AQE/agentic-qe hooks and replaces them
+ * instead of appending duplicates. Non-AQE hooks are preserved.
  */
 export async function configureHooks(projectRoot: string, config: AQEInitConfig): Promise<boolean> {
   if (!config.hooks.claudeCode) {
@@ -44,15 +56,26 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
     }
   }
 
-  // Configure hooks with Claude Code's actual environment variables
-  const hooks: Record<string, unknown> = {
+  // Generate new AQE hooks config
+  const aqeHooks: Record<string, unknown[]> = {
     PreToolUse: [
       {
         matcher: '^(Write|Edit|MultiEdit)$',
         hooks: [
           {
             type: 'command',
-            command: 'aqe hooks pre-edit --file "$TOOL_INPUT_file_path"',
+            command: 'npx agentic-qe hooks guard --file "$TOOL_INPUT_file_path" --json',
+            timeout: 3000,
+            continueOnError: true,
+          },
+        ],
+      },
+      {
+        matcher: '^(Write|Edit|MultiEdit)$',
+        hooks: [
+          {
+            type: 'command',
+            command: 'npx agentic-qe hooks pre-edit --file "$TOOL_INPUT_file_path" --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -63,8 +86,8 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'aqe hooks pre-command --command "$TOOL_INPUT_command"',
-            timeout: 5000,
+            command: 'npx agentic-qe hooks pre-command --command "$TOOL_INPUT_command" --json',
+            timeout: 3000,
             continueOnError: true,
           },
         ],
@@ -74,7 +97,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'aqe hooks pre-task --description "$TOOL_INPUT_prompt"',
+            command: 'npx agentic-qe hooks pre-task --description "$TOOL_INPUT_prompt" --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -87,7 +110,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'aqe hooks post-edit --file "$TOOL_INPUT_file_path" --success "$TOOL_SUCCESS"',
+            command: 'npx agentic-qe hooks post-edit --file "$TOOL_INPUT_file_path" --success --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -98,7 +121,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'aqe hooks post-command --command "$TOOL_INPUT_command" --success "$TOOL_SUCCESS"',
+            command: 'npx agentic-qe hooks post-command --command "$TOOL_INPUT_command" --success --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -109,7 +132,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'aqe hooks post-task --task-id "$TOOL_RESULT_agent_id" --success "$TOOL_SUCCESS"',
+            command: 'npx agentic-qe hooks post-task --task-id "$TOOL_RESULT_agent_id" --success --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -121,7 +144,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'aqe hooks route --task "$PROMPT"',
+            command: 'npx agentic-qe hooks route --task "$PROMPT" --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -133,7 +156,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'aqe hooks session-start --session-id "$SESSION_ID"',
+            command: 'npx agentic-qe hooks session-start --session-id "$SESSION_ID" --json',
             timeout: 10000,
             continueOnError: true,
           },
@@ -145,7 +168,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'aqe hooks session-end --save-state',
+            command: 'npx agentic-qe hooks session-end --save-state --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -154,44 +177,30 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
     ],
   };
 
-  // Merge with existing settings (preserve existing hooks, add AQE hooks)
-  const existingHooks = settings.hooks as Record<string, unknown[]> || {};
-  const mergedHooks: Record<string, unknown[]> = {};
+  // Smart merge: replace old AQE hooks, keep user hooks, add new AQE hooks
+  const existingHooks = (settings.hooks as Record<string, unknown[]>) || {};
+  settings.hooks = mergeHooksSmart(existingHooks, aqeHooks);
 
-  for (const [hookType, hookArray] of Object.entries(hooks)) {
-    const existing = existingHooks[hookType] || [];
-    mergedHooks[hookType] = [...existing, ...(hookArray as unknown[])];
-  }
-
-  for (const [hookType, hookArray] of Object.entries(existingHooks)) {
-    if (!mergedHooks[hookType]) {
-      mergedHooks[hookType] = hookArray;
-    }
-  }
-
-  settings.hooks = mergedHooks;
-
-  // Add AQE environment variables
-  const existingEnv = settings.env as Record<string, string> || {};
+  // Set full AQE environment variables
+  const existingEnv = (settings.env as Record<string, string>) || {};
   settings.env = {
     ...existingEnv,
-    AQE_MEMORY_PATH: '.agentic-qe/memory.db',
-    AQE_V3_MODE: 'true',
-    AQE_LEARNING_ENABLED: config.learning.enabled ? 'true' : 'false',
+    ...generateAqeEnvVars(config),
   };
 
-  // Add AQE metadata
-  settings.aqe = {
-    version: config.version,
-    initialized: new Date().toISOString(),
-    hooksConfigured: true,
-  };
-
-  // Add MCP server enablement
-  const existingMcp = settings.enabledMcpjsonServers as string[] || [];
-  if (!existingMcp.includes('aqe')) {
-    settings.enabledMcpjsonServers = [...existingMcp, 'aqe'];
+  // Apply v3 settings sections
+  const v3Sections = generateV3SettingsSections(config);
+  for (const [key, value] of Object.entries(v3Sections)) {
+    settings[key] = value;
   }
+
+  // Enable MCP servers (deduplicate, replace old 'aqe' with 'agentic-qe')
+  let existingMcp = (settings.enabledMcpjsonServers as string[]) || [];
+  existingMcp = existingMcp.filter(s => s !== 'aqe');
+  if (!existingMcp.includes('agentic-qe')) {
+    existingMcp.push('agentic-qe');
+  }
+  settings.enabledMcpjsonServers = existingMcp;
 
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
 

@@ -82,6 +82,8 @@ try {
 
   const Database = require('better-sqlite3');
   const db = new Database(aqeDbPath);
+  db.pragma('busy_timeout = 5000');
+  db.pragma('journal_mode = WAL');
 
   const insert = db.prepare(`
     INSERT OR REPLACE INTO kv_store (key, namespace, value, created_at)

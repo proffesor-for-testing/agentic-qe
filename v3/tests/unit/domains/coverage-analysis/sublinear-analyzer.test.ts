@@ -364,7 +364,7 @@ describe.runIf(canTest.gnn)('SublinearCoverageAnalyzer', () => {
       expect(DEFAULT_ANALYZER_CONFIG.maxResults).toBe(100);
       expect(DEFAULT_ANALYZER_CONFIG.autoIndex).toBe(true);
       expect(DEFAULT_ANALYZER_CONFIG.batchSize).toBe(100);
-      expect(DEFAULT_ANALYZER_CONFIG.dimensions).toBe(128);
+      expect(DEFAULT_ANALYZER_CONFIG.dimensions).toBe(768);
     });
   });
 

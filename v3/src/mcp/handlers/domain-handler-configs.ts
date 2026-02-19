@@ -198,7 +198,6 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
     const testsCount = (data.testsGenerated as number) || 6;
 
     const complexity = analyzeComplexity(sourceCode);
-    const v2Tests = generateV2Tests(sourceCode, testType, language, testsCount);
     const aiInsights = params?.aiEnhancement !== false
       ? generateV2AIInsights(complexity, testType)
       : { recommendations: [], estimatedTime: '0 minutes', confidence: 0 };
@@ -207,9 +206,35 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       : [];
     const learning = generateV2LearningFeedback('test-generator');
 
+    // Use real tests from domain service when available, fall back to V2 stubs
+    const domainTests = data.tests as Array<{
+      name: string; file?: string; testFile?: string; type: string;
+      sourceFile?: string; assertions?: number; testCode?: string;
+    }> | undefined;
+    const hasRealTests = Array.isArray(domainTests) && domainTests.length > 0
+      && domainTests[0].testCode;
+
+    const tests = hasRealTests
+      ? domainTests!.map((t, i) => ({
+          id: generateTestId(),
+          name: t.name || `test_${i}`,
+          type: t.type || testType,
+          parameters: [],
+          assertions: t.testCode
+            ? extractAssertionsFromCode(t.testCode)
+            : [`test assertion ${i}`],
+          expectedResult: null,
+          estimatedDuration: t.type === 'integration' ? 2000 : 1000,
+          aiGenerated: true,
+          testCode: t.testCode,
+          sourceFile: t.sourceFile,
+          testFile: t.testFile || t.file,
+        }))
+      : generateV2Tests(sourceCode, testType, language, testsCount);
+
     return {
       // V2-compatible fields
-      tests: v2Tests,
+      tests,
       antiPatterns,
       suggestions: antiPatterns.map(ap => `Fix: ${ap.type} - ${ap.suggestion}`),
       aiInsights,
@@ -218,7 +243,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
         confidence: 0.9,
         achievable: true,
       },
-      properties: v2Tests.filter(t => t.type === 'property').map(t => ({
+      properties: tests.filter(t => t.type === 'property').map(t => ({
         name: t.name,
         invariant: 'output_matches_expectation'
       })),
@@ -228,7 +253,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       // V3 fields
       taskId,
       status: 'completed',
-      testsGenerated: v2Tests.length,
+      testsGenerated: tests.length,
       coverageEstimate: (data.coverageEstimate as number) || params?.coverageGoal || 80,
       patternsUsed: (data.patternsUsed as string[]) || ['assertion-patterns', 'mock-generation', 'edge-case-detection'],
       duration,
@@ -357,54 +382,63 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
 
     const learning = generateV2LearningFeedback('coverage-analyzer');
 
-    // Generate detailed gap analysis
+    // Map gap analysis from real data — never fabricate file paths
     const detailedGaps = gaps.map((gap: unknown, i: number) => {
       const g = gap as Record<string, unknown>;
+      // Only include gaps that have real file paths from the analyzer
+      if (!g?.file) return null;
       return {
         id: `gap-${Date.now()}-${i}`,
-        file: (g?.file as string) || `src/module${i}.ts`,
-        line: ((g?.lines as number[])?.[0]) || (10 + i * 5),
-        uncoveredLines: (g?.lines as number[]) || [10 + i * 5, 20 + i * 5],
-        type: ((g?.type as string) || 'uncovered-line') as 'uncovered-line' | 'uncovered-branch' | 'uncovered-function',
-        severity: ((g?.severity as string) || (i < 2 ? 'high' : 'medium')) as 'critical' | 'high' | 'medium' | 'low',
-        reason: (g?.reason as string) || 'Missing test case',
-        priority: (g?.priority as string) || (i < 2 ? 'high' : 'medium'),
-        suggestion: (g?.suggestedTest as string) || `Add test for line ${10 + i * 5}`,
-        suggestedTest: (g?.suggestedTest as string) || `Add test for line ${10 + i * 5}`,
-        riskScore: (g?.riskScore as number) || (0.8 - i * 0.1),
-        confidence: (g?.confidence as number) || 0.85,
+        file: g.file as string,
+        line: ((g.lines as number[])?.[0]) || 0,
+        uncoveredLines: (g.lines as number[]) || [],
+        type: ((g.type as string) || 'uncovered-line') as 'uncovered-line' | 'uncovered-branch' | 'uncovered-function',
+        severity: ((g.severity as string) || 'medium') as 'critical' | 'high' | 'medium' | 'low',
+        reason: (g.reason as string) || 'Missing test case',
+        priority: (g.priority as string) || 'medium',
+        suggestion: (g.suggestedTest as string) || 'Add test coverage',
+        suggestedTest: (g.suggestedTest as string) || 'Add test coverage',
+        riskScore: (g.riskScore as number) || 0.5,
+        confidence: (g.confidence as number) || 0.7,
       };
-    });
+    }).filter((g): g is NonNullable<typeof g> => g !== null);
+
+    // Use real file data from the analyzer if available, never fabricate file paths
+    const coverageByFileData = data.coverageByFile as Array<Record<string, unknown>> | undefined;
+    const realCoverageByFile = coverageByFileData
+      ? coverageByFileData.map(f => ({
+          file: f.file as string,
+          lineCoverage: (f.lineCoverage as number) || 0,
+          branchCoverage: (f.branchCoverage as number) || 0,
+          functionCoverage: (f.functionCoverage as number) || 0,
+        }))
+      : [];
 
     return {
-      // V2-compatible fields
-      coverageByFile: Array.from({ length: totalFiles }, (_, i) => {
-        const variation = ((i % 3) - 1) * 5;
-        return {
-          file: `src/module${i}.ts`,
-          lineCoverage: Math.max(0, Math.min(100, lineCoverage + variation)),
-          branchCoverage: Math.max(0, Math.min(100, branchCoverage + variation - 2)),
-          functionCoverage: Math.max(0, Math.min(100, functionCoverage + variation + 2)),
-        };
-      }),
+      // V2-compatible fields — only real data, no synthetic file paths
+      coverageByFile: realCoverageByFile,
       gapAnalysis: {
         totalGaps: detailedGaps.length,
         highPriority: detailedGaps.filter(g => g.priority === 'high').length,
         gaps: detailedGaps,
       },
       trends: {
-        lineCoverageTrend: 'stable',
-        branchCoverageTrend: 'improving',
-        weeklyChange: 2.5,
+        lineCoverageTrend: totalFiles > 0 ? 'stable' : 'no-data',
+        branchCoverageTrend: totalFiles > 0 ? 'stable' : 'no-data',
+        weeklyChange: 0,
       },
-      aiInsights: {
-        recommendations: [
-          'Focus on uncovered branches in authentication module',
-          'Add edge case tests for error handling paths',
-          'Consider property-based testing for utility functions',
+      aiInsights: totalFiles > 0 ? {
+        recommendations: (data.recommendations as string[]) || [
+          'Run tests with coverage enabled to get accurate metrics',
         ],
         riskAssessment: lineCoverage < 70 ? 'high' : lineCoverage < 85 ? 'medium' : 'low',
         confidence: 0.88,
+      } : {
+        recommendations: [
+          'No coverage data found. Run tests with coverage first (e.g., npm test -- --coverage, or pytest --cov)',
+        ],
+        riskAssessment: 'unknown',
+        confidence: 0,
       },
       learning,
       // V3 fields
@@ -697,6 +731,42 @@ export const codeIndexConfig: DomainHandlerConfig<CodeIndexParams, CodeIndexResu
     savedFiles,
   }),
 };
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Extract human-readable assertion descriptions from generated test code.
+ * Looks for expect(), assert(), it(), test() patterns in the test source.
+ */
+function extractAssertionsFromCode(testCode: string): string[] {
+  const assertions: string[] = [];
+  const lines = testCode.split('\n');
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Match expect(...).toBe/toEqual/toThrow patterns
+    const expectMatch = trimmed.match(/expect\((.+?)\)\.(to\w+)\((.+?)\)/);
+    if (expectMatch) {
+      assertions.push(`expect(${expectMatch[1]}).${expectMatch[2]}(${expectMatch[3]})`);
+      continue;
+    }
+    // Match assert patterns
+    const assertMatch = trimmed.match(/assert\w*\((.+)\)/);
+    if (assertMatch) {
+      assertions.push(assertMatch[0]);
+      continue;
+    }
+    // Match it()/test() descriptions
+    const itMatch = trimmed.match(/(?:it|test)\s*\(\s*['"`](.+?)['"`]/);
+    if (itMatch) {
+      assertions.push(itMatch[1]);
+    }
+  }
+
+  return assertions.length > 0 ? assertions : ['test generated from source analysis'];
+}
 
 // ============================================================================
 // All Configurations Export

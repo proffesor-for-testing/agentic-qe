@@ -1,11 +1,22 @@
 /**
  * Phase 07: Hooks
- * Configures Claude Code hooks for learning integration
+ * Configures Claude Code hooks for learning integration.
+ *
+ * Smart merge strategy:
+ * - Detects existing AQE/agentic-qe hooks and REPLACES them (no duplicates)
+ * - Preserves any non-AQE hooks from the user's existing config
+ * - Adds full env vars and v3 settings sections
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import {
+  isAqeHookEntry,
+  mergeHooksSmart,
+  generateAqeEnvVars,
+  generateV3SettingsSections,
+} from '../settings-merge.js';
 
 import {
   BasePhase,
@@ -17,6 +28,7 @@ export interface HooksResult {
   configured: boolean;
   settingsPath: string;
   hookTypes: string[];
+  existingAqeDetected: boolean;
 }
 
 /**
@@ -43,13 +55,18 @@ export class HooksPhase extends BasePhase<HooksResult> {
         configured: false,
         settingsPath: '',
         hookTypes: [],
+        existingAqeDetected: false,
       };
     }
 
-    // Create .claude directory
+    // Create .claude directory and .claude/hooks directory
     const claudeDir = join(projectRoot, '.claude');
     if (!existsSync(claudeDir)) {
       mkdirSync(claudeDir, { recursive: true });
+    }
+    const hooksDir = join(claudeDir, 'hooks');
+    if (!existsSync(hooksDir)) {
+      mkdirSync(hooksDir, { recursive: true });
     }
 
     // Load existing settings
@@ -65,83 +82,174 @@ export class HooksPhase extends BasePhase<HooksResult> {
       }
     }
 
-    // Configure hooks
-    const hooks = this.generateHooksConfig(config);
-    const hookTypes = Object.keys(hooks);
+    // Generate new AQE hooks
+    const aqeHooks = this.generateHooksConfig(config);
+    const hookTypes = Object.keys(aqeHooks);
 
-    // Merge with existing hooks (deduplicate by command string)
-    const existingHooks = settings.hooks as Record<string, unknown[]> || {};
-    const mergedHooks: Record<string, unknown[]> = {};
+    // Detect if there are existing AQE hooks
+    const existingHooks = (settings.hooks as Record<string, unknown[]>) || {};
+    const existingAqeDetected = this.hasExistingAqeHooks(existingHooks);
 
-    for (const [hookType, hookArray] of Object.entries(hooks)) {
-      const existing = existingHooks[hookType] || [];
-      const newHooks = hookArray as Array<{ matcher?: string; hooks?: Array<{ command?: string }> }>;
-
-      // Build set of existing commands for deduplication
-      const existingCommands = new Set<string>();
-      for (const hook of existing) {
-        const h = hook as { matcher?: string; hooks?: Array<{ command?: string }> };
-        if (h.hooks) {
-          for (const innerHook of h.hooks) {
-            if (innerHook.command) {
-              existingCommands.add(innerHook.command);
-            }
-          }
-        }
-      }
-
-      // Only add hooks that don't already exist
-      const uniqueNewHooks = newHooks.filter(hook => {
-        if (!hook.hooks) return true;
-        // Check if any of the hook's commands already exist
-        return !hook.hooks.some(h => h.command && existingCommands.has(h.command));
-      });
-
-      mergedHooks[hookType] = [...existing, ...uniqueNewHooks];
+    if (existingAqeDetected) {
+      context.services.log('  Detected existing AQE hooks — replacing with updated config');
     }
 
-    // Preserve hooks not in our list
-    for (const [hookType, hookArray] of Object.entries(existingHooks)) {
-      if (!mergedHooks[hookType]) {
-        mergedHooks[hookType] = hookArray;
-      }
-    }
+    // Smart merge: remove old AQE hooks, keep user hooks, add new AQE hooks
+    settings.hooks = mergeHooksSmart(existingHooks, aqeHooks);
 
-    settings.hooks = mergedHooks;
-
-    // Add environment variables
-    const existingEnv = settings.env as Record<string, string> || {};
+    // Set full AQE environment variables
+    const existingEnv = (settings.env as Record<string, string>) || {};
     settings.env = {
       ...existingEnv,
-      AQE_MEMORY_PATH: '.agentic-qe/memory.db',
-      AQE_V3_MODE: 'true',
-      AQE_LEARNING_ENABLED: config.learning.enabled ? 'true' : 'false',
+      ...generateAqeEnvVars(config),
     };
 
-    // Add AQE metadata
-    settings.aqe = {
-      version: config.version,
-      initialized: new Date().toISOString(),
-      hooksConfigured: true,
-    };
-
-    // Enable MCP server
-    const existingMcp = settings.enabledMcpjsonServers as string[] || [];
-    if (!existingMcp.includes('aqe')) {
-      settings.enabledMcpjsonServers = [...existingMcp, 'aqe'];
+    // Apply v3 settings sections (statusLine, permissions, v3Configuration, v3Learning, etc.)
+    const v3Sections = generateV3SettingsSections(config);
+    for (const [key, value] of Object.entries(v3Sections)) {
+      settings[key] = value;
     }
+
+    // Enable MCP servers (deduplicate, replace old 'aqe' with 'agentic-qe')
+    let existingMcp = (settings.enabledMcpjsonServers as string[]) || [];
+    // Remove legacy 'aqe' entry if present (renamed to 'agentic-qe')
+    existingMcp = existingMcp.filter(s => s !== 'aqe');
+    if (!existingMcp.includes('agentic-qe')) {
+      existingMcp.push('agentic-qe');
+    }
+    settings.enabledMcpjsonServers = existingMcp;
 
     // Write settings
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
 
+    // Write README and install hook assets (bridge script, cross-phase memory)
+    this.writeHooksReadme(hooksDir, hookTypes);
+    this.installHookAssets(hooksDir, context);
+
+    // Post-write verification: ensure settings.json actually contains AQE hooks
+    try {
+      const verifyContent = readFileSync(settingsPath, 'utf-8');
+      const verifySettings = safeJsonParse<Record<string, unknown>>(verifyContent);
+      const verifyHooks = verifySettings.hooks as Record<string, unknown[]> | undefined;
+      if (!verifyHooks || !this.hasExistingAqeHooks(verifyHooks)) {
+        context.services.log('  WARNING: settings.json written but AQE hooks not detected — check settings-merge logic');
+      }
+    } catch {
+      context.services.log('  WARNING: Could not verify settings.json after write');
+    }
+
     context.services.log(`  Settings: ${settingsPath}`);
+    context.services.log(`  Hooks dir: ${hooksDir}`);
     context.services.log(`  Hook types: ${hookTypes.join(', ')}`);
 
     return {
       configured: true,
       settingsPath,
       hookTypes,
+      existingAqeDetected,
     };
+  }
+
+  /**
+   * Write a README to .claude/hooks/ explaining the hook setup.
+   * Actual hook config lives in .claude/settings.json (Claude Code reads it from there).
+   * The hooks dir contains supporting infrastructure (bridge script, workers config).
+   */
+  private writeHooksReadme(hooksDir: string, hookTypes: string[]): void {
+    const readmePath = join(hooksDir, 'README.txt');
+    if (existsSync(readmePath)) return; // Don't overwrite existing
+
+    const content = [
+      'AQE Hooks Directory',
+      '====================',
+      '',
+      'Claude Code hooks are configured in .claude/settings.json (not as files here).',
+      'This directory contains supporting infrastructure for the learning system.',
+      '',
+      'Configured hook types: ' + hookTypes.join(', '),
+      '',
+      'Files:',
+      '  settings.json  — Hook definitions (in parent .claude/ directory)',
+      '  v3-qe-bridge.sh — Bridge script connecting Claude Code events to QE learning',
+      '  v3-domain-workers.json — Domain worker configuration',
+      '  cross-phase-memory.yaml — QCSD feedback loop configuration',
+      '',
+      'Manual testing:',
+      '  npx agentic-qe hooks session-start --session-id test --json',
+      '  npx agentic-qe hooks route --task "generate tests" --json',
+      '  npx agentic-qe hooks post-edit --file src/example.ts --success --json',
+      '',
+    ].join('\n');
+
+    writeFileSync(readmePath, content, 'utf-8');
+  }
+
+  /**
+   * Install hook assets (cross-phase memory config, domain workers).
+   * Copies from v3/assets/hooks/ if available, otherwise creates minimal defaults.
+   */
+  private installHookAssets(hooksDir: string, context: InitContext): void {
+    const { projectRoot } = context;
+
+    // Install cross-phase memory config
+    const crossPhasePath = join(hooksDir, 'cross-phase-memory.yaml');
+    if (!existsSync(crossPhasePath)) {
+      // Try to find the asset
+      const assetPaths = [
+        join(projectRoot, 'v3', 'assets', 'hooks', 'cross-phase-memory.yaml'),
+        join(projectRoot, 'assets', 'hooks', 'cross-phase-memory.yaml'),
+        join(projectRoot, 'node_modules', 'agentic-qe', 'v3', 'assets', 'hooks', 'cross-phase-memory.yaml'),
+      ];
+
+      let installed = false;
+      for (const src of assetPaths) {
+        if (existsSync(src)) {
+          const { copyFileSync } = require('fs');
+          copyFileSync(src, crossPhasePath);
+          context.services.log('  Installed cross-phase memory config');
+          installed = true;
+          break;
+        }
+      }
+
+      if (!installed) {
+        // Create minimal config
+        writeFileSync(crossPhasePath, [
+          '# Cross-Phase Memory Hooks Configuration',
+          '# Generated by aqe init',
+          'version: "1.0"',
+          'enabled: true',
+          '',
+        ].join('\n'), 'utf-8');
+      }
+    }
+
+    // Install domain workers config
+    const workersPath = join(hooksDir, 'v3-domain-workers.json');
+    if (!existsSync(workersPath)) {
+      writeFileSync(workersPath, JSON.stringify({
+        version: '3.0',
+        workers: [
+          { name: 'pattern-consolidator', interval: '5m', enabled: true },
+          { name: 'routing-accuracy-monitor', interval: '10m', enabled: true },
+          { name: 'coverage-gap-scanner', interval: '15m', enabled: true },
+          { name: 'flaky-test-detector', interval: '30m', enabled: true },
+        ],
+      }, null, 2), 'utf-8');
+    }
+  }
+
+  /**
+   * Check if existing hooks contain any AQE/agentic-qe entries
+   */
+  private hasExistingAqeHooks(hooks: Record<string, unknown[]>): boolean {
+    for (const hookArray of Object.values(hooks)) {
+      if (!Array.isArray(hookArray)) continue;
+      for (const entry of hookArray) {
+        if (isAqeHookEntry(entry)) return true;
+      }
+    }
+    return false;
   }
 
   /**

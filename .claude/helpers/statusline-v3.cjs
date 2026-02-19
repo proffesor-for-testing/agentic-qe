@@ -25,6 +25,7 @@ try {
   // Verify native bindings actually work (require succeeds but constructor
   // may throw if .node binary isn't compiled for this platform)
   const testDb = new Database(':memory:');
+  testDb.pragma('busy_timeout = 5000');
   testDb.close();
 } catch {
   Database = null; // Fallback to CLI if better-sqlite3 not available
@@ -138,6 +139,7 @@ function getDb(dbPath) {
     if (Database && fileExists(dbPath)) {
       try {
         const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+        db.pragma('busy_timeout = 5000');
         dbCache.set(dbPath, db);
       } catch {
         dbCache.set(dbPath, null);

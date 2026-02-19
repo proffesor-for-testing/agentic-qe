@@ -48,7 +48,9 @@ function uuid() {
 console.log('=== v2 → v3 Memory Migration ===\n');
 
 const v2 = new Database(V2_PATH, { readonly: true });
+v2.pragma('busy_timeout = 5000');
 const v3 = new Database(V3_PATH);
+v3.pragma('busy_timeout = 5000');
 
 // Enable WAL mode for performance
 v3.pragma('journal_mode = WAL');

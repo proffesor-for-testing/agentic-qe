@@ -353,11 +353,15 @@ export function getTaskExecutor(): DomainTaskExecutor {
     taskExecutor = createTaskExecutor(kernel);
     // Wire QualityFeedbackLoop for routing outcome persistence
     const executor = taskExecutor;
-    createInitializedFeedbackLoop().then(loop => {
-      executor.setQualityFeedbackLoop(loop);
-    }).catch(e => {
-      console.warn('[HandlerFactory] Failed to initialize QualityFeedbackLoop:', e);
-    });
+    try {
+      createInitializedFeedbackLoop().then(loop => {
+        executor.setQualityFeedbackLoop(loop);
+      }).catch(e => {
+        console.warn('[HandlerFactory] Failed to initialize QualityFeedbackLoop:', e);
+      });
+    } catch (e) {
+      console.warn('[HandlerFactory] Sync error in feedback loop setup:', e);
+    }
   }
   return taskExecutor;
 }

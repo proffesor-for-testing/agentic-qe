@@ -107,7 +107,7 @@ export interface RiskAssessment {
 
 export class CoverageAnalyzerService implements ICoverageAnalysisService {
   private static readonly DEFAULT_THRESHOLD = 80;
-  private static readonly VECTOR_DIMENSION = 128;
+  private static readonly VECTOR_DIMENSION = 768;
 
   private readonly memory: MemoryBackend;
   private readonly config: CoverageAnalyzerConfig;

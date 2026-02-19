@@ -15,6 +15,7 @@ import {
   QEReasoningBank,
   createQEReasoningBank,
 } from '../../learning/qe-reasoning-bank.js';
+import { openDatabase } from '../../shared/safe-db.js';
 import { HybridMemoryBackend } from '../../kernel/hybrid-backend.js';
 import { QEDomain, QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
 import type {
@@ -242,8 +243,7 @@ export async function decompressFile(gzPath: string, outputPath: string): Promis
  */
 export async function verifyDatabaseIntegrity(dbPath: string): Promise<{ valid: boolean; message: string }> {
   try {
-    const Database = (await import('better-sqlite3')).default;
-    const db = new Database(dbPath, { readonly: true });
+    const db = openDatabase(dbPath, { readonly: true });
 
     const result = db.prepare('PRAGMA integrity_check').get() as { integrity_check: string };
     db.close();
@@ -266,8 +266,7 @@ export async function verifyDatabaseIntegrity(dbPath: string): Promise<{ valid: 
  */
 export async function getSchemaVersion(dbPath: string): Promise<number> {
   try {
-    const Database = (await import('better-sqlite3')).default;
-    const db = new Database(dbPath, { readonly: true });
+    const db = openDatabase(dbPath, { readonly: true });
 
     const tableExists = db.prepare(
       "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"

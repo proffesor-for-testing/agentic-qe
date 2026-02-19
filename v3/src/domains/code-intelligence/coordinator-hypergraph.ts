@@ -26,7 +26,7 @@ export async function initializeHypergraph(
   hypergraphDbPath: string | undefined,
   enableGNN: boolean
 ): Promise<{ engine: HypergraphEngine; db: import('better-sqlite3').Database }> {
-  const Database = (await import('better-sqlite3')).default;
+  const { openDatabase } = await import('../../shared/safe-db.js');
   const fs = await import('fs');
   const path = await import('path');
   const { findProjectRoot } = await import('../../kernel/unified-memory.js');
@@ -38,7 +38,7 @@ export async function initializeHypergraph(
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  const db = new Database(dbPath);
+  const db = openDatabase(dbPath);
 
   const engine = await createHypergraphEngine({
     db,

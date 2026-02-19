@@ -12,7 +12,8 @@
  * @version 3.0.0
  */
 
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
+import { openDatabase } from '../shared/safe-db.js';
 import { randomUUID } from 'crypto';
 import type {
   GOAPPlan,
@@ -230,7 +231,7 @@ export class PlanExecutor {
     // This allows async unified storage initialization
     if (!this.config.useUnified) {
       // Legacy mode: create separate database immediately
-      this.db = new Database(dbPath ?? ':memory:');
+      this.db = openDatabase(dbPath ?? ':memory:', { walMode: false });
       this.db.pragma('journal_mode = WAL');
     }
   }

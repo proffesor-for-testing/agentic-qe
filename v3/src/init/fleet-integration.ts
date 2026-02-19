@@ -11,6 +11,7 @@ import chalk from 'chalk';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { openDatabase } from '../shared/safe-db.js';
 
 // ============================================================================
 // Types
@@ -243,8 +244,7 @@ export class FleetInitEnhancer {
     }
 
     try {
-      const Database = (await import('better-sqlite3')).default;
-      const db = new Database(dbPath);
+      const db = openDatabase(dbPath);
       const result = db.prepare(`
         SELECT COUNT(*) as count FROM kv_store
         WHERE namespace = 'code-intelligence:kg'
@@ -262,8 +262,7 @@ export class FleetInitEnhancer {
   private async getKGEntryCount(): Promise<number> {
     const dbPath = join(this.projectRoot, '.agentic-qe', 'memory.db');
     try {
-      const Database = (await import('better-sqlite3')).default;
-      const db = new Database(dbPath);
+      const db = openDatabase(dbPath);
       const result = db.prepare(`
         SELECT COUNT(*) as count FROM kv_store
         WHERE namespace LIKE 'code-intelligence:kg%'

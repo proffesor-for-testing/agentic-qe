@@ -125,7 +125,7 @@ export interface GovernanceFeatureFlags {
    */
   shardEmbeddings: {
     enabled: boolean;
-    embeddingDimensions: number;  // Embedding vector dimensions (default: 128)
+    embeddingDimensions: number;  // Embedding vector dimensions (default: 768)
     persistEmbeddings: boolean;   // Save embeddings to disk
     autoRebuildOnChange: boolean; // Rebuild index when shards change
     ngramMin: number;             // Minimum n-gram size (default: 2)
@@ -261,7 +261,7 @@ export const DEFAULT_GOVERNANCE_FLAGS: GovernanceFeatureFlags = {
 
   shardEmbeddings: {
     enabled: true,
-    embeddingDimensions: 128,        // 128-dimensional embeddings
+    embeddingDimensions: 768,        // 768-dimensional embeddings (aligned with HNSW indices)
     persistEmbeddings: false,        // Don't persist by default
     autoRebuildOnChange: true,       // Rebuild when shards change
     ngramMin: 2,                     // Character bigrams minimum
@@ -375,7 +375,7 @@ export function loadFlagsFromEnv(): Partial<GovernanceFeatureFlags> {
     },
     shardEmbeddings: {
       enabled: env.GOVERNANCE_SHARD_EMBEDDINGS !== 'false',
-      embeddingDimensions: parseInt(env.GOVERNANCE_EMBEDDING_DIMENSIONS || '128', 10),
+      embeddingDimensions: parseInt(env.GOVERNANCE_EMBEDDING_DIMENSIONS || '768', 10),
       persistEmbeddings: env.GOVERNANCE_PERSIST_EMBEDDINGS === 'true',
       autoRebuildOnChange: env.GOVERNANCE_AUTO_REBUILD !== 'false',
       ngramMin: parseInt(env.GOVERNANCE_NGRAM_MIN || '2', 10),
