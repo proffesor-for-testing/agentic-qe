@@ -5,6 +5,21 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.13] - 2026-02-19
+
+### Fixed
+
+- **test_generate_enhanced returned placeholder stubs** (#292) — Agent Booster was intercepting generate-tests tasks via func-to-arrow pattern detection in source code. Added task-type blocklist to prevent Booster from hijacking domain tasks. Fixed mapToResult to use real testCode from domain service with extracted assertions instead of V2 `func() === null` stubs.
+- **MCP connection crash from uncaught exceptions** (#292) — Added uncaughtException and unhandledRejection handlers in MCP entry to keep the JSON-RPC connection alive. Wrapped QualityFeedbackLoop initialization in defensive try/catch.
+- **Vector dimension mismatch 128 vs 768 in 6 locations** (#292) — Changed embeddingDim defaults from 128 to 768 in decision-transformer, test-generation coordinator, test-prioritizer, feature-flags (2 locations), and shard-embeddings.
+- **coverage_analyze_sublinear returned empty coverageByFile** (#292) — Handler now attempts automatic coverage collection by running `npm test --coverage` when no existing data found. Detects test runner from package.json. Added per-file coverage data mapping in result.
+- **Security scan missed secrets in JS/TS files and known CVEs** (#292) — Cross-language secret patterns now run on ALL files (was only non-JS/TS). Added known-CVE checking for python-jose (CVE-2024-33663/33664) and python-multipart (CVE-2026-24486). Added generic SECRET assignment pattern.
+- **aqe init --auto hooks verification** (#292) — Added post-write verification after settings.json write to detect and warn about missing AQE hooks.
+
+### Added
+
+- Bug Fix Verification rules in CLAUDE.md (reproduction-first, MCP-CLI parity, per-issue verification, smoke test, evidence required, integration tests for MCP)
+
 ## [3.6.12] - 2026-02-19
 
 ### Fixed

@@ -126,6 +126,18 @@ export class HooksPhase extends BasePhase<HooksResult> {
     this.writeHooksReadme(hooksDir, hookTypes);
     this.installHookAssets(hooksDir, context);
 
+    // Post-write verification: ensure settings.json actually contains AQE hooks
+    try {
+      const verifyContent = readFileSync(settingsPath, 'utf-8');
+      const verifySettings = safeJsonParse<Record<string, unknown>>(verifyContent);
+      const verifyHooks = verifySettings.hooks as Record<string, unknown[]> | undefined;
+      if (!verifyHooks || !this.hasExistingAqeHooks(verifyHooks)) {
+        context.services.log('  WARNING: settings.json written but AQE hooks not detected — check settings-merge logic');
+      }
+    } catch {
+      context.services.log('  WARNING: Could not verify settings.json after write');
+    }
+
     context.services.log(`  Settings: ${settingsPath}`);
     context.services.log(`  Hooks dir: ${hooksDir}`);
     context.services.log(`  Hook types: ${hookTypes.join(', ')}`);

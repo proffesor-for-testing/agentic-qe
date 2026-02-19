@@ -61,6 +61,15 @@ async function main(): Promise<void> {
     process.exit(0);
   });
 
+  // Catch unhandled exceptions/rejections to prevent MCP connection drops
+  process.on('uncaughtException', (error) => {
+    process.stderr.write(`[AQE] FATAL uncaught exception: ${error.message}\n`);
+    // Don't exit — keep MCP connection alive
+  });
+  process.on('unhandledRejection', (reason) => {
+    process.stderr.write(`[AQE] WARN unhandled rejection: ${reason}\n`);
+  });
+
   // Suppress stderr output in MCP mode (stdio expects clean JSON-RPC)
   // This must come AFTER the startup message for Claude Code health checks
   const originalStderrWrite = process.stderr.write.bind(process.stderr);
