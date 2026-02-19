@@ -8,7 +8,8 @@
  * Preserves v2 memory.db data - just adds new tables.
  */
 
-import Database, { type Database as DatabaseType } from 'better-sqlite3';
+import { type Database as DatabaseType } from 'better-sqlite3';
+import { openDatabase } from '../shared/safe-db.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { LoggerFactory } from '../logging/index.js';
@@ -98,7 +99,7 @@ export async function migrateToUnifiedMemory(
 
   try {
     // Open source database (aqe.db)
-    sourceDb = new Database(aqeDbPath, { readonly: true });
+    sourceDb = openDatabase(aqeDbPath, { readonly: true });
 
     // Open target database (memory.db)
     if (!opts.dryRun) {
@@ -106,7 +107,7 @@ export async function migrateToUnifiedMemory(
       if (!fs.existsSync(opts.baseDir)) {
         fs.mkdirSync(opts.baseDir, { recursive: true });
       }
-      targetDb = new Database(memoryDbPath);
+      targetDb = openDatabase(memoryDbPath);
       targetDb.pragma('journal_mode = WAL');
     }
 

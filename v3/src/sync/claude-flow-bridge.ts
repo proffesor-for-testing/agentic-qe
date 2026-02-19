@@ -214,9 +214,9 @@ export async function syncClaudeFlowToAQE(options: SyncOptions = {}): Promise<Sy
       return result;
     }
 
-    // Import better-sqlite3
-    const Database = (await import('better-sqlite3')).default;
-    const db = new Database(aqeDbPath);
+    // Import safe database opener
+    const { openDatabase } = await import('../shared/safe-db.js');
+    const db = openDatabase(aqeDbPath);
 
     try {
       db.pragma('journal_mode = WAL');
@@ -381,8 +381,8 @@ export async function getSyncStatus(projectRoot?: string): Promise<{
     lastAqeUpdate = stats.mtime;
 
     try {
-      const Database = (await import('better-sqlite3')).default;
-      const db = new Database(aqeDbPath, { readonly: true });
+      const { openDatabase } = await import('../shared/safe-db.js');
+      const db = openDatabase(aqeDbPath, { readonly: true });
 
       const kvCount = db.prepare("SELECT COUNT(*) as count FROM kv_store WHERE key LIKE 'cf:%'").get() as { count: number };
       aqeKvEntries = kvCount?.count || 0;

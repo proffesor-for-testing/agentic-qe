@@ -14,6 +14,7 @@ import { createSkillsInstaller } from './skills-installer.js';
 import { createAgentsInstaller } from './agents-installer.js';
 import { createN8nInstaller } from './n8n-installer.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { openDatabase } from '../shared/safe-db.js';
 
 // ============================================================================
 // Internal Types
@@ -123,8 +124,7 @@ export async function checkCodeIntelligenceIndex(projectRoot: string): Promise<b
   }
 
   try {
-    const Database = (await import('better-sqlite3')).default;
-    const db = new Database(dbPath);
+    const db = openDatabase(dbPath);
     const result = db.prepare(`
       SELECT COUNT(*) as count FROM kv_store
       WHERE namespace = 'code-intelligence:kg'
@@ -191,8 +191,7 @@ export async function runCodeIntelligenceScan(
 export async function getKGEntryCount(projectRoot: string): Promise<number> {
   const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
   try {
-    const Database = (await import('better-sqlite3')).default;
-    const db = new Database(dbPath);
+    const db = openDatabase(dbPath);
     const result = db.prepare(`
       SELECT COUNT(*) as count FROM kv_store
       WHERE namespace LIKE 'code-intelligence:kg%'

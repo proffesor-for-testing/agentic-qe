@@ -10,6 +10,7 @@
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { openDatabase } from '../../shared/safe-db.js';
 
 import {
   BasePhase,
@@ -103,8 +104,7 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
     }
 
     try {
-      const Database = (await import('better-sqlite3')).default;
-      const db = new Database(dbPath);
+      const db = openDatabase(dbPath);
       const result = db.prepare(`
         SELECT COUNT(*) as count FROM kv_store
         WHERE namespace = 'code-intelligence:kg'
@@ -122,8 +122,7 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
   private async getKGEntryCount(projectRoot: string): Promise<number> {
     const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
     try {
-      const Database = (await import('better-sqlite3')).default;
-      const db = new Database(dbPath);
+      const db = openDatabase(dbPath);
       const result = db.prepare(`
         SELECT COUNT(*) as count FROM kv_store
         WHERE namespace LIKE 'code-intelligence:kg%'
@@ -213,8 +212,7 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
   private async getLastIndexedAt(projectRoot: string): Promise<Date | null> {
     const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
     try {
-      const Database = (await import('better-sqlite3')).default;
-      const db = new Database(dbPath);
+      const db = openDatabase(dbPath);
       const row = db.prepare(`
         SELECT value FROM kv_store
         WHERE namespace = 'code-intelligence:kg'

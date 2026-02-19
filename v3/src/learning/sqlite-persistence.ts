@@ -12,7 +12,8 @@
  * - Unified storage via UnifiedMemoryManager (ADR-046)
  */
 
-import Database, { type Database as DatabaseType, type Statement } from 'better-sqlite3';
+import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
+import { openDatabase } from '../shared/safe-db.js';
 import { v4 as uuidv4 } from 'uuid';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { toErrorMessage } from '../shared/error-utils.js';
@@ -154,13 +155,10 @@ export class SQLitePatternStore {
           fs.mkdirSync(dir, { recursive: true });
         }
 
-        // Open database
-        this.db = new Database(this.config.dbPath);
+        // Open database (openDatabase sets WAL + busy_timeout)
+        this.db = openDatabase(this.config.dbPath);
 
         // Configure for performance
-        if (this.config.walMode) {
-          this.db.pragma('journal_mode = WAL');
-        }
         this.db.pragma(`mmap_size = ${this.config.mmapSize}`);
         this.db.pragma(`cache_size = ${this.config.cacheSize}`);
         if (this.config.foreignKeys) {

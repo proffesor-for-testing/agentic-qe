@@ -364,7 +364,7 @@ export class CodeIntelligenceCoordinator
   private async initializeHypergraph(): Promise<void> {
     try {
       // Import better-sqlite3 dynamically to avoid issues in environments where it's not available
-      const Database = (await import('better-sqlite3')).default;
+      const { openDatabase } = await import('../../shared/safe-db.js');
 
       // Use configured path or default — resolve relative to project root
       // to prevent creating shadow .agentic-qe directories in subdirectories
@@ -381,7 +381,7 @@ export class CodeIntelligenceCoordinator
       }
 
       // Create database connection
-      this.hypergraphDb = new Database(dbPath);
+      this.hypergraphDb = openDatabase(dbPath);
 
       // Create hypergraph engine
       this.hypergraph = await createHypergraphEngine({

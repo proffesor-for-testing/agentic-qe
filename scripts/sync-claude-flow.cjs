@@ -29,6 +29,7 @@ console.log('Entries to sync:', keys.length);
 
 const Database = require('better-sqlite3');
 const db = new Database(aqeDbPath);
+db.pragma('busy_timeout = 5000');
 db.pragma('journal_mode = WAL');
 
 const insert = db.prepare(`

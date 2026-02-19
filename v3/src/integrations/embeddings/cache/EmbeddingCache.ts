@@ -27,7 +27,8 @@ import type {
   EmbeddingDimension,
   QuantizationType,
 } from '../base/types.js';
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
+import { openDatabase } from '../../../shared/safe-db.js';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { getUnifiedMemory, findProjectRoot, type UnifiedMemoryManager } from '../../../kernel/unified-memory.js';
@@ -140,7 +141,7 @@ export class EmbeddingCache {
           mkdirSync(dir, { recursive: true });
         }
 
-        this.db = new Database(this.storagePath);
+        this.db = openDatabase(this.storagePath);
         this.db.pragma('journal_mode = WAL');
         this.db.pragma('synchronous = NORMAL');
 
