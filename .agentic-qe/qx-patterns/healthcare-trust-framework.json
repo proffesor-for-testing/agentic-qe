@@ -1,0 +1,98 @@
+{
+  "patternName": "Healthcare Trust Signal Framework (UK)",
+  "patternType": "trust-credibility",
+  "version": "1.0",
+  "createdFrom": "northernhealthcare-evaluation",
+  "domain": "healthcare-uk",
+  "applicableTo": [
+    "nhs-partners",
+    "care-providers",
+    "mental-health-services",
+    "social-care"
+  ],
+  "trustSignalHierarchy": {
+    "tier1_essential": [
+      {
+        "signal": "CQC Rating/Endorsement",
+        "type": "regulatory",
+        "effectiveness": "HIGH",
+        "notes": "Must display per-facility, not just organization-level"
+      },
+      {
+        "signal": "NHS Partnership",
+        "type": "institutional",
+        "effectiveness": "HIGH",
+        "notes": "Immediate credibility for UK healthcare"
+      }
+    ],
+    "tier2_sector": [
+      {
+        "signal": "Mental Health Foundation partnership",
+        "type": "sector",
+        "effectiveness": "HIGH"
+      },
+      {
+        "signal": "Care England Membership",
+        "type": "industry",
+        "effectiveness": "MEDIUM"
+      }
+    ],
+    "tier3_operational": [
+      {
+        "signal": "Cyber Essentials",
+        "type": "technical",
+        "effectiveness": "MEDIUM",
+        "notes": "Data security assurance"
+      },
+      {
+        "signal": "Disability Confident",
+        "type": "employment",
+        "effectiveness": "LOW-MEDIUM",
+        "notes": "Primarily for job seekers"
+      }
+    ]
+  },
+  "missingSignalGaps": {
+    "critical": [
+      {
+        "signal": "Per-facility CQC ratings",
+        "impact": "Cannot compare facilities",
+        "recommendation": "Display rating badges on each facility page"
+      },
+      {
+        "signal": "Family/resident testimonials",
+        "impact": "Lacks emotional validation",
+        "recommendation": "Video or written testimonials with consent protocols"
+      }
+    ],
+    "important": [
+      {
+        "signal": "Staff qualifications",
+        "impact": "Reduces professional confidence"
+      },
+      {
+        "signal": "Outcome data",
+        "impact": "Cannot assess service effectiveness"
+      },
+      {
+        "signal": "Complaints process transparency",
+        "impact": "Governance gap"
+      }
+    ]
+  },
+  "keyInsight": "Institutional trust signals are necessary but not sufficient. For families making emotionally difficult decisions, personal testimonials and stories provide the emotional validation that converts visitors to inquiries.",
+  "stakeholderNeeds": {
+    "families": {
+      "primaryNeed": "emotional validation",
+      "triggers": ["testimonials", "success stories", "tour videos"]
+    },
+    "referrers": {
+      "primaryNeed": "professional efficiency",
+      "triggers": ["outcome data", "availability dashboard", "clear criteria"]
+    },
+    "service_users": {
+      "primaryNeed": "person-centered proof",
+      "triggers": ["accessibility", "easy read content", "resident stories"]
+    }
+  }
+}

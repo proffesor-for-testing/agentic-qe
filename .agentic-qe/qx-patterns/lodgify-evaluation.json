@@ -1,0 +1,246 @@
+{
+  "site": "Lodgify",
+  "url": "https://www.lodgify.com/",
+  "analysisDate": "2026-02-08",
+  "domain": "SaaS / Vacation Rental Technology",
+  "framework": "QX Partner (Quality Advocacy + UX) | 23+ Heuristics",
+  "scores": {
+    "overall": 62,
+    "grade": "D+",
+    "ux": 71,
+    "qa": 68,
+    "accessibility": 42,
+    "trust": 75,
+    "alignment": 65
+  },
+  "oracleProblems": [
+    {
+      "id": "OP-001",
+      "title": "Accessibility Widget Vendor vs. Own-Site Compliance",
+      "severity": "critical",
+      "description": "Lodgify sells an accessibility widget (via Skynet Technologies) supporting WCAG 2.0/2.1/2.2 AA, yet their own marketing site has 15+ images with empty alt text, broken heading hierarchy, and missing ARIA labels. This creates a credibility oracle: is the product trustworthy if the vendor cannot meet the standards they sell?",
+      "stakeholders": ["Marketing", "Product", "Accessibility Team", "Sales"]
+    },
+    {
+      "id": "OP-002",
+      "title": "Performance vs. Tracking Script Density",
+      "severity": "high",
+      "description": "30+ third-party scripts (analytics, OptinMonster, Tidio, HubSpot) compete with page load performance. Marketing needs tracking data; users need fast page loads. 631.7KB page with 63% image weight degrades mobile UX.",
+      "stakeholders": ["Marketing", "Engineering", "UX", "SEO"]
+    },
+    {
+      "id": "OP-003",
+      "title": "Visual Design Aesthetics vs. Color Contrast Compliance",
+      "severity": "high",
+      "description": "Brand colors (#FF3B59 red, #03EBC3 teal) may not meet WCAG AA 4.5:1 contrast ratios against white backgrounds. Design team prioritizes brand identity; accessibility requires sufficient contrast.",
+      "stakeholders": ["Design", "Accessibility", "Brand", "Legal"]
+    },
+    {
+      "id": "OP-004",
+      "title": "Conversion-Optimized CTAs vs. Screen Reader Navigation",
+      "severity": "high",
+      "description": "Multiple dropdown triggers use href='#' which confuse screen readers. Mobile hamburger has no aria-label. No skip-to-content link exists. Conversion optimization focuses on visual users while assistive technology users face barriers.",
+      "stakeholders": ["UX", "Accessibility", "Conversion Optimization", "Legal"]
+    }
+  ],
+  "criticalFindings": [
+    {
+      "id": "CF-001",
+      "category": "Accessibility",
+      "severity": "critical",
+      "title": "15+ Images with Empty Alt Text",
+      "description": "Hero image, partner logos, feature screenshots, and trust badges all have alt='' making them invisible to screen readers.",
+      "wcag": "1.1.1 Non-text Content (Level A)"
+    },
+    {
+      "id": "CF-002",
+      "category": "Accessibility",
+      "severity": "critical",
+      "title": "Broken Heading Hierarchy",
+      "description": "H4 appears before H1, footer uses H5 without H3/H4 ancestors. Screen readers cannot build proper document outline.",
+      "wcag": "1.3.1 Info and Relationships (Level A)"
+    },
+    {
+      "id": "CF-003",
+      "category": "Accessibility",
+      "severity": "critical",
+      "title": "Mobile Hamburger Button Missing Accessible Name",
+      "description": "Hamburger navigation button has no aria-label, only visual span.icon-bar elements.",
+      "wcag": "4.1.2 Name, Role, Value (Level A)"
+    },
+    {
+      "id": "CF-004",
+      "category": "Accessibility",
+      "severity": "high",
+      "title": "Insufficient Color Contrast",
+      "description": "Background and foreground colors do not meet WCAG AA 4.5:1 contrast ratio in multiple areas.",
+      "wcag": "1.4.3 Contrast (Minimum) (Level AA)"
+    },
+    {
+      "id": "CF-005",
+      "category": "Accessibility",
+      "severity": "high",
+      "title": "No Skip-to-Content Link",
+      "description": "Keyboard users must tab through entire navigation before reaching main content.",
+      "wcag": "2.4.1 Bypass Blocks (Level A)"
+    },
+    {
+      "id": "CF-006",
+      "category": "Accessibility",
+      "severity": "high",
+      "title": "Dropdown Toggles Missing aria-expanded",
+      "description": "Navigation dropdown triggers lack aria-expanded attribute to communicate state to assistive technology.",
+      "wcag": "4.1.2 Name, Role, Value (Level A)"
+    },
+    {
+      "id": "CF-007",
+      "category": "Performance",
+      "severity": "medium",
+      "title": "Excessive Third-Party Script Loading",
+      "description": "30+ third-party scripts loaded on page including analytics, chat widgets, popup tools, and form integrations.",
+      "impact": "Page load time, Core Web Vitals, mobile experience"
+    },
+    {
+      "id": "CF-008",
+      "category": "Accessibility",
+      "severity": "medium",
+      "title": "SVG Logo Missing Accessible Name",
+      "description": "SVG logo element lacks aria-label or title element for screen reader identification.",
+      "wcag": "1.1.1 Non-text Content (Level A)"
+    }
+  ],
+  "heuristicScores": {
+    "problemUnderstanding": {
+      "H1_ProblemClarity": 70,
+      "H2_StakeholderMapping": 65,
+      "H3_RiskIdentification": 55,
+      "H4_ComplexityAwareness": 60
+    },
+    "userNeeds": {
+      "H5_UserJourneyClarity": 72,
+      "H6_AccessibilityInclusion": 30,
+      "H7_ErrorPrevention": 65,
+      "H8_EmotionalDesign": 70,
+      "H9_CognitiveLoad": 68
+    },
+    "businessNeeds": {
+      "H10_GoalAlignment": 75,
+      "H11_StakeholderValue": 70,
+      "H12_CompetitivePosition": 78,
+      "H13_KPIClarity": 72
+    },
+    "balance": {
+      "H14_UXvsQA": 60,
+      "H15_ShortVsLongTerm": 55,
+      "H16_InclusionVsSpeed": 40,
+      "H17_SecurityVsUsability": 65
+    },
+    "impact": {
+      "H18_VisibleImpact": 68,
+      "H19_InvisibleImpact": 45,
+      "H20_SystemicRisk": 55,
+      "H21_RecoveryCapability": 60
+    },
+    "creativity": {
+      "H22_NovelApproaches": 65,
+      "H23_CrossDomainInsight": 60
+    }
+  },
+  "ruleOfThree": {
+    "emptyAltText": [
+      "Screen reader users receive no information about 15+ images including hero, partner logos, and feature screenshots",
+      "SEO crawlers cannot index image content reducing organic search visibility",
+      "Automated accessibility audits flag site as non-compliant risking legal exposure under ADA/EAA"
+    ],
+    "brokenHeadingHierarchy": [
+      "Screen readers generate incorrect document outline making page navigation impossible",
+      "Cognitive accessibility users who rely on heading structure cannot understand page organization",
+      "SEO heading signals are diluted reducing content relevance scoring"
+    ],
+    "missingAriaLabels": [
+      "Mobile users with screen readers cannot activate navigation hamburger button",
+      "Dropdown state changes are invisible to assistive technology users",
+      "Automated testing tools report false negatives on interactive element coverage"
+    ]
+  },
+  "recommendations": [
+    {
+      "priority": "P0",
+      "effort": "Low",
+      "impact": "Critical",
+      "title": "Add descriptive alt text to all images",
+      "description": "Add meaningful alt text to hero image, partner logos, feature screenshots, and trust badges. Empty alt='' should only be used for truly decorative images.",
+      "wcag": "1.1.1"
+    },
+    {
+      "priority": "P0",
+      "effort": "Low",
+      "impact": "Critical",
+      "title": "Fix heading hierarchy",
+      "description": "Remove or restructure the H4 before H1. Ensure sequential descending order. Change footer H5 elements to appropriate level.",
+      "wcag": "1.3.1"
+    },
+    {
+      "priority": "P0",
+      "effort": "Low",
+      "impact": "Critical",
+      "title": "Add aria-label to hamburger button",
+      "description": "Add aria-label='Toggle navigation menu' to the mobile hamburger button element.",
+      "wcag": "4.1.2"
+    },
+    {
+      "priority": "P1",
+      "effort": "Low",
+      "impact": "High",
+      "title": "Add skip-to-content link",
+      "description": "Add a visually hidden skip link as the first focusable element that jumps to main content.",
+      "wcag": "2.4.1"
+    },
+    {
+      "priority": "P1",
+      "effort": "Medium",
+      "impact": "High",
+      "title": "Fix color contrast ratios",
+      "description": "Audit all text/background color combinations against WCAG AA 4.5:1 ratio. Adjust brand colors or add darker variants for text use.",
+      "wcag": "1.4.3"
+    },
+    {
+      "priority": "P1",
+      "effort": "Low",
+      "impact": "High",
+      "title": "Add aria-expanded to dropdown toggles",
+      "description": "Add aria-expanded='false'/'true' to all navigation dropdown trigger elements and toggle on interaction.",
+      "wcag": "4.1.2"
+    },
+    {
+      "priority": "P2",
+      "effort": "Medium",
+      "impact": "Medium",
+      "title": "Optimize third-party script loading",
+      "description": "Defer or lazy-load non-critical scripts. Consider loading Tidio, OptinMonster, and analytics after user interaction.",
+      "impact_area": "Performance, Core Web Vitals"
+    },
+    {
+      "priority": "P2",
+      "effort": "Low",
+      "impact": "Medium",
+      "title": "Add aria-label to SVG logo",
+      "description": "Add role='img' and aria-label='Lodgify home' to the SVG logo element.",
+      "wcag": "1.1.1"
+    }
+  ],
+  "metadata": {
+    "technology": "WordPress (lodgify theme)",
+    "totalPageSize": "631.7 KB",
+    "imageWeight": "392.7 KB (63%)",
+    "thirdPartyScripts": "30+",
+    "hasSSL": true,
+    "hasLangAttribute": true,
+    "langValue": "en-US",
+    "hasCookieConsent": true,
+    "cookieProvider": "OneTrust",
+    "chatWidget": "Tidio",
+    "formProvider": "HubSpot",
+    "popupTool": "OptinMonster"
+  }
+}

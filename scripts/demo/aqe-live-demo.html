@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AQE — AI-Powered Defect Intelligence (Live Demo)</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0e1a; color: #e0e0e0; font-family: 'Inter','Segoe UI',system-ui,-apple-system,sans-serif; min-height: 100vh; }
+::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #111827; } ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+.header { background: linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%); border-bottom: 1px solid #1e3a5f; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.header-left { display: flex; align-items: center; gap: 14px; }
+.logo { width: 42px; height: 42px; background: linear-gradient(135deg,#06b6d4,#3b82f6); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #fff; }
+.header-title { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+.header-sub { font-size: 12px; color: #94a3b8; margin-top: 1px; }
+.live-badge { display: flex; align-items: center; gap: 8px; background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.3); padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; color: #4ade80; }
+.live-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,.4); } 50% { opacity: .7; box-shadow: 0 0 0 6px rgba(34,197,94,0); } }
+.tabs { display: flex; gap: 4px; padding: 12px 32px; background: #0f172a; border-bottom: 1px solid #1e3a5f; }
+.tab { padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #94a3b8; border: 1px solid transparent; transition: all .2s; display: flex; align-items: center; gap: 8px; }
+.tab:hover { background: #1e293b; color: #e2e8f0; }
+.tab.active { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+.tab-icon { width: 8px; height: 8px; border-radius: 50%; }
+.tab-icon.green { background: #22c55e; } .tab-icon.yellow { background: #eab308; } .tab-icon.purple { background: #a855f7; }
+.star { font-size: 10px; background: rgba(168,85,247,.2); color: #c084fc; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+.main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.panel { display: none; } .panel.active { display: block; }
+.two-col { display: grid; grid-template-columns: 1fr 1.4fr; gap: 20px; }
+.card { background: #111827; border: 1px solid #1e3a5f; border-radius: 12px; padding: 20px; }
+.card-title { font-size: 14px; font-weight: 600; color: #e2e8f0; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; margin-top: 10px; }
+input, select, textarea { width: 100%; padding: 8px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 13px; font-family: inherit; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: #3b82f6; }
+textarea { resize: vertical; min-height: 60px; }
+.btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 8px; }
+.btn-primary { background: linear-gradient(135deg,#06b6d4,#3b82f6); color: #fff; margin-top: 16px; width: 100%; justify-content: center; }
+.btn-primary:hover { opacity: .9; } .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+.btn-sm { padding: 5px 12px; font-size: 11px; border-radius: 6px; margin-top: 0; width: auto; }
+.btn-outline { background: transparent; border: 1px solid #334155; color: #94a3b8; }
+.btn-outline.active { border-color: #3b82f6; color: #e2e8f0; background: rgba(59,130,246,.1); }
+.toggle-group { display: flex; gap: 6px; margin-bottom: 8px; }
+.placeholder { text-align: center; padding: 60px 20px; color: #475569; font-size: 14px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.badge-pass { background: rgba(34,197,94,.15); color: #4ade80; }
+.badge-fail { background: rgba(239,68,68,.15); color: #f87171; }
+.badge-warn { background: rgba(234,179,8,.15); color: #facc15; }
+.badge-info { background: rgba(59,130,246,.15); color: #60a5fa; }
+.badge-purple { background: rgba(168,85,247,.15); color: #c084fc; }
+.score-ring { width: 100px; height: 100px; margin: 0 auto 12px; position: relative; }
+.score-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.score-ring circle { fill: none; stroke-width: 6; }
+.score-ring .bg { stroke: #1e293b; }
+.score-ring .fg { stroke-linecap: round; transition: stroke-dasharray 1.5s ease; }
+.score-number { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 28px; font-weight: 700; }
+.score-grade { text-align: center; font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.field-table { width: 100%; font-size: 13px; border-collapse: collapse; margin-top: 12px; }
+.field-table th { text-align: left; padding: 6px 8px; color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; border-bottom: 1px solid #1e3a5f; }
+.field-table td { padding: 6px 8px; border-bottom: 1px solid #111827; color: #cbd5e1; }
+.dim-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 12px; }
+.dim-label { width: 110px; color: #94a3b8; text-align: right; }
+.dim-track { flex: 1; height: 6px; background: #1e293b; border-radius: 3px; overflow: hidden; }
+.dim-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+.dim-val { width: 36px; text-align: right; font-weight: 600; font-size: 11px; }
+.match-card { background: #0f172a; border: 1px solid #1e3a5f; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+.match-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.match-id { font-weight: 700; color: #06b6d4; font-size: 13px; }
+.match-title { font-size: 13px; color: #cbd5e1; margin-bottom: 8px; }
+.sim-bar-wrap { height: 4px; background: #1e293b; border-radius: 2px; margin-bottom: 8px; }
+.sim-bar { height: 100%; border-radius: 2px; transition: width 1s ease; }
+.shared-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.shared-tag { font-size: 10px; padding: 2px 6px; background: rgba(59,130,246,.1); color: #60a5fa; border-radius: 4px; }
+.reco-box { background: #0f172a; border-left: 3px solid #3b82f6; border-radius: 0 8px 8px 0; padding: 12px 16px; margin-top: 16px; font-size: 13px; }
+.reco-box.warn { border-left-color: #eab308; } .reco-box.success { border-left-color: #22c55e; } .reco-box.danger { border-left-color: #ef4444; }
+/* RCA styles */
+.rca-section { opacity: 0; transform: translateY(16px); transition: all .6s ease; margin-bottom: 20px; }
+.rca-section.visible { opacity: 1; transform: translateY(0); }
+.rca-heading { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; padding: 6px 12px; border-radius: 6px; display: inline-block; }
+.rca-heading.cyan { background: rgba(6,182,212,.1); color: #06b6d4; }
+.rca-heading.amber { background: rgba(245,158,11,.1); color: #f59e0b; }
+.rca-heading.purple { background: rgba(168,85,247,.1); color: #c084fc; }
+.rca-heading.green { background: rgba(34,197,94,.1); color: #4ade80; }
+.rca-heading.red { background: rgba(239,68,68,.1); color: #f87171; }
+.rca-heading.blue { background: rgba(59,130,246,.1); color: #60a5fa; }
+.symptom-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.symptom-chip { background: #0f172a; border: 1px solid #1e3a5f; border-radius: 8px; padding: 8px 14px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.symptom-freq { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+.freq-high { background: rgba(239,68,68,.15); color: #f87171; } .freq-med { background: rgba(245,158,11,.15); color: #f59e0b; } .freq-low { background: rgba(59,130,246,.15); color: #60a5fa; }
+.why-chain { position: relative; padding-left: 40px; }
+.why-chain::before { content: ''; position: absolute; left: 15px; top: 20px; bottom: 20px; width: 2px; background: #334155; }
+.why-item { position: relative; margin-bottom: 16px; opacity: 0; transform: translateX(-10px); transition: all .5s ease; }
+.why-item.visible { opacity: 1; transform: translateX(0); }
+.why-num { position: absolute; left: -40px; top: 0; width: 30px; height: 30px; background: #1e293b; border: 2px solid #334155; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #f59e0b; z-index: 1; }
+.why-item:last-child .why-num { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,.1); }
+.why-q { font-size: 13px; font-weight: 600; color: #e2e8f0; margin-bottom: 4px; }
+.why-a { font-size: 13px; color: #94a3b8; line-height: 1.5; }
+.why-item:last-child { background: rgba(239,68,68,.05); border: 1px solid rgba(239,68,68,.2); border-radius: 8px; padding: 12px; margin-left: -12px; }
+.why-item:last-child .why-q::after { content: ' — ROOT CAUSE'; color: #ef4444; font-size: 10px; font-weight: 700; }
+.fishbone-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.fishbone-cat { background: #0f172a; border: 1px solid #1e3a5f; border-radius: 8px; padding: 12px; border-top: 3px solid; }
+.fishbone-cat.people { border-top-color: #06b6d4; } .fishbone-cat.process { border-top-color: #f59e0b; } .fishbone-cat.tools { border-top-color: #a855f7; }
+.fishbone-cat.environment { border-top-color: #22c55e; } .fishbone-cat.materials { border-top-color: #3b82f6; } .fishbone-cat.measurement { border-top-color: #ef4444; }
+.fishbone-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+.fishbone-cat.people .fishbone-label { color: #06b6d4; } .fishbone-cat.process .fishbone-label { color: #f59e0b; } .fishbone-cat.tools .fishbone-label { color: #a855f7; }
+.fishbone-cat.environment .fishbone-label { color: #22c55e; } .fishbone-cat.materials .fishbone-label { color: #3b82f6; } .fishbone-cat.measurement .fishbone-label { color: #ef4444; }
+.fishbone-item { font-size: 12px; color: #94a3b8; margin-bottom: 4px; padding-left: 10px; border-left: 2px solid #1e3a5f; line-height: 1.4; }
+.comment-entry { background: #0f172a; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; border-left: 3px solid #334155; }
+.comment-meta { font-size: 11px; color: #64748b; margin-bottom: 4px; }
+.comment-text { font-size: 13px; color: #cbd5e1; line-height: 1.5; }
+.comment-text mark { background: rgba(250,204,21,.2); color: #facc15; padding: 0 2px; border-radius: 2px; }
+.insight-card { background: rgba(34,197,94,.05); border: 1px solid rgba(34,197,94,.2); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.insight-text { font-size: 13px; color: #4ade80; }
+.timeline-item { display: flex; gap: 12px; margin-bottom: 10px; font-size: 12px; }
+.timeline-date { color: #64748b; min-width: 80px; font-family: 'SF Mono','Fira Code',monospace; }
+.timeline-event { color: #cbd5e1; }
+.rc-summary { text-align: center; padding: 20px; }
+.rc-conf-ring { width: 120px; height: 120px; margin: 0 auto 12px; position: relative; }
+.rc-conf-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.rc-conf-ring circle { fill: none; stroke-width: 8; } .rc-conf-ring .bg { stroke: #1e293b; } .rc-conf-ring .fg { stroke-linecap: round; transition: stroke-dasharray 2s ease; }
+.rc-conf-num { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 32px; font-weight: 700; color: #4ade80; }
+.rc-cat { font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; }
+.rc-summary-text { font-size: 15px; font-weight: 600; color: #e2e8f0; margin-bottom: 8px; }
+.rc-desc { font-size: 13px; color: #94a3b8; line-height: 1.6; text-align: left; max-width: 800px; margin: 0 auto; }
+.remedy-list { list-style: none; counter-reset: remedy; }
+.remedy-item { counter-increment: remedy; display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; font-size: 13px; color: #cbd5e1; }
+.remedy-item::before { content: counter(remedy); min-width: 24px; height: 24px; background: rgba(34,197,94,.15); color: #4ade80; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+.pattern-card { background: #0f172a; border: 1px solid #1e3a5f; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+.pattern-name { font-size: 13px; font-weight: 600; color: #60a5fa; margin-bottom: 4px; }
+.pattern-detail { font-size: 12px; color: #94a3b8; }
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #334155; border-top-color: #06b6d4; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-steps { margin-top: 12px; }
+.load-step { font-size: 12px; color: #64748b; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.load-step.done { color: #4ade80; }
+.load-step .check { display: none; } .load-step.done .check { display: inline; } .load-step.done .spinner { display: none; }
+.cluster-defects { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.cluster-chip { background: #0f172a; border: 1px solid #1e3a5f; border-radius: 8px; padding: 8px 12px; font-size: 12px; }
+.cluster-chip-id { color: #06b6d4; font-weight: 700; }
+.cluster-chip-title { color: #94a3b8; margin-left: 6px; }
+.btn-rca { background: linear-gradient(135deg,#7c3aed,#a855f7); color: #fff; font-size: 14px; padding: 14px 28px; }
+.footer { text-align: center; padding: 20px; color: #334155; font-size: 11px; margin-top: 32px; }
+@media(max-width:768px) { .two-col { grid-template-columns: 1fr; } .fishbone-grid { grid-template-columns: 1fr; } .header { flex-direction: column; gap: 8px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">AQ</div>
+    <div><div class="header-title">AQE Defect Intelligence</div><div class="header-sub">AI-Powered Analysis Engine &mdash; Automotive Domain</div></div>
+  </div>
+  <div class="live-badge"><div class="live-dot"></div>LIVE DEMO</div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('quality')"><div class="tab-icon green"></div>Quality Check</div>
+  <div class="tab" onclick="switchTab('duplicate')"><div class="tab-icon yellow"></div>Duplicate Detection</div>
+  <div class="tab" onclick="switchTab('rca')"><div class="tab-icon purple"></div>Root Cause Analysis<span class="star">DEEP</span></div>
+</div>
+
+<div class="main">
+
+<!-- ═══ QUALITY CHECK ═══ -->
+<div id="panel-quality" class="panel active">
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Defect Under Review</div>
+      <div class="toggle-group">
+        <button class="btn btn-sm btn-outline active" onclick="loadSample('poor',event)">Poor Quality</button>
+        <button class="btn btn-sm btn-outline" onclick="loadSample('good',event)">Good Quality</button>
+        <button class="btn btn-sm btn-outline" onclick="loadSample('custom',event)">Custom</button>
+      </div>
+      <label>Title</label><input id="qc-title" />
+      <label>Severity</label><select id="qc-severity"><option value="">-- select --</option><option value="Critical">Critical</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option><option value="Trivial">Trivial</option></select>
+      <label>Component</label><input id="qc-component" />
+      <label>Steps to Reproduce (one per line)</label><textarea id="qc-steps" rows="4"></textarea>
+      <label>Expected Behavior</label><textarea id="qc-expected" rows="2"></textarea>
+      <label>Actual Behavior</label><textarea id="qc-actual" rows="3"></textarea>
+      <label>Vehicle Model</label><input id="qc-vehicle" />
+      <label>Software Version</label><input id="qc-swver" />
+      <label>Reported By</label><input id="qc-reporter" />
+      <button class="btn btn-primary" id="btn-qc" onclick="runQualityCheck()">Check Quality</button>
+    </div>
+    <div class="card" id="qc-results">
+      <div class="placeholder">Run a quality check to see results</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DUPLICATE DETECTION ═══ -->
+<div id="panel-duplicate" class="panel">
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">New Defect to Check</div>
+      <label>Title</label><input id="dd-title" />
+      <label>Description</label><textarea id="dd-desc" rows="5"></textarea>
+      <label>Component</label><input id="dd-component" />
+      <label>Tags (comma separated)</label><input id="dd-tags" />
+      <label>Severity</label><select id="dd-severity"><option value="">-- select --</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Trivial</option></select>
+      <button class="btn btn-primary" id="btn-dd" onclick="runDuplicateCheck()">Search for Duplicates</button>
+    </div>
+    <div class="card" id="dd-results">
+      <div class="placeholder">Submit a defect to search for duplicates</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ROOT CAUSE ANALYSIS ═══ -->
+<div id="panel-rca" class="panel">
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-title">Defect Cluster &mdash; Navigation Route Engine Failures</div>
+    <p style="font-size:13px;color:#94a3b8;margin-bottom:12px;">4 related defects spanning Sep–Nov 2025, trend: increasing. Analyzing root cause across the cluster.</p>
+    <div class="cluster-defects" id="rca-cluster"></div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button class="btn btn-rca" id="btn-rca" onclick="runRCA()">Run Deep Analysis</button>
+      <button class="btn btn-sm btn-outline" onclick="toggleCustomRCA()">or Analyze Custom Defect</button>
+    </div>
+    <div id="custom-rca-form" style="display:none;margin-top:14px;">
+      <label>Defect Title</label><input id="rca-custom-title" placeholder="[Component] What happens" />
+      <label>Description</label><textarea id="rca-custom-desc" rows="4" placeholder="Describe the defect in detail..."></textarea>
+      <label>Component</label><input id="rca-custom-comp" />
+      <button class="btn btn-primary" style="background:linear-gradient(135deg,#7c3aed,#a855f7);" onclick="runCustomRCA()">Analyze Custom Defect</button>
+    </div>
+  </div>
+
+  <div id="rca-loading" style="display:none;" class="card">
+    <div class="card-title"><span class="spinner"></span> Analyzing...</div>
+    <div class="loading-steps" id="rca-load-steps"></div>
+  </div>
+
+  <div id="rca-results"></div>
+</div>
+
+</div><!-- main -->
+
+<div class="footer">AQE Framework &mdash; Agentic Quality Engineering &bull; Live Demo Instance</div>
+
+<script>
+// ═══ Tab Switching ═══
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.tab:nth-child(${name==='quality'?1:name==='duplicate'?2:3})`).classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+}
+
+// ═══ Sample Data ═══
+const POOR = {title:'Nav broken',severity:'',component:'',steps:'',expected:'',actual:'Not working',vehicle:'',swver:'',reporter:'J. Mueller'};
+const GOOD = {title:'[Navigation] Route recalculation fails on highway exit causing missed turns',severity:'High',component:'Navigation / Route Engine',steps:'Start navigation to destination with highway route (e.g., Munich to Stuttgart via A8)\nDrive past the designated highway exit at speed > 120 km/h\nObserve that the system attempts route recalculation\nSystem freezes for 8-12 seconds showing "Recalculating..." spinner\nAfter timeout, route resets to original path ignoring missed exit',expected:'Navigation should recalculate alternative route within 2 seconds using the next available exit, with voice prompt: "Route recalculated, take next exit in X km"',actual:'System freezes for 8-12 seconds during recalculation. After timeout, it resets to original route instead of finding alternative. No voice prompt is given. In 30% of cases, the navigation module crashes and requires manual restart via iDrive controller.',vehicle:'BMW 5 Series (G60) 2025',swver:'iDrive 8.5 (v23.11.2-prod)',reporter:'K. Schneider'};
+
+function loadSample(type, e) {
+  document.querySelectorAll('.toggle-group .btn').forEach(b => b.classList.remove('active'));
+  if (e && e.target) e.target.classList.add('active');
+  else { const idx = type==='poor'?0:type==='good'?1:2; const btns = document.querySelectorAll('.toggle-group .btn'); if(btns[idx]) btns[idx].classList.add('active'); }
+  const d = type==='poor' ? POOR : type==='good' ? GOOD : {title:'',severity:'',component:'',steps:'',expected:'',actual:'',vehicle:'',swver:'',reporter:''};
+  document.getElementById('qc-title').value = d.title;
+  document.getElementById('qc-severity').value = d.severity;
+  document.getElementById('qc-component').value = d.component;
+  document.getElementById('qc-steps').value = d.steps;
+  document.getElementById('qc-expected').value = d.expected;
+  document.getElementById('qc-actual').value = d.actual;
+  document.getElementById('qc-vehicle').value = d.vehicle;
+  document.getElementById('qc-swver').value = d.swver;
+  document.getElementById('qc-reporter').value = d.reporter;
+}
+
+// Load poor quality by default
+window.addEventListener('DOMContentLoaded', () => { loadSample('poor'); loadDuplicateSample(); loadCluster(); });
+
+function loadDuplicateSample() {
+  document.getElementById('dd-title').value = '[Navigation] System hangs during route recalculation after missing highway exit ramp';
+  document.getElementById('dd-desc').value = 'Navigation system becomes unresponsive for approximately 10 seconds when the vehicle passes the intended highway exit. The recalculation module appears to lock up when processing a missed-exit event at high speed. After the hang, it either crashes or reverts to the original route without adapting. Observed on BMW 3 Series G20 with iDrive 8.3.';
+  document.getElementById('dd-component').value = 'Navigation / Route Engine';
+  document.getElementById('dd-tags').value = 'navigation, hang, highway, route-recalculation, freeze';
+  document.getElementById('dd-severity').value = 'High';
+}
+
+const CLUSTER = [
+  {id:'DEF-3901',title:'Route guidance freezes when missing motorway junction',sev:'High'},
+  {id:'DEF-4512',title:'Map rendering lag causes route overlay to disappear at high speed',sev:'Medium'},
+  {id:'DEF-4822',title:'Route recalculation fails on highway exit causing missed turns',sev:'High'},
+  {id:'DEF-4823',title:'System hangs during route recalculation after missing exit ramp',sev:'High'},
+];
+
+function loadCluster() {
+  const el = document.getElementById('rca-cluster');
+  el.innerHTML = CLUSTER.map(d => `<div class="cluster-chip"><span class="cluster-chip-id">${d.id}</span><span class="cluster-chip-title">${d.title.substring(0,50)}...</span> <span class="badge ${d.sev==='High'?'badge-fail':'badge-warn'}">${d.sev}</span></div>`).join('');
+}
+
+// ═══ API Calls ═══
+async function api(path, body) {
+  const res = await fetch(path, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  return res.json();
+}
+
+// ═══ Quality Check ═══
+async function runQualityCheck() {
+  const btn = document.getElementById('btn-qc'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Checking...';
+  const defect = {
+    title: document.getElementById('qc-title').value,
+    severity: document.getElementById('qc-severity').value,
+    component: document.getElementById('qc-component').value,
+    stepsToReproduce: document.getElementById('qc-steps').value.split('\n').filter(s => s.trim()),
+    expectedBehavior: document.getElementById('qc-expected').value,
+    actualBehavior: document.getElementById('qc-actual').value,
+    environment: { vehicle_model: document.getElementById('qc-vehicle').value, software_version: document.getElementById('qc-swver').value },
+    reportedBy: document.getElementById('qc-reporter').value,
+  };
+  const r = await api('/api/quality-check', { defect });
+  btn.disabled = false; btn.textContent = 'Check Quality';
+  renderQualityResults(r);
+}
+
+function renderQualityResults(r) {
+  const scoreColor = r.score >= 80 ? '#4ade80' : r.score >= 60 ? '#facc15' : '#f87171';
+  const circ = 2 * Math.PI * 42;
+  const dash = (r.score / 100) * circ;
+  let html = `<div style="text-align:center;margin-bottom:16px;">
+    <div class="score-ring"><svg viewBox="0 0 100 100"><circle class="bg" cx="50" cy="50" r="42"/><circle class="fg" cx="50" cy="50" r="42" stroke="${scoreColor}" stroke-dasharray="0 ${circ}" id="score-arc"/></svg><div class="score-number" style="color:${scoreColor}">${r.score}</div></div>
+    <div class="score-grade" style="color:${scoreColor}">Grade: ${r.grade}</div></div>`;
+  html += `<table class="field-table"><thead><tr><th>Field</th><th>Status</th><th>Detail</th></tr></thead><tbody>`;
+  for (const f of r.fields) {
+    const cls = f.status==='PASS'?'badge-pass':f.status==='FAIL'?'badge-fail':'badge-warn';
+    html += `<tr><td style="font-weight:600">${f.field}</td><td><span class="badge ${cls}">${f.status}</span></td><td>${esc(f.detail)}</td></tr>`;
+  }
+  html += `</tbody></table>`;
+  html += `<div style="margin-top:16px;"><div style="font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:8px;">QUALITY DIMENSIONS</div>`;
+  for (const [k,v] of Object.entries(r.dimensions)) {
+    const c = v >= 80 ? '#4ade80' : v >= 50 ? '#facc15' : '#f87171';
+    html += `<div class="dim-bar"><div class="dim-label">${k}</div><div class="dim-track"><div class="dim-fill" style="width:${v}%;background:${c}"></div></div><div class="dim-val" style="color:${c}">${v}%</div></div>`;
+  }
+  html += `</div>`;
+  if (r.recommendations.length) {
+    html += `<div style="margin-top:16px;"><div style="font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:8px;">RECOMMENDATIONS</div>`;
+    for (const rec of r.recommendations) html += `<div style="font-size:12px;color:#cbd5e1;margin-bottom:4px;padding-left:12px;border-left:2px solid #334155;">&#8226; ${esc(rec)}</div>`;
+    html += `</div>`;
+  }
+  document.getElementById('qc-results').innerHTML = html;
+  setTimeout(() => { const arc = document.getElementById('score-arc'); if(arc) arc.setAttribute('stroke-dasharray', `${dash} ${circ}`); }, 50);
+}
+
+// ═══ Duplicate Detection ═══
+async function runDuplicateCheck() {
+  const btn = document.getElementById('btn-dd'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Searching...';
+  const defect = {
+    title: document.getElementById('dd-title').value,
+    description: document.getElementById('dd-desc').value,
+    component: document.getElementById('dd-component').value,
+    tags: document.getElementById('dd-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+    severity: document.getElementById('dd-severity').value,
+  };
+  const r = await api('/api/duplicate-check', { defect });
+  btn.disabled = false; btn.textContent = 'Search for Duplicates';
+  renderDuplicateResults(r);
+}
+
+function renderDuplicateResults(r) {
+  let html = `<div style="font-size:12px;color:#64748b;margin-bottom:14px;">Searched across <strong style="color:#06b6d4">${r.totalSearched}</strong> indexed defects using TF-IDF semantic similarity</div>`;
+  if (!r.matches.length) { html += `<div class="placeholder">No matches found</div>`; }
+  for (const m of r.matches) {
+    const pct = Math.round(m.score * 100);
+    const barColor = pct >= 85 ? '#ef4444' : pct >= 60 ? '#eab308' : '#3b82f6';
+    const typeClass = m.type==='exact-duplicate' ? 'badge-fail' : m.type==='related' ? 'badge-warn' : 'badge-info';
+    html += `<div class="match-card"><div class="match-header"><span class="match-id">${m.defectId}</span><span class="badge ${typeClass}">${m.type.replace('-',' ').toUpperCase()}</span></div>`;
+    html += `<div class="match-title">${esc(m.title)}</div>`;
+    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><div class="sim-bar-wrap" style="flex:1"><div class="sim-bar" style="width:${pct}%;background:${barColor}"></div></div><span style="font-size:12px;font-weight:700;color:${barColor}">${pct}%</span></div>`;
+    if (m.sharedFactors.length) {
+      html += `<div class="shared-tags">${m.sharedFactors.map(f => `<span class="shared-tag">${esc(f)}</span>`).join('')}</div>`;
+    }
+    html += `</div>`;
+  }
+  const recoClass = r.matches.length && r.matches[0].score >= 0.85 ? 'danger' : r.matches.length && r.matches[0].score >= 0.60 ? 'warn' : 'success';
+  html += `<div class="reco-box ${recoClass}"><strong>Recommendation:</strong> ${esc(r.recommendation)}</div>`;
+  document.getElementById('dd-results').innerHTML = html;
+}
+
+// ═══ Root Cause Analysis ═══
+function toggleCustomRCA() {
+  const form = document.getElementById('custom-rca-form');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+async function runRCA() {
+  const defectIds = CLUSTER.map(d => d.id);
+  await executeRCA({ defectIds });
+}
+
+async function runCustomRCA() {
+  const defect = {
+    id: 'CUSTOM-001',
+    title: document.getElementById('rca-custom-title').value || 'Custom Defect',
+    description: document.getElementById('rca-custom-desc').value || '',
+    component: document.getElementById('rca-custom-comp').value || '',
+    severity: 'Medium',
+    tags: [],
+  };
+  await executeRCA({ defect });
+}
+
+async function executeRCA(body) {
+  const btn = document.getElementById('btn-rca'); btn.disabled = true;
+  const loadEl = document.getElementById('rca-loading'); loadEl.style.display = 'block';
+  const resultsEl = document.getElementById('rca-results'); resultsEl.innerHTML = '';
+  const STEPS = [
+    'Collecting failure history (last 90 days)...',
+    'Analyzing defect descriptions and metadata...',
+    'Running Five-Whys causal chain analysis...',
+    'Generating Fishbone categorization...',
+    'Analyzing engineer comments...',
+    'Correlating patterns across defect database...',
+    'Computing confidence scores...',
+  ];
+  const stepsEl = document.getElementById('rca-load-steps');
+  stepsEl.innerHTML = STEPS.map(s => `<div class="load-step"><span class="spinner"></span><span class="check">&#10003;</span> ${s}</div>`).join('');
+  const stepEls = stepsEl.querySelectorAll('.load-step');
+
+  // Fire API call immediately
+  const resultPromise = api('/api/rca', body);
+
+  // Animate loading steps
+  for (let i = 0; i < stepEls.length; i++) {
+    await sleep(400 + Math.random() * 300);
+    stepEls[i].classList.add('done');
+  }
+
+  const r = await resultPromise;
+  await sleep(300);
+  loadEl.style.display = 'none';
+  btn.disabled = false;
+
+  // Build all sections
+  let html = '';
+
+  // Symptoms
+  html += `<div class="card rca-section" id="rca-sec-symptoms"><div class="rca-heading cyan">SYMPTOM EXTRACTION</div>`;
+  html += `<div class="symptom-grid">${(r.symptoms||[]).map(s => `<div class="symptom-chip">${esc(s.symptom)}<span class="symptom-freq freq-${s.severity}">${s.frequency}x</span></div>`).join('')}</div></div>`;
+
+  // Five-Whys
+  html += `<div class="card rca-section" id="rca-sec-whys"><div class="rca-heading amber">FIVE-WHYS CAUSAL CHAIN</div><div class="why-chain">`;
+  for (const w of (r.fiveWhys||[])) {
+    html += `<div class="why-item" data-why="${w.level}"><div class="why-num">${w.level}</div><div class="why-q">${esc(w.question)}</div><div class="why-a">${esc(w.answer)}</div></div>`;
+  }
+  html += `</div></div>`;
+
+  // Fishbone
+  html += `<div class="card rca-section" id="rca-sec-fishbone"><div class="rca-heading purple">ISHIKAWA (FISHBONE) ANALYSIS</div><div class="fishbone-grid">`;
+  const cats = r.fishbone || {};
+  for (const cat of ['people','process','tools','environment','materials','measurement']) {
+    const items = cats[cat] || [];
+    html += `<div class="fishbone-cat ${cat}"><div class="fishbone-label">${cat}</div>${items.map(i => `<div class="fishbone-item">${esc(i)}</div>`).join('')}</div>`;
+  }
+  html += `</div></div>`;
+
+  // Comments
+  const comments = r.comments || {};
+  html += `<div class="card rca-section" id="rca-sec-comments"><div class="rca-heading green">ENGINEER COMMENT ANALYSIS</div>`;
+  const entries = comments.entries || {};
+  const allComments = Object.entries(entries).flatMap(([defId, arr]) => (arr||[]).map(c => ({...c, defId})));
+  if (allComments.length) {
+    const HIGHLIGHTS = ['synchronous','main thread','iDrive 7','verbatim copy','blocking','render thread','async','recalcRoute','9.2s','migration','same root cause','same pattern'];
+    for (const c of allComments) {
+      let text = esc(c.text);
+      for (const h of HIGHLIGHTS) text = text.replace(new RegExp(`(${h})`,'gi'), '<mark>$1</mark>');
+      html += `<div class="comment-entry"><div class="comment-meta"><strong>${esc(c.author)}</strong> &bull; ${c.date} &bull; ${c.defId}</div><div class="comment-text">${text}</div></div>`;
+    }
+  }
+  const analysis = comments.analysis || {};
+  if ((analysis.keyInsights||[]).length) {
+    html += `<div style="margin-top:12px;"><div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:6px;">KEY INSIGHTS</div>`;
+    for (const ins of analysis.keyInsights) html += `<div class="insight-card"><div class="insight-text">${esc(ins.insight)}</div><span class="badge badge-${ins.confidence==='High'?'pass':ins.confidence==='Medium'?'warn':'info'}">${ins.confidence||''}</span></div>`;
+    html += `</div>`;
+  }
+  if ((analysis.timelineFromComments||[]).length) {
+    html += `<div style="margin-top:12px;"><div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:6px;">TIMELINE</div>`;
+    for (const t of analysis.timelineFromComments) html += `<div class="timeline-item"><div class="timeline-date">${t.date}</div><div class="timeline-event">${esc(t.event)}</div></div>`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+
+  // Root Cause Summary
+  const rc = r.rootCause || {};
+  const conf = Math.round((rc.confidence || r.confidence || 0) * 100);
+  const confCirc = 2 * Math.PI * 50;
+  const confDash = (conf / 100) * confCirc;
+  html += `<div class="card rca-section" id="rca-sec-rootcause"><div class="rca-heading red">ROOT CAUSE IDENTIFIED</div><div class="rc-summary">`;
+  html += `<div class="rc-conf-ring"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="50"/><circle class="fg" cx="60" cy="60" r="50" stroke="#4ade80" stroke-dasharray="0 ${confCirc}" id="conf-arc"/></svg><div class="rc-conf-num" id="conf-num">0%</div></div>`;
+  html += `<div class="rc-cat"><span class="badge badge-purple">${(rc.category||'').toUpperCase()}</span> <span class="badge badge-info">${rc.id||''}</span></div>`;
+  html += `<div class="rc-summary-text">${esc(rc.summary||'')}</div>`;
+  html += `<div class="rc-desc">${esc(rc.description||'')}</div>`;
+  if ((rc.affectedDefects||[]).length) {
+    html += `<div style="margin-top:10px;">${rc.affectedDefects.map(d => `<span class="badge badge-info" style="margin:2px">${d}</span>`).join('')}</div>`;
+  }
+  html += `</div></div>`;
+
+  // Remediation
+  html += `<div class="card rca-section" id="rca-sec-remediation"><div class="rca-heading green">PREVENTIVE MEASURES</div><ol class="remedy-list">`;
+  for (const rem of (r.remediation||[])) html += `<li class="remedy-item"><span>${esc(rem)}</span></li>`;
+  html += `</ol></div>`;
+
+  // Patterns
+  if ((r.patterns||[]).length) {
+    html += `<div class="card rca-section" id="rca-sec-patterns"><div class="rca-heading blue">CROSS-MODULE PATTERN DETECTION</div>`;
+    for (const p of r.patterns) {
+      html += `<div class="pattern-card"><div class="pattern-name">${esc(p.pattern)}</div><div class="pattern-detail">${p.occurrences} occurrences across: ${(p.modules||[]).map(m => `<span class="badge badge-info" style="margin:1px">${esc(m)}</span>`).join(' ')}</div></div>`;
+    }
+    html += `</div>`;
+  }
+
+  resultsEl.innerHTML = html;
+
+  // Progressive reveal
+  const sections = ['symptoms','whys','fishbone','comments','rootcause','remediation','patterns'];
+  const delays = [0, 1200, 3500, 5000, 6500, 8000, 9000];
+  for (let i = 0; i < sections.length; i++) {
+    const sec = document.getElementById('rca-sec-'+sections[i]);
+    if (sec) setTimeout(() => {
+      sec.classList.add('visible');
+      if (sections[i] === 'whys') revealWhys();
+      if (sections[i] === 'rootcause') animateConfidence(conf, confDash, confCirc);
+    }, delays[i]);
+  }
+}
+
+function revealWhys() {
+  const items = document.querySelectorAll('.why-item');
+  items.forEach((item, i) => setTimeout(() => item.classList.add('visible'), i * 800));
+}
+
+function animateConfidence(target, dash, circ) {
+  const arc = document.getElementById('conf-arc');
+  const num = document.getElementById('conf-num');
+  if (arc) setTimeout(() => arc.setAttribute('stroke-dasharray', `${dash} ${circ}`), 100);
+  if (num) { let cur = 0; const iv = setInterval(() => { cur += 1; num.textContent = cur+'%'; if (cur >= target) clearInterval(iv); }, 20); }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function esc(s) { const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+</script>
+</body>
+</html>

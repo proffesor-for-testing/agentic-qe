@@ -1,0 +1,80 @@
+{
+  "patternName": "Vulnerable Population Accessibility",
+  "patternType": "accessibility-oracle",
+  "version": "1.0",
+  "createdFrom": "northernhealthcare-evaluation",
+  "domain": "healthcare",
+  "applicableTo": [
+    "mental-health-services",
+    "disability-services",
+    "eldercare",
+    "social-care",
+    "rehabilitation-services"
+  ],
+  "description": "When target users include vulnerable populations (mental health conditions, learning disabilities, autism, cognitive impairments), standard WCAG compliance is insufficient. Additional considerations beyond technical accessibility are required.",
+  "requirements": [
+    {
+      "requirement": "Plain English / Easy Read content alternatives",
+      "rationale": "Users with learning disabilities need simplified language",
+      "wcag": "3.1.5 Reading Level"
+    },
+    {
+      "requirement": "Native HTML elements over enhanced UI components",
+      "rationale": "Custom components break assistive technology patterns",
+      "wcag": "4.1.2 Name, Role, Value"
+    },
+    {
+      "requirement": "Avoid auto-playing media",
+      "rationale": "May cause anxiety or sensory overload",
+      "wcag": "1.4.2 Audio Control"
+    },
+    {
+      "requirement": "Extended form timeouts",
+      "rationale": "Cognitive processing may require more time",
+      "wcag": "2.2.1 Timing Adjustable"
+    },
+    {
+      "requirement": "Non-punitive error messaging",
+      "rationale": "Avoid language that creates anxiety",
+      "wcag": "3.3.1 Error Identification"
+    },
+    {
+      "requirement": "Explicit analytics consent with clear language",
+      "rationale": "Vulnerable users may be sensitive to being observed",
+      "wcag": "N/A - ethical consideration"
+    },
+    {
+      "requirement": "Predictable linear navigation over mega-menus",
+      "rationale": "Complex navigation creates cognitive load",
+      "wcag": "3.2.3 Consistent Navigation"
+    }
+  ],
+  "antiPatterns": [
+    {
+      "pattern": "Custom dropdown replacements (Nice Select, Select2)",
+      "problem": "Breaks screen reader expected behavior",
+      "alternative": "Native <select> with CSS styling"
+    },
+    {
+      "pattern": "Dynamic content without ARIA live announcements",
+      "problem": "Screen readers miss updates",
+      "alternative": "aria-live regions for all dynamic content"
+    },
+    {
+      "pattern": "CAPTCHA challenges without accessible alternatives",
+      "problem": "Cognitive barrier for impaired users",
+      "alternative": "Honeypot fields, accessible CAPTCHA, or server-side validation"
+    },
+    {
+      "pattern": "Session recording without explicit sensitive-context consent",
+      "problem": "May create anxiety about being watched",
+      "alternative": "Clear opt-in with explanation of purpose"
+    }
+  ],
+  "successCriteria": "Specialist accessibility audit WITH users from target population (not just automated tools)",
+  "reusability": {
+    "confidence": "HIGH",
+    "validatedDomains": ["mental-health-supported-living"],
+    "pendingValidation": ["eldercare", "rehabilitation"]
+  }
+}

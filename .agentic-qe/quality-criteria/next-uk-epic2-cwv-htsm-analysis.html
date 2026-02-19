@@ -1,0 +1,1822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quality Criteria Recommendations - Epic 2: Progressive Enhancement &amp; Core Web Vitals Optimization</title>
+  <style>
+    /* ============================================
+       QUALITY CRITERIA REFERENCE TEMPLATE
+       Template Version: 1.0.0 (Semantic Analysis)
+
+       USAGE: Copy this template structure exactly.
+       Only replace {PLACEHOLDER} values with actual data.
+       DO NOT modify CSS or HTML structure.
+       ============================================ */
+
+    :root {
+      --critical: #dc3545;
+      --critical-bg: #fff5f5;
+      --high: #fd7e14;
+      --high-bg: #fff8f0;
+      --medium: #ffc107;
+      --medium-bg: #fffdf5;
+      --low: #28a745;
+      --low-bg: #f5fff5;
+      --primary: #1a1a2e;
+      --secondary: #16213e;
+      --accent: #0f3460;
+      --text: #333;
+      --text-light: #666;
+      --border: #e4e8ec;
+      --bg: #f8f9fa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.7;
+      color: var(--text);
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: white;
+      padding: 2.5rem;
+      border-radius: 16px;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 40px rgba(26, 26, 46, 0.2);
+    }
+    .header h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    .header-subtitle { opacity: 0.9; font-size: 1.1rem; margin-bottom: 1rem; }
+    .header-meta { display: flex; gap: 2rem; flex-wrap: wrap; opacity: 0.85; font-size: 0.9rem; }
+
+    /* Executive Summary */
+    .executive-summary {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      border-left: 5px solid var(--accent);
+    }
+    .executive-summary h2 { color: var(--primary); margin-bottom: 1rem; }
+    .key-message {
+      font-size: 1.15rem;
+      font-weight: 500;
+      color: var(--primary);
+      padding: 1rem;
+      background: var(--bg);
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+    }
+    .priorities-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .priority-box {
+      padding: 1rem;
+      border-radius: 8px;
+    }
+    .priority-box.critical { background: var(--critical-bg); border-left: 4px solid var(--critical); }
+    .priority-box.high { background: var(--high-bg); border-left: 4px solid var(--high); }
+    .priority-box h4 { margin-bottom: 0.5rem; }
+    .priority-box ul { margin-left: 1.2rem; }
+    .priority-box li { margin-bottom: 0.25rem; }
+
+    /* Quick Reference Table */
+    .quick-reference {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .quick-reference h2 { color: var(--primary); margin-bottom: 1rem; }
+    .quick-reference table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .quick-reference th, .quick-reference td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .quick-reference th { background: var(--bg); font-weight: 600; }
+    .quick-reference tr:hover { background: #f8f9fa; }
+
+    /* Priority Sections */
+    .priority-section {
+      margin-bottom: 2rem;
+    }
+    .section-header {
+      padding: 1rem 1.5rem;
+      border-radius: 12px 12px 0 0;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .section-header.critical { background: var(--critical); }
+    .section-header.high { background: var(--high); }
+    .section-header.medium { background: var(--medium); color: var(--text); }
+    .section-header.low { background: var(--low); }
+    .section-header h2 { font-size: 1.25rem; margin: 0; }
+    .section-description {
+      padding: 1rem 1.5rem;
+      background: white;
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      color: var(--text-light);
+      font-style: italic;
+    }
+
+    /* Recommendation Cards */
+    .rec-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    .rec-card:not(:last-child) {
+      border-radius: 0;
+    }
+    .rec-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .rec-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+    .rec-category {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    /* Evidence Type Badges - Classifies evidence quality */
+    .evidence-type {
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .evidence-type.direct {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+    .evidence-type.inferred {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+    .evidence-type.claimed {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
+    .htsm-question {
+      font-style: italic;
+      color: var(--text-light);
+      padding: 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+      margin-top: 0.5rem;
+    }
+
+    /* Why It Matters */
+    .why-section {
+      padding: 1.5rem;
+      background: #fafbfc;
+      border-bottom: 1px solid var(--border);
+    }
+    .why-section h4 {
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .why-section p { line-height: 1.8; }
+
+    /* Evidence Section (Semantic Analysis) */
+    .evidence-section {
+      padding: 1.5rem;
+      background: #f0f7ff;
+      border-bottom: 1px solid var(--border);
+    }
+    .evidence-section h4 {
+      color: #1e40af;
+      margin-bottom: 0.75rem;
+    }
+    .evidence-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .evidence-table th {
+      background: #e0e7ff;
+      text-align: left;
+      padding: 0.5rem;
+    }
+    .evidence-table td {
+      padding: 0.5rem;
+      border-bottom: 1px solid #c7d2fe;
+    }
+    .evidence-reasoning {
+      font-style: italic;
+      color: var(--text-light);
+    }
+
+    /* Risk Warnings */
+    .risk-warnings {
+      padding: 1rem 1.5rem;
+      background: var(--critical-bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .risk-warning {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      color: var(--critical);
+    }
+    .risk-warning:not(:last-child) { border-bottom: 1px dashed rgba(220,53,69,0.3); }
+
+    /* Recommended Actions */
+    .actions-section {
+      padding: 1.5rem;
+    }
+    .collapsible-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+    .collapsible-header h4 { color: var(--primary); margin: 0; }
+    .collapse-icon { font-size: 0.8rem; color: var(--text-light); }
+    .collapsible-content.collapsed { display: none; }
+
+    .action-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1rem;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+    }
+    .action-type {
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
+      height: fit-content;
+    }
+    .action-type.engineering { background: #e3f2fd; color: #1565c0; }
+    .action-type.user_story { background: #f3e5f5; color: #7b1fa2; }
+    .action-type.testing { background: #e8f5e9; color: #2e7d32; }
+    .action-type.governance { background: #fff3e0; color: #e65100; }
+    .action-type.security { background: #ffebee; color: #c62828; }
+    .action-type.pi_planning { background: #e0f7fa; color: #00838f; }
+    .action-type.performance { background: #fce4ec; color: #ad1457; }
+    .action-content h5 { margin-bottom: 0.25rem; color: var(--primary); }
+    .action-content p { font-size: 0.9rem; color: var(--text-light); margin: 0; }
+
+    /* Cross-Cutting Concerns */
+    .cross-cutting {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .cross-cutting h2 { color: var(--primary); margin-bottom: 1rem; }
+    .concern-card {
+      padding: 1.5rem;
+      background: var(--bg);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      border-left: 4px solid var(--accent);
+    }
+    .concern-card h4 { margin-bottom: 0.5rem; color: var(--primary); }
+    .concern-categories {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .concern-category {
+      background: var(--secondary);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+    }
+
+    /* PI Planning */
+    .pi-planning {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .pi-planning h2 { color: var(--primary); margin-bottom: 1rem; }
+    .pi-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .pi-table th, .pi-table td {
+      padding: 1rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .pi-table th {
+      background: var(--primary);
+      color: white;
+    }
+    .pi-table tr:nth-child(even) { background: var(--bg); }
+    .sprint-badge {
+      background: var(--accent);
+      color: white;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .criteria-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+    }
+    .criteria-tag {
+      background: var(--bg);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border);
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-light);
+      font-size: 0.875rem;
+    }
+    .footer a { color: var(--accent); text-decoration: none; }
+
+    /* Info Sections (About/Help) */
+    .info-section {
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+    .info-header {
+      padding: 15px 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .info-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      opacity: 0.95;
+    }
+    .info-content {
+      padding: 0 20px 20px 20px;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+      max-height: 1000px;
+    }
+    .info-section.collapsed .info-content {
+      max-height: 0 !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .info-section.collapsed .collapse-icon {
+      transform: rotate(-90deg);
+    }
+    .info-content blockquote {
+      margin: 0 0 15px 0;
+      padding: 12px 15px;
+      border-left: 3px solid rgba(255,255,255,0.4);
+      font-style: italic;
+      opacity: 0.9;
+    }
+    .info-content p {
+      margin: 0 0 12px 0;
+      opacity: 0.9;
+      line-height: 1.7;
+    }
+    .info-content a {
+      color: #93c5fd;
+      text-decoration: underline;
+    }
+    .checklist-item {
+      margin-bottom: 8px;
+      line-height: 1.8;
+    }
+    .checklist-item strong {
+      color: white;
+    }
+
+    /* Badge styles */
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge.critical { background: var(--critical); color: white; }
+    .badge.high { background: var(--high); color: white; }
+    .badge.medium { background: var(--medium); color: var(--text); }
+    .badge.low { background: var(--low); color: white; }
+
+    @media (max-width: 768px) {
+      body { padding: 1rem; }
+      .header h1 { font-size: 1.5rem; }
+      .header-meta { flex-direction: column; gap: 0.5rem; }
+      .priorities-grid { grid-template-columns: 1fr; }
+      .pi-table { font-size: 0.85rem; }
+      .pi-table th, .pi-table td { padding: 0.5rem; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- HEADER SECTION -->
+    <header class="header">
+      <h1>Quality Criteria Recommendations</h1>
+      <div class="header-subtitle">Epic 2: Progressive Enhancement &amp; Core Web Vitals Optimization &mdash; Next.co.uk</div>
+      <div class="header-meta">
+        <span>Epic 2 of 6</span>
+        <span>2026-02-18</span>
+        <span>10 Quality Criteria Identified</span>
+        <span>10 of 10 HTSM Categories Analyzed</span>
+        <span style="font-size: 0.8rem;">Omitted: None &mdash; all 10 categories analyzed</span>
+      </div>
+
+      <!-- How can this report help you? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>How can this report help you?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <blockquote>
+            "Quality is value to some person." <span style="opacity: 0.7;">&mdash; Jerry Weinberg</span>
+          </blockquote>
+          <p>This report is generated by the <strong>Quality Criteria Recommender</strong>, one of the core agents based on the <strong>QCSD (Quality Conscious Software Delivery)</strong> framework. The QCSD framework recommends conducting Quality Criteria sessions early in the development lifecycle &mdash; ideally during PI Planning or Sprint Planning &mdash; to align the entire team on what "quality" means for each feature before a single line of code is written.</p>
+          <p>This analysis uses <strong>AI semantic understanding</strong> to identify relevant Quality Criteria from James Bach's <a href="https://www.satisfice.com/download/heuristic-test-strategy-model">Heuristic Test Strategy Model (HTSM) v6.3</a>. Unlike simple keyword matching, it understands the <em>meaning and implications</em> of your requirements to surface quality dimensions that may not be explicitly stated but are critical for user satisfaction.</p>
+          <p>A guided discussion based on this analysis helps teams uncover hidden quality risks, define testable acceptance criteria, create clearer development plans, identify gaps and dependencies early, improve estimation accuracy, and most importantly &mdash; <strong>avoid costly rework</strong> caused by discovering quality issues halfway through development. Research shows that defects found in production cost 30x more to fix than those found during requirements. If we want to save time and cost while still delivering quality software, <strong>it is always cheaper to do things right the first time</strong>.</p>
+          <p>Quality Criteria help answer fundamental questions: <em>What aspects of quality are most important for this feature? Where should we focus our testing effort? What risks exist if we neglect certain quality dimensions? How do we build quality in rather than test it in later?</em></p>
+        </div>
+      </div>
+
+      <!-- When to generate this report? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>When to generate this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <p><strong>During PI Planning &amp; Sprint Planning (QCSD Recommended):</strong> The QCSD framework recommends generating this report as soon as Epic/Feature requirements are available &mdash; ideally before Sprint Planning begins. This enables teams to conduct a <em>Quality Criteria Session</em> where programmers, testers, Product Owners, Designers, and Architects align on quality expectations before development starts.</p>
+          <p><strong>Shift-Left Quality Engineering:</strong> The cost of fixing defects increases exponentially as they move through the SDLC (1x in requirements &rarr; 5x in design &rarr; 10x in coding &rarr; 30x in production). Use this report to shift quality discussions left &mdash; informing architecture decisions, refining acceptance criteria, identifying non-functional requirements gaps, and allocating appropriate testing effort before the first commit.</p>
+          <p><strong>Before Three Amigos / Refinement Sessions:</strong> Share this report with the team before refinement sessions to facilitate meaningful conversations about quality trade-offs. When everyone understands which quality dimensions matter most, the team can make informed decisions about scope, risk acceptance, and technical approach.</p>
+          <p><strong>As a Living Document:</strong> Regenerate this report when requirements change significantly. Quality criteria priorities may shift as the feature scope evolves &mdash; what was medium priority may become critical based on new information.</p>
+        </div>
+      </div>
+
+      <!-- How to use this report? -->
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>How to use this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <div class="info-content">
+          <p style="margin-bottom: 12px;">In this report you will find:</p>
+          <div style="margin-left: 5px; line-height: 1.8;">
+            <div class="checklist-item">&#x2610; <strong>Executive Summary</strong> - Key message and critical priorities at a glance.</div>
+            <div class="checklist-item">&#x2610; <strong>Quick Reference Table</strong> - All quality criteria with priorities and HTSM questions.</div>
+            <div class="checklist-item">&#x2610; <strong>Priority-Based Recommendations</strong> - Detailed analysis with evidence-based reasoning.</div>
+            <div class="checklist-item">&#x2610; <strong>Actionable Tasks</strong> - Engineering tasks, User Stories, and Testing activities.</div>
+            <div class="checklist-item">&#x2610; <strong>Cross-Cutting Concerns</strong> - Quality aspects spanning multiple criteria.</div>
+            <div class="checklist-item">&#x2610; <strong>PI Planning Guidance</strong> - Sprint-by-sprint quality focus.</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+
+    <!-- EXECUTIVE SUMMARY -->
+    <section class="executive-summary">
+      <h2>Executive Summary</h2>
+      <div class="key-message">Next.co.uk currently renders a blank page with "You need to enable JavaScript to run this app" &mdash; a total failure of progressive enhancement that blocks search engine crawlers, assistive technologies, and users on constrained devices. This epic is the load-bearing foundation for 4 downstream epics (E3, E5, E6 and indirectly E4). Performance and Capability are jointly critical: if the SSR migration breaks existing features or fails to hit Core Web Vitals thresholds, the entire 6-epic roadmap stalls.</div>
+
+      <div class="priorities-grid">
+        <div class="priority-box critical">
+          <h4>&#x1F6A8; Critical Priorities</h4>
+          <ul>
+            <li><strong>Performance</strong> &mdash; LCP, INP, CLS targets directly impact search rankings and bounce rate</li>
+            <li><strong>Capability</strong> &mdash; SSR/SSG must render meaningful content without JS; zero-JS fallback is the primary deliverable</li>
+          </ul>
+        </div>
+
+        <div class="priority-box high">
+          <h4>&#x26A1; Quick Wins</h4>
+          <ul>
+            <li>Add <code>prefers-reduced-motion</code> media query to replace video backgrounds (Usability, Charisma)</li>
+            <li>Implement resource hints (preconnect, preload) for CDN origins (Performance)</li>
+            <li>Convert images to WebP/AVIF with <code>srcset</code> and lazy loading (Performance, Capability)</li>
+            <li>Set up RUM-based Core Web Vitals dashboard for baseline measurement (Development)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- QUICK REFERENCE TABLE -->
+    <section class="quick-reference">
+      <h2>Quick Reference</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Quality Criteria</th>
+            <th>Priority</th>
+            <th>Key Question</th>
+            <th>Primary Focus</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Performance</strong></td>
+            <td><span class="badge critical">P0</span></td>
+            <td style="font-style: italic;">How speedy and responsive is it under real-world conditions?</td>
+            <td>LCP &lt; 2.5s, INP &lt; 200ms, CLS &lt; 0.1, 40% page weight reduction</td>
+          </tr>
+          <tr>
+            <td><strong>Capability</strong></td>
+            <td><span class="badge critical">P0</span></td>
+            <td style="font-style: italic;">Can it perform the required functions without JavaScript?</td>
+            <td>SSR/SSG rendering, no-JS content access, crawler indexability</td>
+          </tr>
+          <tr>
+            <td><strong>Reliability</strong></td>
+            <td><span class="badge high">P1</span></td>
+            <td style="font-style: italic;">Will it resist failure during SSR migration and under load?</td>
+            <td>SSR hydration stability, CDN failover, graceful degradation</td>
+          </tr>
+          <tr>
+            <td><strong>Compatibility</strong></td>
+            <td><span class="badge high">P1</span></td>
+            <td style="font-style: italic;">Does it work across browsers, devices, and downstream epics?</td>
+            <td>Cross-browser WebP/AVIF, srcset support, E3/E5/E6 integration</td>
+          </tr>
+          <tr>
+            <td><strong>Usability</strong></td>
+            <td><span class="badge high">P1</span></td>
+            <td style="font-style: italic;">How easy is it for real users, including those with disabilities?</td>
+            <td>Reduced-motion support, no-JS navigation, 3-second interactive target</td>
+          </tr>
+          <tr>
+            <td><strong>Security</strong></td>
+            <td><span class="badge high">P1</span></td>
+            <td style="font-style: italic;">How well protected against unauthorized use?</td>
+            <td>SSR injection vectors, CDN cache poisoning, CSP for inlined CSS</td>
+          </tr>
+          <tr>
+            <td><strong>Development</strong></td>
+            <td><span class="badge high">P1</span></td>
+            <td style="font-style: italic;">How well can we create, test, and maintain this?</td>
+            <td>RUM monitoring, CWV regression testing, feature flag infrastructure</td>
+          </tr>
+          <tr>
+            <td><strong>Scalability</strong></td>
+            <td><span class="badge medium">P2</span></td>
+            <td style="font-style: italic;">How well does it scale under increased demand?</td>
+            <td>SSR server capacity, CDN edge caching at scale, peak-traffic resilience</td>
+          </tr>
+          <tr>
+            <td><strong>Charisma</strong></td>
+            <td><span class="badge medium">P2</span></td>
+            <td style="font-style: italic;">How appealing is the product to users?</td>
+            <td>Visual fidelity during progressive enhancement, hero image quality, brand consistency</td>
+          </tr>
+          <tr>
+            <td><strong>Installability</strong></td>
+            <td><span class="badge low">P3</span></td>
+            <td style="font-style: italic;">How easily is the system deployed and configured?</td>
+            <td>CDN configuration, image pipeline deployment, SSR infrastructure provisioning</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Priority Legend -->
+      <div style="margin-top: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border);">
+        <h4 style="margin: 0 0 1rem 0; color: var(--primary);">Priority Levels</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+          <div style="padding: 0.75rem; background: var(--critical-bg); border-left: 4px solid var(--critical); border-radius: 4px;">
+            <strong style="color: var(--critical);">P0 - CRITICAL</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Failure causes immediate business/user harm.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--high-bg); border-left: 4px solid var(--high); border-radius: 4px;">
+            <strong style="color: var(--high);">P1 - HIGH</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Critical to core user value proposition.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--medium-bg); border-left: 4px solid var(--medium); border-radius: 4px;">
+            <strong style="color: #b45309;">P2 - MEDIUM</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Affects satisfaction but not blocking.</p>
+          </div>
+          <div style="padding: 0.75rem; background: var(--low-bg); border-left: 4px solid var(--low); border-radius: 4px;">
+            <strong style="color: var(--low);">P3 - LOW</strong>
+            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-light);">Nice-to-have quality improvements.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- =============================================
+         CRITICAL PRIORITY SECTION
+         ============================================= -->
+    <section class="priority-section">
+      <div class="section-header critical">
+        <h2>Critical Priority Quality Criteria</h2>
+        <span>2 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria MUST be addressed immediately - failure poses unacceptable risk.</div>
+
+      <!-- P0: PERFORMANCE -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Performance</span>
+          </div>
+          <div class="htsm-question">"How speedy and responsive is it under real-world conditions?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>This epic exists primarily because of performance. The acceptance criteria define 4 explicit Core Web Vitals thresholds (LCP &lt; 2.5s, FID &lt; 100ms, INP &lt; 200ms, CLS &lt; 0.1) and a 40% page weight reduction target. Google uses CWV as a ranking signal &mdash; the current ~60% pass rate means approximately 40% of page loads fail Google's thresholds, directly suppressing search visibility for a site that competes with ASOS, M&amp;S, and John Lewis for identical product keywords.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Improving CWV pass rate from 60% to 90%+ is projected to reduce homepage bounce rate from 45% to 35% (a 22% relative reduction). At Next's estimated ~15 million monthly UK homepage visits, a 10 percentage-point bounce rate reduction retains approximately 1.5 million additional sessions per month. Combined with the search conversion rate target increase from 2.5% to 4%, this translates to an estimated 60% uplift in search-driven revenue attributable to this epic alone.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Epic AC #2: LCP &lt; 2.5s on 4G</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Current LCP is ~3.5s, 40% above the 2.5s target</td>
+                <td class="evidence-reasoning">A 1-second LCP improvement on a retail homepage historically correlates with 7-12% conversion rate uplift; failure to achieve this blocks the search conversion target of 4%</td>
+              </tr>
+              <tr>
+                <td><code>Epic AC #4: CLS &lt; 0.1</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Layout shift from image carousels, video backgrounds, and late-loading assets</td>
+                <td class="evidence-reasoning">CLS violations cause users to click wrong elements; on e-commerce homepages this leads to mis-navigation and increased exit rate, particularly on mobile where touch targets shift unpredictably</td>
+              </tr>
+              <tr>
+                <td><code>Epic AC #8: Page weight reduced by 40%</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Current page weight is excessive; 40% reduction needed</td>
+                <td class="evidence-reasoning">Heavy pages disproportionately affect users on metered data connections (US5); UK mobile data costs mean high page weight directly correlates with user cost and abandonment on 4G/3G connections</td>
+              </tr>
+              <tr>
+                <td><code>Key Issues: "Multiple image carousels, video backgrounds, and heavy asset loading"</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Known performance anti-patterns present on current site</td>
+                <td class="evidence-reasoning">Video backgrounds are the single highest-bandwidth asset class; converting to optimized hero images (AC #7) removes the largest performance bottleneck but requires careful visual parity to avoid charisma regression</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Performance regression from E3 personalization: dynamic content injection after SSR can degrade LCP and inflate CLS. Edge caching strategy must account for personalized vs. generic content splits.</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>CWV measurement methodology mismatch: lab metrics (Lighthouse) and field metrics (CrUX) can diverge by 30-50%. RUM-based monitoring must be the source of truth, not lab scores alone.</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>40% page weight reduction target has no defined baseline date. If the baseline shifts due to concurrent content updates, the target becomes a moving goalpost. Baseline must be frozen at sprint start.</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement image optimization pipeline with automatic WebP/AVIF conversion</h5>
+                <p>Build or integrate a pipeline (e.g., sharp, Cloudinary, imgproxy) that auto-converts uploaded images to WebP/AVIF with proper srcset breakpoints (320w, 640w, 1024w, 1440w). Include quality presets per image type (hero: q80, thumbnail: q65).</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type performance">Performance</span>
+              <div class="action-content">
+                <h5>Freeze page weight baseline and establish CWV regression gate</h5>
+                <p>Record current page weight, LCP, INP, and CLS via WebPageTest and CrUX API as of sprint 1 start. Add Lighthouse CI to PR pipeline with performance budget thresholds that fail builds on regression.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Create CWV test suite across device/network profiles</h5>
+                <p>Automate Lighthouse or Web Vitals library tests on 4 profiles: Desktop/fiber, Tablet/4G, Mobile/4G, Mobile/3G. Assert LCP &lt; 2.5s, INP &lt; 200ms, CLS &lt; 0.1 on all 4 profiles. Run nightly against staging.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement resource hints for critical rendering path</h5>
+                <p>Add preconnect hints for CDN and API origins, preload critical hero image and above-the-fold CSS, and prefetch likely next-page navigation targets. Measure impact on LCP via A/B test.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- P0: CAPABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Capability</span>
+          </div>
+          <div class="htsm-question">"Can it perform the required functions &mdash; specifically, can users access content and navigate without JavaScript?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>The current Next.co.uk homepage shows "You need to enable JavaScript to run this app" &mdash; this means zero content is available to search engine crawlers relying on initial HTML, users with JavaScript disabled or blocked by corporate firewalls, assistive technologies that rely on static HTML, and any browser where JS fails to execute (network error, script error, CSP block). The primary deliverable of this epic is to make the homepage functionally useful without JavaScript. This is a binary pass/fail: either the SSR/SSG implementation renders product categories, search, and navigation in the initial HTML response, or it does not.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Google's renderer has a crawl budget; pages requiring JS execution consume approximately 5-10x more render resources and are indexed with significant delay (hours to weeks). For a catalogue with thousands of product pages linked from the homepage, this indexing delay directly suppresses organic search traffic. Estimated impact: 15-25% of organic search impressions are lost due to JS-only rendering, based on industry benchmarks for large e-commerce sites.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Epic AC #1: Homepage renders meaningful content without JavaScript</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Current state: zero content without JS &mdash; complete capability failure</td>
+                <td class="evidence-reasoning">This is the single most important acceptance criterion; it gates US2 (JS-disabled browsing) and US4 (crawler indexability) and is prerequisite for E3/E5/E6 downstream epics</td>
+              </tr>
+              <tr>
+                <td><code>Epic AC #5: Above-the-fold content served as static HTML with critical CSS inlined</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Requires both SSR HTML and critical CSS extraction</td>
+                <td class="evidence-reasoning">Inlined critical CSS eliminates render-blocking stylesheet requests; but over-inlining bloats HTML response size and can itself delay first meaningful paint &mdash; requires careful extraction of only above-the-fold styles</td>
+              </tr>
+              <tr>
+                <td><code>Key Issues: "You need to enable JavaScript to run this app"</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>The current noscript fallback provides zero functional content</td>
+                <td class="evidence-reasoning">This confirms the site is a pure client-side SPA with no server-rendered fallback; the SSR migration is therefore a full architectural change, not an incremental improvement, increasing risk of feature breakage (Epic risk: "SSR migration may break existing features")</td>
+              </tr>
+              <tr>
+                <td><code>US2: User with JavaScript disabled can browse categories and access product pages</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>No-JS browsing requires server-rendered links and navigation</td>
+                <td class="evidence-reasoning">Navigation without JS requires all links to be standard &lt;a href&gt; elements with valid server-routable URLs, not client-side router intercepts &mdash; requires verification that existing navigation uses proper anchor tags</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>SSR migration breaking existing features is explicitly called out as the primary risk. The current SPA likely has client-side state management, routing, and event handlers that must be preserved during hydration. Hydration mismatch errors can cause visual flicker, broken interactivity, or complete page failure.</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Feature flags are proposed for phased rollout, but the no-JS capability is binary: the page either renders server-side HTML or it does not. Feature flags can gate new SSR routes but cannot provide a partial SSR state &mdash; careful route-by-route migration strategy is needed.</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement SSR/SSG for homepage with route-by-route migration</h5>
+                <p>Start with homepage route only. Render product categories, navigation, and search form as server-side HTML. Use framework-native SSR (Next.js, Nuxt, or equivalent). Validate hydration produces no client/server mismatch warnings.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Create no-JS functional test suite</h5>
+                <p>Use Playwright with JavaScript disabled to verify: (1) homepage renders product categories, (2) navigation links are functional &lt;a href&gt; elements, (3) search form submits via standard form action, (4) product page links resolve to server-rendered pages. Run on every PR.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Validate search engine crawlability</h5>
+                <p>Use Google Search Console URL Inspection, Screaming Frog, and raw curl requests to verify initial HTML response contains all expected content, links, and structured data. Compare pre/post SSR migration indexing metrics weekly.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type governance">Governance</span>
+              <div class="action-content">
+                <h5>Define feature flag strategy for SSR route migration</h5>
+                <p>Document which routes migrate in which sprint. Define rollback criteria (e.g., error rate &gt; 1%, LCP regression &gt; 500ms). Ensure feature flags can toggle SSR per-route without requiring redeployment.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- =============================================
+         HIGH PRIORITY SECTION
+         ============================================= -->
+    <section class="priority-section">
+      <div class="section-header high">
+        <h2>High Priority Quality Criteria</h2>
+        <span>5 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria SHOULD be addressed to ensure product success and user satisfaction.</div>
+
+      <!-- P1: RELIABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Reliability</span>
+          </div>
+          <div class="htsm-question">"Will it work well and resist failure during the SSR migration and under real-world conditions?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>Migrating from a client-side SPA to SSR fundamentally changes the failure surface. Server-side rendering introduces new failure modes: SSR server crashes, memory leaks during rendering, template compilation errors, hydration mismatches, and CDN cache staleness. The current SPA pushes all rendering to the client; with SSR, the server becomes a single point of failure for initial page delivery. If the SSR server fails, users get nothing &mdash; worse than the current SPA which at least serves a loading shell.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Next.co.uk processes an estimated 2-3 million daily sessions. A 15-minute SSR server outage during peak hours (7-9 PM UK time) would affect approximately 30,000-50,000 sessions. Without graceful degradation to the client-side SPA, this represents a complete loss of those sessions at an estimated average order value of 55 GBP, with potential revenue impact of 40,000-80,000 GBP per incident.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Epic Risk: "SSR migration may break existing features"</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Acknowledged risk of feature breakage during migration</td>
+                <td class="evidence-reasoning">SSR hydration errors are the #1 cause of post-migration reliability issues; they manifest as broken event handlers, duplicated DOM nodes, or complete page re-renders that negate SSR performance gains</td>
+              </tr>
+              <tr>
+                <td><code>Risk Mitigation: "Feature flags, phased rollout"</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Phased rollout reduces blast radius but requires robust rollback</td>
+                <td class="evidence-reasoning">Feature flags mitigate risk only if rollback is tested and instant; if flag toggling requires redeployment or cache purge, the effective rollback time may exceed acceptable downtime thresholds</td>
+              </tr>
+              <tr>
+                <td><code>Technical Task #2: CDN with edge caching</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>CDN cache staleness could serve outdated or broken content</td>
+                <td class="evidence-reasoning">If SSR output is cached at CDN edge and the SSR server deploys a breaking change, stale cache entries may serve inconsistent content. Cache invalidation strategy must account for SSR version mismatches &mdash; requires verification of cache TTL and purge mechanism</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>No fallback strategy is documented for SSR server failure. If the SSR process crashes, the system must either serve a cached version, fall back to client-side rendering, or serve a meaningful static error page &mdash; not a blank page.</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>SSR memory leaks are common in Node.js-based renderers (React renderToString, Vue renderToString). Without memory monitoring and automatic process recycling, SSR servers can degrade progressively and fail under sustained load.</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement SSR fallback chain: SSR &rarr; CDN cache &rarr; CSR &rarr; static shell</h5>
+                <p>Configure 3-tier fallback: (1) live SSR, (2) stale CDN cache with stale-while-revalidate header, (3) client-side SPA bundle, (4) static HTML shell with core navigation. Each tier should log its activation for monitoring.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Chaos testing for SSR failure modes</h5>
+                <p>Simulate SSR server crash, memory exhaustion, and slow API responses. Verify fallback chain activates correctly. Test hydration mismatch detection with intentional server/client divergence. Measure recovery time from each failure mode.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Configure SSR process health monitoring and auto-recycling</h5>
+                <p>Set memory threshold alerts at 80% and automatic process restart at 90%. Monitor SSR render time p95/p99 and alert if render time exceeds 500ms (indicating memory pressure or template complexity growth).</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- P1: COMPATIBILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Compatibility</span>
+          </div>
+          <div class="htsm-question">"Does it work across browsers, devices, image format support, and downstream epic integrations?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>This epic introduces multiple technologies with varying browser support: WebP (97% global support), AVIF (88% global support), srcset/sizes (97%), prefers-reduced-motion (97%), and SSR hydration behavior that varies across browser JS engines. Additionally, this epic is a dependency for 4 downstream epics (E3: AI Personalization, E5: Social Proof/UGC, E6: Mobile PWA, and indirectly E4: Sustainable Commerce). Any incompatibility in the SSR foundation propagates to all dependent epics.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> AVIF's 88% support means approximately 12% of global users (and a similar UK proportion) cannot render AVIF images. Without proper &lt;picture&gt; fallback chains (AVIF &rarr; WebP &rarr; JPEG), these users would see broken images or fallback to unoptimized JPEG, negating the 40% page weight reduction target. For Next.co.uk's estimated 15 million monthly visits, 12% is approximately 1.8 million sessions at risk of degraded experience.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Epic AC #6: Images use next-gen formats (WebP/AVIF) with proper srcset</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Requires browser-specific format negotiation</td>
+                <td class="evidence-reasoning">WebP/AVIF must use &lt;picture&gt; element with source type attributes and JPEG fallback; Content-Type negotiation via Accept header at CDN level is an alternative but requires CDN configuration verification</td>
+              </tr>
+              <tr>
+                <td><code>Dependencies: "Enables E3, E5, E6"</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>SSR architecture must be compatible with downstream epic requirements</td>
+                <td class="evidence-reasoning">E3 (AI Personalization) needs to inject dynamic content into SSR output; E6 (Mobile PWA) needs service worker integration with SSR cache; architectural decisions here constrain all downstream epics</td>
+              </tr>
+              <tr>
+                <td><code>US3: prefers-reduced-motion preference</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>CSS media query support varies in older browsers</td>
+                <td class="evidence-reasoning">prefers-reduced-motion has 97% support but the remaining 3% (older Safari, IE11 remnants) should default to static images rather than video &mdash; the safe fallback is no-motion, not full-motion</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>E3 (AI Personalization) dynamic content injection into SSR pages may break hydration if not architected correctly from the start. SSR template architecture must account for personalization slots from sprint 1.</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Cross-browser image format validation matrix</h5>
+                <p>Test image rendering across Chrome 90+, Firefox 90+, Safari 14+, Edge 90+, Samsung Internet 15+, and iOS Safari 14+. Verify &lt;picture&gt; fallback chain serves correct format per browser Accept header. Validate no broken images on any supported browser.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Design SSR template architecture with personalization slots for E3</h5>
+                <p>Define server-rendered "slot" areas in homepage template that can be hydrated with personalized content by E3. Use streaming SSR or island architecture to allow E3 to inject content without full-page re-render. Document the contract between E2 SSR output and E3 hydration expectations.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- P1: USABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Usability</span>
+          </div>
+          <div class="htsm-question">"How easy is it for real users, including those with disabilities and on slow connections?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>This epic directly affects 3 usability dimensions: accessibility (prefers-reduced-motion support, no-JS navigation), learnability (users on slow connections must be able to interact within 3 seconds per US1), and operability (the homepage must be navigable without JavaScript per US2). The dependency on E1 (Accessibility/WCAG 2.2 AA) means that usability improvements here must be compatible with and build upon the accessibility foundation being laid in E1.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Users who cannot interact with the page within 3 seconds on a slow mobile connection (US1) represent approximately 15-20% of UK mobile users on congested 4G networks during peak hours. At 60% mobile traffic share for e-commerce in the UK, this is approximately 1.8-2.4 million monthly sessions where current usability is unacceptable. The prefers-reduced-motion user base is estimated at 10-15% of users who have this OS-level setting enabled.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>US1: User on slow mobile connection interacts within 3 seconds</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>3-second interactive target on 4G is aggressive for a content-heavy homepage</td>
+                <td class="evidence-reasoning">Time-to-interactive on 4G depends on both SSR response time and JS hydration; if hydration blocks interactivity, the page appears loaded but does not respond to taps &mdash; a deceptive UX pattern worse than a loading spinner</td>
+              </tr>
+              <tr>
+                <td><code>US3: prefers-reduced-motion shows static images instead of video</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Motion sensitivity accommodation required</td>
+                <td class="evidence-reasoning">This is both a usability and accessibility requirement; vestibular disorder affects ~35% of adults over 40 and reduced-motion preferences must produce visually equivalent static alternatives, not blank spaces or broken layouts</td>
+              </tr>
+              <tr>
+                <td><code>Dependencies: "Depends on Epic 1 (Accessibility) partial completion"</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Usability improvements must align with WCAG 2.2 AA foundation from E1</td>
+                <td class="evidence-reasoning">If E1 establishes semantic HTML patterns and ARIA roles, E2 SSR must preserve them; SSR output that strips or alters accessibility attributes would regress E1 compliance</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>SSR hydration can create a "uncanny valley" where the page looks interactive but is not &mdash; clicks and taps are silently lost during hydration. This is worse than a loading state because users believe the interface is broken rather than loading.</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Test hydration interactivity gap on throttled connections</h5>
+                <p>Measure time between First Contentful Paint and Time-to-Interactive on 4G-throttled mobile. If the gap exceeds 1 second, implement progressive hydration or event replay to capture user interactions during hydration.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type user_story">User Story</span>
+              <div class="action-content">
+                <h5>Validate prefers-reduced-motion fallback produces visual parity</h5>
+                <p>For every video background on the homepage, create a static hero image that preserves the same visual hierarchy, brand messaging, and CTA visibility. A/B test static vs. video variants to measure conversion impact.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Accessibility regression test for SSR output</h5>
+                <p>Run axe-core on SSR-rendered HTML (before hydration) to verify all WCAG 2.2 AA landmarks, heading hierarchy, and ARIA attributes from E1 are preserved in SSR output. Run on every build.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- P1: SECURITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Security</span>
+          </div>
+          <div class="htsm-question">"How well protected against unauthorized use, injection, and cache-based attacks?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>SSR introduces server-side attack surfaces that do not exist in a client-side SPA: server-side template injection (SSTI), where user input rendered on the server can execute arbitrary code; CDN cache poisoning, where a manipulated request causes the CDN to cache and serve malicious content to all users; and Content Security Policy (CSP) challenges from inlining critical CSS (AC #5), which requires unsafe-inline or nonce-based CSP headers. These are qualitatively different from client-side XSS because they affect all users, not just the attacking user.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> A CDN cache poisoning attack on the Next.co.uk homepage would serve malicious content to all 15 million monthly visitors until the cache is purged. A server-side template injection could expose server environment variables, API keys, or customer data. UK GDPR fines for data breaches can reach 17.5 million GBP or 4% of annual turnover, whichever is higher.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Epic AC #5: Critical CSS inlined</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Inlined CSS requires CSP policy adjustment</td>
+                <td class="evidence-reasoning">Inlining CSS means the existing CSP (if any) must allow inline styles via 'unsafe-inline' (weak) or nonce/hash-based allowlisting (strong). If CSP is not updated, inline styles will be blocked, breaking above-the-fold rendering &mdash; requires verification of current CSP configuration</td>
+              </tr>
+              <tr>
+                <td><code>Technical Task #1: Implement SSR/SSG</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>SSR introduces server-side template injection risk</td>
+                <td class="evidence-reasoning">If any user-generated content (search queries, URL parameters) is rendered server-side without sanitization, it could enable SSTI or reflected XSS at the server level, affecting all subsequent cached responses</td>
+              </tr>
+              <tr>
+                <td><code>Technical Task #2: CDN with edge caching</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>CDN cache poisoning risk if cache key includes manipulable request headers</td>
+                <td class="evidence-reasoning">If the CDN varies cache by headers like X-Forwarded-Host or custom headers that an attacker can control, a poisoned response could be cached and served to all users. Cache key design must be explicitly reviewed &mdash; requires verification of CDN cache key configuration</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>The epic does not mention security considerations, CSP policy, or input sanitization requirements. Security is absent from acceptance criteria, technical tasks, and risk mitigation. This gap must be addressed explicitly.</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>CDN cache poisoning is a particularly dangerous attack because it converts a single-user vulnerability into a broadcast attack affecting all visitors. Cache key audit and cache-control header review are mandatory before go-live.</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type security">Security</span>
+              <div class="action-content">
+                <h5>Implement nonce-based CSP for inlined critical CSS</h5>
+                <p>Generate a per-request nonce for inline style tags. Update CSP header to allow style-src 'nonce-{value}' instead of 'unsafe-inline'. Verify CSP does not block SSR-rendered content. Test with CSP report-only mode first.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type security">Security</span>
+              <div class="action-content">
+                <h5>Audit CDN cache key configuration for cache poisoning vectors</h5>
+                <p>Review which request headers are included in CDN cache key (Host, Accept, Accept-Encoding are safe; X-Forwarded-*, custom headers are risky). Ensure cache key cannot be manipulated by untrusted request parameters. Implement Cache-Control: private for any user-specific content.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type security">Security</span>
+              <div class="action-content">
+                <h5>Sanitize all server-rendered user input</h5>
+                <p>Audit SSR templates for any injection of URL parameters, search queries, or user-provided data. Apply context-aware output encoding (HTML entity encoding for HTML context, CSS encoding for style context). Use framework-native auto-escaping and verify it is not disabled.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Penetration test SSR endpoints for SSTI and cache poisoning</h5>
+                <p>Run targeted pentest before production launch covering: (1) template injection via URL params, (2) cache poisoning via header manipulation, (3) CSP bypass attempts, (4) response splitting via SSR headers. Engage security team or external assessor.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- P1: DEVELOPMENT -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Development</span>
+          </div>
+          <div class="htsm-question">"How well can we create, test, maintain, and monitor this system?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>This epic requires a major architectural shift (SPA to SSR) with shared resources (DevOps, Frontend Team) across 6 concurrent epics. The testability challenge is significant: Core Web Vitals are field metrics that cannot be fully validated in lab environments, SSR hydration correctness requires both server and client testing, and the feature flag infrastructure for phased rollout must itself be tested. The RUM monitoring dashboard (Technical Task #6) is critical for validating success metrics in production but is listed as the last technical task, creating a monitoring gap during early sprints.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Without RUM-based monitoring from sprint 1, the team will be unable to detect CWV regressions until manual testing catches them, potentially weeks after deployment. A single undetected CWV regression could drop the pass rate from the target 90% back toward 60%, negating the entire epic's value. The shared resource constraint (DevOps, Frontend Team across 6 epics) means development velocity on E2 is directly constrained by E1, E3, and other concurrent epic demand.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Technical Task #6: Core Web Vitals monitoring dashboard (RUM data)</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>RUM monitoring is the only reliable way to validate CWV in production</td>
+                <td class="evidence-reasoning">Listed as last task but should be first &mdash; without baseline RUM data, there is no way to measure the impact of subsequent optimizations or detect regressions introduced by other changes</td>
+              </tr>
+              <tr>
+                <td><code>Shared Resources: DevOps, Frontend Team</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Resource contention between 6 concurrent epics</td>
+                <td class="evidence-reasoning">If DevOps bandwidth is consumed by E1 accessibility infrastructure, E2 CDN and SSR deployment tasks will be delayed; cross-functional planning is acknowledged but no capacity allocation is defined</td>
+              </tr>
+              <tr>
+                <td><code>Risk Mitigation: "Feature flags, phased rollout"</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Feature flag infrastructure must be built/configured before SSR rollout begins</td>
+                <td class="evidence-reasoning">If the team does not have a feature flag system (e.g., LaunchDarkly, Unleash, or custom), building one is a prerequisite task that is not accounted for in the technical task list &mdash; requires verification of existing feature flag capabilities</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>RUM monitoring dashboard is listed as the last technical task. Without it from sprint 1, there is no production visibility into CWV performance, making it impossible to verify whether changes are improving or regressing metrics. This should be the first task delivered.</span>
+          </div>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Lab-based CWV testing (Lighthouse CI) is necessary but insufficient. CrUX data lags by 28 days, meaning production CWV regressions may not appear in Google Search Console for a month. RUM provides near-real-time visibility to fill this gap.</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Prioritize RUM monitoring as sprint 1 deliverable</h5>
+                <p>Integrate web-vitals library or equivalent RUM solution (SpeedCurve, Datadog RUM, New Relic Browser) in sprint 1. Capture LCP, INP, CLS, FCP, and TTFB segmented by device type, connection speed, and geographic region. Establish alerting thresholds before SSR rollout begins.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type testing">Testing</span>
+              <div class="action-content">
+                <h5>Implement Lighthouse CI in PR pipeline with performance budgets</h5>
+                <p>Add Lighthouse CI to CI/CD pipeline. Set budgets: LCP &lt; 2.5s, CLS &lt; 0.1, INP &lt; 200ms, total page weight &lt; target. Fail PRs that regress beyond 10% of budget. Run against both SSR and CSR fallback paths.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type governance">Governance</span>
+              <div class="action-content">
+                <h5>Define resource allocation agreement across concurrent epics</h5>
+                <p>Negotiate explicit DevOps and Frontend Team allocation percentages for E2 vs. E1/E3. Document in shared sprint plan. Flag resource conflicts in weekly cross-epic standups. Define escalation path when E2 tasks are blocked by resource contention.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- =============================================
+         MEDIUM PRIORITY SECTION
+         ============================================= -->
+    <section class="priority-section">
+      <div class="section-header medium">
+        <h2>Medium Priority Quality Criteria</h2>
+        <span>2 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria enhance product quality and should be planned for upcoming sprints.</div>
+
+      <!-- P2: SCALABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Scalability</span>
+          </div>
+          <div class="htsm-question">"How well does it handle increased demand, especially SSR rendering at peak traffic?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>The current SPA architecture offloads all rendering to the client browser. SSR shifts rendering cost to the server &mdash; every page request now requires server CPU and memory to render HTML. During peak traffic events (Black Friday, sale launches, marketing campaigns), the SSR server fleet must handle the full request volume. UK retail peak traffic can reach 5-10x normal daily traffic, meaning SSR infrastructure must handle 10-20 million renders per day during peak periods.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> Next.co.uk's peak trading days (Black Friday, Boxing Day sale) generate estimated 3-5x normal revenue. If SSR servers cannot scale to meet demand and the fallback chain fails, revenue loss during a 1-hour peak outage could reach 200,000-500,000 GBP based on Next plc's published online revenue figures.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Technical Task #1: Implement SSR/SSG</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>SSR moves rendering cost from client to server, creating new scaling requirements</td>
+                <td class="evidence-reasoning">SSG (static generation) eliminates runtime rendering cost entirely; SSR requires per-request rendering. The choice between SSR and SSG determines the scaling profile &mdash; SSG scales infinitely via CDN, SSR requires horizontal server scaling</td>
+              </tr>
+              <tr>
+                <td><code>Technical Task #2: CDN with edge caching</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>CDN edge caching absorbs traffic spikes if cache hit rate is high</td>
+                <td class="evidence-reasoning">With proper cache-control headers and long TTLs, the CDN can serve 95%+ of homepage requests from cache, reducing SSR server load by 20x. But cache invalidation during deployments creates a thundering herd problem when all CDN nodes simultaneously re-request from origin</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>Cache invalidation during deployment creates thundering herd: if CDN cache is purged globally during a release, all edge nodes simultaneously request fresh SSR content from origin, potentially overwhelming the SSR fleet.</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Favor SSG over SSR for homepage where possible</h5>
+                <p>If homepage content changes less than hourly, use Incremental Static Regeneration (ISR) or build-time SSG with revalidation intervals. This eliminates runtime SSR cost and makes the homepage infinitely scalable via CDN.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type performance">Performance</span>
+              <div class="action-content">
+                <h5>Load test SSR at 5x peak traffic with cache miss simulation</h5>
+                <p>Simulate Black Friday traffic (5x normal) with CDN cache disabled to stress-test SSR server fleet. Measure render time p95/p99, error rate, and memory consumption. Define auto-scaling triggers based on results.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement staggered cache invalidation</h5>
+                <p>Instead of global cache purge on deployment, use soft purge (stale-while-revalidate) or rolling invalidation across CDN PoPs over 5-10 minutes to prevent thundering herd on origin.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- P2: CHARISMA -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Charisma</span>
+          </div>
+          <div class="htsm-question">"How appealing is the product when video backgrounds are replaced and images are compressed?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>This epic requires replacing video backgrounds with optimized hero images (AC #7) and compressing all images to next-gen formats. These are performance-driven changes that directly affect the visual experience. Next.co.uk competes with ASOS, M&amp;S, and John Lewis &mdash; all of which invest heavily in homepage visual appeal. If the performance optimization results in a visually diminished homepage, conversion rates may drop even as technical metrics improve, creating a false positive in CWV scores.</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> A visually downgraded homepage can reduce conversion rates by 5-15% even if performance improves. If the hero image replacement looks noticeably worse than the video it replaces, the estimated conversion impact at Next's traffic volume could offset the performance-driven conversion gains. Visual A/B testing is essential to confirm that performance optimization does not degrade brand perception.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Epic AC #7: Video backgrounds converted to optimized hero images</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>Video-to-image conversion removes a high-engagement visual element</td>
+                <td class="evidence-reasoning">Video backgrounds create visual dynamism and brand premium perception; static replacements must achieve equivalent visual impact through composition, color, and typography &mdash; this requires creative team involvement, not just engineering</td>
+              </tr>
+              <tr>
+                <td><code>Epic AC #6: Images use WebP/AVIF with srcset and lazy loading</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Lossy compression at aggressive quality settings can produce visible artifacts</td>
+                <td class="evidence-reasoning">WebP and AVIF quality settings must be tuned per image type (product photography vs. lifestyle imagery vs. UI elements); a single quality preset will either over-compress hero images (visible artifacts) or under-compress thumbnails (wasted bytes)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>If the creative/design team is not involved in hero image selection and quality tuning, the performance-optimized homepage may look cheaper than competitors, damaging brand perception among Next's target demographic (mid-market fashion-conscious consumers).</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type user_story">User Story</span>
+              <div class="action-content">
+                <h5>Conduct visual A/B test: video hero vs. optimized static hero</h5>
+                <p>Create 3 static hero image variants for each current video background. Run A/B test measuring conversion rate, time on page, and scroll depth. Only proceed with static replacement if conversion rate is within 5% of video variant.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Implement per-image-type quality presets in the optimization pipeline</h5>
+                <p>Define quality presets: hero images (WebP q82, AVIF q75), product images (WebP q78, AVIF q70), thumbnails (WebP q65, AVIF q55), UI elements (PNG, no lossy). Validate with visual diff tool (e.g., Resemble.js) that SSIM score &gt; 0.95 for hero images.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- =============================================
+         LOW PRIORITY SECTION
+         ============================================= -->
+    <section class="priority-section">
+      <div class="section-header low">
+        <h2>Low Priority Quality Criteria</h2>
+        <span>1 criteria</span>
+      </div>
+      <div class="section-description">These quality criteria are nice-to-have improvements for the backlog.</div>
+
+      <!-- P3: INSTALLABILITY -->
+      <div class="rec-card">
+        <div class="rec-header">
+          <div class="rec-title-row">
+            <span class="rec-category">Installability</span>
+          </div>
+          <div class="htsm-question">"How easily is the SSR infrastructure provisioned, CDN configured, and image pipeline deployed?"</div>
+        </div>
+
+        <div class="why-section">
+          <h4>&#x1F4A1; Why This Matters</h4>
+          <p>While Next.co.uk is a browser-based product (no client installation), this epic introduces 3 new infrastructure components: SSR server fleet, CDN edge caching configuration, and image optimization pipeline. Each requires provisioning, configuration, and ongoing administration. The "installability" question here applies to DevOps: how easily can these components be deployed to staging and production, upgraded when framework versions change, and rolled back when issues arise?</p>
+          <p style="margin-top: 0.75rem;"><strong>Business Impact:</strong> A complex SSR deployment process increases the risk of human error during releases. If deploying SSR changes requires 15 manual steps instead of a single CI/CD pipeline trigger, the probability of deployment errors increases proportionally. However, this is a one-time setup cost that primarily affects the DevOps team, not end users, hence P3 priority.</p>
+        </div>
+
+        <div class="evidence-section">
+          <h4>&#x1F4CA; Evidence Analysis</h4>
+          <table class="evidence-table">
+            <thead>
+              <tr>
+                <th>Source Reference</th>
+                <th>Type</th>
+                <th>Quality Implication</th>
+                <th>Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Technical Task #2: Configure CDN with edge caching</code></td>
+                <td><span class="evidence-type direct">Direct</span></td>
+                <td>CDN configuration is a deployment/installation concern</td>
+                <td class="evidence-reasoning">CDN configuration (cache rules, purge mechanisms, origin failover) is a one-time setup but must be documented and reproducible; if the primary CDN engineer leaves, the team must be able to reconfigure from documentation</td>
+              </tr>
+              <tr>
+                <td><code>Technical Task #3: Image optimization pipeline</code></td>
+                <td><span class="evidence-type inferred">Inferred</span></td>
+                <td>Pipeline deployment involves build tool configuration, storage provisioning, and CDN integration</td>
+                <td class="evidence-reasoning">The image pipeline is a new infrastructure component that must be deployed, monitored, and maintained &mdash; requires verification of whether this is a build-time process, a runtime service, or a third-party integration (each has different deployment complexity)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="risk-warnings">
+          <h4 style="margin-bottom: 0.5rem; color: var(--critical);">&#x26A0;&#xFE0F; Risk Warnings</h4>
+          <div class="risk-warning">
+            <span>&#x26A0;&#xFE0F;</span>
+            <span>If SSR deployment, CDN configuration, and image pipeline are not codified as Infrastructure-as-Code (Terraform, Pulumi, CDK), they become undocumented snowflakes that only one team member can manage.</span>
+          </div>
+        </div>
+
+        <div class="actions-section">
+          <div class="collapsible-header" onclick="this.nextElementSibling.classList.toggle('collapsed')">
+            <h4>&#x1F4CB; Recommended Actions</h4>
+            <span class="collapse-icon">&#x25BC;</span>
+          </div>
+          <div class="collapsible-content">
+            <div class="action-item">
+              <span class="action-type engineering">Engineering</span>
+              <div class="action-content">
+                <h5>Codify all new infrastructure as IaC</h5>
+                <p>Define SSR server fleet, CDN configuration, and image pipeline as Infrastructure-as-Code (Terraform, Pulumi, or platform equivalent). Store in version control alongside application code. Include rollback procedures in deployment runbook.</p>
+              </div>
+            </div>
+            <div class="action-item">
+              <span class="action-type governance">Governance</span>
+              <div class="action-content">
+                <h5>Create deployment runbook for SSR + CDN + image pipeline</h5>
+                <p>Document step-by-step deployment, verification, and rollback procedures. Include CDN cache purge checklist, SSR health check endpoints, and image pipeline smoke test. Validate by having a team member who did not build the system execute the runbook.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- =============================================
+         CROSS-CUTTING CONCERNS
+         ============================================= -->
+    <section class="cross-cutting">
+      <h2>Cross-Cutting Concerns</h2>
+      <p style="margin-bottom: 1.5rem; color: var(--text-light);">These quality aspects span multiple criteria and require coordinated attention across the implementation.</p>
+
+      <div class="concern-card">
+        <h4>SSR Hydration Correctness</h4>
+        <p>Server-rendered HTML must exactly match what the client-side framework would produce. Hydration mismatches cause visual flicker, broken event handlers, duplicated DOM nodes, and CLS violations. This affects Performance (CLS), Capability (functional correctness), Reliability (hydration crashes), Usability (interaction gap), and Compatibility (cross-browser hydration behavior).</p>
+        <div class="concern-categories">
+          <span class="concern-category">Performance</span>
+          <span class="concern-category">Capability</span>
+          <span class="concern-category">Reliability</span>
+          <span class="concern-category">Usability</span>
+          <span class="concern-category">Compatibility</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>CDN Caching Strategy</h4>
+        <p>The CDN sits at the intersection of Performance (cache hit ratio determines LCP), Reliability (stale-while-revalidate provides fallback), Security (cache poisoning risk), Scalability (CDN absorbs traffic spikes), and Installability (CDN configuration complexity). A single misconfigured cache header can impact all 5 quality dimensions simultaneously.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Performance</span>
+          <span class="concern-category">Reliability</span>
+          <span class="concern-category">Security</span>
+          <span class="concern-category">Scalability</span>
+          <span class="concern-category">Installability</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>Downstream Epic Compatibility (E3, E5, E6)</h4>
+        <p>This epic is the foundation for 4 downstream epics. Architectural decisions made here (SSR framework choice, hydration strategy, CDN cache design, image pipeline) constrain what E3 (AI Personalization), E5 (Social Proof/UGC), and E6 (Mobile PWA) can achieve. Compatibility, Development (maintainability), and Capability must all account for downstream requirements during design, not retroactively.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Capability</span>
+          <span class="concern-category">Compatibility</span>
+          <span class="concern-category">Development</span>
+          <span class="concern-category">Scalability</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>Image Optimization vs. Visual Quality Tradeoff</h4>
+        <p>The 40% page weight reduction target and next-gen format conversion directly tension with visual quality (Charisma). Aggressive compression improves Performance but may degrade Charisma. The video-to-static-image conversion affects both Usability (reduced-motion users benefit) and Charisma (visual dynamism lost). Quality presets must balance these competing concerns per image type.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Performance</span>
+          <span class="concern-category">Charisma</span>
+          <span class="concern-category">Usability</span>
+        </div>
+      </div>
+
+      <div class="concern-card">
+        <h4>Monitoring and Observability Gap</h4>
+        <p>RUM monitoring is listed as the last technical task but is needed from sprint 1 to validate all other changes. This affects Development (testability/observability), Performance (CWV measurement), Reliability (error detection), and Scalability (load monitoring). Without observability, the team operates blind on the most metrics-driven epic in the roadmap.</p>
+        <div class="concern-categories">
+          <span class="concern-category">Development</span>
+          <span class="concern-category">Performance</span>
+          <span class="concern-category">Reliability</span>
+          <span class="concern-category">Scalability</span>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- =============================================
+         PI PLANNING GUIDANCE
+         ============================================= -->
+    <section class="pi-planning">
+      <h2>PI Planning Guidance</h2>
+      <p style="margin-bottom: 1.5rem; color: var(--text-light);">Suggested sprint-by-sprint approach to systematically address quality criteria across the January&ndash;March 2026 timeline.</p>
+
+      <table class="pi-table">
+        <thead>
+          <tr>
+            <th>Sprint</th>
+            <th>Quality Focus</th>
+            <th>Key Activities</th>
+            <th>Criteria Coverage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="sprint-badge">Sprint 1 (Jan)</span></td>
+            <td>Baseline &amp; Monitoring Foundation</td>
+            <td>
+              <ul>
+                <li>Deploy RUM monitoring (web-vitals library + dashboard)</li>
+                <li>Freeze page weight baseline and CWV metrics</li>
+                <li>Set up Lighthouse CI in PR pipeline with performance budgets</li>
+                <li>Begin SSR proof-of-concept for homepage route</li>
+                <li>Audit current CSP policy and CDN cache key configuration</li>
+              </ul>
+            </td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Development</span>
+                <span class="criteria-tag">Performance</span>
+                <span class="criteria-tag">Security</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 2 (Jan-Feb)</span></td>
+            <td>SSR Core Implementation</td>
+            <td>
+              <ul>
+                <li>Implement SSR for homepage with feature flag gating</li>
+                <li>Create no-JS functional test suite (Playwright, JS disabled)</li>
+                <li>Implement SSR fallback chain (SSR &rarr; CDN cache &rarr; CSR)</li>
+                <li>Inline critical CSS with nonce-based CSP</li>
+                <li>Design SSR template slots for E3 personalization compatibility</li>
+              </ul>
+            </td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Capability</span>
+                <span class="criteria-tag">Reliability</span>
+                <span class="criteria-tag">Security</span>
+                <span class="criteria-tag">Compatibility</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 3 (Feb)</span></td>
+            <td>Image Pipeline &amp; Visual Optimization</td>
+            <td>
+              <ul>
+                <li>Build image optimization pipeline (WebP/AVIF with srcset)</li>
+                <li>Define per-image-type quality presets</li>
+                <li>Replace video backgrounds with optimized hero images</li>
+                <li>A/B test static hero vs. video hero for conversion impact</li>
+                <li>Implement prefers-reduced-motion support</li>
+                <li>Cross-browser image format validation testing</li>
+              </ul>
+            </td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Performance</span>
+                <span class="criteria-tag">Charisma</span>
+                <span class="criteria-tag">Usability</span>
+                <span class="criteria-tag">Compatibility</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 4 (Feb-Mar)</span></td>
+            <td>Performance Hardening &amp; CDN</td>
+            <td>
+              <ul>
+                <li>Configure CDN edge caching with stale-while-revalidate</li>
+                <li>Implement resource hints (preconnect, preload, prefetch)</li>
+                <li>Implement staggered cache invalidation for deployments</li>
+                <li>Load test SSR at 5x peak traffic</li>
+                <li>Security penetration test on SSR endpoints</li>
+              </ul>
+            </td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Performance</span>
+                <span class="criteria-tag">Scalability</span>
+                <span class="criteria-tag">Security</span>
+                <span class="criteria-tag">Installability</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="sprint-badge">Sprint 5 (Mar)</span></td>
+            <td>Validation, Hardening &amp; Handoff</td>
+            <td>
+              <ul>
+                <li>Validate CWV targets met via RUM data (LCP, INP, CLS)</li>
+                <li>Verify 40% page weight reduction against frozen baseline</li>
+                <li>Chaos test SSR failure modes and fallback chain</li>
+                <li>Validate search engine crawlability (Search Console, Screaming Frog)</li>
+                <li>Document SSR architecture for E3/E5/E6 downstream teams</li>
+                <li>Create deployment runbook and IaC for all new infrastructure</li>
+              </ul>
+            </td>
+            <td>
+              <div class="criteria-tags">
+                <span class="criteria-tag">Performance</span>
+                <span class="criteria-tag">Capability</span>
+                <span class="criteria-tag">Reliability</span>
+                <span class="criteria-tag">Development</span>
+                <span class="criteria-tag">Installability</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+
+    <!-- FOOTER -->
+    <footer class="footer">
+      <p>Generated by <a href="https://github.com/agentic-qe/agentic-qe">Agentic QE</a> &mdash; <strong>qe-quality-criteria-recommender</strong> (Core QCSD Agent)</p>
+      <p>Analysis Method: AI Semantic Understanding | Framework: James Bach's HTSM v6.3 Quality Criteria</p>
+      <p>Part of the <strong>QCSD Framework</strong> &mdash; Quality Conscious Software Delivery for shift-left quality engineering</p>
+      <p style="margin-top: 0.5rem; font-style: italic; opacity: 0.8;">Recommendations require domain expert validation. Use this report to facilitate team discussions, not replace them.</p>
+    </footer>
+
+  </div>
+</body>
+</html>

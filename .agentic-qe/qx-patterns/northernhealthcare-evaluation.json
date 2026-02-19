@@ -1,0 +1,405 @@
+{
+  "evaluation": {
+    "id": "northernhealthcare-qx-2026-02-05",
+    "url": "https://www.northernhealthcare.org.uk",
+    "domain": "healthcare",
+    "subdomain": "mental-health-supported-living",
+    "evaluationDate": "2026-02-05T00:00:00Z",
+    "framework": "QX Heuristics v3.0",
+    "analyst": "qe-qx-partner"
+  },
+  "scores": {
+    "overall": {
+      "score": 67,
+      "grade": "C+",
+      "trend": null
+    },
+    "dimensions": {
+      "userExperience": { "score": 72, "grade": "B-" },
+      "qualityAssurance": { "score": 65, "grade": "C" },
+      "accessibility": { "score": 54, "grade": "D" },
+      "trustCredibility": { "score": 78, "grade": "B" },
+      "brandAlignment": { "score": 74, "grade": "B-" }
+    }
+  },
+  "heuristicScores": {
+    "H1.1": { "name": "Understand the Problem", "score": 65, "grade": "C" },
+    "H1.2": { "name": "Rule of Three", "score": 60, "grade": "C-" },
+    "H1.3": { "name": "Problem Complexity", "score": 68, "grade": "C+" },
+    "H1.4": { "name": "Information Clarity", "score": 70, "grade": "B-" },
+    "H2.1": { "name": "User Pain Points", "score": 62, "grade": "C-" },
+    "H2.2": { "name": "Expectations & Conventions", "score": 68, "grade": "C+" },
+    "H2.3": { "name": "User Journey Analysis", "score": 65, "grade": "C" },
+    "H2.4": { "name": "Accessibility", "score": 54, "grade": "D" },
+    "H2.5": { "name": "Mobile Experience", "score": 66, "grade": "C+" },
+    "H2.6": { "name": "Emotional Design", "score": 70, "grade": "B-" },
+    "H3.1": { "name": "Business Goals", "score": 75, "grade": "B" },
+    "H3.2": { "name": "Stakeholder Value", "score": 72, "grade": "B-" },
+    "H3.3": { "name": "Competitive Position", "score": 68, "grade": "C+" },
+    "H3.4": { "name": "Conversion Optimization", "score": 64, "grade": "C" },
+    "H4.1": { "name": "Oracle Detection", "score": 58, "grade": "D+" },
+    "H4.2": { "name": "Stakeholder Balance", "score": 62, "grade": "C-" },
+    "H4.3": { "name": "Trade-off Resolution", "score": 60, "grade": "C-" },
+    "H5.1": { "name": "Visible Impact", "score": 68, "grade": "C+" },
+    "H5.2": { "name": "Invisible Impact", "score": 62, "grade": "C-" },
+    "H5.3": { "name": "Cross-Team Impact", "score": 65, "grade": "C" },
+    "H5.4": { "name": "Long-term Impact", "score": 60, "grade": "C-" }
+  },
+  "oracleProblems": [
+    {
+      "id": "OP1",
+      "title": "Privacy vs Utility for Vulnerable Users",
+      "type": "User vs Business Conflict",
+      "severity": "HIGH",
+      "description": "Hotjar/GTM tracking collects behavioral data from vulnerable users without clear consent",
+      "stakeholders": {
+        "userPerspective": ["Privacy concerns", "GDPR health data", "Mental health stigma"],
+        "businessPerspective": ["UX improvement", "Conversion optimization", "Data-driven decisions"]
+      },
+      "failureModes": [
+        "Family discovers browsing history causing conflict",
+        "Session recording captures sensitive form data",
+        "User avoids site due to tracking awareness",
+        "Data breach exposes care-seeking behavior",
+        "User feels violated learning about tracking"
+      ],
+      "recommendedResolution": "Explicit opt-in consent",
+      "resolutionOptions": [
+        { "option": "Remove all tracking", "userScore": 95, "businessScore": 30 },
+        { "option": "Explicit opt-in consent", "userScore": 85, "businessScore": 60, "recommended": true },
+        { "option": "Anonymized analytics only", "userScore": 80, "businessScore": 70 },
+        { "option": "Current state", "userScore": 40, "businessScore": 85 }
+      ]
+    },
+    {
+      "id": "OP2",
+      "title": "Accessibility vs Modern UI (Nice Select)",
+      "type": "Technical Trade-off",
+      "severity": "HIGH",
+      "description": "Nice Select plugin breaks accessibility for target population who most need accessible interfaces",
+      "stakeholders": {
+        "accessibilityPerspective": ["Keyboard navigation blocked", "Screen reader incompatible", "WCAG violation"],
+        "designPerspective": ["Visual branding", "Modern UI expectations", "Limited native styling"]
+      },
+      "failureModes": [
+        "Keyboard-only user cannot select region",
+        "Screen reader announces incorrect role",
+        "User with tremor cannot click small items",
+        "Autistic user distressed by unexpected behavior",
+        "Legal/reputational risk from discrimination claim"
+      ],
+      "recommendedResolution": "Native HTML selects with CSS",
+      "resolutionOptions": [
+        { "option": "Native HTML selects with CSS", "accessibilityScore": 95, "designScore": 70, "recommended": true },
+        { "option": "Accessible custom component", "accessibilityScore": 90, "designScore": 85 },
+        { "option": "Current Nice Select", "accessibilityScore": 30, "designScore": 80 },
+        { "option": "Remove search", "accessibilityScore": 60, "designScore": 40 }
+      ]
+    },
+    {
+      "id": "OP3",
+      "title": "Brand Promise vs Reality",
+      "type": "Expectation Gap",
+      "severity": "MEDIUM",
+      "description": "Putting people first tagline contradicted by accessibility barriers and form friction",
+      "stakeholders": {
+        "brandPromise": ["User-centered design", "24/7 support", "Mental health sensitivity"],
+        "websiteReality": ["CAPTCHA barriers", "Accessibility issues", "No crisis support", "Form-first contact"]
+      },
+      "failureModes": [
+        "User in crisis finds no immediate help",
+        "Family encounters CAPTCHA during stress",
+        "Disabled user excluded, questions care quality",
+        "Negative social media experience shared",
+        "Referrer notes values disconnect"
+      ],
+      "recommendedResolution": "Full accessibility overhaul",
+      "resolutionOptions": [
+        { "option": "Full accessibility overhaul", "alignmentScore": 95, "effort": "high", "recommended": true },
+        { "option": "Add crisis support + fix CAPTCHA", "alignmentScore": 80, "effort": "medium" },
+        { "option": "Update brand messaging", "alignmentScore": 60, "effort": "low" },
+        { "option": "Status quo", "alignmentScore": 50, "effort": "none" }
+      ]
+    }
+  ],
+  "criticalFindings": [
+    {
+      "id": "CF1",
+      "severity": "CRITICAL",
+      "finding": "Nice Select dropdowns break screen reader and keyboard accessibility",
+      "wcag": ["1.3.1", "2.1.1", "2.4.3"],
+      "impact": "Core search functionality inaccessible to disabled users",
+      "recommendation": "Replace with native HTML selects"
+    },
+    {
+      "id": "CF2",
+      "severity": "CRITICAL",
+      "finding": "No crisis support information visible above fold",
+      "wcag": null,
+      "impact": "Users in mental health crisis have no immediate guidance",
+      "recommendation": "Add Samaritans/NHS 111 banner prominently"
+    },
+    {
+      "id": "CF3",
+      "severity": "HIGH",
+      "finding": "reCAPTCHA creates cognitive barrier for target population",
+      "wcag": ["1.1.1", "3.3.2"],
+      "impact": "Users with cognitive disabilities blocked from contact forms",
+      "recommendation": "Implement honeypot or time-based alternative"
+    },
+    {
+      "id": "CF4",
+      "severity": "HIGH",
+      "finding": "Analytics tracking without clear consent for vulnerable users",
+      "wcag": null,
+      "impact": "GDPR compliance risk, privacy concerns for health data",
+      "recommendation": "Implement explicit opt-in consent"
+    }
+  ],
+  "userJourneys": [
+    {
+      "persona": "Family Member",
+      "description": "Seeking care placement for loved one with mental health condition",
+      "score": 58,
+      "emotionalState": "Anxious, overwhelmed",
+      "painPoints": [
+        "Dropdown doesn't work with keyboard",
+        "Too many options without comparison tool",
+        "CAPTCHA frustration",
+        "Uncertain of process after contact"
+      ]
+    },
+    {
+      "persona": "Professional Referrer",
+      "description": "Social worker or NHS professional making referrals",
+      "score": 62,
+      "emotionalState": "Time-pressured, clinically focused",
+      "painPoints": [
+        "No professional portal",
+        "CQC links not direct",
+        "Specialty criteria not filterable",
+        "Generic contact form"
+      ]
+    },
+    {
+      "persona": "Job Seeker",
+      "description": "Care professional seeking employment",
+      "score": 70,
+      "emotionalState": "Curious, evaluating",
+      "painPoints": [
+        "Careers section visibility unclear",
+        "Application process unclear"
+      ]
+    }
+  ],
+  "domainContext": {
+    "industry": "Healthcare",
+    "sector": "Mental Health Supported Living",
+    "regulatoryBodies": ["CQC"],
+    "userCharacteristics": {
+      "vulnerablePopulation": true,
+      "conditions": ["Mental health conditions", "Learning disabilities", "Autism"],
+      "accessibilityRequirements": "CRITICAL",
+      "crisisRisk": true
+    },
+    "trustSignals": {
+      "present": ["CQC endorsement", "NHS partnership", "Mental Health Foundation", "Care England", "Cyber Essentials", "Disability Confident"],
+      "missing": ["Per-facility CQC ratings", "Family testimonials", "Staff qualifications", "Outcome data"]
+    },
+    "techStack": {
+      "cms": "WordPress",
+      "plugins": ["Nice Select", "Contact Form 7", "reCAPTCHA"],
+      "analytics": ["Hotjar", "Google Tag Manager"],
+      "chat": "Tawk"
+    }
+  },
+  "creativityDomains": [
+    {
+      "domain": "Philosophy",
+      "concept": "Phenomenology - Lived Experience",
+      "testingApproach": "Emotional journey testing protocol measuring affective states",
+      "expectedInsight": "Users make multiple partial visits requiring session persistence"
+    },
+    {
+      "domain": "Medicine",
+      "concept": "Triage Systems",
+      "testingApproach": "Test urgency scenarios: planned, urgent, crisis",
+      "expectedInsight": "Site treats all visitors identically regardless of urgency"
+    },
+    {
+      "domain": "Psychology",
+      "concept": "Cognitive Load Theory",
+      "testingApproach": "NASA-TLX measurement, cognitive impairment simulation",
+      "expectedInsight": "Facility listing exceeds cognitive capacity for target users"
+    },
+    {
+      "domain": "Social Work",
+      "concept": "Safeguarding Principles",
+      "testingApproach": "Digital safeguarding threat model",
+      "expectedInsight": "Facility details could identify vulnerable individuals"
+    },
+    {
+      "domain": "Accessibility",
+      "concept": "Universal Design",
+      "testingApproach": "Extreme user testing, accessibility personas",
+      "expectedInsight": "Fixing accessibility improves experience for all"
+    },
+    {
+      "domain": "Healthcare",
+      "concept": "Patient-Centered Care",
+      "testingApproach": "Test with actual service users",
+      "expectedInsight": "Site designed for decision-makers, not service users"
+    },
+    {
+      "domain": "Trust",
+      "concept": "Therapeutic Relationship Building",
+      "testingApproach": "Trust touchpoint mapping",
+      "expectedInsight": "Trust from badges undermined by form friction"
+    },
+    {
+      "domain": "Crisis Intervention",
+      "concept": "De-escalation Techniques",
+      "testingApproach": "Crisis scenario time-to-help measurement",
+      "expectedInsight": "No crisis pathway exists"
+    }
+  ],
+  "recommendations": {
+    "priority1_critical": [
+      {
+        "id": "R1.1",
+        "action": "Replace Nice Select with native HTML selects",
+        "impact": "HIGH",
+        "effort": "LOW",
+        "timeline": "1-2 weeks"
+      },
+      {
+        "id": "R1.2",
+        "action": "Add crisis support banner with Samaritans/NHS 111",
+        "impact": "HIGH",
+        "effort": "LOW",
+        "timeline": "1-3 days"
+      },
+      {
+        "id": "R1.3",
+        "action": "Replace reCAPTCHA with honeypot alternative",
+        "impact": "HIGH",
+        "effort": "MEDIUM",
+        "timeline": "1-2 weeks"
+      },
+      {
+        "id": "R1.4",
+        "action": "Add click-to-call tel: links for phone numbers",
+        "impact": "MEDIUM",
+        "effort": "LOW",
+        "timeline": "1-2 days"
+      },
+      {
+        "id": "R1.5",
+        "action": "Implement explicit cookie consent",
+        "impact": "MEDIUM",
+        "effort": "MEDIUM",
+        "timeline": "2-3 weeks"
+      }
+    ],
+    "priority2_high": [
+      {
+        "id": "R2.1",
+        "action": "Create Easy Read content version",
+        "impact": "HIGH",
+        "effort": "MEDIUM",
+        "timeline": "4-6 weeks"
+      },
+      {
+        "id": "R2.2",
+        "action": "Develop professional referrer portal",
+        "impact": "HIGH",
+        "effort": "HIGH",
+        "timeline": "2-3 months"
+      },
+      {
+        "id": "R2.3",
+        "action": "Add decision support wizard",
+        "impact": "MEDIUM",
+        "effort": "MEDIUM",
+        "timeline": "6-8 weeks"
+      },
+      {
+        "id": "R2.4",
+        "action": "Implement high-contrast mode",
+        "impact": "MEDIUM",
+        "effort": "LOW",
+        "timeline": "1-2 weeks"
+      },
+      {
+        "id": "R2.5",
+        "action": "Add direct CQC report links",
+        "impact": "MEDIUM",
+        "effort": "LOW",
+        "timeline": "1 week"
+      }
+    ],
+    "priority3_medium": [
+      {
+        "id": "R3.1",
+        "action": "Create accessible video tours",
+        "impact": "MEDIUM",
+        "effort": "HIGH",
+        "timeline": "3-4 months"
+      },
+      {
+        "id": "R3.2",
+        "action": "Develop What to expect journey guides",
+        "impact": "MEDIUM",
+        "effort": "MEDIUM",
+        "timeline": "4-6 weeks"
+      },
+      {
+        "id": "R3.3",
+        "action": "Add family testimonials",
+        "impact": "MEDIUM",
+        "effort": "MEDIUM",
+        "timeline": "2-3 months"
+      },
+      {
+        "id": "R3.4",
+        "action": "Implement availability indicators",
+        "impact": "LOW",
+        "effort": "HIGH",
+        "timeline": "3-4 months"
+      }
+    ]
+  },
+  "patterns": {
+    "healthcare_vulnerable_population": {
+      "pattern": "Sites serving vulnerable populations require crisis support pathways",
+      "confidence": 0.92,
+      "applicability": ["mental-health", "disability-services", "crisis-support"]
+    },
+    "accessibility_vs_modern_ui": {
+      "pattern": "Custom UI components often sacrifice accessibility for aesthetics",
+      "confidence": 0.95,
+      "applicability": ["all-domains"],
+      "recommendation": "Prefer native elements or verified accessible libraries"
+    },
+    "brand_experience_alignment": {
+      "pattern": "Brand promises must be validated against actual user experience",
+      "confidence": 0.88,
+      "applicability": ["service-organizations", "healthcare", "support-services"]
+    },
+    "cognitive_load_healthcare": {
+      "pattern": "Healthcare decision-making requires reduced cognitive load",
+      "confidence": 0.90,
+      "applicability": ["healthcare", "complex-decisions", "vulnerable-users"]
+    }
+  },
+  "metadata": {
+    "reportVersion": "2.0",
+    "heuristicsApplied": 23,
+    "oracleProblemsFound": 3,
+    "failureModesIdentified": 15,
+    "creativityDomainsAnalyzed": 8,
+    "htmlReportPath": "docs/qx-reports/northernhealthcare-qx-evaluation.html",
+    "generatedBy": "qe-qx-partner",
+    "frameworkAttribution": "QX Methodology by Lalitkumar Bhamare / Tales of Testing"
+  }
+}

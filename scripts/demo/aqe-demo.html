@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AQE Framework - AI-Powered Defect Intelligence Demo</title>
+  <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0e1a;
+      color: #e0e0e0;
+      font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      border-bottom: 1px solid #1e3a5f;
+      padding: 24px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #06b6d4, #3b82f6);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .header-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+
+    .header-subtitle {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    .badge {
+      background: linear-gradient(135deg, #06b6d4, #3b82f6);
+      color: white;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Main Layout ── */
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* ── Info Cards ── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .info-card {
+      background: #111827;
+      border: 1px solid #1e3a5f;
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .info-card:hover {
+      border-color: #3b82f6;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .card-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .card-icon.quality { background: rgba(34, 197, 94, 0.15); }
+    .card-icon.duplicate { background: rgba(234, 179, 8, 0.15); }
+    .card-icon.rca { background: rgba(168, 85, 247, 0.15); }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+
+    .card-tag {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .tag-green { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+    .tag-yellow { background: rgba(234, 179, 8, 0.15); color: #facc15; }
+    .tag-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+
+    /* ── Player Section ── */
+    .player-section {
+      background: #111827;
+      border: 1px solid #1e3a5f;
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 32px;
+    }
+
+    .player-toolbar {
+      background: #1e293b;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e3a5f;
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #eab308; }
+    .dot-green { background: #22c55e; }
+
+    .toolbar-title {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-left: 12px;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    }
+
+    .toolbar-right {
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    #player-container {
+      padding: 8px;
+    }
+
+    /* Override asciinema player styles */
+    .ap-wrapper .ap-player {
+      border-radius: 8px;
+    }
+
+    /* ── Chapters ── */
+    .chapters {
+      margin-bottom: 32px;
+    }
+
+    .chapters-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #e2e8f0;
+      margin-bottom: 16px;
+    }
+
+    .chapter-list {
+      display: flex;
+      gap: 12px;
+    }
+
+    .chapter-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex: 1;
+    }
+
+    .chapter-btn:hover {
+      border-color: #3b82f6;
+      background: #1e3a5f;
+    }
+
+    .chapter-time {
+      font-size: 11px;
+      color: #06b6d4;
+      font-weight: 600;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    .chapter-name {
+      font-size: 13px;
+      color: #e2e8f0;
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    .chapter-detail {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* ── Tech Footer ── */
+    .tech-footer {
+      background: #111827;
+      border: 1px solid #1e3a5f;
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .tech-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
+
+    .tech-item {
+      text-align: center;
+      padding: 12px;
+      background: #0f172a;
+      border-radius: 8px;
+    }
+
+    .tech-item-label {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+
+    .tech-item-value {
+      font-size: 13px;
+      color: #06b6d4;
+      font-weight: 600;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      padding: 24px;
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .footer a {
+      color: #3b82f6;
+      text-decoration: none;
+    }
+
+    @media (max-width: 768px) {
+      .info-grid { grid-template-columns: 1fr; }
+      .tech-grid { grid-template-columns: repeat(2, 1fr); }
+      .chapter-list { flex-direction: column; }
+      .header { flex-direction: column; gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">AQ</div>
+      <div>
+        <div class="header-title">AI-Powered Defect Intelligence</div>
+        <div class="header-subtitle">Agentic Quality Engineering (AQE) Framework</div>
+      </div>
+    </div>
+    <div class="badge">AUTOMOTIVE DEMO</div>
+  </div>
+
+  <div class="main">
+
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="card-header">
+          <div class="card-icon quality">&#x2713;</div>
+          <div class="card-title">Defect Quality Check</div>
+        </div>
+        <div class="card-desc">
+          AI validates every defect against configurable guidelines, ensuring mandatory fields
+          (steps to reproduce, expected vs actual, environment) are populated before submission.
+        </div>
+        <span class="card-tag tag-green">Configurable Rules + Quality Scoring</span>
+      </div>
+
+      <div class="info-card">
+        <div class="card-header">
+          <div class="card-icon duplicate">&#x2261;</div>
+          <div class="card-title">Duplicate Detection</div>
+        </div>
+        <div class="card-desc">
+          Semantic vector embeddings catch duplicates that keyword search misses.
+          "System hangs" matches "route guidance freezes" at 94% similarity.
+        </div>
+        <span class="card-tag tag-yellow">AI Semantic Matching</span>
+      </div>
+
+      <div class="info-card">
+        <div class="card-header">
+          <div class="card-icon rca">&#x26A0;</div>
+          <div class="card-title">Root Cause Analysis</div>
+        </div>
+        <div class="card-desc">
+          Multi-method RCA (Five-Whys, Fishbone, Fault Tree) analyzes defect clusters
+          and historical patterns to identify probable root causes with 92% confidence.
+        </div>
+        <span class="card-tag tag-purple">Multi-Method Analysis + Pattern Learning</span>
+      </div>
+    </div>
+
+    <div class="player-section">
+      <div class="player-toolbar">
+        <div class="toolbar-left">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+          <span class="toolbar-title">aqe-demo &mdash; Agentic Quality Engineering</span>
+        </div>
+        <div class="toolbar-right">Automotive Domain &bull; BMW / Mercedes-Benz</div>
+      </div>
+      <div id="player-container"></div>
+    </div>
+
+    <div class="chapters">
+      <div class="chapters-title">Chapters</div>
+      <div class="chapter-list">
+        <div class="chapter-btn" onclick="seekTo(0)">
+          <div class="chapter-time">0:00</div>
+          <div class="chapter-name">Intro</div>
+          <div class="chapter-detail">Framework overview &amp; capabilities</div>
+        </div>
+        <div class="chapter-btn" onclick="seekTo(8)">
+          <div class="chapter-time">0:08</div>
+          <div class="chapter-name">1. Quality Check</div>
+          <div class="chapter-detail">Mandatory field validation (pass/fail)</div>
+        </div>
+        <div class="chapter-btn" onclick="seekTo(32)">
+          <div class="chapter-time">0:32</div>
+          <div class="chapter-name">2. Duplicate Detection</div>
+          <div class="chapter-detail">Semantic similarity matching</div>
+        </div>
+        <div class="chapter-btn" onclick="seekTo(50)">
+          <div class="chapter-time">0:50</div>
+          <div class="chapter-name">3. Root Cause Analysis</div>
+          <div class="chapter-detail">Five-Whys + Fishbone + Report</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tech-footer">
+      <div class="tech-title">Why AQE</div>
+      <div class="tech-grid">
+        <div class="tech-item">
+          <div class="tech-item-label">Semantic Understanding</div>
+          <div class="tech-item-value">Beyond Keywords</div>
+        </div>
+        <div class="tech-item">
+          <div class="tech-item-label">Pattern Learning</div>
+          <div class="tech-item-value">Gets Smarter Over Time</div>
+        </div>
+        <div class="tech-item">
+          <div class="tech-item-label">Root Cause</div>
+          <div class="tech-item-value">Multi-Method Analysis</div>
+        </div>
+        <div class="tech-item">
+          <div class="tech-item-label">Quality Gates</div>
+          <div class="tech-item-value">Your Rules, Enforced</div>
+        </div>
+        <div class="tech-item">
+          <div class="tech-item-label">Integration</div>
+          <div class="tech-item-value">Plugs Into Your Stack</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    Powered by <strong>Agentic Quality Engineering (AQE)</strong> Framework &bull;
+    <a href="https://agentic-qe.dev" target="_blank">agentic-qe.dev</a>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>
+  <script>
+    // Embedded cast data
+    const castContent = "{\"version\": 2, \"width\": 100, \"height\": 40, \"timestamp\": 1770745236, \"env\": {\"SHELL\": \"/bin/bash\", \"TERM\": \"xterm-256color\"}, \"title\": \"AQE Framework - AI-Powered Defect Intelligence Demo\"}\n[0.086479, \"o\", \"\\u001b[1;1H\"]\n[0.086773, \"o\", \"\\u001b[0J\\r\\n\\u001b[36m\\u001b[1m\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ╔══════════════════════════════════════════════════════════════╗\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ║                                                              ║\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ║     █████╗  ██████╗ ███████╗    ██████╗ ███████╗███╗   ███╗  ║\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ║    ██╔══██╗██╔═══██╗██╔════╝    ██╔══██╗██╔════╝████╗ ████║  ║\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ║    ███████║██║   ██║█████╗      ██║  ██║█████╗  ██╔████╔██║  ║\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ║    ██╔══██║██║▄▄ ██║██╔══╝      ██║  ██║██╔══╝  ██║╚██╔╝██║  ║\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ║    ██║  ██║╚██████╔╝███████╗    ██████╔╝███████╗██║ ╚═╝ ██║  ║\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ║    ╚═╝  ╚═╝ ╚══▀▀═╝ ╚══════╝    ╚═════╝ ╚══════╝╚═╝     ╚═╝  ║\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ║                                                              ║\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ║        AI-Powered Defect Intelligence for Automotive         ║\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ║                                                              ║\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m    ╚══════════════════════════════════════════════════════════════╝\\u001b[22m\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m  \\u001b[22m\\u001b[39m\\r\\n\"]\n[2.089, \"o\", \"\\u001b[37m\\u001b[1m  Framework: \\u001b[22m\\u001b[39m\\u001b[33mAgentic Quality Engineering (AQE)\\u001b[39m\\r\\n\"]\n[2.091308, \"o\", \"\\u001b[37m\\u001b[1m  Domain:    \\u001b[22m\\u001b[39m\\u001b[33mAutomotive — BMW / Mercedes-Benz\\u001b[39m\\r\\n\\u001b[37m\\u001b[1m  Engine:    \\u001b[22m\\u001b[39m\\u001b[33mAI-Powered Semantic Analysis & Pattern Recognition\\u001b[39m\\r\\n\\r\\n\"]\n[2.105336, \"o\", \"\\u001b[90m┌─────\\u001b[39m\\u001b[90m┬────────────────────────────────────────────────\\u001b[39m\\u001b[90m┬──────────────────┐\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1m#\\u001b[22m\\u001b[39m   \\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mCapability\\u001b[22m\\u001b[39m                                     \\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mStatus\\u001b[22m\\u001b[39m           \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├─────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼──────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m 1   \\u001b[90m│\\u001b[39m Defect Quality Check (Mandatory Field Validat… \\u001b[90m│\\u001b[39m \\u001b[32m● Ready\\u001b[39m          \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├─────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼──────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m 2   \\u001b[90m│\\u001b[39m Duplicate Defect Identification (Semantic Sim… \\u001b[90m│\\u001b[39m \\u001b[32m● Ready\\u001b[39m          \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├─────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼──────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m 3   \\u001b[90m│\\u001b[39m Root Cause Analysis (Pattern & Historical Ana… \\u001b[90m│\\u001b[39m \\u001b[32m● Ready\\u001b[39m          \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m└─────\\u001b[39m\\u001b[90m┴────────────────────────────────────────────────\\u001b[39m\\u001b[90m┴──────────────────┘\\u001b[39m\\r\\n\"]\n[2.105369, \"o\", \"\\r\\n\"]\n[2.10539, \"o\", \"\\u001b\"]\n[2.11768, \"o\", \"[\"]\n[2.129832, \"o\", \"9\"]\n[2.141967, \"o\", \"0\"]\n[2.154133, \"o\", \"m\"]\n[2.166369, \"o\", \" \"]\n[2.178729, \"o\", \" \"]\n[2.1912, \"o\", \"P\"]\n[2.203375, \"o\", \"r\"]\n[2.215595, \"o\", \"e\"]\n[2.227885, \"o\", \"s\"]\n[2.239913, \"o\", \"s\"]\n[2.252098, \"o\", \"-\"]\n[2.264243, \"o\", \"f\"]\n[2.276365, \"o\", \"r\"]\n[2.288497, \"o\", \"i\"]\n[2.300743, \"o\", \"e\"]\n[2.312792, \"o\", \"n\"]\n[2.324917, \"o\", \"d\"]\n[2.33708, \"o\", \"l\"]\n[2.349346, \"o\", \"y\"]\n[2.361922, \"o\", \" \"]\n[2.374047, \"o\", \"d\"]\n[2.386181, \"o\", \"e\"]\n[2.398327, \"o\", \"m\"]\n[2.410491, \"o\", \"o\"]\n[2.422651, \"o\", \" \"]\n[2.434816, \"o\", \"w\"]\n[2.446932, \"o\", \"i\"]\n[2.459131, \"o\", \"t\"]\n[2.471333, \"o\", \"h\"]\n[2.483495, \"o\", \" \"]\n[2.495591, \"o\", \"r\"]\n[2.507837, \"o\", \"e\"]\n[2.520125, \"o\", \"a\"]\n[2.53291, \"o\", \"l\"]\n[2.545164, \"o\", \"i\"]\n[2.557291, \"o\", \"s\"]\n[2.569373, \"o\", \"t\"]\n[2.581575, \"o\", \"i\"]\n[2.593706, \"o\", \"c\"]\n[2.605843, \"o\", \" \"]\n[2.617956, \"o\", \"a\"]\n[2.630099, \"o\", \"u\"]\n[2.642275, \"o\", \"t\"]\n[2.654685, \"o\", \"o\"]\n[2.666822, \"o\", \"m\"]\n[2.679167, \"o\", \"o\"]\n[2.691894, \"o\", \"t\"]\n[2.703631, \"o\", \"i\"]\n[2.71648, \"o\", \"v\"]\n[2.72896, \"o\", \"e\"]\n[2.74113, \"o\", \" \"]\n[2.753793, \"o\", \"d\"]\n[2.766249, \"o\", \"e\"]\n[2.778796, \"o\", \"f\"]\n[2.790976, \"o\", \"e\"]\n[2.803163, \"o\", \"c\"]\n[2.815514, \"o\", \"t\"]\n[2.828127, \"o\", \" \"]\n[2.840257, \"o\", \"d\"]\n[2.853045, \"o\", \"a\"]\n[2.865248, \"o\", \"t\"]\n[2.880294, \"o\", \"a\"]\n[2.894159, \"o\", \".\"]\n[2.906378, \"o\", \".\"]\n[2.918616, \"o\", \".\"]\n[2.930972, \"o\", \"\\u001b\"]\n[2.94327, \"o\", \"[\"]\n[2.956349, \"o\", \"3\"]\n[2.968435, \"o\", \"9\"]\n[2.980577, \"o\", \"m\"]\n[2.993035, \"o\", \"\\r\\n\"]\n[5.99732, \"o\", \"\\r\\n\"]\n[5.997343, \"o\", \"\\u001b[46m\\u001b[30m\\u001b[1m CAPABILITY 1/3 \\u001b[22m\\u001b[39m\\u001b[49m\\r\\n\"]\n[5.997404, \"o\", \"\\u001b[36m\\u001b[1m  DEFECT QUALITY CHECK — Mandatory Field Validation\\u001b[22m\\u001b[39m\\r\\n\\u001b[90m──────────────────────────────────────────────────────────────────────────────\\u001b[39m\\r\\n\\r\\n\\u001b\"]\n[6.013073, \"o\", \"[\"]\n[6.028238, \"o\", \"3\"]\n[6.043384, \"o\", \"7\"]\n[6.059101, \"o\", \"m\"]\n[6.074303, \"o\", \" \"]\n[6.089657, \"o\", \" \"]\n[6.105817, \"o\", \"A\"]\n[6.12164, \"o\", \"I\"]\n[6.137295, \"o\", \" \"]\n[6.153006, \"o\", \"v\"]\n[6.168811, \"o\", \"a\"]\n[6.18386, \"o\", \"l\"]\n[6.199294, \"o\", \"i\"]\n[6.2147, \"o\", \"d\"]\n[6.230078, \"o\", \"a\"]\n[6.245236, \"o\", \"t\"]\n[6.260347, \"o\", \"e\"]\n[6.276203, \"o\", \"s\"]\n[6.291359, \"o\", \" \"]\n[6.306586, \"o\", \"e\"]\n[6.322029, \"o\", \"v\"]\n[6.339753, \"o\", \"e\"]\n[6.356052, \"o\", \"r\"]\n[6.372025, \"o\", \"y\"]\n[6.388632, \"o\", \" \"]\n[6.404028, \"o\", \"d\"]\n[6.419503, \"o\", \"e\"]\n[6.434877, \"o\", \"f\"]\n[6.450183, \"o\", \"e\"]\n[6.465574, \"o\", \"c\"]\n[6.480749, \"o\", \"t\"]\n[6.495876, \"o\", \" \"]\n[6.511484, \"o\", \"a\"]\n[6.526707, \"o\", \"g\"]\n[6.541939, \"o\", \"a\"]\n[6.558142, \"o\", \"i\"]\n[6.573303, \"o\", \"n\"]\n[6.589802, \"o\", \"s\"]\n[6.605535, \"o\", \"t\"]\n[6.620793, \"o\", \" \"]\n[6.636503, \"o\", \"d\"]\n[6.651791, \"o\", \"e\"]\n[6.667134, \"o\", \"f\"]\n[6.682279, \"o\", \"i\"]\n[6.697691, \"o\", \"n\"]\n[6.713503, \"o\", \"e\"]\n[6.728642, \"o\", \"d\"]\n[6.743874, \"o\", \" \"]\n[6.759128, \"o\", \"q\"]\n[6.77446, \"o\", \"u\"]\n[6.789592, \"o\", \"a\"]\n[6.804658, \"o\", \"l\"]\n[6.822077, \"o\", \"i\"]\n[6.837457, \"o\", \"t\"]\n[6.854825, \"o\", \"y\"]\n[6.867793, \"o\", \" \"]\n[6.882941, \"o\", \"g\"]\n[6.898095, \"o\", \"u\"]\n[6.913801, \"o\", \"i\"]\n[6.929096, \"o\", \"d\"]\n[6.944399, \"o\", \"e\"]\n[6.959509, \"o\", \"l\"]\n[6.975686, \"o\", \"i\"]\n[6.99077, \"o\", \"n\"]\n[7.006118, \"o\", \"e\"]\n[7.021516, \"o\", \"s\"]\n[7.036733, \"o\", \",\"]\n[7.052427, \"o\", \"\\u001b\"]\n[7.068265, \"o\", \"[\"]\n[7.083935, \"o\", \"3\"]\n[7.099566, \"o\", \"9\"]\n[7.114945, \"o\", \"m\"]\n[7.130278, \"o\", \"\\r\\n\"]\n[7.13037, \"o\", \"\\u001b\"]\n[7.146655, \"o\", \"[\"]\n[7.162209, \"o\", \"3\"]\n[7.178253, \"o\", \"7\"]\n[7.193517, \"o\", \"m\"]\n[7.208816, \"o\", \" \"]\n[7.224388, \"o\", \" \"]\n[7.239977, \"o\", \"e\"]\n[7.255168, \"o\", \"n\"]\n[7.270343, \"o\", \"s\"]\n[7.285652, \"o\", \"u\"]\n[7.301049, \"o\", \"r\"]\n[7.316466, \"o\", \"i\"]\n[7.3322, \"o\", \"n\"]\n[7.34743, \"o\", \"g\"]\n[7.363182, \"o\", \" \"]\n[7.379183, \"o\", \"a\"]\n[7.39437, \"o\", \"l\"]\n[7.410361, \"o\", \"l\"]\n[7.426543, \"o\", \" \"]\n[7.441849, \"o\", \"m\"]\n[7.458326, \"o\", \"a\"]\n[7.473776, \"o\", \"n\"]\n[7.489275, \"o\", \"d\"]\n[7.506185, \"o\", \"a\"]\n[7.519713, \"o\", \"t\"]\n[7.534918, \"o\", \"o\"]\n[7.550499, \"o\", \"r\"]\n[7.566277, \"o\", \"y\"]\n[7.581466, \"o\", \" \"]\n[7.59695, \"o\", \"f\"]\n[7.61207, \"o\", \"i\"]\n[7.627231, \"o\", \"e\"]\n[7.642562, \"o\", \"l\"]\n[7.658445, \"o\", \"d\"]\n[7.673743, \"o\", \"s\"]\n[7.688884, \"o\", \" \"]\n[7.70409, \"o\", \"a\"]\n[7.719387, \"o\", \"r\"]\n[7.734524, \"o\", \"e\"]\n[7.749672, \"o\", \" \"]\n[7.764834, \"o\", \"p\"]\n[7.780142, \"o\", \"o\"]\n[7.795257, \"o\", \"p\"]\n[7.810464, \"o\", \"u\"]\n[7.82564, \"o\", \"l\"]\n[7.840814, \"o\", \"a\"]\n[7.855945, \"o\", \"t\"]\n[7.87104, \"o\", \"e\"]\n[7.886157, \"o\", \"d\"]\n[7.903088, \"o\", \" \"]\n[7.916514, \"o\", \"b\"]\n[7.930719, \"o\", \"e\"]\n[7.945865, \"o\", \"f\"]\n[7.960984, \"o\", \"o\"]\n[7.976115, \"o\", \"r\"]\n[7.99128, \"o\", \"e\"]\n[8.006447, \"o\", \" \"]\n[8.021568, \"o\", \"s\"]\n[8.036742, \"o\", \"u\"]\n[8.051887, \"o\", \"b\"]\n[8.067709, \"o\", \"m\"]\n[8.082837, \"o\", \"i\"]\n[8.098128, \"o\", \"s\"]\n[8.113389, \"o\", \"s\"]\n[8.128576, \"o\", \"i\"]\n[8.143722, \"o\", \"o\"]\n[8.158935, \"o\", \"n\"]\n[8.174087, \"o\", \".\"]\n[8.189413, \"o\", \"\\u001b\"]\n[8.204621, \"o\", \"[\"]\n[8.219792, \"o\", \"3\"]\n[8.235017, \"o\", \"9\"]\n[8.25029, \"o\", \"m\"]\n[8.265507, \"o\", \"\\r\\n\"]\n[8.265546, \"o\", \"\\r\\n\"]\n[9.46858, \"o\", \"\\u001b[33m\\u001b[1m  📋 Defect Guidelines (Configured):\\u001b[22m\\u001b[39m\\r\\n\"]\n[9.469715, \"o\", \"\\u001b[90m┌──────────────────────\\u001b[39m\\u001b[90m┬────────────────────────────────────────────────\\u001b[39m\\u001b[90m┬────────────┐\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mField\\u001b[22m\\u001b[39m                \\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mRule\\u001b[22m\\u001b[39m                                           \\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mRequired\\u001b[22m\\u001b[39m   \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m title                \\u001b[90m│\\u001b[39m Must be 15-200 chars, format: [Component] Act… \\u001b[90m│\\u001b[39m \\u001b[31m\\u001b[1mYES\\u001b[22m\\u001b[39m        \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m stepsToReproduce     \\u001b[90m│\\u001b[39m Minimum 2 steps required                       \\u001b[90m│\\u001b[39m \\u001b[31m\\u001b[1mYES\\u001b[22m\\u001b[39m        \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m expectedBehavior     \\u001b[90m│\\u001b[39m Minimum 10 characters                          \\u001b[90m│\\u001b[39m \\u001b[31m\\u001b[1mYES\\u001b[22m\\u001b[39m        \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m actualBehavior       \\u001b[90m│\\u001b[39m Minimum 10 characters                          \\u001b[90m│\\u001b[39m \\u001b[31m\\u001b[1mYES\\u001b[22m\\u001b[39m        \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m environment          \\u001b[90m│\\u001b[39m Must include vehicle_model and software_versi… \\u001b[90m│\\u001b[39m \\u001b[31m\\u001b[1mYES\\u001b[22m\\u001b[39m        \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m└──────────────────────\\u001b[39m\\u001b[90m┴────────────────────────────────────────────────\\u001b[39m\\u001b[90m┴────────────┘\\u001b[39m\\r\\n\"]\n[11.473116, \"o\", \"\\r\\n\"]\n[11.473174, \"o\", \"\\u001b[31m\\u001b[1m  ▸ Incoming Defect: \\u001b[22m\\u001b[39m\\u001b[37mDEF-4821 — \\\"Nav broken\\\"\\u001b[39m\\r\\n\"]\n[12.07535, \"o\", \"\\u001b[?25l\"]\n[12.075883, \"o\", \"\\u001b[36m⠋\\u001b[39m   Validating defect against quality guidelines...\"]\n[12.157525, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[12.157552, \"o\", \"\\u001b[36m⠙\\u001b[39m   Validating defect against quality guidelines...\"]\n[12.237391, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[12.237487, \"o\", \"\\u001b[36m⠹\\u001b[39m   Validating defect against quality guidelines...\"]\n[12.317676, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[12.31771, \"o\", \"\\u001b[36m⠸\\u001b[39m   Validating defect against quality guidelines...\"]\n[12.398138, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[12.398169, \"o\", \"\\u001b[36m⠼\\u001b[39m   Validating defect against quality guidelines...\"]\n[12.478431, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[12.478465, \"o\", \"\\u001b[36m⠴\\u001b[39m   Validating defect against quality guidelines...\"]\n[12.558735, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[12.558767, \"o\", \"\\u001b[36m⠦\\u001b[39m   Validating defect against quality guidelines...\"]\n[12.639268, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠧\\u001b[39m   Validating defect against quality guidelines...\"]\n[12.7196, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[12.719632, \"o\", \"\\u001b[36m⠇\\u001b[39m   Validating defect against quality guidelines...\"]\n[12.798868, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[12.798899, \"o\", \"\\u001b[36m⠏\\u001b[39m   Validating defect against quality guidelines...\"]\n[12.879203, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠋\\u001b[39m   Validating defect against quality guidelines...\"]\n[12.959737, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.04019, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.120192, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.200548, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.281239, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠴\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.36168, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠦\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.442431, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠧\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.522652, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠇\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.602853, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠏\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.683357, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠋\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.76361, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.843822, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Validating defect against quality guidelines...\"]\n[13.924046, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Validating defect against quality guidelines...\"]\n[14.004255, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[14.004282, \"o\", \"\\u001b[36m⠼\\u001b[39m   Validating defect against quality guidelines...\"]\n[14.076651, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[?25h\"]\n[14.076761, \"o\", \"\\u001b[32m✔\\u001b[39m \\u001b[32m  Validating defect against quality guidelines...\\u001b[39m\\r\\n\"]\n[14.076787, \"o\", \"\\r\\n\\u001b[31m\\u001b[1m  ✗ VALIDATION FAILED — 6 issues found\\u001b[22m\\u001b[39m\\r\\n\"]\n[14.076799, \"o\", \"\\r\\n\"]\n[14.077848, \"o\", \"\\u001b[90m┌──────────────────────\\u001b[39m\\u001b[90m┬──────────\\u001b[39m\\u001b[90m┬──────────────────────────────────────────────────┐\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mField\\u001b[22m\\u001b[39m                \\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mStatus\\u001b[22m\\u001b[39m   \\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mIssue\\u001b[22m\\u001b[39m                                            \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m title                \\u001b[90m│\\u001b[39m \\u001b[31mFAIL\\u001b[39m     \\u001b[90m│\\u001b[39m Only 10 chars. Min 15 required. Missing [Compon… \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m severity             \\u001b[90m│\\u001b[39m \\u001b[31mFAIL\\u001b[39m     \\u001b[90m│\\u001b[39m Empty. Must be one of: Critical, High, Medium, … \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m component            \\u001b[90m│\\u001b[39m \\u001b[31mFAIL\\u001b[39m     \\u001b[90m│\\u001b[39m Empty. Component/module must be specified.       \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m stepsToReproduce     \\u001b[90m│\\u001b[39m \\u001b[31mFAIL\\u001b[39m     \\u001b[90m│\\u001b[39m Empty array. Minimum 2 steps required.           \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m expectedBehavior     \\u001b[90m│\\u001b[39m \\u001b[31mFAIL\\u001b[39m     \\u001b[90m│\\u001b[39m Empty. Minimum 10 characters describing expecte… \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m actualBehavior       \\u001b[90m│\\u001b[39m \\u001b[33mWARN\\u001b[39m     \\u001b[90m│\\u001b[39m \\\"Not working\\\" is vague (11 chars). Include erro… \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m environment          \\u001b[90m│\\u001b[39m \\u001b[31mFAIL\\u001b[39m     \\u001b[90m│\\u001b[39m Empty. Must include vehicle_model and software_… \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m reportedBy           \\u001b[90m│\\u001b[39m \\u001b[32mPASS\\u001b[39m     \\u001b[90m│\\u001b[39m J. Mueller                                       \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m└──────────────────────\\u001b[39m\\u001b[90m┴──────────\\u001b[39m\\u001b[90m┴──────────────────────────────────────────────────┘\\u001b[39m\\r\\n\\r\\n\"]\n[14.077889, \"o\", \"\\u001b[37m  Quality Score: \\u001b[39m\\u001b[31m████\\u001b[39m\\u001b[90m░░░░░░░░░░░░░░░░░░░░░░░░░░\\u001b[39m 12%\\r\\n\\u001b[31m  ⚠  Defect REJECTED — does not meet minimum quality threshold (70%)\\u001b[39m\\r\\n\"]\n[16.079694, \"o\", \"\\r\\n\"]\n[16.079721, \"o\", \"\\u001b[90m──────────────────────────────────────────────────────────────────────────────\\u001b[39m\\r\\n\\u001b[32m\\u001b[1m  ▸ Incoming Defect: \\u001b[22m\\u001b[39m\\u001b[37mDEF-4822 — \\\"[Navigation] Route recalculation fails on highway exit causi...\\\"\\u001b[39m\\r\\n\"]\n[16.680661, \"o\", \"\\u001b[?25l\"]\n[16.680753, \"o\", \"\\u001b[36m⠋\\u001b[39m   Validating defect against quality guidelines...\"]\n[16.760966, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Validating defect against quality guidelines...\"]\n[16.841171, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[16.84125, \"o\", \"\\u001b[36m⠹\\u001b[39m   Validating defect against quality guidelines...\"]\n[16.921392, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.001591, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[17.001616, \"o\", \"\\u001b[36m⠼\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.082342, \"o\", \"\\u001b[2K\"]\n[17.082435, \"o\", \"\\u001b[1G\\u001b[36m⠴\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.162564, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠦\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.242922, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠧\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.323938, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠇\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.40418, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠏\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.484387, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠋\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.565168, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.645569, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.7258, \"o\", \"\\u001b[2K\"]\n[17.725854, \"o\", \"\\u001b[1G\\u001b[36m⠸\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.806267, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Validating defect against quality guidelines...\"]\n[17.881771, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[?25h\"]\n[17.8818, \"o\", \"\\u001b[32m✔\\u001b[39m \\u001b[32m  Validating defect against quality guidelines...\\u001b[39m\\r\\n\"]\n[17.881861, \"o\", \"\\r\\n\"]\n[17.883184, \"o\", \"\\u001b[32m\\u001b[1m  ✓ VALIDATION PASSED — All mandatory fields populated\\u001b[22m\\u001b[39m\\r\\n\\r\\n\\u001b[90m┌──────────────────────\\u001b[39m\\u001b[90m┬──────────\\u001b[39m\\u001b[90m┬──────────────────────────────────────────────────┐\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mField\\u001b[22m\\u001b[39m                \\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mStatus\\u001b[22m\\u001b[39m   \\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mDetail\\u001b[22m\\u001b[39m                                           \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m title                \\u001b[90m│\\u001b[39m \\u001b[32mPASS\\u001b[39m     \\u001b[90m│\\u001b[39m 74 chars, [Component] prefix present, impact st… \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m severity             \\u001b[90m│\\u001b[39m \\u001b[32mPASS\\u001b[39m     \\u001b[90m│\\u001b[39m High                                             \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m component            \\u001b[90m│\\u001b[39m \\u001b[32mPASS\\u001b[39m     \\u001b[90m│\\u001b[39m Navigation / Route Engine                        \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m stepsToReproduce     \\u001b[90m│\\u001b[39m \\u001b[32mPASS\\u001b[39m     \\u001b[90m│\\u001b[39m 5 detailed steps with specific conditions        \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m expectedBehavior     \\u001b[90m│\\u001b[39m \\u001b[32mPASS\\u001b[39m     \\u001b[90m│\\u001b[39m 145 chars, includes timing expectation (2 sec)   \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m actualBehavior       \\u001b[90m│\\u001b[39m \\u001b[32mPASS\\u001b[39m     \\u001b[90m│\\u001b[39m 248 chars, includes error rates (30% crash)      \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m environment          \\u001b[90m│\\u001b[39m \\u001b[32mPASS\\u001b[39m     \\u001b[90m│\\u001b[39m BMW G60, iDrive 8.5, HU-H3 v4.2.1, EU-Central    \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├──────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼──────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m reportedBy           \\u001b[90m│\\u001b[39m \\u001b[32mPASS\\u001b[39m     \\u001b[90m│\\u001b[39m K. Schneider                                     \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m└───────────\"]\n[17.883203, \"o\", \"───────────\\u001b[39m\\u001b[90m┴──────────\\u001b[39m\\u001b[90m┴──────────────────────────────────────────────────┘\\u001b[39m\\r\\n\\r\\n\\u001b[37m  Quality Dimensions:\\u001b[39m\\r\\n    Clarity:         \\u001b[32m█████████████████████████████\\u001b[39m\\u001b[90m░\\u001b[39m 95%\\r\\n    Completeness:    \\u001b[32m████████████████████████████\\u001b[39m\\u001b[90m░░\\u001b[39m 92%\\r\\n    Reproducibility: \\u001b[32m█████████████████████████████\\u001b[39m\\u001b[90m░\\u001b[39m 98%\\r\\n    Evidence:        \\u001b[32m██████████████████████████\\u001b[39m\\u001b[90m░░░░\\u001b[39m 85%\\r\\n    Actionability:   \\u001b[32m███████████████████████████\\u001b[39m\\u001b[90m░░░\\u001b[39m 90%\\r\\n\\r\\n\\u001b[37m  Overall Score: \\u001b[39m\\u001b[32m████████████████████████████\\u001b[39m\\u001b[90m░░\\u001b[39m 92%\\r\\n\\u001b[32m  ✓  Defect ACCEPTED — meets quality standards\\u001b[39m\\r\\n\"]\n[20.889638, \"o\", \"\\r\\n\\u001b[46m\\u001b[30m\\u001b[1m CAPABILITY 2/3 \\u001b[22m\\u001b[39m\\u001b[49m\\r\\n\\u001b[36m\\u001b[1m  DUPLICATE DEFECT IDENTIFICATION — Semantic Similarity\\u001b[22m\\u001b[39m\\r\\n\"]\n[20.889669, \"o\", \"\\u001b[90m──────────────────────────────────────────────────────────────────────────────\\u001b[39m\\r\\n\\r\\n\\u001b\"]\n[20.905757, \"o\", \"[\"]\n[20.921097, \"o\", \"3\"]\n[20.936253, \"o\", \"7\"]\n[20.951405, \"o\", \"m\"]\n[20.966594, \"o\", \" \"]\n[20.982054, \"o\", \" \"]\n[20.997802, \"o\", \"A\"]\n[21.013049, \"o\", \"I\"]\n[21.02839, \"o\", \" \"]\n[21.043589, \"o\", \"a\"]\n[21.059261, \"o\", \"n\"]\n[21.075532, \"o\", \"a\"]\n[21.090635, \"o\", \"l\"]\n[21.105991, \"o\", \"y\"]\n[21.121156, \"o\", \"z\"]\n[21.1363, \"o\", \"e\"]\n[21.151461, \"o\", \"s\"]\n[21.16726, \"o\", \" \"]\n[21.1825, \"o\", \"n\"]\n[21.19761, \"o\", \"e\"]\n[21.21359, \"o\", \"w\"]\n[21.22876, \"o\", \" \"]\n[21.24463, \"o\", \"d\"]\n[21.260853, \"o\", \"e\"]\n[21.277172, \"o\", \"f\"]\n[21.292311, \"o\", \"e\"]\n[21.307461, \"o\", \"c\"]\n[21.322958, \"o\", \"t\"]\n[21.339833, \"o\", \"s\"]\n[21.355017, \"o\", \" \"]\n[21.370178, \"o\", \"a\"]\n[21.387812, \"o\", \"g\"]\n[21.403113, \"o\", \"a\"]\n[21.418509, \"o\", \"i\"]\n[21.434566, \"o\", \"n\"]\n[21.451545, \"o\", \"s\"]\n[21.466905, \"o\", \"t\"]\n[21.482046, \"o\", \" \"]\n[21.497817, \"o\", \"t\"]\n[21.513749, \"o\", \"h\"]\n[21.529602, \"o\", \"e\"]\n[21.544966, \"o\", \" \"]\n[21.560245, \"o\", \"e\"]\n[21.577961, \"o\", \"x\"]\n[21.593226, \"o\", \"i\"]\n[21.609541, \"o\", \"s\"]\n[21.624953, \"o\", \"t\"]\n[21.640333, \"o\", \"i\"]\n[21.656061, \"o\", \"n\"]\n[21.67127, \"o\", \"g\"]\n[21.686659, \"o\", \" \"]\n[21.702288, \"o\", \"d\"]\n[21.719157, \"o\", \"e\"]\n[21.735331, \"o\", \"f\"]\n[21.75066, \"o\", \"e\"]\n[21.766831, \"o\", \"c\"]\n[21.782159, \"o\", \"t\"]\n[21.797857, \"o\", \" \"]\n[21.813358, \"o\", \"d\"]\n[21.828463, \"o\", \"a\"]\n[21.843006, \"o\", \"t\"]\n[21.858171, \"o\", \"a\"]\n[21.874054, \"o\", \"b\"]\n[21.889257, \"o\", \"a\"]\n[21.904385, \"o\", \"s\"]\n[21.919633, \"o\", \"e\"]\n[21.935597, \"o\", \"\\u001b\"]\n[21.950913, \"o\", \"[\"]\n[21.966803, \"o\", \"3\"]\n[21.981969, \"o\", \"9\"]\n[21.997149, \"o\", \"m\"]\n[22.012449, \"o\", \"\\r\\n\"]\n[22.012519, \"o\", \"\\u001b\"]\n[22.027771, \"o\", \"[\"]\n[22.043025, \"o\", \"3\"]\n[22.058892, \"o\", \"7\"]\n[22.074337, \"o\", \"m\"]\n[22.090441, \"o\", \" \"]\n[22.106206, \"o\", \" \"]\n[22.121425, \"o\", \"u\"]\n[22.136718, \"o\", \"s\"]\n[22.151932, \"o\", \"i\"]\n[22.168296, \"o\", \"n\"]\n[22.183923, \"o\", \"g\"]\n[22.200724, \"o\", \" \"]\n[22.216383, \"o\", \"s\"]\n[22.231656, \"o\", \"e\"]\n[22.247727, \"o\", \"m\"]\n[22.263214, \"o\", \"a\"]\n[22.278347, \"o\", \"n\"]\n[22.293487, \"o\", \"t\"]\n[22.308849, \"o\", \"i\"]\n[22.323992, \"o\", \"c\"]\n[22.339184, \"o\", \" \"]\n[22.355401, \"o\", \"v\"]\n[22.370622, \"o\", \"e\"]\n[22.386395, \"o\", \"c\"]\n[22.401852, \"o\", \"t\"]\n[22.417042, \"o\", \"o\"]\n[22.432554, \"o\", \"r\"]\n[22.448296, \"o\", \" \"]\n[22.463607, \"o\", \"e\"]\n[22.479049, \"o\", \"m\"]\n[22.494894, \"o\", \"b\"]\n[22.510123, \"o\", \"e\"]\n[22.525313, \"o\", \"d\"]\n[22.540537, \"o\", \"d\"]\n[22.555701, \"o\", \"i\"]\n[22.57102, \"o\", \"n\"]\n[22.587317, \"o\", \"g\"]\n[22.603068, \"o\", \"s\"]\n[22.619139, \"o\", \" \"]\n[22.634756, \"o\", \"—\"]\n[22.650393, \"o\", \" \"]\n[22.66566, \"o\", \"n\"]\n[22.680833, \"o\", \"o\"]\n[22.696385, \"o\", \"t\"]\n[22.711761, \"o\", \" \"]\n[22.727418, \"o\", \"j\"]\n[22.742604, \"o\", \"u\"]\n[22.757722, \"o\", \"s\"]\n[22.774249, \"o\", \"t\"]\n[22.790067, \"o\", \" \"]\n[22.805268, \"o\", \"k\"]\n[22.821114, \"o\", \"e\"]\n[22.837931, \"o\", \"y\"]\n[22.853188, \"o\", \"w\"]\n[22.868368, \"o\", \"o\"]\n[22.884299, \"o\", \"r\"]\n[22.899463, \"o\", \"d\"]\n[22.915192, \"o\", \" \"]\n[22.930441, \"o\", \"m\"]\n[22.945747, \"o\", \"a\"]\n[22.961242, \"o\", \"t\"]\n[22.977457, \"o\", \"c\"]\n[22.992581, \"o\", \"h\"]\n[23.007923, \"o\", \"i\"]\n[23.023199, \"o\", \"n\"]\n[23.038862, \"o\", \"g\"]\n[23.054563, \"o\", \".\"]\n[23.069784, \"o\", \"\\u001b\"]\n[23.085839, \"o\", \"[\"]\n[23.101299, \"o\", \"3\"]\n[23.116849, \"o\", \"9\"]\n[23.132005, \"o\", \"m\"]\n[23.147284, \"o\", \"\\r\\n\"]\n[23.147335, \"o\", \"\\r\\n\"]\n[24.349052, \"o\", \"\\u001b[33m\\u001b[1m  📂 Existing Defect Database: \\u001b[22m\\u001b[39m\\u001b[37m7 defects indexed\\u001b[39m\\r\\n\"]\n[24.349216, \"o\", \"\\r\\n\"]\n[24.350391, \"o\", \"\\u001b[90m┌────────────\\u001b[39m\\u001b[90m┬────────────────────────────────────────────────\\u001b[39m\\u001b[90m┬──────────\\u001b[39m\\u001b[90m┬────────────┐\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mID\\u001b[22m\\u001b[39m         \\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mTitle\\u001b[22m\\u001b[39m                                          \\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mSeverity\\u001b[22m\\u001b[39m \\u001b[90m│\\u001b[39m \\u001b[37m\\u001b[1mStatus\\u001b[22m\\u001b[39m     \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m DEF-3901   \\u001b[90m│\\u001b[39m [Navigation] Route guidance freezes when miss… \\u001b[90m│\\u001b[39m \\u001b[33mHigh\\u001b[39m     \\u001b[90m│\\u001b[39m \\u001b[33mopen\\u001b[39m       \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m DEF-4102   \\u001b[90m│\\u001b[39m [ADAS] Lane Keep Assist disengages in heavy r… \\u001b[90m│\\u001b[39m \\u001b[31mCritical\\u001b[39m \\u001b[90m│\\u001b[39m \\u001b[33mopen\\u001b[39m       \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m DEF-4205   \\u001b[90m│\\u001b[39m [Infotainment] Bluetooth audio stuttering aft… \\u001b[90m│\\u001b[39m \\u001b[37mMedium\\u001b[39m   \\u001b[90m│\\u001b[39m \\u001b[32mresolved\\u001b[39m   \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m DEF-4310   \\u001b[90m│\\u001b[39m [Telematics] OTA update fails silently on veh… \\u001b[90m│\\u001b[39m \\u001b[33mHigh\\u001b[39m     \\u001b[90m│\\u001b[39m \\u001b[33mopen\\u001b[39m       \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m DEF-4455   \\u001b[90m│\\u001b[39m [Climate] Seat heating remains on max after r… \\u001b[90m│\\u001b[39m \\u001b[37mLow\\u001b[39m      \\u001b[90m│\\u001b[39m \\u001b[33mopen\\u001b[39m       \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m DEF-4512   \\u001b[90m│\\u001b[39m [Navigation] Map rendering lag causes route o… \\u001b[90m│\\u001b[39m \\u001b[37mMedium\\u001b[39m   \\u001b[90m│\\u001b[39m \\u001b[33mopen\\u001b[39m       \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m├────────────\\u001b[39m\\u001b[90m┼────────────────────────────────────────────────\\u001b[39m\\u001b[90m┼──────────\\u001b[39m\\u001b[90m┼────────────┤\\u001b[39m\\r\\n\\u001b[90m│\\u001b[39m DEF-4601   \\u001b[90m│\\u001b[39m [ADAS] Adaptive cruise control phantom brakin… \\u001b[90m│\\u001b[39m \\u001b[31mCritical\\u001b[39m \\u001b[90m│\\u001b[39m \\u001b[33mopen\\u001b[39m       \\u001b[90m│\\u001b[39m\\r\\n\\u001b[90m└────────────\\u001b[39m\\u001b[90m┴────────────────────────────────────────────────\\u001b[39m\\u001b[90m┴──────────\\u001b[39m\"]\n[24.350459, \"o\", \"\\u001b[90m┴────────────┘\\u001b[39m\\r\\n\"]\n[26.350687, \"o\", \"\\r\\n\"]\n[26.350777, \"o\", \"\\u001b[90m──────────────────────────────────────────────────────────────────────────────\\u001b[39m\\r\\n\\u001b[36m\\u001b[1m  ▸ New Defect Submitted: \\u001b[22m\\u001b[39m\\u001b[37mDEF-4823\\u001b[39m\\r\\n\\u001b[37m    \\\"[Navigation] System hangs during route recalculation after missing highway exit ramp\\\"\\u001b[39m\\r\\n\\r\\n\"]\n[26.951653, \"o\", \"\\u001b[?25l\"]\n[26.95177, \"o\", \"\\u001b[36m⠋\\u001b[39m   Analyzing defect semantics...\"]\n[27.031994, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Analyzing defect semantics...\"]\n[27.112828, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Analyzing defect semantics...\"]\n[27.193123, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Analyzing defect semantics...\"]\n[27.273459, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Analyzing defect semantics...\"]\n[27.353596, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠴\\u001b[39m   Analyzing defect semantics...\"]\n[27.434214, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠦\\u001b[39m   Analyzing defect semantics...\"]\n[27.514986, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠧\\u001b[39m   Analyzing defect semantics...\"]\n[27.595286, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠇\\u001b[39m   Analyzing defect semantics...\"]\n[27.675669, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠏\\u001b[39m   Analyzing defect semantics...\"]\n[27.757385, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠋\\u001b[39m   Analyzing defect semantics...\"]\n[27.838558, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Analyzing defect semantics...\"]\n[27.919914, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Analyzing defect semantics...\"]\n[28.000076, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Analyzing defect semantics...\"]\n[28.080441, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Analyzing defect semantics...\"]\n[28.153167, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[?25h\"]\n[28.153248, \"o\", \"\\u001b[32m✔\\u001b[39m \\u001b[32m  Analyzing defect semantics...\\u001b[39m\\r\\n\"]\n[28.153291, \"o\", \"\\u001b[?25l\"]\n[28.153362, \"o\", \"\\u001b[36m⠋\\u001b[39m   Searching defect database for similar reports...\"]\n[28.232786, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Searching defect database for similar reports...\"]\n[28.313489, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Searching defect database for similar reports...\"]\n[28.393726, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Searching defect database for similar reports...\"]\n[28.473986, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Searching defect database for similar reports...\"]\n[28.554321, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠴\\u001b[39m   Searching defect database for similar reports...\"]\n[28.63481, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠦\\u001b[39m   Searching defect database for similar reports...\"]\n[28.715549, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠧\\u001b[39m   Searching defect database for similar reports...\"]\n[28.794843, \"o\", \"\\u001b[2K\"]\n[28.79488, \"o\", \"\\u001b[1G\\u001b[36m⠇\\u001b[39m   Searching defect database for similar reports...\"]\n[28.875135, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[28.875275, \"o\", \"\\u001b[36m⠏\\u001b[39m   Searching defect database for similar reports...\"]\n[28.956172, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠋\\u001b[39m   Searching defect database for similar reports...\"]\n[29.038019, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Searching defect database for similar reports...\"]\n[29.118269, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Searching defect database for similar reports...\"]\n[29.199859, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Searching defect database for similar reports...\"]\n[29.28002, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Searching defect database for similar reports...\"]\n[29.353805, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[?25h\"]\n[29.353842, \"o\", \"\\u001b[32m✔\\u001b[39m \\u001b[32m  Searching defect database for similar reports...\\u001b[39m\\r\\n\"]\n[29.354054, \"o\", \"\\u001b[?25l\\u001b[36m⠋\\u001b[39m   Identifying shared factors across matches...\"]\n[29.43502, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Identifying shared factors across matches...\"]\n[29.515609, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Identifying shared factors across matches...\"]\n[29.596734, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Identifying shared factors across matches...\"]\n[29.676946, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Identifying shared factors across matches...\"]\n[29.757713, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠴\\u001b[39m   Identifying shared factors across matches...\"]\n[29.838703, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠦\\u001b[39m   Identifying shared factors across matches...\"]\n[29.92093, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠧\\u001b[39m   Identifying shared factors across matches...\"]\n[29.955168, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[?25h\"]\n[29.95525, \"o\", \"\\u001b[32m✔\\u001b[39m \\u001b[32m  Identifying shared factors across matches...\\u001b[39m\\r\\n\\r\\n\"]\n[29.955256, \"o\", \"\\u001b[31m\\u001b[1m  ⚠  POTENTIAL DUPLICATES DETECTED\\u001b[22m\\u001b[39m\\r\\n\\r\\n\"]\n[29.955379, \"o\", \"\\u001b[31m\\u001b[1m  ┌─ Match: DEF-3901 [94% similarity] — \\u001b[31m\\u001b[1mEXACT DUPLICATE\\u001b[22m\\u001b[1m\\u001b[39m\\u001b[31m\\u001b[22m\\u001b[39m\\r\\n\\u001b[37m  │  \\\"[Navigation] Route guidance freezes when missing mot\\\"\\u001b[39m\\r\\n\\u001b[90m  │  Shared factors: Navigation component, Route recalculation, Highway/motorway context, Freeze/hang behavior, iDrive 8.x platform\\u001b[39m\\r\\n\"]\n[29.955391, \"o\", \"\\u001b[31m  └─ ███████████████████████████████░░ 94%\\u001b[39m\\r\\n\"]\n[29.95544, \"o\", \"\\r\\n\"]\n[31.156319, \"o\", \"\\u001b[31m\\u001b[1m  ┌─ Match: DEF-4822 [91% similarity] — \\u001b[31m\\u001b[1mEXACT DUPLICATE\\u001b[22m\\u001b[1m\\u001b[39m\\u001b[31m\\u001b[22m\\u001b[39m\\r\\n\\u001b[37m  │  \\\"[Navigation] Route recalculation fails on highway ex\\\"\\u001b[39m\\r\\n\\u001b[90m  │  Shared factors: Navigation component, Route recalculation freeze, Highway context, High-speed trigger\\u001b[39m\\r\\n\"]\n[31.15641, \"o\", \"\\u001b[31m  └─ ██████████████████████████████░░░ 91%\\u001b[39m\\r\\n\\r\\n\"]\n[32.358422, \"o\", \"\\u001b[33m\\u001b[1m  ┌─ Match: DEF-4512 [72% similarity] — \\u001b[33mRELATED\\u001b[39m\\u001b[33m\\u001b[22m\\u001b[39m\\r\\n\"]\n[32.358511, \"o\", \"\\u001b[37m  │  \\\"[Navigation] Map rendering lag causes route overlay \\\"\\u001b[39m\\r\\n\\u001b[90m  │  Shared factors: Navigation component, High-speed scenario, Route display issue\\u001b[39m\\r\\n\\u001b[33m  └─ ████████████████████████░░░░░░░░░ 72%\\u001b[39m\\r\\n\\r\\n\"]\n[33.559924, \"o\", \"\\u001b[33m  ┌────────────────────────────────────────────────────────────┐\\u001b[39m\\r\\n\"]\n[33.560086, \"o\", \"\\u001b[33m  │ \\u001b[39m\\u001b[31m\\u001b[1mRECOMMENDATION: \\u001b[22m\\u001b[39m\\u001b[37mDo NOT create new defect.\\u001b[39m               \\u001b[33m │\\u001b[39m\\r\\n\\u001b[33m  │ \\u001b[39m\\u001b[37m\\u001b[39m\\u001b[37mDEF-4823 is a duplicate of \\u001b[33m\\u001b[1mDEF-3901\\u001b[22m\\u001b[39m\\u001b[37m (94% match).\\u001b[39m        \\u001b[33m │\\u001b[39m\\r\\n\\u001b[33m  │ \\u001b[39m\\u001b[37m\\u001b[39m\\u001b[37mAction: Link to DEF-3901 and add BMW 3 Series (G20) 2024\\u001b[39m\\u001b[33m │\\u001b[39m\\r\\n\\u001b[33m  │ \\u001b[39m\\u001b[37m\\u001b[39m\\u001b[37mas an additional affected configuration.\\u001b[39m                \\u001b[33m │\\u001b[39m\\r\\n\\u001b[33m  └────────────────────────────────────────────────────────────┘\\u001b[39m\\r\\n\"]\n[33.56019, \"o\", \"\\r\\n\"]\n[33.560311, \"o\", \"\\u001b[90m\\u001b[1m  💡 Why semantic search matters:\\u001b[22m\\u001b[39m\\r\\n\\u001b[90m     Keyword match for \\\"route recalculation fails highway exit\\\" → 0 results\\u001b[39m\\r\\n\\u001b[90m     Semantic match catches \\\"route guidance freezes motorway junction\\\" → 94%\\u001b[39m\\r\\n\\u001b[90m     Different words, same defect. AI understands meaning, not just text.\\u001b[39m\\r\\n\"]\n[36.56253, \"o\", \"\\r\\n\\u001b[46m\\u001b[30m\\u001b[1m CAPABILITY 3/3 \\u001b[22m\\u001b[39m\\u001b[49m\\r\\n\\u001b[36m\\u001b[1m  ROOT CAUSE ANALYSIS — Pattern & Historical Analysis\\u001b[22m\\u001b[39m\\r\\n\"]\n[36.562566, \"o\", \"\\u001b[90m──────────────────────────────────────────────────────────────────────────────\\u001b[39m\\r\\n\\r\\n\\u001b\"]\n[36.578722, \"o\", \"[\"]\n[36.59427, \"o\", \"3\"]\n[36.611411, \"o\", \"7\"]\n[36.626827, \"o\", \"m\"]\n[36.642304, \"o\", \" \"]\n[36.658064, \"o\", \" \"]\n[36.674076, \"o\", \"A\"]\n[36.689306, \"o\", \"I\"]\n[36.704935, \"o\", \" \"]\n[36.720384, \"o\", \"a\"]\n[36.735726, \"o\", \"n\"]\n[36.7509, \"o\", \"a\"]\n[36.766167, \"o\", \"l\"]\n[36.781401, \"o\", \"y\"]\n[36.796867, \"o\", \"z\"]\n[36.813219, \"o\", \"e\"]\n[36.82936, \"o\", \"s\"]\n[36.844922, \"o\", \" \"]\n[36.860452, \"o\", \"c\"]\n[36.875851, \"o\", \"l\"]\n[36.892799, \"o\", \"u\"]\n[36.908195, \"o\", \"s\"]\n[36.92357, \"o\", \"t\"]\n[36.939541, \"o\", \"e\"]\n[36.956073, \"o\", \"r\"]\n[36.971427, \"o\", \"s\"]\n[36.986714, \"o\", \" \"]\n[37.003107, \"o\", \"o\"]\n[37.018246, \"o\", \"f\"]\n[37.033676, \"o\", \" \"]\n[37.049131, \"o\", \"r\"]\n[37.064773, \"o\", \"e\"]\n[37.080067, \"o\", \"l\"]\n[37.096039, \"o\", \"a\"]\n[37.110405, \"o\", \"t\"]\n[37.125789, \"o\", \"e\"]\n[37.140967, \"o\", \"d\"]\n[37.156085, \"o\", \" \"]\n[37.171285, \"o\", \"d\"]\n[37.186412, \"o\", \"e\"]\n[37.201665, \"o\", \"f\"]\n[37.216812, \"o\", \"e\"]\n[37.23203, \"o\", \"c\"]\n[37.247692, \"o\", \"t\"]\n[37.263315, \"o\", \"s\"]\n[37.278458, \"o\", \",\"]\n[37.29363, \"o\", \" \"]\n[37.308788, \"o\", \"h\"]\n[37.324301, \"o\", \"i\"]\n[37.339438, \"o\", \"s\"]\n[37.3546, \"o\", \"t\"]\n[37.369796, \"o\", \"o\"]\n[37.384901, \"o\", \"r\"]\n[37.400029, \"o\", \"i\"]\n[37.415148, \"o\", \"c\"]\n[37.430296, \"o\", \"a\"]\n[37.445418, \"o\", \"l\"]\n[37.46059, \"o\", \" \"]\n[37.475792, \"o\", \"p\"]\n[37.490975, \"o\", \"a\"]\n[37.506166, \"o\", \"t\"]\n[37.521349, \"o\", \"t\"]\n[37.536546, \"o\", \"e\"]\n[37.551746, \"o\", \"r\"]\n[37.567361, \"o\", \"n\"]\n[37.58204, \"o\", \"s\"]\n[37.597177, \"o\", \",\"]\n[37.612297, \"o\", \"\\u001b\"]\n[37.62737, \"o\", \"[\"]\n[37.642642, \"o\", \"3\"]\n[37.657868, \"o\", \"9\"]\n[37.673377, \"o\", \"m\"]\n[37.688576, \"o\", \"\\r\\n\"]\n[37.688597, \"o\", \"\\u001b\"]\n[37.70376, \"o\", \"[\"]\n[37.719683, \"o\", \"3\"]\n[37.734861, \"o\", \"7\"]\n[37.75007, \"o\", \"m\"]\n[37.765693, \"o\", \" \"]\n[37.780926, \"o\", \" \"]\n[37.796566, \"o\", \"a\"]\n[37.812148, \"o\", \"n\"]\n[37.827544, \"o\", \"d\"]\n[37.842808, \"o\", \" \"]\n[37.858587, \"o\", \"c\"]\n[37.874539, \"o\", \"o\"]\n[37.892518, \"o\", \"d\"]\n[37.907983, \"o\", \"e\"]\n[37.923087, \"o\", \" \"]\n[37.939101, \"o\", \"c\"]\n[37.954199, \"o\", \"h\"]\n[37.969631, \"o\", \"a\"]\n[37.98481, \"o\", \"n\"]\n[37.99997, \"o\", \"g\"]\n[38.015165, \"o\", \"e\"]\n[38.030316, \"o\", \"s\"]\n[38.04558, \"o\", \" \"]\n[38.060744, \"o\", \"t\"]\n[38.075999, \"o\", \"o\"]\n[38.091079, \"o\", \" \"]\n[38.107757, \"o\", \"i\"]\n[38.123065, \"o\", \"d\"]\n[38.138542, \"o\", \"e\"]\n[38.153674, \"o\", \"n\"]\n[38.169175, \"o\", \"t\"]\n[38.184742, \"o\", \"i\"]\n[38.199927, \"o\", \"f\"]\n[38.215806, \"o\", \"y\"]\n[38.23114, \"o\", \" \"]\n[38.246368, \"o\", \"p\"]\n[38.261601, \"o\", \"r\"]\n[38.277385, \"o\", \"o\"]\n[38.29264, \"o\", \"b\"]\n[38.307967, \"o\", \"a\"]\n[38.323314, \"o\", \"b\"]\n[38.338446, \"o\", \"l\"]\n[38.35395, \"o\", \"e\"]\n[38.369579, \"o\", \" \"]\n[38.385395, \"o\", \"r\"]\n[38.400632, \"o\", \"o\"]\n[38.417761, \"o\", \"o\"]\n[38.433481, \"o\", \"t\"]\n[38.44991, \"o\", \" \"]\n[38.465745, \"o\", \"c\"]\n[38.480845, \"o\", \"a\"]\n[38.496028, \"o\", \"u\"]\n[38.511232, \"o\", \"s\"]\n[38.528596, \"o\", \"e\"]\n[38.54607, \"o\", \"s\"]\n[38.561383, \"o\", \".\"]\n[38.577143, \"o\", \"\\u001b\"]\n[38.592279, \"o\", \"[\"]\n[38.611057, \"o\", \"3\"]\n[38.62621, \"o\", \"9\"]\n[38.641423, \"o\", \"m\"]\n[38.657196, \"o\", \"\\r\\n\"]\n[38.65722, \"o\", \"\\r\\n\"]\n[39.860885, \"o\", \"\\u001b[33m\\u001b[1m  📊 Defect Cluster Detected: CLUS-087\\u001b[22m\\u001b[39m\\r\\n\\u001b[37m     Name: Navigation Route Engine Failures\\u001b[39m\\r\\n\"]\n[39.860936, \"o\", \"\\u001b[37m     Defects: DEF-3901, DEF-4512, DEF-4822, DEF-4823\\u001b[39m\\r\\n\\u001b[37m     Period: Sep 2025 - Nov 2025\\u001b[39m\\r\\n\"]\n[39.860943, \"o\", \"\\u001b[31m     Trend: ▲ increasing (4 defects in 3 months)\\u001b[39m\\r\\n\"]\n[39.861058, \"o\", \"\\r\\n\"]\n[41.862114, \"o\", \"\\u001b[?25l\"]\n[41.862386, \"o\", \"\\u001b[36m⠋\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[41.942669, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.023012, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.103687, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.183976, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.264164, \"o\", \"\\u001b[2K\"]\n[42.264192, \"o\", \"\\u001b[1G\"]\n[42.26426, \"o\", \"\\u001b[36m⠴\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.344571, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠦\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.425152, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠧\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.505439, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[42.505477, \"o\", \"\\u001b[36m⠇\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.585686, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠏\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.665896, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠋\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.746696, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.82812, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.908501, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[42.98881, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Collecting failure history (last 90 days)...\"]\n[43.062561, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[?25h\"]\n[43.062586, \"o\", \"\\u001b[32m✔\\u001b[39m \\u001b[32m  Collecting failure history (last 90 days)...\\u001b[39m\\r\\n\"]\n[43.062727, \"o\", \"\\u001b[?25l\\u001b[36m⠋\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[43.142978, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[43.22433, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[43.30468, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[43.304712, \"o\", \"\\u001b[36m⠸\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[43.385927, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[43.466123, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠴\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[43.5463, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠦\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[43.626524, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠧\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[43.706693, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠇\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[43.787377, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠏\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[43.868078, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠋\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[43.949435, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[44.029955, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[44.110139, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[44.190339, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Analyzing defect comments and discussion threads...\"]\n[44.264453, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[?25h\"]\n[44.264487, \"o\", \"\\u001b[32m✔\\u001b[39m \\u001b[32m  Analyzing defect comments and discussion threads...\\u001b[39m\\r\\n\"]\n[44.264796, \"o\", \"\\u001b[?25l\\u001b[36m⠋\\u001b[39m   Running Five-Whys analysis...\"]\n[44.346268, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Running Five-Whys analysis...\"]\n[44.426456, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Running Five-Whys analysis...\"]\n[44.506733, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Running Five-Whys analysis...\"]\n[44.588017, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Running Five-Whys analysis...\"]\n[44.669018, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠴\\u001b[39m   Running Five-Whys analysis...\"]\n[44.75016, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠦\\u001b[39m   Running Five-Whys analysis...\"]\n[44.830613, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠧\\u001b[39m   Running Five-Whys analysis...\"]\n[44.910847, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠇\\u001b[39m   Running Five-Whys analysis...\"]\n[44.991055, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠏\\u001b[39m   Running Five-Whys analysis...\"]\n[45.071308, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠋\\u001b[39m   Running Five-Whys analysis...\"]\n[45.151559, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Running Five-Whys analysis...\"]\n[45.23082, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[45.230923, \"o\", \"\\u001b[36m⠹\\u001b[39m   Running Five-Whys analysis...\"]\n[45.311178, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Running Five-Whys analysis...\"]\n[45.39192, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Running Five-Whys analysis...\"]\n[45.472419, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠴\\u001b[39m   Running Five-Whys analysis...\"]\n[45.553367, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠦\\u001b[39m   Running Five-Whys analysis...\"]\n[45.633824, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[45.633878, \"o\", \"\\u001b[36m⠧\\u001b[39m   Running Five-Whys analysis...\"]\n[45.714278, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠇\\u001b[39m   Running Five-Whys analysis...\"]\n[45.794598, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠏\\u001b[39m   Running Five-Whys analysis...\"]\n[45.874863, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠋\\u001b[39m   Running Five-Whys analysis...\"]\n[45.955866, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Running Five-Whys analysis...\"]\n[46.036844, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Running Five-Whys analysis...\"]\n[46.117017, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[46.117041, \"o\", \"\\u001b[36m⠸\\u001b[39m   Running Five-Whys analysis...\"]\n[46.197587, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Running Five-Whys analysis...\"]\n[46.266188, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[?25h\"]\n[46.266299, \"o\", \"\\u001b[32m✔\\u001b[39m \\u001b[32m  Running Five-Whys analysis...\\u001b[39m\\r\\n\"]\n[46.266335, \"o\", \"\\u001b[?25l\"]\n[46.26645, \"o\", \"\\u001b[36m⠋\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[46.346343, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[46.427219, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[46.42725, \"o\", \"\\u001b[36m⠹\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[46.50796, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[46.588802, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[46.669325, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠴\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[46.75007, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠦\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[46.830501, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠧\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[46.911397, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠇\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[46.99164, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠏\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[47.07198, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠋\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[47.152176, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[47.152201, \"o\", \"\\u001b[36m⠙\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[47.233094, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[47.313613, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[47.394116, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Generating Fishbone (Ishikawa) diagram...\"]\n[47.467738, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[?25h\"]\n[47.467846, \"o\", \"\\u001b[32m✔\\u001b[39m \\u001b[32m  Generating Fishbone (Ishikawa) diagram...\\u001b[39m\\r\\n\"]\n[47.46791, \"o\", \"\\u001b[?25l\"]\n[47.468061, \"o\", \"\\u001b[36m⠋\\u001b[39m   Correlating with code change history...\"]\n[47.54859, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠙\\u001b[39m   Correlating with code change history...\"]\n[47.627952, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[47.628011, \"o\", \"\\u001b[36m⠹\\u001b[39m   Correlating with code change history...\"]\n[47.708391, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Correlating with code change history...\"]\n[47.790042, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Correlating with code change history...\"]\n[47.870483, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠴\\u001b[39m   Correlating with code change history...\"]\n[47.951207, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠦\\u001b[39m   Correlating with code change history...\"]\n[48.031904, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠧\\u001b[39m   Correlating with code change history...\"]\n[48.112611, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠇\\u001b[39m   Correlating with code change history...\"]\n[48.192937, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠏\\u001b[39m   Correlating with code change history...\"]\n[48.273138, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠋\\u001b[39m   Correlating with code change history...\"]\n[48.354004, \"o\", \"\\u001b[2K\\u001b[1G\"]\n[48.354038, \"o\", \"\\u001b[36m⠙\\u001b[39m   Correlating with code change history...\"]\n[48.435103, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠹\\u001b[39m   Correlating with code change history...\"]\n[48.515889, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠸\\u001b[39m   Correlating with code change history...\"]\n[48.596628, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[36m⠼\\u001b[39m   Correlating with code change history...\"]\n[48.668091, \"o\", \"\\u001b[2K\\u001b[1G\\u001b[?25h\"]\n[48.668197, \"o\", \"\\u001b[32m✔\\u001b[39m \\u001b[32m  Correlating with code change history...\\u001b[39m\\r\\n\"]\n[48.668216, \"o\", \"\\r\\n\"]\n[48.668346, \"o\", \"\\u001b[36m\\u001b[1m  ═══ COMMENT & DISCUSSION ANALYSIS ═══\\u001b[22m\\u001b[39m\\r\\n\\r\\n\\u001b[37m  AI analyzed 7 comments across 4 defects:\\u001b[39m\\r\\n\\r\\n\\u001b[33m  DEF-3901:\\u001b[39m\\r\\n\\u001b[90m    M. Fischer (2025-09-16):\\u001b[39m\\r\\n\\u001b[37m    \\\"Confirmed on G20 as well. Same freeze behavior. Suspect the route graph traversal is bl...\\\"\\u001b[39m\\r\\n\\u001b[90m    L. Braun (2025-09-22):\\u001b[39m\\r\\n\\u001b[37m    \\\"Profiled on bench — recalcRoute() runs synchronously on main thread. 9.2s avg at highwa...\\\"\\u001b[39m\\r\\n\\r\\n\"]\n[49.268947, \"o\", \"\\u001b[33m  DEF-4512:\\u001b[39m\\r\\n\\u001b[90m    P. Richter (2025-11-11):\\u001b[39m\\r\\n\\u001b[37m    \\\"Map tile loader also runs on main thread. Same pattern as route recalculation — inherit...\\\"\\u001b[39m\\r\\n\"]\n[49.268977, \"o\", \"\\u001b[90m    T. Weber (2025-11-14):\\u001b[39m\\r\\n\\u001b[37m    \\\"Related to DEF-3901? Both are main-thread blocking issues in navigation module ported f...\\\"\\u001b[39m\\r\\n\"]\n[49.26905, \"o\", \"\\r\\n\"]\n[49.870146, \"o\", \"\\u001b[32m\\u001b[1m  Key Insights Extracted from Comments:\\u001b[22m\\u001b[39m\\r\\n\\u001b[32m    ✓ \\u001b[39m\\u001b[37mMultiple engineers independently identified synchronous execution on main thread\\u001b[39m\\r\\n\\u001b[90m      Mentioned by 4 engineers | Confidence: High\\u001b[39m\\r\\n\\u001b[32m    ✓ \\u001b[39m\\u001b[37mRoot cause traced to iDrive 7 → iDrive 8 migration with no architectural review\\u001b[39m\\r\\n\\u001b[90m      Mentioned by 3 engineers | Confidence: High\\u001b[39m\\r\\n\"]\n[49.870218, \"o\", \"\\u001b[32m    ✓ \\u001b[39m\\u001b[37mEngineers linked DEF-3901, DEF-4512, DEF-4822, DEF-4823 as same underlying issue\\u001b[39m\\r\\n\\u001b[90m      Mentioned by 2 engineers | Confidence: Medium\\u001b[39m\\r\\n\"]\n[49.87035, \"o\", \"\\r\\n\"]\n[51.07144, \"o\", \"\\u001b[37m\\u001b[1m  Timeline Reconstructed from Comments:\\u001b[22m\\u001b[39m\\r\\n\"]\n[51.071471, \"o\", \"\\u001b[36m    2025-09-16\\u001b[39m\\u001b[90m → First engineer suspects render thread blocking\\u001b[39m\\r\\n\"]\n[51.37247, \"o\", \"\\u001b[36m    2025-09-22\\u001b[39m\\u001b[90m → Bench profiling confirms: recalcRoute() = 9.2s synchronous on main thread\\u001b[39m\\r\\n\"]\n[51.673348, \"o\", \"\\u001b[36m    2025-10-01\\u001b[39m\\u001b[90m → Git blame reveals verbatim copy from iDrive 7 — no migration review\\u001b[39m\\r\\n\"]\n[51.975106, \"o\", \"\\u001b[36m    2025-11-11\\u001b[39m\\u001b[90m → Pattern recognized in second module (map tile loader)\\u001b[39m\\r\\n\"]\n[52.275587, \"o\", \"\\u001b[36m    2025-11-22\\u001b[39m\\u001b[90m → Fourth defect filed — engineers converge on same root cause independently\\u001b[39m\\r\\n\"]\n[52.57631, \"o\", \"\\r\\n\"]\n[54.578502, \"o\", \"\\u001b[36m\\u001b[1m  ═══ FIVE-WHYS ANALYSIS ═══\\u001b[22m\\u001b[39m\\r\\n\"]\n[54.578534, \"o\", \"\\r\\n  \\u001b[33m\\u001b[1m► Why #1: \\u001b[22m\\u001b[39m\\u001b[37mWhy does the navigation system freeze during route recalculation?\\u001b[39m\\r\\n\"]\n[55.179326, \"o\", \"  \\u001b[90m  Answer: The route recalculation algorithm runs on the main UI thread, blocking all rendering and input handling for 8-12 seconds.\\u001b[39m\\r\\n\"]\n[55.179352, \"o\", \"\\r\\n\"]\n[56.380995, \"o\", \"    \\u001b[33m\\u001b[1m↳ Why #2: \\u001b[22m\\u001b[39m\\u001b[37mWhy does route recalculation run on the main UI thread?\\u001b[39m\\r\\n\"]\n[56.981098, \"o\", \"    \\u001b[90m  Answer: The route engine was designed as a synchronous module in iDrive 7. When ported to iDrive 8, the async wrapper was not implemented due to schedule pressure.\\u001b[39m\\r\\n\\r\\n\"]\n[58.182571, \"o\", \"      \\u001b[33m\\u001b[1m↳ Why #3: \\u001b[22m\\u001b[39m\\u001b[37mWhy was the async wrapper not implemented during the iDrive 8 migration?\\u001b[39m\\r\\n\"]\n[58.783321, \"o\", \"      \\u001b[90m  Answer: The navigation module was classified as \\\"low-change\\\" during migration planning. No architectural review was performed — it was a direct code port.\\u001b[39m\\r\\n\"]\n[58.783838, \"o\", \"\\r\\n\"]\n[59.983795, \"o\", \"        \\u001b[33m\\u001b[1m↳ Why #4: \\u001b[22m\\u001b[39m\\u001b[37mWhy was no architectural review performed for the navigation module?\\u001b[39m\\r\\n\"]\n[60.585871, \"o\", \"        \\u001b[90m  Answer: The migration review process only flagged modules with API signature changes. The route engine API remained unchanged, so it was auto-approved.\\u001b[39m\\r\\n\"]\n[60.585905, \"o\", \"\\r\\n\"]\n[61.788953, \"o\", \"          \\u001b[33m\\u001b[1m↳ Why #5: \\u001b[22m\\u001b[39m\\u001b[37mWhy does the review process only check API signatures and not runtime behavior?\\u001b[39m\\r\\n\"]\n[62.390862, \"o\", \"          \\u001b[90m  Answer: The migration review checklist was designed for backend services and does not include performance profiling or threading model validation for embedded HMI components.\\u001b[39m\\r\\n\"]\n[62.390891, \"o\", \"\\r\\n\"]\n[63.592791, \"o\", \"\\u001b[31m\\u001b[1m  ★ Root Cause Identified at Level 5:\\u001b[22m\\u001b[39m\\r\\n\\u001b[37m    Migration review process lacks threading model and performance\\u001b[39m\\r\\n\\u001b[37m    validation for embedded HMI components.\\u001b[39m\\r\\n\"]\n[65.594114, \"o\", \"\\r\\n\\u001b[36m\\u001b[1m  ═══ FISHBONE (ISHIKAWA) DIAGRAM ═══\\u001b[22m\\u001b[39m\\r\\n\\r\\n\"]\n[65.59416, \"o\", \"\\u001b[37m                          NAVIGATION ROUTE ENGINE FREEZE\\u001b[39m\\r\\n\\u001b[37m                                      │\\u001b[39m\\r\\n\\u001b[33m    PEOPLE\\u001b[39m\\u001b[90m ─────────────────────┐\\u001b[39m\\r\\n\\u001b[90m      • Migration team lacked embedded HMI expertise\\u001b[39m\\r\\n\\u001b[90m      • No performance engineer assigned to navigation module\\u001b[39m\\r\\n\\u001b[90m                              │\\u001b[39m\\r\\n\"]\n[66.194401, \"o\", \"\\u001b[90m                              ┌─────────────────────── \\u001b[39m\\u001b[33mPROCESS\\u001b[39m\\r\\n\\u001b[90m                              │  • Migration review checklist missing threading model vali...\\u001b[39m\\r\\n\\u001b[90m                              │  • No load testing for route recalculation under high-spee...\\u001b[39m\\r\\n\\u001b[90m                              │  • \\\"Low-change\\\" classification bypasses architectural review\\u001b[39m\\r\\n\\u001b[90m                              │\\u001b[39m\\r\\n\"]\n[66.795419, \"o\", \"\\u001b[33m    TOOLS\\u001b[39m\\u001b[90m ─────────────────────┐\\u001b[39m\\r\\n\\u001b[90m      • Static analysis tools do not detect main-thread blockin...\\u001b[39m\\r\\n\\u001b[90m      • CI pipeline has no performance regression benchmarks fo...\\u001b[39m\\r\\n\\u001b[90m                              │\\u001b[39m\\r\\n\"]\n[67.396779, \"o\", \"\\u001b[90m                              ┌─────────────────────── \\u001b[39m\\u001b[33mENVIRONMENT\\u001b[39m\\r\\n\\u001b[90m                              │  • Lab testing uses simulated GPS at 60 km/h (real issue m...\\u001b[39m\\r\\n\\u001b[90m                              │  • Test routes do not include missed-exit scenarios\\u001b[39m\\r\\n\\u001b[90m                              │\\u001b[39m\\r\\n\"]\n[67.998581, \"o\", \"\\u001b[33m    MATERIALS\\u001b[39m\\u001b[90m ─────────────────────┐\\u001b[39m\\r\\n\\u001b[90m      • iDrive 7 route engine assumes single-threaded execution...\\u001b[39m\\r\\n\\u001b[90m      • HERE Maps SDK v3 route API is synchronous by design\\u001b[39m\\r\\n\\u001b[90m                              │\\u001b[39m\\r\\n\"]\n[68.59985, \"o\", \"\\u001b[90m                              ┌─────────────────────── \\u001b[39m\\u001b[33mMEASUREMENT\\u001b[39m\\r\\n\\u001b[90m                              │  • No telemetry for route recalculation latency in production\\u001b[39m\\r\\n\\u001b[90m                              │  • Crash reports do not capture thread state at time of hang\\u001b[39m\\r\\n\\u001b[90m                              │\\u001b[39m\\r\\n\"]\n[71.203775, \"o\", \"\\r\\n\\u001b[36m\\u001b[1m  ═══ ROOT CAUSE REPORT ═══\\u001b[22m\\u001b[39m\\r\\n\\r\\n\"]\n[71.204337, \"o\", \"\\u001b[36m┌──────────────────────\\u001b[39m\\u001b[36m┬──────────────────────────────────────────────────────────┐\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m \\u001b[37m\\u001b[1mRoot Cause ID\\u001b[22m\\u001b[39m        \\u001b[36m│\\u001b[39m \\u001b[33mROOT-042\\u001b[39m                                                 \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m├──────────────────────\\u001b[39m\\u001b[36m┼──────────────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m \\u001b[37m\\u001b[1mCategory\\u001b[22m\\u001b[39m             \\u001b[36m│\\u001b[39m \\u001b[37mDESIGN\\u001b[39m                                                   \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m├──────────────────────\\u001b[39m\\u001b[36m┼──────────────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m \\u001b[37m\\u001b[1mConfidence\\u001b[22m\\u001b[39m           \\u001b[36m│\\u001b[39m \\u001b[32m████████████████████████████\\u001b[39m\\u001b[90m░░\\u001b[39m 92%                       \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m├──────────────────────\\u001b[39m\\u001b[36m┼──────────────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m \\u001b[37m\\u001b[1mSummary\\u001b[22m\\u001b[39m              \\u001b[36m│\\u001b[39m \\u001b[37mSynchronous route recalculation engine blocking HMI mai\\u001b[39m… \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m├──────────────────────\\u001b[39m\\u001b[36m┼──────────────────────────────────────────────────────────┤\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m \\u001b[37m\\u001b[1mAffected Defects\\u001b[22m\\u001b[39m     \\u001b[36m│\\u001b[39m \\u001b[37mDEF-3901, DEF-4512, DEF-4822, DEF-4823\\u001b[39m                   \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m└──────────────────────\\u001b[39m\\u001b[36m┴──────────────────────────────────────────────────────────┘\\u001b[39m\\r\\n\\r\\n\"]\n[72.406231, \"o\", \"\\u001b[37m\\u001b[1m  Detailed Analysis:\\u001b[22m\\u001b[39m\\r\\n\"]\n[72.406262, \"o\", \"\\u001b[90m    The iDrive 7 navigation route engine executes route recalculation \\u001b[39m\\r\\n\\u001b[90m    synchronously on the main HMI thread. During the iDrive 8 migration, this \\u001b[39m\\r\\n\\u001b[90m    module was ported without architectural changes due to its \\\"low-change\\\" \\u001b[39m\\r\\n\\u001b[90m    classification. At highway speeds (>120 km/h), missed-exit recalculations \\u001b[39m\\r\\n\\u001b[90m    involve significantly more graph traversal than urban rerouting, causing \\u001b[39m\\r\\n\"]\n[72.406332, \"o\", \"\\u001b[90m    8-12 second UI freezes. The absence of threading model validation in the \\u001b[39m\\r\\n\\u001b[90m    migration review process allowed this architectural debt to reach \\u001b[39m\\r\\n\\u001b[90m    production. \\u001b[39m\\r\\n\\r\\n\"]\n[73.606807, \"o\", \"\\u001b[32m\\u001b[1m  ✓ Preventive Measures:\\u001b[22m\\u001b[39m\\r\\n\"]\n[74.208937, \"o\", \"\\u001b[32m    1. \\u001b[39m\\u001b[37mMove route recalculation to dedicated worker thread with async callback to UI\\u001b[39m\\r\\n\"]\n[74.809872, \"o\", \"\\u001b[32m    2. \\u001b[39m\\u001b[37mAdd threading model validation step to platform migration review checklist\\u001b[39m\\r\\n\"]\n[75.410728, \"o\", \"\\u001b[32m    3. \\u001b[39m\\u001b[37mImplement route recalculation latency telemetry (P50/P95/P99) in production\\u001b[39m\\r\\n\"]\n[76.010949, \"o\", \"\\u001b[32m    4. \\u001b[39m\\u001b[37mAdd high-speed missed-exit scenarios to navigation integration test suite\\u001b[39m\\r\\n\"]\n[76.611932, \"o\", \"\\u001b[32m    5. \\u001b[39m\\u001b[37mSet performance budget: route recalculation must complete within 2 seconds\\u001b[39m\\r\\n\"]\n[76.611971, \"o\", \"\\r\\n\"]\n[77.814128, \"o\", \"\\u001b[33m\\u001b[1m  ⚡ Related Patterns Discovered:\\u001b[22m\\u001b[39m\\r\\n\"]\n[77.814189, \"o\", \"\\u001b[33m    • Synchronous-to-async migration debt\\u001b[39m\\r\\n\\u001b[90m      3 occurrences across: Navigation, Voice Control, Media Player\\u001b[39m\\r\\n\\u001b[33m    • Missing performance validation in platform migration\\u001b[39m\\r\\n\\u001b[90m      5 occurrences across: HMI, Connectivity, ADAS Visualization\\u001b[39m\\r\\n\"]\n[80.818138, \"o\", \"\\r\\n\\u001b[90m──────────────────────────────────────────────────────────────────────────────\\u001b[39m\\r\\n\\r\\n\\u001b[36m\\u001b[1m  ═══ DEMO SUMMARY ═══\\u001b[22m\\u001b[39m\"]\n[80.818167, \"o\", \"\\r\\n\\r\\n\"]\n[80.819764, \"o\", \"\\u001b[36m┌────────────────────────\\u001b[39m\\u001b[36m┬──────────────────────────────\\u001b[39m\\u001b[36m┬────────────────────────────┐\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m \\u001b[37m\\u001b[1mCapability\\u001b[22m\\u001b[39m             \\u001b[36m│\\u001b[39m \\u001b[37m\\u001b[1mWhat AI Does\\u001b[22m\\u001b[39m                 \\u001b[36m│\\u001b[39m \\u001b[37m\\u001b[1mKey Benefit\\u001b[22m\\u001b[39m                \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m├────────────────────────\\u001b[39m\\u001b[36m┼──────────────────────────────\\u001b[39m\\u001b[36m┼────────────────────────────┤\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m \\u001b[36mDefect Quality Check\\u001b[39m   \\u001b[36m│\\u001b[39m Validates mandatory fields   \\u001b[36m│\\u001b[39m \\u001b[32mReject 12% → Accept 92%\\u001b[39m    \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m                        \\u001b[36m│\\u001b[39m against configurable rules   \\u001b[36m│\\u001b[39m \\u001b[32mquality score\\u001b[39m              \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m├────────────────────────\\u001b[39m\\u001b[36m┼──────────────────────────────\\u001b[39m\\u001b[36m┼────────────────────────────┤\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m \\u001b[36mDuplicate Detection\\u001b[39m    \\u001b[36m│\\u001b[39m Semantic similarity via      \\u001b[36m│\\u001b[39m \\u001b[32mCaught 94% match that\\u001b[39m      \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m                        \\u001b[36m│\\u001b[39m vector embeddings (not keyw… \\u001b[36m│\\u001b[39m \\u001b[32mkeyword search missed\\u001b[39m      \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m├────────────────────────\\u001b[39m\\u001b[36m┼──────────────────────────────\\u001b[39m\\u001b[36m┼────────────────────────────┤\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m \\u001b[36mRoot Cause Analysis\\u001b[39m    \\u001b[36m│\\u001b[39m Descriptions + comments +    \\u001b[36m│\\u001b[39m \\u001b[32m92% confidence RCA\\u001b[39m         \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m│\\u001b[39m                        \\u001b[36m│\\u001b[39m historical patterns analyzed \\u001b[36m│\\u001b[39m \\u001b[32m+ 5 preventive measures\\u001b[39m    \\u001b[36m│\\u001b[39m\\r\\n\\u001b[36m└────────────────────────\\u001b[39m\\u001b[36m┴──────────────────────────────\\u001b[39m\\u001b[36m┴────────────────────────────┘\\u001b[39m\\r\\n\\r\\n\\u001b[37m\\u001b[1m  What Sets AQE Apart:\\u001b[22m\\u001b[39m\\r\\n\\u001b[90m    • Understands meaning, not just keywords — catches duplicates others miss\\u001b[39m\\r\\n\"]\n[80.819783, \"o\", \"\\u001b[90m    • Learns from historical defect patterns to predict future risks\\u001b[39m\\r\\n\\u001b[90m    • Multi-method RCA that traces symptoms to systemic root causes\\u001b[39m\\r\\n\\u001b[90m    • Configurable quality gates that enforce your org's defect standards\\u001b[39m\\r\\n\\u001b[90m    • Analyzes descriptions, comments, and resolution history together\\u001b[39m\\r\\n\"]\n[80.819854, \"o\", \"\\r\\n\\u001b[36m\\u001b[1m    Powered by Agentic Quality Engineering (AQE) Framework\\u001b[22m\\u001b[39m\\r\\n\\u001b[90m    https://agentic-qe.dev\\u001b[39m\\r\\n\\r\\n\\u001b[90m──────────────────────────────────────────────────────────────────────────────\\u001b[39m\\r\\n\\r\\n\"]\n[80.820077, \"o\", \"\\u001b[?25h\"]\n";
+
+    // Create player
+    let player;
+    function initPlayer() {
+      const blob = new Blob([castContent], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+
+      player = AsciinemaPlayer.create(url, document.getElementById('player-container'), {
+        cols: 100,
+        rows: 40,
+        autoPlay: false,
+        loop: false,
+        speed: 1,
+        theme: 'dracula',
+        fit: 'width',
+        fontSize: '14px',
+        terminalLineHeight: 1.2,
+        idleTimeLimit: 3
+      });
+    }
+
+    function seekTo(seconds) {
+      if (player) {
+        player.seek(seconds);
+        player.play();
+      }
+    }
+
+    initPlayer();
+  </script>
+</body>
+</html>

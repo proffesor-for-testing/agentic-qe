@@ -1,0 +1,66 @@
+# Adidas Recovery Playbook
+# Used by InfraHealingOrchestrator when E2E steps fail due to infrastructure issues.
+# Service names must match those in error-signatures.ts.
+
+services:
+  omnihub-oms:
+    displayName: "Adidas OmniHub OMS (Sterling)"
+    healthCheck:
+      url: "${ADIDAS_OMNI_HOST}/smcfs/console/health"
+      method: GET
+      expectedStatus: 200
+      timeoutMs: 10000
+    recovery:
+      strategy: wait-and-retry
+      waitMs: 30000
+      maxRetries: 3
+
+  iib-integration-bus:
+    displayName: "IBM Integration Bus"
+    healthCheck:
+      # URL to be confirmed during Tier 2 onboarding
+      url: "${ADIDAS_IIB_HEALTH_URL}"
+      method: GET
+      expectedStatus: 200
+      timeoutMs: 15000
+    recovery:
+      strategy: wait-and-retry
+      waitMs: 60000
+      maxRetries: 2
+
+  eai-hub:
+    displayName: "EAI Hub (Middleware)"
+    healthCheck:
+      url: "${ADIDAS_EAI_HUB_HOST}/health"
+      method: GET
+      expectedStatus: 200
+      timeoutMs: 10000
+    recovery:
+      strategy: wait-and-retry
+      waitMs: 30000
+      maxRetries: 3
+
+  nshift-via-eai:
+    displayName: "NShift (via EAI Hub)"
+    healthCheck:
+      url: "${ADIDAS_EAI_HUB_HOST}/nshift/health"
+      method: GET
+      expectedStatus: 200
+      timeoutMs: 10000
+    recovery:
+      strategy: wait-and-retry
+      waitMs: 20000
+      maxRetries: 3
+
+  sap-cpi:
+    displayName: "SAP CPI"
+    healthCheck:
+      # URL to be confirmed during integration setup
+      url: "${ADIDAS_SAP_CPI_HEALTH_URL}"
+      method: GET
+      expectedStatus: 200
+      timeoutMs: 15000
+    recovery:
+      strategy: wait-and-retry
+      waitMs: 60000
+      maxRetries: 2

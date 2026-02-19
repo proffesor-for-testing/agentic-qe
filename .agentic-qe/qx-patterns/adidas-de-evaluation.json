@@ -1,0 +1,128 @@
+{
+  "reportId": "QCSD-QX-ADIDAS-2026-001",
+  "website": "https://www.adidas.de",
+  "domain": "e-commerce-athletic",
+  "analysisDate": "2026-02-06",
+  "analyst": "qe-qx-partner",
+  "fetchStatus": "DEGRADED",
+  "fetchTier": "playwright-stealth",
+  "fetchBlockReason": "Akamai bot-detection challenge page",
+  "scores": {
+    "overall": 71,
+    "grade": "B-",
+    "dimensions": {
+      "userExperience": 74,
+      "qualityAssurance": 63,
+      "accessibility": 65,
+      "trustSafety": 76,
+      "businessAlignment": 79,
+      "crossDeviceParity": 68
+    },
+    "heuristics": {
+      "H1.1": 73, "H1.2": 75, "H1.3": 70, "H1.4": 72,
+      "H2.1": 76, "H2.2": 68, "H2.3": 75, "H2.4": 65, "H2.5": 78, "H2.6": 72,
+      "H3.1": 82, "H3.2": 77, "H3.3": 78, "H3.4": 80,
+      "H4.1": 68, "H4.2": 64, "H4.3": 71,
+      "H5.1": 74, "H5.2": 58, "H5.3": 70, "H5.4": 66,
+      "H6.1": 72, "H6.2": 70, "H6.3": 68
+    },
+    "heuristicMean": 72.0
+  },
+  "oracleProblems": [
+    {
+      "id": 1,
+      "severity": "HIGH",
+      "type": "user-vs-business",
+      "title": "Personalization Depth vs Privacy",
+      "recommendedResolution": "Add opt-out and Clear History button to personalization feed"
+    },
+    {
+      "id": 2,
+      "severity": "HIGH",
+      "type": "user-vs-business",
+      "title": "Brand Storytelling vs Task Efficiency",
+      "recommendedResolution": "Personalized hero (products for returning, brand for new visitors)"
+    },
+    {
+      "id": 3,
+      "severity": "CRITICAL",
+      "type": "operations-conflict",
+      "title": "Security vs Quality Assurance",
+      "recommendedResolution": "Token-based bypass for authenticated testing tools"
+    },
+    {
+      "id": 4,
+      "severity": "MEDIUM",
+      "type": "user-vs-business",
+      "title": "Membership Conversion vs Browsing Freedom",
+      "recommendedResolution": "Show CTA once per session with clear dismissal"
+    }
+  ],
+  "failureModes": 18,
+  "criticalIssues": [
+    "Akamai bot-detection blocks accessibility tools and automated QA",
+    "92.4% uptime (56 hours offline/month)"
+  ],
+  "topStrengths": [
+    "Full-bleed hero with embedded CTA chips",
+    "Same-page checkout login",
+    "E-E-A-T content with named authors",
+    "Sticky product info with pop-up size guides",
+    "Color-coded stock urgency indicators"
+  ],
+  "competitiveBenchmark": {
+    "adidas_rank": 11,
+    "nike_rank": 16,
+    "total_brands": 20,
+    "adidas_wins": ["product-pages", "checkout-login", "eeat-content", "pagination"],
+    "nike_wins": ["search-previews", "cart-notification", "interface-clarity"],
+    "adidas_uptime": 0.924,
+    "nike_uptime": 0.929,
+    "industry_standard": 0.995
+  },
+  "conversionFunnel": {
+    "estimatedRate": "2.5-3.0%",
+    "highestImpactOptimizations": [
+      "Hero-to-category mobile transition (+2-4%)",
+      "Search image previews (+1-2%)",
+      "Cart notification redesign (+0.5-1%)"
+    ]
+  },
+  "patterns": {
+    "qualityUxCorrelations": [
+      "Bot-detection blocks both security testing and accessibility validation",
+      "Brand storytelling inversely correlates with high-intent conversion efficiency",
+      "Personalization depth positively correlates with conversion but inversely with privacy trust",
+      "Pagination positively correlates with user control satisfaction"
+    ],
+    "effectiveInterventions": [
+      "Same-page login preserves checkout flow",
+      "Color-coded stock indicators create transparent urgency",
+      "E-E-A-T content reduces return rates"
+    ],
+    "domainSpecificInsights": [
+      "German market has highest GDPR sensitivity in EU",
+      "EAA compliance deadline passed June 2025",
+      "German e-commerce conversion benchmark: 2-3%"
+    ]
+  },
+  "dataSources": [
+    "Provided intelligence brief",
+    "Plerdy homepage design review",
+    "Snappymob Nike vs Adidas audit",
+    "SimilarWeb December 2025",
+    "WWD/Footwear News digital rankings",
+    "WebAIM Million Report 2025",
+    "Playwright-stealth fetch attempt (confirmed Akamai block)"
+  ],
+  "confidence": {
+    "overall": "MEDIUM-HIGH",
+    "limitations": [
+      "No live page inspection (Akamai blocked)",
+      "No automated accessibility scan",
+      "No direct performance measurement",
+      "Checkout flow inferred from secondary sources",
+      "Mobile experience inferred from breakpoint data"
+    ]
+  }
+}

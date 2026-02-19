@@ -176,6 +176,27 @@ export class HttpClient {
   }
 
   /**
+   * Perform a POST request with pre-serialized body and custom content type.
+   * Use when the body is not JSON (e.g., XML for Sterling XAPI REST).
+   */
+  async postRaw(
+    url: string,
+    body: string,
+    contentType: string,
+    options?: RequestOptions
+  ): Promise<Result<Response, HttpError>> {
+    return this.request(
+      url,
+      {
+        method: 'POST',
+        body,
+        headers: { 'Content-Type': contentType },
+      },
+      options
+    );
+  }
+
+  /**
    * Perform a PUT request
    */
   async put(
