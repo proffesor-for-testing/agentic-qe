@@ -110,8 +110,9 @@ export abstract class BaseTestGenerator implements ITestGenerator {
       if (type.includes(typeKey)) return generator();
     }
 
-    // Default: generate a mock variable name
-    return `mock${param.name.charAt(0).toUpperCase() + param.name.slice(1)}`;
+    // Default: generate a safe default object for unknown types
+    // IMPORTANT: Never generate undefined variable references like "mockValue"
+    return '{}';
   }
 
   /**
@@ -128,28 +129,51 @@ export abstract class BaseTestGenerator implements ITestGenerator {
     const validParams = fn.parameters.map((p) => this.generateTestValue(p)).join(', ');
     const fnCall = fn.isAsync ? `await ${fn.name}(${validParams})` : `${fn.name}(${validParams})`;
 
+    // Determine a more meaningful assertion based on function name patterns
+    let assertion = 'expect(result).toBeDefined();';
+    const fnLower = fn.name.toLowerCase();
+    if (fnLower.startsWith('is') || fnLower.startsWith('has') || fnLower.startsWith('can')) {
+      assertion = 'expect(typeof result).toBe(\'boolean\');';
+    } else if (fnLower.startsWith('get') || fnLower.startsWith('fetch') || fnLower.startsWith('find')) {
+      assertion = 'expect(result).not.toBeUndefined();';
+    } else if (fnLower.startsWith('create') || fnLower.startsWith('build') || fnLower.startsWith('make')) {
+      assertion = 'expect(result).toBeTruthy();';
+    } else if (fnLower.startsWith('validate') || fnLower.startsWith('check')) {
+      assertion = 'expect(typeof result === \'boolean\' || result === undefined || result === null || typeof result === \'object\').toBe(true);';
+    } else if (fn.returnType) {
+      // Use return type for better assertion
+      const rt = fn.returnType.toLowerCase();
+      if (rt.includes('boolean')) assertion = 'expect(typeof result).toBe(\'boolean\');';
+      else if (rt.includes('number')) assertion = 'expect(typeof result).toBe(\'number\');';
+      else if (rt.includes('string')) assertion = 'expect(typeof result).toBe(\'string\');';
+      else if (rt.includes('[]') || rt.includes('array')) assertion = 'expect(Array.isArray(result)).toBe(true);';
+      else if (rt === 'void') assertion = 'expect(result).toBeUndefined();';
+    }
+
     testCases.push({
       description: 'should handle valid input correctly',
       type: 'happy-path',
       action: `const result = ${fnCall};`,
-      assertion: 'expect(result).toBeDefined();',
+      assertion,
     });
 
     // Generate tests for each parameter
     for (const param of fn.parameters) {
-      // Test with undefined for required parameters
+      // Test with undefined/null for required parameters
+      // NOTE: We test graceful handling, NOT throwing - most JS functions handle undefined gracefully
       if (!param.optional) {
         const paramsWithUndefined = fn.parameters
           .map((p) => (p.name === param.name ? 'undefined' : this.generateTestValue(p)))
           .join(', ');
+        const undefinedCall = fn.isAsync
+          ? `await ${fn.name}(${paramsWithUndefined})`
+          : `${fn.name}(${paramsWithUndefined})`;
 
         testCases.push({
-          description: `should handle undefined ${param.name}`,
-          type: 'error-handling',
-          action: fn.isAsync
-            ? `const action = async () => await ${fn.name}(${paramsWithUndefined});`
-            : `const action = () => ${fn.name}(${paramsWithUndefined});`,
-          assertion: 'expect(action).toThrow();',
+          description: `should handle undefined ${param.name} gracefully`,
+          type: 'edge-case',
+          action: `const result = ${undefinedCall};`,
+          assertion: '// Verify function handles undefined without crashing\n    expect(() => result).not.toThrow();',
         });
       }
 

@@ -6,6 +6,8 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import * as fs from 'fs';
+import * as path from 'path';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { walkSourceFiles } from '../utils/file-discovery.js';
 
@@ -18,8 +20,10 @@ export function createTestCommand(
     .description('Test generation shortcut')
     .argument('<action>', 'Action (generate|execute)')
     .argument('[target]', 'Target file or directory')
-    .option('-f, --framework <framework>', 'Test framework', 'vitest')
+    .option('-f, --framework <framework>', 'Test framework (vitest|jest|mocha|node-test)', 'vitest')
     .option('-t, --type <type>', 'Test type (unit|integration|e2e)', 'unit')
+    .option('-w, --write', 'Write test files to disk (default: print to stdout)')
+    .option('-o, --output <dir>', 'Output directory for test files', 'tests')
     .action(async (action: string, target: string, options) => {
       if (!await ensureInitialized()) return;
 
@@ -52,28 +56,61 @@ export function createTestCommand(
           const result = await testGenAPI.generateTests({
             sourceFiles,
             testType: options.type as 'unit' | 'integration' | 'e2e',
-            framework: options.framework as 'jest' | 'vitest',
+            framework: options.framework as 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test',
             coverageTarget: 80,
           });
 
           if (result.success && result.value) {
             const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; testCode?: string; assertions: number }>; coverageEstimate: number; patternsUsed: string[] };
             console.log(chalk.green(`Generated ${generated.tests.length} tests\n`));
-            console.log(chalk.cyan('  Tests:'));
-            for (const test of generated.tests.slice(0, 10)) {
-              console.log(`    ${chalk.white(test.name)}`);
-              console.log(chalk.gray(`      Source: ${path.basename(test.sourceFile)}`));
-              console.log(chalk.gray(`      Assertions: ${test.assertions}`));
-              if (test.testCode) {
-                console.log(chalk.gray(`      Test File: ${test.testFile}`));
-                console.log(`\n--- Generated Code ---`);
-                console.log(test.testCode);
-                console.log(`--- End Generated Code ---\n`);
+            
+            // Write files if --write flag is set
+            if (options.write) {
+              const outputDir = path.resolve(options.output || 'tests');
+              let filesWritten = 0;
+              
+              for (const test of generated.tests) {
+                if (test.testCode) {
+                  // Determine test file path
+                  let testFilePath = test.testFile;
+                  if (!path.isAbsolute(testFilePath)) {
+                    testFilePath = path.join(outputDir, testFilePath);
+                  }
+                  
+                  // Ensure directory exists
+                  const testDir = path.dirname(testFilePath);
+                  if (!fs.existsSync(testDir)) {
+                    fs.mkdirSync(testDir, { recursive: true });
+                  }
+                  
+                  // Write the test file
+                  fs.writeFileSync(testFilePath, test.testCode, 'utf-8');
+                  filesWritten++;
+                  console.log(chalk.green(`  ✓ ${path.relative(process.cwd(), testFilePath)}`));
+                }
               }
+              
+              console.log(chalk.green(`\n  Wrote ${filesWritten} test file(s) to ${options.output || 'tests'}/`));
+            } else {
+              // Original behavior: print to stdout
+              console.log(chalk.cyan('  Tests:'));
+              for (const test of generated.tests.slice(0, 10)) {
+                console.log(`    ${chalk.white(test.name)}`);
+                console.log(chalk.gray(`      Source: ${path.basename(test.sourceFile)}`));
+                console.log(chalk.gray(`      Assertions: ${test.assertions}`));
+                if (test.testCode) {
+                  console.log(chalk.gray(`      Test File: ${test.testFile}`));
+                  console.log(`\n--- Generated Code ---`);
+                  console.log(test.testCode);
+                  console.log(`--- End Generated Code ---\n`);
+                }
+              }
+              if (generated.tests.length > 10) {
+                console.log(chalk.gray(`    ... and ${generated.tests.length - 10} more`));
+              }
+              console.log(chalk.yellow('\n  Tip: Use --write to save test files to disk'));
             }
-            if (generated.tests.length > 10) {
-              console.log(chalk.gray(`    ... and ${generated.tests.length - 10} more`));
-            }
+            
             console.log(`\n  Coverage Estimate: ${chalk.yellow(generated.coverageEstimate + '%')}`);
             if (generated.patternsUsed.length > 0) {
               console.log(`  Patterns Used: ${chalk.cyan(generated.patternsUsed.join(', '))}`);

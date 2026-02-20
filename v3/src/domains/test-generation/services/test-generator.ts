@@ -710,12 +710,42 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     params: ts.NodeArray<ts.ParameterDeclaration>,
     sourceFile: ts.SourceFile
   ): ParameterInfo[] {
-    return params.map((param) => ({
-      name: param.name.getText(sourceFile),
-      type: param.type?.getText(sourceFile),
-      optional: param.questionToken !== undefined,
-      defaultValue: param.initializer?.getText(sourceFile),
-    }));
+    return params.map((param) => {
+      let name = param.name.getText(sourceFile);
+      let type = param.type?.getText(sourceFile);
+
+      // Handle destructuring patterns - extract a clean parameter name
+      // For { a, b, c }, use 'options' as the parameter name
+      // For [a, b, c], use 'items' as the parameter name
+      if (ts.isObjectBindingPattern(param.name)) {
+        name = 'options';
+        // If there's no explicit type, create one from the destructured properties
+        if (!type) {
+          const props = param.name.elements
+            .map((el) => {
+              const propName = el.name.getText(sourceFile);
+              const propType = el.propertyName
+                ? 'unknown'
+                : 'unknown';
+              return `${propName}: ${propType}`;
+            })
+            .join(', ');
+          type = `{ ${props} }`;
+        }
+      } else if (ts.isArrayBindingPattern(param.name)) {
+        name = 'items';
+        if (!type) {
+          type = 'unknown[]';
+        }
+      }
+
+      return {
+        name,
+        type,
+        optional: param.questionToken !== undefined,
+        defaultValue: param.initializer?.getText(sourceFile),
+      };
+    });
   }
 
   private calculateComplexity(node: ts.Node): number {

@@ -1693,12 +1693,33 @@ class TypeScriptASTParser {
     params: ts.NodeArray<ts.ParameterDeclaration>,
     sourceFile: ts.SourceFile
   ): ParameterInfo[] {
-    return params.map((param) => ({
-      name: param.name.getText(sourceFile),
-      type: param.type?.getText(sourceFile),
-      optional: param.questionToken !== undefined,
-      defaultValue: param.initializer?.getText(sourceFile),
-    }));
+    return params.map((param) => {
+      let name = param.name.getText(sourceFile);
+      let type = param.type?.getText(sourceFile);
+
+      // Handle destructuring patterns - extract a clean parameter name
+      if (ts.isObjectBindingPattern(param.name)) {
+        name = 'options';
+        if (!type) {
+          const props = param.name.elements
+            .map((el) => `${el.name.getText(sourceFile)}: unknown`)
+            .join(', ');
+          type = `{ ${props} }`;
+        }
+      } else if (ts.isArrayBindingPattern(param.name)) {
+        name = 'items';
+        if (!type) {
+          type = 'unknown[]';
+        }
+      }
+
+      return {
+        name,
+        type,
+        optional: param.questionToken !== undefined,
+        defaultValue: param.initializer?.getText(sourceFile),
+      };
+    });
   }
 
   /**

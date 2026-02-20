@@ -87,13 +87,16 @@ ${importStatement}
       testCode += `\n`;
     }
 
-    // Generate tests for each function
-    for (const fn of analysis.functions) {
+    // Generate tests for each EXPORTED function only
+    // Non-exported functions are internal implementation details and should not be tested directly
+    const exportedFunctions = analysis.functions.filter((fn) => fn.isExported);
+    for (const fn of exportedFunctions) {
       testCode += this.generateFunctionTests(fn, testType);
     }
 
-    // Generate tests for each class
-    for (const cls of analysis.classes) {
+    // Generate tests for each EXPORTED class only
+    const exportedClasses = analysis.classes.filter((cls) => cls.isExported);
+    for (const cls of exportedClasses) {
       testCode += this.generateClassTests(cls, testType);
     }
 
