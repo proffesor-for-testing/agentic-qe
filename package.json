@@ -17,7 +17,7 @@
     "test": "cd v3 && npm test -- --run",
     "test:dev": "cd v3 && npm run test:dev",
     "test:v3": "cd v3 && npm test -- --run",
-    "test:mcp": "cd v3 && npm test -- --run tests/unit/mcp/",
+    "test:mcp": "cd v3 && npm run test:unit:mcp",
     "test:mcp:integration": "cd v3 && npm test -- --run tests/integration/mcp/",
     "mcp:validate": "echo 'MCP validation: All tools registered in v3 MCP server' && exit 0",
     "mcp:report": "echo 'MCP Report: v3 uses vitest for test reporting' && exit 0",
