@@ -4,9 +4,27 @@
  *
  * Note: These tests focus on the wrapper behavior, not duplicating
  * domain handler functionality (which is tested in domain-handlers.test.ts)
+ *
+ * OOM Prevention (Issue #294): Mocks task executor to avoid real execution.
  */
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
+
+// ---------------------------------------------------------------------------
+// Mock task executor at module level — prevents real task execution (Issue #294)
+// ---------------------------------------------------------------------------
+const mockExecute = vi.fn();
+
+vi.mock('../../../../src/coordination/task-executor', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../../src/coordination/task-executor')>();
+  return {
+    ...actual,
+    createTaskExecutor: vi.fn(() => ({
+      execute: mockExecute,
+      setQualityFeedbackLoop: vi.fn(),
+    })),
+  };
+});
 
 // Import wrapped handlers from the wrapped module
 import {
@@ -31,6 +49,47 @@ import {
 } from '../../../../src/mcp/handlers/core-handlers';
 import { resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence';
 
+// Default mock response for all domain handlers
+const defaultMockResponse = {
+  success: true,
+  data: {
+    total: 5,
+    passed: 4,
+    failed: 1,
+    skipped: 0,
+    coverage: 82.5,
+    vulnerabilities: 0,
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    valid: true,
+    score: 85,
+    qualityScore: 88,
+    riskScore: 15,
+    testsGenerated: 3,
+    lineCoverage: 85,
+    branchCoverage: 78,
+    functionCoverage: 92,
+    filesIndexed: 10,
+    symbolsExtracted: 50,
+    relationsFound: 25,
+    requirementsAnalyzed: 5,
+    testable: 4,
+    predictedDefects: [],
+    recommendations: ['Improve test coverage'],
+    breakingChanges: [],
+    warnings: [],
+    violations: [],
+    gaps: [],
+    results: [
+      { id: 'test-1', name: 'sample test', status: 'passed', duration: 12 },
+    ],
+  },
+  duration: 150,
+  savedFiles: [],
+};
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -38,6 +97,7 @@ import { resetUnifiedPersistence } from '../../../../src/kernel/unified-persiste
 describe('Wrapped Domain Handlers', () => {
   // Initialize fleet ONCE (in-memory to avoid touching live DB and OOM)
   beforeAll(async () => {
+    mockExecute.mockResolvedValue(defaultMockResponse);
     await handleFleetInit({ memoryBackend: 'memory' });
   });
 
@@ -48,6 +108,8 @@ describe('Wrapped Domain Handlers', () => {
   });
 
   afterEach(() => {
+    mockExecute.mockClear();
+    mockExecute.mockResolvedValue(defaultMockResponse);
     resetTaskExecutor();
   });
 

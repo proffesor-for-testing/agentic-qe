@@ -5,6 +5,16 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.14] - 2026-02-20
+
+### Fixed
+
+- **MCP unit test timeouts and DevPod OOM crashes** (#294, #251) — Mock `createTaskExecutor` at module level in domain-handlers and wrapped-domain-handlers tests to prevent real task execution (each fleet init allocates ~200-400MB). Reduced fleet init from ~31x to ~5x per test file via shared beforeAll/afterAll lifecycle in core-handlers tests.
+- **Vitest parallel execution causing memory exhaustion** — Changed `maxForks: 2` to `1` and disabled `fileParallelism` in vitest.config.ts. Added `bail: 3` to fail fast instead of accumulating OOM pressure.
+- **CI artifact upload 403 Forbidden** (#294) — Added `actions: write` permission to `optimized-ci.yml` and `mcp-tools-test.yml` workflows for `upload-artifact@v4`.
+- **Topology optimizer flaky convergence test** (#251) — Widened tolerance from `earlyAvg * 2` to `earlyAvg * 3` and added `retry: 3` for probabilistic convergence assertion.
+- **Test assertions using 128-dim instead of 768-dim** — Updated remaining test assertions to match the 768-dim embedding vectors from v3.6.12's HNSW fix.
+
 ## [3.6.13] - 2026-02-19
 
 ### Fixed
