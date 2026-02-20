@@ -346,14 +346,15 @@ export const TYPE_MAPPING: Record<string, string> = {
 export const DEFAULT_SYNC_CONFIG: SyncConfig = {
   local: {
     // PRIMARY: Root database (consolidated, MCP-active)
-    v3MemoryDb: '../.agentic-qe/memory.db',      // Now points to root (consolidated)
-    rootMemoryDb: '../.agentic-qe/memory.db',    // Same as above
-    claudeFlowMemory: '../.claude-flow/memory/store.json',
-    claudeFlowDaemon: '../.claude-flow/daemon-state.json',
-    claudeFlowMetrics: '../.claude-flow/metrics/',
-    intelligenceJson: '../v3/.ruvector/intelligence.json',
-    swarmMemoryDb: '../.swarm/memory.db',
-    v2PatternsDb: '../v2/data/ruvector-patterns.db',
+    // Paths relative to process.cwd() which is the project root
+    v3MemoryDb: './.agentic-qe/memory.db',
+    rootMemoryDb: './.agentic-qe/memory.db',
+    claudeFlowMemory: './.claude-flow/memory/store.json',
+    claudeFlowDaemon: './.claude-flow/daemon-state.json',
+    claudeFlowMetrics: './.claude-flow/metrics/',
+    intelligenceJson: './v3/.ruvector/intelligence.json',
+    swarmMemoryDb: './.swarm/memory.db',
+    v2PatternsDb: './v2/data/ruvector-patterns.db',
   },
   cloud: {
     project: process.env.GCP_PROJECT || '',
@@ -395,7 +396,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'root-qe-patterns',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.qe_patterns',
         priority: 'high',
         mode: 'incremental',
@@ -406,7 +407,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'root-sona-patterns',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.sona_patterns',
         priority: 'high',
         mode: 'incremental',
@@ -417,7 +418,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'root-goap-actions',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.goap_actions',
         priority: 'high',
         mode: 'incremental',
@@ -429,7 +430,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'root-kv-store',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.memory_entries',
         priority: 'high',
         mode: 'incremental',
@@ -441,7 +442,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'root-captured-experiences',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.learning_experiences',
         priority: 'high',
         mode: 'append',
@@ -452,7 +453,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'root-goap-plans',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.goap_plans',
         priority: 'medium',
         mode: 'incremental',
@@ -464,7 +465,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'root-rl-q-values',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.qlearning_patterns',
         priority: 'medium',
         mode: 'incremental',
@@ -475,7 +476,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'root-routing-outcomes',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.routing_outcomes',
         priority: 'medium',
         mode: 'append',
@@ -486,7 +487,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'root-qe-trajectories',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.qe_trajectories',
         priority: 'medium',
         mode: 'append',
@@ -497,7 +498,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'root-dream-insights',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.dream_insights',
         priority: 'low',
         mode: 'append',
@@ -508,7 +509,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'claude-flow-memory',
         type: 'json',
-        path: '../.claude-flow/memory/store.json',
+        path: './.claude-flow/memory/store.json',
         targetTable: 'aqe.claude_flow_memory',
         priority: 'medium',
         mode: 'full',
@@ -518,7 +519,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'intelligence-qlearning',
         type: 'json',
-        path: '../v3/.ruvector/intelligence.json',
+        path: './v3/.ruvector/intelligence.json',
         targetTable: 'aqe.qlearning_patterns',
         priority: 'low',
         mode: 'full',

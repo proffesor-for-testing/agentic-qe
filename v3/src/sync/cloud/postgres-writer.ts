@@ -9,6 +9,7 @@
  * that can be replaced with actual pg operations when needed.
  */
 
+import { createRequire } from 'module';
 import type { CloudWriter, UpsertOptions, CloudConfig } from '../interfaces.js';
 import type { TunnelManager } from './tunnel-manager.js';
 import { validateIdentifier } from '../../shared/sql-safety.js';
@@ -16,6 +17,11 @@ import { toErrorMessage } from '../../shared/error-utils.js';
 import { LoggerFactory } from '../../logging/index.js';
 
 const logger = LoggerFactory.create('postgres-writer');
+
+// Use createRequire for pg (native CJS module) — dynamic import('pg') fails
+// inside esbuild bundles because the specifier gets inlined and can't resolve
+// at runtime. createRequire works because it uses Node's native require().
+const requirePg = createRequire(import.meta.url);
 
 // Note: pg module is optional - will use mock if not available
 
@@ -75,35 +81,40 @@ export class PostgresWriter implements CloudWriter {
       throw new Error('No tunnel connection available');
     }
 
-    // Try to dynamically import pg (optional dependency)
+    // Load pg via createRequire (works in esbuild bundles unlike dynamic import)
+    let pg: Record<string, unknown>;
     try {
-      const pg = await import('pg');
-      const Client = pg.Client || pg.default?.Client;
-
-      if (Client) {
-        const connectionConfig = {
-          host: connection.host,
-          port: connection.port,
-          database: this.config.cloud.database,
-          user: this.config.cloud.user,
-          password: process.env.PGPASSWORD || '',
-          connectionTimeoutMillis: this.config.connectionTimeout || 10000,
-        };
-
-        this.client = new Client(connectionConfig) as PgClient;
-        await this.client.connect();
-        this.connected = true;
-        console.log(`[PostgresWriter] Connected to ${connection.host}:${connection.port}/${this.config.cloud.database}`);
-      } else {
-        throw new Error('pg Client not found');
-      }
+      pg = requirePg('pg');
     } catch (e) {
-      // pg module not available - use mock mode
-      logger.debug('pg module not available, using mock mode', { error: e instanceof Error ? e.message : String(e) });
-      console.warn('[PostgresWriter] pg module not available, running in mock mode');
+      logger.debug('pg module not installed, using mock mode', { error: e instanceof Error ? e.message : String(e) });
+      console.warn('[PostgresWriter] pg module not installed, running in mock mode');
       this.client = this.createMockClient();
       this.connected = true;
+      return;
     }
+
+    const pgDefault = pg.default as Record<string, unknown> | undefined;
+    const Client = (pg.Client || pgDefault?.Client) as (new (config: Record<string, unknown>) => PgClient) | undefined;
+    if (!Client) {
+      console.warn('[PostgresWriter] pg.Client not found in module, running in mock mode');
+      this.client = this.createMockClient();
+      this.connected = true;
+      return;
+    }
+
+    const connectionConfig = {
+      host: connection.host,
+      port: connection.port,
+      database: this.config.cloud.database,
+      user: this.config.cloud.user,
+      password: process.env.PGPASSWORD || '',
+      connectionTimeoutMillis: this.config.connectionTimeout || 10000,
+    };
+
+    this.client = new Client(connectionConfig) as PgClient;
+    await this.client.connect();
+    this.connected = true;
+    console.log(`[PostgresWriter] Connected to ${connection.host}:${connection.port}/${this.config.cloud.database}`);
   }
 
   /**

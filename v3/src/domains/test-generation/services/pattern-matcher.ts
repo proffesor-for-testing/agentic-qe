@@ -451,7 +451,8 @@ export class PatternMatcherService implements IPatternMatchingService {
       }
     }
 
-    return `mock${param.name.charAt(0).toUpperCase() + param.name.slice(1)}`;
+    // Bug #295 fix: Return a safe inline value instead of an undefined variable reference
+    return `{} /* TODO: provide ${param.name}: ${param.type || 'unknown'} */`;
   }
 
   /**
