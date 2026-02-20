@@ -213,19 +213,12 @@ export class CloudSyncAgent {
         return result;
       }
 
-      // Write to cloud
+      // Write to cloud (no wrapping transaction — postgres-writer handles per-batch recovery)
       if (this.writer && !this.config.sync.dryRun) {
-        await this.writer.beginTransaction();
-        try {
-          const written = await this.writer.upsert(source.targetTable, records, {
-            skipIfExists: source.mode === 'append',
-          });
-          result.recordsSynced = written;
-          await this.writer.commit();
-        } catch (error) {
-          await this.writer.rollback();
-          throw error;
-        }
+        const written = await this.writer.upsert(source.targetTable, records, {
+          skipIfExists: source.mode === 'append',
+        });
+        result.recordsSynced = written;
       } else {
         // Dry run - just count
         result.recordsSynced = records.length;
@@ -273,17 +266,10 @@ export class CloudSyncAgent {
         return result;
       }
 
-      // Write to cloud
+      // Write to cloud (no wrapping transaction — postgres-writer handles per-batch recovery)
       if (this.writer && !this.config.sync.dryRun) {
-        await this.writer.beginTransaction();
-        try {
-          const written = await this.writer.upsert(source.targetTable, records);
-          result.recordsSynced = written;
-          await this.writer.commit();
-        } catch (error) {
-          await this.writer.rollback();
-          throw error;
-        }
+        const written = await this.writer.upsert(source.targetTable, records);
+        result.recordsSynced = written;
       } else {
         result.recordsSynced = records.length;
       }
