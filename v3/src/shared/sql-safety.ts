@@ -56,15 +56,27 @@ const IDENTIFIER_REGEX = /^[a-z_][a-z0-9_]{0,62}$/;
  * Validate a PostgreSQL identifier (table or column name) against a strict regex.
  * Prevents SQL injection via dynamically interpolated identifiers (CWE-89).
  *
+ * Supports schema-qualified names like "aqe.qe_patterns" by validating each
+ * dot-separated part independently.
+ *
  * @param name - The identifier to validate
  * @returns The validated identifier string if valid
  * @throws {Error} If the identifier contains invalid characters or format
  */
 export function validateIdentifier(name: string): string {
-  if (!IDENTIFIER_REGEX.test(name)) {
+  // Handle schema-qualified names (e.g., "aqe.qe_patterns")
+  const parts = name.split('.');
+  if (parts.length > 2) {
     throw new Error(
-      `Invalid SQL identifier: "${name}" does not match pattern ${IDENTIFIER_REGEX}`
+      `Invalid SQL identifier: "${name}" has too many parts (max: schema.table)`
     );
+  }
+  for (const part of parts) {
+    if (!IDENTIFIER_REGEX.test(part)) {
+      throw new Error(
+        `Invalid SQL identifier: "${name}" — part "${part}" does not match pattern ${IDENTIFIER_REGEX}`
+      );
+    }
   }
   return name;
 }

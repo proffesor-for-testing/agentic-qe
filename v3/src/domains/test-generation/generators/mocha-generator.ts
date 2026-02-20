@@ -56,12 +56,13 @@ export class MochaGenerator extends BaseTestGenerator {
     const exports = this.extractExports(analysis.functions, analysis.classes);
     const importStatement = this.generateImportStatement(exports, importPath, moduleName);
 
-    // KG: Add sinon stubs for known dependencies
+    // KG: Add sinon stubs for external (non-relative) dependencies only
     let sinonImport = '';
     let stubSetup = '';
-    if (dependencies && dependencies.imports.length > 0) {
+    const externalDeps = dependencies?.imports.filter(dep => !dep.startsWith('.')) || [];
+    if (externalDeps.length > 0) {
       sinonImport = `import sinon from 'sinon';\n`;
-      const depsToMock = dependencies.imports.slice(0, 5);
+      const depsToMock = externalDeps.slice(0, 5);
       stubSetup += `  // Auto-generated stubs from Knowledge Graph dependency analysis\n`;
       stubSetup += `  let stubs;\n\n`;
       stubSetup += `  beforeEach(function() {\n`;
@@ -83,11 +84,15 @@ ${sinonImport}${importStatement}
 describe('${moduleName} - ${testType} tests', function() {
 ${stubSetup}`;
 
-    for (const fn of analysis.functions) {
+    // Bug #295 fix: Only generate tests for exported functions and classes
+    const exportedFns = analysis.functions.filter(fn => fn.isExported);
+    const exportedClasses = analysis.classes.filter(cls => cls.isExported);
+
+    for (const fn of exportedFns) {
       code += this.generateFunctionTests(fn, testType);
     }
 
-    for (const cls of analysis.classes) {
+    for (const cls of exportedClasses) {
       code += this.generateClassTests(cls, testType);
     }
 
@@ -102,22 +107,41 @@ ${stubSetup}`;
     const validParams = fn.parameters.map((p) => this.generateTestValue(p)).join(', ');
     const fnCall = fn.isAsync ? `await ${fn.name}(${validParams})` : `${fn.name}(${validParams})`;
 
+    const isVoid = fn.returnType === 'void' || fn.returnType === 'Promise<void>';
+
     let code = `  describe('${fn.name}', function() {\n`;
     code += `    it('should handle valid input', ${fn.isAsync ? 'async ' : ''}function() {\n`;
-    code += `      const result = ${fnCall};\n`;
-    code += `      expect(result).to.not.be.undefined;\n`;
+    if (isVoid) {
+      code += `      ${fnCall};\n`;
+    } else {
+      code += `      const result = ${fnCall};\n`;
+      code += `      expect(result).to.not.be.undefined;\n`;
+    }
     code += `    });\n`;
 
-    // Test for undefined parameters
+    // Bug #295 fix: Use try-catch instead of blanket .to.throw() for undefined params
+    const bodyText = fn.body || '';
+    const hasExplicitThrow = /\bthrow\b/.test(bodyText) || /\bvalidat/i.test(bodyText);
+
     for (const param of fn.parameters) {
       if (!param.optional) {
         const paramsWithUndefined = fn.parameters
           .map((p) => (p.name === param.name ? 'undefined' : this.generateTestValue(p)))
           .join(', ');
 
-        code += `\n    it('should handle undefined ${param.name}', function() {\n`;
-        code += `      expect(function() { ${fn.name}(${paramsWithUndefined}); }).to.throw();\n`;
-        code += `    });\n`;
+        if (hasExplicitThrow) {
+          code += `\n    it('should handle undefined ${param.name}', function() {\n`;
+          code += `      expect(function() { ${fn.name}(${paramsWithUndefined}); }).to.throw();\n`;
+          code += `    });\n`;
+        } else {
+          code += `\n    it('should handle undefined ${param.name}', function() {\n`;
+          code += `      try {\n`;
+          code += `        ${fn.name}(${paramsWithUndefined});\n`;
+          code += `      } catch (e) {\n`;
+          code += `        expect(e).to.be.instanceOf(Error);\n`;
+          code += `      }\n`;
+          code += `    });\n`;
+        }
       }
     }
 
@@ -144,9 +168,14 @@ ${stubSetup}`;
     for (const method of cls.methods) {
       if (!method.name.startsWith('_')) {
         const methodParams = method.parameters.map((p) => this.generateTestValue(p)).join(', ');
+        const isVoid = method.returnType === 'void' || method.returnType === 'Promise<void>';
         code += `\n    it('${method.name} should work', ${method.isAsync ? 'async ' : ''}function() {\n`;
-        code += `      const result = ${method.isAsync ? 'await ' : ''}instance.${method.name}(${methodParams});\n`;
-        code += `      expect(result).to.not.be.undefined;\n`;
+        if (isVoid) {
+          code += `      ${method.isAsync ? 'await ' : ''}instance.${method.name}(${methodParams});\n`;
+        } else {
+          code += `      const result = ${method.isAsync ? 'await ' : ''}instance.${method.name}(${methodParams});\n`;
+          code += `      expect(result).to.not.be.undefined;\n`;
+        }
         code += `    });\n`;
       }
     }
@@ -169,13 +198,14 @@ ${stubSetup}`;
     );
     const asyncSetup = isAsync ? 'async ' : '';
 
-    // KG: Add sinon stubs for known dependencies
+    // KG: Add sinon stubs for external (non-relative) dependencies only
     let sinonImport = '';
     let stubSetup = '';
     let stubTeardown = '';
-    if (dependencies && dependencies.imports.length > 0) {
+    const stubExternalDeps = dependencies?.imports.filter(dep => !dep.startsWith('.')) || [];
+    if (stubExternalDeps.length > 0) {
       sinonImport = `import sinon from 'sinon';\n`;
-      const depsToMock = dependencies.imports.slice(0, 5);
+      const depsToMock = stubExternalDeps.slice(0, 5);
       stubSetup += `\n    // Auto-generated stubs from Knowledge Graph dependency analysis\n`;
       stubSetup += `    let stubs;\n\n`;
       stubSetup += `    beforeEach(function() {\n`;

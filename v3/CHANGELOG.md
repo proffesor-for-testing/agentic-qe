@@ -5,6 +5,25 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.15] - 2026-02-20
+
+### Fixed
+
+- **Test generation produces unusable stub code** (#295) — Fixed 11 bugs across 8 files in the test-generation domain:
+  - Python import regex matching `{` from TypeScript destructured imports as a dependency
+  - Non-exported functions/classes getting test stubs (all 4 generators: Jest, Vitest, Mocha, Pytest)
+  - Undefined `mockXxx` variables from unknown types — now returns safe inline values
+  - Missing void return type handling in Mocha and Pytest generators
+  - `pattern-matcher` `generateMockValue()` returning bare variable references
+  - Generated test files only printed to stdout, never written to disk
+  - Blanket `toThrow()` assertions for undefined params — now wrapped in try-catch
+- **Cloud sync silently falls back to mock mode** — `await import('pg')` fails inside esbuild bundles. Changed to `createRequire(import.meta.url)('pg')` which resolves correctly at runtime. Separated "pg not installed" from "connection failed" error paths.
+- **Cloud sync source paths resolve to wrong directory** — JSON source paths used `../` prefix that resolved relative to `v3/` instead of project root. Fixed all sync source paths to use `./` prefix.
+
+### Added
+
+- Data protection rules in CLAUDE.md to prevent accidental database deletion or corruption by AI agents
+
 ## [3.6.14] - 2026-02-20
 
 ### Fixed

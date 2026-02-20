@@ -92,7 +92,7 @@ describe('KG context in test generators', () => {
   });
 
   describe('jest/vitest generator with KG dependencies', () => {
-    it('should include mock declarations when dependencies are provided', () => {
+    it('should include mock declarations for external dependencies only', () => {
       const gen = factory.create('vitest');
       const context: TestGenerationContext = {
         moduleName: 'UserService',
@@ -113,7 +113,7 @@ describe('KG context in test generators', () => {
           classes: [],
         },
         dependencies: {
-          imports: ['./database', './cache'],
+          imports: ['./database', './cache', 'lodash', '@org/shared-utils'],
           importedBy: [],
           callees: [],
           callers: [],
@@ -122,8 +122,12 @@ describe('KG context in test generators', () => {
 
       const testCode = gen.generateTests(context);
 
-      expect(testCode).toContain("vi.mock('./database'");
-      expect(testCode).toContain("vi.mock('./cache'");
+      // Bug #295 fix: relative imports must NOT be mocked (they wipe out named exports)
+      expect(testCode).not.toContain("vi.mock('./database'");
+      expect(testCode).not.toContain("vi.mock('./cache'");
+      // External deps should still be mocked
+      expect(testCode).toContain("vi.mock('lodash'");
+      expect(testCode).toContain("vi.mock('@org/shared-utils'");
     });
   });
 });

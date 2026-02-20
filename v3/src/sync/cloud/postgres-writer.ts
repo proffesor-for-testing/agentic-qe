@@ -9,6 +9,7 @@
  * that can be replaced with actual pg operations when needed.
  */
 
+import { createRequire } from 'module';
 import type { CloudWriter, UpsertOptions, CloudConfig } from '../interfaces.js';
 import type { TunnelManager } from './tunnel-manager.js';
 import { validateIdentifier } from '../../shared/sql-safety.js';
@@ -16,6 +17,11 @@ import { toErrorMessage } from '../../shared/error-utils.js';
 import { LoggerFactory } from '../../logging/index.js';
 
 const logger = LoggerFactory.create('postgres-writer');
+
+// Use createRequire for pg (native CJS module) — dynamic import('pg') fails
+// inside esbuild bundles because the specifier gets inlined and can't resolve
+// at runtime. createRequire works because it uses Node's native require().
+const requirePg = createRequire(import.meta.url);
 
 // Note: pg module is optional - will use mock if not available
 
@@ -75,35 +81,40 @@ export class PostgresWriter implements CloudWriter {
       throw new Error('No tunnel connection available');
     }
 
-    // Try to dynamically import pg (optional dependency)
+    // Load pg via createRequire (works in esbuild bundles unlike dynamic import)
+    let pg: Record<string, unknown>;
     try {
-      const pg = await import('pg');
-      const Client = pg.Client || pg.default?.Client;
-
-      if (Client) {
-        const connectionConfig = {
-          host: connection.host,
-          port: connection.port,
-          database: this.config.cloud.database,
-          user: this.config.cloud.user,
-          password: process.env.PGPASSWORD || '',
-          connectionTimeoutMillis: this.config.connectionTimeout || 10000,
-        };
-
-        this.client = new Client(connectionConfig) as PgClient;
-        await this.client.connect();
-        this.connected = true;
-        console.log(`[PostgresWriter] Connected to ${connection.host}:${connection.port}/${this.config.cloud.database}`);
-      } else {
-        throw new Error('pg Client not found');
-      }
+      pg = requirePg('pg');
     } catch (e) {
-      // pg module not available - use mock mode
-      logger.debug('pg module not available, using mock mode', { error: e instanceof Error ? e.message : String(e) });
-      console.warn('[PostgresWriter] pg module not available, running in mock mode');
+      logger.debug('pg module not installed, using mock mode', { error: e instanceof Error ? e.message : String(e) });
+      console.warn('[PostgresWriter] pg module not installed, running in mock mode');
       this.client = this.createMockClient();
       this.connected = true;
+      return;
     }
+
+    const pgDefault = pg.default as Record<string, unknown> | undefined;
+    const Client = (pg.Client || pgDefault?.Client) as (new (config: Record<string, unknown>) => PgClient) | undefined;
+    if (!Client) {
+      console.warn('[PostgresWriter] pg.Client not found in module, running in mock mode');
+      this.client = this.createMockClient();
+      this.connected = true;
+      return;
+    }
+
+    const connectionConfig = {
+      host: connection.host,
+      port: connection.port,
+      database: this.config.cloud.database,
+      user: this.config.cloud.user,
+      password: process.env.PGPASSWORD || '',
+      connectionTimeoutMillis: this.config.connectionTimeout || 10000,
+    };
+
+    this.client = new Client(connectionConfig) as PgClient;
+    await this.client.connect();
+    this.connected = true;
+    console.log(`[PostgresWriter] Connected to ${connection.host}:${connection.port}/${this.config.cloud.database}`);
   }
 
   /**
@@ -161,12 +172,34 @@ export class PostgresWriter implements CloudWriter {
 
     let totalInserted = 0;
 
-    // Process in batches
+    // Process in batches with error recovery per batch
     const batchSize = 100;
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
-      const inserted = await this.upsertBatch(table, batch, columns, conflictColumns, updateColumns, options?.skipIfExists);
-      totalInserted += inserted;
+      try {
+        const inserted = await this.upsertBatch(table, batch, columns, conflictColumns, updateColumns, options?.skipIfExists);
+        totalInserted += inserted;
+      } catch (error) {
+        // Retry failed batch with individual inserts (handles oversized batches and isolated bad records)
+        const batchNum = Math.floor(i / batchSize) + 1;
+        const totalBatches = Math.ceil(records.length / batchSize);
+        logger.debug(`Batch ${batchNum}/${totalBatches} failed for ${table}, retrying individually`, { error: toErrorMessage(error) });
+        let recovered = 0;
+        for (const record of batch) {
+          try {
+            const inserted = await this.upsertBatch(table, [record], columns, conflictColumns, updateColumns, options?.skipIfExists);
+            recovered += inserted;
+          } catch (retryError) {
+            // Skip this individual record
+            const recordId = (record as Record<string, unknown>)['id'] || (record as Record<string, unknown>)['key'] || '?';
+            logger.debug(`Skipped record ${String(recordId).slice(0, 50)} in ${table}`, { error: toErrorMessage(retryError) });
+          }
+        }
+        totalInserted += recovered;
+        if (recovered < batch.length) {
+          console.warn(`[PostgresWriter] Batch ${batchNum}/${totalBatches} for ${table}: ${recovered}/${batch.length} recovered (${batch.length - recovered} skipped)`);
+        }
+      }
     }
 
     return totalInserted;
@@ -206,7 +239,7 @@ export class PostgresWriter implements CloudWriter {
     const safeConflictColumns = conflictColumns.map(validateIdentifier);
     const safeUpdateColumns = updateColumns.map(validateIdentifier);
 
-    // Build ON CONFLICT clause
+    // Build ON CONFLICT clause (only when conflict columns are inferred/specified)
     let conflictClause = '';
     if (safeConflictColumns.length > 0) {
       if (skipIfExists) {
@@ -216,6 +249,7 @@ export class PostgresWriter implements CloudWriter {
         conflictClause = `ON CONFLICT (${safeConflictColumns.join(', ')}) DO UPDATE SET ${updateSet}`;
       }
     }
+    // No ON CONFLICT for tables without a matching constraint (plain INSERT)
 
     const sql = `
       INSERT INTO ${safeTable} (${safeColumns.join(', ')})
@@ -227,7 +261,7 @@ export class PostgresWriter implements CloudWriter {
       const result = await this.client.query(sql, params);
       return result.rowCount || 0;
     } catch (error) {
-      console.error(`[PostgresWriter] Upsert failed: ${toErrorMessage(error)}`);
+      logger.debug(`Upsert failed for ${table}`, { error: toErrorMessage(error) });
       throw error;
     }
   }
@@ -316,11 +350,30 @@ export class PostgresWriter implements CloudWriter {
     }
 
     if (typeof value === 'object') {
-      return JSON.stringify(value);
+      let jsonStr = JSON.stringify(value);
+      if (columnName && this.isJsonbColumn(columnName)) {
+        // Remove NUL chars (PostgreSQL JSONB rejects \u0000)
+        jsonStr = jsonStr.replace(/\u0000/g, '');
+        try {
+          JSON.parse(jsonStr);
+        } catch {
+          return JSON.stringify(String(value));
+        }
+      }
+      return jsonStr;
     }
 
     // Handle string values
     if (typeof value === 'string') {
+      // Empty strings in timestamp columns → NULL (PostgreSQL rejects '' for TIMESTAMPTZ)
+      if (value === '') {
+        const timestampColumns = ['created_at', 'updated_at', 'last_used_at', 'started_at',
+                                  'ended_at', 'completed_at', 'expires_at', 'last_update'];
+        if (columnName && timestampColumns.includes(columnName)) {
+          return null;
+        }
+      }
+
       // Check if it's already an ISO date string
       if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
         return value;
@@ -330,15 +383,14 @@ export class PostgresWriter implements CloudWriter {
       if (!isNaN(numVal) && numVal > 946684800000 && numVal < 4102444800000) {
         return new Date(numVal).toISOString();
       }
-      // Check if it's a JSONB column name and wrap non-JSON strings
-      const jsonbColumns = ['action_value', 'state', 'action', 'next_state', 'preconditions', 'effects',
-                           'metadata', 'value', 'payload', 'context_json', 'template_json', 'execution_trace',
-                           'action_sequence', 'initial_state', 'goal_state', 'sequence'];
-      if (columnName && jsonbColumns.includes(columnName)) {
-        // Check if it's already valid JSON
-        if (!value.startsWith('{') && !value.startsWith('[') && !value.startsWith('"')) {
-          // Wrap plain strings in quotes for JSONB
-          return JSON.stringify(value);
+      // JSONB columns: validate JSON, sanitize NUL chars, wrap if invalid
+      if (columnName && this.isJsonbColumn(columnName)) {
+        const sanitized = value.replace(/\u0000/g, '');
+        try {
+          JSON.parse(sanitized);
+          return sanitized;
+        } catch {
+          return JSON.stringify(sanitized);
         }
       }
     }
@@ -347,34 +399,59 @@ export class PostgresWriter implements CloudWriter {
   }
 
   /**
-   * Infer conflict columns from table name
+   * Check if a column is a JSONB column
+   */
+  private isJsonbColumn(columnName: string): boolean {
+    const jsonbColumns = ['action_value', 'state', 'action', 'next_state', 'preconditions', 'effects',
+                         'metadata', 'value', 'payload', 'context_json', 'template_json', 'execution_trace',
+                         'action_sequence', 'initial_state', 'goal_state', 'sequence',
+                         'task_json', 'decision_json', 'steps_json', 'metadata_json'];
+    return jsonbColumns.includes(columnName);
+  }
+
+  /**
+   * Infer conflict columns from table name and available columns.
+   * Only returns columns if the target table is known to have a matching unique constraint.
    */
   private inferConflictColumns(table: string, columns: string[]): string[] {
     // Extract table name without schema
     const tableName = table.includes('.') ? table.split('.')[1] : table;
 
-    // Common patterns
-    if (columns.includes('id')) {
+    // Tables with TEXT id primary key (most AQE tables)
+    const tablesWithIdPK = [
+      'qe_patterns', 'sona_patterns', 'goap_actions', 'goap_plans',
+      'patterns', 'events', 'routing_outcomes', 'qe_trajectories',
+      'dream_insights', 'intelligence_memories',
+    ];
+    if (columns.includes('id') && tablesWithIdPK.includes(tableName)) {
       return ['id'];
     }
 
-    if (columns.includes('key') && columns.includes('source_env')) {
+    // memory_entries: unique(key, partition, source_env)
+    if (tableName === 'memory_entries' && columns.includes('key') && columns.includes('source_env')) {
       if (columns.includes('partition')) {
         return ['key', 'partition', 'source_env'];
       }
       return ['key', 'source_env'];
     }
 
-    if (columns.includes('state') && columns.includes('action') && columns.includes('source_env')) {
+    // claude_flow_memory: unique(key, source_env)
+    if (tableName === 'claude_flow_memory' && columns.includes('key') && columns.includes('source_env')) {
+      return ['key', 'source_env'];
+    }
+
+    // qlearning_patterns: unique(state, action, source_env)
+    if (tableName === 'qlearning_patterns' && columns.includes('state') && columns.includes('action') && columns.includes('source_env')) {
       return ['state', 'action', 'source_env'];
     }
 
-    if (columns.includes('worker_type') && columns.includes('source_env')) {
+    // claude_flow_workers: unique(worker_type, source_env)
+    if (tableName === 'claude_flow_workers' && columns.includes('worker_type') && columns.includes('source_env')) {
       return ['worker_type', 'source_env'];
     }
 
-    // Default to id if present
-    return columns.includes('id') ? ['id'] : [];
+    // No conflict columns → plain INSERT (no ON CONFLICT clause)
+    return [];
   }
 
   /**

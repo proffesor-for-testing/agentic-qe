@@ -346,14 +346,15 @@ export const TYPE_MAPPING: Record<string, string> = {
 export const DEFAULT_SYNC_CONFIG: SyncConfig = {
   local: {
     // PRIMARY: Root database (consolidated, MCP-active)
-    v3MemoryDb: '../.agentic-qe/memory.db',      // Now points to root (consolidated)
-    rootMemoryDb: '../.agentic-qe/memory.db',    // Same as above
-    claudeFlowMemory: '../.claude-flow/memory/store.json',
-    claudeFlowDaemon: '../.claude-flow/daemon-state.json',
-    claudeFlowMetrics: '../.claude-flow/metrics/',
-    intelligenceJson: '../v3/.ruvector/intelligence.json',
-    swarmMemoryDb: '../.swarm/memory.db',
-    v2PatternsDb: '../v2/data/ruvector-patterns.db',
+    // Paths relative to process.cwd() which is the project root
+    v3MemoryDb: './.agentic-qe/memory.db',
+    rootMemoryDb: './.agentic-qe/memory.db',
+    claudeFlowMemory: './.claude-flow/memory/store.json',
+    claudeFlowDaemon: './.claude-flow/daemon-state.json',
+    claudeFlowMetrics: './.claude-flow/metrics/',
+    intelligenceJson: './v3/.ruvector/intelligence.json',
+    swarmMemoryDb: './.swarm/memory.db',
+    v2PatternsDb: './v2/data/ruvector-patterns.db',
   },
   cloud: {
     project: process.env.GCP_PROJECT || '',
@@ -369,81 +370,146 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
     batchSize: 1000,
     conflictResolution: 'newer-wins',
     sourcePriority: {
-      rootMemory: 1,        // Root is now PRIMARY (consolidated)
-      claudeFlowMemory: 2,
-      intelligenceJson: 3,
-      legacy: 4,
+      qePatterns: 1,        // Primary QE learning data (12K+ records)
+      sonaPatterns: 2,      // Neural backbone patterns
+      goapActions: 3,       // Planning primitives
+      kvStore: 4,           // Key-value memory entries
+      experiences: 5,       // Captured RL experiences
+      claudeFlowMemory: 6,
+      intelligenceJson: 7,
     },
     sources: [
       // ============================================================
-      // ROOT Memory - PRIMARY (Consolidated from V3 + Historical)
-      // All tables now in single database: .agentic-qe/memory.db
+      // ROOT Memory - PRIMARY (Consolidated database)
+      // All tables in single database: .agentic-qe/memory.db
+      //
+      // NOTE (2026-02-20): Post-consolidation table mapping:
+      //   OLD v2 tables (removed)  →  NEW v3 tables (actual)
+      //   memory_entries           →  kv_store
+      //   learning_experiences     →  captured_experiences
+      //   patterns                 →  qe_patterns (absorbed)
+      //   events                   →  (removed, use dream_cycles/routing_outcomes)
       // ============================================================
+
+      // QE Patterns - PRIMARY learning data (12,150+ records)
+      // Explicit columns to match cloud schema exactly
+      {
+        name: 'root-qe-patterns',
+        type: 'sqlite',
+        path: './.agentic-qe/memory.db',
+        targetTable: 'aqe.qe_patterns',
+        priority: 'high',
+        mode: 'incremental',
+        query: "SELECT id, pattern_type, qe_domain, domain, name, description, confidence, usage_count, success_rate, quality_score, tier, template_json, context_json, successful_uses, created_at, updated_at, last_used_at, tokens_used, input_tokens, output_tokens, latency_ms, reusable, reuse_count, average_token_savings, total_tokens_saved FROM qe_patterns",
+        enabled: true,
+      },
+      // SONA neural patterns (731+ records)
       {
         name: 'root-sona-patterns',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.sona_patterns',
         priority: 'high',
         mode: 'incremental',
         query: 'SELECT * FROM sona_patterns',
         enabled: true,
       },
+      // GOAP actions (2,243+ records)
       {
         name: 'root-goap-actions',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.goap_actions',
         priority: 'high',
         mode: 'incremental',
         query: 'SELECT * FROM goap_actions',
         enabled: true,
       },
+      // KV Store → cloud memory_entries (1,619+ records)
+      // Only sync entries with valid JSON values (skip corrupt/HTML-embedded data)
       {
-        name: 'root-memory-entries',
+        name: 'root-kv-store',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.memory_entries',
         priority: 'high',
         mode: 'incremental',
-        query: 'SELECT * FROM memory_entries',
+        query: "SELECT key, namespace as partition, CASE WHEN json_valid(value) THEN value ELSE json_quote(value) END as value, created_at, expires_at FROM kv_store WHERE json_valid(value) OR json_valid(json_quote(value))",
         enabled: true,
       },
+      // Captured experiences → cloud learning_experiences (854+ records)
+      // Cloud id is SERIAL (auto-increment) — omit local UUID id
       {
-        name: 'root-learning-experiences',
+        name: 'root-captured-experiences',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
+        path: './.agentic-qe/memory.db',
         targetTable: 'aqe.learning_experiences',
         priority: 'high',
         mode: 'append',
-        query: 'SELECT * FROM learning_experiences',
+        query: "SELECT agent as agent_id, task as task_id, domain as task_type, COALESCE(result_json, '{}') as state, COALESCE(steps_json, '{}') as action, quality as reward, COALESCE(routing_json, '{}') as next_state, tags as episode_id, started_at as created_at FROM captured_experiences",
         enabled: true,
       },
+      // GOAP plans (91+ records)
       {
-        name: 'root-patterns',
+        name: 'root-goap-plans',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
-        targetTable: 'aqe.patterns',
+        path: './.agentic-qe/memory.db',
+        targetTable: 'aqe.goap_plans',
         priority: 'medium',
         mode: 'incremental',
-        query: 'SELECT * FROM patterns',
+        query: "SELECT id, goal_id, action_sequence as sequence, initial_state, goal_state, action_sequence, total_cost, estimated_duration_ms as estimated_duration, status, created_at, completed_at FROM goap_plans",
         enabled: true,
       },
+      // RL Q-values (from SQLite, not JSON)
+      // Use DISTINCT to avoid duplicate (state, action) pairs in same batch
       {
-        name: 'root-events',
+        name: 'root-rl-q-values',
         type: 'sqlite',
-        path: '../.agentic-qe/memory.db',
-        targetTable: 'aqe.events',
+        path: './.agentic-qe/memory.db',
+        targetTable: 'aqe.qlearning_patterns',
+        priority: 'medium',
+        mode: 'incremental',
+        query: "SELECT DISTINCT state_key as state, action_key as action, q_value, visits, updated_at as last_update, created_at FROM rl_q_values GROUP BY state_key, action_key",
+        enabled: true,
+      },
+      // Routing outcomes (184+ records) - model routing decisions
+      {
+        name: 'root-routing-outcomes',
+        type: 'sqlite',
+        path: './.agentic-qe/memory.db',
+        targetTable: 'aqe.routing_outcomes',
+        priority: 'medium',
+        mode: 'append',
+        query: 'SELECT * FROM routing_outcomes',
+        enabled: true,
+      },
+      // QE trajectories (320+ records) - execution traces
+      {
+        name: 'root-qe-trajectories',
+        type: 'sqlite',
+        path: './.agentic-qe/memory.db',
+        targetTable: 'aqe.qe_trajectories',
+        priority: 'medium',
+        mode: 'append',
+        query: 'SELECT * FROM qe_trajectories',
+        enabled: true,
+      },
+      // Dream insights (660+ records) - consolidation results
+      {
+        name: 'root-dream-insights',
+        type: 'sqlite',
+        path: './.agentic-qe/memory.db',
+        targetTable: 'aqe.dream_insights',
         priority: 'low',
         mode: 'append',
-        query: 'SELECT * FROM events',
+        query: 'SELECT * FROM dream_insights',
         enabled: true,
       },
       // Claude-Flow Memory (JSON)
       {
         name: 'claude-flow-memory',
         type: 'json',
-        path: '../.claude-flow/memory/store.json',
+        path: './.claude-flow/memory/store.json',
         targetTable: 'aqe.claude_flow_memory',
         priority: 'medium',
         mode: 'full',
@@ -453,7 +519,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       {
         name: 'intelligence-qlearning',
         type: 'json',
-        path: '../v3/.ruvector/intelligence.json',
+        path: './v3/.ruvector/intelligence.json',
         targetTable: 'aqe.qlearning_patterns',
         priority: 'low',
         mode: 'full',

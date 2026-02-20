@@ -787,13 +787,22 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
 
       // Extract imports via regex (supports TS/JS and Python)
       const tsImports = sourceContent.matchAll(/(?:import|from)\s+['"]([^'"]+)['"]/g);
-      const pyImports = sourceContent.matchAll(/(?:^|\n)\s*(?:from\s+(\S+)\s+import|import\s+(\S+))/g);
 
       for (const match of tsImports) {
         imports.push(match[1]);
       }
-      for (const match of pyImports) {
-        imports.push(match[1] || match[2]);
+
+      // Bug #295 fix: Only run Python regex on .py files to avoid matching TS `{` from destructured imports
+      const isPython = filePath.endsWith('.py');
+      if (isPython) {
+        const pyImports = sourceContent.matchAll(/(?:^|\n)\s*(?:from\s+(\S+)\s+import|import\s+(\S+))/g);
+        for (const match of pyImports) {
+          const mod = match[1] || match[2];
+          // Skip entries that aren't valid module paths (e.g., stray punctuation)
+          if (mod && /^[a-zA-Z_][\w.]*$/.test(mod)) {
+            imports.push(mod);
+          }
+        }
       }
 
       // Cross-reference with KG vectors to find callers (files that import this one)

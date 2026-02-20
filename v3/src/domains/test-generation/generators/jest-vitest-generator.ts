@@ -74,26 +74,34 @@ export class JestVitestGenerator extends BaseTestGenerator {
 ${importStatement}
 `;
 
-    // KG: Generate mock declarations for known dependencies
+    // KG: Generate mock declarations for external (non-relative) dependencies only.
+    // Relative imports (./foo, ../bar) are intra-module and must not be blanket-mocked,
+    // as that wipes out named exports the module under test depends on.
     if (dependencies && dependencies.imports.length > 0) {
       const mockFn = this.framework === 'vitest' ? 'vi.fn()' : 'jest.fn()';
-      testCode += `\n// Auto-generated mocks from Knowledge Graph dependency analysis\n`;
-      for (const dep of dependencies.imports.slice(0, 10)) {
-        const depName = dep.split('/').pop()?.replace(/[^a-zA-Z0-9_]/g, '_') || dep;
-        testCode += `${this.framework === 'vitest' ? 'vi' : 'jest'}.mock('${dep}', () => ({ default: ${mockFn} }));\n`;
+      const externalDeps = dependencies.imports.filter(dep => !dep.startsWith('.'));
+      if (externalDeps.length > 0) {
+        testCode += `\n// Auto-generated mocks from Knowledge Graph dependency analysis\n`;
+        for (const dep of externalDeps.slice(0, 10)) {
+          testCode += `${this.framework === 'vitest' ? 'vi' : 'jest'}.mock('${dep}', () => ({ default: ${mockFn} }));\n`;
+        }
+        testCode += `\n`;
+      } else {
+        testCode += `\n`;
       }
-      testCode += `\n`;
     } else {
       testCode += `\n`;
     }
 
-    // Generate tests for each function
-    for (const fn of analysis.functions) {
+    // Bug #295 fix: Only generate tests for exported functions and classes
+    const exportedFns = analysis.functions.filter(fn => fn.isExported);
+    const exportedClasses = analysis.classes.filter(cls => cls.isExported);
+
+    for (const fn of exportedFns) {
       testCode += this.generateFunctionTests(fn, testType);
     }
 
-    // Generate tests for each class
-    for (const cls of analysis.classes) {
+    for (const cls of exportedClasses) {
       testCode += this.generateClassTests(cls, testType);
     }
 
@@ -176,23 +184,43 @@ ${importStatement}
       ? `await instance.${method.name}(${validParams})`
       : `instance.${method.name}(${validParams})`;
 
-    // Happy path test
+    // Happy path test — use appropriate assertion for void vs non-void return
     const asyncPrefix = method.isAsync ? 'async ' : '';
+    const isVoid = method.returnType === 'void' || method.returnType === 'Promise<void>';
     code += `    it('should execute successfully', ${asyncPrefix}() => {\n`;
-    code += `      const result = ${methodCall};\n`;
-    code += `      expect(result).toBeDefined();\n`;
+    if (isVoid) {
+      code += `      ${methodCall};\n`;
+      code += `      // void return — no assertion on result needed\n`;
+    } else {
+      code += `      const result = ${methodCall};\n`;
+      code += `      expect(result).toBeDefined();\n`;
+    }
     code += `    });\n`;
 
-    // Error handling tests for non-optional params
+    // Bug #295 fix: Only assert toThrow when method body has explicit throw/validation
+    const methodBody = method.body || '';
+    const methodThrows = /\bthrow\b/.test(methodBody) || /\bvalidat/i.test(methodBody);
+
     for (const param of method.parameters) {
       if (!param.optional) {
         const paramsWithUndefined = method.parameters
           .map((p) => (p.name === param.name ? 'undefined as any' : this.generateTestValue(p)))
           .join(', ');
 
-        code += `\n    it('should handle invalid ${param.name}', () => {\n`;
-        code += `      expect(() => instance.${method.name}(${paramsWithUndefined})).toThrow();\n`;
-        code += `    });\n`;
+        if (methodThrows) {
+          code += `\n    it('should handle invalid ${param.name}', ${asyncPrefix}() => {\n`;
+          code += `      expect(() => instance.${method.name}(${paramsWithUndefined})).toThrow();\n`;
+          code += `    });\n`;
+        } else {
+          // Use try-catch to handle both throwing (TypeError from property access) and non-throwing
+          code += `\n    it('should handle undefined ${param.name}', ${asyncPrefix}() => {\n`;
+          code += `      try {\n`;
+          code += `        ${method.isAsync ? 'await ' : ''}instance.${method.name}(${paramsWithUndefined});\n`;
+          code += `      } catch (e) {\n`;
+          code += `        expect(e).toBeInstanceOf(Error);\n`;
+          code += `      }\n`;
+          code += `    });\n`;
+        }
       }
     }
 
@@ -211,13 +239,16 @@ ${importStatement}
     const edgeCaseTest = this.generateEdgeCaseTest(moduleName, patterns);
     const errorHandlingTest = this.generateErrorHandlingTest(moduleName, patterns);
 
-    // KG: Generate mock declarations for known dependencies
+    // KG: Generate mock declarations for external (non-relative) dependencies only
     let mockDeclarations = '';
     if (dependencies && dependencies.imports.length > 0) {
       const mockFn = this.framework === 'vitest' ? 'vi.fn()' : 'jest.fn()';
-      mockDeclarations += `\n// Auto-generated mocks from Knowledge Graph dependency analysis\n`;
-      for (const dep of dependencies.imports.slice(0, 10)) {
-        mockDeclarations += `${this.mockUtil}.mock('${dep}', () => ({ default: ${mockFn} }));\n`;
+      const externalDeps = dependencies.imports.filter(dep => !dep.startsWith('.'));
+      if (externalDeps.length > 0) {
+        mockDeclarations += `\n// Auto-generated mocks from Knowledge Graph dependency analysis\n`;
+        for (const dep of externalDeps.slice(0, 10)) {
+          mockDeclarations += `${this.mockUtil}.mock('${dep}', () => ({ default: ${mockFn} }));\n`;
+        }
       }
     }
 
