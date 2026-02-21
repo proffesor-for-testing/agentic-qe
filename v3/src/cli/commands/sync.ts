@@ -21,6 +21,9 @@ import {
   DEFAULT_SYNC_CONFIG,
   type SyncReport,
   type SyncAgentConfig,
+  pullFromCloud,
+  pullIncrementalFromCloud,
+  type PullAgentConfig,
 } from '../../sync/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -77,6 +80,52 @@ export function createSyncCommands(): Command {
         printSyncReport(report);
       } catch (error) {
         spinner.fail(`Sync failed: ${toErrorMessage(error)}`);
+        process.exit(1);
+      }
+    });
+
+  // Pull subcommand (cloud → local)
+  syncCmd
+    .command('pull')
+    .description('Pull cloud learning data into local SQLite database')
+    .option('-f, --full', 'Full pull (all cloud data)')
+    .option('-e, --env <environment>', 'Pull only data from specific environment', 'all')
+    .option('--tables <tables>', 'Comma-separated list of tables to pull')
+    .option('--dry-run', 'Preview pull without writing to local DB')
+    .option('--target <path>', 'Custom target SQLite database path')
+    .option('--since <date>', 'Pull changes since date (ISO 8601)')
+    .option('-v, --verbose', 'Enable verbose output')
+    .action(async (options) => {
+      const pullConfig: Partial<PullAgentConfig> = {
+        environment: options.env,
+        verbose: options.verbose,
+        dryRun: options.dryRun,
+        targetDb: options.target,
+      };
+
+      // Filter tables if specified
+      if (options.tables) {
+        pullConfig.tables = options.tables.split(',').map((t: string) => t.trim());
+      }
+
+      const spinner = ora('Initializing pull sync agent...').start();
+
+      try {
+        let report: SyncReport;
+
+        if (options.full) {
+          spinner.text = 'Pulling all data from cloud...';
+          report = await pullFromCloud(pullConfig);
+        } else {
+          const since = options.since ? new Date(options.since) : undefined;
+          spinner.text = `Pulling ${since ? 'changes since ' + since.toISOString() : 'incremental changes (last 24h)'}...`;
+          report = await pullIncrementalFromCloud(since, pullConfig);
+        }
+
+        spinner.stop();
+        printPullReport(report);
+      } catch (error) {
+        spinner.fail(`Pull failed: ${toErrorMessage(error)}`);
         process.exit(1);
       }
     });
@@ -343,6 +392,51 @@ function printVerifyResult(result: VerifyResult): void {
       console.log(`   Diff: ${diffColor(table.diff > 0 ? '+' + table.diff : table.diff)}`);
     }
     console.log();
+  }
+}
+
+/**
+ * Print pull sync report
+ */
+function printPullReport(report: SyncReport): void {
+  const statusColor = report.status === 'completed' ? chalk.green :
+                      report.status === 'partial' ? chalk.yellow :
+                      chalk.red;
+
+  console.log(chalk.cyan('\n=== Pull Sync Report (Cloud → Local) ===\n'));
+  console.log(chalk.bold('Sync ID:'), report.syncId);
+  console.log(chalk.bold('Status:'), statusColor(report.status.toUpperCase()));
+  console.log(chalk.bold('Environment:'), report.environment);
+  console.log(chalk.bold('Mode:'), report.mode);
+  console.log(chalk.bold('Duration:'), `${report.totalDurationMs}ms`);
+  console.log();
+
+  console.log(chalk.bold('Summary:'));
+  console.log(`   Records Pulled: ${chalk.green(report.totalRecordsSynced)}`);
+  console.log();
+
+  if (report.results.length > 0) {
+    console.log(chalk.bold('Results by Table:'));
+    for (const result of report.results) {
+      const icon = result.success ? chalk.green('✓') : chalk.red('✗');
+      console.log(`   ${icon} ${result.source} → ${result.table}`);
+      console.log(`      Records: ${result.recordsSynced}`);
+      console.log(`      Duration: ${result.durationMs}ms`);
+      if (result.recordsSkipped > 0) {
+        console.log(`      Skipped: ${chalk.yellow(result.recordsSkipped)}`);
+      }
+      if (result.error) {
+        console.log(`      Error: ${chalk.red(result.error)}`);
+      }
+    }
+    console.log();
+  }
+
+  if (report.errors.length > 0) {
+    console.log(chalk.red('Errors:'));
+    for (const error of report.errors) {
+      console.log(`   - ${error}`);
+    }
   }
 }
 

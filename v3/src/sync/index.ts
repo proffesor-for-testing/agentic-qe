@@ -41,9 +41,11 @@ export type {
   UpsertOptions,
   TunnelConnection,
   EmbeddingGenerator,
+  PullSource,
+  PullConfig,
 } from './interfaces.js';
 
-export { DEFAULT_SYNC_CONFIG, TYPE_MAPPING } from './interfaces.js';
+export { DEFAULT_SYNC_CONFIG, DEFAULT_PULL_CONFIG, TYPE_MAPPING } from './interfaces.js';
 
 // Readers
 export {
@@ -75,7 +77,20 @@ export {
   type PostgresWriterConfig,
 } from './cloud/postgres-writer.js';
 
-// Sync agent
+export {
+  PostgresReader,
+  createPostgresReader,
+  type PostgresReaderConfig,
+} from './cloud/postgres-reader.js';
+
+// Writers
+export {
+  SQLiteWriter,
+  createSQLiteWriter,
+  type SQLiteWriterConfig,
+} from './writers/sqlite-writer.js';
+
+// Sync agent (push: local → cloud)
 export {
   CloudSyncAgent,
   createSyncAgent,
@@ -86,6 +101,17 @@ export {
   type VerifyResult,
   type VerifyTableResult,
 } from './sync-agent.js';
+
+// Pull agent (pull: cloud → local)
+export {
+  PullSyncAgent,
+  createPullSyncAgent,
+  pullFromCloud,
+  pullIncrementalFromCloud,
+  type PullAgentConfig,
+  type PullVerifyResult,
+  type PullVerifyTableResult,
+} from './pull-agent.js';
 
 // Embeddings (Phase 3)
 export {
