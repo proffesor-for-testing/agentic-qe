@@ -43,6 +43,16 @@ import { toErrorMessage } from '../../shared/error-utils.js';
 // Fleet State
 // ============================================================================
 
+export type TopologyType = 'hierarchical' | 'mesh' | 'ring' | 'adaptive';
+export type AgentLevel = 'queen' | 'lead' | 'worker';
+
+export interface AgentLevelInfo {
+  agentId: string;
+  domain: DomainName;
+  level: AgentLevel;
+  spawnedAt: Date;
+}
+
 interface FleetState {
   fleetId: string | null;
   kernel: QEKernel | null;
@@ -51,6 +61,10 @@ interface FleetState {
   workflowOrchestrator: WorkflowOrchestrator | null;
   initialized: boolean;
   initTime: Date | null;
+  /** Active topology type */
+  topology: TopologyType;
+  /** Agent level assignments for hierarchical topology */
+  agentLevels: Map<string, AgentLevelInfo>;
 }
 
 const state: FleetState = {
@@ -61,6 +75,8 @@ const state: FleetState = {
   workflowOrchestrator: null,
   initialized: false,
   initTime: null,
+  topology: 'hierarchical',
+  agentLevels: new Map(),
 };
 
 /**
@@ -75,6 +91,53 @@ export function getFleetState(): FleetState {
  */
 export function isFleetInitialized(): boolean {
   return state.initialized && state.kernel !== null && state.queen !== null;
+}
+
+/**
+ * Get the current fleet topology
+ */
+export function getFleetTopology(): TopologyType {
+  return state.topology;
+}
+
+/**
+ * Assign a level to a newly spawned agent based on topology.
+ * In hierarchical topology:
+ * - First agent per domain → 'lead'
+ * - Subsequent agents in same domain → 'worker'
+ */
+export function assignAgentLevel(agentId: string, domain: DomainName): AgentLevel {
+  if (state.topology !== 'hierarchical') {
+    // Non-hierarchical topologies treat all agents as workers
+    const info: AgentLevelInfo = { agentId, domain, level: 'worker', spawnedAt: new Date() };
+    state.agentLevels.set(agentId, info);
+    return 'worker';
+  }
+
+  // Check if there's already a lead for this domain
+  const existingLead = Array.from(state.agentLevels.values()).find(
+    a => a.domain === domain && a.level === 'lead'
+  );
+
+  const level: AgentLevel = existingLead ? 'worker' : 'lead';
+  const info: AgentLevelInfo = { agentId, domain, level, spawnedAt: new Date() };
+  state.agentLevels.set(agentId, info);
+
+  return level;
+}
+
+/**
+ * Get the level info for an agent
+ */
+export function getAgentLevel(agentId: string): AgentLevelInfo | undefined {
+  return state.agentLevels.get(agentId);
+}
+
+/**
+ * Get all agent levels (for debugging/metrics)
+ */
+export function getAllAgentLevels(): Map<string, AgentLevelInfo> {
+  return state.agentLevels;
 }
 
 // ============================================================================
@@ -172,12 +235,14 @@ export async function handleFleetInit(
 
     state.initialized = true;
     state.initTime = new Date();
+    state.topology = (params.topology as TopologyType) || 'hierarchical';
+    state.agentLevels.clear();
 
     return {
       success: true,
       data: {
         fleetId: state.fleetId,
-        topology: params.topology || 'hierarchical',
+        topology: state.topology,
         maxAgents: params.maxAgents || 15,
         // Return user-facing domains (12) - coordination is internal
         enabledDomains: userFacingDomains,
@@ -376,6 +441,8 @@ export async function disposeFleet(): Promise<void> {
   state.initialized = false;
   state.fleetId = null;
   state.initTime = null;
+  state.topology = 'hierarchical';
+  state.agentLevels.clear();
 }
 
 // ============================================================================

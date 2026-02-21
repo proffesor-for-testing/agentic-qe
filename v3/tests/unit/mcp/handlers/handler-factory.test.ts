@@ -429,7 +429,7 @@ describe('Handler Factory', () => {
 
       expect(feedback.enabled).toBe(true);
       expect(feedback.agentId).toMatch(/^test-agent-/);
-      expect(feedback.message).toContain('patterns and Q-values updated');
+      expect(feedback.message).toContain('Experience captured asynchronously');
     });
   });
 

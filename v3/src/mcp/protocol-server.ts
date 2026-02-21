@@ -128,6 +128,10 @@ export class MCPProtocolServer {
   // AG-UI EventAdapter for streaming events to HTTP clients
   private readonly eventAdapter: EventAdapter;
 
+  // Connection recovery state
+  private reconnecting = false;
+  private pendingRequests: Array<{ resolve: (v: unknown) => void; reject: (e: Error) => void; request: JSONRPCRequest }> = [];
+
   constructor(config: MCPServerConfig = {}) {
     this.config = {
       name: config.name ?? 'agentic-qe-v3',
@@ -186,11 +190,66 @@ export class MCPProtocolServer {
       await this.handleNotification(notification);
     });
 
+    // Set up connection recovery
+    this.transport.onError(async (error) => {
+      console.error(`[MCP] Transport error: ${error.message}`);
+      await this.attemptReconnect();
+    });
+
     // Start transport
     this.transport.start();
 
     // Log startup
     console.error(`[MCP] ${this.config.name} v${this.config.version} started`);
+  }
+
+  /**
+   * Attempt to reconnect the transport with exponential backoff.
+   * Buffers requests during the reconnection window and replays them after success.
+   */
+  private async attemptReconnect(): Promise<void> {
+    if (this.reconnecting) return;
+    this.reconnecting = true;
+
+    const maxAttempts = 3;
+    const baseDelay = 1000; // 1s, 2s, 4s
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.error(`[MCP] Reconnect attempt ${attempt + 1}/${maxAttempts} in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+
+      try {
+        this.transport.reconnect();
+        console.error(`[MCP] Reconnected after ${attempt + 1} attempt(s)`);
+        this.reconnecting = false;
+
+        // Replay any buffered requests
+        const buffered = [...this.pendingRequests];
+        this.pendingRequests = [];
+        for (const { resolve, request } of buffered) {
+          try {
+            const result = await this.handleRequest(request);
+            resolve(result);
+          } catch (err) {
+            console.error(`[MCP] Failed to replay buffered request: ${request.method}`);
+          }
+        }
+        return;
+      } catch (err) {
+        console.error(`[MCP] Reconnect attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    this.reconnecting = false;
+    console.error('[MCP] All reconnect attempts failed. Tools unavailable until transport is restored.');
+
+    // Reject all buffered requests
+    const buffered = [...this.pendingRequests];
+    this.pendingRequests = [];
+    for (const { reject } of buffered) {
+      reject(new Error('MCP connection lost and reconnect failed'));
+    }
   }
 
   /**
@@ -773,11 +832,12 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'memory_query',
-        description: 'Query memory with pattern matching',
+        description: 'Query memory with pattern matching or HNSW semantic search',
         category: 'memory',
         parameters: [
-          { name: 'pattern', type: 'string', description: 'Key pattern' },
+          { name: 'pattern', type: 'string', description: 'Key pattern (glob) or natural language query (for semantic search)' },
           { name: 'namespace', type: 'string', description: 'Memory namespace' },
+          { name: 'semantic', type: 'boolean', description: 'Use HNSW vector search instead of pattern matching. Auto-detected when pattern contains spaces and no wildcards.' },
         ],
       },
       handler: (params) => handleMemoryQuery(params as unknown as Parameters<typeof handleMemoryQuery>[0]),
