@@ -5,6 +5,22 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.18] - 2026-02-21
+
+### Added
+
+- **6 new Agent Teams MCP tools** — `team_list`, `team_health`, `team_message`, `team_broadcast`, `team_scale`, `team_rebalance` expose ADR-064 domain team management via MCP
+- **Team membership in agent_list** — Each agent now shows its team role (`lead` or `teammate`) and team size
+- **Teams summary in fleet_status** — Fleet status response now includes active teams count, total agents in teams, and healthy team count
+- **Auto-team-wiring on agent spawn** — Agents are automatically registered in domain teams when spawned (first agent = lead, subsequent = teammates)
+- **addTeammate() on DomainTeamManager** — New method to add real agent IDs as teammates (instead of synthetic IDs from scaleTeam)
+- **Runtime message-type validation** — `team_message` and `team_broadcast` reject invalid message types with clear error messages
+
+### Fixed
+
+- **Race condition in parallel agent spawns** — Two concurrent spawns for the same domain no longer cause the second agent to become a ghost; the create-team failure now falls back to addTeammate
+- **Duplicate agent guard** — `addTeammate()` rejects agents already in the team, preventing corrupted team size calculations
+
 ## [3.6.17] - 2026-02-21
 
 ### Added

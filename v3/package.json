@@ -1,6 +1,6 @@
 {
   "name": "@agentic-qe/v3",
-  "version": "3.6.17",
+  "version": "3.6.18",
   "description": "Agentic QE v3 - Domain-Driven Design Architecture with 13 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 59 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
