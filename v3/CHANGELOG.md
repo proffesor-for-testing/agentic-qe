@@ -5,6 +5,29 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.16] - 2026-02-21
+
+### Added
+
+- **Node.js `node:test` runner** — 5th test framework using `node:test` describe/it and `node:assert`. Generate tests with `--framework node-test` for zero-dependency testing on Node.js 18+.
+- **Smart assertions** — Test generators now infer assertion type from function name (`is*` → boolean, `get*` → not undefined, `create*` → truthy) and return type, across all 5 generators including class methods.
+- **Destructured parameter handling** — Functions with `({ a, b })` or `([x, y])` parameters now get proper test values instead of broken variable references. Multiple destructured params get indexed names to avoid collisions.
+
+### Fixed
+
+- **`convertToAssert()` double-lambda bug** — `assert.throws(() => action)` never threw because `action` was already a function. Now correctly passes `assert.throws(action)`.
+- **`convertToAssert()` regex ordering** — Specific patterns (`typeof`, `Array.isArray`) now fire before generic `toBe`, preventing garbled output.
+- **Missing `toBeInstanceOf` conversion** — Node:test generator now converts `expect(e).toBeInstanceOf(Error)` to `assert.ok(e instanceof Error)`.
+- **Unconverted `expect()` in action fields** — Boundary/edge-case test actions containing `expect()` are now converted to `assert.*` for node:test output.
+- **`is`/`has`/`can` prefix false positives** — Smart assertions now require uppercase after prefix (e.g., `isValid` matches but `isolate` does not).
+- **Mocha/Pytest missing `#` private method filter** — ES private methods (`#method`) are now excluded from generated tests in all frameworks.
+- **`node-test` missing from runtime paths** — Added to task executor, CLI wizard, shell completions, MCP tools, and plugin interfaces.
+
+### Changed
+
+- Smart assertions now apply to class method tests across all generators (previously only standalone functions)
+- Factory test suite expanded to cover all 5 frameworks in integration tests
+
 ## [3.6.15] - 2026-02-20
 
 ### Fixed

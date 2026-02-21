@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.6.16](v3.6.16.md) | 2026-02-21 | Node.js node:test generator, smart assertions, 12 bug fixes |
 | [v3.6.15](v3.6.15.md) | 2026-02-20 | Fix 11 test generation bugs (#295), fix cloud sync pg loading |
 | [v3.6.14](v3.6.14.md) | 2026-02-20 | Fix test OOM crashes, CI artifact upload, flaky test stabilization |
 | [v3.6.13](v3.6.13.md) | 2026-02-19 | Fix test stubs, MCP crash, vector mismatch, coverage, security scan |
