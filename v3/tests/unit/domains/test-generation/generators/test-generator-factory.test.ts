@@ -14,6 +14,7 @@ import {
   JestVitestGenerator,
   MochaGenerator,
   PytestGenerator,
+  NodeTestGenerator,
 } from '../../../../../src/domains/test-generation/generators';
 import type {
   TestFramework,
@@ -53,6 +54,12 @@ describe('TestGeneratorFactory', () => {
       expect(generator.framework).toBe('pytest');
     });
 
+    it('should create a NodeTestGenerator for node-test framework', () => {
+      const generator = factory.create('node-test');
+      expect(generator).toBeInstanceOf(NodeTestGenerator);
+      expect(generator.framework).toBe('node-test');
+    });
+
     it('should cache generators for reuse', () => {
       const gen1 = factory.create('jest');
       const gen2 = factory.create('jest');
@@ -72,6 +79,7 @@ describe('TestGeneratorFactory', () => {
       expect(factory.supports('vitest')).toBe(true);
       expect(factory.supports('mocha')).toBe(true);
       expect(factory.supports('pytest')).toBe(true);
+      expect(factory.supports('node-test')).toBe(true);
     });
 
     it('should return false for unsupported frameworks', () => {
@@ -95,7 +103,8 @@ describe('TestGeneratorFactory', () => {
       expect(frameworks).toContain('vitest');
       expect(frameworks).toContain('mocha');
       expect(frameworks).toContain('pytest');
-      expect(frameworks).toHaveLength(4);
+      expect(frameworks).toContain('node-test');
+      expect(frameworks).toHaveLength(5);
     });
   });
 
@@ -127,6 +136,7 @@ describe('isValidTestFramework()', () => {
     expect(isValidTestFramework('vitest')).toBe(true);
     expect(isValidTestFramework('mocha')).toBe(true);
     expect(isValidTestFramework('pytest')).toBe(true);
+    expect(isValidTestFramework('node-test')).toBe(true);
   });
 
   it('should return false for invalid frameworks', () => {
@@ -142,7 +152,7 @@ describe('testGeneratorFactory singleton', () => {
 });
 
 describe('Generator Strategy Pattern', () => {
-  const frameworks: TestFramework[] = ['jest', 'vitest', 'mocha', 'pytest'];
+  const frameworks: TestFramework[] = ['jest', 'vitest', 'mocha', 'pytest', 'node-test'];
 
   describe.each(frameworks)('%s generator', (framework) => {
     let generator: ITestGenerator;

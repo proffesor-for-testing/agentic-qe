@@ -129,11 +129,30 @@ export abstract class BaseTestGenerator implements ITestGenerator {
     const fnCall = fn.isAsync ? `await ${fn.name}(${validParams})` : `${fn.name}(${validParams})`;
     const isVoid = fn.returnType === 'void' || fn.returnType === 'Promise<void>';
 
+    // Smart assertion based on function name and return type
+    let assertion = 'expect(result).toBeDefined();';
+    if (!isVoid) {
+      // Use regex to require uppercase after prefix — avoids matching 'isolate', 'issue', 'isbn', etc.
+      if (/^(is|has|can)[A-Z]/.test(fn.name)) {
+        assertion = "expect(typeof result).toBe('boolean');";
+      } else if (/^(get|fetch|find)[A-Z]/.test(fn.name)) {
+        assertion = 'expect(result).not.toBeUndefined();';
+      } else if (/^(create|build|make)[A-Z]/.test(fn.name)) {
+        assertion = 'expect(result).toBeTruthy();';
+      } else if (fn.returnType) {
+        const rt = fn.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
+        if (rt.includes('boolean')) assertion = "expect(typeof result).toBe('boolean');";
+        else if (rt.includes('number')) assertion = "expect(typeof result).toBe('number');";
+        else if (rt.includes('string')) assertion = "expect(typeof result).toBe('string');";
+        else if (rt.includes('[]') || rt.includes('array')) assertion = 'expect(Array.isArray(result)).toBe(true);';
+      }
+    }
+
     testCases.push({
       description: 'should handle valid input correctly',
       type: 'happy-path',
       action: isVoid ? `${fnCall};` : `const result = ${fnCall};`,
-      assertion: isVoid ? `// void function — no return value to assert` : 'expect(result).toBeDefined();',
+      assertion: isVoid ? `// void function — no return value to assert` : assertion,
     });
 
     // Generate tests for each parameter

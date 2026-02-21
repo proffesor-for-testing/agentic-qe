@@ -879,7 +879,7 @@ export class DomainTaskExecutor {
         }
 
         // Use the real TestGeneratorService
-        const framework = (payload.framework || 'vitest') as 'jest' | 'vitest' | 'mocha' | 'pytest';
+        const framework = (payload.framework || 'vitest') as 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test';
         const result = await generator.generateTests({
           sourceFiles,
           testType: payload.testType || 'unit',

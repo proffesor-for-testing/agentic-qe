@@ -33,7 +33,7 @@ export interface ITestGenerationAPI {
 export interface IGenerateTestsRequest {
   sourceFiles: string[];
   testType: 'unit' | 'integration' | 'e2e';
-  framework: 'jest' | 'vitest' | 'mocha' | 'pytest';
+  framework: 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test';
   coverageTarget?: number;
   patterns?: string[];
 }
@@ -126,7 +126,7 @@ export interface IPattern {
 /**
  * Supported test frameworks
  */
-export type TestFramework = 'jest' | 'vitest' | 'mocha' | 'pytest';
+export type TestFramework = 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test';
 
 /**
  * Types of tests that can be generated

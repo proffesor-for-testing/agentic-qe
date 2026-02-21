@@ -710,12 +710,39 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     params: ts.NodeArray<ts.ParameterDeclaration>,
     sourceFile: ts.SourceFile
   ): ParameterInfo[] {
-    return params.map((param) => ({
-      name: param.name.getText(sourceFile),
-      type: param.type?.getText(sourceFile),
-      optional: param.questionToken !== undefined,
-      defaultValue: param.initializer?.getText(sourceFile),
-    }));
+    let objectDestructureCount = 0;
+    let arrayDestructureCount = 0;
+
+    return params.map((param) => {
+      let name = param.name.getText(sourceFile);
+      let type = param.type?.getText(sourceFile);
+
+      // Handle destructuring patterns — extract a clean parameter name
+      // Suffix with index when multiple destructured params to avoid name collisions
+      if (ts.isObjectBindingPattern(param.name)) {
+        objectDestructureCount++;
+        name = objectDestructureCount > 1 ? `options${objectDestructureCount}` : 'options';
+        if (!type) {
+          const props = param.name.elements
+            .map((el) => `${el.name.getText(sourceFile)}: unknown`)
+            .join(', ');
+          type = `{ ${props} }`;
+        }
+      } else if (ts.isArrayBindingPattern(param.name)) {
+        arrayDestructureCount++;
+        name = arrayDestructureCount > 1 ? `items${arrayDestructureCount}` : 'items';
+        if (!type) {
+          type = 'unknown[]';
+        }
+      }
+
+      return {
+        name,
+        type,
+        optional: param.questionToken !== undefined,
+        defaultValue: param.initializer?.getText(sourceFile),
+      };
+    });
   }
 
   private calculateComplexity(node: ts.Node): number {
