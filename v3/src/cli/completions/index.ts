@@ -260,7 +260,7 @@ export const STATUSES = ['pending', 'running', 'completed', 'failed', 'cancelled
 /**
  * Test frameworks
  */
-export const FRAMEWORKS = ['jest', 'vitest', 'pytest', 'junit', 'playwright', 'cypress', 'go-test'] as const;
+export const FRAMEWORKS = ['jest', 'vitest', 'pytest', 'junit', 'playwright', 'cypress', 'go-test', 'node-test'] as const;
 
 /**
  * Test types

@@ -22,7 +22,7 @@ import { toErrorMessage } from '../../../shared/error-utils.js';
 export interface TestGenerateParams {
   sourceFiles: string[];
   testType?: 'unit' | 'integration' | 'e2e';
-  framework?: 'jest' | 'vitest' | 'mocha' | 'pytest';
+  framework?: 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test';
   language?: 'typescript' | 'javascript' | 'python' | 'java' | 'go';
   coverageTarget?: number;
   patterns?: string[];
@@ -154,7 +154,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
       const domainRequest: GenerateTestsRequest = {
         sourceFiles,
         testType: testType as 'unit' | 'integration' | 'e2e',
-        framework: framework as 'jest' | 'vitest' | 'mocha' | 'pytest',
+        framework: framework as 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test',
         coverageTarget,
         patterns,
       };

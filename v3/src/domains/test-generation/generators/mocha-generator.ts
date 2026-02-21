@@ -110,12 +110,30 @@ ${stubSetup}`;
     const isVoid = fn.returnType === 'void' || fn.returnType === 'Promise<void>';
 
     let code = `  describe('${fn.name}', function() {\n`;
+    // Smart assertion based on function name and return type
+    let chaiAssertion = 'expect(result).to.not.be.undefined;';
+    if (!isVoid) {
+      if (/^(is|has|can)[A-Z]/.test(fn.name)) {
+        chaiAssertion = "expect(typeof result).to.equal('boolean');";
+      } else if (/^(get|fetch|find)[A-Z]/.test(fn.name)) {
+        chaiAssertion = 'expect(result).to.not.be.undefined;';
+      } else if (/^(create|build|make)[A-Z]/.test(fn.name)) {
+        chaiAssertion = 'expect(result).to.be.ok;';
+      } else if (fn.returnType) {
+        const rt = fn.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
+        if (rt.includes('boolean')) chaiAssertion = "expect(typeof result).to.equal('boolean');";
+        else if (rt.includes('number')) chaiAssertion = "expect(typeof result).to.equal('number');";
+        else if (rt.includes('string')) chaiAssertion = "expect(typeof result).to.equal('string');";
+        else if (rt.includes('[]') || rt.includes('array')) chaiAssertion = 'expect(result).to.be.an(\'array\');';
+      }
+    }
+
     code += `    it('should handle valid input', ${fn.isAsync ? 'async ' : ''}function() {\n`;
     if (isVoid) {
       code += `      ${fnCall};\n`;
     } else {
       code += `      const result = ${fnCall};\n`;
-      code += `      expect(result).to.not.be.undefined;\n`;
+      code += `      ${chaiAssertion}\n`;
     }
     code += `    });\n`;
 
@@ -166,15 +184,32 @@ ${stubSetup}`;
     code += `    });\n`;
 
     for (const method of cls.methods) {
-      if (!method.name.startsWith('_')) {
+      if (!method.name.startsWith('_') && !method.name.startsWith('#')) {
         const methodParams = method.parameters.map((p) => this.generateTestValue(p)).join(', ');
-        const isVoid = method.returnType === 'void' || method.returnType === 'Promise<void>';
+        const isMethodVoid = method.returnType === 'void' || method.returnType === 'Promise<void>';
+
+        // Smart assertion for methods
+        let methodAssertion = 'expect(result).to.not.be.undefined;';
+        if (!isMethodVoid) {
+          if (/^(is|has|can)[A-Z]/.test(method.name)) {
+            methodAssertion = "expect(typeof result).to.equal('boolean');";
+          } else if (/^(create|build|make)[A-Z]/.test(method.name)) {
+            methodAssertion = 'expect(result).to.be.ok;';
+          } else if (method.returnType) {
+            const mrt = method.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
+            if (mrt.includes('boolean')) methodAssertion = "expect(typeof result).to.equal('boolean');";
+            else if (mrt.includes('number')) methodAssertion = "expect(typeof result).to.equal('number');";
+            else if (mrt.includes('string')) methodAssertion = "expect(typeof result).to.equal('string');";
+            else if (mrt.includes('[]') || mrt.includes('array')) methodAssertion = "expect(result).to.be.an('array');";
+          }
+        }
+
         code += `\n    it('${method.name} should work', ${method.isAsync ? 'async ' : ''}function() {\n`;
-        if (isVoid) {
+        if (isMethodVoid) {
           code += `      ${method.isAsync ? 'await ' : ''}instance.${method.name}(${methodParams});\n`;
         } else {
           code += `      const result = ${method.isAsync ? 'await ' : ''}instance.${method.name}(${methodParams});\n`;
-          code += `      expect(result).to.not.be.undefined;\n`;
+          code += `      ${methodAssertion}\n`;
         }
         code += `    });\n`;
       }

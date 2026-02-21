@@ -45,7 +45,7 @@ export interface TestWizardOptions {
 }
 
 export type TestType = 'unit' | 'integration' | 'e2e' | 'property' | 'contract';
-export type TestFramework = 'jest' | 'vitest' | 'mocha' | 'playwright';
+export type TestFramework = 'jest' | 'vitest' | 'mocha' | 'playwright' | 'node-test';
 export type AIEnhancementLevel = 'none' | 'basic' | 'standard' | 'advanced';
 
 export interface TestWizardResult extends BaseWizardResult {
@@ -268,6 +268,13 @@ class FrameworkSelectStep extends SingleSelectStep<TestFramework> {
         },
         {
           key: '4',
+          value: 'node-test',
+          label: 'node-test',
+          description: 'Node.js built-in test runner (node:test)',
+          isRecommended: false,
+        },
+        {
+          key: '5',
           value: 'playwright',
           label: 'playwright',
           description: 'Playwright - Browser automation (for e2e)',
@@ -275,7 +282,7 @@ class FrameworkSelectStep extends SingleSelectStep<TestFramework> {
         },
       ],
       defaultValue: effectiveDefault,
-      validValues: ['jest', 'vitest', 'mocha', 'playwright'],
+      validValues: ['jest', 'vitest', 'mocha', 'node-test', 'playwright'],
     });
 
     this.cwd = cwd;

@@ -184,16 +184,35 @@ ${importStatement}
       ? `await instance.${method.name}(${validParams})`
       : `instance.${method.name}(${validParams})`;
 
-    // Happy path test — use appropriate assertion for void vs non-void return
+    // Happy path test — use smart assertion for void vs non-void return
     const asyncPrefix = method.isAsync ? 'async ' : '';
     const isVoid = method.returnType === 'void' || method.returnType === 'Promise<void>';
+
+    // Smart assertion based on method name and return type
+    let methodAssertion = 'expect(result).toBeDefined();';
+    if (!isVoid) {
+      if (/^(is|has|can)[A-Z]/.test(method.name)) {
+        methodAssertion = "expect(typeof result).toBe('boolean');";
+      } else if (/^(get|fetch|find)[A-Z]/.test(method.name)) {
+        methodAssertion = 'expect(result).not.toBeUndefined();';
+      } else if (/^(create|build|make)[A-Z]/.test(method.name)) {
+        methodAssertion = 'expect(result).toBeTruthy();';
+      } else if (method.returnType) {
+        const mrt = method.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
+        if (mrt.includes('boolean')) methodAssertion = "expect(typeof result).toBe('boolean');";
+        else if (mrt.includes('number')) methodAssertion = "expect(typeof result).toBe('number');";
+        else if (mrt.includes('string')) methodAssertion = "expect(typeof result).toBe('string');";
+        else if (mrt.includes('[]') || mrt.includes('array')) methodAssertion = 'expect(Array.isArray(result)).toBe(true);';
+      }
+    }
+
     code += `    it('should execute successfully', ${asyncPrefix}() => {\n`;
     if (isVoid) {
       code += `      ${methodCall};\n`;
       code += `      // void return — no assertion on result needed\n`;
     } else {
       code += `      const result = ${methodCall};\n`;
-      code += `      expect(result).toBeDefined();\n`;
+      code += `      ${methodAssertion}\n`;
     }
     code += `    });\n`;
 
