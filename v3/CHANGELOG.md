@@ -5,6 +5,28 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.17] - 2026-02-21
+
+### Added
+
+- **HNSW semantic search** — `memory_query` now supports `semantic: true` for natural language queries using HNSW vector search with cosine similarity scoring, with automatic fallback to pattern matching
+- **Vector storage on write** — `memory_store` now indexes entries in the HNSW vector index alongside KV storage, so semantic search finds them immediately
+- **Hierarchical agent topology** — `fleet_init` with `topology: "hierarchical"` now assigns agents as domain leads or workers (first agent per domain becomes lead)
+- **MCP reconnection with buffering** — Transport errors trigger exponential backoff reconnection with request buffering and replay
+- **Real experience capture** — Tool executions now record patterns via ExperienceCaptureService instead of returning placeholder feedback
+
+### Fixed
+
+- **Stdio transport timeout under parallel load** — Write timeout increased from 30s to 120s with retry logic and backpressure handling, preventing dropped connections during parallel agent spawns
+- **Semantic search returned 0 results** — `memory_store` was only saving to KV store but not indexing vectors; now calls `storeVector()` after every write
+- **Embedding dimension mismatch** — Text embedding function now generates 768-dimension vectors matching the HNSW index configuration
+- **Transport stop() race condition** — `running` flag now set before closing readline, preventing error handler from triggering reconnect during explicit shutdown
+
+### Changed
+
+- Queen Coordinator documentation updated with semantic search parameters and complete tool reference table
+- Learning feedback messages now reflect actual capture status instead of hardcoded "patterns updated" text
+
 ## [3.6.16] - 2026-02-21
 
 ### Added
