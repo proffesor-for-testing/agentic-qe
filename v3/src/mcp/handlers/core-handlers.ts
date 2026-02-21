@@ -305,6 +305,24 @@ export async function handleFleetStatus(
       result.domains = domains;
     }
 
+    // Add teams summary (ADR-064)
+    const teamManager = state.queen!.getDomainTeamManager?.();
+    if (teamManager) {
+      const teams = teamManager.listDomainTeams();
+      let totalAgentsInTeams = 0;
+      let healthyCount = 0;
+      for (const team of teams) {
+        totalAgentsInTeams += 1 + team.teammateIds.length;
+        const health = teamManager.getTeamHealth(team.domain);
+        if (health?.healthy) healthyCount++;
+      }
+      result.teams = {
+        active: teams.length,
+        totalAgentsInTeams,
+        healthyCount,
+      };
+    }
+
     // Add metrics if requested
     if (params.includeMetrics) {
       result.metrics = {

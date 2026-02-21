@@ -21,6 +21,12 @@ import { toErrorMessage } from '../../shared/error-utils.js';
 // Agent List Handler
 // ============================================================================
 
+interface AgentTeamInfo {
+  domain: string;
+  role: 'lead' | 'teammate';
+  teamSize: number;
+}
+
 interface AgentInfoResponse {
   id: string;
   domain: DomainName;
@@ -29,6 +35,7 @@ interface AgentInfoResponse {
   name?: string;
   startedAt?: string;
   level?: string;
+  team?: AgentTeamInfo;
 }
 
 export async function handleAgentList(
@@ -58,6 +65,20 @@ export async function handleAgentList(
       agents = agents.slice(0, params.limit);
     }
 
+    // Build team membership lookup from DomainTeamManager
+    const teamLookup = new Map<string, AgentTeamInfo>();
+    const teamManager = queen!.getDomainTeamManager?.();
+    if (teamManager) {
+      const teams = teamManager.listDomainTeams();
+      for (const team of teams) {
+        const teamSize = 1 + team.teammateIds.length;
+        teamLookup.set(team.leadAgentId, { domain: team.domain, role: 'lead', teamSize });
+        for (const tid of team.teammateIds) {
+          teamLookup.set(tid, { domain: team.domain, role: 'teammate', teamSize });
+        }
+      }
+    }
+
     const result: AgentInfoResponse[] = agents.map((agent) => {
       const levelInfo = getAgentLevel(agent.id);
       return {
@@ -68,6 +89,7 @@ export async function handleAgentList(
         name: agent.name,
         startedAt: agent.startedAt?.toISOString(),
         level: levelInfo?.level,
+        team: teamLookup.get(agent.id),
       };
     });
 
