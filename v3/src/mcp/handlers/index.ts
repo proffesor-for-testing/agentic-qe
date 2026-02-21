@@ -62,6 +62,16 @@ export {
   setInfraHealingOrchestrator,
 } from './domain-handlers';
 
+// Team handlers (ADR-064)
+export {
+  handleTeamList,
+  handleTeamHealth,
+  handleTeamMessage,
+  handleTeamBroadcast,
+  handleTeamScale,
+  handleTeamRebalance,
+} from './team-handlers';
+
 // Memory handlers
 export {
   handleMemoryStore,

@@ -519,6 +519,26 @@ export class QueenCoordinator implements IQueenCoordinator {
 
     if (result.success) {
       this.domainLastActivity.set(domain, new Date());
+
+      // ADR-064: Auto-wire spawned agents into domain teams
+      if (this.domainTeamManager) {
+        const existingTeam = this.domainTeamManager.getDomainTeam(domain);
+        if (!existingTeam) {
+          try {
+            this.domainTeamManager.createDomainTeam(domain, result.value);
+          } catch {
+            // Race: another spawn created the team first — add as teammate instead
+            if (!this.domainTeamManager.addTeammate(domain, result.value)) {
+              console.warn(`[QueenCoordinator] Agent ${result.value} could not join ${domain} team (full or max teams reached)`);
+            }
+          }
+        } else {
+          if (!this.domainTeamManager.addTeammate(domain, result.value)) {
+            console.warn(`[QueenCoordinator] Agent ${result.value} could not join ${domain} team (full)`);
+          }
+        }
+      }
+
       await this.publishEvent('AgentSpawned', { agentId: result.value, domain, type, capabilities });
     }
 
@@ -627,6 +647,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   getTinyDancerRouter(): QueenRouterAdapter | null { return this.tinyDancerRouter; }
   getDomainBreakerRegistry(): DomainBreakerRegistry | null { return this.domainBreakerRegistry; }
   getDomainTeamManager(): DomainTeamManager | null { return this.domainTeamManager; }
+  getAgentTeamsAdapter(): AgentTeamsAdapter | null { return this.agentTeamsAdapter; }
   getTierSelector(): TierSelector | null { return this.tierSelector; }
   getTraceCollector(): TraceCollector | null { return this.traceCollector; }
   getHypothesisManager(): HypothesisManager | null { return this.hypothesisManager; }

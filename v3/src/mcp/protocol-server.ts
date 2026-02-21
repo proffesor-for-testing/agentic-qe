@@ -61,6 +61,13 @@ import {
   handleInfraHealingStatus,
   handleInfraHealingFeedOutput,
   handleInfraHealingRecover,
+  // ADR-064: Team handlers
+  handleTeamList,
+  handleTeamHealth,
+  handleTeamMessage,
+  handleTeamBroadcast,
+  handleTeamScale,
+  handleTeamRebalance,
 } from './handlers';
 
 // ADR-039: Performance optimization imports
@@ -648,6 +655,84 @@ export class MCPProtocolServer {
         ],
       },
       handler: (params) => handleAgentStatus(params as unknown as Parameters<typeof handleAgentStatus>[0]),
+    });
+
+    // ADR-064: Agent Team tools
+    this.registerTool({
+      definition: {
+        name: 'team_list',
+        description: 'List all domain teams',
+        category: 'agent',
+        parameters: [
+          { name: 'domain', type: 'string', description: 'Filter by domain' },
+        ],
+      },
+      handler: (params) => handleTeamList(params as unknown as Parameters<typeof handleTeamList>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'team_health',
+        description: 'Get team health for a domain',
+        category: 'agent',
+        parameters: [
+          { name: 'domain', type: 'string', description: 'Domain to check', required: true },
+        ],
+      },
+      handler: (params) => handleTeamHealth(params as unknown as Parameters<typeof handleTeamHealth>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'team_message',
+        description: 'Send message between agents',
+        category: 'agent',
+        parameters: [
+          { name: 'from', type: 'string', description: 'Sender agent ID', required: true },
+          { name: 'to', type: 'string', description: 'Recipient agent ID', required: true },
+          { name: 'type', type: 'string', description: 'Message type', required: true, enum: ['task-assignment', 'finding', 'challenge', 'consensus', 'alert', 'heartbeat', 'idle-notification', 'completion-report'] },
+          { name: 'payload', type: 'object', description: 'Message payload', required: true },
+          { name: 'domain', type: 'string', description: 'Override domain context' },
+        ],
+      },
+      handler: (params) => handleTeamMessage(params as unknown as Parameters<typeof handleTeamMessage>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'team_broadcast',
+        description: 'Broadcast to all agents in a domain',
+        category: 'agent',
+        parameters: [
+          { name: 'domain', type: 'string', description: 'Domain to broadcast to', required: true },
+          { name: 'type', type: 'string', description: 'Message type', required: true, enum: ['task-assignment', 'finding', 'challenge', 'consensus', 'alert', 'heartbeat', 'idle-notification', 'completion-report'] },
+          { name: 'payload', type: 'object', description: 'Message payload', required: true },
+        ],
+      },
+      handler: (params) => handleTeamBroadcast(params as unknown as Parameters<typeof handleTeamBroadcast>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'team_scale',
+        description: 'Scale a domain team up/down',
+        category: 'agent',
+        parameters: [
+          { name: 'domain', type: 'string', description: 'Domain to scale', required: true },
+          { name: 'targetSize', type: 'number', description: 'Target team size', required: true },
+        ],
+      },
+      handler: (params) => handleTeamScale(params as unknown as Parameters<typeof handleTeamScale>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'team_rebalance',
+        description: 'Rebalance agents across teams',
+        category: 'agent',
+        parameters: [],
+      },
+      handler: (params) => handleTeamRebalance(params as unknown as Parameters<typeof handleTeamRebalance>[0]),
     });
 
     // Domain tools - Test Generation
