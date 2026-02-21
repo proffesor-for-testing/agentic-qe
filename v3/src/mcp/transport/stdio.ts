@@ -73,6 +73,7 @@ export class StdioTransport {
   private rl: readline.Interface | null = null;
   private requestHandler: RequestHandler | null = null;
   private notificationHandler: NotificationHandler | null = null;
+  private errorHandler: ((error: Error) => void) | null = null;
   private running = false;
   private metrics: TransportMetrics = {
     messagesReceived: 0,
@@ -124,12 +125,20 @@ export class StdioTransport {
     });
 
     this.rl.on('close', () => {
+      const wasRunning = this.running;
       this.running = false;
+      // If we were running and didn't explicitly stop, this is an unexpected close
+      if (wasRunning && this.errorHandler) {
+        this.errorHandler(new Error('Transport connection closed unexpectedly'));
+      }
     });
 
     this.rl.on('error', (err) => {
       this.metrics.errors++;
       console.error('[StdioTransport] Readline error:', err);
+      if (this.errorHandler) {
+        this.errorHandler(err);
+      }
     });
   }
 
@@ -137,11 +146,13 @@ export class StdioTransport {
    * Stop listening
    */
   stop(): void {
+    // Set running to false BEFORE closing to prevent the close handler
+    // from triggering the error handler during explicit stop
+    this.running = false;
     if (this.rl) {
       this.rl.close();
       this.rl = null;
     }
-    this.running = false;
   }
 
   /**
@@ -161,6 +172,26 @@ export class StdioTransport {
       params,
     };
     await this.write(JSON.stringify(notification));
+  }
+
+  /**
+   * Set error handler for transport-level errors
+   */
+  onError(handler: (error: Error) => void): void {
+    this.errorHandler = handler;
+  }
+
+  /**
+   * Reconnect the transport by re-attaching to stdin/stdout.
+   * Closes the existing readline interface and creates a new one.
+   */
+  reconnect(): void {
+    if (this.rl) {
+      this.rl.close();
+      this.rl = null;
+    }
+    this.running = false;
+    this.start();
   }
 
   /**
@@ -293,13 +324,55 @@ export class StdioTransport {
     await this.sendResponse(response);
   }
 
-  private write(data: string): Promise<void> {
+  /**
+   * Write with retry and backpressure handling.
+   * Retries up to 3 times with exponential backoff before rejecting.
+   */
+  private async write(data: string): Promise<void> {
+    const maxAttempts = 3;
+    const backoffDelays = [0, 500, 1000];
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        await this.writeOnce(data);
+        return;
+      } catch (err) {
+        if (attempt < maxAttempts - 1) {
+          console.error(
+            `[StdioTransport] Write attempt ${attempt + 1} failed, retrying in ${backoffDelays[attempt + 1]}ms...`
+          );
+          await new Promise(r => setTimeout(r, backoffDelays[attempt + 1]));
+        } else {
+          throw err;
+        }
+      }
+    }
+  }
+
+  /**
+   * Single write attempt with 120s timeout and backpressure (drain) handling.
+   */
+  private async writeOnce(data: string): Promise<void> {
+    const message = data + '\n';
+
+    // Wait for drain if the stream has backpressure
+    if (this.outputStream.writableNeedDrain) {
+      await new Promise<void>((resolve, reject) => {
+        const drainTimeout = setTimeout(() => {
+          reject(new Error('Transport drain timeout after 30 seconds'));
+        }, 30000);
+        this.outputStream.once('drain', () => {
+          clearTimeout(drainTimeout);
+          resolve();
+        });
+      });
+    }
+
     return new Promise((resolve, reject) => {
-      const message = data + '\n';
       const writeTimeout = setTimeout(() => {
         this.metrics.errors++;
-        reject(new Error('Transport write timeout after 30 seconds'));
-      }, 30000);
+        reject(new Error('Transport write timeout after 120 seconds'));
+      }, 120000);
 
       this.outputStream.write(message, 'utf-8', (error) => {
         clearTimeout(writeTimeout);

@@ -370,6 +370,8 @@ export interface MemoryQueryParams {
   limit?: number;
   offset?: number;
   includeExpired?: boolean;
+  /** When true, use HNSW vector search instead of string pattern matching */
+  semantic?: boolean;
 }
 
 // ============================================================================

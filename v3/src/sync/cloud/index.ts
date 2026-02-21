@@ -18,3 +18,9 @@ export {
   createPostgresWriter,
   type PostgresWriterConfig,
 } from './postgres-writer.js';
+
+export {
+  PostgresReader,
+  createPostgresReader,
+  type PostgresReaderConfig,
+} from './postgres-reader.js';

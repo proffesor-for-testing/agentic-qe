@@ -324,6 +324,225 @@ export interface EmbeddingGenerator {
 }
 
 /**
+ * Pull source configuration (cloud → local)
+ */
+export interface PullSource {
+  /** Source name (for logging) */
+  name: string;
+
+  /** Cloud table to read from (e.g., 'aqe.qe_patterns') */
+  cloudTable: string;
+
+  /** Local SQLite table to write to */
+  localTable: string;
+
+  /** Whether this source is enabled */
+  enabled: boolean;
+
+  /** Priority level */
+  priority: 'high' | 'medium' | 'low';
+
+  /** Pull mode */
+  mode: 'full' | 'incremental' | 'append';
+
+  /** Column renames: cloud column → local column */
+  columnMap?: Record<string, string>;
+
+  /** Columns to strip from cloud records before local insert */
+  dropColumns?: string[];
+
+  /** Type transforms for specific columns */
+  transforms?: Record<string, 'boolean-to-int' | 'jsonb-to-text' | 'timestamptz-to-text'>;
+}
+
+/**
+ * Pull sync configuration
+ */
+export interface PullConfig {
+  /** Cloud database config */
+  cloud: CloudConfig;
+
+  /** Environment to filter by (or 'all' for cross-env) */
+  environment: string;
+
+  /** Pull sources */
+  sources: PullSource[];
+
+  /** Batch size for reads */
+  batchSize: number;
+
+  /** Dry run (no writes) */
+  dryRun?: boolean;
+
+  /** Target local DB path (defaults to .agentic-qe/memory.db) */
+  targetDb?: string;
+
+  /** Only pull specific tables */
+  tables?: string[];
+}
+
+/**
+ * Default pull configuration
+ *
+ * Maps cloud PostgreSQL tables back to local SQLite tables.
+ * Reverses the push column mappings from DEFAULT_SYNC_CONFIG.
+ */
+export const DEFAULT_PULL_CONFIG: PullConfig = {
+  cloud: {
+    project: process.env.GCP_PROJECT || '',
+    zone: process.env.GCP_ZONE || '',
+    instance: process.env.GCP_INSTANCE || '',
+    database: process.env.GCP_DATABASE || '',
+    user: process.env.GCP_USER || '',
+    tunnelPort: parseInt(process.env.GCP_TUNNEL_PORT || '15432', 10),
+  },
+  environment: process.env.AQE_ENV || 'all',
+  batchSize: 1000,
+  sources: [
+    // QE Patterns (cloud 0 records, but may grow)
+    {
+      name: 'qe-patterns',
+      cloudTable: 'aqe.qe_patterns',
+      localTable: 'qe_patterns',
+      enabled: true,
+      priority: 'high',
+      mode: 'incremental',
+      dropColumns: ['source_env', 'embedding', 'sync_version'],
+      transforms: { reusable: 'boolean-to-int' },
+    },
+    // SONA patterns (873 records)
+    {
+      name: 'sona-patterns',
+      cloudTable: 'aqe.sona_patterns',
+      localTable: 'sona_patterns',
+      enabled: true,
+      priority: 'high',
+      mode: 'incremental',
+      dropColumns: ['source_env', 'sync_version'],
+      transforms: {
+        is_active: 'boolean-to-int',
+        requires_fine_tuning: 'boolean-to-int',
+      },
+    },
+    // GOAP actions (2,335 records)
+    {
+      name: 'goap-actions',
+      cloudTable: 'aqe.goap_actions',
+      localTable: 'goap_actions',
+      enabled: true,
+      priority: 'high',
+      mode: 'incremental',
+      dropColumns: ['source_env', 'sync_version'],
+      columnMap: { duration_estimate: 'estimated_duration_ms' },
+    },
+    // GOAP plans (91 records)
+    {
+      name: 'goap-plans',
+      cloudTable: 'aqe.goap_plans',
+      localTable: 'goap_plans',
+      enabled: true,
+      priority: 'medium',
+      mode: 'incremental',
+      dropColumns: ['source_env', 'sync_version'],
+      columnMap: { estimated_duration: 'estimated_duration_ms' },
+    },
+    // Memory entries → kv_store (0 records in cloud currently)
+    {
+      name: 'memory-entries',
+      cloudTable: 'aqe.memory_entries',
+      localTable: 'kv_store',
+      enabled: true,
+      priority: 'high',
+      mode: 'incremental',
+      dropColumns: ['source_env', 'sync_version'],
+      columnMap: { partition: 'namespace' },
+    },
+    // Learning experiences → captured_experiences (7,702 records)
+    // Drop 'id' because cloud uses SERIAL auto-increment, local uses UUID
+    // Map 'created_at' → 'started_at' since push mapped started_at → created_at
+    {
+      name: 'learning-experiences',
+      cloudTable: 'aqe.learning_experiences',
+      localTable: 'captured_experiences',
+      enabled: true,
+      priority: 'high',
+      mode: 'append',
+      dropColumns: ['id', 'source_env', 'sync_version'],
+      columnMap: {
+        agent_id: 'agent',
+        task_id: 'task',
+        task_type: 'domain',
+        state: 'result_json',
+        action: 'steps_json',
+        reward: 'quality',
+        next_state: 'routing_json',
+        episode_id: 'tags',
+        created_at: 'started_at',
+      },
+    },
+    // Q-learning patterns → rl_q_values (3 records)
+    {
+      name: 'qlearning-patterns',
+      cloudTable: 'aqe.qlearning_patterns',
+      localTable: 'rl_q_values',
+      enabled: true,
+      priority: 'medium',
+      mode: 'incremental',
+      dropColumns: ['source_env', 'sync_version'],
+      columnMap: {
+        state: 'state_key',
+        action: 'action_key',
+        last_update: 'updated_at',
+      },
+    },
+    // Routing outcomes (186 records)
+    {
+      name: 'routing-outcomes',
+      cloudTable: 'aqe.routing_outcomes',
+      localTable: 'routing_outcomes',
+      enabled: true,
+      priority: 'medium',
+      mode: 'append',
+      dropColumns: ['source_env', 'sync_version'],
+    },
+    // QE trajectories (0 records in cloud currently)
+    {
+      name: 'qe-trajectories',
+      cloudTable: 'aqe.qe_trajectories',
+      localTable: 'qe_trajectories',
+      enabled: true,
+      priority: 'medium',
+      mode: 'append',
+      dropColumns: ['source_env', 'sync_version', 'embedding'],
+    },
+    // Dream insights (680 records)
+    {
+      name: 'dream-insights',
+      cloudTable: 'aqe.dream_insights',
+      localTable: 'dream_insights',
+      enabled: true,
+      priority: 'low',
+      mode: 'append',
+      dropColumns: ['source_env', 'sync_version'],
+    },
+    // Claude-Flow memory (2 records in cloud)
+    // Push syncs from JSON file; pull writes to kv_store since local has no dedicated table
+    {
+      name: 'claude-flow-memory',
+      cloudTable: 'aqe.claude_flow_memory',
+      localTable: 'kv_store',
+      enabled: true,
+      priority: 'low',
+      mode: 'incremental',
+      dropColumns: ['source_env', 'sync_version'],
+      columnMap: { partition: 'namespace' },
+    },
+    // NOTE: intelligence-qlearning (JSON push source) is NOT pulled back —
+    // the cloud qlearning_patterns table is already pulled via the qlearning-patterns source above.
+  ],
+};
+
+/**
  * SQLite to PostgreSQL type mapping
  */
 export const TYPE_MAPPING: Record<string, string> = {

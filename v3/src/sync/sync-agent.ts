@@ -36,8 +36,8 @@ import { LoggerFactory } from '../logging/index.js';
 
 const logger = LoggerFactory.create('sync-agent');
 
-import { createSQLiteReader, type SQLiteRecord } from './readers/sqlite-reader.js';
-import { createJSONReader, type JSONRecord } from './readers/json-reader.js';
+import { createSQLiteReader } from './readers/sqlite-reader.js';
+import { createJSONReader } from './readers/json-reader.js';
 import { createConnectionManager } from './cloud/tunnel-manager.js';
 import { createPostgresWriter } from './cloud/postgres-writer.js';
 import { toErrorMessage, toError } from '../shared/error-utils.js';
@@ -332,12 +332,18 @@ export class CloudSyncAgent {
 
       if (this.writer) {
         try {
+          // Use SET LOCAL to avoid HNSW index-only scan bug (ruvector HNSW
+          // indexes return 0 rows for COUNT(*) when chosen by the planner)
+          await this.writer.beginTransaction();
+          await this.writer.execute('SET LOCAL enable_indexonlyscan = off');
           const rows = await this.writer.query<{ count: number }>(
             `SELECT COUNT(*) as count FROM ${source.targetTable} WHERE source_env = $1`,
             [this.config.environment]
           );
+          await this.writer.commit();
           cloudCount = rows[0]?.count || 0;
         } catch (e) {
+          try { await this.writer.rollback(); } catch { /* ignore */ }
           logger.debug('Cloud count query failed', { source: source.name, error: e instanceof Error ? e.message : String(e) });
           cloudCount = -1; // Error
         }

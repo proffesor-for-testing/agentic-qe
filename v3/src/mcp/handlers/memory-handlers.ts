@@ -93,6 +93,21 @@ export async function handleMemoryStore(
       ttl: params.ttl,
     });
 
+    // Store vector embedding for semantic search (HNSW)
+    // Generate embedding from key + value text so memory_query semantic:true can find it
+    try {
+      const textForEmbedding = `${params.key} ${JSON.stringify(params.value)}`;
+      const embedding = textToSimpleEmbedding(textForEmbedding);
+      await kernel!.memory.storeVector(fullKey, embedding, {
+        key: params.key,
+        namespace,
+        storedAt: Date.now(),
+      });
+    } catch (vecErr) {
+      // Non-critical — KV store succeeded, vector indexing is best-effort
+      console.warn(`[MemoryHandler] Vector indexing failed for ${params.key}: ${toErrorMessage(vecErr)}`);
+    }
+
     // ADR-058: Register pattern after successful write for future contradiction detection
     if (isMemoryWriteGateEnabled()) {
       memoryWriteGateIntegration.registerPattern(
@@ -183,10 +198,20 @@ interface MemoryQueryResult {
   entries: Array<{
     key: string;
     namespace: string;
+    score?: number;
     timestamp?: string;
   }>;
   total: number;
   hasMore: boolean;
+  searchType: 'pattern' | 'semantic';
+}
+
+/**
+ * Detect if a query string looks like natural language (for auto-upgrade to semantic search).
+ * Natural language queries contain spaces and no glob wildcards.
+ */
+function isNaturalLanguageQuery(pattern: string): boolean {
+  return pattern.includes(' ') && !pattern.includes('*') && !pattern.includes('?');
 }
 
 export async function handleMemoryQuery(
@@ -206,7 +231,50 @@ export async function handleMemoryQuery(
     const limit = params.limit || 100;
     const offset = params.offset || 0;
 
-    // Query memory with pattern using search
+    // Determine if we should use semantic (HNSW vector) search
+    const useSemantic = params.semantic === true ||
+      (params.semantic !== false && params.pattern && isNaturalLanguageQuery(params.pattern));
+
+    if (useSemantic && params.pattern) {
+      // Use HNSW vector search for semantic queries
+      try {
+        // Generate a simple embedding from the query text
+        // Use the kernel's vectorSearch which leverages the HNSW index
+        const embedding = textToSimpleEmbedding(params.pattern);
+        const vectorResults = await kernel!.memory.vectorSearch(embedding, limit + offset);
+
+        // Filter by namespace if specified
+        const filtered = namespace !== 'default'
+          ? vectorResults.filter(r => r.key.startsWith(`${namespace}:`))
+          : vectorResults;
+
+        const paginatedResults = filtered.slice(offset, offset + limit);
+
+        const entries = paginatedResults.map(r => {
+          const parts = r.key.split(':');
+          return {
+            key: parts.length > 1 ? parts.slice(1).join(':') : r.key,
+            namespace: parts.length > 1 ? parts[0] : namespace,
+            score: r.score,
+          };
+        });
+
+        return {
+          success: true,
+          data: {
+            entries,
+            total: filtered.length,
+            hasMore: offset + limit < filtered.length,
+            searchType: 'semantic',
+          },
+        };
+      } catch (vectorError) {
+        // Fall back to pattern search if vector search fails
+        console.error(`[MemoryHandler] Semantic search failed, falling back to pattern: ${toErrorMessage(vectorError)}`);
+      }
+    }
+
+    // Standard pattern-based search (default path)
     const pattern = params.pattern
       ? `${namespace}:${params.pattern}`
       : `${namespace}:*`;
@@ -229,6 +297,7 @@ export async function handleMemoryQuery(
         entries,
         total: keys.length,
         hasMore: offset + limit < keys.length,
+        searchType: 'pattern',
       },
     };
   } catch (error) {
@@ -237,6 +306,38 @@ export async function handleMemoryQuery(
       error: `Failed to query memory: ${toErrorMessage(error)}`,
     };
   }
+}
+
+/**
+ * Generate a simple text embedding for semantic search.
+ * Uses 768 dimensions to match the HNSW index configuration.
+ * This creates a basic bag-of-words style embedding.
+ * For production, this would use a proper embedding model (e.g. all-MiniLM-L6-v2).
+ */
+function textToSimpleEmbedding(text: string): number[] {
+  const dimension = 768; // Must match HNSW index dimension
+  const embedding = new Array(dimension).fill(0);
+  const words = text.toLowerCase().split(/\s+/);
+
+  for (const word of words) {
+    // Simple hash-based distribution across dimensions
+    let hash = 0;
+    for (let i = 0; i < word.length; i++) {
+      hash = ((hash << 5) - hash + word.charCodeAt(i)) | 0;
+    }
+    const idx = Math.abs(hash) % dimension;
+    embedding[idx] += 1;
+  }
+
+  // Normalize the vector
+  const magnitude = Math.sqrt(embedding.reduce((sum: number, v: number) => sum + v * v, 0));
+  if (magnitude > 0) {
+    for (let i = 0; i < dimension; i++) {
+      embedding[i] /= magnitude;
+    }
+  }
+
+  return embedding;
 }
 
 // ============================================================================
