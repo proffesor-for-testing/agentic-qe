@@ -7,6 +7,9 @@
 import type { StepDef } from '../../integrations/orchestration/types';
 import type { AdidasTestContext } from './context';
 import { ensureArray } from '../../integrations/sterling/xml-helpers';
+import { tc01PdfSteps } from './tc01-pdf-checks';
+import { tc01EmailSteps } from './tc01-email-checks';
+import { tc01BrowserSteps } from './tc01-browser-checks';
 
 // ============================================================================
 // TC_01 Step Definitions
@@ -14,7 +17,7 @@ import { ensureArray } from '../../integrations/sterling/xml-helpers';
 // Steps marked layer:2 require IIB, layer:3 require NShift.
 // ============================================================================
 
-export const tc01Steps: StepDef<AdidasTestContext>[] = [
+const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
   // =========================================================================
   // FORWARD FLOW (Steps 1-12a)
   // =========================================================================
@@ -27,7 +30,7 @@ export const tc01Steps: StepDef<AdidasTestContext>[] = [
     execute: async (ctx) => {
       const start = Date.now();
       const result = await ctx.sterlingClient.getOrderDetails({
-        OrderNo: ctx.orderId || 'APT93030618',
+        OrderNo: ctx.orderId,
       });
 
       if (!result.success) {
@@ -582,4 +585,16 @@ export const tc01Steps: StepDef<AdidasTestContext>[] = [
       };
     },
   },
+];
+
+// ============================================================================
+// Combined TC01 Steps — Core + Layer 3 checks (~73 assertions).
+// Remaining IIB payload field-level validation (134 checks) pending.
+// ============================================================================
+
+export const tc01Steps: StepDef<AdidasTestContext>[] = [
+  ...tc01CoreSteps,
+  ...tc01PdfSteps,
+  ...tc01EmailSteps,
+  ...tc01BrowserSteps,
 ];

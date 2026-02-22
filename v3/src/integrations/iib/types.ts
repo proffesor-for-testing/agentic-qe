@@ -91,6 +91,31 @@ export interface MQBrowseConfig {
 }
 
 // ============================================================================
+// EPOCH DB Configuration (FALLBACK Layer 2 — MQ Browse is primary)
+// ============================================================================
+
+export interface EpochDBConfig {
+  /** Oracle hostname (e.g., 'MNGUS014' or '10.137.12.138') */
+  host: string;
+  /** Oracle listener port (default: 1521) */
+  port: number;
+  /** Oracle service name (e.g., 'MNGORA11') */
+  serviceName: string;
+  /** Database user (e.g., 'DOM232' for EPOCH schema) */
+  user: string;
+  /** Database password */
+  password: string;
+  /** Target schema (e.g., 'omsdev') */
+  schema?: string;
+  /** Connection pool minimum (default: 2) */
+  poolMin?: number;
+  /** Connection pool maximum (default: 10) */
+  poolMax?: number;
+  /** Connection timeout in ms (default: 15000) */
+  connectTimeout?: number;
+}
+
+// ============================================================================
 // Queue Mapping (client-specific)
 // ============================================================================
 
@@ -109,11 +134,13 @@ export interface FlowQueueMapping {
 // ============================================================================
 
 export interface IIBProviderConfig {
-  strategy: 'mq-browse' | 'admin-rest' | 'eai-hub' | 'sterling-audit';
+  strategy: 'mq-browse' | 'epoch-db' | 'admin-rest' | 'eai-hub' | 'sterling-audit';
   /** MQ browse config — required when strategy is 'mq-browse' */
   mqBrowse?: MQBrowseConfig;
-  /** Flow-to-queue mappings — required when strategy is 'mq-browse' */
+  /** Flow-to-queue mappings — required when strategy is 'mq-browse' or 'epoch-db' */
   queueMappings?: FlowQueueMapping[];
+  /** EPOCH DB config — required when strategy is 'epoch-db' */
+  epochDb?: EpochDBConfig;
   /** Base URL — for admin-rest or eai-hub strategies */
   baseUrl?: string;
   auth?: {

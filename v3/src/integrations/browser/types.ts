@@ -223,6 +223,43 @@ export class BrowserElementNotFoundError extends BrowserError {
 }
 
 // ============================================================================
+// Playwright POC — Lightweight Provider Interface (Adidas O2C)
+// ============================================================================
+
+/**
+ * Lightweight browser configuration for Playwright-based checks.
+ * Used by the Adidas O2C POC browser provider.
+ */
+export interface BrowserConfig {
+  baseUrl: string;
+  headless?: boolean;
+  timeout?: number;
+  username?: string;
+  password?: string;
+}
+
+/**
+ * Result of navigating to a page and capturing its content.
+ */
+export interface PageCheckResult {
+  url: string;
+  title: string;
+  textContent: string;
+  screenshot?: Buffer;
+}
+
+/**
+ * Minimal browser provider interface for E2E page-level checks.
+ * Wraps Playwright behind a simple provider contract.
+ */
+export interface BrowserProvider {
+  navigateAndCapture(path: string): Promise<PageCheckResult>;
+  findText(path: string, patterns: string[]): Promise<Map<string, boolean>>;
+  healthCheck(): Promise<boolean>;
+  close(): Promise<void>;
+}
+
+// ============================================================================
 // Main Interface - Both tools implement this
 // ============================================================================
 

@@ -5,8 +5,10 @@
  */
 
 import type { SterlingClientConfig } from '../../integrations/sterling/types';
-import type { MQBrowseConfig } from '../../integrations/iib/types';
+import type { MQBrowseConfig, EpochDBConfig } from '../../integrations/iib/types';
 import type { NShiftClientConfig } from '../../integrations/nshift/types';
+import type { EmailConfig } from '../../integrations/email/types';
+import type { BrowserConfig } from '../../integrations/browser/types';
 
 // ============================================================================
 // Adidas Client Config Shape
@@ -14,6 +16,10 @@ import type { NShiftClientConfig } from '../../integrations/nshift/types';
 
 export interface AdidasClientConfig {
   sterling: SterlingClientConfig;
+  epochDB: {
+    enabled: boolean;
+    config?: EpochDBConfig;
+  };
   mqBrowse: {
     enabled: boolean;
     config?: MQBrowseConfig;
@@ -21,6 +27,14 @@ export interface AdidasClientConfig {
   nshift: {
     enabled: boolean;
     config?: NShiftClientConfig;
+  };
+  email: {
+    enabled: boolean;
+    config?: EmailConfig;
+  };
+  browser: {
+    enabled: boolean;
+    config?: BrowserConfig;
   };
   region: string;
 }
@@ -92,7 +106,13 @@ export function loadAdidasConfig(): AdidasClientConfig {
   }
   const authMethod = authMethodRaw as 'basic' | 'bearer' | 'apikey';
 
-  // MQ Browse is enabled when host + queue manager are set
+  // EPOCH DB is enabled when host + user + password are set (FALLBACK Layer 2 — MQ Browse is primary)
+  const epochHost = optionalEnv('ADIDAS_EPOCH_DB_HOST');
+  const epochUser = optionalEnv('ADIDAS_EPOCH_DB_USER');
+  const epochPassword = optionalEnv('ADIDAS_EPOCH_DB_PASSWORD');
+  const epochEnabled = !!(epochHost && epochUser && epochPassword);
+
+  // MQ Browse is enabled when host + queue manager are set (PRIMARY Layer 2)
   const mqHost = optionalEnv('ADIDAS_MQ_HOST');
   const mqQueueManager = optionalEnv('ADIDAS_MQ_QUEUE_MANAGER');
   const mqEnabled = !!(mqHost && mqQueueManager);
@@ -101,6 +121,21 @@ export function loadAdidasConfig(): AdidasClientConfig {
   const nshiftHost = optionalEnv('ADIDAS_NSHIFT_API_HOST');
   const nshiftKey = optionalEnv('ADIDAS_NSHIFT_API_KEY');
   const nshiftEnabled = !!(nshiftHost && nshiftKey);
+
+  // Email is enabled when host + user are set (IMAP) or MS Graph creds are set
+  const emailHost = optionalEnv('ADIDAS_EMAIL_HOST');
+  const emailUser = optionalEnv('ADIDAS_EMAIL_USER');
+  const emailPassword = optionalEnv('ADIDAS_EMAIL_PASSWORD');
+  const msTenantId = optionalEnv('ADIDAS_EMAIL_MS_TENANT_ID');
+  const msClientId = optionalEnv('ADIDAS_EMAIL_MS_CLIENT_ID');
+  const msClientSecret = optionalEnv('ADIDAS_EMAIL_MS_CLIENT_SECRET');
+  const emailImapEnabled = !!(emailHost && emailUser && emailPassword);
+  const emailMsGraphEnabled = !!(msTenantId && msClientId && msClientSecret && emailUser);
+  const emailEnabled = emailImapEnabled || emailMsGraphEnabled;
+
+  // Browser is enabled when SSR base URL is set
+  const ssrBaseUrl = optionalEnv('ADIDAS_SSR_BASE_URL');
+  const browserEnabled = !!ssrBaseUrl;
 
   return {
     sterling: {
@@ -111,6 +146,19 @@ export function loadAdidasConfig(): AdidasClientConfig {
         password: optionalEnv('ADIDAS_STERLING_PASSWORD'),
         token: optionalEnv('ADIDAS_STERLING_TOKEN'),
       },
+    },
+    epochDB: {
+      enabled: epochEnabled,
+      config: epochEnabled ? {
+        host: epochHost!,
+        port: optionalInt('ADIDAS_EPOCH_DB_PORT') ?? 1521,
+        serviceName: optionalEnv('ADIDAS_EPOCH_DB_SERVICE') ?? 'MNGORA11',
+        user: epochUser!,
+        password: epochPassword!,
+        schema: optionalEnv('ADIDAS_EPOCH_DB_SCHEMA'),
+        poolMin: optionalInt('ADIDAS_EPOCH_DB_POOL_MIN'),
+        poolMax: optionalInt('ADIDAS_EPOCH_DB_POOL_MAX'),
+      } : undefined,
     },
     mqBrowse: {
       enabled: mqEnabled,
@@ -128,6 +176,23 @@ export function loadAdidasConfig(): AdidasClientConfig {
       config: nshiftEnabled ? {
         apiHost: nshiftHost,
         apiKey: nshiftKey,
+      } : undefined,
+    },
+    email: {
+      enabled: emailEnabled,
+      config: emailEnabled ? (
+        emailMsGraphEnabled
+          ? { provider: 'msgraph' as const, config: { tenantId: msTenantId!, clientId: msClientId!, clientSecret: msClientSecret!, userEmail: emailUser! } }
+          : { provider: 'imap' as const, config: { host: emailHost!, port: optionalInt('ADIDAS_EMAIL_PORT') ?? 993, user: emailUser!, password: emailPassword!, tls: true } }
+      ) : undefined,
+    },
+    browser: {
+      enabled: browserEnabled,
+      config: browserEnabled ? {
+        baseUrl: ssrBaseUrl!,
+        headless: optionalEnv('ADIDAS_SSR_HEADLESS') !== 'false',
+        username: optionalEnv('ADIDAS_SSR_USERNAME'),
+        password: optionalEnv('ADIDAS_SSR_PASSWORD'),
       } : undefined,
     },
     region: optionalEnv('ADIDAS_REGION') ?? 'ADWE',

@@ -168,14 +168,20 @@ class StepRunnerImpl<TContext extends BaseTestContext> implements StepRunner<TCo
     if (step.layer === 3 && this.skipLayer3) return true;
     if (step.requires.iib && this.skipLayer2) return true;
     if (step.requires.nshift && this.skipLayer3) return true;
+    if (step.requires.email && this.skipLayer3) return true;
+    if (step.requires.pdf && this.skipLayer3) return true;
+    if (step.requires.browser && this.skipLayer3) return true;
     return false;
   }
 
   private skipReason(step: StepDef<TContext>): string {
     if (step.layer === 2 && this.skipLayer2) return 'Layer 2 steps skipped (no IIB credentials)';
-    if (step.layer === 3 && this.skipLayer3) return 'Layer 3 steps skipped (no NShift credentials)';
+    if (step.layer === 3 && this.skipLayer3) return 'Layer 3 steps skipped (no Layer 3 credentials)';
     if (step.requires.iib && this.skipLayer2) return 'Requires IIB provider (not available)';
     if (step.requires.nshift && this.skipLayer3) return 'Requires NShift client (not available)';
+    if (step.requires.email && this.skipLayer3) return 'Requires email provider (not available)';
+    if (step.requires.pdf && this.skipLayer3) return 'Requires PDF extractor (not available)';
+    if (step.requires.browser && this.skipLayer3) return 'Requires browser provider (not available)';
     return 'Unknown skip reason';
   }
 }

@@ -23,6 +23,8 @@ export interface StepDef<TContext extends BaseTestContext = BaseTestContext> {
     iib?: boolean;
     nshift?: boolean;
     email?: boolean;
+    pdf?: boolean;
+    browser?: boolean;
   };
   execute: (ctx: TContext) => Promise<StepResult>;
 }

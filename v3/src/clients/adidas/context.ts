@@ -4,10 +4,17 @@
  */
 
 import type { BaseTestContext } from '../../integrations/orchestration/base-context';
+import type { BrowserProvider } from '../../integrations/browser/types';
+import type { EmailProvider } from '../../integrations/email/types';
+import type { PdfExtractor } from '../../integrations/pdf/types';
 import type { AdidasClientConfig } from './config';
 import { createSterlingClient } from '../../integrations/sterling/sterling-client';
 import { createMQBrowseProvider } from '../../integrations/iib/providers/mq-browse';
+import { createEpochDBProvider } from '../../integrations/iib/providers/epoch-db';
 import { createNShiftClient } from '../../integrations/nshift/nshift-client';
+import { createEmailProvider } from '../../integrations/email/email-provider';
+import { createBrowserProvider } from '../../integrations/browser/playwright-provider';
+import { createPdfExtractor } from '../../integrations/pdf/pdf-extractor';
 import { buildAdidasQueueMappings } from './queue-mapping';
 
 // ============================================================================
@@ -33,6 +40,16 @@ export interface AdidasTestContext extends BaseTestContext {
   returnOrderNo?: string;
   returnTracking?: string;
   creditNoteNo?: string;
+
+  // Layer 3 providers — available when credentials/packages are configured
+  emailProvider?: EmailProvider;
+  pdfExtractor?: PdfExtractor;
+  browserProvider?: BrowserProvider;
+
+  // PDF buffers — populated during test execution when PDFs are retrieved
+  forwardLabelPdf?: Buffer;
+  returnLabelPdf?: Buffer;
+  creditNotePdf?: Buffer;
 }
 
 // ============================================================================
@@ -43,24 +60,50 @@ export interface AdidasTestContext extends BaseTestContext {
  * Create an Adidas test context initialized with all available clients.
  * Mutable fields (shipments, invoiceNo, etc.) are populated by steps as they execute.
  *
- * Layer 2 (MQ browse) and Layer 3 (NShift) providers are wired up when
- * their credentials are available. Steps auto-skip when providers are missing.
+ * Provider priority for Layer 2 (IIB):
+ *   1. MQ Browse (primary — verifies actual IIB message flow execution)
+ *   2. EPOCH DB (fallback — verifies Sterling DB state as indirect evidence)
+ *
+ * Layer 3 providers (Email, PDF, Browser) are wired when credentials are available.
+ * Steps auto-skip when providers are missing.
  */
 export function createAdidasTestContext(config: AdidasClientConfig): AdidasTestContext {
+  const queueMappings = buildAdidasQueueMappings(config.region);
+
+  // Layer 2: MQ Browse is primary (verifies actual IIB message flow execution).
+  // EPOCH DB is fallback only (verifies Sterling DB state — indirect evidence).
+  const iibProvider = config.mqBrowse.enabled && config.mqBrowse.config
+    ? createMQBrowseProvider(config.mqBrowse.config, queueMappings)
+    : config.epochDB.enabled && config.epochDB.config
+      ? createEpochDBProvider(config.epochDB.config, queueMappings)
+      : undefined;
+
   return {
     // BaseTestContext fields
     orderId: '',
     documentType: '0001',
     sterlingClient: createSterlingClient(config.sterling),
 
-    // Layer 2: MQ browse provider (biggest lever: +94 checks including schema validation)
-    iibProvider: config.mqBrowse.enabled && config.mqBrowse.config
-      ? createMQBrowseProvider(config.mqBrowse.config, buildAdidasQueueMappings(config.region))
-      : undefined,
+    // Layer 2: IIB provider (MQ Browse primary, EPOCH DB fallback)
+    iibProvider,
 
-    // Layer 3: NShift client (+5 label checks)
+    // Layer 3: NShift client
     nshiftClient: config.nshift.enabled && config.nshift.config
       ? createNShiftClient(config.nshift.config)
+      : undefined,
+
+    // Layer 3: Email provider (IMAP or MS Graph)
+    emailProvider: config.email.enabled && config.email.config
+      ? createEmailProvider(config.email.config)
+      : undefined,
+
+    // Layer 3: PDF extractor (pdf-parse is loaded lazily on first use;
+    // creating the extractor is safe — it fails at extraction time if not installed)
+    pdfExtractor: createPdfExtractor(),
+
+    // Layer 3: Browser provider (Playwright)
+    browserProvider: config.browser.enabled && config.browser.config
+      ? createBrowserProvider(config.browser.config)
       : undefined,
 
     // Adidas-specific fields — populated during test execution
