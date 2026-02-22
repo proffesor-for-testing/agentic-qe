@@ -4,6 +4,12 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.6.18](v3.6.18.md) | 2026-02-21 | 6 new Agent Teams MCP tools, auto-team-wiring, team enriched responses |
+| [v3.6.17](v3.6.17.md) | 2026-02-21 | QE Queen Coordinator 7 fixes, HNSW semantic search, hierarchical topology |
+| [v3.6.16](v3.6.16.md) | 2026-02-21 | Node.js node:test generator, smart assertions, 12 bug fixes |
+| [v3.6.15](v3.6.15.md) | 2026-02-20 | Fix 11 test generation bugs (#295), fix cloud sync pg loading |
+| [v3.6.14](v3.6.14.md) | 2026-02-20 | Fix test OOM crashes, CI artifact upload, flaky test stabilization |
+| [v3.6.13](v3.6.13.md) | 2026-02-19 | Fix test stubs, MCP crash, vector mismatch, coverage, security scan |
 | [v3.6.12](v3.6.12.md) | 2026-02-19 | Fix HNSW crash, real security scanning, hooks directory, 5 issues fixed |
 | [v3.6.11](v3.6.11.md) | 2026-02-18 | MCP stability, multi-language support, smart init merge, 9 issues fixed |
 | [v3.6.10](v3.6.10.md) | 2026-02-18 | QCSD Production Telemetry, eval-driven workflow, KG test generation |

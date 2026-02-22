@@ -11,6 +11,18 @@
 - ALWAYS read a file before editing it
 - NEVER commit secrets, credentials, or .env files
 
+## Data Protection (ABSOLUTE — Data Loss = Unrecoverable)
+
+- NEVER overwrite, replace, recreate, or `rm` any `.db` file without explicit user confirmation
+- NEVER run DROP TABLE, DELETE FROM, or TRUNCATE on `.agentic-qe/memory.db` or any learning database
+- NEVER consolidate or migrate databases without verifying row counts before AND after
+- NEVER claim a sync or migration succeeded without querying the destination to verify actual row counts
+- ALWAYS backup before any database operation: `cp file.db file.db.bak-$(date +%s)`
+- ALWAYS verify integrity after operations: `sqlite3 file.db "PRAGMA integrity_check; SELECT COUNT(*) FROM qe_patterns;"`
+- ALWAYS remove stale WAL/SHM files when restoring: `rm -f file.db-wal file.db-shm`
+- When fixing sync/migration code, test against a COPY of the database, never the original
+- The `.agentic-qe/memory.db` contains 150K+ irreplaceable learning records — treat it like production data
+
 ## File Organization
 
 - NEVER save to root folder — use the directories below

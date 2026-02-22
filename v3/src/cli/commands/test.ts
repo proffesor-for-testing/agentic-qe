@@ -66,9 +66,13 @@ export function createTestCommand(
               console.log(chalk.gray(`      Assertions: ${test.assertions}`));
               if (test.testCode) {
                 console.log(chalk.gray(`      Test File: ${test.testFile}`));
-                console.log(`\n--- Generated Code ---`);
-                console.log(test.testCode);
-                console.log(`--- End Generated Code ---\n`);
+
+                // Bug #295 fix: Write generated test code to disk
+                const fs = await import('fs');
+                const testDir = path.dirname(test.testFile);
+                fs.mkdirSync(testDir, { recursive: true });
+                fs.writeFileSync(test.testFile, test.testCode, 'utf-8');
+                console.log(chalk.green(`      Written to: ${test.testFile}`));
               }
             }
             if (generated.tests.length > 10) {

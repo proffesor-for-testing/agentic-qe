@@ -30,19 +30,21 @@ export default defineConfig({
     hookTimeout: 15000,  // Prevent beforeEach/afterEach hangs (e.g., fleet init)
     // OOM & Segfault Prevention for DevPod/Codespaces (Vitest 4 format)
     // Process isolation via forks prevents HNSW native module segfaults.
-    // fileParallelism is ON (default) so multiple files run concurrently
-    // across forked workers — safe because each fork has its own HNSW instance.
+    // fileParallelism is OFF in DevPod to prevent concurrent fleet inits from
+    // allocating multiple HNSW indices + Queen + Kernel stacks simultaneously.
+    // CI uses sequential execution too since test files share global fleet state.
     pool: 'forks',
-    // OOM Prevention: Container cgroup = 8GB. NODE_OPTIONS=--max-old-space-size=2048 is
-    // inherited by EVERY fork, so 3 processes × 2GB = 6GB for tests alone — leaving no
-    // room for VS Code (~2GB) + Claude (~5GB). Fix: npm test script overrides NODE_OPTIONS
-    // to --max-old-space-size=1024, capping ALL processes (main + forks) to 1GB each.
-    fileParallelism: !process.env.CI,
-    maxForks: 2,
+    // OOM Prevention (Issue #294):
+    // DevPod has 16GB total. VS Code (~2GB) + Claude (~5GB) = 7GB overhead.
+    // Each fleet init allocates ~200-400MB (13 domain plugins + HNSW native memory).
+    // With maxForks=2 + main process: 3 × 1GB heap + native = ~4-5GB for tests.
+    // Setting maxForks=1 keeps peak at ~2-3GB, leaving headroom for the environment.
+    fileParallelism: false,
+    maxForks: 1,
     minForks: 1,
     isolate: true,     // Full process isolation prevents native module conflicts
     // Fail fast on OOM-prone environments
-    bail: process.env.CI ? 5 : 0,
+    bail: process.env.CI ? 5 : 3,
   },
   resolve: {
     alias: {

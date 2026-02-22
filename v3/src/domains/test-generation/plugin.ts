@@ -139,7 +139,7 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
 
         const sourceFiles = payload.sourceFiles as string[] | undefined;
         const testType = payload.testType as 'unit' | 'integration' | 'e2e' | undefined;
-        const framework = payload.framework as 'jest' | 'vitest' | 'mocha' | 'pytest' | undefined;
+        const framework = payload.framework as 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test' | undefined;
 
         if (!sourceFiles || sourceFiles.length === 0) {
           return err(new Error('Invalid generate-tests payload: missing sourceFiles'));

@@ -19,9 +19,16 @@ This project uses **Agentic QE v3** - a Domain-Driven Quality Engineering platfo
 - ✅ Use: `npm test -- --run` for single test runs
 - ✅ Use: `npm run test:unit`, `npm run test:integration` when available
 
-#### Data Protection
+#### Data Protection (ABSOLUTE — Data Loss = Unrecoverable)
 - ❌ NEVER run `rm -f` on `.agentic-qe/` or `*.db` files without confirmation
-- ✅ ALWAYS backup before database operations
+- ❌ NEVER overwrite, replace, or recreate a database file — data inside is irreplaceable
+- ❌ NEVER run DROP TABLE, DELETE FROM, or TRUNCATE on production/learning databases
+- ❌ NEVER consolidate or migrate databases without first verifying row counts before AND after
+- ❌ NEVER claim a sync/migration succeeded without querying the destination to verify row counts
+- ✅ ALWAYS backup before database operations: `cp file.db file.db.bak-$(date +%s)`
+- ✅ ALWAYS verify database integrity after any operation: `sqlite3 file.db "PRAGMA integrity_check; SELECT COUNT(*) FROM <main_table>;"`
+- ✅ ALWAYS remove stale WAL/SHM files when restoring from backup: `rm -f file.db-wal file.db-shm`
+- ✅ When fixing sync/migration code, test against a COPY of the database, never the original
 
 #### Git Operations
 - ❌ NEVER auto-commit/push without explicit user request

@@ -17,6 +17,7 @@ import {
   JestVitestGenerator,
   MochaGenerator,
   PytestGenerator,
+  NodeTestGenerator,
 } from '../generators';
 
 /**
@@ -27,6 +28,7 @@ const SUPPORTED_FRAMEWORKS: readonly TestFramework[] = [
   'vitest',
   'mocha',
   'pytest',
+  'node-test',
 ] as const;
 
 /**
@@ -123,6 +125,8 @@ export class TestGeneratorFactory implements ITestGeneratorFactory {
         return new MochaGenerator();
       case 'pytest':
         return new PytestGenerator();
+      case 'node-test':
+        return new NodeTestGenerator();
       default:
         // This should never happen due to type constraints,
         // but provides a fallback for runtime safety

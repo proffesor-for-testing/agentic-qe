@@ -61,6 +61,13 @@ import {
   handleInfraHealingStatus,
   handleInfraHealingFeedOutput,
   handleInfraHealingRecover,
+  // ADR-064: Team handlers
+  handleTeamList,
+  handleTeamHealth,
+  handleTeamMessage,
+  handleTeamBroadcast,
+  handleTeamScale,
+  handleTeamRebalance,
 } from './handlers';
 
 // ADR-039: Performance optimization imports
@@ -128,6 +135,10 @@ export class MCPProtocolServer {
   // AG-UI EventAdapter for streaming events to HTTP clients
   private readonly eventAdapter: EventAdapter;
 
+  // Connection recovery state
+  private reconnecting = false;
+  private pendingRequests: Array<{ resolve: (v: unknown) => void; reject: (e: Error) => void; request: JSONRPCRequest }> = [];
+
   constructor(config: MCPServerConfig = {}) {
     this.config = {
       name: config.name ?? 'agentic-qe-v3',
@@ -186,11 +197,66 @@ export class MCPProtocolServer {
       await this.handleNotification(notification);
     });
 
+    // Set up connection recovery
+    this.transport.onError(async (error) => {
+      console.error(`[MCP] Transport error: ${error.message}`);
+      await this.attemptReconnect();
+    });
+
     // Start transport
     this.transport.start();
 
     // Log startup
     console.error(`[MCP] ${this.config.name} v${this.config.version} started`);
+  }
+
+  /**
+   * Attempt to reconnect the transport with exponential backoff.
+   * Buffers requests during the reconnection window and replays them after success.
+   */
+  private async attemptReconnect(): Promise<void> {
+    if (this.reconnecting) return;
+    this.reconnecting = true;
+
+    const maxAttempts = 3;
+    const baseDelay = 1000; // 1s, 2s, 4s
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.error(`[MCP] Reconnect attempt ${attempt + 1}/${maxAttempts} in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+
+      try {
+        this.transport.reconnect();
+        console.error(`[MCP] Reconnected after ${attempt + 1} attempt(s)`);
+        this.reconnecting = false;
+
+        // Replay any buffered requests
+        const buffered = [...this.pendingRequests];
+        this.pendingRequests = [];
+        for (const { resolve, request } of buffered) {
+          try {
+            const result = await this.handleRequest(request);
+            resolve(result);
+          } catch (err) {
+            console.error(`[MCP] Failed to replay buffered request: ${request.method}`);
+          }
+        }
+        return;
+      } catch (err) {
+        console.error(`[MCP] Reconnect attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    this.reconnecting = false;
+    console.error('[MCP] All reconnect attempts failed. Tools unavailable until transport is restored.');
+
+    // Reject all buffered requests
+    const buffered = [...this.pendingRequests];
+    this.pendingRequests = [];
+    for (const { reject } of buffered) {
+      reject(new Error('MCP connection lost and reconnect failed'));
+    }
   }
 
   /**
@@ -591,6 +657,84 @@ export class MCPProtocolServer {
       handler: (params) => handleAgentStatus(params as unknown as Parameters<typeof handleAgentStatus>[0]),
     });
 
+    // ADR-064: Agent Team tools
+    this.registerTool({
+      definition: {
+        name: 'team_list',
+        description: 'List all domain teams',
+        category: 'agent',
+        parameters: [
+          { name: 'domain', type: 'string', description: 'Filter by domain' },
+        ],
+      },
+      handler: (params) => handleTeamList(params as unknown as Parameters<typeof handleTeamList>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'team_health',
+        description: 'Get team health for a domain',
+        category: 'agent',
+        parameters: [
+          { name: 'domain', type: 'string', description: 'Domain to check', required: true },
+        ],
+      },
+      handler: (params) => handleTeamHealth(params as unknown as Parameters<typeof handleTeamHealth>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'team_message',
+        description: 'Send message between agents',
+        category: 'agent',
+        parameters: [
+          { name: 'from', type: 'string', description: 'Sender agent ID', required: true },
+          { name: 'to', type: 'string', description: 'Recipient agent ID', required: true },
+          { name: 'type', type: 'string', description: 'Message type', required: true, enum: ['task-assignment', 'finding', 'challenge', 'consensus', 'alert', 'heartbeat', 'idle-notification', 'completion-report'] },
+          { name: 'payload', type: 'object', description: 'Message payload', required: true },
+          { name: 'domain', type: 'string', description: 'Override domain context' },
+        ],
+      },
+      handler: (params) => handleTeamMessage(params as unknown as Parameters<typeof handleTeamMessage>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'team_broadcast',
+        description: 'Broadcast to all agents in a domain',
+        category: 'agent',
+        parameters: [
+          { name: 'domain', type: 'string', description: 'Domain to broadcast to', required: true },
+          { name: 'type', type: 'string', description: 'Message type', required: true, enum: ['task-assignment', 'finding', 'challenge', 'consensus', 'alert', 'heartbeat', 'idle-notification', 'completion-report'] },
+          { name: 'payload', type: 'object', description: 'Message payload', required: true },
+        ],
+      },
+      handler: (params) => handleTeamBroadcast(params as unknown as Parameters<typeof handleTeamBroadcast>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'team_scale',
+        description: 'Scale a domain team up/down',
+        category: 'agent',
+        parameters: [
+          { name: 'domain', type: 'string', description: 'Domain to scale', required: true },
+          { name: 'targetSize', type: 'number', description: 'Target team size', required: true },
+        ],
+      },
+      handler: (params) => handleTeamScale(params as unknown as Parameters<typeof handleTeamScale>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'team_rebalance',
+        description: 'Rebalance agents across teams',
+        category: 'agent',
+        parameters: [],
+      },
+      handler: (params) => handleTeamRebalance(params as unknown as Parameters<typeof handleTeamRebalance>[0]),
+    });
+
     // Domain tools - Test Generation
     this.registerTool({
       definition: {
@@ -773,11 +917,12 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'memory_query',
-        description: 'Query memory with pattern matching',
+        description: 'Query memory with pattern matching or HNSW semantic search',
         category: 'memory',
         parameters: [
-          { name: 'pattern', type: 'string', description: 'Key pattern' },
+          { name: 'pattern', type: 'string', description: 'Key pattern (glob) or natural language query (for semantic search)' },
           { name: 'namespace', type: 'string', description: 'Memory namespace' },
+          { name: 'semantic', type: 'boolean', description: 'Use HNSW vector search instead of pattern matching. Auto-detected when pattern contains spaces and no wildcards.' },
         ],
       },
       handler: (params) => handleMemoryQuery(params as unknown as Parameters<typeof handleMemoryQuery>[0]),

@@ -22,7 +22,7 @@ export interface Pattern {
 /**
  * Supported test frameworks
  */
-export type TestFramework = 'jest' | 'vitest' | 'mocha' | 'pytest';
+export type TestFramework = 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test';
 
 /**
  * Types of tests that can be generated

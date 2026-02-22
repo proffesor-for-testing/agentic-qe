@@ -710,12 +710,39 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     params: ts.NodeArray<ts.ParameterDeclaration>,
     sourceFile: ts.SourceFile
   ): ParameterInfo[] {
-    return params.map((param) => ({
-      name: param.name.getText(sourceFile),
-      type: param.type?.getText(sourceFile),
-      optional: param.questionToken !== undefined,
-      defaultValue: param.initializer?.getText(sourceFile),
-    }));
+    let objectDestructureCount = 0;
+    let arrayDestructureCount = 0;
+
+    return params.map((param) => {
+      let name = param.name.getText(sourceFile);
+      let type = param.type?.getText(sourceFile);
+
+      // Handle destructuring patterns — extract a clean parameter name
+      // Suffix with index when multiple destructured params to avoid name collisions
+      if (ts.isObjectBindingPattern(param.name)) {
+        objectDestructureCount++;
+        name = objectDestructureCount > 1 ? `options${objectDestructureCount}` : 'options';
+        if (!type) {
+          const props = param.name.elements
+            .map((el) => `${el.name.getText(sourceFile)}: unknown`)
+            .join(', ');
+          type = `{ ${props} }`;
+        }
+      } else if (ts.isArrayBindingPattern(param.name)) {
+        arrayDestructureCount++;
+        name = arrayDestructureCount > 1 ? `items${arrayDestructureCount}` : 'items';
+        if (!type) {
+          type = 'unknown[]';
+        }
+      }
+
+      return {
+        name,
+        type,
+        optional: param.questionToken !== undefined,
+        defaultValue: param.initializer?.getText(sourceFile),
+      };
+    });
   }
 
   private calculateComplexity(node: ts.Node): number {
@@ -787,13 +814,22 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
 
       // Extract imports via regex (supports TS/JS and Python)
       const tsImports = sourceContent.matchAll(/(?:import|from)\s+['"]([^'"]+)['"]/g);
-      const pyImports = sourceContent.matchAll(/(?:^|\n)\s*(?:from\s+(\S+)\s+import|import\s+(\S+))/g);
 
       for (const match of tsImports) {
         imports.push(match[1]);
       }
-      for (const match of pyImports) {
-        imports.push(match[1] || match[2]);
+
+      // Bug #295 fix: Only run Python regex on .py files to avoid matching TS `{` from destructured imports
+      const isPython = filePath.endsWith('.py');
+      if (isPython) {
+        const pyImports = sourceContent.matchAll(/(?:^|\n)\s*(?:from\s+(\S+)\s+import|import\s+(\S+))/g);
+        for (const match of pyImports) {
+          const mod = match[1] || match[2];
+          // Skip entries that aren't valid module paths (e.g., stray punctuation)
+          if (mod && /^[a-zA-Z_][\w.]*$/.test(mod)) {
+            imports.push(mod);
+          }
+        }
       }
 
       // Cross-reference with KG vectors to find callers (files that import this one)

@@ -134,14 +134,124 @@ export interface V2LearningFeedback {
 }
 
 /**
- * Generate V2-compatible learning feedback
+ * Generate V2-compatible learning feedback (synchronous placeholder).
+ * For real learning capture, use captureExecutionLearning() instead.
  */
 export function generateV2LearningFeedback(agentType: string): V2LearningFeedback {
   return {
     enabled: true,
     agentId: generateAgentId(agentType),
-    message: 'Agent learned from this execution - patterns and Q-values updated'
+    message: 'Experience captured asynchronously via learning pipeline'
   };
+}
+
+/**
+ * Capture real execution learning through the experience capture service.
+ * This replaces the static generateV2LearningFeedback with actual pattern storage.
+ *
+ * Fire-and-forget safe: callers can await or ignore the returned promise.
+ */
+export async function captureExecutionLearning(
+  agentType: string,
+  toolName: string,
+  params: Record<string, unknown>,
+  result: unknown,
+  durationMs: number
+): Promise<V2LearningFeedback> {
+  const agentId = generateAgentId(agentType);
+
+  try {
+    const { kernel } = getFleetState();
+    if (!kernel) {
+      return { enabled: false, agentId, message: 'Learning engine not available - kernel not initialized' };
+    }
+
+    // Use the cached learning engine (same as pattern search)
+    const engine = await getLearningEngineForCapture();
+    if (!engine) {
+      return { enabled: false, agentId, message: 'Learning engine not available' };
+    }
+
+    const captureService = engine.getExperienceCaptureService();
+    if (!captureService) {
+      return { enabled: false, agentId, message: 'Experience capture service not available' };
+    }
+
+    // Map toolName to a QE domain
+    const domain = toolNameToDomain(toolName);
+
+    // Start and immediately complete a capture for this tool execution
+    const experienceId = captureService.startCapture(
+      `${toolName}: ${JSON.stringify(params).slice(0, 200)}`,
+      {
+        agent: agentType,
+        domain: domain || undefined,
+        metadata: {
+          tool: toolName,
+          durationMs,
+        },
+      }
+    );
+
+    captureService.recordStep(experienceId, {
+      action: `execute-${toolName}`,
+      result: typeof result === 'object' ? JSON.stringify(result).slice(0, 500) : String(result).slice(0, 500),
+      quality: 0.7, // Default quality for successful tool execution
+    });
+
+    const captureResult = await captureService.completeCapture(experienceId, {
+      success: true,
+      quality: 0.7,
+    });
+
+    if (captureResult.success) {
+      const experience = captureResult.value;
+      return {
+        enabled: true,
+        agentId,
+        message: `Experience captured: ${experience.id} (domain: ${domain || 'general'}, quality: ${experience.quality})`,
+        experienceId: experience.id,
+        domain: domain || 'general',
+      };
+    }
+
+    return { enabled: true, agentId, message: 'Experience capture completed (no pattern extracted)' };
+  } catch (error) {
+    // Non-critical — don't fail the tool call if learning fails
+    return {
+      enabled: false,
+      agentId,
+      message: `Learning capture failed: ${toErrorMessage(error)}`,
+    };
+  }
+}
+
+/**
+ * Map tool name to QE domain for experience capture
+ */
+function toolNameToDomain(toolName: string): import('../../learning/qe-patterns.js').QEDomain | null {
+  const mapping: Record<string, import('../../learning/qe-patterns.js').QEDomain> = {
+    'test_generate_enhanced': 'test-generation',
+    'test_execute_parallel': 'test-execution',
+    'coverage_analyze_sublinear': 'coverage-analysis',
+    'quality_assess': 'quality-assessment',
+    'security_scan_comprehensive': 'security-compliance',
+    'contract_validate': 'contract-testing',
+    'accessibility_test': 'visual-accessibility',
+    'chaos_test': 'chaos-resilience',
+    'defect_predict': 'defect-intelligence',
+    'requirements_validate': 'requirements-validation',
+    'code_index': 'code-intelligence',
+  };
+  return mapping[toolName] || null;
+}
+
+/**
+ * Get the learning engine for experience capture.
+ * Reuses the cached engine from pattern search.
+ */
+async function getLearningEngineForCapture(): Promise<import('../../learning/aqe-learning-engine.js').AQELearningEngine | null> {
+  return getLearningEngine();
 }
 
 /**
@@ -675,6 +785,15 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
         domain,
         result.duration
       );
+
+      // Step 5c: Capture real execution learning (fire-and-forget)
+      captureExecutionLearning(
+        `qe-${domain}`,
+        taskType,
+        params as Record<string, unknown>,
+        data,
+        result.duration
+      ).catch(() => {}); // Swallow errors — learning is non-critical
 
       return {
         success: true,

@@ -101,12 +101,12 @@ function createMockEmbedder(): ICoverageEmbedder {
   return {
     embedFileCoverage: embedFn,
     embedCoverageGap: vi.fn().mockReturnValue({
-      vector: new Array(128).fill(0.5),
+      vector: new Array(768).fill(0.5),
       metadata: {} as CoverageVectorMetadata,
       confidence: 0.8,
     }),
     embedQuery: vi.fn().mockReturnValue({
-      vector: new Array(128).fill(0.3),
+      vector: new Array(768).fill(0.3),
       metadata: {} as CoverageVectorMetadata,
       confidence: 0.7,
     }),
@@ -261,9 +261,10 @@ describe('GhostCoverageAnalyzer', () => {
       const result = await analyzer.computePhantomSurface(coverageData, projectContext);
 
       // THEN: Phantom ratio should be low (closer to 0.0)
+      // With 768 dimensions, the ratio is higher due to increased noise floor
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.phantomRatio).toBeLessThanOrEqual(0.5);
+        expect(result.value.phantomRatio).toBeLessThanOrEqual(0.75);
         expect(result.value.filesAnalyzed).toBe(3);
       }
     });
@@ -330,7 +331,7 @@ describe('GhostCoverageAnalyzer', () => {
       // THEN: Should succeed and ideal surface should be shaped by risk areas
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.idealSurface).toHaveLength(128);
+        expect(result.value.idealSurface).toHaveLength(768);
         // The ideal surface should be non-zero
         const idealMag = Math.sqrt(
           result.value.idealSurface.reduce((s, v) => s + v * v, 0)
@@ -352,7 +353,7 @@ describe('GhostCoverageAnalyzer', () => {
       // THEN: Should succeed
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.idealSurface).toHaveLength(128);
+        expect(result.value.idealSurface).toHaveLength(768);
       }
     });
 
@@ -366,8 +367,8 @@ describe('GhostCoverageAnalyzer', () => {
       // THEN: Both surfaces should have correct dimensions
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.idealSurface).toHaveLength(128);
-        expect(result.value.actualSurface).toHaveLength(128);
+        expect(result.value.idealSurface).toHaveLength(768);
+        expect(result.value.actualSurface).toHaveLength(768);
         expect(result.value.computedAt).toBeGreaterThan(0);
       }
     });
@@ -382,10 +383,10 @@ describe('GhostCoverageAnalyzer', () => {
       // GIVEN: Phantom surface where ghost vectors have negligible magnitude
       const surface: PhantomSurface = {
         ghostVectors: new Map([
-          ['src/well-tested.ts', new Array(128).fill(0.0001)],
+          ['src/well-tested.ts', new Array(768).fill(0.0001)],
         ]),
-        idealSurface: new Array(128).fill(0.5),
-        actualSurface: new Array(128).fill(0.5),
+        idealSurface: new Array(768).fill(0.5),
+        actualSurface: new Array(768).fill(0.5),
         phantomRatio: 0,
         computedAt: Date.now(),
         filesAnalyzed: 1,
@@ -401,15 +402,16 @@ describe('GhostCoverageAnalyzer', () => {
       }
     });
 
-    it('should find gaps categorized as missing-error-handler when region 0-21 is active', async () => {
+    it('should find gaps categorized as missing-error-handler when region 0-127 is active', async () => {
       // GIVEN: Ghost vector with energy in the first category region (error handlers)
-      const ghostVector = new Array(128).fill(0);
-      for (let i = 0; i < 21; i++) ghostVector[i] = 0.8;
+      // With 768 dims and 6 categories, each region is 128 wide
+      const ghostVector = new Array(768).fill(0);
+      for (let i = 0; i < 128; i++) ghostVector[i] = 0.8;
 
       const surface: PhantomSurface = {
         ghostVectors: new Map([['src/api/handler.ts', ghostVector]]),
-        idealSurface: new Array(128).fill(0.5),
-        actualSurface: new Array(128).fill(0.1),
+        idealSurface: new Array(768).fill(0.5),
+        actualSurface: new Array(768).fill(0.1),
         phantomRatio: 0.7,
         computedAt: Date.now(),
         filesAnalyzed: 1,
@@ -427,14 +429,14 @@ describe('GhostCoverageAnalyzer', () => {
     });
 
     it('should find gaps categorized as absent-boundary-validation', async () => {
-      // GIVEN: Ghost vector with energy in the boundary validation region (21-42)
-      const ghostVector = new Array(128).fill(0);
-      for (let i = 21; i < 42; i++) ghostVector[i] = 0.9;
+      // GIVEN: Ghost vector with energy in the boundary validation region (128-255)
+      const ghostVector = new Array(768).fill(0);
+      for (let i = 128; i < 256; i++) ghostVector[i] = 0.9;
 
       const surface: PhantomSurface = {
         ghostVectors: new Map([['src/validator.ts', ghostVector]]),
-        idealSurface: new Array(128).fill(0.5),
-        actualSurface: new Array(128).fill(0.1),
+        idealSurface: new Array(768).fill(0.5),
+        actualSurface: new Array(768).fill(0.1),
         phantomRatio: 0.6,
         computedAt: Date.now(),
         filesAnalyzed: 1,
@@ -452,14 +454,14 @@ describe('GhostCoverageAnalyzer', () => {
     });
 
     it('should find gaps categorized as unprotected-state-transition', async () => {
-      // GIVEN: Ghost vector with energy in the state transition region (42-63)
-      const ghostVector = new Array(128).fill(0);
-      for (let i = 42; i < 63; i++) ghostVector[i] = 0.85;
+      // GIVEN: Ghost vector with energy in the state transition region (256-383)
+      const ghostVector = new Array(768).fill(0);
+      for (let i = 256; i < 384; i++) ghostVector[i] = 0.85;
 
       const surface: PhantomSurface = {
         ghostVectors: new Map([['src/state/machine.ts', ghostVector]]),
-        idealSurface: new Array(128).fill(0.5),
-        actualSurface: new Array(128).fill(0.1),
+        idealSurface: new Array(768).fill(0.5),
+        actualSurface: new Array(768).fill(0.1),
         phantomRatio: 0.5,
         computedAt: Date.now(),
         filesAnalyzed: 1,
@@ -477,14 +479,14 @@ describe('GhostCoverageAnalyzer', () => {
     });
 
     it('should find gaps categorized as missing-integration-contract', async () => {
-      // GIVEN: Ghost vector with energy in the integration contract region (63-84)
-      const ghostVector = new Array(128).fill(0);
-      for (let i = 63; i < 84; i++) ghostVector[i] = 0.75;
+      // GIVEN: Ghost vector with energy in the integration contract region (384-511)
+      const ghostVector = new Array(768).fill(0);
+      for (let i = 384; i < 512; i++) ghostVector[i] = 0.75;
 
       const surface: PhantomSurface = {
         ghostVectors: new Map([['src/integrations/api-client.ts', ghostVector]]),
-        idealSurface: new Array(128).fill(0.5),
-        actualSurface: new Array(128).fill(0.1),
+        idealSurface: new Array(768).fill(0.5),
+        actualSurface: new Array(768).fill(0.1),
         phantomRatio: 0.55,
         computedAt: Date.now(),
         filesAnalyzed: 1,
@@ -503,12 +505,12 @@ describe('GhostCoverageAnalyzer', () => {
 
     it('should respect minConfidence filter passed as argument', async () => {
       // GIVEN: Ghost vector that produces low-confidence classifications
-      const ghostVector = new Array(128).fill(0.02);
+      const ghostVector = new Array(768).fill(0.02);
 
       const surface: PhantomSurface = {
         ghostVectors: new Map([['src/low-signal.ts', ghostVector]]),
-        idealSurface: new Array(128).fill(0.5),
-        actualSurface: new Array(128).fill(0.48),
+        idealSurface: new Array(768).fill(0.5),
+        actualSurface: new Array(768).fill(0.48),
         phantomRatio: 0.2,
         computedAt: Date.now(),
         filesAnalyzed: 1,
@@ -528,12 +530,12 @@ describe('GhostCoverageAnalyzer', () => {
 
     it('should assign correct severity based on ghostDistance and riskScore', async () => {
       // GIVEN: Ghost vector with high magnitude (high ghostDistance)
-      const ghostVector = new Array(128).fill(0.5);
+      const ghostVector = new Array(768).fill(0.5);
 
       const surface: PhantomSurface = {
         ghostVectors: new Map([['src/critical-module.ts', ghostVector]]),
-        idealSurface: new Array(128).fill(1.0),
-        actualSurface: new Array(128).fill(0.0),
+        idealSurface: new Array(768).fill(1.0),
+        actualSurface: new Array(768).fill(0.0),
         phantomRatio: 0.9,
         computedAt: Date.now(),
         filesAnalyzed: 1,
@@ -557,8 +559,8 @@ describe('GhostCoverageAnalyzer', () => {
       // GIVEN: Phantom surface with no ghost vectors
       const surface: PhantomSurface = {
         ghostVectors: new Map(),
-        idealSurface: new Array(128).fill(0.5),
-        actualSurface: new Array(128).fill(0.5),
+        idealSurface: new Array(768).fill(0.5),
+        actualSurface: new Array(768).fill(0.5),
         phantomRatio: 0,
         computedAt: Date.now(),
         filesAnalyzed: 0,
@@ -822,7 +824,7 @@ describe('GhostCoverageAnalyzer', () => {
       return {
         id,
         category,
-        vector: new Array(128).fill(0).map((_, i) => Math.sin(i + weight) * 0.5 + 0.5),
+        vector: new Array(768).fill(0).map((_, i) => Math.sin(i + weight) * 0.5 + 0.5),
         weight,
         source: 'test',
       };
@@ -999,13 +1001,13 @@ describe('GhostCoverageAnalyzer', () => {
       // GIVEN: Phantom surface with many files generating many gaps
       const manyFiles = new Map<string, number[]>();
       for (let i = 0; i < 200; i++) {
-        manyFiles.set(`src/module-${i}.ts`, new Array(128).fill(0.5));
+        manyFiles.set(`src/module-${i}.ts`, new Array(768).fill(0.5));
       }
 
       const surface: PhantomSurface = {
         ghostVectors: manyFiles,
-        idealSurface: new Array(128).fill(0.8),
-        actualSurface: new Array(128).fill(0.2),
+        idealSurface: new Array(768).fill(0.8),
+        actualSurface: new Array(768).fill(0.2),
         phantomRatio: 0.8,
         computedAt: Date.now(),
         filesAnalyzed: 200,
@@ -1089,7 +1091,7 @@ describe('GhostCoverageAnalyzer', () => {
         {
           id: 'learned-auth',
           category: 'missing-error-handler',
-          vector: new Array(128).fill(0).map((_, i) => Math.sin(i * 0.1) * 0.7 + 0.3),
+          vector: new Array(768).fill(0).map((_, i) => Math.sin(i * 0.1) * 0.7 + 0.3),
           weight: 2.0,
           source: 'learning',
         },

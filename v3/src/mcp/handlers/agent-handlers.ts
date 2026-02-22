@@ -5,7 +5,7 @@
  * ADR-039: Integrated with load balancer for intelligent agent selection
  */
 
-import { getFleetState, isFleetInitialized } from './core-handlers';
+import { getFleetState, isFleetInitialized, assignAgentLevel, getAgentLevel } from './core-handlers';
 import {
   ToolResult,
   AgentListParams,
@@ -21,6 +21,12 @@ import { toErrorMessage } from '../../shared/error-utils.js';
 // Agent List Handler
 // ============================================================================
 
+interface AgentTeamInfo {
+  domain: string;
+  role: 'lead' | 'teammate';
+  teamSize: number;
+}
+
 interface AgentInfoResponse {
   id: string;
   domain: DomainName;
@@ -28,6 +34,8 @@ interface AgentInfoResponse {
   status: string;
   name?: string;
   startedAt?: string;
+  level?: string;
+  team?: AgentTeamInfo;
 }
 
 export async function handleAgentList(
@@ -57,14 +65,33 @@ export async function handleAgentList(
       agents = agents.slice(0, params.limit);
     }
 
-    const result: AgentInfoResponse[] = agents.map((agent) => ({
-      id: agent.id,
-      domain: agent.domain,
-      type: agent.type,
-      status: agent.status,
-      name: agent.name,
-      startedAt: agent.startedAt?.toISOString(),
-    }));
+    // Build team membership lookup from DomainTeamManager
+    const teamLookup = new Map<string, AgentTeamInfo>();
+    const teamManager = queen!.getDomainTeamManager?.();
+    if (teamManager) {
+      const teams = teamManager.listDomainTeams();
+      for (const team of teams) {
+        const teamSize = 1 + team.teammateIds.length;
+        teamLookup.set(team.leadAgentId, { domain: team.domain, role: 'lead', teamSize });
+        for (const tid of team.teammateIds) {
+          teamLookup.set(tid, { domain: team.domain, role: 'teammate', teamSize });
+        }
+      }
+    }
+
+    const result: AgentInfoResponse[] = agents.map((agent) => {
+      const levelInfo = getAgentLevel(agent.id);
+      return {
+        id: agent.id,
+        domain: agent.domain,
+        type: agent.type,
+        status: agent.status,
+        name: agent.name,
+        startedAt: agent.startedAt?.toISOString(),
+        level: levelInfo?.level,
+        team: teamLookup.get(agent.id),
+      };
+    });
 
     return {
       success: true,
@@ -88,6 +115,8 @@ interface AgentSpawnResult {
   type: string;
   status: 'spawned' | 'queued';
   capabilities: string[];
+  /** Hierarchical level: lead (first in domain) or worker (subsequent) */
+  level?: string;
 }
 
 export async function handleAgentSpawn(
@@ -120,6 +149,9 @@ export async function handleAgentSpawn(
     const balancer = getLoadBalancer();
     balancer.registerAgent(result.value);
 
+    // Assign hierarchical level based on topology
+    const level = assignAgentLevel(result.value, params.domain);
+
     return {
       success: true,
       data: {
@@ -128,6 +160,7 @@ export async function handleAgentSpawn(
         type: params.type || 'worker',
         status: 'spawned',
         capabilities: params.capabilities || ['general'],
+        level,
       },
     };
   } catch (error) {

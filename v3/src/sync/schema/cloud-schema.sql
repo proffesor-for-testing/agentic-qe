@@ -240,6 +240,70 @@ CREATE TABLE IF NOT EXISTS aqe.intelligence_memories (
 );
 
 -- ============================================================================
+-- Execution & Routing Tables (added 2026-02-20)
+-- ============================================================================
+
+-- Routing outcomes (model routing decisions)
+-- Source: .agentic-qe/memory.db → routing_outcomes
+CREATE TABLE IF NOT EXISTS aqe.routing_outcomes (
+    id TEXT PRIMARY KEY,
+    task_json JSONB NOT NULL,
+    decision_json JSONB NOT NULL,
+    used_agent TEXT NOT NULL,
+    followed_recommendation BOOLEAN NOT NULL,
+    success BOOLEAN NOT NULL,
+    quality_score REAL NOT NULL,
+    duration_ms REAL NOT NULL,
+    error TEXT,
+    source_env TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- QE trajectories (execution traces)
+-- Source: .agentic-qe/memory.db → qe_trajectories
+CREATE TABLE IF NOT EXISTS aqe.qe_trajectories (
+    id TEXT PRIMARY KEY,
+    task TEXT NOT NULL,
+    agent TEXT,
+    domain TEXT,
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    ended_at TIMESTAMPTZ,
+    success BOOLEAN,
+    steps_json JSONB,
+    metadata_json JSONB,
+    embedding ruvector(384),
+    feedback TEXT,
+    related_patterns TEXT,
+    source_env TEXT NOT NULL
+);
+
+-- Dream insights (consolidation results)
+-- Source: .agentic-qe/memory.db → dream_insights
+CREATE TABLE IF NOT EXISTS aqe.dream_insights (
+    id TEXT PRIMARY KEY,
+    cycle_id TEXT NOT NULL,
+    insight_type TEXT NOT NULL,
+    source_concepts TEXT NOT NULL,
+    description TEXT NOT NULL,
+    novelty_score REAL DEFAULT 0.5,
+    confidence_score REAL DEFAULT 0.5,
+    actionable BOOLEAN DEFAULT FALSE,
+    applied BOOLEAN DEFAULT FALSE,
+    suggested_action TEXT,
+    pattern_id TEXT,
+    source_env TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for new tables
+CREATE INDEX IF NOT EXISTS idx_routing_outcomes_agent ON aqe.routing_outcomes(used_agent);
+CREATE INDEX IF NOT EXISTS idx_routing_outcomes_source ON aqe.routing_outcomes(source_env);
+CREATE INDEX IF NOT EXISTS idx_qe_trajectories_domain ON aqe.qe_trajectories(domain);
+CREATE INDEX IF NOT EXISTS idx_qe_trajectories_source ON aqe.qe_trajectories(source_env);
+CREATE INDEX IF NOT EXISTS idx_dream_insights_type ON aqe.dream_insights(insight_type);
+CREATE INDEX IF NOT EXISTS idx_dream_insights_source ON aqe.dream_insights(source_env);
+
+-- ============================================================================
 -- Sync Metadata Tables
 -- ============================================================================
 

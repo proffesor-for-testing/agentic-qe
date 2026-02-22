@@ -12,3 +12,4 @@ export { BaseTestGenerator } from './base-test-generator';
 export { JestVitestGenerator } from './jest-vitest-generator';
 export { MochaGenerator } from './mocha-generator';
 export { PytestGenerator } from './pytest-generator';
+export { NodeTestGenerator } from './node-test-generator';

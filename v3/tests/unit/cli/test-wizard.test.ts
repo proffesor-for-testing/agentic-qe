@@ -113,16 +113,16 @@ describe('TestGenerationWizard', () => {
   });
 
   describe('Test Frameworks', () => {
-    const validFrameworks: TestFramework[] = ['jest', 'vitest', 'mocha', 'playwright'];
+    const validFrameworks: TestFramework[] = ['jest', 'vitest', 'mocha', 'playwright', 'node-test'];
 
     it('should support all frameworks', () => {
       validFrameworks.forEach(framework => {
-        expect(['jest', 'vitest', 'mocha', 'playwright']).toContain(framework);
+        expect(['jest', 'vitest', 'mocha', 'playwright', 'node-test']).toContain(framework);
       });
     });
 
-    it('should have 4 frameworks', () => {
-      expect(validFrameworks).toHaveLength(4);
+    it('should have 5 frameworks', () => {
+      expect(validFrameworks).toHaveLength(5);
     });
   });
 

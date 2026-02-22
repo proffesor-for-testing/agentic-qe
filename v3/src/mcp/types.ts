@@ -370,7 +370,60 @@ export interface MemoryQueryParams {
   limit?: number;
   offset?: number;
   includeExpired?: boolean;
+  /** When true, use HNSW vector search instead of string pattern matching */
+  semantic?: boolean;
 }
+
+// ============================================================================
+// Team Tool Parameters (ADR-064)
+// ============================================================================
+
+/**
+ * Team list parameters
+ */
+export interface TeamListParams {
+  domain?: string;
+}
+
+/**
+ * Team health parameters
+ */
+export interface TeamHealthParams {
+  domain: string;
+}
+
+/**
+ * Team message parameters
+ */
+export interface TeamMessageParams {
+  from: string;
+  to: string;
+  type: string;
+  payload: Record<string, unknown>;
+  domain?: string;
+}
+
+/**
+ * Team broadcast parameters
+ */
+export interface TeamBroadcastParams {
+  domain: string;
+  type: string;
+  payload: Record<string, unknown>;
+}
+
+/**
+ * Team scale parameters
+ */
+export interface TeamScaleParams {
+  domain: string;
+  targetSize: number;
+}
+
+/**
+ * Team rebalance parameters (no params required)
+ */
+export type TeamRebalanceParams = Record<string, never>;
 
 // ============================================================================
 // Tool Results
@@ -406,6 +459,12 @@ export interface FleetStatusResult {
   };
   domains?: DomainStatusResult[];
   metrics?: FleetMetricsResult;
+  /** ADR-064: Agent Teams summary */
+  teams?: {
+    active: number;
+    totalAgentsInTeams: number;
+    healthyCount: number;
+  };
 }
 
 /**

@@ -5,6 +5,96 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.18] - 2026-02-21
+
+### Added
+
+- **6 new Agent Teams MCP tools** — `team_list`, `team_health`, `team_message`, `team_broadcast`, `team_scale`, `team_rebalance` expose ADR-064 domain team management via MCP
+- **Team membership in agent_list** — Each agent now shows its team role (`lead` or `teammate`) and team size
+- **Teams summary in fleet_status** — Fleet status response now includes active teams count, total agents in teams, and healthy team count
+- **Auto-team-wiring on agent spawn** — Agents are automatically registered in domain teams when spawned (first agent = lead, subsequent = teammates)
+- **addTeammate() on DomainTeamManager** — New method to add real agent IDs as teammates (instead of synthetic IDs from scaleTeam)
+- **Runtime message-type validation** — `team_message` and `team_broadcast` reject invalid message types with clear error messages
+
+### Fixed
+
+- **Race condition in parallel agent spawns** — Two concurrent spawns for the same domain no longer cause the second agent to become a ghost; the create-team failure now falls back to addTeammate
+- **Duplicate agent guard** — `addTeammate()` rejects agents already in the team, preventing corrupted team size calculations
+
+## [3.6.17] - 2026-02-21
+
+### Added
+
+- **HNSW semantic search** — `memory_query` now supports `semantic: true` for natural language queries using HNSW vector search with cosine similarity scoring, with automatic fallback to pattern matching
+- **Vector storage on write** — `memory_store` now indexes entries in the HNSW vector index alongside KV storage, so semantic search finds them immediately
+- **Hierarchical agent topology** — `fleet_init` with `topology: "hierarchical"` now assigns agents as domain leads or workers (first agent per domain becomes lead)
+- **MCP reconnection with buffering** — Transport errors trigger exponential backoff reconnection with request buffering and replay
+- **Real experience capture** — Tool executions now record patterns via ExperienceCaptureService instead of returning placeholder feedback
+
+### Fixed
+
+- **Stdio transport timeout under parallel load** — Write timeout increased from 30s to 120s with retry logic and backpressure handling, preventing dropped connections during parallel agent spawns
+- **Semantic search returned 0 results** — `memory_store` was only saving to KV store but not indexing vectors; now calls `storeVector()` after every write
+- **Embedding dimension mismatch** — Text embedding function now generates 768-dimension vectors matching the HNSW index configuration
+- **Transport stop() race condition** — `running` flag now set before closing readline, preventing error handler from triggering reconnect during explicit shutdown
+
+### Changed
+
+- Queen Coordinator documentation updated with semantic search parameters and complete tool reference table
+- Learning feedback messages now reflect actual capture status instead of hardcoded "patterns updated" text
+
+## [3.6.16] - 2026-02-21
+
+### Added
+
+- **Node.js `node:test` runner** — 5th test framework using `node:test` describe/it and `node:assert`. Generate tests with `--framework node-test` for zero-dependency testing on Node.js 18+.
+- **Smart assertions** — Test generators now infer assertion type from function name (`is*` → boolean, `get*` → not undefined, `create*` → truthy) and return type, across all 5 generators including class methods.
+- **Destructured parameter handling** — Functions with `({ a, b })` or `([x, y])` parameters now get proper test values instead of broken variable references. Multiple destructured params get indexed names to avoid collisions.
+
+### Fixed
+
+- **`convertToAssert()` double-lambda bug** — `assert.throws(() => action)` never threw because `action` was already a function. Now correctly passes `assert.throws(action)`.
+- **`convertToAssert()` regex ordering** — Specific patterns (`typeof`, `Array.isArray`) now fire before generic `toBe`, preventing garbled output.
+- **Missing `toBeInstanceOf` conversion** — Node:test generator now converts `expect(e).toBeInstanceOf(Error)` to `assert.ok(e instanceof Error)`.
+- **Unconverted `expect()` in action fields** — Boundary/edge-case test actions containing `expect()` are now converted to `assert.*` for node:test output.
+- **`is`/`has`/`can` prefix false positives** — Smart assertions now require uppercase after prefix (e.g., `isValid` matches but `isolate` does not).
+- **Mocha/Pytest missing `#` private method filter** — ES private methods (`#method`) are now excluded from generated tests in all frameworks.
+- **`node-test` missing from runtime paths** — Added to task executor, CLI wizard, shell completions, MCP tools, and plugin interfaces.
+
+### Changed
+
+- Smart assertions now apply to class method tests across all generators (previously only standalone functions)
+- Factory test suite expanded to cover all 5 frameworks in integration tests
+
+## [3.6.15] - 2026-02-20
+
+### Fixed
+
+- **Test generation produces unusable stub code** (#295) — Fixed 11 bugs across 8 files in the test-generation domain:
+  - Python import regex matching `{` from TypeScript destructured imports as a dependency
+  - Non-exported functions/classes getting test stubs (all 4 generators: Jest, Vitest, Mocha, Pytest)
+  - Undefined `mockXxx` variables from unknown types — now returns safe inline values
+  - Missing void return type handling in Mocha and Pytest generators
+  - `pattern-matcher` `generateMockValue()` returning bare variable references
+  - Generated test files only printed to stdout, never written to disk
+  - Blanket `toThrow()` assertions for undefined params — now wrapped in try-catch
+- **Cloud sync silently falls back to mock mode** — `await import('pg')` fails inside esbuild bundles. Changed to `createRequire(import.meta.url)('pg')` which resolves correctly at runtime. Separated "pg not installed" from "connection failed" error paths.
+- **Cloud sync source paths resolve to wrong directory** — JSON source paths used `../` prefix that resolved relative to `v3/` instead of project root. Fixed all sync source paths to use `./` prefix.
+
+### Added
+
+- Data protection rules in CLAUDE.md to prevent accidental database deletion or corruption by AI agents
+
+## [3.6.14] - 2026-02-20
+
+### Fixed
+
+- **MCP unit test timeouts and DevPod OOM crashes** (#294, #251) — Mock `createTaskExecutor` at module level in domain-handlers and wrapped-domain-handlers tests to prevent real task execution (each fleet init allocates ~200-400MB). Reduced fleet init from ~31x to ~5x per test file via shared beforeAll/afterAll lifecycle in core-handlers tests.
+- **Vitest parallel execution causing memory exhaustion** — Changed `maxForks: 2` to `1` and disabled `fileParallelism` in vitest.config.ts. Added `bail: 3` to fail fast instead of accumulating OOM pressure.
+- **CI artifact upload 403 Forbidden** (#294) — Added `actions: write` permission to `optimized-ci.yml` and `mcp-tools-test.yml` workflows for `upload-artifact@v4`.
+- **Topology optimizer flaky convergence test** (#251) — Widened tolerance from `earlyAvg * 2` to `earlyAvg * 3` and added `retry: 3` for probabilistic convergence assertion.
+- **Test assertions using 128-dim instead of 768-dim** — Updated remaining test assertions to match the 768-dim embedding vectors from v3.6.12's HNSW fix.
+
 ## [3.6.13] - 2026-02-19
 
 ### Fixed

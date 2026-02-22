@@ -65,14 +65,16 @@ export class PytestGenerator extends BaseTestGenerator {
         ? `from ${pythonImport} import ${exports.join(', ')}`
         : `import ${pythonImport} as ${moduleName}`;
 
-    // KG: Add mock imports for known dependencies
+    // KG: Add mock imports for external (non-relative) dependencies only.
+    // Relative imports (./foo, ../bar) are invalid Python patch targets.
+    const externalDeps = dependencies?.imports.filter(dep => !dep.startsWith('.')) || [];
     let mockImport = '';
-    if (dependencies && dependencies.imports.length > 0) {
+    if (externalDeps.length > 0) {
       mockImport = `from unittest.mock import patch, MagicMock\n`;
     }
 
-    // KG: Build @patch decorator stack for known dependencies
-    const depsToMock = dependencies?.imports.slice(0, 5) || [];
+    // KG: Build @patch decorator stack for external dependencies
+    const depsToMock = externalDeps.slice(0, 5);
     const patchDecorators = depsToMock.map((dep) => {
       const depModule = dep.replace(/\//g, '.').replace(/\.py$/, '');
       return `@patch('${depModule}')`;
@@ -87,11 +89,15 @@ class Test${this.pascalCase(moduleName)}:
 
 `;
 
-    for (const fn of analysis.functions) {
+    // Bug #295 fix: Only generate tests for exported functions and classes
+    const exportedFns = analysis.functions.filter(fn => fn.isExported);
+    const exportedClasses = analysis.classes.filter(cls => cls.isExported);
+
+    for (const fn of exportedFns) {
       code += this.generateFunctionTestsWithPatches(fn, testType, patchDecorators);
     }
 
-    for (const cls of analysis.classes) {
+    for (const cls of exportedClasses) {
       code += this.generateClassTests(cls, testType);
     }
 
@@ -118,10 +124,32 @@ class Test${this.pascalCase(moduleName)}:
     // Indent patch decorators at class method level
     const patchPrefix = patchDecorators.map((d) => `    ${d}\n`).join('');
 
+    const isVoid = fn.returnType === 'void' || fn.returnType === 'Promise<void>' || fn.returnType === 'None';
+
     let code = `${patchPrefix}    def test_${fn.name}_valid_input(${allParams}):\n`;
     code += `        """Test ${fn.name} with valid input"""\n`;
-    code += `        result = ${fn.name}(${validParams})\n`;
-    code += `        assert result is not None\n\n`;
+    // Smart assertion based on function name and return type
+    let pyAssertion = 'assert result is not None';
+    if (!isVoid) {
+      if (/^(is|has|can)[A-Z]/.test(fn.name)) {
+        pyAssertion = 'assert isinstance(result, bool)';
+      } else if (/^(create|build|make)[A-Z]/.test(fn.name)) {
+        pyAssertion = 'assert result';
+      } else if (fn.returnType) {
+        const rt = fn.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
+        if (rt.includes('boolean') || rt.includes('bool')) pyAssertion = 'assert isinstance(result, bool)';
+        else if (rt.includes('number') || rt.includes('int') || rt.includes('float')) pyAssertion = 'assert isinstance(result, (int, float))';
+        else if (rt.includes('string') || rt.includes('str')) pyAssertion = 'assert isinstance(result, str)';
+        else if (rt.includes('[]') || rt.includes('array') || rt.includes('list')) pyAssertion = 'assert isinstance(result, list)';
+      }
+    }
+
+    if (isVoid) {
+      code += `        ${fn.name}(${validParams})  # void function\n\n`;
+    } else {
+      code += `        result = ${fn.name}(${validParams})\n`;
+      code += `        ${pyAssertion}\n\n`;
+    }
 
     // Test for edge cases (no patches needed — they test the function directly)
     for (const param of fn.parameters) {
@@ -155,13 +183,35 @@ class Test${this.pascalCase(moduleName)}:
     code += `        assert isinstance(instance, ${cls.name})\n\n`;
 
     for (const method of cls.methods) {
-      if (!method.name.startsWith('_')) {
+      if (!method.name.startsWith('_') && !method.name.startsWith('#')) {
         const methodParams = method.parameters
           .map((p) => this.generatePythonTestValue(p))
           .join(', ');
+        const isMethodVoid = method.returnType === 'void' || method.returnType === 'Promise<void>';
+
+        // Smart assertion for methods
+        let mAssertion = 'assert result is not None';
+        if (!isMethodVoid) {
+          if (/^(is|has|can)[A-Z]/.test(method.name)) {
+            mAssertion = 'assert isinstance(result, bool)';
+          } else if (/^(create|build|make)[A-Z]/.test(method.name)) {
+            mAssertion = 'assert result';
+          } else if (method.returnType) {
+            const mrt = method.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
+            if (mrt.includes('boolean') || mrt.includes('bool')) mAssertion = 'assert isinstance(result, bool)';
+            else if (mrt.includes('number') || mrt.includes('int') || mrt.includes('float')) mAssertion = 'assert isinstance(result, (int, float))';
+            else if (mrt.includes('string') || mrt.includes('str')) mAssertion = 'assert isinstance(result, str)';
+            else if (mrt.includes('[]') || mrt.includes('array') || mrt.includes('list')) mAssertion = 'assert isinstance(result, list)';
+          }
+        }
+
         code += `    def test_${method.name}(self, instance):\n`;
-        code += `        result = instance.${method.name}(${methodParams})\n`;
-        code += `        assert result is not None\n\n`;
+        if (isMethodVoid) {
+          code += `        instance.${method.name}(${methodParams})\n\n`;
+        } else {
+          code += `        result = instance.${method.name}(${methodParams})\n`;
+          code += `        ${mAssertion}\n\n`;
+        }
       }
     }
 
@@ -183,13 +233,13 @@ class Test${this.pascalCase(moduleName)}:
     const asyncDecorator = isAsync ? '@pytest.mark.asyncio\n    ' : '';
     const asyncDef = isAsync ? 'async def' : 'def';
 
-    // KG: Generate mock patches for known dependencies
+    // KG: Generate mock patches for external (non-relative) dependencies only
     let mockImports = '';
     let mockPatches = '';
-    if (dependencies && dependencies.imports.length > 0) {
+    const stubExternalDeps = dependencies?.imports.filter(dep => !dep.startsWith('.')) || [];
+    if (stubExternalDeps.length > 0) {
       mockImports = `from unittest.mock import patch, MagicMock\n`;
-      const depsToMock = dependencies.imports.slice(0, 5);
-      for (const dep of depsToMock) {
+      for (const dep of stubExternalDeps.slice(0, 5)) {
         const depModule = dep.replace(/\//g, '.').replace(/\.py$/, '');
         mockPatches += `    @patch('${depModule}')\n`;
       }

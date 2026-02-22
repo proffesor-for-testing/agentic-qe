@@ -211,6 +211,27 @@ export class DomainTeamManager {
     return team ? this.toSnapshot(team) : undefined;
   }
 
+  /**
+   * Add a specific agent as a teammate to an existing domain team.
+   * Unlike scaleTeam(), this uses the real agent ID rather than generating one.
+   * @returns True if the agent was added, false if team doesn't exist or is full
+   */
+  addTeammate(domain: string, agentId: string): boolean {
+    const team = this.teams.get(domain);
+    if (!team) return false;
+
+    // Guard against duplicate agent IDs
+    if (agentId === team.leadAgentId || team.teammateIds.includes(agentId)) return false;
+
+    const maxSize = this.getMaxTeamSize(domain);
+    if (1 + team.teammateIds.length >= maxSize) return false;
+
+    team.teammateIds.push(agentId);
+    team.lastActivity.set(agentId, Date.now());
+    this.adapter.registerAgent(agentId, domain);
+    return true;
+  }
+
   /** List all active domain teams. */
   listDomainTeams(): DomainTeam[] {
     return Array.from(this.teams.values(), t => this.toSnapshot(t));

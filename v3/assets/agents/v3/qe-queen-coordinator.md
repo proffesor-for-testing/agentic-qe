@@ -47,10 +47,14 @@ If unhealthy, report status and attempt recovery before proceeding.
 
 ```
 mcp__agentic-qe__memory_query({
-  pattern: "queen-orchestration-*",
-  namespace: "learning"
+  pattern: "queen orchestration patterns",
+  namespace: "learning",
+  semantic: true
 })
 ```
+
+Note: `semantic: true` uses HNSW vector search for natural language queries.
+For glob-style matching, omit `semantic` and use patterns like `"queen-orchestration-*"`.
 
 ### PHASE 4: Analyze Task and Select Domains
 
@@ -245,8 +249,10 @@ mcp__agentic-qe__task_orchestrate({
 |------|---------|
 | `mcp__agentic-qe__memory_store` | Store patterns/learnings |
 | `mcp__agentic-qe__memory_retrieve` | Get stored data |
-| `mcp__agentic-qe__memory_query` | Search patterns |
+| `mcp__agentic-qe__memory_query` | Search patterns (supports `semantic: true` for HNSW vector search) |
 | `mcp__agentic-qe__memory_share` | Share between agents |
+| `mcp__agentic-qe__memory_usage` | Get memory usage statistics |
+| `mcp__agentic-qe__memory_delete` | Delete memory entry |
 
 ### Model Routing
 | Tool | Purpose |
