@@ -141,10 +141,16 @@ export abstract class BaseTestGenerator implements ITestGenerator {
         assertion = 'expect(result).toBeTruthy();';
       } else if (fn.returnType) {
         const rt = fn.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
-        if (rt.includes('boolean')) assertion = "expect(typeof result).toBe('boolean');";
+        // Issue N6: Check for object/interface return types FIRST — { valid: boolean; ... }
+        // contains 'boolean' but returns an object, not a boolean
+        if (rt.includes('{')) assertion = "expect(typeof result).toBe('object');";
+        else if (rt === 'boolean') assertion = "expect(typeof result).toBe('boolean');";
+        else if (rt === 'number') assertion = "expect(typeof result).toBe('number');";
+        else if (rt === 'string') assertion = "expect(typeof result).toBe('string');";
+        else if (rt.includes('[]') || rt.includes('array')) assertion = 'expect(Array.isArray(result)).toBe(true);';
+        else if (rt.includes('boolean')) assertion = "expect(typeof result).toBe('boolean');";
         else if (rt.includes('number')) assertion = "expect(typeof result).toBe('number');";
         else if (rt.includes('string')) assertion = "expect(typeof result).toBe('string');";
-        else if (rt.includes('[]') || rt.includes('array')) assertion = 'expect(Array.isArray(result)).toBe(true);';
       }
     }
 

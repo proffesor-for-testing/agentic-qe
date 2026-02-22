@@ -5,6 +5,29 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.19] - 2026-02-22
+
+### Fixed
+
+- **Event-driven trajectory lifecycle** — Replaced fragile fire-and-forget polling loop with event subscriptions on CrossDomainEventRouter (TaskCompleted/TaskFailed), eliminating race conditions and memory leaks in task trajectory tracking
+- **Object return type misclassified as primitive** — Test generators (Jest/Vitest, Mocha, Node, Pytest) now correctly detect `{ valid: boolean }` as an object type instead of matching the inner `boolean` keyword; fixed across all 5 generators (7 code locations)
+- **memory_store persistence check** — Removed unnecessary duck-typing dance for `isPersistent()` check; HybridMemoryBackend always persists to SQLite when initialized
+- **memory_usage reported zeros** — `memory_usage` MCP tool now returns real vector count and namespace count from HybridMemoryBackend instead of hardcoded zeros
+- **fleet_status missing learning metrics** — Added `learning` field to fleet_status response with real counts from SQLite (patterns, experiences, trajectories, vectors, dream cycles, embedding dimension)
+- **Auto-team-wiring crash with partial mocks** — Guard against undefined DomainTeamManager during agent spawn in test environments
+
+### Added
+
+- **queryCount() on UnifiedMemoryManager** — SQL-injection-safe method with table allowlist for counting rows in learning tables
+- **Trajectory event subscription wiring** — `subscribeTrajectoryEvents()` and `unsubscribeTrajectoryEvents()` called during fleet init/dispose
+- **Orphaned trajectory cleanup** — Stale trajectories (>1 hour, never completed) are marked as failed at startup
+- **ReasoningBank learning system guide** — New documentation at `docs/guides/reasoningbank-learning-system.md` covering the 4-stage learning pipeline, pattern lifecycle, and embedding architecture
+- **25 new unit tests** — Coverage for all 6 fixes: trajectory events, task payload mapping, queryCount, memory persistence, memory usage, and object return type assertions
+
+### Changed
+
+- **Embedding dimension consolidation** — ReasoningBank and PatternStore layers standardized on 384-dim embeddings (all-MiniLM-L6-v2); coverage-analysis 768-dim indices are intentionally separate
+
 ## [3.6.18] - 2026-02-21
 
 ### Added

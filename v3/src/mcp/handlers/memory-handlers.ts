@@ -27,6 +27,9 @@ import {
   isComplianceReporterEnabled,
 } from '../../governance/index.js';
 
+// Real transformer embeddings for semantic search (384-dim, matches ExperienceReplay)
+import { computeRealEmbedding } from '../../learning/real-embeddings.js';
+
 // ============================================================================
 // Memory Store Handler
 // ============================================================================
@@ -94,10 +97,10 @@ export async function handleMemoryStore(
     });
 
     // Store vector embedding for semantic search (HNSW)
-    // Generate embedding from key + value text so memory_query semantic:true can find it
+    // Generate real 384-dim transformer embedding so memory_query semantic:true returns meaningful scores
     try {
       const textForEmbedding = `${params.key} ${JSON.stringify(params.value)}`;
-      const embedding = textToSimpleEmbedding(textForEmbedding);
+      const embedding = await computeRealEmbedding(textForEmbedding);
       await kernel!.memory.storeVector(fullKey, embedding, {
         key: params.key,
         namespace,
@@ -115,6 +118,8 @@ export async function handleMemoryStore(
       );
     }
 
+    // Issue N5: HybridMemoryBackend always persists to SQLite when fleet is
+    // initialized (checked at function entry). No runtime check needed.
     return {
       success: true,
       data: {
@@ -122,7 +127,7 @@ export async function handleMemoryStore(
         key: params.key,
         namespace,
         timestamp: new Date().toISOString(),
-        persisted: params.persist || false,
+        persisted: true,
       },
     };
   } catch (error) {
@@ -238,9 +243,8 @@ export async function handleMemoryQuery(
     if (useSemantic && params.pattern) {
       // Use HNSW vector search for semantic queries
       try {
-        // Generate a simple embedding from the query text
-        // Use the kernel's vectorSearch which leverages the HNSW index
-        const embedding = textToSimpleEmbedding(params.pattern);
+        // Generate real 384-dim transformer embedding for accurate cosine similarity search
+        const embedding = await computeRealEmbedding(params.pattern);
         const vectorResults = await kernel!.memory.vectorSearch(embedding, limit + offset);
 
         // Filter by namespace if specified
@@ -308,37 +312,8 @@ export async function handleMemoryQuery(
   }
 }
 
-/**
- * Generate a simple text embedding for semantic search.
- * Uses 768 dimensions to match the HNSW index configuration.
- * This creates a basic bag-of-words style embedding.
- * For production, this would use a proper embedding model (e.g. all-MiniLM-L6-v2).
- */
-function textToSimpleEmbedding(text: string): number[] {
-  const dimension = 768; // Must match HNSW index dimension
-  const embedding = new Array(dimension).fill(0);
-  const words = text.toLowerCase().split(/\s+/);
-
-  for (const word of words) {
-    // Simple hash-based distribution across dimensions
-    let hash = 0;
-    for (let i = 0; i < word.length; i++) {
-      hash = ((hash << 5) - hash + word.charCodeAt(i)) | 0;
-    }
-    const idx = Math.abs(hash) % dimension;
-    embedding[idx] += 1;
-  }
-
-  // Normalize the vector
-  const magnitude = Math.sqrt(embedding.reduce((sum: number, v: number) => sum + v * v, 0));
-  if (magnitude > 0) {
-    for (let i = 0; i < dimension; i++) {
-      embedding[i] /= magnitude;
-    }
-  }
-
-  return embedding;
-}
+// textToSimpleEmbedding removed — replaced by computeRealEmbedding (384-dim transformer)
+// from ../../learning/real-embeddings.js for accurate cosine similarity search
 
 // ============================================================================
 // Memory Delete Handler
@@ -418,12 +393,28 @@ export async function handleMemoryUsage(): Promise<ToolResult<MemoryUsageResult>
     // Estimate stats by searching for all keys
     const allKeys = await kernel!.memory.search('*', 10000);
 
+    // Issue N4: Query real vector count from SQLite instead of hardcoding 0
+    let vectorCount = 0;
+    let namespaceCount = 1;
+    try {
+      const backend = kernel!.memory as import('../../kernel/hybrid-backend').HybridMemoryBackend;
+      if (backend.getVectorStats) {
+        const stats = await backend.getVectorStats();
+        vectorCount = stats?.vectorCount ?? 0;
+      }
+      // Count distinct namespaces from keys
+      const namespaces = new Set(allKeys.map((k: string) => k.split(':')[0]).filter(Boolean));
+      namespaceCount = Math.max(1, namespaces.size);
+    } catch {
+      // Best-effort
+    }
+
     return {
       success: true,
       data: {
         entries: allKeys.length,
-        vectors: 0, // Would need specific tracking
-        namespaces: 1, // Would need namespace tracking
+        vectors: vectorCount,
+        namespaces: namespaceCount,
         size: {
           current: allKeys.length,
           limit: Number.MAX_SAFE_INTEGER,

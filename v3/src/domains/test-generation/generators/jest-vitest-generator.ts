@@ -199,10 +199,15 @@ ${importStatement}
         methodAssertion = 'expect(result).toBeTruthy();';
       } else if (method.returnType) {
         const mrt = method.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
-        if (mrt.includes('boolean')) methodAssertion = "expect(typeof result).toBe('boolean');";
+        // Issue N6: Check for object/interface return types FIRST
+        if (mrt.includes('{')) methodAssertion = "expect(typeof result).toBe('object');";
+        else if (mrt === 'boolean') methodAssertion = "expect(typeof result).toBe('boolean');";
+        else if (mrt === 'number') methodAssertion = "expect(typeof result).toBe('number');";
+        else if (mrt === 'string') methodAssertion = "expect(typeof result).toBe('string');";
+        else if (mrt.includes('[]') || mrt.includes('array')) methodAssertion = 'expect(Array.isArray(result)).toBe(true);';
+        else if (mrt.includes('boolean')) methodAssertion = "expect(typeof result).toBe('boolean');";
         else if (mrt.includes('number')) methodAssertion = "expect(typeof result).toBe('number');";
         else if (mrt.includes('string')) methodAssertion = "expect(typeof result).toBe('string');";
-        else if (mrt.includes('[]') || mrt.includes('array')) methodAssertion = 'expect(Array.isArray(result)).toBe(true);';
       }
     }
 

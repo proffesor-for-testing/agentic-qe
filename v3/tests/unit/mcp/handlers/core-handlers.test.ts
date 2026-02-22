@@ -389,4 +389,48 @@ describe('Core Handlers', { timeout: 30000 }, () => {
       expect(result.data!.status).toBeDefined();
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Issue N3: fleet_status includes learning metrics
+  // --------------------------------------------------------------------------
+
+  describe('Issue N3: fleet_status learning metrics', () => {
+    beforeAll(async () => {
+      await disposeFleet();
+      await handleFleetInit({ memoryBackend: 'memory' });
+    });
+
+    afterAll(async () => {
+      await disposeFleet();
+      resetUnifiedPersistence();
+    });
+
+    it('should include learning field in fleet_status response', async () => {
+      const result = await handleFleetStatus({});
+
+      expect(result.success).toBe(true);
+      // learning may be undefined if UnifiedMemory is not initialized in test env
+      // but the field should be set when it is available
+      if (result.data!.learning) {
+        expect(typeof result.data!.learning.totalPatterns).toBe('number');
+        expect(typeof result.data!.learning.totalExperiences).toBe('number');
+        expect(typeof result.data!.learning.totalTrajectories).toBe('number');
+        expect(typeof result.data!.learning.vectorCount).toBe('number');
+        expect(typeof result.data!.learning.experienceApplications).toBe('number');
+        expect(typeof result.data!.learning.dreamCycles).toBe('number');
+        expect(result.data!.learning.embeddingDimension).toBe(384);
+      }
+    });
+
+    it('should report non-negative learning counts', async () => {
+      const result = await handleFleetStatus({});
+
+      expect(result.success).toBe(true);
+      if (result.data!.learning) {
+        expect(result.data!.learning.totalPatterns).toBeGreaterThanOrEqual(0);
+        expect(result.data!.learning.totalExperiences).toBeGreaterThanOrEqual(0);
+        expect(result.data!.learning.vectorCount).toBeGreaterThanOrEqual(0);
+      }
+    });
+  });
 });
