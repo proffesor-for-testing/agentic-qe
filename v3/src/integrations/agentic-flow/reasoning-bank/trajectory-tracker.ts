@@ -276,8 +276,37 @@ export class TrajectoryTracker {
     // Load recent trajectories into buffer
     await this.loadRecentTrajectories();
 
+    // Clean up orphaned trajectories from previous sessions (started > 1 hour ago, never completed)
+    this.cleanupOrphanedTrajectories();
+
     this.initialized = true;
     console.log('[TrajectoryTracker] Initialized');
+  }
+
+  /**
+   * Clean up orphaned trajectories that were started but never completed.
+   * Marks them as failed with an auto-close reason. Runs at initialization.
+   */
+  private cleanupOrphanedTrajectories(): void {
+    if (!this.db) return;
+
+    try {
+      const result = this.db.prepare(`
+        UPDATE qe_trajectories
+        SET success = 0,
+            ended_at = datetime('now'),
+            feedback = 'auto-closed: orphaned trajectory from previous session'
+        WHERE success IS NULL
+          AND started_at < datetime('now', '-1 hour')
+      `).run();
+
+      if (result.changes > 0) {
+        this.stats.trajectoriesAbandoned += result.changes;
+        console.log(`[TrajectoryTracker] Cleaned up ${result.changes} orphaned trajectories`);
+      }
+    } catch (error) {
+      console.warn('[TrajectoryTracker] Failed to cleanup orphaned trajectories:', error);
+    }
   }
 
   /**

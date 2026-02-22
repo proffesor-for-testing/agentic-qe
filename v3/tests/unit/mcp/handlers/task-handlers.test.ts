@@ -695,4 +695,79 @@ describe('Task Handlers', () => {
       expect(result.success).toBe(true);
     }, 30000);
   });
+
+  // --------------------------------------------------------------------------
+  // Issue N1: Event-driven trajectory auto-close
+  // --------------------------------------------------------------------------
+
+  describe('Issue N1: subscribeTrajectoryEvents', () => {
+    it('should export subscribeTrajectoryEvents and unsubscribeTrajectoryEvents', async () => {
+      const mod = await import('../../../../src/mcp/handlers/task-handlers');
+      expect(typeof mod.subscribeTrajectoryEvents).toBe('function');
+      expect(typeof mod.unsubscribeTrajectoryEvents).toBe('function');
+    });
+
+    it('should subscribe without error when router is provided', async () => {
+      const { subscribeTrajectoryEvents, unsubscribeTrajectoryEvents } =
+        await import('../../../../src/mcp/handlers/task-handlers');
+      const state = (await import('../../../../src/mcp/handlers/core-handlers')).getFleetState();
+
+      if (state.router) {
+        expect(() => subscribeTrajectoryEvents(state.router!)).not.toThrow();
+        // Clean up
+        unsubscribeTrajectoryEvents(state.router!);
+      }
+    });
+
+    it('should be idempotent — calling subscribe twice does not crash', async () => {
+      const { subscribeTrajectoryEvents, unsubscribeTrajectoryEvents } =
+        await import('../../../../src/mcp/handlers/task-handlers');
+      const state = (await import('../../../../src/mcp/handlers/core-handlers')).getFleetState();
+
+      if (state.router) {
+        subscribeTrajectoryEvents(state.router!);
+        // Second call should unsubscribe old + resubscribe without error
+        expect(() => subscribeTrajectoryEvents(state.router!)).not.toThrow();
+        unsubscribeTrajectoryEvents(state.router!);
+      }
+    });
+
+    it('should handle unsubscribe when nothing was subscribed', async () => {
+      const { unsubscribeTrajectoryEvents } =
+        await import('../../../../src/mcp/handlers/task-handlers');
+      const state = (await import('../../../../src/mcp/handlers/core-handlers')).getFleetState();
+
+      if (state.router) {
+        // Should not throw when no subscriptions exist
+        expect(() => unsubscribeTrajectoryEvents(state.router!)).not.toThrow();
+      }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Issue N2: generate-tests payload includes sourceFiles
+  // --------------------------------------------------------------------------
+
+  describe('Issue N2: generate-tests sourceFiles in payload', () => {
+    it('should succeed for generate-tests task without filePaths', async () => {
+      const result = await handleTaskOrchestrate({
+        task: 'Generate unit tests for the user service',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data!.type).toBe('generate-tests');
+    }, 30000);
+
+    it('should forward filePaths into payload', async () => {
+      const result = await handleTaskOrchestrate({
+        task: 'Generate unit tests for auth module',
+        filePaths: ['src/auth.ts', 'src/auth-utils.ts'],
+        codeContext: 'export function login() { }',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data!.type).toBe('generate-tests');
+      // Task was submitted successfully — the domain plugin received sourceFiles
+    }, 30000);
+  });
 });

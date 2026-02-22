@@ -121,10 +121,14 @@ ${stubSetup}`;
         chaiAssertion = 'expect(result).to.be.ok;';
       } else if (fn.returnType) {
         const rt = fn.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
-        if (rt.includes('boolean')) chaiAssertion = "expect(typeof result).to.equal('boolean');";
+        if (rt.includes('{')) chaiAssertion = "expect(result).to.be.an('object');";
+        else if (rt === 'boolean') chaiAssertion = "expect(typeof result).to.equal('boolean');";
+        else if (rt === 'number') chaiAssertion = "expect(typeof result).to.equal('number');";
+        else if (rt === 'string') chaiAssertion = "expect(typeof result).to.equal('string');";
+        else if (rt.includes('[]') || rt.includes('array')) chaiAssertion = 'expect(result).to.be.an(\'array\');';
+        else if (rt.includes('boolean')) chaiAssertion = "expect(typeof result).to.equal('boolean');";
         else if (rt.includes('number')) chaiAssertion = "expect(typeof result).to.equal('number');";
         else if (rt.includes('string')) chaiAssertion = "expect(typeof result).to.equal('string');";
-        else if (rt.includes('[]') || rt.includes('array')) chaiAssertion = 'expect(result).to.be.an(\'array\');';
       }
     }
 
@@ -197,10 +201,14 @@ ${stubSetup}`;
             methodAssertion = 'expect(result).to.be.ok;';
           } else if (method.returnType) {
             const mrt = method.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
-            if (mrt.includes('boolean')) methodAssertion = "expect(typeof result).to.equal('boolean');";
+            if (mrt.includes('{')) methodAssertion = "expect(result).to.be.an('object');";
+            else if (mrt === 'boolean') methodAssertion = "expect(typeof result).to.equal('boolean');";
+            else if (mrt === 'number') methodAssertion = "expect(typeof result).to.equal('number');";
+            else if (mrt === 'string') methodAssertion = "expect(typeof result).to.equal('string');";
+            else if (mrt.includes('[]') || mrt.includes('array')) methodAssertion = "expect(result).to.be.an('array');";
+            else if (mrt.includes('boolean')) methodAssertion = "expect(typeof result).to.equal('boolean');";
             else if (mrt.includes('number')) methodAssertion = "expect(typeof result).to.equal('number');";
             else if (mrt.includes('string')) methodAssertion = "expect(typeof result).to.equal('string');";
-            else if (mrt.includes('[]') || mrt.includes('array')) methodAssertion = "expect(result).to.be.an('array');";
           }
         }
 
