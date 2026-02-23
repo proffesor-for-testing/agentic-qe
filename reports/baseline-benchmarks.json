@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-02-22T20:34:28.392Z",
-  "label": "baseline-before-rvf",
+  "timestamp": "2026-02-23T07:38:31.432Z",
+  "label": "baseline",
   "system": {
     "platform": "linux",
     "arch": "arm64",
@@ -10,10 +10,10 @@
   "benchmarks": {
     "bootTime": {
       "description": "Time from cold start to first query capability",
-      "reasoningBankInitMs": 78.76,
-      "embeddingModelLoadMs": 978.97,
-      "hnswInitMs": 75.63,
-      "totalBootMs": 1133.37
+      "reasoningBankInitMs": 11.98,
+      "embeddingModelLoadMs": 172.19,
+      "hnswInitMs": 15.12,
+      "totalBootMs": 199.29
     },
     "patternSearch": {
       "description": "Pattern search latency",
@@ -26,22 +26,22 @@
     },
     "memoryUsage": {
       "description": "Node.js process memory usage",
-      "rssBeforeMb": 135.56,
-      "rssAfterLoadMb": 135.56,
-      "heapUsedMb": 15.26,
-      "heapTotalMb": 24.32,
-      "externalMb": 4.32
+      "rssBeforeMb": 141.23,
+      "rssAfterLoadMb": 141.23,
+      "heapUsedMb": 16.61,
+      "heapTotalMb": 31.57,
+      "externalMb": 4.35
     },
     "databaseStats": {
       "description": "SQLite database statistics",
-      "dbSizeBytes": 88346624,
-      "dbSizeMb": 84.25,
+      "dbSizeBytes": 110247936,
+      "dbSizeMb": 105.14,
       "patternCount": 6644,
       "vectorCount": 124,
-      "kvCount": 1217,
+      "kvCount": 1867,
       "qValueCount": 6,
-      "dreamCycleCount": 252,
-      "dreamInsightCount": 670,
+      "dreamCycleCount": 273,
+      "dreamInsightCount": 790,
       "tables": [
         "captured_experiences",
         "concept_edges",
@@ -85,35 +85,79 @@
       ]
     },
     "hnswImplementations": {
-      "description": "Count of distinct HNSW/search implementations",
-      "implementationCount": 3,
+      "description": "Count of distinct HNSW/search implementations (dynamically detected)",
+      "implementationCount": 9,
       "implementations": [
-        "InMemoryHNSWIndex (TypeScript) — v3/src/kernel/unified-memory-hnsw.ts",
-        "RuvectorFlatIndex (Rust brute-force via @ruvector/gnn) — v3/src/kernel/unified-memory-hnsw.ts",
-        "QEGNNEmbeddingIndex (coverage domain) — v3/src/domains/coverage-analysis/services/hnsw-index.ts"
-      ]
+        "InMemoryHNSWIndex — v3/src/kernel/unified-memory-hnsw.ts",
+        "RuvectorFlatIndex — v3/src/kernel/unified-memory-hnsw.ts",
+        "UnifiedHnswIndex — v3/src/kernel/unified-memory-hnsw.ts",
+        "ProgressiveHnswBackend — v3/src/kernel/progressive-hnsw-backend.ts",
+        "HnswAdapter — v3/src/kernel/hnsw-adapter.ts",
+        "QEGNNEmbeddingIndex — v3/src/integrations/ruvector/gnn-wrapper.ts",
+        "HNSWEmbeddingIndex — v3/src/integrations/embeddings/index/HNSWIndex.ts",
+        "HNSWIndexFactory — v3/src/integrations/embeddings/index/HNSWIndex.ts",
+        "HNSWIndex — v3/src/domains/coverage-analysis/services/hnsw-index.ts"
+      ],
+      "total": 9,
+      "deprecated": 7,
+      "active": 2,
+      "unified": true
     },
     "routingLatency": {
       "description": "Task routing decision latency (heuristic method)",
       "currentMethod": "keyword-matching + complexity-heuristic (3-tier static)",
       "queriesRun": 10,
-      "p50Ms": 0.002,
-      "p95Ms": 0.015,
-      "meanMs": 0.003
+      "p50Ms": 0.001,
+      "p95Ms": 0.005,
+      "meanMs": 0.001
     },
     "dreamCycle": {
       "description": "Dream cycle statistics (no safe branching currently)",
       "pendingExperiences": 27,
-      "lastDreamTime": "2026-02-22T19:52:01.170Z",
-      "totalDreamCycles": 252,
-      "totalInsights": 670
+      "lastDreamTime": "2026-02-23T07:35:47.988Z",
+      "totalDreamCycles": 273,
+      "totalInsights": 790
     },
     "mincutAvailability": {
       "description": "MinCut algorithm availability and latency",
       "typescriptAvailable": true,
       "nativeAvailable": false,
-      "typescriptLatencyUs": 10.83,
+      "typescriptLatencyUs": 3.42,
       "nativeLatencyUs": null
+    },
+    "mincutRouting": {
+      "description": "MinCut routing with 5-agent topology (QEMinCutService.computeRoutingTier)",
+      "topologySize": 5,
+      "queriesRun": 100,
+      "p50Ms": 0.016,
+      "p95Ms": 0.044,
+      "meanMs": 0.022
+    },
+    "unifiedHnswSearch": {
+      "description": "Unified HNSW search via ProgressiveHnswBackend (384-dim, 1000 vectors, k=10)",
+      "vectorCount": 1000,
+      "dimensions": 384,
+      "queriesRun": 100,
+      "k": 10,
+      "p50Ms": 0.644,
+      "p95Ms": 0.729,
+      "meanMs": 0.67,
+      "recallEstimate": 1
+    },
+    "witnessChain": {
+      "description": "Witness chain: 100 appends + full verify (in-memory SQLite)",
+      "chainLength": 100,
+      "appendP50Ms": 0.014,
+      "appendP95Ms": 0.027,
+      "appendMeanMs": 0.018,
+      "verifyMs": 0.37
+    },
+    "structuralHealth": {
+      "description": "Structural health computation for 10-agent fleet topology",
+      "agentCount": 10,
+      "computeMs": 0.35,
+      "status": "critical",
+      "lambda": 0.167
     }
   }
 }
