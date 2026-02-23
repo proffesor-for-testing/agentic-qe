@@ -314,10 +314,10 @@ V3.7 integrates **RVF (RuVector Format)** cognitive container capabilities acros
 aqe brain export --output ./my-brain
 
 # Import a brain into another environment
-aqe brain import ./my-brain --dry-run
+aqe brain import --input ./my-brain --dry-run
 
 # View brain statistics
-aqe brain info ./my-brain
+aqe brain info --input ./my-brain
 ```
 
 ---
