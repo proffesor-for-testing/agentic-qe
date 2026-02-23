@@ -14,3 +14,4 @@ export { TaskHandler, createTaskHandler } from './task-handler.js';
 export { AgentHandler, createAgentHandler } from './agent-handler.js';
 export { DomainHandler, createDomainHandler } from './domain-handler.js';
 export { ProtocolHandler, createProtocolHandler } from './protocol-handler.js';
+export { BrainHandler, createBrainHandler } from './brain-handler.js';

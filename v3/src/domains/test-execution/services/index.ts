@@ -11,3 +11,4 @@ export * from './e2e-runner';
 export * from './user-flow-generator';
 export * from './network-mocker';
 export * from './auth-state-manager';
+export * from './mincut-test-optimizer';

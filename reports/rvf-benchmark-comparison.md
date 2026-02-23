@@ -1,9 +1,11 @@
 # RVF Integration Benchmark Comparison
 
 **Date**: 2026-02-22
-**Baseline**: 2026-02-22T20:34:28Z (pre-implementation)
+**Baseline**: 2026-02-22T20:34:28Z (pre-implementation, original)
 **Post**: 2026-02-22T21:15:32Z (post-implementation)
 **System**: linux/arm64, Node v24.13.0, 16GB RAM
+
+> **Note**: baseline-benchmarks.json was inadvertently overwritten on Feb 23 with a post-integration re-run. The original pre-RVF baseline (Feb 22 20:34:28) has been restored. The Feb 23 re-run is preserved in baseline-benchmarks-feb23-rerun.json for reference.
 
 ---
 
@@ -30,7 +32,7 @@
 
 ### HNSW Initialization: -51.5% (75.63ms -> 36.66ms)
 
-The progressive HNSW backend (ADR-071) provides a unified interface with lazy loading. The new `ProgressiveHnswBackend` defers full index construction, answering queries via brute-force cosine similarity during Layer A (instant), then upgrading to `@ruvector/gnn` differentiableSearch as vectors accumulate. This halved init time.
+The unified HNSW backend (ADR-071) provides a single interface with lazy loading. The `UnifiedHnswIndex` defers full index construction, answering queries via brute-force cosine similarity first, then upgrading to `@ruvector/gnn` differentiableSearch if available. This is a 2-state conditional fallback, not the originally claimed 3-layer progressive system. The deferred loading still halved init time.
 
 ### Pattern Loading: -42.3% (78.76ms -> 45.49ms)
 
@@ -38,7 +40,7 @@ ReasoningBank initialization benefits from the unified HNSW path. Instead of ini
 
 ### Memory Usage: -14.0% (135.56MB -> 116.52MB RSS)
 
-Consolidating 3 HNSW implementations into 1 reduces duplicate data structures. The `ProgressiveHnswBackend` shares a single vector store across all named indexes via `HnswAdapter`, eliminating redundant copies of the same embeddings.
+Consolidating HNSW implementations reduces duplicate data structures. The backend shares a single vector store across all named indexes via `HnswAdapter`, eliminating redundant copies of the same embeddings.
 
 ### MinCut Latency: -19.6% (10.83us -> 8.71us)
 
@@ -55,7 +57,7 @@ Total boot time increased from 1133ms to 1427ms. This is **entirely attributable
 
 ### Routing Latency: Unchanged (0.002ms p50)
 
-The benchmark script measures the existing heuristic routing path. The new `MinCutRoutingService` is wired as the PRIMARY strategy in `task-router.ts` but requires agent topology data to activate. When topology is provided, routing uses lambda-based tier assignment. The heuristic remains as fallback and was measured here.
+The benchmark script measures the existing heuristic routing path. The `MinCutRoutingService` is wired as a strategy in `task-router.ts` but delegates to `mincut-wrapper.js` and requires agent topology data to activate. When topology is provided, routing uses lambda-based tier assignment. The heuristic remains as fallback and was measured here.
 
 ### Database Integrity: Verified
 
@@ -69,18 +71,33 @@ The benchmark script measures the existing heuristic routing path. The new `MinC
 
 ## New Capabilities (Not Captured by Baseline Benchmarks)
 
-These are entirely new features that had no baseline equivalent:
+These are new features that had no baseline equivalent. **Status reflects wiring state, not just existence of code.**
 
 | Capability | Status | Tests | Description |
 |-----------|--------|-------|-------------|
-| **MinCut Routing** | Live | 47 passing | Lambda-based structural complexity routing (ADR-068) |
-| **RVCOW Dream Branching** | Live | 26 passing | SQLite savepoint-based branch/validate/merge for dreams (ADR-069) |
-| **Witness Chain** | Live | 21 passing | SHA-256 hash-chained tamper-evident audit log (ADR-070) |
-| **HNSW Unification** | Live | 39 passing | Single `IHnswIndexProvider` interface, progressive backend (ADR-071) |
-| **Speculative Dreaming** | Live | included above | Parallel dream strategies with branch-based isolation |
-| **Structural Health Monitor** | Live | included above | Fleet health via Stoer-Wagner mincut analysis |
+| **MinCut Routing** | Wired | 47 passing | Wrapper delegating to mincut-wrapper.js; production-active in task-router.ts (ADR-068) |
+| **RVCOW Dream Branching** | Wired | 26 passing | SQLite savepoints are real and functional; RVF fork is a cosmetic side-effect writing to /tmp (ADR-069) |
+| **Witness Chain** | Wired | 21 passing | Genuinely correct SHA-256 hash chain, production-active (ADR-070) |
+| **HNSW Unification** | Wired | 39 passing | Single `IHnswIndexProvider` interface; 2-state fallback (try @ruvector/gnn, else brute-force cosine), not 3-layer progressive as originally claimed (ADR-071) |
+| **Speculative Dreaming** | Wired | included above | Runs on SQLite savepoints, not RVF RVCOW as the name implies |
+| **Structural Health Monitor** | Internal | included above | Used within mincut subsystem only, not exposed as an endpoint |
 
 **Total new tests**: 133
+
+---
+
+## Modules Not Yet Wired Into Production
+
+The following modules exist and have passing tests, but are **not imported or invoked by any production code path**:
+
+| Module | File | Status |
+|--------|------|--------|
+| **RVF Native Adapter** | `rvf-native-adapter.ts` | Exists, tested, but not imported by any production code |
+| **RVF Dual-Writer** | `rvf-dual-writer.ts` | Exists, tested, not wired into QEReasoningBank |
+| **Brain Exporter** | `brain-exporter.ts` | CLI functions exist but not registered in CommandRegistry |
+| **MinCut Test Optimizer** | `mincut-test-optimizer.ts` | Exists, tested, zero imports in codebase |
+
+These modules represent completed work that needs integration wiring to become production-active. Until wired, they are dead code with test coverage.
 
 ---
 
@@ -89,12 +106,14 @@ These are entirely new features that had no baseline equivalent:
 | Implementation | Baseline | Post | Notes |
 |---------------|----------|------|-------|
 | InMemoryHNSWIndex | Active | Deprecated | Replaced by UnifiedHnswIndex (ADR-071 Phase B) |
-| RuvectorFlatIndex | Active | Deprecated | Replaced by ProgressiveHnswBackend |
+| RuvectorFlatIndex | Active | Deprecated | Replaced by unified backend |
 | QEGNNEmbeddingIndex | Active | Active | Migration pending (coverage domain) |
 | **UnifiedHnswIndex** | N/A | **NEW** | Single entry point via HnswAdapter |
-| **ProgressiveHnswBackend** | N/A | **NEW** | 3-layer progressive loading |
+| **ProgressiveHnswBackend** | N/A | **NEW** | 2-state conditional fallback (try @ruvector/gnn, else brute-force cosine) |
 
 Effective HNSW implementations: 3 -> 1 primary + 2 deprecated (kept as fallback per risk mitigation plan)
+
+**Correction**: The original report described the ProgressiveHnswBackend as "3-layer progressive loading." The actual implementation is a 2-state conditional: it attempts `@ruvector/gnn` and falls back to brute-force cosine similarity. There is no intermediate layer.
 
 ---
 
@@ -119,15 +138,19 @@ Effective HNSW implementations: 3 -> 1 primary + 2 deprecated (kept as fallback 
 | Search implementations | 1 | 1 primary + 2 deprecated | Partial |
 | Audit trail | 100% of gates + mutations | 100% | Yes |
 | Data loss | Zero | Zero (6644/6644 patterns) | Yes |
-| Dream branching | Safe isolation | SQLite savepoints | Yes |
-| MinCut routing | Lambda-based | Live with fallback | Yes |
+| Dream branching | Safe isolation | SQLite savepoints (real); RVF fork (cosmetic) | Partial |
+| MinCut routing | Lambda-based | Wired via wrapper with fallback | Partial |
 
 ---
 
 ## Recommendations
 
-1. **Remove deprecated HNSW implementations** once UnifiedHnswIndex has been validated in production for 1+ week
-2. **Migrate coverage domain** (`QEGNNEmbeddingIndex`) to use `HnswAdapter.create('coverage')` to complete unification
-3. **Update benchmark script** to exercise new code paths (mincut routing with topology, unified HNSW search, witness chain verification)
-4. **Run integration tests** (Step 2 from master plan) to validate cross-workstream behavior
-5. **Monitor embedding model load** variance — consider pre-warming or caching the model to stabilize boot time
+1. **Wire dead modules into production** — The RVF Native Adapter, RVF Dual-Writer, Brain Exporter, and MinCut Test Optimizer all exist with tests but have zero production imports. Either wire them into the appropriate code paths or remove them to reduce maintenance burden.
+2. **Register Brain Exporter commands** in CommandRegistry so the CLI functions are actually callable.
+3. **Wire RVF Dual-Writer into QEReasoningBank** if dual-write capability is still desired; otherwise delete it.
+4. **Remove deprecated HNSW implementations** once UnifiedHnswIndex has been validated in production for 1+ week.
+5. **Migrate coverage domain** (`QEGNNEmbeddingIndex`) to use `HnswAdapter.create('coverage')` to complete unification.
+6. **Update benchmark script** to exercise new code paths (mincut routing with topology, unified HNSW search, witness chain verification).
+7. **Run integration tests** (Step 2 from master plan) to validate cross-workstream behavior.
+8. **Monitor embedding model load** variance — consider pre-warming or caching the model to stabilize boot time.
+9. **Evaluate whether "RVCOW" naming is misleading** — The actual dream branching uses SQLite savepoints, which work well. The RVF/RVCOW layer on top writes to /tmp as a side effect. Consider renaming to reflect what actually happens.

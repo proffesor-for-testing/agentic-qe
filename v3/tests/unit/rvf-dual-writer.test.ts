@@ -1,9 +1,13 @@
 /**
- * RVF Dual-Writer Tests
+ * RVF Dual-Writer — Coordination Logic Unit Tests
  *
- * Tests the dual-write service that writes pattern embeddings to both
- * SQLite (existing) and RVF (new native backend). The native adapter
- * is mocked since it may not be available in the test environment.
+ * These tests verify dual-writer coordination logic with mocked RVF:
+ * mode switching (dual-write / sqlite-only / rvf-primary), try/catch
+ * fallback behavior, divergence detection, and promotion safety.
+ *
+ * The RvfStore is mocked because these tests target the ORCHESTRATION
+ * layer, not the native RVF binding. For real native binding tests,
+ * see rvf-native-adapter.test.ts and rvf-native-wiring.integration.test.ts.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -120,7 +124,7 @@ function makeEmbedding(dim = 384): number[] {
 // Tests
 // ============================================================================
 
-describe('RvfDualWriter', () => {
+describe('RvfDualWriter — coordination logic (mocked RVF)', () => {
   let db: Database.Database;
 
   beforeEach(() => {
@@ -158,8 +162,12 @@ describe('RvfDualWriter', () => {
       expect(row).toBeDefined();
       expect(row!.dimension).toBe(384);
 
-      // Verify RVF was called
+      // Verify RVF ingest was called with correct pattern ID and vector
       expect(mockStore.ingest).toHaveBeenCalledTimes(1);
+      const ingestArgs = (mockStore.ingest as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(ingestArgs).toHaveLength(1);
+      expect(ingestArgs[0].id).toBe('p1');
+      expect(ingestArgs[0].vector).toHaveLength(384);
 
       writer.close();
     });
@@ -306,9 +314,22 @@ describe('RvfDualWriter', () => {
       insertTestPattern(db, 'p1');
       writer.writePattern('p1', makeEmbedding());
 
-      const results = writer.search(makeEmbedding(), 5);
-      expect(mockStore.search).toHaveBeenCalled();
+      const queryVec = makeEmbedding();
+      const results = writer.search(queryVec, 5);
+
+      // Verify RVF search was called with the correct query vector and k
+      expect(mockStore.search).toHaveBeenCalledTimes(1);
+      const searchArgs = (mockStore.search as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(searchArgs[1]).toBe(5); // k value
+
+      // Verify response shape (scores come from mock so don't assert values)
       expect(results.length).toBeGreaterThan(0);
+      for (const r of results) {
+        expect(r).toHaveProperty('id');
+        expect(r).toHaveProperty('score');
+        expect(typeof r.id).toBe('string');
+        expect(typeof r.score).toBe('number');
+      }
 
       writer.close();
     });
@@ -330,7 +351,11 @@ describe('RvfDualWriter', () => {
 
       // Search should still work via SQLite fallback
       const results = writer.search(emb, 5);
-      expect(mockStore.search).toHaveBeenCalled(); // tried RVF first
+      // Verify RVF search was attempted with correct args before falling back
+      expect(mockStore.search).toHaveBeenCalledTimes(1);
+      const searchArgs = (mockStore.search as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(searchArgs[1]).toBe(5); // k value
+      // Results come from real SQLite cosine similarity (not mock), so score is meaningful
       expect(results.length).toBe(1);
       expect(results[0].id).toBe('p1');
       expect(results[0].score).toBeGreaterThan(0);
@@ -587,6 +612,19 @@ describe('RvfDualWriter', () => {
 
       expect(result.sqliteSuccess).toBe(true);
       expect(result.rvfSuccess).toBe(true);
+
+      // Verify the Float32Array was forwarded to RVF ingest with correct ID
+      expect(mockStore.ingest).toHaveBeenCalledTimes(1);
+      const ingestArgs = (mockStore.ingest as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(ingestArgs[0].id).toBe('p1');
+      expect(ingestArgs[0].vector).toHaveLength(384);
+
+      // Verify SQLite also persisted the embedding
+      const row = db.prepare(
+        'SELECT dimension FROM qe_pattern_embeddings WHERE pattern_id = ?'
+      ).get('p1') as { dimension: number } | undefined;
+      expect(row).toBeDefined();
+      expect(row!.dimension).toBe(384);
 
       writer.close();
     });

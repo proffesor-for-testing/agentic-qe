@@ -16,6 +16,7 @@ import {
   createAgentHandler,
   createDomainHandler,
   createProtocolHandler,
+  createBrainHandler,
 } from './handlers/index.js';
 
 // ============================================================================
@@ -106,6 +107,9 @@ export class CommandRegistry {
 
     // Protocol execution
     this.register(createProtocolHandler(this.cleanupAndExit, this.ensureInitialized));
+
+    // Brain export/import
+    this.register(createBrainHandler(this.cleanupAndExit, this.ensureInitialized));
   }
 
   /**
