@@ -11,7 +11,7 @@
 
 **V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Release Notes](docs/releases/README.md) | [Changelog](v3/CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 60 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
+> **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 60 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, RVF cognitive container integration with portable brain export/import, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
 🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **13 Bounded Contexts** | 📚 **75 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance**
 
@@ -67,6 +67,7 @@ For client-specific setup examples, see `docs/integration/mcp-clients.md`.
 - ✅ **Claude Flow Integration**: Deep integration with MCP tools and swarm orchestration
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
+- ✅ **RVF Cognitive Containers** (v3.7.0): MinCut task routing, witness chain audit trail, portable brain export/import, unified HNSW search
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
 - ✅ **75 QE Skills**: 46 Tier 3 verified + 29 additional QE skills (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 
@@ -290,6 +291,33 @@ aqe learning dream
 
 # View learning dashboard and trajectory
 aqe learning dashboard
+```
+
+---
+
+### 🧬 RVF Cognitive Container Integration (v3.7.0)
+
+V3.7 integrates **RVF (RuVector Format)** cognitive container capabilities across 4 workstreams:
+
+| Feature | Description |
+|---------|-------------|
+| **MinCut Task Routing** | Models task complexity as a graph problem using vertex connectivity (lambda) for intelligent 3-tier routing |
+| **RVCOW Dream Branching** | Copy-on-write branches for safe dream cycle experimentation — speculative insights are isolated until merged |
+| **Cryptographic Witness Chain** | SHA-256 hash-chained audit trail for quality gate decisions, pattern promotions, and test completions |
+| **Unified HNSW Search** | Consolidated 3 fragmented implementations behind a single progressive adapter (flat scan for small, full HNSW for large collections) |
+| **Brain Export/Import** | Portable QE intelligence containers — export patterns, Q-values, and insights for sharing across environments |
+| **MinCut Test Optimizer** | Identifies critical vs skippable tests using graph-based coverage analysis for faster test suites |
+| **RVF Dual-Writer** | Best-effort dual-write to SQLite + RVF containers, preparing for future native RVF storage |
+
+```bash
+# Export your QE brain as a portable container
+aqe brain export --output ./my-brain
+
+# Import a brain into another environment
+aqe brain import ./my-brain --dry-run
+
+# View brain statistics
+aqe brain info ./my-brain
 ```
 
 ---

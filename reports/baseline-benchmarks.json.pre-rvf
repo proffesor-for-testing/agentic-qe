@@ -1,0 +1,119 @@
+{
+  "timestamp": "2026-02-22T20:34:28.392Z",
+  "label": "baseline-before-rvf",
+  "system": {
+    "platform": "linux",
+    "arch": "arm64",
+    "nodeVersion": "v24.13.0",
+    "memoryTotal": 16748568576
+  },
+  "benchmarks": {
+    "bootTime": {
+      "description": "Time from cold start to first query capability",
+      "reasoningBankInitMs": 78.76,
+      "embeddingModelLoadMs": 978.97,
+      "hnswInitMs": 75.63,
+      "totalBootMs": 1133.37
+    },
+    "patternSearch": {
+      "description": "Pattern search latency",
+      "queriesRun": 0,
+      "p50Ms": 0,
+      "p95Ms": 0,
+      "p99Ms": 0,
+      "meanMs": 0,
+      "recall": null
+    },
+    "memoryUsage": {
+      "description": "Node.js process memory usage",
+      "rssBeforeMb": 135.56,
+      "rssAfterLoadMb": 135.56,
+      "heapUsedMb": 15.26,
+      "heapTotalMb": 24.32,
+      "externalMb": 4.32
+    },
+    "databaseStats": {
+      "description": "SQLite database statistics",
+      "dbSizeBytes": 88346624,
+      "dbSizeMb": 84.25,
+      "patternCount": 6644,
+      "vectorCount": 124,
+      "kvCount": 1217,
+      "qValueCount": 6,
+      "dreamCycleCount": 252,
+      "dreamInsightCount": 670,
+      "tables": [
+        "captured_experiences",
+        "concept_edges",
+        "concept_nodes",
+        "coverage_sessions",
+        "dream_cycles",
+        "dream_insights",
+        "embeddings",
+        "executed_steps",
+        "execution_results",
+        "experience_applications",
+        "goap_actions",
+        "goap_execution_steps",
+        "goap_goals",
+        "goap_plan_signatures",
+        "goap_plans",
+        "hypergraph_edges",
+        "hypergraph_nodes",
+        "kv_store",
+        "mincut_alerts",
+        "mincut_healing_actions",
+        "mincut_history",
+        "mincut_observations",
+        "mincut_snapshots",
+        "mincut_weak_vertices",
+        "pattern_evolution_events",
+        "pattern_relationships",
+        "pattern_versions",
+        "qe_pattern_embeddings",
+        "qe_pattern_usage",
+        "qe_patterns",
+        "qe_trajectories",
+        "rl_q_values",
+        "routing_outcomes",
+        "schema_version",
+        "sona_patterns",
+        "sqlite_sequence",
+        "test_outcomes",
+        "trajectory_steps",
+        "vectors"
+      ]
+    },
+    "hnswImplementations": {
+      "description": "Count of distinct HNSW/search implementations",
+      "implementationCount": 3,
+      "implementations": [
+        "InMemoryHNSWIndex (TypeScript) — v3/src/kernel/unified-memory-hnsw.ts",
+        "RuvectorFlatIndex (Rust brute-force via @ruvector/gnn) — v3/src/kernel/unified-memory-hnsw.ts",
+        "QEGNNEmbeddingIndex (coverage domain) — v3/src/domains/coverage-analysis/services/hnsw-index.ts"
+      ]
+    },
+    "routingLatency": {
+      "description": "Task routing decision latency (heuristic method)",
+      "currentMethod": "keyword-matching + complexity-heuristic (3-tier static)",
+      "queriesRun": 10,
+      "p50Ms": 0.002,
+      "p95Ms": 0.015,
+      "meanMs": 0.003
+    },
+    "dreamCycle": {
+      "description": "Dream cycle statistics (no safe branching currently)",
+      "pendingExperiences": 27,
+      "lastDreamTime": "2026-02-22T19:52:01.170Z",
+      "totalDreamCycles": 252,
+      "totalInsights": 670
+    },
+    "mincutAvailability": {
+      "description": "MinCut algorithm availability and latency",
+      "typescriptAvailable": true,
+      "nativeAvailable": false,
+      "typescriptLatencyUs": 10.83,
+      "nativeLatencyUs": null
+    }
+  }
+}

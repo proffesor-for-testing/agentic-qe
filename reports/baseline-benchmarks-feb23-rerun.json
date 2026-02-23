@@ -1,0 +1,163 @@
+{
+  "timestamp": "2026-02-23T07:38:31.432Z",
+  "label": "baseline",
+  "system": {
+    "platform": "linux",
+    "arch": "arm64",
+    "nodeVersion": "v24.13.0",
+    "memoryTotal": 16748568576
+  },
+  "benchmarks": {
+    "bootTime": {
+      "description": "Time from cold start to first query capability",
+      "reasoningBankInitMs": 11.98,
+      "embeddingModelLoadMs": 172.19,
+      "hnswInitMs": 15.12,
+      "totalBootMs": 199.29
+    },
+    "patternSearch": {
+      "description": "Pattern search latency",
+      "queriesRun": 0,
+      "p50Ms": 0,
+      "p95Ms": 0,
+      "p99Ms": 0,
+      "meanMs": 0,
+      "recall": null
+    },
+    "memoryUsage": {
+      "description": "Node.js process memory usage",
+      "rssBeforeMb": 141.23,
+      "rssAfterLoadMb": 141.23,
+      "heapUsedMb": 16.61,
+      "heapTotalMb": 31.57,
+      "externalMb": 4.35
+    },
+    "databaseStats": {
+      "description": "SQLite database statistics",
+      "dbSizeBytes": 110247936,
+      "dbSizeMb": 105.14,
+      "patternCount": 6644,
+      "vectorCount": 124,
+      "kvCount": 1867,
+      "qValueCount": 6,
+      "dreamCycleCount": 273,
+      "dreamInsightCount": 790,
+      "tables": [
+        "captured_experiences",
+        "concept_edges",
+        "concept_nodes",
+        "coverage_sessions",
+        "dream_cycles",
+        "dream_insights",
+        "embeddings",
+        "executed_steps",
+        "execution_results",
+        "experience_applications",
+        "goap_actions",
+        "goap_execution_steps",
+        "goap_goals",
+        "goap_plan_signatures",
+        "goap_plans",
+        "hypergraph_edges",
+        "hypergraph_nodes",
+        "kv_store",
+        "mincut_alerts",
+        "mincut_healing_actions",
+        "mincut_history",
+        "mincut_observations",
+        "mincut_snapshots",
+        "mincut_weak_vertices",
+        "pattern_evolution_events",
+        "pattern_relationships",
+        "pattern_versions",
+        "qe_pattern_embeddings",
+        "qe_pattern_usage",
+        "qe_patterns",
+        "qe_trajectories",
+        "rl_q_values",
+        "routing_outcomes",
+        "schema_version",
+        "sona_patterns",
+        "sqlite_sequence",
+        "test_outcomes",
+        "trajectory_steps",
+        "vectors"
+      ]
+    },
+    "hnswImplementations": {
+      "description": "Count of distinct HNSW/search implementations (dynamically detected)",
+      "implementationCount": 9,
+      "implementations": [
+        "InMemoryHNSWIndex — v3/src/kernel/unified-memory-hnsw.ts",
+        "RuvectorFlatIndex — v3/src/kernel/unified-memory-hnsw.ts",
+        "UnifiedHnswIndex — v3/src/kernel/unified-memory-hnsw.ts",
+        "ProgressiveHnswBackend — v3/src/kernel/progressive-hnsw-backend.ts",
+        "HnswAdapter — v3/src/kernel/hnsw-adapter.ts",
+        "QEGNNEmbeddingIndex — v3/src/integrations/ruvector/gnn-wrapper.ts",
+        "HNSWEmbeddingIndex — v3/src/integrations/embeddings/index/HNSWIndex.ts",
+        "HNSWIndexFactory — v3/src/integrations/embeddings/index/HNSWIndex.ts",
+        "HNSWIndex — v3/src/domains/coverage-analysis/services/hnsw-index.ts"
+      ],
+      "total": 9,
+      "deprecated": 7,
+      "active": 2,
+      "unified": true
+    },
+    "routingLatency": {
+      "description": "Task routing decision latency (heuristic method)",
+      "currentMethod": "keyword-matching + complexity-heuristic (3-tier static)",
+      "queriesRun": 10,
+      "p50Ms": 0.001,
+      "p95Ms": 0.005,
+      "meanMs": 0.001
+    },
+    "dreamCycle": {
+      "description": "Dream cycle statistics (no safe branching currently)",
+      "pendingExperiences": 27,
+      "lastDreamTime": "2026-02-23T07:35:47.988Z",
+      "totalDreamCycles": 273,
+      "totalInsights": 790
+    },
+    "mincutAvailability": {
+      "description": "MinCut algorithm availability and latency",
+      "typescriptAvailable": true,
+      "nativeAvailable": false,
+      "typescriptLatencyUs": 3.42,
+      "nativeLatencyUs": null
+    },
+    "mincutRouting": {
+      "description": "MinCut routing with 5-agent topology (QEMinCutService.computeRoutingTier)",
+      "topologySize": 5,
+      "queriesRun": 100,
+      "p50Ms": 0.016,
+      "p95Ms": 0.044,
+      "meanMs": 0.022
+    },
+    "unifiedHnswSearch": {
+      "description": "Unified HNSW search via ProgressiveHnswBackend (384-dim, 1000 vectors, k=10)",
+      "vectorCount": 1000,
+      "dimensions": 384,
+      "queriesRun": 100,
+      "k": 10,
+      "p50Ms": 0.644,
+      "p95Ms": 0.729,
+      "meanMs": 0.67,
+      "recallEstimate": 1
+    },
+    "witnessChain": {
+      "description": "Witness chain: 100 appends + full verify (in-memory SQLite)",
+      "chainLength": 100,
+      "appendP50Ms": 0.014,
+      "appendP95Ms": 0.027,
+      "appendMeanMs": 0.018,
+      "verifyMs": 0.37
+    },
+    "structuralHealth": {
+      "description": "Structural health computation for 10-agent fleet topology",
+      "agentCount": 10,
+      "computeMs": 0.35,
+      "status": "critical",
+      "lambda": 0.167
+    }
+  }
+}

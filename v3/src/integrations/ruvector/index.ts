@@ -527,6 +527,15 @@ export {
 } from './server-client';
 
 // ============================================================================
+// RVF Native Adapter (ADR-069: Native RVF Container Integration)
+// ============================================================================
+
+export { createRvfStore, openRvfStore, isRvfNativeAvailable } from './rvf-native-adapter.js';
+export type { RvfNativeAdapter, RvfSearchResult as RvfNativeSearchResult, RvfStatus as RvfNativeStatus } from './rvf-native-adapter.js';
+export { RvfDualWriter, createDualWriter } from './rvf-dual-writer.js';
+export type { DualWriteConfig, DualWriteResult, DivergenceReport } from './rvf-dual-writer.js';
+
+// ============================================================================
 // Shared Memory Integration (Fleet Integration)
 // ============================================================================
 

@@ -56,6 +56,8 @@ import {
   SQLitePatternStore,
   createSQLitePatternStore,
 } from './sqlite-persistence.js';
+import { getWitnessChain } from '../audit/witness-chain.js';
+import type { RvfDualWriter } from '../integrations/ruvector/rvf-dual-writer.js';
 
 // ============================================================================
 // QEReasoningBank Configuration
@@ -95,6 +97,9 @@ export interface QEReasoningBankConfig {
 
   /** Coherence energy threshold for pattern promotion (ADR-052) */
   coherenceThreshold?: number;
+
+  /** Optional RVF dual-writer for vector replication (Phase 3) */
+  rvfDualWriter?: RvfDualWriter;
 }
 
 /**
@@ -318,6 +323,7 @@ export class QEReasoningBank implements IQEReasoningBank {
   private patternStore: PatternStore;
   private initialized = false;
   private sqliteStore: SQLitePatternStore | null = null;
+  private rvfDualWriter: RvfDualWriter | null = null;
 
   /**
    * Lazy getter for SQLitePatternStore — persists pattern usage/promotion
@@ -333,6 +339,14 @@ export class QEReasoningBank implements IQEReasoningBank {
       });
     }
     return this.sqliteStore;
+  }
+
+  /**
+   * Set the RVF dual-writer at runtime (Phase 3 vector replication).
+   * When set, pattern writes will be replicated to the RVF store best-effort.
+   */
+  setRvfDualWriter(writer: RvfDualWriter): void {
+    this.rvfDualWriter = writer;
   }
 
   // Statistics
@@ -413,6 +427,9 @@ export class QEReasoningBank implements IQEReasoningBank {
     private readonly coherenceService?: import('../integrations/coherence/coherence-service.js').ICoherenceService
   ) {
     this.config = { ...DEFAULT_QE_REASONING_BANK_CONFIG, ...config };
+    if (config.rvfDualWriter) {
+      this.rvfDualWriter = config.rvfDualWriter;
+    }
     this.patternStore = createPatternStore(memory, {
       embeddingDimension: this.config.embeddingDimension,
       ...config.patternStore,
@@ -1331,7 +1348,23 @@ On promotion:
       options = { ...options, embedding };
     }
 
-    return this.patternStore.create(options);
+    const result = await this.patternStore.create(options);
+
+    // ADR-070: Record pattern creation in witness chain
+    if (result.success) {
+      getWitnessChain().then(wc => wc.append('PATTERN_CREATE', { patternId: result.value.id, domain: result.value.qeDomain, confidence: result.value.confidence, name: result.value.name }, 'reasoning-bank')).catch(() => {});
+
+      // Phase 3: Best-effort RVF dual-write for vector replication
+      if (this.rvfDualWriter && result.value.embedding && result.value.embedding.length > 0) {
+        try {
+          this.rvfDualWriter.writePattern(result.value.id, result.value.embedding);
+        } catch (rvfErr) {
+          logger.warn('RVF dual-write failed (non-fatal)', { patternId: result.value.id, error: toErrorMessage(rvfErr) });
+        }
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -1417,6 +1450,9 @@ On promotion:
       if (outcome.success) {
         this.stats.successfulOutcomes++;
       }
+
+      // ADR-070: Record pattern update in witness chain
+      getWitnessChain().then(wc => wc.append('PATTERN_UPDATE', { patternId: outcome.patternId, success: outcome.success }, 'reasoning-bank')).catch(() => {});
 
       // Check if pattern should be promoted (with coherence gate)
       const pattern = await this.getPattern(outcome.patternId);
@@ -1518,6 +1554,21 @@ On promotion:
       } catch (e) {
         logger.warn('SQLite pattern promotion persist failed', { error: toErrorMessage(e) });
       }
+
+      // Phase 3: Best-effort RVF dual-write on promotion (re-sync embedding)
+      if (this.rvfDualWriter) {
+        try {
+          const promoted = await this.getPattern(patternId);
+          if (promoted?.embedding && promoted.embedding.length > 0) {
+            this.rvfDualWriter.writePattern(patternId, promoted.embedding);
+          }
+        } catch (rvfErr) {
+          logger.warn('RVF dual-write on promote failed (non-fatal)', { patternId, error: toErrorMessage(rvfErr) });
+        }
+      }
+
+      // ADR-070: Record pattern promotion in witness chain
+      getWitnessChain().then(wc => wc.append('PATTERN_PROMOTE', { patternId }, 'reasoning-bank')).catch(() => {});
       logger.info('Promoted pattern to long-term', { patternId });
       if (this.eventBus) {
         await this.eventBus.publish({
@@ -1835,6 +1886,10 @@ On promotion:
     if (this.sqliteStore) {
       this.sqliteStore.close();
       this.sqliteStore = null;
+    }
+    if (this.rvfDualWriter) {
+      try { this.rvfDualWriter.close(); } catch { /* ignore */ }
+      this.rvfDualWriter = null;
     }
     this.initialized = false;
   }
