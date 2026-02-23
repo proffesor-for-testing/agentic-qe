@@ -5,6 +5,36 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - 2026-02-23
+
+### Added
+
+- **RVF Cognitive Container integration** — 12 of 16 planned integration tasks completed across 4 workstreams: MinCut routing, dream cycle branching, witness chain attestation, and HNSW unification
+- **MinCut-based task routing** — Lambda (vertex connectivity) analysis models task complexity as a graph problem for the 3-tier model router; shadow mode collects comparison data against the production heuristic router
+- **RVCOW dream cycle branching** — Copy-on-write branching for dream cycle experimentation using SQLite savepoints and in-memory overlays; speculative insights are isolated until merged
+- **Cryptographic witness chain** — SHA-256 hash-chained append-only audit trail for quality gate decisions, pattern promotions, test suite completions, and routing decisions; tamper-evident with chain verification
+- **HNSW unification** — Consolidated 3 fragmented HNSW implementations behind a unified progressive adapter with 2-state search (fast flat scan vs full HNSW) based on collection size
+- **Brain export/import CLI** — `aqe brain export`, `aqe brain import --dry-run`, and `aqe brain info` commands for portable QE intelligence containers (.aqe-brain format with JSONL + binary vectors)
+- **MinCut test suite optimizer** — Models test suites as coverage graphs, computes minimum cut to identify critical tests, skippable tests, and optimal execution order; wired into test-execution domain
+- **RVF dual-writer** — Best-effort dual-write from QEReasoningBank to both SQLite and RVF containers, preparing for future RVF promotion as primary storage
+- **RVF native adapter** — Direct N-API bindings to @ruvector/rvf-node bypassing SDK wrapper bugs; graceful fallback when native binaries unavailable
+- **Stoer-Wagner structural health monitor** — Computes exact mincut of swarm and codebase dependency graphs as a normalized connectivity health score
+- **MinCut wrapper** — Unified interface over TypeScript MinCutCalculator with native @ruvector/mincut-node fallback detection
+- **246 new tests** across all RVF integration modules (unit + integration)
+
+### Fixed
+
+- **Dead module wiring** — MinCut test optimizer, brain CLI handler, and RVF dual-writer were implemented but not reachable from production code paths; all three now wired into their respective domains
+- **Benchmark baseline integrity** — Original pre-RVF baseline (Feb 22) restored after being accidentally overwritten by post-integration rerun; Feb 23 rerun preserved separately
+- **Dual-writer test honesty** — 21 mock-only tests that verified call counts without checking behavior replaced with assertions that verify argument content and response shape
+- **HNSW unification test stability** — Fixed non-deterministic vector ordering caused by cosine similarity scale-invariance (`v * 0.9` has identical cosine similarity to `v`); replaced with directionally different vector
+
+### Changed
+
+- **Benchmark report transparency** — All "Live" status claims corrected to "Wired" or "Internal"; added honest "Modules Not Yet Wired" section; recommendations expanded from 5 to 9
+- **QEReasoningBank extensibility** — Added optional `setRvfDualWriter()` injection point for best-effort dual-write during `storePattern()` and `promotePattern()`
+- **Test execution coordinator** — Added `optimizeTestSuite()` method delegating to MinCut test optimizer
+
 ## [3.6.19] - 2026-02-22
 
 ### Fixed
