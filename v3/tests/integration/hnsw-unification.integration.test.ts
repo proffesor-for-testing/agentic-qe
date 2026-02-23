@@ -179,7 +179,8 @@ describe('HnswAdapter Named Index Isolation', () => {
 
     const embedding = Array.from(randomVector(384));
     adapter.addByStringId('pattern-auth-jwt', embedding);
-    adapter.addByStringId('pattern-auth-oauth', embedding.map((v) => v * 0.9));
+    // Use a directionally different vector (not just scaled — cosine similarity is scale-invariant)
+    adapter.addByStringId('pattern-auth-oauth', embedding.map((v, i) => i < 192 ? v * 0.5 : -v * 0.3));
 
     expect(adapter.size()).toBe(2);
 
