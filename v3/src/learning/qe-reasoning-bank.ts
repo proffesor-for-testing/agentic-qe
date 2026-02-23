@@ -56,6 +56,7 @@ import {
   SQLitePatternStore,
   createSQLitePatternStore,
 } from './sqlite-persistence.js';
+import { getWitnessChain } from '../audit/witness-chain.js';
 
 // ============================================================================
 // QEReasoningBank Configuration
@@ -1331,7 +1332,14 @@ On promotion:
       options = { ...options, embedding };
     }
 
-    return this.patternStore.create(options);
+    const result = await this.patternStore.create(options);
+
+    // ADR-070: Record pattern creation in witness chain
+    if (result.success) {
+      getWitnessChain().then(wc => wc.append('PATTERN_CREATE', { patternId: result.value.id, domain: result.value.qeDomain, confidence: result.value.confidence, name: result.value.name }, 'reasoning-bank')).catch(() => {});
+    }
+
+    return result;
   }
 
   /**
@@ -1417,6 +1425,9 @@ On promotion:
       if (outcome.success) {
         this.stats.successfulOutcomes++;
       }
+
+      // ADR-070: Record pattern update in witness chain
+      getWitnessChain().then(wc => wc.append('PATTERN_UPDATE', { patternId: outcome.patternId, success: outcome.success }, 'reasoning-bank')).catch(() => {});
 
       // Check if pattern should be promoted (with coherence gate)
       const pattern = await this.getPattern(outcome.patternId);
@@ -1518,6 +1529,8 @@ On promotion:
       } catch (e) {
         logger.warn('SQLite pattern promotion persist failed', { error: toErrorMessage(e) });
       }
+      // ADR-070: Record pattern promotion in witness chain
+      getWitnessChain().then(wc => wc.append('PATTERN_PROMOTE', { patternId }, 'reasoning-bank')).catch(() => {});
       logger.info('Promoted pattern to long-term', { patternId });
       if (this.eventBus) {
         await this.eventBus.publish({

@@ -4,6 +4,10 @@
  * Provides O(log n) approximate nearest neighbor search via a multi-layer
  * navigable small-world graph. Extracted from unified-memory.ts.
  *
+ * NOTE: InMemoryHNSWIndex and RuvectorFlatIndex are deprecated.
+ * Use UnifiedHnswIndex / createHnswIndex() from this module instead.
+ * See ADR-071 for the unification plan.
+ *
  * Algorithm reference: Malkov & Yashunin, "Efficient and robust approximate
  * nearest neighbor search using Hierarchical Navigable Small World graphs",
  * IEEE TPAMI 2018.
@@ -11,6 +15,8 @@
 
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { HNSW_CONSTANTS } from './constants.js';
+import { HnswAdapter } from './hnsw-adapter.js';
+import type { HnswConfig } from './hnsw-index-provider.js';
 
 // Try to load @ruvector/gnn for native Rust-powered search
 let ruvectorDifferentiableSearch: ((
@@ -119,6 +125,9 @@ interface HNSWNode {
  * In-memory HNSW (Hierarchical Navigable Small World) index built from
  * SQLite vectors on startup. Provides O(log n) approximate nearest
  * neighbor search via a multi-layer navigable small-world graph.
+ *
+ * @deprecated Use UnifiedHnswIndex or createHnswIndex() instead.
+ * This class will be removed in Phase B of ADR-071.
  */
 export class InMemoryHNSWIndex {
   private nodes: Map<string, HNSWNode> = new Map();
@@ -535,6 +544,9 @@ function fastCosine(a: Float32Array, b: Float32Array, normA: number, normB: numb
  * - 100% recall vs ~70% for HNSW approximate search.
  *
  * Same interface as InMemoryHNSWIndex: add/search/remove/clear/size.
+ *
+ * @deprecated Use UnifiedHnswIndex or createHnswIndex() instead.
+ * This class will be removed in Phase B of ADR-071.
  */
 export class RuvectorFlatIndex {
   private ids: string[] = [];
@@ -660,4 +672,93 @@ export class RuvectorFlatIndex {
   size(): number {
     return this.ids.length;
   }
+}
+
+// ============================================================================
+// Unified HNSW Index (ADR-071)
+// ============================================================================
+
+/**
+ * Unified HNSW index backed by ProgressiveHnswBackend via HnswAdapter.
+ *
+ * This is the replacement for both InMemoryHNSWIndex and RuvectorFlatIndex.
+ * Use createHnswIndex() factory function for convenient construction.
+ *
+ * @see ADR-071: HNSW Implementation Unification
+ */
+export class UnifiedHnswIndex {
+  private readonly adapter: HnswAdapter;
+
+  constructor(name: string, config?: Partial<HnswConfig>) {
+    this.adapter = HnswAdapter.create(name, config);
+  }
+
+  /**
+   * Add a vector using a string ID (same interface as old implementations).
+   */
+  add(id: string, embedding: number[]): void {
+    this.adapter.addByStringId(id, embedding);
+  }
+
+  /**
+   * Search for k nearest neighbors (same interface as old implementations).
+   */
+  search(query: number[], k: number): Array<{ id: string; score: number }> {
+    return this.adapter.searchByArray(query, k);
+  }
+
+  /**
+   * Remove a vector by string ID.
+   */
+  remove(id: string): boolean {
+    return this.adapter.removeByStringId(id);
+  }
+
+  /**
+   * Clear all vectors.
+   */
+  clear(): void {
+    this.adapter.clear();
+  }
+
+  /**
+   * Get the number of vectors in the index.
+   */
+  size(): number {
+    return this.adapter.size();
+  }
+
+  /**
+   * Get estimated recall (0-1).
+   */
+  recall(): number {
+    return this.adapter.recall();
+  }
+
+  /**
+   * Get the underlying IHnswIndexProvider adapter.
+   */
+  getProvider(): HnswAdapter {
+    return this.adapter;
+  }
+}
+
+/**
+ * Factory function to create a unified HNSW index.
+ *
+ * @param config - Configuration with optional name field
+ * @returns A new UnifiedHnswIndex instance
+ *
+ * @example
+ * ```typescript
+ * const index = createHnswIndex({ name: 'patterns', dimensions: 384 });
+ * index.add('vec-1', embedding);
+ * const results = index.search(query, 10);
+ * ```
+ */
+export function createHnswIndex(
+  config: Partial<HnswConfig> & { name?: string } = {}
+): UnifiedHnswIndex {
+  const { name = 'default', ...hnswConfig } = config;
+  return new UnifiedHnswIndex(name, hnswConfig);
 }

@@ -482,6 +482,21 @@ export const SONA_PATTERNS_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_sona_patterns_updated ON sona_patterns(updated_at DESC);
 `;
 
+export const WITNESS_CHAIN_SCHEMA = `
+  -- Witness Chain (ADR-070: Cryptographic audit trail for QE decisions)
+  CREATE TABLE IF NOT EXISTS witness_chain (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prev_hash TEXT NOT NULL,
+    action_hash TEXT NOT NULL,
+    action_type TEXT NOT NULL,
+    action_data TEXT,
+    timestamp TEXT NOT NULL,
+    actor TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_witness_action_type ON witness_chain(action_type);
+  CREATE INDEX IF NOT EXISTS idx_witness_timestamp ON witness_chain(timestamp);
+`;
+
 export const FEEDBACK_SCHEMA = `
   -- Test outcomes (ADR-023: Quality Feedback Loop)
   CREATE TABLE IF NOT EXISTS test_outcomes (
@@ -594,4 +609,6 @@ export const STATS_TABLES = [
   'hypergraph_edges',
   // v7: SONA Patterns table (Neural Backbone)
   'sona_patterns',
+  // v9: Witness Chain (ADR-070)
+  'witness_chain',
 ];

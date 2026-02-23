@@ -20,6 +20,13 @@ import {
   TIER_METADATA,
 } from '../../integrations/agentic-flow';
 
+import {
+  MinCutRoutingService,
+  createMinCutRoutingService,
+  type MinCutRoutingResult,
+  type AgentNode,
+} from './mincut-routing-service.js';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -157,12 +164,16 @@ export class TaskRouterService {
 
   private readonly config: TaskRouterConfig;
   private readonly modelRouter: ModelRouter;
+  private readonly minCutRouter: MinCutRoutingService;
   private readonly routingLog: RoutingLogEntry[] = [];
   private disposed = false;
 
   private constructor(config: TaskRouterConfig, modelRouter: ModelRouter) {
     this.config = config;
     this.modelRouter = modelRouter;
+    this.minCutRouter = createMinCutRoutingService({
+      enableLogging: config.enableLogging,
+    });
   }
 
   /**
@@ -236,6 +247,30 @@ export class TaskRouterService {
       throw new Error('TaskRouterService has been disposed');
     }
 
+    // ADR-068: Try mincut-gated routing as PRIMARY strategy
+    let minCutResult: MinCutRoutingResult | null = null;
+    if (this.minCutRouter.isEnabled() && input.agentTopology) {
+      try {
+        minCutResult = this.minCutRouter.route({
+          task: input.task,
+          domain: input.domain,
+          agentType: input.agentType,
+          agentTopology: input.agentTopology,
+          isCritical: input.isCritical,
+        });
+      } catch (err) {
+        // MinCut failed — fall through to heuristic
+        if (this.config.enableLogging) {
+          console.error(
+            `[TaskRouter] MinCut routing failed, falling back to heuristic: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
+        }
+      }
+    }
+
+    // Heuristic (original) routing — always runs for full decision metadata
     const routingInput: RoutingInput = {
       task: input.task,
       codeContext: input.codeContext,
@@ -249,21 +284,42 @@ export class TaskRouterService {
 
     const decision = await this.modelRouter.route(routingInput);
 
-    const tierMeta = TIER_METADATA[decision.tier];
-    const executionStrategy = this.mapTierToStrategy(decision.tier);
+    // If mincut succeeded and gave a different tier, prefer mincut
+    let effectiveDecision = decision;
+    if (minCutResult && minCutResult.usedMinCut) {
+      const minCutTier = minCutResult.modelTier;
+      if (minCutTier !== decision.tier) {
+        // Override the tier with mincut's recommendation
+        effectiveDecision = {
+          ...decision,
+          tier: minCutTier,
+          rationale: `[MinCut] ${minCutResult.rationale} (heuristic suggested Tier ${decision.tier})`,
+        };
+
+        if (this.config.enableLogging) {
+          console.error(
+            `[TaskRouter] MinCut override: Tier ${decision.tier} -> Tier ${minCutTier} ` +
+            `(lambda=${minCutResult.normalizedLambda.toFixed(3)})`
+          );
+        }
+      }
+    }
+
+    const tierMeta = TIER_METADATA[effectiveDecision.tier];
+    const executionStrategy = this.mapTierToStrategy(effectiveDecision.tier);
 
     const logEntry: RoutingLogEntry = {
-      timestamp: decision.metadata.timestamp,
+      timestamp: effectiveDecision.metadata.timestamp,
       taskDescription: input.task.slice(0, 200),
       requestedTier: input.manualTier,
-      selectedTier: decision.tier,
-      modelId: decision.modelId,
-      complexity: decision.complexityAnalysis.overall,
-      confidence: decision.confidence,
-      wasDowngraded: decision.budgetDecision.wasDowngraded,
-      agentBoosterEligible: decision.agentBoosterEligible,
-      decisionTimeMs: decision.metadata.decisionTimeMs,
-      rationale: decision.rationale,
+      selectedTier: effectiveDecision.tier,
+      modelId: effectiveDecision.modelId,
+      complexity: effectiveDecision.complexityAnalysis.overall,
+      confidence: effectiveDecision.confidence,
+      wasDowngraded: effectiveDecision.budgetDecision.wasDowngraded,
+      agentBoosterEligible: effectiveDecision.agentBoosterEligible,
+      decisionTimeMs: effectiveDecision.metadata.decisionTimeMs,
+      rationale: effectiveDecision.rationale,
     };
 
     // Always track log entries for metrics
@@ -281,12 +337,12 @@ export class TaskRouterService {
       : undefined;
 
     return {
-      decision,
+      decision: effectiveDecision,
       executionStrategy,
-      useAgentBooster: decision.agentBoosterEligible,
-      modelId: decision.modelId,
+      useAgentBooster: effectiveDecision.agentBoosterEligible,
+      modelId: effectiveDecision.modelId,
       tierInfo: {
-        tier: decision.tier,
+        tier: effectiveDecision.tier,
         name: tierMeta.name,
         typicalLatencyMs: tierMeta.typicalLatencyMs,
         relativeCost: tierMeta.relativeCost,
@@ -642,6 +698,9 @@ export interface TaskRoutingInput {
 
   /** Pattern hints from external source (Phase 5.2) */
   readonly patternHints?: readonly PatternHint[];
+
+  /** Agent topology for mincut-gated routing (ADR-068) */
+  readonly agentTopology?: AgentNode[];
 }
 
 /**

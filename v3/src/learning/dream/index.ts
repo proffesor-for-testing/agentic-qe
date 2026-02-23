@@ -152,6 +152,34 @@ export {
 } from './dream-scheduler.js';
 
 // ============================================================================
+// RVCOWBranchManager (ADR-069)
+// ============================================================================
+
+export {
+  RVCOWBranchManager,
+  type Branch,
+  type QualityBaseline,
+  type ValidationResult,
+  type ValidationThresholds,
+  type BranchEvent,
+  type BranchEventListener,
+  DEFAULT_VALIDATION_THRESHOLDS,
+} from './rvcow-branch-manager.js';
+
+// ============================================================================
+// SpeculativeDreamer (ADR-069)
+// ============================================================================
+
+export {
+  SpeculativeDreamer,
+  type DreamStrategy,
+  type StrategyResult,
+  type SpeculativeDreamResult,
+  type DreamExecutor,
+  BUILT_IN_STRATEGIES,
+} from './speculative-dreamer.js';
+
+// ============================================================================
 // Default Export
 // ============================================================================
 

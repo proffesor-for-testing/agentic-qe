@@ -85,6 +85,9 @@ import * as RLIntegration from './coordinator-rl-integration.js';
 import * as ClaimVerifierHelpers from './coordinator-claim-verifier.js';
 import * as GateEvalHelpers from './coordinator-gate-evaluation.js';
 
+// ADR-070: Witness Chain audit trail
+import { getWitnessChain } from '../../audit/witness-chain.js';
+
 // V3 Integration: MinCut Awareness (ADR-047) - only import types needed beyond base
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 
@@ -412,6 +415,16 @@ export class QualityAssessmentCoordinator
       if (this.config.enableRLThresholdTuning && this.actorCritic) {
         await this.trainActorCritic(effectiveRequest, finalResult);
       }
+
+      // ADR-070: Record quality gate decision in witness chain
+      try {
+        const wc = await getWitnessChain();
+        wc.append(
+          finalResult.passed ? 'QUALITY_GATE_PASS' : 'QUALITY_GATE_FAIL',
+          { gateName: request.gateName, passed: finalResult.passed, score: finalResult.overallScore, failedChecks: finalResult.failedChecks },
+          'quality-gate'
+        );
+      } catch (_wcErr) { /* non-critical */ }
 
       // Publish event
       if (this.config.publishEvents) {
