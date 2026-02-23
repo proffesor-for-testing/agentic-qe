@@ -76,6 +76,11 @@ import {
 // ADR-057: Infrastructure self-healing integration
 import type { InfraHealingOrchestrator } from '../../strange-loop/infra-healing/infra-healing-orchestrator.js';
 import { toError } from '../../shared/error-utils.js';
+import {
+  createMinCutTestOptimizer,
+  type TestNode,
+  type TestOptimizationResult,
+} from './services/mincut-test-optimizer.js';
 
 // ============================================================================
 // Coordinator Configuration
@@ -1124,6 +1129,28 @@ export class TestExecutionCoordinator
     } catch (error) {
       return err(toError(error));
     }
+  }
+
+  // ============================================================================
+  // MinCut Test Optimization (Task 2.3)
+  // ============================================================================
+
+  /**
+   * Optimize a test suite using mincut analysis to identify critical vs skippable tests.
+   *
+   * Delegates to MinCutTestOptimizerImpl which models the test suite as a bipartite
+   * graph and computes the minimum cut to find the critical test boundary.
+   *
+   * @param tests - Test nodes with coverage metadata
+   * @param options - Optional settings (coverageThreshold defaults to 1.0)
+   * @returns Optimization result with critical/skippable partitioning and execution order
+   */
+  optimizeTestSuite(
+    tests: readonly TestNode[],
+    options?: { coverageThreshold?: number }
+  ): TestOptimizationResult {
+    const optimizer = createMinCutTestOptimizer();
+    return optimizer.optimize(tests, options?.coverageThreshold);
   }
 
   /**

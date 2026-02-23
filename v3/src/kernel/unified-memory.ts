@@ -600,6 +600,25 @@ export class UnifiedMemoryManager {
     return row.count;
   }
 
+  /**
+   * Count rows in a table. Used by fleet_status to report learning metrics.
+   * Only allows known learning tables for safety.
+   */
+  queryCount(table: string): number {
+    this.ensureInitialized();
+    const ALLOWED_TABLES = [
+      'qe_patterns', 'captured_experiences', 'qe_trajectories',
+      'experience_applications', 'dream_cycles', 'dream_insights',
+      'concept_nodes', 'concept_edges', 'rl_q_values', 'vectors',
+      'kv_store', 'routing_outcomes', 'qe_pattern_usage',
+    ];
+    if (!ALLOWED_TABLES.includes(table)) {
+      throw new Error(`queryCount: table '${table}' not in allowed list`);
+    }
+    const row = this.db!.prepare(`SELECT COUNT(*) as c FROM ${table}`).get() as { c: number };
+    return row.c;
+  }
+
   // ============================================================================
   // CRDT Operations
   // ============================================================================

@@ -233,6 +233,10 @@ export async function handleFleetInit(
     // This enables workflows like qcsd-ideation-swarm to execute their actions
     registerDomainWorkflowActions(state.kernel, state.workflowOrchestrator);
 
+    // Issue N1: Subscribe to task lifecycle events for trajectory auto-close
+    const { subscribeTrajectoryEvents } = await import('./task-handlers.js');
+    subscribeTrajectoryEvents(state.router);
+
     state.initialized = true;
     state.initTime = new Date();
     state.topology = (params.topology as TopologyType) || 'hierarchical';
@@ -332,6 +336,29 @@ export async function handleFleetStatus(
         agentUtilization: metrics.agentUtilization,
         averageTaskDuration: metrics.averageTaskDuration,
       };
+    }
+
+    // Issue N3: Add learning system summary from SQLite via UnifiedMemoryManager singleton
+    try {
+      const { getUnifiedMemory } = await import('../../kernel/unified-memory.js');
+      const um = getUnifiedMemory();
+      if (um.isInitialized()) {
+        const queryCount = (table: string): number => {
+          try { return um.queryCount(table); } catch { return 0; }
+        };
+        const vecCount = await um.vectorCount();
+        result.learning = {
+          totalPatterns: queryCount('qe_patterns'),
+          totalExperiences: queryCount('captured_experiences'),
+          totalTrajectories: queryCount('qe_trajectories'),
+          vectorCount: vecCount,
+          experienceApplications: queryCount('experience_applications'),
+          dreamCycles: queryCount('dream_cycles'),
+          embeddingDimension: 384,
+        };
+      }
+    } catch {
+      // Learning metrics are best-effort — don't fail fleet_status
     }
 
     return {
@@ -449,6 +476,11 @@ export async function disposeFleet(): Promise<void> {
     state.queen = null;
   }
   if (state.router) {
+    // Issue N1: Unsubscribe trajectory event listeners before disposing router
+    try {
+      const { unsubscribeTrajectoryEvents } = await import('./task-handlers.js');
+      unsubscribeTrajectoryEvents(state.router);
+    } catch { /* best-effort */ }
     await state.router.dispose();
     state.router = null;
   }

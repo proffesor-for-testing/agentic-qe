@@ -64,8 +64,8 @@ export async function initializeLearningSystem(): Promise<QEReasoningBank> {
     enableLearning: true,
     enableGuidance: true,
     enableRouting: true,
-    embeddingDimension: 768,
-    useONNXEmbeddings: false,
+    embeddingDimension: 384,
+    useONNXEmbeddings: true,
   });
 
   await state.reasoningBank.initialize();

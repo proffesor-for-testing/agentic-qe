@@ -137,10 +137,14 @@ class Test${this.pascalCase(moduleName)}:
         pyAssertion = 'assert result';
       } else if (fn.returnType) {
         const rt = fn.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
-        if (rt.includes('boolean') || rt.includes('bool')) pyAssertion = 'assert isinstance(result, bool)';
+        if (rt.includes('{')) pyAssertion = 'assert isinstance(result, dict)';
+        else if (rt === 'boolean' || rt === 'bool') pyAssertion = 'assert isinstance(result, bool)';
+        else if (rt === 'number' || rt === 'int' || rt === 'float') pyAssertion = 'assert isinstance(result, (int, float))';
+        else if (rt === 'string' || rt === 'str') pyAssertion = 'assert isinstance(result, str)';
+        else if (rt.includes('[]') || rt.includes('array') || rt.includes('list')) pyAssertion = 'assert isinstance(result, list)';
+        else if (rt.includes('boolean') || rt.includes('bool')) pyAssertion = 'assert isinstance(result, bool)';
         else if (rt.includes('number') || rt.includes('int') || rt.includes('float')) pyAssertion = 'assert isinstance(result, (int, float))';
         else if (rt.includes('string') || rt.includes('str')) pyAssertion = 'assert isinstance(result, str)';
-        else if (rt.includes('[]') || rt.includes('array') || rt.includes('list')) pyAssertion = 'assert isinstance(result, list)';
       }
     }
 
@@ -198,10 +202,14 @@ class Test${this.pascalCase(moduleName)}:
             mAssertion = 'assert result';
           } else if (method.returnType) {
             const mrt = method.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
-            if (mrt.includes('boolean') || mrt.includes('bool')) mAssertion = 'assert isinstance(result, bool)';
+            if (mrt.includes('{')) mAssertion = 'assert isinstance(result, dict)';
+            else if (mrt === 'boolean' || mrt === 'bool') mAssertion = 'assert isinstance(result, bool)';
+            else if (mrt === 'number' || mrt === 'int' || mrt === 'float') mAssertion = 'assert isinstance(result, (int, float))';
+            else if (mrt === 'string' || mrt === 'str') mAssertion = 'assert isinstance(result, str)';
+            else if (mrt.includes('[]') || mrt.includes('array') || mrt.includes('list')) mAssertion = 'assert isinstance(result, list)';
+            else if (mrt.includes('boolean') || mrt.includes('bool')) mAssertion = 'assert isinstance(result, bool)';
             else if (mrt.includes('number') || mrt.includes('int') || mrt.includes('float')) mAssertion = 'assert isinstance(result, (int, float))';
             else if (mrt.includes('string') || mrt.includes('str')) mAssertion = 'assert isinstance(result, str)';
-            else if (mrt.includes('[]') || mrt.includes('array') || mrt.includes('list')) mAssertion = 'assert isinstance(result, list)';
           }
         }
 

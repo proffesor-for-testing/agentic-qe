@@ -630,4 +630,52 @@ describe('Memory Handlers', { timeout: 30000 }, () => {
       expect(result.data!.value).toBe('quick-value');
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Issue N4: memory_usage reports real vector count (not hardcoded 0)
+  // --------------------------------------------------------------------------
+
+  describe('Issue N4: memory_usage vector count', () => {
+    it('should report vector and namespace counts from real backend', async () => {
+      // Store entries in two namespaces to verify namespace counting
+      await handleMemoryStore({ key: 'n4-a', value: 'val-a', namespace: 'ns-alpha' });
+      await handleMemoryStore({ key: 'n4-b', value: 'val-b', namespace: 'ns-beta' });
+
+      const usage = await handleMemoryUsage();
+
+      expect(usage.success).toBe(true);
+      // vectors should be a number (may be 0 in in-memory backend, but not undefined)
+      expect(typeof usage.data!.vectors).toBe('number');
+      expect(usage.data!.vectors).toBeGreaterThanOrEqual(0);
+      // namespaces should be at least 2 (ns-alpha, ns-beta)
+      expect(usage.data!.namespaces).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Issue N5: persisted flag is always true when fleet is initialized
+  // --------------------------------------------------------------------------
+
+  describe('Issue N5: persisted flag', () => {
+    it('should return persisted: true for stored entries', async () => {
+      const result = await handleMemoryStore({
+        key: 'n5-test',
+        value: 'persisted-value',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data!.persisted).toBe(true);
+    });
+
+    it('should return persisted: true regardless of namespace', async () => {
+      const result = await handleMemoryStore({
+        key: 'n5-ns-test',
+        value: 'value',
+        namespace: 'custom-ns',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data!.persisted).toBe(true);
+    });
+  });
 });

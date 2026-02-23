@@ -407,15 +407,30 @@ export async function handleTaskOrchestrate(
     }
 
     // No workflow - submit as a regular task
+    // Issue N2: Build domain-appropriate payload.
+    // Forward caller-provided filePaths/codeContext into the payload fields
+    // that domain plugins expect, so generate-tests doesn't reject with
+    // "missing sourceFiles" when called via task_orchestrate.
+    const taskPayload: Record<string, unknown> = {
+      description: params.task,
+      strategy: params.strategy || 'adaptive',
+      maxAgents: params.maxAgents,
+      context: params.context,
+    };
+
+    if (taskType === 'generate-tests') {
+      taskPayload.sourceFiles = params.filePaths || [];
+      taskPayload.sourceCode = params.codeContext || '';
+      taskPayload.language = taskPayload.language || 'typescript';
+      taskPayload.testType = taskPayload.testType || 'unit';
+    }
+
     const result = await queen!.submitTask({
       type: taskType,
       priority,
       targetDomains: [],
       payload: {
-        description: params.task,
-        strategy: params.strategy || 'adaptive',
-        maxAgents: params.maxAgents,
-        context: params.context,
+        ...taskPayload,
         // ADR-051: Include routing decision in payload for downstream processing
         routing: {
           tier: routingResult.decision.tier,
@@ -450,6 +465,10 @@ export async function handleTaskOrchestrate(
       agent: 'queen-coordinator',
       domain: params.context?.project as QEDomain | undefined,
     });
+
+    // Issue N1: Trajectory auto-close is handled by subscribeTrajectoryEvents(),
+    // which listens for TaskCompleted/TaskFailed on the event router.
+    // No per-task polling needed.
 
     return {
       success: true,
@@ -1075,4 +1094,49 @@ export async function handleTaskStatusWithLearning(
       error: `Failed to get task status: ${toErrorMessage(error)}`,
     };
   }
+}
+
+// ============================================================================
+// Issue N1: Event-driven trajectory auto-close
+// Subscribe to TaskCompleted/TaskFailed events so trajectories are closed
+// by the event system, not by per-task polling loops.
+// Called once during fleet init.
+// ============================================================================
+
+/** Subscription IDs for cleanup on fleet dispose */
+let trajectorySubscriptionIds: string[] = [];
+
+/**
+ * Subscribe to task lifecycle events to auto-close trajectories.
+ * Must be called after the CrossDomainEventRouter is initialized.
+ */
+export function subscribeTrajectoryEvents(router: import('../../coordination/cross-domain-router').CrossDomainEventRouter): void {
+  // Unsubscribe any previous subscriptions (idempotent)
+  unsubscribeTrajectoryEvents(router);
+
+  const completedId = router.subscribeToEventType('TaskCompleted', async (event) => {
+    const { taskId } = event.payload as { taskId: string };
+    if (taskId) {
+      await endTaskTrajectory(taskId, true).catch(() => {});
+    }
+  });
+
+  const failedId = router.subscribeToEventType('TaskFailed', async (event) => {
+    const { taskId, error: errorMsg } = event.payload as { taskId: string; error?: string };
+    if (taskId) {
+      await endTaskTrajectory(taskId, false, errorMsg).catch(() => {});
+    }
+  });
+
+  trajectorySubscriptionIds = [completedId, failedId];
+}
+
+/**
+ * Unsubscribe trajectory event listeners. Called during fleet dispose.
+ */
+export function unsubscribeTrajectoryEvents(router: import('../../coordination/cross-domain-router').CrossDomainEventRouter): void {
+  for (const id of trajectorySubscriptionIds) {
+    router.unsubscribe(id);
+  }
+  trajectorySubscriptionIds = [];
 }

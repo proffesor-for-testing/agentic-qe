@@ -5,6 +5,59 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - 2026-02-23
+
+### Added
+
+- **RVF Cognitive Container integration** — 12 of 16 planned integration tasks completed across 4 workstreams: MinCut routing, dream cycle branching, witness chain attestation, and HNSW unification
+- **MinCut-based task routing** — Lambda (vertex connectivity) analysis models task complexity as a graph problem for the 3-tier model router; shadow mode collects comparison data against the production heuristic router
+- **RVCOW dream cycle branching** — Copy-on-write branching for dream cycle experimentation using SQLite savepoints and in-memory overlays; speculative insights are isolated until merged
+- **Cryptographic witness chain** — SHA-256 hash-chained append-only audit trail for quality gate decisions, pattern promotions, test suite completions, and routing decisions; tamper-evident with chain verification
+- **HNSW unification** — Consolidated 3 fragmented HNSW implementations behind a unified progressive adapter with 2-state search (fast flat scan vs full HNSW) based on collection size
+- **Brain export/import CLI** — `aqe brain export`, `aqe brain import --dry-run`, and `aqe brain info` commands for portable QE intelligence containers (.aqe-brain format with JSONL + binary vectors)
+- **MinCut test suite optimizer** — Models test suites as coverage graphs, computes minimum cut to identify critical tests, skippable tests, and optimal execution order; wired into test-execution domain
+- **RVF dual-writer** — Best-effort dual-write from QEReasoningBank to both SQLite and RVF containers, preparing for future RVF promotion as primary storage
+- **RVF native adapter** — Direct N-API bindings to @ruvector/rvf-node bypassing SDK wrapper bugs; graceful fallback when native binaries unavailable
+- **Stoer-Wagner structural health monitor** — Computes exact mincut of swarm and codebase dependency graphs as a normalized connectivity health score
+- **MinCut wrapper** — Unified interface over TypeScript MinCutCalculator with native @ruvector/mincut-node fallback detection
+- **246 new tests** across all RVF integration modules (unit + integration)
+
+### Fixed
+
+- **Dead module wiring** — MinCut test optimizer, brain CLI handler, and RVF dual-writer were implemented but not reachable from production code paths; all three now wired into their respective domains
+- **Benchmark baseline integrity** — Original pre-RVF baseline (Feb 22) restored after being accidentally overwritten by post-integration rerun; Feb 23 rerun preserved separately
+- **Dual-writer test honesty** — 21 mock-only tests that verified call counts without checking behavior replaced with assertions that verify argument content and response shape
+- **HNSW unification test stability** — Fixed non-deterministic vector ordering caused by cosine similarity scale-invariance (`v * 0.9` has identical cosine similarity to `v`); replaced with directionally different vector
+
+### Changed
+
+- **Benchmark report transparency** — All "Live" status claims corrected to "Wired" or "Internal"; added honest "Modules Not Yet Wired" section; recommendations expanded from 5 to 9
+- **QEReasoningBank extensibility** — Added optional `setRvfDualWriter()` injection point for best-effort dual-write during `storePattern()` and `promotePattern()`
+- **Test execution coordinator** — Added `optimizeTestSuite()` method delegating to MinCut test optimizer
+
+## [3.6.19] - 2026-02-22
+
+### Fixed
+
+- **Event-driven trajectory lifecycle** — Replaced fragile fire-and-forget polling loop with event subscriptions on CrossDomainEventRouter (TaskCompleted/TaskFailed), eliminating race conditions and memory leaks in task trajectory tracking
+- **Object return type misclassified as primitive** — Test generators (Jest/Vitest, Mocha, Node, Pytest) now correctly detect `{ valid: boolean }` as an object type instead of matching the inner `boolean` keyword; fixed across all 5 generators (7 code locations)
+- **memory_store persistence check** — Removed unnecessary duck-typing dance for `isPersistent()` check; HybridMemoryBackend always persists to SQLite when initialized
+- **memory_usage reported zeros** — `memory_usage` MCP tool now returns real vector count and namespace count from HybridMemoryBackend instead of hardcoded zeros
+- **fleet_status missing learning metrics** — Added `learning` field to fleet_status response with real counts from SQLite (patterns, experiences, trajectories, vectors, dream cycles, embedding dimension)
+- **Auto-team-wiring crash with partial mocks** — Guard against undefined DomainTeamManager during agent spawn in test environments
+
+### Added
+
+- **queryCount() on UnifiedMemoryManager** — SQL-injection-safe method with table allowlist for counting rows in learning tables
+- **Trajectory event subscription wiring** — `subscribeTrajectoryEvents()` and `unsubscribeTrajectoryEvents()` called during fleet init/dispose
+- **Orphaned trajectory cleanup** — Stale trajectories (>1 hour, never completed) are marked as failed at startup
+- **ReasoningBank learning system guide** — New documentation at `docs/guides/reasoningbank-learning-system.md` covering the 4-stage learning pipeline, pattern lifecycle, and embedding architecture
+- **25 new unit tests** — Coverage for all 6 fixes: trajectory events, task payload mapping, queryCount, memory persistence, memory usage, and object return type assertions
+
+### Changed
+
+- **Embedding dimension consolidation** — ReasoningBank and PatternStore layers standardized on 384-dim embeddings (all-MiniLM-L6-v2); coverage-analysis 768-dim indices are intentionally separate
+
 ## [3.6.18] - 2026-02-21
 
 ### Added

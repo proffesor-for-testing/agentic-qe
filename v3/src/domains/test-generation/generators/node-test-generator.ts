@@ -142,10 +142,14 @@ ${importStatement}
         assertLine = 'assert.ok(result);';
       } else if (method.returnType) {
         const rt = method.returnType.toLowerCase().replace(/promise<(.+)>/, '$1');
-        if (rt.includes('boolean')) assertLine = "assert.strictEqual(typeof result, 'boolean');";
+        if (rt.includes('{')) assertLine = "assert.strictEqual(typeof result, 'object');";
+        else if (rt === 'boolean') assertLine = "assert.strictEqual(typeof result, 'boolean');";
+        else if (rt === 'number') assertLine = "assert.strictEqual(typeof result, 'number');";
+        else if (rt === 'string') assertLine = "assert.strictEqual(typeof result, 'string');";
+        else if (rt.includes('[]') || rt.includes('array')) assertLine = 'assert.ok(Array.isArray(result));';
+        else if (rt.includes('boolean')) assertLine = "assert.strictEqual(typeof result, 'boolean');";
         else if (rt.includes('number')) assertLine = "assert.strictEqual(typeof result, 'number');";
         else if (rt.includes('string')) assertLine = "assert.strictEqual(typeof result, 'string');";
-        else if (rt.includes('[]') || rt.includes('array')) assertLine = 'assert.ok(Array.isArray(result));';
       }
     }
 

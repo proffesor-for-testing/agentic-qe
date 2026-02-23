@@ -110,7 +110,7 @@ export interface PatternStoreConfig {
  */
 export const DEFAULT_PATTERN_STORE_CONFIG: PatternStoreConfig = {
   namespace: 'qe-patterns',
-  embeddingDimension: 768,
+  embeddingDimension: 384, // Native all-MiniLM-L6-v2 dimension
   hnsw: {
     M: 16,
     efConstruction: 200,

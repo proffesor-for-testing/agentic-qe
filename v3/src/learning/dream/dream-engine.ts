@@ -38,6 +38,13 @@ import {
   type DreamInsight,
   type ConceptGraph as InsightConceptGraph,
 } from './insight-generator.js';
+import {
+  RVCOWBranchManager,
+  type Branch,
+  type ValidationResult,
+  type ValidationThresholds,
+  DEFAULT_VALIDATION_THRESHOLDS,
+} from './rvcow-branch-manager.js';
 import type {
   DreamCycle,
   DreamCycleStatus,
@@ -66,6 +73,12 @@ export interface DreamConfig {
 
   /** Insight generation configuration */
   insightConfig: InsightConfig;
+
+  /** Enable RVCOW branching for reversible dream cycles (ADR-069). Default: true */
+  enableBranching: boolean;
+
+  /** Validation thresholds for dream branch quality checks */
+  branchValidationThresholds: ValidationThresholds;
 }
 
 /**
@@ -86,6 +99,8 @@ export const DEFAULT_DREAM_CONFIG: DreamConfig = {
     minConfidence: 0.5,
     maxInsightsPerCycle: 10,
   },
+  enableBranching: true,
+  branchValidationThresholds: { ...DEFAULT_VALIDATION_THRESHOLDS },
 };
 
 // ============================================================================
@@ -290,9 +305,11 @@ export class DreamEngine {
   private persistence: UnifiedPersistenceManager | null = null;
   private graph: ConceptGraph | null = null;
   private db: DatabaseType | null = null;
+  private branchManager: RVCOWBranchManager | null = null;
   private currentCycle: DreamCycle | null = null;
   private initialized = false;
   private cancelled = false;
+  private branchEventListeners: Array<(event: string, branch: Branch, detail?: ValidationResult) => void> = [];
 
   constructor(config?: Partial<DreamConfig>) {
     this.config = { ...DEFAULT_DREAM_CONFIG, ...config };
@@ -321,6 +338,14 @@ export class DreamEngine {
       // Initialize concept graph (shares same unified persistence)
       this.graph = new ConceptGraph();
       await this.graph.initialize();
+
+      // Initialize RVCOW branch manager (ADR-069)
+      if (this.config.enableBranching) {
+        this.branchManager = new RVCOWBranchManager(
+          this.db,
+          this.config.branchValidationThresholds,
+        );
+      }
 
       this.initialized = true;
       console.log(`[DreamEngine] Initialized: ${this.persistence.getDbPath()}`);
@@ -417,6 +442,14 @@ export class DreamEngine {
     };
     await this.saveCycle(this.currentCycle);
 
+    // ADR-069: Create RVCOW branch before dream consolidation
+    let branch: Branch | null = null;
+    if (this.branchManager) {
+      const branchName = `dream-${this.currentCycle.id}-${Date.now()}`;
+      branch = this.branchManager.createBranch(branchName);
+      this.emitBranchEvent('dream:branch_created', branch);
+    }
+
     try {
       // 1. Check we have enough concepts
       const allNodes = await this.graph!.getActiveNodes(0);
@@ -469,6 +502,24 @@ export class DreamEngine {
       this.currentCycle.status = 'completed';
       await this.updateCycle(this.currentCycle);
 
+      // ADR-069: Validate and merge/discard the RVCOW branch
+      if (branch && this.branchManager) {
+        const validation = this.branchManager.validateBranch(branch);
+        if (validation.passed) {
+          this.branchManager.mergeBranch(branch);
+          this.emitBranchEvent('dream:branch_merged', branch, validation);
+        } else {
+          this.branchManager.discardBranch(branch);
+          this.emitBranchEvent('dream:branch_discarded', branch, validation);
+          dreamLogger.warn('Dream branch discarded: quality validation failed', {
+            cycleId: this.currentCycle.id,
+            reason: validation.reason,
+          });
+          // Still return results so caller sees what happened
+        }
+        branch = null; // Prevent double-discard in catch
+      }
+
       const result: DreamCycleResult = {
         cycle: { ...this.currentCycle },
         insights,
@@ -483,6 +534,16 @@ export class DreamEngine {
       this.currentCycle = null;
       return result;
     } catch (error) {
+      // ADR-069: Discard branch on error to ensure no partial mutations persist
+      if (branch && this.branchManager) {
+        try {
+          this.branchManager.discardBranch(branch);
+          this.emitBranchEvent('dream:branch_discarded', branch);
+        } catch {
+          // Branch may already be discarded; ignore
+        }
+      }
+
       if (this.currentCycle) {
         if (this.currentCycle.status === 'running') {
           this.currentCycle.status = 'failed';
@@ -749,6 +810,34 @@ export class DreamEngine {
   }
 
   // ==========================================================================
+  // Branch Management (ADR-069)
+  // ==========================================================================
+
+  /**
+   * Get the RVCOW branch manager, if branching is enabled.
+   */
+  getBranchManager(): RVCOWBranchManager | null {
+    return this.branchManager;
+  }
+
+  /**
+   * Register a listener for branch lifecycle events.
+   */
+  onBranchEvent(listener: (event: string, branch: Branch, detail?: ValidationResult) => void): void {
+    this.branchEventListeners.push(listener);
+  }
+
+  private emitBranchEvent(event: string, branch: Branch, detail?: ValidationResult): void {
+    for (const listener of this.branchEventListeners) {
+      try {
+        listener(event, branch, detail);
+      } catch {
+        // Swallow listener errors
+      }
+    }
+  }
+
+  // ==========================================================================
   // Cleanup
   // ==========================================================================
 
@@ -763,6 +852,7 @@ export class DreamEngine {
 
     this.db = null;
     this.persistence = null;
+    this.branchManager = null;
     this.initialized = false;
     this.currentCycle = null;
   }

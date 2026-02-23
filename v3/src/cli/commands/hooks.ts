@@ -123,8 +123,8 @@ async function initializeHooksSystem(): Promise<void> {
       enableLearning: true,
       enableGuidance: true,
       enableRouting: true,
-      embeddingDimension: 768,
-      useONNXEmbeddings: false, // Hash-based for ARM64 compatibility
+      embeddingDimension: 384,
+      useONNXEmbeddings: true, // Use real transformer embeddings (384-dim)
     }, state.coherenceService ?? undefined);
 
     // Initialize with timeout
@@ -337,8 +337,8 @@ async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promise<{
       enableLearning: true,
       enableGuidance: false,
       enableRouting: false,
-      embeddingDimension: 768,
-      useONNXEmbeddings: false,
+      embeddingDimension: 384,
+      useONNXEmbeddings: true,
     });
     await rb.initialize();
 

@@ -465,6 +465,16 @@ export interface FleetStatusResult {
     totalAgentsInTeams: number;
     healthyCount: number;
   };
+  /** Learning system summary */
+  learning?: {
+    totalPatterns: number;
+    totalExperiences: number;
+    totalTrajectories: number;
+    vectorCount: number;
+    experienceApplications: number;
+    dreamCycles: number;
+    embeddingDimension: number;
+  };
 }
 
 /**

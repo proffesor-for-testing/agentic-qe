@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 14 Complete (Agent Teams Integration - ADR-064)
+**Status:** Phase 15 — RVF Integration (ADR-065 through ADR-073)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-02-09 (ADR-001-064: 58 Implemented, 101 skills with trust tiers, 397+ coordination tests passing)
+**Last Verified:** 2026-02-22 (ADR-001-064: 58 Implemented, ADR-065-073: 9 Proposed for RVF integration)
 
 ---
 
@@ -76,6 +76,15 @@
 | [ADR-062](./ADR-062-strongdm-software-factory.md) | StrongDM Software Factory Integration | **Accepted** | 2026-02-08 | 6 actions across 3 tiers: loop detection, token dashboard, holdout testing, gate ratcheting, progressive context, meta-learning |
 | [ADR-063](./ADR-063-enterprise-integration-testing.md) | Enterprise Integration Testing Gap Closure | **Implemented** | 2026-02-04 | ✅ 7 new agents + 4 new skills + enterprise-integration bounded context (13th domain) + QCSD flag extensions |
 | [ADR-064](./ADR-064-agentic-teams-integration.md) | Agent Teams Integration for AQE Fleet | **Implemented** | 2026-02-09 | ✅ All 4 phases: mailbox messaging, fleet tiers, task DAG, circuit breakers, tracing, competing hypotheses, federation, dynamic scaling. 397+ tests. |
+| [ADR-065](./ADR-065-rvf-integration-hybrid-architecture.md) | RVF Integration — Hybrid Architecture | **Proposed** | 2026-02-10 | Umbrella ADR: SQLite+RVF coexistence, vector workload migration path |
+| [ADR-066](./ADR-066-rvf-pattern-store-progressive-hnsw.md) | RVF-Backed PatternStore with Progressive HNSW | **Proposed** | 2026-02-10 | RVF INDEX_SEG for vector workloads, 3-layer progressive HNSW |
+| [ADR-067](./ADR-067-agent-memory-branching-rvf-cow.md) | Agent Memory Branching via RVF COW | **Proposed** | 2026-02-10 | RVCOW copy-on-write branching for agent memory isolation |
+| [ADR-068](./ADR-068-mincut-gated-model-routing.md) | MinCut-Gated Model Routing | **Proposed** | 2026-02-22 | Replace static 3-tier thresholds with mincut lambda-based structural complexity routing |
+| [ADR-069](./ADR-069-rvcow-dream-cycle-branching.md) | RVCOW Dream Cycle Branching | **Proposed** | 2026-02-22 | Safe dream experimentation via RVCOW branches with validation gates |
+| [ADR-070](./ADR-070-witness-chain-audit-compliance.md) | Witness Chain Audit Compliance | **Proposed** | 2026-02-22 | Cryptographic SHAKE-256 witness chain for tamper-evident QE decision audit |
+| [ADR-071](./ADR-071-hnsw-implementation-unification.md) | HNSW Implementation Unification | **Proposed** | 2026-02-22 | Consolidate 3 HNSW implementations behind single HnswIndexProvider + RVF INDEX_SEG |
+| [ADR-072](./ADR-072-rvf-primary-persistence-migration.md) | RVF Primary Persistence Migration | **Proposed** | 2026-02-22 | 4-stage migration from SQLite hybrid to RVF primary with go/no-go gates |
+| [ADR-073](./ADR-073-portable-intelligence-containers.md) | Portable Intelligence Containers | **Proposed** | 2026-02-22 | Export/import/version QE intelligence as distributable .rvf files |
 
 ---
 
