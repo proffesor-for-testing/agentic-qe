@@ -135,10 +135,29 @@ export class RVCOWBranchManager {
   private activeBranches: Map<string, Branch> = new Map();
   private listeners: BranchEventListener[] = [];
 
+  /** Optional RVF native adapter for COW fork snapshots of dream state */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private rvfAdapter?: any;
+
+  /** When true and rvfAdapter is set, createBranch() also forks an RVF snapshot */
+  private useRvfFork = false;
+
   constructor(
     private readonly db: DatabaseType,
     private readonly thresholds: ValidationThresholds = DEFAULT_VALIDATION_THRESHOLDS,
   ) {}
+
+  /**
+   * Set an RVF native adapter for supplementary COW fork snapshots.
+   * When set with useRvfFork=true, createBranch() will additionally
+   * fork a portable .rvf snapshot alongside the SQLite savepoint.
+   * SQLite savepoints remain the primary branching mechanism.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setRvfAdapter(adapter: any, useRvfFork = true): void {
+    this.rvfAdapter = adapter;
+    this.useRvfFork = useRvfFork;
+  }
 
   // --------------------------------------------------------------------------
   // Branch Lifecycle
@@ -172,6 +191,15 @@ export class RVCOWBranchManager {
       status: 'active',
       baselineSnapshot: baseline,
     };
+
+    // Supplementary RVF fork for portable brain snapshots (when configured)
+    if (this.rvfAdapter && this.useRvfFork) {
+      try {
+        this.rvfAdapter.fork(`/tmp/dream-branch-${name}.rvf`);
+      } catch {
+        // RVF fork is best-effort — SQLite savepoint is the primary mechanism
+      }
+    }
 
     this.activeBranches.set(name, branch);
     this.emit('dream:branch_created', branch);

@@ -286,6 +286,35 @@ export class WitnessChain {
   }
 
   /**
+   * Cross-verify our SQLite witness chain against an RVF native witness.
+   *
+   * Calls rvfAdapter.status() to get witnessValid and witnessEntries,
+   * then compares with our own verify() result.
+   *
+   * @param rvfAdapter - An RvfNativeAdapter instance with a status() method
+   * @returns Cross-verification result from both chains
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  crossVerifyWithRvf(rvfAdapter: any): {
+    sqliteValid: boolean;
+    rvfValid: boolean;
+    rvfEntries: number;
+    bothValid: boolean;
+  } {
+    const sqliteResult = this.verify();
+    const rvfStatus = rvfAdapter.status();
+    const rvfValid = rvfStatus.witnessValid === true;
+    const rvfEntries = typeof rvfStatus.witnessEntries === 'number' ? rvfStatus.witnessEntries : 0;
+
+    return {
+      sqliteValid: sqliteResult.valid,
+      rvfValid,
+      rvfEntries,
+      bothValid: sqliteResult.valid && rvfValid,
+    };
+  }
+
+  /**
    * Get the total number of entries in the chain.
    */
   getChainLength(): number {
