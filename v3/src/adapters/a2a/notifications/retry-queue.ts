@@ -9,6 +9,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { randomUUID } from 'crypto';
 
 // ============================================================================
 // Types
@@ -222,7 +223,7 @@ export class RetryQueue extends EventEmitter {
     metadata?: Record<string, unknown>;
   }): PendingDelivery {
     const now = new Date();
-    const id = `retry-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const id = `retry-${Date.now()}-${randomUUID().split('-')[0]}`;
 
     const delivery: PendingDelivery = {
       id,

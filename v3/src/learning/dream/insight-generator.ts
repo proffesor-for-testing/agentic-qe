@@ -14,6 +14,7 @@
  * @module v3/learning/dream/insight-generator
  */
 
+import { randomUUID } from 'crypto';
 import type {
   ConceptNode,
   DreamInsight as BaseDreamInsight,
@@ -827,7 +828,7 @@ export class InsightGenerator {
    */
   private generateId(): string {
     const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 10);
+    const random = randomUUID().slice(0, 8);
     return `insight-${timestamp}-${random}`;
   }
 

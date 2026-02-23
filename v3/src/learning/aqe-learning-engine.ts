@@ -37,6 +37,7 @@
  * ```
  */
 
+import { randomUUID } from 'crypto';
 import type { MemoryBackend, EventBus } from '../kernel/interfaces.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
@@ -502,7 +503,7 @@ export class AQELearningEngine {
 
     try {
       // Store in memory backend for tracking
-      const key = `pattern-usage:search:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const key = `pattern-usage:search:${Date.now()}-${randomUUID().slice(0, 8)}`;
       await this.memory.set(key, searchEvent, {
         persist: true,
         ttl: 7 * 24 * 60 * 60 * 1000, // 7 days retention
@@ -685,7 +686,7 @@ export class AQELearningEngine {
    * Also starts experience capture for pattern learning.
    */
   async startTask(task: string, agent?: string, domain?: QEDomain): Promise<string> {
-    const id = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const id = `task-${Date.now()}-${randomUUID().slice(0, 8)}`;
 
     // Try to start SONA trajectory
     let trajectoryId = id;

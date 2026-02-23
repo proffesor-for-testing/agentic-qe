@@ -5,6 +5,7 @@
  * Handles: store.json, intelligence.json, daemon-state.json, etc.
  */
 
+import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import secureJsonParse from 'secure-json-parse';
@@ -268,7 +269,7 @@ export class JSONReader implements DataReader<JSONRecord> {
         if (typeof memory === 'object' && memory !== null) {
           const mem = memory as Record<string, unknown>;
           records.push({
-            id: mem.id || `mem_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            id: mem.id || `mem_${Date.now()}_${randomUUID().slice(0, 12)}`,
             memory_type: mem.type || 'file_access',
             content: mem.content || mem.path,
             embedding: mem.embedding,

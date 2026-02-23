@@ -10,7 +10,7 @@
  * - Caching for repeated sampling requests
  */
 
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 
 // ============================================================================
 // Types and Interfaces
@@ -564,7 +564,7 @@ Recommendations:
   }
 
   private generateRequestId(): string {
-    return `sr-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    return `sr-${Date.now()}-${randomUUID().split('-')[0]}`;
   }
 
   private getCacheKey(request: SamplingRequest): string {

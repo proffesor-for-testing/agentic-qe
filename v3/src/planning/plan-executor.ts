@@ -1023,10 +1023,24 @@ export class PlanExecutor {
   }
 
   /**
-   * Deep clone world state
+   * Deep clone world state.
+   * PERF-008: Manual structured clone avoids JSON.parse/stringify overhead.
+   * Mirrors the implementation in goap-planner.ts. Safe because V3WorldState
+   * is a known, fixed-shape object with only primitives, arrays of strings,
+   * and plain nested objects.
    */
   private cloneState(state: V3WorldState): V3WorldState {
-    return JSON.parse(JSON.stringify(state));
+    return {
+      coverage: { ...state.coverage },
+      quality: { ...state.quality },
+      fleet: {
+        ...state.fleet,
+        availableAgents: [...state.fleet.availableAgents],
+      },
+      resources: { ...state.resources },
+      context: { ...state.context },
+      patterns: { ...state.patterns },
+    };
   }
 
   /**

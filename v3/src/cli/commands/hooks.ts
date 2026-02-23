@@ -8,6 +8,7 @@
  * This module provides CLI commands for the QE hooks system.
  */
 
+import { randomUUID } from 'crypto';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
@@ -419,7 +420,7 @@ async function persistCommandExperience(opts: {
       await um.initialize();
     }
     const db = um.getDatabase();
-    const id = `cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const id = `cli-${Date.now()}-${randomUUID().slice(0, 8)}`;
     db.prepare(`
       INSERT OR REPLACE INTO captured_experiences
         (id, task, agent, domain, success, quality, duration_ms,
@@ -710,7 +711,7 @@ Examples:
             await um.initialize();
           }
           const db = um.getDatabase();
-          const outcomeId = `route-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          const outcomeId = `route-${Date.now()}-${randomUUID().slice(0, 8)}`;
           db.prepare(`
             INSERT OR REPLACE INTO routing_outcomes (
               id, task_json, decision_json, used_agent,

@@ -5,6 +5,7 @@
  * Learns from coverage improvement sessions to identify effective strategies.
  */
 
+import { randomUUID } from 'crypto';
 import type {
   CoverageSession,
   CoverageStrategy,
@@ -338,7 +339,7 @@ export class CoverageLearner {
     } else {
       // Create new strategy
       strategy = {
-        id: `strategy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        id: `strategy-${Date.now()}-${randomUUID().slice(0, 8)}`,
         description: this.generateStrategyDescription(session, improvement),
         technique: session.technique,
         filePatterns: [filePattern],
