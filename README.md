@@ -11,7 +11,7 @@
 
 **V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Release Notes](docs/releases/README.md) | [Changelog](v3/CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 60 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, RVF cognitive container integration with portable brain export/import, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
+> **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 60 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, RVF cognitive container integration with portable brain export/import, OpenCode multi-client support, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
 🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **13 Bounded Contexts** | 📚 **75 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance**
 
@@ -33,17 +33,24 @@ aqe init
 
 # Or with auto-configuration (no prompts, configures MCP automatically)
 aqe init --auto
+
+# Include OpenCode assets (agents, skills, tools, permissions)
+aqe init --auto --with-opencode
 ```
 
 > **Note:** `aqe init` automatically configures the MCP server in `.mcp.json` — Claude Code will auto-start it when connecting. For standalone MCP server usage (non-Claude-Code clients), run `aqe-mcp` or `npx agentic-qe mcp`.
 
-### Use from MCP-compatible agent clients (Claude, Codex, others)
+### Use from MCP-compatible agent clients (Claude Code, OpenCode, Codex, others)
 
 AQE is exposed as an MCP server and can be used from any client that supports MCP tool connections.
 
 ```bash
 # For Claude Code: aqe init --auto configures .mcp.json automatically
 # Claude Code will auto-start the MCP server on connection
+
+# For OpenCode: provision assets automatically during init
+aqe init --auto --with-opencode   # installs agents, skills, tools, permissions, opencode.json
+aqe-mcp                           # starts with SSE auto-detection
 
 # For other MCP clients: start the server manually
 aqe-mcp                  # if installed globally
@@ -67,7 +74,8 @@ For client-specific setup examples, see `docs/integration/mcp-clients.md`.
 - ✅ **Claude Flow Integration**: Deep integration with MCP tools and swarm orchestration
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
-- ✅ **RVF Cognitive Containers** (v3.7.0): MinCut task routing, witness chain audit trail, portable brain export/import, unified HNSW search
+- ✅ **RVF Cognitive Containers** (v3.7.0): MinCut task routing, witness chain audit trail, portable brain export/import, unified HNSW search, production dual-write to native RVF
+- ✅ **OpenCode Support** (v3.7.1): 10 agent configs, 20 QE skills, 5 tool wrappers, SSE/WS/HTTP transport, output compaction, graceful degradation, `aqe init --with-opencode` auto-provisioning
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
 - ✅ **75 QE Skills**: 46 Tier 3 verified + 29 additional QE skills (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 
