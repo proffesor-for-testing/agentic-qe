@@ -1,0 +1,34 @@
+name: qcsd-development
+description: "QCSD Development phase — In-sprint code quality with TDD adherence, complexity analysis, coverage gap detection, and defect prediction."
+minModelTier: tier3-best
+tags: ["qcsd", "swarm", "quality-engineering", "development"]
+steps:
+  - name: tdd-and-complexity
+    description: "Enforce TDD adherence and analyze code complexity for newly written code."
+    tools: ["task", "mcp:agentic-qe:test_generate_enhanced", "mcp:agentic-qe:code_index"]
+    prompt: |
+      Spawn parallel agents:
+      1. qe-tdd-specialist — Verify TDD red-green-refactor cycle adherence
+      2. qe-code-complexity — Analyze cyclomatic and cognitive complexity
+      3. qe-coverage-specialist — Detect coverage gaps in new code
+      Consume BDD scenarios from Refinement phase via memory.
+
+  - name: defect-prediction
+    description: "Run AI-powered defect prediction on changed files to identify high-risk areas."
+    tools: ["mcp:agentic-qe:defect_predict", "mcp:agentic-qe:coverage_analyze_sublinear"]
+    prompt: |
+      For each changed file in the sprint:
+      1. Run defect prediction using historical patterns
+      2. Cross-reference with coverage gaps
+      3. Flag files exceeding complexity thresholds
+      Output a prioritized risk report with SHIP/CONDITIONAL/HOLD recommendations.
+
+  - name: development-quality-gate
+    description: "Run quality gate assessment and produce Development phase report."
+    tools: ["mcp:agentic-qe:quality_assess", "mcp:agentic-qe:memory_store"]
+    prompt: |
+      Assess development quality:
+      - Coverage meets sprint target (80%+ branch, 85%+ statement)
+      - Complexity within thresholds
+      - No critical defect predictions unaddressed
+      Produce SHIP/CONDITIONAL/HOLD decision and store for CI/CD phase.

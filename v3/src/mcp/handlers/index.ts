@@ -8,6 +8,7 @@ export {
   handleFleetInit,
   handleFleetStatus,
   handleFleetHealth,
+  handleAQEHealth,
   getFleetState,
   isFleetInitialized,
   disposeFleet,

@@ -1,0 +1,35 @@
+name: qcsd-production
+description: "QCSD Production Telemetry phase — Post-release health with DORA metrics, root cause analysis, and cross-phase feedback loops."
+minModelTier: tier3-best
+tags: ["qcsd", "swarm", "quality-engineering", "production", "telemetry"]
+steps:
+  - name: production-health
+    description: "Monitor production health using DORA metrics and defect patterns."
+    tools: ["task", "mcp:agentic-qe:defect_predict", "mcp:agentic-qe:memory_query"]
+    prompt: |
+      Spawn parallel agents:
+      1. qe-metrics-optimizer — Collect and analyze DORA metrics (deployment frequency, lead time, MTTR, change failure rate)
+      2. qe-defect-predictor — Analyze production incidents against pre-release predictions
+      3. qe-root-cause-analyzer — Perform root cause analysis on production failures
+
+  - name: feedback-loop
+    description: "Generate cross-phase feedback to improve Ideation and Refinement quality criteria."
+    tools: ["mcp:agentic-qe:memory_store", "mcp:agentic-qe:memory_query"]
+    prompt: |
+      Analyze production data to generate feedback:
+      1. Compare predicted defects vs actual incidents
+      2. Identify quality criteria gaps from Ideation phase
+      3. Identify BDD scenario gaps from Refinement phase
+      4. Update risk models based on production outcomes
+      Store feedback in memory for next Ideation cycle.
+
+  - name: production-report
+    description: "Produce Production Telemetry report with improvement recommendations."
+    tools: ["mcp:agentic-qe:quality_assess", "mcp:agentic-qe:memory_store"]
+    prompt: |
+      Synthesize production insights:
+      - DORA metrics summary and trends
+      - Prediction accuracy (predicted vs actual defects)
+      - Top improvement recommendations for next cycle
+      - Updated risk models and quality criteria
+      Store comprehensive report for continuous improvement.

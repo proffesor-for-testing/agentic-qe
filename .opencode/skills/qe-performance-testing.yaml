@@ -1,0 +1,60 @@
+name: qe-performance-testing
+description: "Load, stress, spike, and endurance testing with SLO validation, bottleneck analysis, and CI/CD integration."
+minModelTier: tier3-best
+tags: ["performance", "load-testing", "stress-testing", "scalability", "qe", "quality-engineering"]
+steps:
+  - name: define-slos
+    description: "Define measurable SLOs: p95 response time, throughput, error rate targets."
+    tools: ["read", "bash"]
+    prompt: |
+      Define performance SLOs for the target system:
+      - p95 response time target (e.g., < 200ms)
+      - Throughput target (e.g., 10k req/min)
+      - Error rate target (e.g., < 0.1%)
+      - CPU utilization ceiling (< 70%)
+      - Memory utilization ceiling (< 80%)
+      Identify critical user journeys to test.
+
+  - name: create-scenarios
+    description: "Create realistic load test scenarios modeling actual user behavior."
+    tools: ["edit", "bash", "read"]
+    prompt: |
+      Create realistic performance test scenarios:
+      - Model actual user behavior distribution (e.g., 40% browse, 30% search, 20% details, 10% checkout)
+      - Include think time between actions
+      - Use varied test data (not single repeated requests)
+      - Define ramp-up, steady state, and ramp-down phases
+      Generate k6 or equivalent test scripts.
+
+  - name: execute-tests
+    description: "Execute load tests with full monitoring of CPU, memory, DB queries, network."
+    tools: ["bash", "mcp:agentic-qe:test_execute_parallel"]
+    prompt: |
+      Execute the performance test scenarios:
+      - Start with smoke test (low load) to verify setup
+      - Run load test at expected traffic levels
+      - Monitor CPU, memory, DB queries, network during execution
+      - Capture p50, p95, p99 response times
+      - Record error rates and throughput
+
+  - name: analyze-bottlenecks
+    description: "Identify and diagnose performance bottlenecks."
+    tools: ["bash", "read", "grep", "mcp:agentic-qe:quality_assess"]
+    prompt: |
+      Analyze test results for bottlenecks:
+      - Database: slow queries, N+1 problems, connection pool exhaustion
+      - Synchronous processing: blocking operations in request path
+      - Memory leaks: growing memory over time
+      - External dependencies: missing timeouts, no circuit breakers
+      Correlate metrics to identify root causes.
+
+  - name: report-and-recommend
+    description: "Generate performance report with actionable recommendations."
+    tools: ["bash", "mcp:agentic-qe:memory_store"]
+    prompt: |
+      Generate performance test report:
+      - SLO pass/fail for each metric
+      - Bottleneck analysis with specific files/queries
+      - Actionable optimization recommendations
+      - Comparison with baseline if available
+      Store results as baseline for future comparison.

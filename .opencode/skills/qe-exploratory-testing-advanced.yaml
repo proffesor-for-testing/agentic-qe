@@ -1,0 +1,71 @@
+name: qe-exploratory-testing-advanced
+description: "Advanced exploratory testing with SBTM sessions, SFDIPOT/FEW HICCUPPS heuristics, and structured test tours."
+minModelTier: tier2-good
+tags: ["exploratory", "sbtm", "heuristics", "test-tours", "qe", "quality-engineering"]
+steps:
+  - name: create-charter
+    description: "Create a focused exploration charter with mission, scope, and time-box."
+    tools: ["read", "bash"]
+    prompt: |
+      Create exploration charter:
+      - Mission: What are we exploring and why?
+      - Scope: What areas are in/out of scope?
+      - Time-box: 45-90 minutes
+      - Heuristic focus: Which SFDIPOT areas to emphasize?
+      - Tour type: Business District, Historical, Bad Neighborhood, Money, etc.
+      Format: "Explore [area] to discover [what] focusing on [heuristic]"
+
+  - name: apply-sfdipot
+    description: "Systematically explore using SFDIPOT: Structure, Function, Data, Interfaces, Platform, Operations, Time."
+    tools: ["read", "bash", "grep", "glob"]
+    prompt: |
+      Apply SFDIPOT heuristic to guide exploration:
+      - Structure: Is the code/UI properly composed?
+      - Function: Does it do what it should?
+      - Data: Does it handle data correctly (CRUD, validation, persistence)?
+      - Interfaces: Does it interact well with APIs, UI, integrations?
+      - Platform: Does it work across browsers, OS, devices?
+      - Operations: Can it be installed, configured, monitored?
+      - Time: Does it handle concurrency, timeouts, scheduling?
+      Document observations in real-time.
+
+  - name: apply-oracles
+    description: "Use FEW HICCUPPS oracles to recognize problems."
+    tools: ["read", "bash"]
+    prompt: |
+      Apply FEW HICCUPPS consistency oracles:
+      - Familiar: Does this look like a known bug pattern?
+      - Explainable: Can the behavior be explained rationally?
+      - World: Does it match real-world expectations?
+      - History: Is it consistent with prior versions?
+      - Image: Does it match brand/product image?
+      - Comparable: Is it similar to competing products?
+      - Claims: Does it match specs/docs/marketing?
+      - Users: Does it meet user expectations?
+      - Purpose: Does it fulfill its intended purpose?
+      - Standards: Does it follow industry standards?
+
+  - name: execute-tour
+    description: "Execute a structured test tour through the application."
+    tools: ["bash", "read", "mcp:agentic-qe:test_generate_enhanced"]
+    prompt: |
+      Execute the selected test tour:
+      - Business District: walk through critical business flows
+      - Historical: visit areas where bugs clustered before
+      - Bad Neighborhood: probe known problem areas
+      - Money: test revenue-impacting features
+      - FedEx: follow data through the entire system
+      - Rained-Out: test what happens when things fail
+      Generate edge case variations while exploring.
+
+  - name: debrief
+    description: "Summarize findings, prioritize issues, and share via memory."
+    tools: ["bash", "mcp:agentic-qe:memory_store"]
+    prompt: |
+      Debrief the exploration session:
+      - Bugs found (with severity: critical, major, minor)
+      - Questions raised (unclear behaviors)
+      - Ideas generated (test cases, improvements)
+      - Coverage: areas explored, heuristics used, time allocation
+      - Next steps: areas needing deeper exploration
+      Store session notes and findings in memory.

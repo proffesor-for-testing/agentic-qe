@@ -1,0 +1,54 @@
+name: qe-tdd-london-chicago
+description: "Apply London (mock-based) and Chicago (state-based) TDD schools with disciplined Red-Green-Refactor cycles."
+minModelTier: tier2-good
+tags: ["tdd", "testing", "london-school", "chicago-school", "qe", "quality-engineering"]
+steps:
+  - name: identify-style
+    description: "Determine which TDD school fits the code: Chicago for domain logic, London for external dependencies."
+    tools: ["read", "grep", "glob"]
+    prompt: |
+      Analyze the target code to determine the appropriate TDD school:
+      - Pure functions/calculations/value objects -> Chicago (state verification, real objects)
+      - Controllers/services with external dependencies -> London (mocks, interaction verification)
+      - Mixed: London for controllers, Chicago for domain logic
+      Report the chosen style and reasoning.
+
+  - name: red-phase
+    description: "Write a failing test first. Verify it fails with a clear message."
+    tools: ["edit", "bash", "mcp:agentic-qe:test_generate_enhanced"]
+    prompt: |
+      Write a failing test for the target functionality.
+      Run the test and verify it FAILS.
+      Check that the failure message is clear and describes expected behavior.
+      If using Chicago: test observable state through public API.
+      If using London: test how objects collaborate using mocks.
+
+  - name: green-phase
+    description: "Implement minimal code to make the test pass. No extra features."
+    tools: ["edit", "bash"]
+    prompt: |
+      Write the minimal code needed to make the failing test pass.
+      Rules:
+      - No extra features beyond what is tested
+      - Do not refactor yet
+      - Run the test and verify it PASSES
+
+  - name: refactor-phase
+    description: "Improve code structure while keeping all tests passing."
+    tools: ["edit", "bash", "mcp:agentic-qe:quality_assess"]
+    prompt: |
+      Improve the code structure while keeping all tests green:
+      - Extract methods/classes if needed
+      - Remove duplication
+      - Improve naming
+      - Run all tests after each change to ensure they still pass
+      - No new functionality in this phase
+
+  - name: repeat
+    description: "Repeat the cycle for the next piece of functionality."
+    tools: ["read", "mcp:agentic-qe:coverage_analyze_sublinear"]
+    prompt: |
+      Analyze remaining functionality to test.
+      Check coverage to identify untested paths.
+      If more functionality needs tests, go back to the red phase.
+      Store TDD session patterns in memory for future learning.

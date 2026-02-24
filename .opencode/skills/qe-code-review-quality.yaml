@@ -1,0 +1,57 @@
+name: qe-code-review-quality
+description: "Context-driven code reviews with prioritized feedback on quality, testability, security, and maintainability."
+minModelTier: tier2-good
+tags: ["code-review", "quality", "testability", "maintainability", "qe", "quality-engineering"]
+steps:
+  - name: scope-review
+    description: "Identify changed files and scope the review to under 400 lines."
+    tools: ["bash", "read", "glob"]
+    prompt: |
+      Identify the files to review (git diff, PR files, or specified paths).
+      If changes exceed 400 lines, recommend splitting the review.
+      Prioritize review order: critical paths first, then supporting code.
+
+  - name: logic-review
+    description: "Check for correctness, edge cases, race conditions, and error handling."
+    tools: ["read", "grep", "mcp:agentic-qe:quality_assess"]
+    prompt: |
+      Review code logic:
+      - Does it work correctly for all inputs?
+      - Are edge cases handled (null, empty, negative, boundary values)?
+      - Are there race conditions?
+      - What happens when API calls or operations fail?
+      - Is error handling appropriate?
+      Flag issues as Blocker, Major, Minor, or Suggestion.
+
+  - name: security-review
+    description: "Check for security vulnerabilities: input validation, auth, injection, secrets."
+    tools: ["read", "grep", "mcp:agentic-qe:security_scan_comprehensive"]
+    prompt: |
+      Review security aspects:
+      - Is user input validated and sanitized?
+      - Are auth checks in place on all endpoints?
+      - Any SQL injection or XSS risks?
+      - Are secrets or PII exposed in code or logs?
+      - Are dependencies up to date?
+
+  - name: testability-review
+    description: "Assess test coverage and testability of the code."
+    tools: ["read", "grep", "mcp:agentic-qe:coverage_analyze_sublinear"]
+    prompt: |
+      Review testability:
+      - Is the code tested? Are there tests for the changed code?
+      - Are dependencies injectable (for mocking)?
+      - Are there tests for happy path AND edge cases?
+      - Does coverage meet minimum thresholds?
+
+  - name: compile-feedback
+    description: "Compile prioritized feedback with blocker/major/minor/suggestion levels."
+    tools: ["bash", "mcp:agentic-qe:memory_store"]
+    prompt: |
+      Compile all findings into prioritized feedback:
+      - Blocker: must fix before merge (bugs, security, crashes)
+      - Major: should fix before merge (logic, missing tests)
+      - Minor: nice to fix (naming, style)
+      - Suggestion: consider for future (alternatives, refactoring)
+      Use question-based feedback where possible.
+      Store review patterns in memory for learning.

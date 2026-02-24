@@ -1,0 +1,53 @@
+name: qe-debug-loop
+description: "Hypothesis-driven autonomous debugging with real command validation against actual data."
+minModelTier: tier3-best
+tags: ["debugging", "qe", "quality-engineering", "hypothesis-driven"]
+steps:
+  - name: reproduce
+    description: "Run the exact command that shows the bug. Capture and display the REAL output. Confirm the bug is visible."
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Run the exact command that reproduces the bug described by the user.
+      Capture the REAL output and display it.
+      If the bug cannot be reproduced, stop and explain what was tried.
+      Never guess or simulate output.
+
+  - name: hypothesize-and-test
+    description: "Form up to 5 hypotheses, test each with real commands, record results."
+    tools: ["bash", "read", "grep", "glob", "mcp:agentic-qe:defect_predict", "mcp:agentic-qe:code_index"]
+    prompt: |
+      For each iteration (up to 5):
+      1. State a specific hypothesis (e.g., "the query targets v2 tables but data is in v3 tables")
+      2. Run a REAL command to test it
+      3. Record whether the hypothesis was confirmed or rejected
+      4. If rejected, form the next hypothesis based on what was learned
+      Do NOT make code changes until you have a confirmed root cause.
+      Check both v2 and v3 SQLite tables when data issues are suspected.
+      Check dependency versions and hardcoded values.
+
+  - name: fix
+    description: "Make the minimal targeted fix after confirming root cause."
+    tools: ["edit", "bash", "grep", "glob"]
+    prompt: |
+      Make the minimal targeted fix. Explain:
+      - What the root cause was
+      - What you are changing and why
+      - What the blast radius is (which other code paths are affected)
+      Before applying, grep for ALL instances of the problematic pattern across the entire codebase.
+
+  - name: verify
+    description: "Run the same reproduction command to confirm the fix works."
+    tools: ["bash", "read"]
+    prompt: |
+      Run the SAME reproduction command from the reproduce step.
+      The output must now show correct values.
+      If it does not, go back to the hypothesize-and-test step.
+      Show before/after output comparison.
+
+  - name: regression
+    description: "Run the full test suite to ensure no regressions."
+    tools: ["bash", "mcp:agentic-qe:test_execute_parallel"]
+    prompt: |
+      Run the full test suite with: npm test
+      If tests fail, fix them before finishing.
+      Store the debugging session in memory for future learning.

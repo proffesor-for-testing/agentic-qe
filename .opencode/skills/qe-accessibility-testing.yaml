@@ -1,0 +1,62 @@
+name: qe-accessibility-testing
+description: "WCAG 2.2 compliance testing with POUR principles, keyboard navigation, screen reader validation, and color contrast checking."
+minModelTier: tier3-best
+tags: ["accessibility", "wcag", "a11y", "screen-reader", "ada", "qe", "quality-engineering"]
+steps:
+  - name: automated-scan
+    description: "Run automated accessibility scan with axe-core against WCAG 2.2 AA standards."
+    tools: ["bash", "mcp:agentic-qe:accessibility_test"]
+    prompt: |
+      Run automated accessibility scan:
+      - Test against WCAG 2.2 Level AA standards
+      - Use axe-core tags: wcag2a, wcag2aa, wcag22aa
+      - Report all violations with impact level (critical, serious, moderate, minor)
+      - Filter critical and serious violations as must-fix
+      Note: automated testing catches only 30-50% of issues.
+
+  - name: keyboard-navigation
+    description: "Test all interactive elements are keyboard accessible with visible focus indicators."
+    tools: ["bash", "read", "mcp:agentic-qe:test_generate_enhanced"]
+    prompt: |
+      Test keyboard accessibility:
+      - All interactive elements (buttons, links, inputs, selects) reachable via Tab
+      - Focus indicator is visible on every focused element
+      - Enter/Space activates buttons and links
+      - Escape closes modals and dropdowns
+      - No keyboard traps (can always Tab away)
+      Generate keyboard navigation test cases.
+
+  - name: semantic-structure
+    description: "Validate semantic HTML structure: headings, landmarks, ARIA roles."
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Validate semantic structure:
+      - Heading hierarchy is correct (h1 -> h2 -> h3, no skips)
+      - Landmarks present: nav, main, footer
+      - All images have alt text (or alt="" for decorative)
+      - All form fields have associated labels
+      - Dynamic content uses aria-live for announcements
+
+  - name: color-contrast
+    description: "Check color contrast ratios meet WCAG AA requirements."
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Check color contrast:
+      - Normal text: minimum 4.5:1 ratio (AA)
+      - Large text (18pt+): minimum 3:1 ratio (AA)
+      - UI components and graphical objects: minimum 3:1 ratio
+      - Color is never the sole indicator of meaning
+      Report any contrast failures with specific elements.
+
+  - name: compile-audit-report
+    description: "Generate WCAG compliance audit report with remediation priorities."
+    tools: ["bash", "mcp:agentic-qe:quality_assess", "mcp:agentic-qe:memory_store"]
+    prompt: |
+      Generate accessibility audit report:
+      - Compliance level achieved (A, AA, AAA)
+      - Automated scan results summary
+      - Keyboard navigation findings
+      - Semantic structure issues
+      - Color contrast violations
+      - Prioritized remediation plan
+      Store audit results for compliance tracking.

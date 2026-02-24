@@ -1,0 +1,57 @@
+name: qe-regression-testing
+description: "Strategic regression testing with change-based test selection, impact analysis, and optimized execution for faster feedback."
+minModelTier: tier2-good
+tags: ["regression", "test-selection", "impact-analysis", "ci-cd", "qe", "quality-engineering"]
+steps:
+  - name: analyze-changes
+    description: "Analyze what changed using git diff and impact analysis."
+    tools: ["bash", "read", "grep", "glob"]
+    prompt: |
+      Analyze code changes:
+      - Run git diff to identify changed files
+      - Map changed files to their test files (direct tests)
+      - Identify dependent tests via import/dependency analysis
+      - Classify change scope: specific files, module-wide, or major refactor
+
+  - name: select-tests
+    description: "Select tests to run based on change scope and risk."
+    tools: ["bash", "read", "mcp:agentic-qe:defect_predict"]
+    prompt: |
+      Select regression tests using combined strategy:
+      - Change-based: tests directly covering changed files (70-90% reduction)
+      - Risk-based: prioritize by impact and probability (50-70% reduction)
+      - Historical: include frequently failing tests
+      Categorize: mustRun, shouldRun, canSkip
+      Estimate execution time for the selected set.
+
+  - name: execute-regression
+    description: "Run regression tests in priority order: smoke -> selective -> full."
+    tools: ["bash", "mcp:agentic-qe:test_execute_parallel"]
+    prompt: |
+      Execute regression tests in priority order:
+      1. Smoke tests first (fast-fail if critical paths broken)
+      2. Selected regression tests (change-based + risk-based)
+      3. Extended tests if time budget allows
+      Use parallel execution and sharding for speed.
+      Report results incrementally.
+
+  - name: analyze-results
+    description: "Analyze regression results and identify new failures vs known flaky tests."
+    tools: ["bash", "read", "mcp:agentic-qe:coverage_analyze_sublinear"]
+    prompt: |
+      Analyze regression results:
+      - Separate new failures from known flaky tests
+      - For new failures, identify which change likely caused them
+      - Calculate risk coverage: percentage of risk addressed by selected tests
+      - Identify any coverage gaps in the selected set
+
+  - name: update-suite
+    description: "Update regression suite based on findings and store results."
+    tools: ["bash", "mcp:agentic-qe:memory_store"]
+    prompt: |
+      Update regression testing data:
+      - If a production bug was found, add a regression test for it
+      - Update test-to-code coverage mapping
+      - Flag flaky tests for investigation
+      - Store execution times for future optimization
+      - Store test selection effectiveness metrics

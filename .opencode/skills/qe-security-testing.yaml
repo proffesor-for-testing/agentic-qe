@@ -1,0 +1,65 @@
+name: qe-security-testing
+description: "OWASP Top 10 vulnerability testing with SAST/DAST scanning, auth validation, injection testing, and secret detection."
+minModelTier: tier3-best
+tags: ["security", "owasp", "sast", "dast", "qe", "quality-engineering"]
+steps:
+  - name: owasp-scan
+    description: "Systematically test OWASP Top 10 vulnerabilities."
+    tools: ["bash", "read", "grep", "mcp:agentic-qe:security_scan_comprehensive"]
+    prompt: |
+      Run comprehensive SAST scan on the target codebase.
+      Check for OWASP Top 10:
+      1. Broken Access Control: horizontal/vertical privilege escalation
+      2. Cryptographic Failures: plaintext passwords, HTTP, sensitive data exposure
+      3. Injection: SQL, XSS, command injection
+      4. Insecure Design: rate limiting, session timeout
+      5. Security Misconfiguration: verbose errors, exposed admin
+      6. Vulnerable Components: npm audit, outdated packages
+      7. Auth Failures: weak passwords, no MFA
+      8. Integrity Failures: unsigned updates
+      9. Logging Failures: no audit trail
+      10. SSRF: server fetching internal URLs
+
+  - name: auth-testing
+    description: "Validate authentication and authorization on all endpoints."
+    tools: ["bash", "read", "grep", "mcp:agentic-qe:test_generate_enhanced"]
+    prompt: |
+      Test authentication and authorization:
+      - Requests without tokens return 401
+      - Expired tokens are rejected
+      - Cross-user access is blocked (403)
+      - Vertical escalation is prevented (regular user cannot access admin)
+      - Password hashing uses bcrypt/scrypt/Argon2
+      - Session IDs change after login
+      - Account lockout after failed attempts
+
+  - name: injection-testing
+    description: "Test for SQL injection, XSS, and command injection vulnerabilities."
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Test injection vulnerabilities:
+      - SQL injection: parameterized queries prevent "' OR '1'='1"
+      - XSS: HTML output is sanitized, no raw script tags
+      - Command injection: user input not passed to shell commands
+      Verify all queries use parameterized syntax, not string concatenation.
+
+  - name: dependency-audit
+    description: "Scan dependencies for known vulnerabilities."
+    tools: ["bash"]
+    prompt: |
+      Run dependency vulnerability scan:
+      - npm audit --audit-level=high
+      - Check for outdated packages with known CVEs
+      - Verify no secrets in code or logs using grep for API keys, passwords, tokens
+      Report findings with severity levels.
+
+  - name: security-report
+    description: "Generate security assessment report with findings and remediation."
+    tools: ["bash", "mcp:agentic-qe:quality_assess", "mcp:agentic-qe:memory_store"]
+    prompt: |
+      Compile findings into a security assessment report:
+      - Critical/High/Medium/Low vulnerability counts
+      - Specific findings with file locations and line numbers
+      - Remediation recommendations for each finding
+      - CI/CD integration recommendations
+      Store findings in memory for tracking remediation.

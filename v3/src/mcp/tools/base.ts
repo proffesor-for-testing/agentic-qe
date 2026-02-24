@@ -72,8 +72,17 @@ export async function getSharedMemoryBackend(): Promise<MemoryBackend> {
  * Used in tests to ensure clean state between test runs.
  */
 export function resetSharedMemoryBackend(): void {
+  // Reset RVF dual-writer singleton synchronously.
+  // If the module was never dynamically imported (RVF unavailable), _cachedRvfReset
+  // is null and we skip — there is no writer to close.
+  if (_cachedRvfReset) {
+    try { _cachedRvfReset(); } catch { /* ignore */ }
+  }
+
   if (sharedMemoryBackend) {
-    // Don't await dispose in reset - let tests handle cleanup
+    // Dispose to stop background cleanup timers that would otherwise
+    // run against a stale/closed DB connection causing "database is locked".
+    sharedMemoryBackend.dispose().catch(() => {});
     sharedMemoryBackend = null;
   }
   memoryInitPromise = null;

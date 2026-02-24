@@ -1,0 +1,60 @@
+name: qe-chaos-engineering-resilience
+description: "Chaos engineering with controlled failure injection, blast radius management, steady state validation, and automatic rollback."
+minModelTier: tier3-best
+tags: ["chaos", "resilience", "fault-injection", "distributed-systems", "qe", "quality-engineering"]
+steps:
+  - name: define-steady-state
+    description: "Measure and record normal system metrics as the steady state baseline."
+    tools: ["bash", "read", "mcp:agentic-qe:quality_assess"]
+    prompt: |
+      Establish steady state metrics for the target system:
+      - Error rate baseline (should be < 0.1%)
+      - p99 latency baseline (should be < 200ms)
+      - Throughput baseline
+      - CPU and memory utilization
+      Record these as the hypothesis threshold.
+      Define automatic rollback triggers (e.g., error_rate > 5%).
+
+  - name: design-experiment
+    description: "Design a controlled chaos experiment with clear hypothesis and blast radius."
+    tools: ["read", "bash"]
+    prompt: |
+      Design the chaos experiment:
+      - Name the experiment clearly (e.g., "Database latency injection")
+      - State hypothesis: "System handles X failure gracefully, staying within steady state"
+      - Define failure type: network latency, instance termination, disk failure, CPU stress, dependency outage
+      - Set blast radius: start small (dev -> staging -> 1% prod)
+      - Set duration and rollback conditions
+
+  - name: inject-failure
+    description: "Inject the failure and observe system behavior."
+    tools: ["bash", "mcp:agentic-qe:chaos_test"]
+    prompt: |
+      Execute the chaos experiment:
+      - Inject the defined failure using the chaos_test tool
+      - Monitor system metrics in real time
+      - Record deviations from steady state
+      - If rollback trigger is hit, immediately stop the experiment
+      - Document what happened at each phase
+
+  - name: analyze-results
+    description: "Analyze the impact and identify resilience weaknesses."
+    tools: ["bash", "read", "mcp:agentic-qe:memory_store"]
+    prompt: |
+      Analyze experiment results:
+      - Did the system stay within steady state? (hypothesis confirmed/rejected)
+      - What was the actual impact on error rate, latency, throughput?
+      - Did auto-recovery work? How long did it take?
+      - Were alerts triggered appropriately?
+      - Was there any data loss?
+      Document weaknesses found.
+
+  - name: generate-runbook
+    description: "Generate recovery runbook and resilience improvement recommendations."
+    tools: ["bash", "mcp:agentic-qe:memory_store"]
+    prompt: |
+      Generate outputs:
+      - Recovery runbook for the failure scenario tested
+      - Resilience improvement recommendations (circuit breakers, timeouts, retries)
+      - Next experiment suggestions (increase blast radius or try different failure)
+      Store experiment results and runbook in memory.
