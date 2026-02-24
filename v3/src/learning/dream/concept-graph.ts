@@ -496,13 +496,16 @@ export class ConceptGraph {
   /**
    * Load patterns into the concept graph as nodes with edge discovery.
    * Idempotent — skips patterns whose pattern_id already has a node.
-   * After loading, discovers co_occurrence and similarity edges.
+   * After loading, creates similarity edges only between NEW nodes and
+   * existing same-domain nodes (O(k*n) where k=new, not O(n^2)).
    * @returns Number of new patterns loaded
    */
   async loadFromPatterns(patterns: PatternImportData[]): Promise<number> {
     this.ensureInitialized();
 
     let loaded = 0;
+    const newNodeIds: string[] = [];
+    const newNodeDomains = new Map<string, string[]>(); // domain -> new node IDs
 
     for (const pattern of patterns) {
       try {
@@ -522,6 +525,14 @@ export class ConceptGraph {
           },
         });
         loaded++;
+        newNodeIds.push(patternNodeId);
+
+        // Track new nodes by domain for targeted edge creation
+        const domain = pattern.domain || 'unknown';
+        if (!newNodeDomains.has(domain)) {
+          newNodeDomains.set(domain, []);
+        }
+        newNodeDomains.get(domain)!.push(patternNodeId);
 
         // Also add domain as a concept if not seen
         let domainNode = await this.findDomainNode(pattern.domain);
@@ -545,9 +556,9 @@ export class ConceptGraph {
       }
     }
 
-    // Discover similarity edges between patterns in the same domain
+    // Create similarity edges only for newly loaded patterns (O(k*n) not O(n^2))
     if (loaded > 0) {
-      const edgesCreated = await this.discoverSameDomainEdges();
+      const edgesCreated = await this.discoverSameDomainEdges(newNodeDomains);
       if (this.config.debug) {
         console.log(`[ConceptGraph] Discovered ${edgesCreated} same-domain edges`);
       }
@@ -560,40 +571,87 @@ export class ConceptGraph {
 
   /**
    * Discover similarity edges between pattern nodes in the same domain.
-   * Uses metadata.domain to group patterns, then creates bidirectional
-   * similarity edges between siblings. Idempotent (addEdge strengthens
-   * existing edges rather than duplicating).
+   *
+   * When newNodesByDomain is provided, only creates edges between new nodes
+   * and existing same-domain nodes (O(k*n) where k=new nodes). Without it,
+   * falls back to connecting all unconnected pairs but caps at 50 edges per
+   * domain to prevent O(n^2) explosion.
+   *
+   * @param newNodesByDomain - Map of domain -> newly added node IDs (optional)
    * @returns Number of new edges created
    */
-  async discoverSameDomainEdges(): Promise<number> {
+  async discoverSameDomainEdges(newNodesByDomain?: Map<string, string[]>): Promise<number> {
     this.ensureInitialized();
     if (!this.db) return 0;
 
-    const patternNodes = this.db.prepare(
-      "SELECT * FROM concept_nodes WHERE concept_type = 'pattern'"
-    ).all() as NodeRow[];
-
-    // Group by domain
-    const domainGroups = new Map<string, NodeRow[]>();
-    for (const node of patternNodes) {
-      const metadata = node.metadata ? safeJsonParse<Record<string, unknown>>(node.metadata) : {};
-      const domain = String(metadata.domain || 'unknown');
-      if (!domainGroups.has(domain)) {
-        domainGroups.set(domain, []);
-      }
-      domainGroups.get(domain)!.push(node);
-    }
-
     let edgesCreated = 0;
 
-    // Create similarity edges between patterns sharing a domain
-    for (const [, nodes] of domainGroups) {
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const existingEdge = await this.getEdgeBetween(nodes[i].id, nodes[j].id);
-          if (!existingEdge) {
-            await this.addEdge(nodes[i].id, nodes[j].id, 'similarity', 0.6);
-            edgesCreated++;
+    if (newNodesByDomain && newNodesByDomain.size > 0) {
+      // Targeted mode: only connect new nodes to existing same-domain nodes
+      for (const [domain, newIds] of newNodesByDomain) {
+        const newIdSet = new Set(newIds);
+
+        // Get all pattern nodes in this domain
+        const allDomainNodes = this.db.prepare(
+          "SELECT id, metadata FROM concept_nodes WHERE concept_type = 'pattern'"
+        ).all() as NodeRow[];
+
+        const sameDomainNodes = allDomainNodes.filter((n) => {
+          const meta = n.metadata ? safeJsonParse<Record<string, unknown>>(n.metadata) : {};
+          return String(meta.domain || 'unknown') === domain;
+        });
+
+        // Connect each new node to existing (non-new) same-domain nodes
+        for (const newId of newIds) {
+          for (const existing of sameDomainNodes) {
+            if (newIdSet.has(existing.id)) continue; // skip new-to-new
+            const edge = await this.getEdgeBetween(newId, existing.id);
+            if (!edge) {
+              await this.addEdge(newId, existing.id, 'similarity', 0.6);
+              edgesCreated++;
+            }
+          }
+        }
+
+        // Also connect new nodes to each other
+        for (let i = 0; i < newIds.length; i++) {
+          for (let j = i + 1; j < newIds.length; j++) {
+            const edge = await this.getEdgeBetween(newIds[i], newIds[j]);
+            if (!edge) {
+              await this.addEdge(newIds[i], newIds[j], 'similarity', 0.6);
+              edgesCreated++;
+            }
+          }
+        }
+      }
+    } else {
+      // Fallback mode: cap edges per domain to prevent O(n^2) explosion
+      const MAX_EDGES_PER_DOMAIN = 50;
+
+      const patternNodes = this.db.prepare(
+        "SELECT * FROM concept_nodes WHERE concept_type = 'pattern'"
+      ).all() as NodeRow[];
+
+      const domainGroups = new Map<string, NodeRow[]>();
+      for (const node of patternNodes) {
+        const metadata = node.metadata ? safeJsonParse<Record<string, unknown>>(node.metadata) : {};
+        const domain = String(metadata.domain || 'unknown');
+        if (!domainGroups.has(domain)) {
+          domainGroups.set(domain, []);
+        }
+        domainGroups.get(domain)!.push(node);
+      }
+
+      for (const [, nodes] of domainGroups) {
+        let domainEdges = 0;
+        for (let i = 0; i < nodes.length && domainEdges < MAX_EDGES_PER_DOMAIN; i++) {
+          for (let j = i + 1; j < nodes.length && domainEdges < MAX_EDGES_PER_DOMAIN; j++) {
+            const existingEdge = await this.getEdgeBetween(nodes[i].id, nodes[j].id);
+            if (!existingEdge) {
+              await this.addEdge(nodes[i].id, nodes[j].id, 'similarity', 0.6);
+              edgesCreated++;
+              domainEdges++;
+            }
           }
         }
       }
