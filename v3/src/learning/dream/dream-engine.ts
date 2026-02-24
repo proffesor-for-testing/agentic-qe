@@ -377,30 +377,25 @@ export class DreamEngine {
       const hasInsightType = colNames.has('insight_type');
       const hasSourceConcepts = colNames.has('source_concepts');
 
-      // If legacy schema lacks 'insight_type' or 'source_concepts', recreate the table
-      if (!hasInsightType || !hasSourceConcepts) {
-        this.db.exec('DROP TABLE IF EXISTS dream_insights');
-        this.db.exec(`
-          CREATE TABLE IF NOT EXISTS dream_insights (
-            id TEXT PRIMARY KEY,
-            cycle_id TEXT NOT NULL,
-            insight_type TEXT NOT NULL,
-            source_concepts TEXT NOT NULL,
-            description TEXT NOT NULL,
-            novelty_score REAL DEFAULT 0.5,
-            confidence_score REAL DEFAULT 0.5,
-            actionable INTEGER DEFAULT 0,
-            applied INTEGER DEFAULT 0,
-            suggested_action TEXT,
-            pattern_id TEXT,
-            created_at TEXT DEFAULT (datetime('now')),
-            FOREIGN KEY (cycle_id) REFERENCES dream_cycles(id) ON DELETE CASCADE
-          )
-        `);
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_cycle ON dream_insights(cycle_id)');
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_type ON dream_insights(insight_type)');
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_novelty ON dream_insights(novelty_score DESC)');
+      // SAFE migration: add missing columns instead of dropping the table.
+      // Previous implementation used DROP TABLE which destroyed all dream insights.
+      // See: Data loss incidents Feb 17-23, 2026.
+      if (!hasInsightType) {
+        try {
+          this.db.exec("ALTER TABLE dream_insights ADD COLUMN insight_type TEXT NOT NULL DEFAULT 'general'");
+          dreamLogger.info('Added insight_type column to dream_insights (safe migration)');
+        } catch { /* column may already exist */ }
       }
+      if (!hasSourceConcepts) {
+        try {
+          this.db.exec("ALTER TABLE dream_insights ADD COLUMN source_concepts TEXT NOT NULL DEFAULT '[]'");
+          dreamLogger.info('Added source_concepts column to dream_insights (safe migration)');
+        } catch { /* column may already exist */ }
+      }
+      // Ensure indexes exist regardless
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_cycle ON dream_insights(cycle_id)');
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_type ON dream_insights(insight_type)');
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_novelty ON dream_insights(novelty_score DESC)');
     } catch (e) {
       // Ignore migration errors — table may not exist yet
       dreamLogger.debug('Dream schema migration skipped', { error: e instanceof Error ? e.message : String(e) });
