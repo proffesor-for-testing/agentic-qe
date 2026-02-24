@@ -137,6 +137,15 @@ async function initializeHooksSystem(): Promise<void> {
 
     await Promise.race([initPromise, timeoutPromise]);
 
+    // Wire RVF dual-writer for vector replication (optional, best-effort)
+    try {
+      const { getSharedRvfDualWriter } = await import('../../integrations/ruvector/shared-rvf-dual-writer.js');
+      const dualWriter = await getSharedRvfDualWriter();
+      if (dualWriter) state.reasoningBank!.setRvfDualWriter(dualWriter);
+    } catch (e) {
+      if (process.env.DEBUG) console.debug('[hooks] RVF wiring skipped:', e instanceof Error ? e.message : e);
+    }
+
     // Setup hook registry
     state.hookRegistry = setupQEHooks(state.reasoningBank);
     state.initialized = true;
@@ -149,6 +158,9 @@ async function initializeHooksSystem(): Promise<void> {
     );
 
     // Create in-memory fallback backend
+    // NOTE: RVF dual-writer is intentionally NOT wired here — the fallback
+    // uses an in-memory backend with no disk access, so RVF replication
+    // (which requires the unified memory DB) is not meaningful.
     const fallbackBackend = createInMemoryBackend();
     state.reasoningBank = createQEReasoningBank(fallbackBackend, undefined, {
       enableLearning: true,

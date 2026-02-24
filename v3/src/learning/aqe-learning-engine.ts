@@ -234,6 +234,15 @@ export class AQELearningEngine {
     );
     await this.reasoningBank.initialize();
 
+    // Wire RVF dual-writer for vector replication (optional, best-effort)
+    try {
+      const { getSharedRvfDualWriter } = await import('../integrations/ruvector/shared-rvf-dual-writer.js');
+      const dualWriter = await getSharedRvfDualWriter();
+      if (dualWriter) this.reasoningBank.setRvfDualWriter(dualWriter);
+    } catch (e) {
+      if (process.env.DEBUG) console.debug('[AQELearningEngine] RVF wiring skipped:', e instanceof Error ? e.message : e);
+    }
+
     // Initialize ExperienceCaptureService (always available)
     if (this.config.enableExperienceCapture) {
       this.experienceCapture = createExperienceCaptureService(

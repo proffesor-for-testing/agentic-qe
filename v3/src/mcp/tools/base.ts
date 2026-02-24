@@ -23,6 +23,21 @@ let sharedMemoryBackend: MemoryBackend | null = null;
 let memoryInitPromise: Promise<MemoryBackend> | null = null;
 
 /**
+ * Cached reference to resetSharedRvfDualWriter(), populated lazily when the
+ * RVF module is first imported by any caller. Allows synchronous reset
+ * in resetSharedMemoryBackend() without a fire-and-forget dynamic import.
+ */
+let _cachedRvfReset: (() => void) | null = null;
+
+/**
+ * Register the RVF reset function. Called once by the shared-rvf-dual-writer
+ * module or any code that successfully imports it.
+ */
+export function registerRvfResetFn(fn: () => void): void {
+  _cachedRvfReset = fn;
+}
+
+/**
  * Get or create the shared memory backend for MCP tools.
  * All tools share the same backend to ensure data persistence.
  */

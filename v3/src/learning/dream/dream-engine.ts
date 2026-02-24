@@ -157,15 +157,24 @@ class ConceptGraphAdapter implements SpreadingConceptGraph, InsightConceptGraph 
   constructor(private readonly graph: ConceptGraph) {}
 
   /**
-   * Load all nodes and edges into memory for fast access
+   * Load nodes and edges into memory for fast access.
+   * @param maxNodes - Maximum number of nodes to load (prevents slow loading
+   *   on accumulated concept graphs). Nodes are sorted by activation level
+   *   descending, so the most active concepts are prioritized. Default: no limit.
    */
-  async loadIntoMemory(): Promise<void> {
+  async loadIntoMemory(maxNodes?: number): Promise<void> {
     this.nodeCache.clear();
     this.edgeCache.clear();
     this.activationLevels.clear();
 
-    // Load all nodes
-    const nodes = await this.graph.getActiveNodes(0);
+    // Load nodes (all or capped)
+    let nodes = await this.graph.getActiveNodes(0);
+    if (maxNodes && nodes.length > maxNodes) {
+      nodes = nodes
+        .sort((a, b) => b.activationLevel - a.activationLevel)
+        .slice(0, maxNodes);
+    }
+
     for (const node of nodes) {
       this.nodeCache.set(node.id, node);
       this.activationLevels.set(node.id, node.activationLevel);
@@ -454,9 +463,12 @@ export class DreamEngine {
         );
       }
 
-      // 2. Create adapter and load graph into memory
+      // 2. Create adapter and load graph into memory.
+      //    Cap nodes to keep wall-clock time reasonable on large concept graphs.
+      //    Each node requires DB queries for edges (O(N) queries per node),
+      //    so fewer nodes significantly reduces initialization time.
       const adapter = new ConceptGraphAdapter(this.graph!);
-      await adapter.loadIntoMemory();
+      await adapter.loadIntoMemory(30);
 
       // 3. Run spreading activation (the "dreaming")
       const activation = new SpreadingActivation(adapter, this.config.activationConfig);
