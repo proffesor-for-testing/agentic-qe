@@ -146,9 +146,9 @@ describe('buildAdidasQueueMappings', () => {
 // ---------------------------------------------------------------------------
 
 describe('tc01Steps', () => {
-  it('exports 18 step definitions', async () => {
+  it('exports 30 step definitions (18 core + 3 PDF + 7 email + 2 browser)', async () => {
     const { tc01Steps } = await import('../../../../src/clients/adidas/tc01-steps');
-    expect(tc01Steps).toHaveLength(18);
+    expect(tc01Steps).toHaveLength(30);
   });
 
   it('every step has required fields', async () => {

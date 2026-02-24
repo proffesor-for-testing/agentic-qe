@@ -12,6 +12,7 @@ import type {
   SuiteResult,
   BaseTestContext,
 } from './types';
+import { shouldSkipStep, skipReason } from './skip-logic';
 
 // ============================================================================
 // Step Runner Implementation
@@ -103,7 +104,7 @@ class StepRunnerImpl<TContext extends BaseTestContext> implements StepRunner<TCo
           success: true,
           durationMs: 0,
           checks: [],
-          data: { skipped: true, reason: this.skipReason(step) },
+          data: { skipped: true, reason: this.getSkipReason(step) },
         };
         this.results.steps.push({
           step: { id: step.id, name: step.name, layer: step.layer },
@@ -163,26 +164,16 @@ class StepRunnerImpl<TContext extends BaseTestContext> implements StepRunner<TCo
     }
   }
 
-  private shouldSkip(step: StepDef<TContext>): boolean {
-    if (step.layer === 2 && this.skipLayer2) return true;
-    if (step.layer === 3 && this.skipLayer3) return true;
-    if (step.requires.iib && this.skipLayer2) return true;
-    if (step.requires.nshift && this.skipLayer3) return true;
-    if (step.requires.email && this.skipLayer3) return true;
-    if (step.requires.pdf && this.skipLayer3) return true;
-    if (step.requires.browser && this.skipLayer3) return true;
-    return false;
+  private get skipConfig() {
+    return { skipLayer2: this.skipLayer2, skipLayer3: this.skipLayer3 };
   }
 
-  private skipReason(step: StepDef<TContext>): string {
-    if (step.layer === 2 && this.skipLayer2) return 'Layer 2 steps skipped (no IIB credentials)';
-    if (step.layer === 3 && this.skipLayer3) return 'Layer 3 steps skipped (no Layer 3 credentials)';
-    if (step.requires.iib && this.skipLayer2) return 'Requires IIB provider (not available)';
-    if (step.requires.nshift && this.skipLayer3) return 'Requires NShift client (not available)';
-    if (step.requires.email && this.skipLayer3) return 'Requires email provider (not available)';
-    if (step.requires.pdf && this.skipLayer3) return 'Requires PDF extractor (not available)';
-    if (step.requires.browser && this.skipLayer3) return 'Requires browser provider (not available)';
-    return 'Unknown skip reason';
+  private shouldSkip(step: StepDef<TContext>): boolean {
+    return shouldSkipStep(step, this.skipConfig);
+  }
+
+  private getSkipReason(step: StepDef<TContext>): string {
+    return skipReason(step, this.skipConfig);
   }
 }
 
