@@ -89,6 +89,9 @@
     "sync:cloud:verify": "tsx src/cli/index.ts sync verify",
     "sync:cloud:init": "tsx src/cli/index.ts sync init --output ./src/sync/schema/cloud-schema.sql",
     "sync:cloud:config": "tsx src/cli/index.ts sync config --sources",
+    "test:pg:up": "docker compose -f tests/docker-compose.test.yml up -d --wait",
+    "test:pg:down": "docker compose -f tests/docker-compose.test.yml down",
+    "test:integration:pg": "POSTGRES_URL=postgresql://aqe_test:aqe_test@localhost:15432/aqe_test vitest run tests/integration/sync/",
     "sync:embeddings": "tsx scripts/generate-embeddings.ts --verbose",
     "sync:embeddings:force": "tsx scripts/generate-embeddings.ts --force --verbose",
     "sync:embeddings:search": "tsx scripts/generate-embeddings.ts --search"
