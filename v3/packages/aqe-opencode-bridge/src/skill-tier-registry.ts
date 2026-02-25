@@ -1,7 +1,7 @@
 /**
  * Skill Tier Registry
  *
- * Classifies all 75 AQE skills into model tiers based on reasoning complexity.
+ * Classifies all 78 AQE skills into model tiers based on reasoning complexity.
  * Used by the graceful degradation middleware to decide whether a skill can
  * run on the current provider/model or needs to warn/block/fallback.
  *
@@ -21,7 +21,7 @@ import type {
 } from '@agentic-qe/opencode-types/skill-tiers';
 
 // ---------------------------------------------------------------------------
-// Skill tier definitions — all 75 AQE skills
+// Skill tier definitions — all 78 AQE skills
 // ---------------------------------------------------------------------------
 
 const SKILL_TIERS: readonly SkillTierMetadata[] = [

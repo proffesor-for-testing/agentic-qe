@@ -24,7 +24,7 @@
 
 ## 1. Executive Summary
 
-This plan integrates the AQE v3 fleet (75 AQE+platform skills, 40+ MCP tools, 13 DDD domains, ReasoningBank learning, HNSW vector search) into the OpenCode ecosystem (anomalyco/opencode). The integration uses three complementary surface areas:
+This plan integrates the AQE v3 fleet (86 AQE+platform skills, 40+ MCP tools, 13 DDD domains, ReasoningBank learning, HNSW vector search) into the OpenCode ecosystem (anomalyco/opencode). The integration uses three complementary surface areas:
 
 1. **MCP Server** -- AQE's existing `aqe-mcp` binary exposes all 20+ QE tools via MCP protocol. OpenCode natively supports MCP servers. This is the primary integration path.
 2. **OpenCode Plugin** -- A thin `@opencode-ai/plugin` wrapper that maps OpenCode lifecycle hooks (`onToolCallBefore/After`, `onSessionPromptBefore/After`) to AQE's PreToolUse/PostToolUse/UserPromptSubmit hooks.
@@ -92,8 +92,8 @@ The plan is organized into 5 workstreams that can execute in parallel after a sh
 | UserPromptSubmit | `onSessionPromptBefore` plugin hook | Plugin adapter |
 | SessionStart/Stop | `onSessionPromptBefore` (first) / session end | Plugin lifecycle |
 | Task routing (3-tier) | `onSessionPromptBefore` + model hints | Plugin + agent config |
-| Skills (75 AQE) | `.opencode/skills/` composite sequences | Skill translator |
-| Agent types (60+) | `.opencode/agents/` custom agents | Agent config generator |
+| Skills (86 AQE) | `.opencode/skills/` composite sequences | Skill translator |
+| Agent types (59) | `.opencode/agents/` custom agents | Agent config generator |
 | StatusLine | N/A (OpenCode has its own UI) | Skip |
 | ReasoningBank learning | Persisted via MCP memory tools | Transparent |
 | HNSW vector search | Exposed via `memory_query` MCP tool | Transparent |
@@ -132,7 +132,7 @@ Build the `aqe-opencode-plugin` npm package using `@opencode-ai/plugin` SDK. Map
 
 ### WS3: Agent/Skill Translation
 
-Convert AQE's 75 skills and 60+ agent types into OpenCode's `.opencode/agents/`, `.opencode/tools/`, and `.opencode/skills/` conventions.
+Convert AQE's 86 skills and 59 agent types into OpenCode's `.opencode/agents/`, `.opencode/tools/`, and `.opencode/skills/` conventions.
 
 ### WS4: Provider Degradation & Context Management
 
@@ -186,7 +186,7 @@ End-to-end integration tests, smoke tests, and documentation.
 |---|---|---|---|---|---|
 | A1 | Agent config generator | Script that reads AQE `.claude/agents/` definitions and generates `.opencode/agents/*.yaml` configs. Each agent gets: system prompt, allowed tools (MCP tool names), model preferences, permission level. | F1, F2 | `scripts/generate-opencode-agents.ts` | 4h |
 | A2 | Generate priority agent configs | Hand-craft the top 10 most-used QE agent configs for OpenCode: `qe-test-architect`, `qe-coverage-specialist`, `qe-security-scanner`, `qe-code-reviewer`, `qe-defect-predictor`, `qe-chaos-engineer`, `qe-requirements-analyst`, `qe-performance-engineer`, `qe-a11y-auditor`, `qe-learning-optimizer`. | A1 | `.opencode/agents/qe-*.yaml` (10 files) | 6h |
-| A3 | Skill translator | Script that reads AQE `.claude/skills/*/SKILL.md` (75 skills) and converts to `.opencode/skills/*.yaml` format. Map SKILL.md phases to OpenCode skill steps (composite tool sequences). | F1 | `scripts/generate-opencode-skills.ts` | 5h |
+| A3 | Skill translator | Script that reads AQE `.claude/skills/*/SKILL.md` (86 skills) and converts to `.opencode/skills/*.yaml` format. Map SKILL.md phases to OpenCode skill steps (composite tool sequences). | F1 | `scripts/generate-opencode-skills.ts` | 5h |
 | A4 | Generate priority skill configs | Hand-craft the top 15 critical skills: `debug-loop`, `tdd-london-chicago`, `security-testing`, `performance-testing`, `exploratory-testing-advanced`, `code-review-quality`, `api-testing-patterns`, `chaos-engineering-resilience`, `contract-testing`, `accessibility-testing`, `mutation-testing`, `risk-based-testing`, `test-design-techniques`, `regression-testing`, `compliance-testing`. | A3 | `.opencode/skills/qe-*.yaml` (15 files) | 8h |
 | A5 | Custom tool wrappers | Create `.opencode/tools/` TypeScript tools that wrap complex AQE MCP tool sequences into single-call operations. Examples: `qe-full-audit` (runs quality + security + coverage in parallel), `qe-test-and-verify` (generate + execute + coverage gap). Use OpenCode's tool SDK with Zod schemas. | F4 | `.opencode/tools/qe-*.ts` (5-8 files) | 6h |
 | A6 | QCSD swarm skills | Translate the 4 QCSD phase swarms (ideation, refinement, development, CICD) into OpenCode skills that use the `task` tool for parallel subagent execution. | A3, A4 | `.opencode/skills/qcsd-*.yaml` (4 files) | 4h |
@@ -197,7 +197,7 @@ End-to-end integration tests, smoke tests, and documentation.
 | ID | Task | Description | Depends On | Deliverable | Effort |
 |---|---|---|---|---|---|
 | D1 | Provider capability matrix | Document which AQE skills/tools work with which model providers. Categories: (a) Claude-only (needs extended thinking), (b) Claude/GPT (needs strong reasoning), (c) Any provider (mechanical tasks), (d) Local-safe (no API needed). | F3 | `docs/provider-capability-matrix.md` + memory entry | 3h |
-| D2 | Skill complexity classifier | Add metadata to each skill indicating minimum model capability needed. Use AQE's existing `ComplexityLevel` type. Tag each of the 75 skills with: `tier1-any` (simple transforms), `tier2-good` (needs GPT-4/Claude-Haiku level), `tier3-best` (needs Claude-Sonnet/Opus/GPT-4o level). | D1 | Updated `skills-manifest.json` with `minModelTier` field | 4h |
+| D2 | Skill complexity classifier | Add metadata to each skill indicating minimum model capability needed. Use AQE's existing `ComplexityLevel` type. Tag each of the 78 skills with: `tier1-any` (simple transforms), `tier2-good` (needs GPT-4/Claude-Haiku level), `tier3-best` (needs Claude-Sonnet/Opus/GPT-4o level). | D1 | Updated `skills-manifest.json` with `minModelTier` field | 4h |
 | D3 | Graceful degradation middleware | In the plugin's `onSessionPromptBefore`, detect current provider/model and: (a) warn if skill requires higher tier than available, (b) suggest alternative simpler skill, (c) add extra guidance context for weaker models. | D2, P4 | `src/degradation/graceful-degradation.ts` | 4h |
 | D4 | Context window budget manager | Track token usage across a session. When approaching OpenCode's ~40k compaction window: (a) summarize ReasoningBank pattern matches instead of full content, (b) reduce guidance injection size, (c) use skill-specific context budgets. Integrate with AQE's `TokenMetricsCollector`. | P4 | `src/context/budget-manager.ts` | 5h |
 | D5 | LSP integration bridge | OpenCode has native LSP integration. AQE's `code-intelligence` domain can leverage LSP data (symbols, references, diagnostics) instead of building its own AST. Create a bridge that feeds OpenCode LSP data into AQE's code intelligence tools. | F3 | `src/lsp/lsp-bridge.ts` | 4h |
@@ -380,7 +380,7 @@ npm test -- --run tests/validation/agent-configs.test.ts tests/validation/skill-
 
 **Criteria**:
 - [ ] Provider capability matrix covers Claude, GPT-4, GPT-4o, Gemini, local (ollama)
-- [ ] All 75 skills tagged with `minModelTier`
+- [ ] All 86 skills tagged with `minModelTier`
 - [ ] Graceful degradation warns on underpowered models
 - [ ] Context budget manager keeps sessions under 40k tokens
 - [ ] LSP bridge feeds data to code-intelligence tools

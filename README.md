@@ -13,7 +13,7 @@
 
 > **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 60 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, RVF cognitive container integration with portable brain export/import, OpenCode multi-client support, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
-🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **13 Bounded Contexts** | 📚 **75 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance**
+🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **13 Bounded Contexts** | 📚 **78 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance**
 
 </div>
 
@@ -75,9 +75,9 @@ For client-specific setup examples, see `docs/integration/mcp-clients.md`.
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
 - ✅ **RVF Cognitive Containers** (v3.7.0): MinCut task routing, witness chain audit trail, portable brain export/import, unified HNSW search, production dual-write to native RVF
-- ✅ **OpenCode Support** (v3.7.1): 59 agent configs, 86 QE skills, 5 tool wrappers, SSE/WS/HTTP transport, output compaction, graceful degradation, `aqe init --with-opencode` auto-provisioning
+- ✅ **OpenCode Support** (v3.7.1): 59 agent configs, 86 skill configs (78 QE + 8 general dev), 5 tool wrappers, SSE/WS/HTTP transport, output compaction, graceful degradation, `aqe init --with-opencode` auto-provisioning
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
-- ✅ **75 QE Skills**: 46 Tier 3 verified + 29 additional QE skills (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
+- ✅ **78 QE Skills**: 46 Tier 3 verified + 32 additional QE skills (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 
 ---
 
@@ -144,7 +144,7 @@ V3 is built on **13 DDD Bounded Contexts**, each with dedicated agents and clear
 
 ### ✅ Skill Trust Tiers (v3.4.2)
 
-AQE includes **75 QE skills** (46 Tier 3 verified + 29 additional). Trust tiers apply to core QE skills:
+AQE includes **78 QE skills** (46 Tier 3 verified + 32 additional). Trust tiers apply to core QE skills:
 
 | Tier | Badge | Count | Description |
 |------|-------|-------|-------------|
@@ -644,12 +644,12 @@ claude "Coordinate security audit across the monorepo:
 
 ---
 
-## 🎓 75 QE Skills
+## 🎓 78 QE Skills
 
 V3 agents automatically apply relevant skills from the comprehensive QE skill library.
 
 <details>
-<summary><b>View All 75 QE Skills</b></summary>
+<summary><b>View All 78 QE Skills</b></summary>
 
 **Core Testing & Methodologies (12)**
 - agentic-quality-engineering - Core PACT principles for AI-powered QE
