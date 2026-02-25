@@ -481,9 +481,16 @@ async function main(): Promise<void> {
     const domain = frontmatter.domain;
 
     // Build system prompt based on format
-    const systemPrompt = hasXml
+    let systemPrompt = hasXml
       ? buildXmlSystemPrompt(agentName, normalizedContent, frontmatter)
       : buildMarkdownSystemPrompt(agentName, normalizedContent, frontmatter);
+
+    // Cap systemPrompt to ~2000 tokens (~7500 chars) to pass validation
+    const MAX_PROMPT_CHARS = 7500;
+    if (systemPrompt.length > MAX_PROMPT_CHARS) {
+      systemPrompt = systemPrompt.slice(0, MAX_PROMPT_CHARS).replace(/\n[^\n]*$/, '') +
+        '\n\n  [Truncated for token limit. See full agent definition in .claude/agents/v3/]';
+    }
 
     // Map tools from domain and name
     const tools = mapToolsFromDomain(domain, agentName);

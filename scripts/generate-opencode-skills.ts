@@ -49,7 +49,7 @@ function tierToMinModel(tier: number): string {
   switch (tier) {
     case 0:
     case 1:
-      return 'tier1-fast';
+      return 'tier1-any';
     case 2:
       return 'tier2-good';
     case 3:
