@@ -1,0 +1,35 @@
+name: qe-compliance-testing
+description: "Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, PCI-DSS and industry-specific regulations. Use when ensuring legal compliance, preparing for audits, or handling sensitive data."
+minModelTier: tier3-best
+tags: ["compliance", "gdpr", "hipaa", "pci-dss", "ccpa", "soc2", "privacy", "audit", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: major-regulations
+    description: "Major Regulations"
+    tools: ["bash", "read"]
+    prompt: |
+      Major Regulations
+  - name: penalties
+    description: "Penalties"
+    tools: ["bash", "read"]
+    prompt: |
+      Penalties
+  - name: gdpr-compliance-testing
+    description: "GDPR Compliance Testing"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      GDPR Compliance Testing
+  - name: hipaa-compliance-testing
+    description: "HIPAA Compliance Testing"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      HIPAA Compliance Testing
+  - name: pci-dss-compliance-testing
+    description: "PCI-DSS Compliance Testing"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      PCI-DSS Compliance Testing
+  - name: agent-driven-compliance
+    description: "Agent-Driven Compliance"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Compliance

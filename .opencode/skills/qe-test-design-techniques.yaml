@@ -1,0 +1,40 @@
+name: qe-test-design-techniques
+description: "Systematic test design with boundary value analysis, equivalence partitioning, decision tables, state transition testing, and combinatorial testing. Use when designing comprehensive test cases, reducing redundant tests, or ensuring systematic coverage."
+minModelTier: tier3-best
+tags: ["test-design", "bva", "equivalence-partitioning", "decision-tables", "pairwise", "state-transition", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: technique-selection-guide
+    description: "Technique Selection Guide"
+    tools: ["bash", "read"]
+    prompt: |
+      Technique Selection Guide
+  - name: boundary-value-analysis-bva
+    description: "**Principle:** Bugs cluster at boundaries."
+    tools: ["bash", "read"]
+    prompt: |
+      **Principle:** Bugs cluster at boundaries.
+  - name: equivalence-partitioning-ep
+    description: "**Principle:** One test per equivalent class."
+    tools: ["bash", "read"]
+    prompt: |
+      **Principle:** One test per equivalent class.
+  - name: decision-tables
+    description: "**Use for:** Complex business rules with multiple conditions."
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      **Use for:** Complex business rules with multiple conditions.
+  - name: state-transition-testing
+    description: "**Model state changes:**"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      **Model state changes:**
+  - name: pairwise-combinatorial-testing
+    description: "**Problem:** All combinations explode exponentially."
+    tools: ["bash", "read"]
+    prompt: |
+      **Problem:** All combinations explode exponentially.
+  - name: agent-driven-test-design
+    description: "Agent-Driven Test Design"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Test Design

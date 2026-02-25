@@ -1,0 +1,45 @@
+name: qcsd-ideation-swarm
+description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins. Uses 5-tier browser cascade: Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch-fallback."
+minModelTier: tier3-best
+tags: ["qcsd", "ideation", "htsm", "quality-criteria", "risk-storming", "testability", "swarm", "parallel", "ddd", "qe", "quality-engineering", "qcsd-phases"]
+steps:
+  - name: url-based-analysis-mode-v71
+    description: "When analyzing a live website URL, use this specialized execution pattern."
+    tools: ["bash", "read"]
+    prompt: |
+      When analyzing a live website URL, use this specialized execution pattern.
+  - name: parameters
+    description: "- `URL`: Website to analyze (required) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/{domain}/` or `./Agentic QCSD/{domain}/`)"
+    tools: ["bash", "read"]
+    prompt: |
+      - `URL`: Website to analyze (required) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/{domain}/` or `./Agentic QCSD/{domain}/`)
+  - name: -url-mode-complete-execution-flow
+    description: "**You MUST follow ALL phases in order. Skipping phases is a FAILURE.**"
+    tools: ["bash", "read"]
+    prompt: |
+      **You MUST follow ALL phases in order. Skipping phases is a FAILURE.**
+  - name: phase-url-1-setup-and-content-fetch-auto
+    description: "**The browser cascade is now FULLY AUTOMATED via `scripts/fetch-content.js`.**"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      **The browser cascade is now FULLY AUTOMATED via `scripts/fetch-content.js`.**
+  - name: phase-url-2-programmatic-flag-detection-
+    description: "**You MUST detect flags from the fetched content. Do NOT skip this phase.**"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      **You MUST detect flags from the fetched content. Do NOT skip this phase.**
+  - name: phase-url-3-spawn-core-agents-parallel
+    description: "**All 3 core agents MUST be spawned. Fewer is a FAILURE.**"
+    tools: ["bash", "read"]
+    prompt: |
+      **All 3 core agents MUST be spawned. Fewer is a FAILURE.**
+  - name: website-content
+    description: "${content}"
+    tools: ["bash", "read"]
+    prompt: |
+      ${content}
+  - name: analysis-requirements
+    description: "Analyze ALL 10 HTSM v6.3 categories with weight and testability score for each."
+    tools: ["bash", "read"]
+    prompt: |
+      Analyze ALL 10 HTSM v6.3 categories with weight and testability score for each.

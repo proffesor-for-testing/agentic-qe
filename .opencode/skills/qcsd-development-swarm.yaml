@@ -1,0 +1,45 @@
+name: qcsd-development-swarm
+description: "QCSD Development phase swarm for in-sprint code quality assurance using TDD adherence, code complexity analysis, coverage gap detection, and defect prediction. Consumes Refinement outputs (BDD scenarios, SFDIPOT priorities) and produces signals for Verification."
+minModelTier: tier3-best
+tags: ["qcsd", "development", "tdd", "complexity", "coverage", "security", "performance", "mutation", "defect-prediction", "swarm", "parallel", "ddd", "qe", "quality-engineering", "qcsd-phases"]
+steps:
+  - name: overview
+    description: "The Development Swarm takes refined stories (that passed Refinement) and validates code quality during sprint execution. Where the Ideation Swarm asks \"Should we build this?\" and the Refinement Swarm asks \"How should we test this?\", the Development Swarm asks \"Is the code quality sufficient to ship?"
+    tools: ["bash", "read"]
+    prompt: |
+      The Development Swarm takes refined stories (that passed Refinement) and validates code quality during sprint execution. Where the Ideation Swarm asks "Should we build this?" and the Refinement Swarm asks "How should we test this?", the Development Swarm asks "Is the code quality sufficient to ship?
+  - name: qcsd-phase-positioning
+    description: "QCSD Phase Positioning"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      QCSD Phase Positioning
+  - name: key-differentiators-from-refinement-swar
+    description: "Key Differentiators from Refinement Swarm"
+    tools: ["bash", "read"]
+    prompt: |
+      Key Differentiators from Refinement Swarm
+  - name: parameters
+    description: "- `SOURCE_PATH`: Source code directory to analyze (required, e.g., `src/auth/`) - `TEST_PATH`: Test directory for coverage analysis (optional, e.g., `tests/auth/`) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/development/`)"
+    tools: ["bash", "read"]
+    prompt: |
+      - `SOURCE_PATH`: Source code directory to analyze (required, e.g., `src/auth/`) - `TEST_PATH`: Test directory for coverage analysis (optional, e.g., `tests/auth/`) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/development/`)
+  - name: enforcement-rules---read-first
+    description: "**These rules are NON-NEGOTIABLE. Violation means skill execution failure.**"
+    tools: ["bash", "read", "edit", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      **These rules are NON-NEGOTIABLE. Violation means skill execution failure.**
+  - name: phase-1-analyze-code-context-flag-detect
+    description: "**MANDATORY: You must complete this analysis before Phase 2.**"
+    tools: ["bash", "read"]
+    prompt: |
+      **MANDATORY: You must complete this analysis before Phase 2.**
+  - name: flag-detection-check-all-six
+    description: "Flag Detection (Check ALL SIX)"
+    tools: ["bash", "read"]
+    prompt: |
+      Flag Detection (Check ALL SIX)
+  - name: validation-checkpoint
+    description: "Before proceeding to Phase 2, confirm:"
+    tools: ["bash", "read"]
+    prompt: |
+      Before proceeding to Phase 2, confirm:

@@ -1,0 +1,45 @@
+name: qe-test-data-management
+description: "Strategic test data generation, management, and privacy compliance. Use when creating test data, handling PII, ensuring GDPR/CCPA compliance, or scaling data generation for realistic testing scenarios."
+minModelTier: tier3-best
+tags: ["test-data", "faker", "synthetic", "gdpr", "pii", "anonymization", "factories", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: data-strategies
+    description: "Data Strategies"
+    tools: ["bash", "read"]
+    prompt: |
+      Data Strategies
+  - name: privacy-techniques
+    description: "Privacy Techniques"
+    tools: ["bash", "read"]
+    prompt: |
+      Privacy Techniques
+  - name: synthetic-data-generation
+    description: "Synthetic Data Generation"
+    tools: ["bash", "read"]
+    prompt: |
+      Synthetic Data Generation
+  - name: test-data-builder-pattern
+    description: "Test Data Builder Pattern"
+    tools: ["bash", "read"]
+    prompt: |
+      Test Data Builder Pattern
+  - name: data-anonymization
+    description: "Data Anonymization"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Data Anonymization
+  - name: database-transaction-isolation
+    description: "Database Transaction Isolation"
+    tools: ["bash", "read"]
+    prompt: |
+      Database Transaction Isolation
+  - name: volume-data-generation
+    description: "Volume Data Generation"
+    tools: ["bash", "read"]
+    prompt: |
+      Volume Data Generation
+  - name: agent-driven-data-generation
+    description: "Agent-Driven Data Generation"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Data Generation

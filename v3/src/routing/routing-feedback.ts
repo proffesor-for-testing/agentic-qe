@@ -6,6 +6,7 @@
  * Integrates with SQLite for persistence and supports ReasoningBank patterns.
  */
 
+import { randomUUID } from 'crypto';
 import type {
   RoutingOutcome,
   QETask,
@@ -226,7 +227,7 @@ export class RoutingFeedbackCollector {
     }
   ): RoutingOutcome {
     const routingOutcome: RoutingOutcome = {
-      id: `outcome-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `outcome-${Date.now()}-${randomUUID().slice(0, 8)}`,
       task,
       decision,
       usedAgent,

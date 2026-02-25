@@ -9,6 +9,8 @@
  * - Target: >90% pool hit rate, <5ms acquisition
  */
 
+import { randomUUID } from 'crypto';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -361,7 +363,7 @@ class ConnectionPoolImpl {
   // ============================================================================
 
   private async createConnection(): Promise<void> {
-    const id = `conn-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const id = `conn-${Date.now()}-${randomUUID().split('-')[0]}`;
     const now = Date.now();
 
     const connection: PoolConnection = {
@@ -388,7 +390,7 @@ class ConnectionPoolImpl {
       return null;
     }
 
-    const id = `conn-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const id = `conn-${Date.now()}-${randomUUID().split('-')[0]}`;
     const now = Date.now();
 
     const connection: PoolConnection = {

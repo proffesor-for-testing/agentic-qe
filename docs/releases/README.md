@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.7.1](v3.7.1.md) | 2026-02-24 | OpenCode integration, RVF production wiring, 8 bug fixes |
 | [v3.7.0](v3.7.0.md) | 2026-02-23 | RVF Cognitive Container integration: MinCut routing, witness chain, brain CLI, HNSW unification |
 | [v3.6.19](v3.6.19.md) | 2026-02-22 | 6 learning pipeline fixes, event-driven trajectories, 25 new tests |
 | [v3.6.18](v3.6.18.md) | 2026-02-21 | 6 new Agent Teams MCP tools, auto-team-wiring, team enriched responses |

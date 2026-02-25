@@ -10,6 +10,7 @@
  * - Time-windowed aggregations
  */
 
+import { randomUUID } from 'crypto';
 import {
   RoutingDecision,
   ExtendedProviderType,
@@ -179,7 +180,7 @@ export class RouterMetricsCollector {
     } = {}
   ): void {
     const record: RoutingDecisionRecord = {
-      id: `rd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `rd-${Date.now()}-${randomUUID().slice(0, 8)}`,
       timestamp: new Date(),
       provider: decision.providerType,
       model: decision.model,

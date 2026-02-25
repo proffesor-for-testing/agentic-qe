@@ -361,23 +361,32 @@ export class UnifiedMemoryManager {
   private handleV2SchemaIncompatibilities(): void {
     if (!this.db) return;
 
-    const v2IncompatibleTables = [
-      { table: 'goap_plans', requiredColumn: 'status' },
-      { table: 'goap_actions', requiredColumn: 'agent_type' },
-      { table: 'concept_nodes', requiredColumn: 'concept_type' },
-      { table: 'concept_edges', requiredColumn: 'edge_type' },
-      { table: 'dream_insights', requiredColumn: 'cycle_id' },
-      { table: 'rl_q_values', requiredColumn: 'algorithm' },
+    // SAFE migration: add missing columns instead of dropping tables.
+    // Previous implementation used DROP TABLE which destroyed all data.
+    // See: Data loss incidents Feb 17-23, 2026.
+    const v2IncompatibleTables: Array<{ table: string; requiredColumn: string; columnDef: string }> = [
+      { table: 'goap_plans', requiredColumn: 'status', columnDef: "TEXT DEFAULT 'pending'" },
+      { table: 'goap_actions', requiredColumn: 'agent_type', columnDef: "TEXT DEFAULT 'unknown'" },
+      { table: 'concept_nodes', requiredColumn: 'concept_type', columnDef: "TEXT DEFAULT 'general'" },
+      { table: 'concept_edges', requiredColumn: 'edge_type', columnDef: "TEXT DEFAULT 'related'" },
+      { table: 'dream_insights', requiredColumn: 'cycle_id', columnDef: "TEXT DEFAULT ''" },
+      { table: 'rl_q_values', requiredColumn: 'algorithm', columnDef: "TEXT DEFAULT 'q-learning'" },
     ];
 
-    for (const { table, requiredColumn } of v2IncompatibleTables) {
+    for (const { table, requiredColumn, columnDef } of v2IncompatibleTables) {
       const tableExists = this.db.prepare(
         `SELECT name FROM sqlite_master WHERE type='table' AND name=?`
       ).get(table);
 
       if (tableExists && !this.columnExists(table, requiredColumn)) {
-        console.log(`[UnifiedMemory] Upgrading v2 table: ${table} (missing ${requiredColumn})`);
-        this.db.exec(`DROP TABLE IF EXISTS ${validateTableName(table)}`);
+        const safeName = validateTableName(table);
+        try {
+          this.db.exec(`ALTER TABLE ${safeName} ADD COLUMN ${requiredColumn} ${columnDef}`);
+          console.log(`[UnifiedMemory] Added column ${requiredColumn} to ${table} (safe migration)`);
+        } catch (e) {
+          // Column may already exist from a concurrent init — that's fine
+          console.log(`[UnifiedMemory] Column ${requiredColumn} on ${table}: ${e instanceof Error ? e.message : String(e)}`);
+        }
       }
     }
   }

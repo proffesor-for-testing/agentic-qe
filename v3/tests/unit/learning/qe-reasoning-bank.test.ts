@@ -625,7 +625,7 @@ describe.runIf(canTest.gnn)('QE ReasoningBank', () => {
       const embedding = await reasoningBank.embed('Generate unit tests for UserService');
 
       expect(Array.isArray(embedding)).toBe(true);
-      expect(embedding.length).toBe(768); // Default dimension
+      expect(embedding.length).toBe(384); // all-MiniLM-L6-v2 dimension
       expect(embedding.every((v) => typeof v === 'number')).toBe(true);
     });
 

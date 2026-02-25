@@ -7,6 +7,7 @@
  * @module onnx-embeddings/adapter
  */
 
+import { randomUUID } from 'crypto';
 import type {
   Embedding,
   EmbeddingConfig,
@@ -417,7 +418,7 @@ export class ONNXEmbeddingsAdapter {
    * Generate unique ID for stored embeddings
    */
   private generateId(): string {
-    return `emb_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `emb_${Date.now()}_${randomUUID().slice(0, 9)}`;
   }
 
   /**

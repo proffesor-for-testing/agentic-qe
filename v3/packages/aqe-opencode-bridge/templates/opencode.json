@@ -1,0 +1,21 @@
+{
+  "mcp": {
+    "agentic-qe": {
+      "type": "local",
+      "command": "npx",
+      "args": ["agentic-qe", "mcp"],
+      "env": {
+        "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
+        "AQE_V3_MODE": "true",
+        "AQE_V3_HNSW_ENABLED": "true"
+      }
+    },
+    "agentic-qe-sse": {
+      "type": "sse",
+      "url": "http://localhost:3100/sse",
+      "env": {
+        "AQE_V3_MODE": "true"
+      }
+    }
+  }
+}

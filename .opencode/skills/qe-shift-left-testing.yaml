@@ -1,0 +1,45 @@
+name: qe-shift-left-testing
+description: "Move testing activities earlier in the development lifecycle to catch defects when they're cheapest to fix. Use when implementing TDD, CI/CD, or early quality practices."
+minModelTier: tier3-best
+tags: ["shift-left", "early-testing", "tdd", "bdd", "ci-cd", "prevention", "qe", "quality-engineering", "testing-methodologies"]
+steps:
+  - name: cost-of-defects-by-phase
+    description: "Cost of Defects by Phase"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Cost of Defects by Phase
+  - name: test-pyramid
+    description: "Test Pyramid"
+    tools: ["bash", "read"]
+    prompt: |
+      Test Pyramid
+  - name: shift-left-levels
+    description: "Shift-Left Levels"
+    tools: ["bash", "read"]
+    prompt: |
+      Shift-Left Levels
+  - name: level-1-tests-in-every-pr
+    description: "Level 1: Tests in Every PR"
+    tools: ["bash", "read"]
+    prompt: |
+      Level 1: Tests in Every PR
+  - name: level-2-tdd-practice
+    description: "Level 2: TDD Practice"
+    tools: ["bash", "read"]
+    prompt: |
+      Level 2: TDD Practice
+  - name: level-3-bdd-in-refinement
+    description: "Level 3: BDD in Refinement"
+    tools: ["bash", "read"]
+    prompt: |
+      Level 3: BDD in Refinement
+  - name: level-4-risk-analysis-in-design
+    description: "Level 4: Risk Analysis in Design"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Level 4: Risk Analysis in Design
+  - name: agent-assisted-shift-left
+    description: "Agent-Assisted Shift-Left"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Agent-Assisted Shift-Left

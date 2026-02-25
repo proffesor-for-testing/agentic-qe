@@ -57,10 +57,15 @@
  * @module learning/memory-auditor
  */
 
+import { randomUUID } from 'crypto';
+import { LoggerFactory } from '../logging/index.js';
+import type { Logger } from '../logging/index.js';
 import type { CoherenceService, CoherenceResult, CoherenceNode } from '../integrations/coherence/index.js';
 import type { QEPattern, QEDomain } from './qe-patterns.js';
 import type { EventBus } from '../kernel/interfaces.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+
+const logger: Logger = LoggerFactory.create('MemoryAuditor');
 
 // ============================================================================
 // Types
@@ -256,7 +261,7 @@ export class MemoryCoherenceAuditor {
         });
       } catch (eventError) {
         // Ignore event emission errors
-        console.warn('Failed to emit audit_failed event:', eventError);
+        logger.warn('Failed to emit audit_failed event', { error: toErrorMessage(eventError) });
       }
 
       // Re-throw the original error
@@ -379,7 +384,7 @@ export class MemoryCoherenceAuditor {
     patternSource: () => Promise<QEPattern[]>
   ): Promise<void> {
     if (this.isAuditing) {
-      console.warn('Audit already in progress, skipping');
+      logger.warn('Audit already in progress, skipping');
       return;
     }
 
@@ -575,14 +580,14 @@ export class MemoryCoherenceAuditor {
 
     try {
       await this.eventBus.publish({
-        id: `memory-audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `memory-audit-${Date.now()}-${randomUUID().split('-')[0]}`,
         type: eventType,
         source: 'learning-optimization',
         timestamp: new Date(),
         payload,
       });
     } catch (error) {
-      console.warn(`Failed to emit event ${eventType}:`, error);
+      logger.warn('Failed to emit event', { eventType, error: toErrorMessage(error) });
     }
   }
 }

@@ -1,0 +1,40 @@
+name: qe-test-environment-management
+description: "Test environment provisioning, infrastructure as code for testing, Docker/Kubernetes for test environments, service virtualization, and cost optimization. Use when managing test infrastructure, ensuring environment parity, or optimizing testing costs."
+minModelTier: tier1-fast
+tags: ["environment", "docker", "kubernetes", "infrastructure", "parity", "cost-optimization", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: environment-types
+    description: "Environment Types"
+    tools: ["bash", "read"]
+    prompt: |
+      Environment Types
+  - name: devprod-parity-checklist
+    description: "Dev/Prod Parity Checklist"
+    tools: ["bash", "read"]
+    prompt: |
+      Dev/Prod Parity Checklist
+  - name: docker-for-test-environments
+    description: "Docker for Test Environments"
+    tools: ["bash", "read"]
+    prompt: |
+      Docker for Test Environments
+  - name: infrastructure-as-code
+    description: "Infrastructure as Code"
+    tools: ["bash", "read"]
+    prompt: |
+      Infrastructure as Code
+  - name: service-virtualization
+    description: "Service Virtualization"
+    tools: ["bash", "read"]
+    prompt: |
+      Service Virtualization
+  - name: cost-optimization
+    description: "Cost Optimization"
+    tools: ["bash", "read"]
+    prompt: |
+      Cost Optimization
+  - name: agent-driven-environment-management
+    description: "Agent-Driven Environment Management"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Environment Management

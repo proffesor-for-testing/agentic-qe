@@ -30,9 +30,23 @@ const mockTunnelManager = {
   }),
 };
 
-// Mock pg module - simulate not available by default
-vi.mock('pg', () => {
-  throw new Error('pg module not available');
+// Mock the 'module' built-in so that createRequire returns a function
+// that throws for 'pg'. This intercepts the production code's
+//   const requirePg = createRequire(import.meta.url);
+//   pg = requirePg('pg');
+// because vi.mock('pg') cannot intercept Node's native createRequire().
+vi.mock('module', async (importOriginal) => {
+  const original = await importOriginal() as typeof import('module');
+  return {
+    ...original,
+    createRequire: (...args: Parameters<typeof original.createRequire>) => {
+      const realRequire = original.createRequire(...args);
+      return (id: string) => {
+        if (id === 'pg') throw new Error('pg module not available (mocked)');
+        return realRequire(id);
+      };
+    },
+  };
 });
 
 import {

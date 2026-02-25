@@ -1,0 +1,35 @@
+name: qe-test-automation-strategy
+description: "Design and implement effective test automation with proper pyramid, patterns, and CI/CD integration. Use when building automation frameworks or improving test efficiency."
+minModelTier: tier3-best
+tags: ["automation", "test-pyramid", "page-object", "first-principles", "ci-cd", "flaky-tests", "qe", "quality-engineering", "testing-methodologies"]
+steps:
+  - name: test-pyramid
+    description: "Test Pyramid"
+    tools: ["bash", "read"]
+    prompt: |
+      Test Pyramid
+  - name: first-principles
+    description: "F.I.R.S.T. Principles"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      F.I.R.S.T. Principles
+  - name: page-object-model
+    description: "Page Object Model"
+    tools: ["bash", "read"]
+    prompt: |
+      Page Object Model
+  - name: cicd-integration
+    description: "CI/CD Integration"
+    tools: ["bash", "read"]
+    prompt: |
+      CI/CD Integration
+  - name: flaky-test-management
+    description: "Flaky Test Management"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Flaky Test Management
+  - name: agent-assisted-automation
+    description: "Agent-Assisted Automation"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Assisted Automation

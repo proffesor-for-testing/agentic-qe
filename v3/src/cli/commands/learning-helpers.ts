@@ -69,6 +69,16 @@ export async function initializeLearningSystem(): Promise<QEReasoningBank> {
   });
 
   await state.reasoningBank.initialize();
+
+  // Wire RVF dual-writer for vector replication (optional, best-effort)
+  try {
+    const { getSharedRvfDualWriter } = await import('../../integrations/ruvector/shared-rvf-dual-writer.js');
+    const dualWriter = await getSharedRvfDualWriter();
+    if (dualWriter) state.reasoningBank.setRvfDualWriter(dualWriter);
+  } catch (e) {
+    if (process.env.DEBUG) console.debug('[learning] RVF wiring skipped:', e instanceof Error ? e.message : e);
+  }
+
   state.initialized = true;
 
   return state.reasoningBank;

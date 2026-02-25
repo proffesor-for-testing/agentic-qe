@@ -7,6 +7,7 @@
  * IMPORTANT: This requires v2 to be built first (`npm run build` in root)
  */
 
+import { randomUUID } from 'crypto';
 import { resolve, join } from 'path';
 import { existsSync } from 'fs';
 import type { N8nAgentType } from './types.js';
@@ -320,7 +321,7 @@ export class N8nAgentFactory {
     // Create the instance shell
     const instance: N8nAgentInstance = {
       type,
-      id: `n8n-${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `n8n-${type}-${Date.now()}-${randomUUID().slice(0, 8)}`,
       agent: null,
       capabilities: mapping?.capabilities || [],
       primaryDomain: mapping?.primaryDomain || 'test-execution',

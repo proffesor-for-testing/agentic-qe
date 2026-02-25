@@ -7,6 +7,7 @@
  * @module integrations/rl-suite/sona
  */
 
+import { randomUUID } from 'crypto';
 import type { RLState, RLAction, DomainName } from './interfaces';
 import { HNSWEmbeddingIndex } from '../embeddings/index/HNSWIndex.js';
 import type { IEmbedding, EmbeddingNamespace } from '../embeddings/base/types';
@@ -662,7 +663,7 @@ export class SONA {
     metadata?: Record<string, unknown>
   ): SONAPattern {
     const pattern: SONAPattern = {
-      id: `sona-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: `sona-${Date.now()}-${randomUUID().slice(0, 7)}`,
       type,
       domain,
       stateEmbedding: this.createStateEmbedding(state),

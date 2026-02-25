@@ -1,0 +1,45 @@
+name: qe-stream-chain
+description: "Stream-JSON chaining for multi-agent pipelines, data transformation, and sequential workflows"
+minModelTier: tier2-good
+tags: ["streaming", "pipeline", "chaining", "multi-agent", "workflow", "qe", "quality-engineering"]
+steps:
+  - name: overview
+    description: "Stream-Chain provides two powerful modes for orchestrating multi-agent workflows:"
+    tools: ["bash", "read"]
+    prompt: |
+      Stream-Chain provides two powerful modes for orchestrating multi-agent workflows:
+  - name: run-a-custom-chain
+    description: "Run a Custom Chain"
+    tools: ["bash", "read"]
+    prompt: |
+      Run a Custom Chain
+  - name: execute-a-pipeline
+    description: "Execute a Pipeline"
+    tools: ["bash", "read"]
+    prompt: |
+      Execute a Pipeline
+  - name: custom-chains-run
+    description: "Execute custom stream chains with your own prompts for maximum flexibility."
+    tools: ["bash", "read"]
+    prompt: |
+      Execute custom stream chains with your own prompts for maximum flexibility.
+  - name: syntax
+    description: "Syntax"
+    tools: ["bash", "read"]
+    prompt: |
+      Syntax
+  - name: options
+    description: "Options"
+    tools: ["bash", "read"]
+    prompt: |
+      Options
+  - name: how-context-flows
+    description: "Each step receives the previous output as context:"
+    tools: ["bash", "read"]
+    prompt: |
+      Each step receives the previous output as context:
+  - name: examples
+    description: "Examples"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Examples

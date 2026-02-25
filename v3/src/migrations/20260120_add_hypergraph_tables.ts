@@ -115,6 +115,15 @@ export function isMigrationApplied(db: DatabaseType): boolean {
  * @param db - better-sqlite3 database instance
  */
 export function rollbackMigration(db: DatabaseType): void {
+  // Safety check: refuse to drop tables that contain data
+  const nodeCount = (db.prepare('SELECT COUNT(*) as cnt FROM hypergraph_nodes').get() as { cnt: number } | undefined)?.cnt ?? 0;
+  const edgeCount = (db.prepare('SELECT COUNT(*) as cnt FROM hypergraph_edges').get() as { cnt: number } | undefined)?.cnt ?? 0;
+  if (nodeCount > 0 || edgeCount > 0) {
+    throw new Error(
+      `REFUSING rollback: hypergraph tables contain data (${nodeCount} nodes, ${edgeCount} edges). ` +
+      'Backup and manually drop if you really need to rollback.'
+    );
+  }
   db.exec(`
     DROP TABLE IF EXISTS hypergraph_edges;
     DROP TABLE IF EXISTS hypergraph_nodes;

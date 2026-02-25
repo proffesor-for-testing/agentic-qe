@@ -1,0 +1,30 @@
+name: qe-chaos-engineering-resilience
+description: "Chaos engineering principles, controlled failure injection, resilience testing, and system recovery validation. Use when testing distributed systems, building confidence in fault tolerance, or validating disaster recovery."
+minModelTier: tier3-best
+tags: ["chaos", "resilience", "fault-injection", "distributed-systems", "recovery", "netflix", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: failure-types-to-inject
+    description: "Failure Types to Inject"
+    tools: ["bash", "read"]
+    prompt: |
+      Failure Types to Inject
+  - name: blast-radius-progression
+    description: "Blast Radius Progression"
+    tools: ["bash", "read"]
+    prompt: |
+      Blast Radius Progression
+  - name: steady-state-metrics
+    description: "Steady State Metrics"
+    tools: ["bash", "read"]
+    prompt: |
+      Steady State Metrics
+  - name: chaos-experiment-structure
+    description: "Chaos Experiment Structure"
+    tools: ["bash", "read"]
+    prompt: |
+      Chaos Experiment Structure
+  - name: agent-driven-chaos
+    description: "Agent-Driven Chaos"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Chaos

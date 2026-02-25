@@ -1,0 +1,45 @@
+name: qe-code-intelligence
+description: "Knowledge graph-based code understanding with semantic search and 80% token reduction through intelligent context retrieval."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Agent Workflow
+  - name: knowledge-graph-operations
+    description: "Knowledge Graph Operations"
+    tools: ["bash", "read"]
+    prompt: |
+      Knowledge Graph Operations
+  - name: 1-codebase-indexing
+    description: "1. Codebase Indexing"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      1. Codebase Indexing
+  - name: 2-semantic-search
+    description: "2. Semantic Search"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      2. Semantic Search
+  - name: 3-dependency-analysis
+    description: "3. Dependency Analysis"
+    tools: ["bash", "read"]
+    prompt: |
+      3. Dependency Analysis
+  - name: token-reduction-strategy
+    description: "Token Reduction Strategy"
+    tools: ["bash", "read"]
+    prompt: |
+      Token Reduction Strategy
+  - name: knowledge-graph-schema
+    description: "Knowledge Graph Schema"
+    tools: ["bash", "read"]
+    prompt: |
+      Knowledge Graph Schema
+  - name: search-results
+    description: "Search Results"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Search Results

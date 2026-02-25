@@ -9,6 +9,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { randomUUID } from 'crypto';
 import type { A2AMessage, TaskStatus, A2AArtifact, MessagePart, TextPart, DataPart, FilePart } from '../jsonrpc/methods.js';
 import { isTerminalStatus } from '../jsonrpc/methods.js';
 import {
@@ -111,8 +112,8 @@ export const DEFAULT_TASK_MANAGER_CONFIG: Required<TaskManagerConfig> = {
   storeConfig: {},
   defaultAgentId: 'default-agent',
   autoGenerateContextId: true,
-  idGenerator: () => `task-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-  contextIdGenerator: () => `ctx-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+  idGenerator: () => `task-${Date.now()}-${randomUUID().split('-')[0]}`,
+  contextIdGenerator: () => `ctx-${Date.now()}-${randomUUID().split('-')[0]}`,
   timestampGenerator: () => new Date(),
 };
 
@@ -581,7 +582,7 @@ export class TaskManager extends EventEmitter {
    */
   createArtifactFromMessage(message: A2AMessage, name: string = 'Message', description?: string): A2AArtifact {
     return {
-      id: `artifact-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: `artifact-${Date.now()}-${randomUUID().split('-')[0]}`,
       name,
       description,
       parts: message.parts,

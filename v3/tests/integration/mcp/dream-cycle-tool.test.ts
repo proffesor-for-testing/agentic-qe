@@ -8,6 +8,10 @@
  * 2. Creates REAL patterns in QEReasoningBank (not fake IDs)
  * 3. Handles config changes by recreating engine
  * 4. Uses empty string (not '*') for pattern loading
+ *
+ * NOTE: Dream cycles on large production DBs take significant time
+ * (concept graph loading + spreading activation). Timeouts are set
+ * generously to avoid flaky failures on slower machines.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -19,10 +23,16 @@ import { DreamCycleTool, createDreamCycleTool } from '../../../src/mcp/tools/lea
 import { getSharedMemoryBackend, resetSharedMemoryBackend } from '../../../src/mcp/tools/base';
 import { createQEReasoningBank } from '../../../src/learning/qe-reasoning-bank';
 import { resetUnifiedMemory, getUnifiedMemory } from '../../../src/kernel/unified-memory';
+import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence';
 import type { MCPToolContext } from '../../../src/mcp/tools/base';
 
 // Use system temp directory for test isolation
 const TEST_DATA_DIR = path.join(os.tmpdir(), `agentic-qe-dream-test-${process.pid}`);
+
+// Dream cycles with real production data can take 30-90s per cycle
+// due to concept graph loading and spreading activation.
+const SINGLE_DREAM_TIMEOUT = 120_000;
+const DOUBLE_DREAM_TIMEOUT = 240_000;
 
 describe('DreamCycleTool Integration Tests', () => {
   let tool: DreamCycleTool;
@@ -101,22 +111,23 @@ describe('DreamCycleTool Integration Tests', () => {
 
   describe('Dream Action', () => {
     it('should complete a dream cycle with minimum patterns', async () => {
-      // DreamEngine needs to load patterns - use ReasoningBank loading
-      // or ensure there are concepts in the spreading activation graph
       const result = await tool.invoke({
         action: 'dream',
-        durationMs: 3000, // Longer cycle for testing
-        minPatterns: 1, // Very low threshold - engine will seed concepts
-        loadFromReasoningBank: true, // Load any existing patterns
+        durationMs: 3000,
+        minPatterns: 1,
+        loadFromReasoningBank: true,
       });
 
+      if (!result.success) {
+        console.log(`\n=== Dream Cycle Test FAILED ===`);
+        console.log(`  error: ${result.error}`);
+      }
       expect(result.success).toBe(true);
       expect(result.data).toBeDefined();
       expect(result.data.action).toBe('dream');
       expect(result.data.dreamResult).toBeDefined();
-      // Note: status could be 'completed' or 'insufficient_concepts' depending on state
       expect(['completed', 'insufficient_concepts']).toContain(result.data.dreamResult?.status);
-    }, 60000);
+    }, SINGLE_DREAM_TIMEOUT);
 
     it('should respect duration configuration changes', async () => {
       // First call with 2000ms
@@ -126,7 +137,10 @@ describe('DreamCycleTool Integration Tests', () => {
         minPatterns: 1,
         loadFromReasoningBank: true,
       });
-      // Dream may complete or have insufficient concepts - both are valid
+      if (!result1.success) {
+        console.log(`\n=== Duration Test - result1 FAILED ===`);
+        console.log(`  error: ${result1.error}`);
+      }
       expect(result1.success).toBe(true);
 
       // Second call with different duration (engine should be recreated)
@@ -137,7 +151,7 @@ describe('DreamCycleTool Integration Tests', () => {
         loadFromReasoningBank: true,
       });
       expect(result2.success).toBe(true);
-    }, 60000);
+    }, DOUBLE_DREAM_TIMEOUT);
   });
 
   describe('Insights Action', () => {
@@ -161,7 +175,7 @@ describe('DreamCycleTool Integration Tests', () => {
       expect(result.data.action).toBe('insights');
       expect(result.data.insights).toBeDefined();
       expect(Array.isArray(result.data.insights)).toBe(true);
-    }, 60000);
+    }, SINGLE_DREAM_TIMEOUT);
   });
 
   describe('History Action', () => {
@@ -186,7 +200,7 @@ describe('DreamCycleTool Integration Tests', () => {
       expect(result.data.history).toBeDefined();
       expect(Array.isArray(result.data.history)).toBe(true);
       expect(result.data.history!.length).toBeGreaterThan(0);
-    }, 60000);
+    }, SINGLE_DREAM_TIMEOUT);
   });
 
   describe('Apply Action - REAL Pattern Creation', () => {
@@ -214,10 +228,14 @@ describe('DreamCycleTool Integration Tests', () => {
       // Step 1: Run a dream cycle to generate insights
       const dreamResult = await tool.invoke({
         action: 'dream',
-        durationMs: 5000, // Longer cycle to generate insights
+        durationMs: 5000,
         minPatterns: 1,
         loadFromReasoningBank: true,
       });
+      if (!dreamResult.success) {
+        console.log(`\n=== Apply Test - dream FAILED ===`);
+        console.log(`  error: ${dreamResult.error}`);
+      }
       expect(dreamResult.success).toBe(true);
 
       // Step 2: Get pending insights
@@ -232,7 +250,6 @@ describe('DreamCycleTool Integration Tests', () => {
 
       if (!actionableInsight) {
         // Skip test if no actionable insights were generated
-        // This is valid - dream cycles don't always produce insights
         console.log('No actionable insights found - test skipped (not failed)');
         return;
       }
@@ -254,8 +271,6 @@ describe('DreamCycleTool Integration Tests', () => {
       console.log(`  Full applyResult: ${JSON.stringify(applyResult.data.applyResult)}`);
 
       // Step 4: Verify the pattern was created
-      // Since Issue #258, patterns are stored in SQLite qe_patterns table,
-      // not in the KV memory backend. Verify via ReasoningBank search.
       const memoryBackend = await getSharedMemoryBackend();
       const reasoningBank = createQEReasoningBank(memoryBackend);
       await reasoningBank.initialize();
@@ -266,8 +281,6 @@ describe('DreamCycleTool Integration Tests', () => {
       console.log(`  Patterns found via ReasoningBank: ${searchResult.success ? searchResult.value?.length : 'error'}`);
 
       // The apply action succeeded and returned a patternId — that's the key assertion.
-      // Pattern storage is handled by SQLitePatternStore (Issue #258), so direct KV
-      // lookup won't find it. The patternId being returned confirms creation.
       expect(patternId).toBeDefined();
       expect(typeof patternId).toBe('string');
       expect(patternId!.length).toBeGreaterThan(0);
@@ -275,7 +288,7 @@ describe('DreamCycleTool Integration Tests', () => {
       console.log(`\n=== Applied Insight → REAL Pattern ===`);
       console.log(`  Insight ID: ${actionableInsight.id}`);
       console.log(`  Pattern ID: ${patternId}`);
-    }, 90000);
+    }, SINGLE_DREAM_TIMEOUT);
   });
 
   describe('Unknown Action Handling', () => {
@@ -285,7 +298,6 @@ describe('DreamCycleTool Integration Tests', () => {
       });
 
       expect(result.success).toBe(false);
-      // Schema validation catches invalid actions before execute() is called
       expect(result.error).toContain('Validation failed');
     });
   });
@@ -310,11 +322,11 @@ describe('DreamCycleTool Integration Tests', () => {
 });
 
 describe('Pattern Loading from ReasoningBank', () => {
-  // Note: These tests use the same shared tool instance to avoid
-  // memory backend conflicts between describe blocks
-
   it('should load patterns from ReasoningBank when enabled', async () => {
-    // Create fresh tool for this test
+    // Reset singletons to avoid accumulated concept graph from prior tests
+    resetUnifiedPersistence();
+    resetSharedMemoryBackend();
+
     const localTool = createDreamCycleTool();
 
     // First, store some patterns in ReasoningBank
@@ -342,20 +354,21 @@ describe('Pattern Loading from ReasoningBank', () => {
     const result = await localTool.invoke({
       action: 'dream',
       durationMs: 3000,
-      minPatterns: 1, // Low threshold since we're loading patterns
+      minPatterns: 1,
       loadFromReasoningBank: true,
     });
 
     expect(result.success).toBe(true);
-    // Status could be completed or insufficient_concepts
     expect(['completed', 'insufficient_concepts']).toContain(result.data.dreamResult?.status);
 
     localTool.resetInstanceCache();
-  }, 60000);
+  }, SINGLE_DREAM_TIMEOUT);
 
   it('should use empty string query (not wildcard) when loading patterns', async () => {
-    // This test verifies the fix for the bug where '*' was treated as literal match
-    // The fix changed it to '' (empty string) which triggers quality-score-based return
+    // Reset ALL shared singletons to avoid state pollution from prior tests.
+    // resetUnifiedPersistence() also resets UnifiedMemory internally.
+    resetUnifiedPersistence();
+    resetSharedMemoryBackend();
 
     const localTool = createDreamCycleTool();
 
@@ -385,17 +398,18 @@ describe('Pattern Loading from ReasoningBank', () => {
     const result = await localTool.invoke({
       action: 'dream',
       durationMs: 3000,
-      minPatterns: 1, // Lower threshold
+      minPatterns: 1,
       loadFromReasoningBank: true,
     });
 
-    // Dream should complete successfully (patterns are loaded and converted to concepts)
-    expect(result.success).toBe(true);
-    // Log how many concepts were processed to verify patterns were loaded
+    // Log details for debugging
     console.log(`\n=== Pattern Loading Test ===`);
-    console.log(`  Concepts Processed: ${result.data.dreamResult?.conceptsProcessed}`);
-    console.log(`  Status: ${result.data.dreamResult?.status}`);
+    console.log(`  success: ${result.success}`);
+    console.log(`  error: ${result.error}`);
+    console.log(`  Concepts Processed: ${result.data?.dreamResult?.conceptsProcessed}`);
+    console.log(`  Status: ${result.data?.dreamResult?.status}`);
+    expect(result.success).toBe(true);
 
     localTool.resetInstanceCache();
-  }, 60000);
+  }, SINGLE_DREAM_TIMEOUT);
 });

@@ -1,0 +1,45 @@
+name: qe-accessibility-testing
+description: "WCAG 2.2 compliance testing, screen reader validation, and inclusive design verification. Use when ensuring legal compliance (ADA, Section 508), testing for disabilities, or building accessible applications for 1 billion disabled users globally."
+minModelTier: tier3-best
+tags: ["accessibility", "wcag", "a11y", "screen-reader", "ada", "section-508", "inclusive", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: wcag-22-levels
+    description: "WCAG 2.2 Levels"
+    tools: ["bash", "read"]
+    prompt: |
+      WCAG 2.2 Levels
+  - name: pour-principles
+    description: "POUR Principles"
+    tools: ["bash", "read"]
+    prompt: |
+      POUR Principles
+  - name: color-contrast-requirements
+    description: "Color Contrast Requirements"
+    tools: ["bash", "read"]
+    prompt: |
+      Color Contrast Requirements
+  - name: keyboard-navigation-testing
+    description: "Keyboard Navigation Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Keyboard Navigation Testing
+  - name: automated-testing-with-axe-core
+    description: "Automated Testing with axe-core"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Automated Testing with axe-core
+  - name: screen-reader-testing-checklist
+    description: "Screen Reader Testing Checklist"
+    tools: ["bash", "read"]
+    prompt: |
+      Screen Reader Testing Checklist
+  - name: voiceover-macos-testing
+    description: "- [ ] Page title announced on load - [ ] Headings hierarchy correct (h1 → h2 → h3) - [ ] Landmarks present (nav, main, footer) - [ ] Images have descriptive alt text - [ ] Form labels read correctly - [ ] Error messages announced - [ ] Dynamic content updates announced (aria-live)"
+    tools: ["bash", "read"]
+    prompt: |
+      - [ ] Page title announced on load - [ ] Headings hierarchy correct (h1 → h2 → h3) - [ ] Landmarks present (nav, main, footer) - [ ] Images have descriptive alt text - [ ] Form labels read correctly - [ ] Error messages announced - [ ] Dynamic content updates announced (aria-live)
+  - name: agent-driven-accessibility
+    description: "Agent-Driven Accessibility"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Accessibility

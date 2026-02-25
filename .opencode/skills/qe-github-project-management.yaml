@@ -1,0 +1,45 @@
+name: qe-github-project-management
+description: "Comprehensive GitHub project management with swarm-coordinated issue tracking, project board automation, and sprint planning"
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering", "github"]
+steps:
+  - name: overview
+    description: "A comprehensive skill for managing GitHub projects using AI swarm coordination. This skill combines intelligent issue management, automated project board synchronization, and swarm-based coordination for efficient project delivery."
+    tools: ["bash", "read"]
+    prompt: |
+      A comprehensive skill for managing GitHub projects using AI swarm coordination. This skill combines intelligent issue management, automated project board synchronization, and swarm-based coordination for efficient project delivery.
+  - name: basic-issue-creation-with-swarm-coordina
+    description: "Basic Issue Creation with Swarm Coordination"
+    tools: ["bash", "read"]
+    prompt: |
+      Basic Issue Creation with Swarm Coordination
+  - name: project-board-quick-setup
+    description: "Project Board Quick Setup"
+    tools: ["bash", "read"]
+    prompt: |
+      Project Board Quick Setup
+  - name: core-capabilities
+    description: "Core Capabilities"
+    tools: ["bash", "read"]
+    prompt: |
+      Core Capabilities
+  - name: 1-issue-management-triage
+    description: "1. Issue Management & Triage"
+    tools: ["bash", "read", "edit", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      1. Issue Management & Triage
+  - name: subtasks
+    description: "$CHECKLIST\""
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      $CHECKLIST"
+  - name: completed-tasks
+    description: "\\(.completed | map(\"- ✅ \" + .) | join(\"\\n\"))"
+    tools: ["bash", "read"]
+    prompt: |
+      \(.completed | map("- ✅ " + .) | join("\n"))
+  - name: in-progress
+    description: "\\(.in_progress | map(\"- 🔄 \" + .) | join(\"\\n\"))"
+    tools: ["bash", "read"]
+    prompt: |
+      \(.in_progress | map("- 🔄 " + .) | join("\n"))

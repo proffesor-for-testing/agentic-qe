@@ -1,0 +1,45 @@
+name: qe-pr-review
+description: "Scope-aware GitHub PR review with user-friendly tone and trust tier validation"
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering", "code-review"]
+steps:
+  - name: arguments
+    description: "- `<pr-number>` — GitHub PR number to review. If omitted, prompt the user."
+    tools: ["bash", "read"]
+    prompt: |
+      - `<pr-number>` — GitHub PR number to review. If omitted, prompt the user.
+  - name: steps
+    description: "Steps"
+    tools: ["bash", "read"]
+    prompt: |
+      Steps
+  - name: 1-read-the-full-diff
+    description: "1. Read the Full Diff"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      1. Read the Full Diff
+  - name: 2-scope-check
+    description: "- Only analyze AQE/QE skills (NOT Claude Flow platform skills) - Platform skills to EXCLUDE: v3-*, flow-nexus-*, agentdb-*, reasoningbank-*, swarm-*, github-*, hive-mind-advanced, hooks-automation, iterative-loop, stream-chain, skill-builder, sparc-methodology, pair-programming, release, debug-loop,"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - Only analyze AQE/QE skills (NOT Claude Flow platform skills) - Platform skills to EXCLUDE: v3-*, flow-nexus-*, agentdb-*, reasoningbank-*, swarm-*, github-*, hive-mind-advanced, hooks-automation, iterative-loop, stream-chain, skill-builder, sparc-methodology, pair-programming, release, debug-loop,
+  - name: 3-summarize-changes
+    description: "Write a user-friendly summary of what changed and why: - Focus on outcomes, not implementation details - Avoid overly technical jargon - Keep it to 3-5 bullet points"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Write a user-friendly summary of what changed and why: - Focus on outcomes, not implementation details - Avoid overly technical jargon - Keep it to 3-5 bullet points
+  - name: 4-trust-tier-validation
+    description: "For any skill changes, validate trust_tier assignments: - **tier 3** = has eval infrastructure (evals/, schemas/, scripts/) - **tier 2** = tested but no eval framework - **tier 1** = untested - Flag inconsistencies (e.g., a skill with evals at tier 2 should be tier 3)"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      For any skill changes, validate trust_tier assignments: - **tier 3** = has eval infrastructure (evals/, schemas/, scripts/) - **tier 2** = tested but no eval framework - **tier 1** = untested - Flag inconsistencies (e.g., a skill with evals at tier 2 should be tier 3)
+  - name: 5-code-quality-review
+    description: "Check for: - Hardcoded version strings - Production safety concerns (adapter changes, breaking changes) - Missing test coverage for new code - Security issues (exposed secrets, injection risks)"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Check for: - Hardcoded version strings - Production safety concerns (adapter changes, breaking changes) - Missing test coverage for new code - Security issues (exposed secrets, injection risks)
+  - name: 6-post-review
+    description: "6. Post Review"
+    tools: ["bash", "read"]
+    prompt: |
+      6. Post Review

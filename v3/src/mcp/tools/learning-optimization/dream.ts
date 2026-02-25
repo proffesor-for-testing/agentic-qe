@@ -225,6 +225,15 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
       const reasoningBank = createQEReasoningBank(memoryBackend);
       await reasoningBank.initialize();
 
+      // Wire RVF dual-writer (optional, best-effort)
+      try {
+        const { getSharedRvfDualWriter } = await import('../../../integrations/ruvector/shared-rvf-dual-writer.js');
+        const dualWriter = await getSharedRvfDualWriter();
+        if (dualWriter) reasoningBank.setRvfDualWriter(dualWriter);
+      } catch (e) {
+        if (process.env.DEBUG) this.logger.info('RVF wiring skipped', { error: String(e) });
+      }
+
       // Use empty string to get ALL patterns (not '*' which is literal match)
       // Empty query triggers quality-score-based return of all patterns
       const patternsResult = await reasoningBank.searchPatterns('', {
@@ -459,6 +468,15 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
       const memoryBackend = await getSharedMemoryBackend();
       const reasoningBank = createQEReasoningBank(memoryBackend);
       await reasoningBank.initialize();
+
+      // Wire RVF dual-writer (optional, best-effort)
+      try {
+        const { getSharedRvfDualWriter } = await import('../../../integrations/ruvector/shared-rvf-dual-writer.js');
+        const dualWriter = await getSharedRvfDualWriter();
+        if (dualWriter) reasoningBank.setRvfDualWriter(dualWriter);
+      } catch (e) {
+        if (process.env.DEBUG) this.logger.info('RVF wiring skipped', { error: String(e) });
+      }
 
       // Map insight type to QE pattern type
       const patternType = this.mapInsightTypeToPatternType(insight.type);

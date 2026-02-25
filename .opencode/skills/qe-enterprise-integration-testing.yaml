@@ -1,0 +1,45 @@
+name: qe-enterprise-integration-testing
+description: "Orchestration skill for enterprise integration testing across SAP, middleware, WMS, and backend systems. Covers E2E enterprise flows, SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), cross-system data validation, and enterprise quality gates."
+minModelTier: tier3-best
+tags: ["enterprise", "sap", "esb", "middleware", "integration", "e2e", "order-to-cash", "qe", "quality-engineering", "enterprise-integration"]
+steps:
+  - name: enterprise-integration-types
+    description: "Enterprise Integration Types"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Enterprise Integration Types
+  - name: critical-test-scenarios
+    description: "Critical Test Scenarios"
+    tools: ["bash", "read"]
+    prompt: |
+      Critical Test Scenarios
+  - name: e2e-enterprise-flow-testing
+    description: "E2E Enterprise Flow Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      E2E Enterprise Flow Testing
+  - name: order-to-cash-flow
+    description: "Order-to-Cash Flow"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      Order-to-Cash Flow
+  - name: procure-to-pay-flow
+    description: "Procure-to-Pay Flow"
+    tools: ["bash", "read"]
+    prompt: |
+      Procure-to-Pay Flow
+  - name: sap-specific-testing-patterns
+    description: "SAP-Specific Testing Patterns"
+    tools: ["bash", "read"]
+    prompt: |
+      SAP-Specific Testing Patterns
+  - name: rfcbapi-testing
+    description: "RFC/BAPI Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      RFC/BAPI Testing
+  - name: idoc-testing
+    description: "IDoc Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      IDoc Testing

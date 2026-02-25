@@ -16,6 +16,7 @@ import {
   EventAggregation,
   DomainRoute,
 } from './interfaces';
+import { CircularBuffer } from '../shared/utils/circular-buffer';
 
 // ============================================================================
 // Types
@@ -46,7 +47,7 @@ interface CorrelationEntry {
 export class CrossDomainEventRouter implements CrossDomainRouter {
   private readonly subscriptions = new Map<string, RouterSubscription>();
   private readonly correlations = new Map<string, CorrelationEntry>();
-  private readonly eventHistory: DomainEvent[] = [];
+  private readonly eventHistory: CircularBuffer<DomainEvent>;
   private readonly routes: DomainRoute[] = [];
   private readonly domainSubscriptions = new Map<DomainName, Subscription>();
 
@@ -64,6 +65,7 @@ export class CrossDomainEventRouter implements CrossDomainRouter {
     }
   ) {
     this.maxHistorySize = options?.maxHistorySize ?? 10000;
+    this.eventHistory = new CircularBuffer<DomainEvent>(this.maxHistorySize);
     this.correlationTimeout = options?.correlationTimeout ?? 60000; // 1 minute
     this.maxEventsPerCorrelation = options?.maxEventsPerCorrelation ?? 100;
   }
@@ -245,7 +247,7 @@ export class CrossDomainEventRouter implements CrossDomainRouter {
    * Get aggregated events for a time window
    */
   aggregate(windowStart: Date, windowEnd: Date): EventAggregation {
-    const events = this.eventHistory.filter(
+    const events = this.eventHistory.toArray().filter(
       (e) => e.timestamp >= windowStart && e.timestamp <= windowEnd
     );
 
@@ -294,7 +296,7 @@ export class CrossDomainEventRouter implements CrossDomainRouter {
     toTimestamp?: Date;
     limit?: number;
   }): DomainEvent[] {
-    let events = [...this.eventHistory];
+    let events = this.eventHistory.toArray();
 
     if (filter) {
       if (filter.eventTypes?.length) {
@@ -369,7 +371,7 @@ export class CrossDomainEventRouter implements CrossDomainRouter {
     this.correlations.clear();
 
     // Clear history
-    this.eventHistory.length = 0;
+    this.eventHistory.clear();
 
     this.initialized = false;
   }
@@ -469,12 +471,8 @@ export class CrossDomainEventRouter implements CrossDomainRouter {
    * Add event to history
    */
   private addToHistory(event: DomainEvent): void {
+    // PERF: CircularBuffer handles capacity automatically in O(1)
     this.eventHistory.push(event);
-
-    // Trim history if needed
-    while (this.eventHistory.length > this.maxHistorySize) {
-      this.eventHistory.shift();
-    }
   }
 }
 

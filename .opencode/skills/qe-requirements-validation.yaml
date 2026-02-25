@@ -1,0 +1,45 @@
+name: qe-requirements-validation
+description: "Requirements traceability, acceptance criteria validation, and BDD scenario management for complete requirements coverage."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Agent Workflow
+  - name: requirements-operations
+    description: "Requirements Operations"
+    tools: ["bash", "read"]
+    prompt: |
+      Requirements Operations
+  - name: 1-acceptance-criteria-validation
+    description: "1. Acceptance Criteria Validation"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Acceptance Criteria Validation
+  - name: 2-traceability-matrix
+    description: "2. Traceability Matrix"
+    tools: ["bash", "read"]
+    prompt: |
+      2. Traceability Matrix
+  - name: 3-bdd-scenario-generation
+    description: "3. BDD Scenario Generation"
+    tools: ["bash", "read"]
+    prompt: |
+      3. BDD Scenario Generation
+  - name: 4-coverage-analysis
+    description: "4. Coverage Analysis"
+    tools: ["bash", "read"]
+    prompt: |
+      4. Coverage Analysis
+  - name: traceability-matrix
+    description: "Traceability Matrix"
+    tools: ["bash", "read"]
+    prompt: |
+      Traceability Matrix
+  - name: bdd-integration
+    description: "BDD Integration"
+    tools: ["bash", "read"]
+    prompt: |
+      BDD Integration

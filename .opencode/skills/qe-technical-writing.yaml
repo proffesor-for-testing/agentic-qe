@@ -1,0 +1,45 @@
+name: qe-technical-writing
+description: "Write clear, engaging technical content from real experience. Use when writing blog posts, documentation, tutorials, or technical articles."
+minModelTier: tier1-fast
+tags: ["writing", "documentation", "communication", "blogs", "tutorials", "qe", "quality-engineering"]
+steps:
+  - name: opening-2-3-paragraphs
+    description: "- Hook: The problem or insight - Context: Why this matters - Promise: What they'll learn"
+    tools: ["bash", "read"]
+    prompt: |
+      - Hook: The problem or insight - Context: Why this matters - Promise: What they'll learn
+  - name: body-3-5-sections
+    description: "- One clear idea per section - Support with examples/code/data"
+    tools: ["bash", "read"]
+    prompt: |
+      - One clear idea per section - Support with examples/code/data
+  - name: closing
+    description: "- Key takeaway (1-2 sentences) - Action reader can take"
+    tools: ["bash", "read"]
+    prompt: |
+      - Key takeaway (1-2 sentences) - Action reader can take
+  - name: core-principles
+    description: "Core Principles"
+    tools: ["bash", "read"]
+    prompt: |
+      Core Principles
+  - name: words-to-cut
+    description: "Words to Cut"
+    tools: ["bash", "read"]
+    prompt: |
+      Words to Cut
+  - name: audience-specific-writing
+    description: "Audience-Specific Writing"
+    tools: ["bash", "read"]
+    prompt: |
+      Audience-Specific Writing
+  - name: for-developers
+    description: "- Lead with code or concrete problem - Show implementation details - Discuss trade-offs and alternatives - Link to repos or examples"
+    tools: ["bash", "read"]
+    prompt: |
+      - Lead with code or concrete problem - Show implementation details - Discuss trade-offs and alternatives - Link to repos or examples
+  - name: for-qaqe
+    description: "- Start with testing challenge - Show strategy, not just tools - Include risk assessment - Provide adaptable heuristics"
+    tools: ["bash", "read"]
+    prompt: |
+      - Start with testing challenge - Show strategy, not just tools - Include risk assessment - Provide adaptable heuristics

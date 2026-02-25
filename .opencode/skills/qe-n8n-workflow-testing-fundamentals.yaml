@@ -1,0 +1,45 @@
+name: qe-n8n-workflow-testing-fundamentals
+description: "Comprehensive n8n workflow testing including execution lifecycle, node connection patterns, data flow validation, and error handling strategies. Use when testing n8n workflow automation applications."
+minModelTier: tier3-best
+tags: ["n8n", "workflow", "automation", "testing", "data-flow", "nodes", "triggers", "qe", "quality-engineering", "n8n-testing"]
+steps:
+  - name: n8n-workflow-components
+    description: "n8n Workflow Components"
+    tools: ["bash", "read"]
+    prompt: |
+      n8n Workflow Components
+  - name: workflow-execution-states
+    description: "Workflow Execution States"
+    tools: ["bash", "read"]
+    prompt: |
+      Workflow Execution States
+  - name: workflow-structure-validation
+    description: "Workflow Structure Validation"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Workflow Structure Validation
+  - name: execution-testing
+    description: "Execution Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Execution Testing
+  - name: data-flow-validation
+    description: "Data Flow Validation"
+    tools: ["bash", "read"]
+    prompt: |
+      Data Flow Validation
+  - name: error-handling-testing
+    description: "Error Handling Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Error Handling Testing
+  - name: node-connection-patterns
+    description: "Node Connection Patterns"
+    tools: ["bash", "read"]
+    prompt: |
+      Node Connection Patterns
+  - name: linear-flow
+    description: "Linear Flow"
+    tools: ["bash", "read"]
+    prompt: |
+      Linear Flow

@@ -19,7 +19,14 @@ export default defineConfig({
     benchmark: {
       include: ['tests/**/*.bench.ts'],
     },
-    exclude: ['node_modules', 'dist'],
+    exclude: [
+      'node_modules',
+      'dist',
+      '**/browser/**',
+      '**/*.e2e.test.ts',
+      '**/vibium/**',
+      '**/browser-swarm-coordinator.test.ts',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

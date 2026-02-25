@@ -1,0 +1,45 @@
+name: qe-agentic-jujutsu
+description: "Quantum-resistant, self-learning version control for AI agents with ReasoningBank intelligence and multi-agent coordination"
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: installation
+    description: "Installation"
+    tools: ["bash", "read"]
+    prompt: |
+      Installation
+  - name: basic-usage
+    description: "Basic Usage"
+    tools: ["bash", "read"]
+    prompt: |
+      Basic Usage
+  - name: core-capabilities
+    description: "Core Capabilities"
+    tools: ["bash", "read"]
+    prompt: |
+      Core Capabilities
+  - name: 1-self-learning-with-reasoningbank
+    description: "Track operations, learn patterns, and get intelligent suggestions:"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Track operations, learn patterns, and get intelligent suggestions:
+  - name: 2-pattern-discovery
+    description: "Automatically identify successful operation sequences:"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Automatically identify successful operation sequences:
+  - name: 3-learning-statistics
+    description: "Track improvement over time:"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Track improvement over time:
+  - name: 5-quantum-resistant-security-v230
+    description: "Fast integrity verification with quantum-resistant cryptography:"
+    tools: ["bash", "read"]
+    prompt: |
+      Fast integrity verification with quantum-resistant cryptography:
+  - name: 6-operation-tracking-with-agentdb
+    description: "Automatic tracking of all operations:"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Automatic tracking of all operations:

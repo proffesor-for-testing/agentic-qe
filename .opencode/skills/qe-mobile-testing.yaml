@@ -1,0 +1,35 @@
+name: qe-mobile-testing
+description: "Comprehensive mobile testing for iOS and Android platforms including gestures, sensors, permissions, device fragmentation, and performance. Use when testing native apps, hybrid apps, or mobile web, ensuring quality across 1000+ device variants."
+minModelTier: tier3-best
+tags: ["mobile", "ios", "android", "appium", "gestures", "device-fragmentation", "sensors", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: ios-vs-android-differences
+    description: "iOS vs Android Differences"
+    tools: ["bash", "read"]
+    prompt: |
+      iOS vs Android Differences
+  - name: device-coverage-tiers
+    description: "Device Coverage Tiers"
+    tools: ["bash", "read"]
+    prompt: |
+      Device Coverage Tiers
+  - name: mobile-performance-goals
+    description: "Mobile Performance Goals"
+    tools: ["bash", "read"]
+    prompt: |
+      Mobile Performance Goals
+  - name: touch-gesture-testing
+    description: "Touch Gesture Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Touch Gesture Testing
+  - name: mobile-specific-scenarios
+    description: "Mobile-Specific Scenarios"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Mobile-Specific Scenarios
+  - name: agent-driven-mobile-testing
+    description: "Agent-Driven Mobile Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Mobile Testing

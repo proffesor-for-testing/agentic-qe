@@ -1,0 +1,45 @@
+name: qe-brutal-honesty-review
+description: "Unvarnished technical criticism combining Linus Torvalds' precision, Gordon Ramsay's standards, and James Bach's BS-detection. Use when code/tests need harsh reality checks, certification schemes smell fishy, or technical decisions lack rigor. No sugar-coating, just surgical truth about what's broke"
+minModelTier: tier2-good
+tags: ["code-review", "honesty", "critical-thinking", "technical-criticism", "quality", "qe", "quality-engineering", "quality-review"]
+steps:
+  - name: three-modes
+    description: "Three Modes"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Three Modes
+  - name: the-criticism-structure
+    description: "The Criticism Structure"
+    tools: ["bash", "read"]
+    prompt: |
+      The Criticism Structure
+  - name: whats-broken
+    description: "[Surgical description - specific, technical]"
+    tools: ["bash", "read"]
+    prompt: |
+      [Surgical description - specific, technical]
+  - name: why-its-wrong
+    description: "[Technical explanation, not opinion]"
+    tools: ["bash", "read"]
+    prompt: |
+      [Technical explanation, not opinion]
+  - name: what-correct-looks-like
+    description: "[Clear model of excellence]"
+    tools: ["bash", "read"]
+    prompt: |
+      [Clear model of excellence]
+  - name: how-to-fix-it
+    description: "[Actionable steps, specific to context]"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      [Actionable steps, specific to context]
+  - name: why-this-matters
+    description: "[Impact if not fixed]"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      [Impact if not fixed]
+  - name: mode-examples
+    description: "Mode Examples"
+    tools: ["bash", "read"]
+    prompt: |
+      Mode Examples

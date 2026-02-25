@@ -1,0 +1,45 @@
+name: qe-consultancy-practices
+description: "Apply effective software quality consultancy practices. Use when consulting, advising clients, or establishing consultancy workflows."
+minModelTier: tier1-fast
+tags: ["consulting", "advisory", "client-engagement", "quality-assessment", "transformation", "qe", "quality-engineering", "professional-practice"]
+steps:
+  - name: the-consulting-process
+    description: "The Consulting Process"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      The Consulting Process
+  - name: impacteffort-matrix
+    description: "Impact/Effort Matrix"
+    tools: ["bash", "read"]
+    prompt: |
+      Impact/Effort Matrix
+  - name: common-patterns
+    description: "Common Patterns"
+    tools: ["bash", "read"]
+    prompt: |
+      Common Patterns
+  - name: we-need-test-automation
+    description: "**What they say:** \"We need test automation\" **What they mean:** \"Manual testing is too slow/expensive\""
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      **What they say:** "We need test automation" **What they mean:** "Manual testing is too slow/expensive"
+  - name: fix-our-quality-problem
+    description: "**What they say:** \"We have too many bugs\" **What they mean:** \"Something is broken but we don't know what\""
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      **What they say:** "We have too many bugs" **What they mean:** "Something is broken but we don't know what"
+  - name: we-want-to-scale-quality
+    description: "**What they say:** \"Growing fast, quality can't keep up\" **What they mean:** \"Can't hire enough QA fast enough\""
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      **What they say:** "Growing fast, quality can't keep up" **What they mean:** "Can't hire enough QA fast enough"
+  - name: difficult-situations
+    description: "**\"We already tried that\"** → \"Tell me what you tried and what didn't work\" (learn from their experience)"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      **"We already tried that"** → "Tell me what you tried and what didn't work" (learn from their experience)
+  - name: agent-integration
+    description: "Agent Integration"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent Integration

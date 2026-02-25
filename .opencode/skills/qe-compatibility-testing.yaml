@@ -1,0 +1,35 @@
+name: qe-compatibility-testing
+description: "Cross-browser, cross-platform, and cross-device compatibility testing ensuring consistent experience across environments. Use when validating browser support, testing responsive design, or ensuring platform compatibility."
+minModelTier: tier3-best
+tags: ["compatibility", "cross-browser", "responsive", "browserstack", "playwright", "devices", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: browser-matrix
+    description: "Browser Matrix"
+    tools: ["bash", "read"]
+    prompt: |
+      Browser Matrix
+  - name: screen-breakpoints
+    description: "Screen Breakpoints"
+    tools: ["bash", "read"]
+    prompt: |
+      Screen Breakpoints
+  - name: responsive-design-testing
+    description: "Responsive Design Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Responsive Design Testing
+  - name: cross-browser-with-playwright
+    description: "Cross-Browser with Playwright"
+    tools: ["bash", "read"]
+    prompt: |
+      Cross-Browser with Playwright
+  - name: cloud-testing-integration
+    description: "Cloud Testing Integration"
+    tools: ["bash", "read"]
+    prompt: |
+      Cloud Testing Integration
+  - name: agent-driven-compatibility-testing
+    description: "Agent-Driven Compatibility Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Compatibility Testing

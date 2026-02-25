@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 /**
  * QE Product Factors Assessor - Type Definitions
  *
@@ -745,7 +747,7 @@ export interface ProductFactorsTaskPayload {
  */
 export function generateTestId(category: HTSMCategory): string {
   const prefix = category.substring(0, 4).toUpperCase();
-  const hash = Math.random().toString(16).substring(2, 10).toUpperCase();
+  const hash = randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase();
   return `TC-${prefix}-${hash}`;
 }
 

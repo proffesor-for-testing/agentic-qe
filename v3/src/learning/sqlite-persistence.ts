@@ -295,14 +295,27 @@ export class SQLitePatternStore {
       `).get() as { cnt: number })?.cnt || 0;
 
       if (dupeCount > 0) {
-        // Delete duplicates, keeping the row with the highest quality_score
-        this.db.exec(`
-          DELETE FROM qe_patterns WHERE rowid NOT IN (
-            SELECT MIN(rowid) FROM qe_patterns
-            GROUP BY name, qe_domain, pattern_type
+        // Count how many rows will be deleted BEFORE deleting
+        const totalBefore = (this.db.prepare('SELECT COUNT(*) as cnt FROM qe_patterns').get() as { cnt: number })?.cnt || 0;
+        const keepCount = (this.db.prepare(`
+          SELECT COUNT(*) as cnt FROM (
+            SELECT MIN(rowid) FROM qe_patterns GROUP BY name, qe_domain, pattern_type
           )
-        `);
-        console.log(`[SQLitePatternStore] Deduplicated ${dupeCount} duplicate pattern groups`);
+        `).get() as { cnt: number })?.cnt || 0;
+        const deleteCount = totalBefore - keepCount;
+
+        // Safety: refuse to delete more than 10% of patterns in one dedup pass
+        if (deleteCount > totalBefore * 0.10) {
+          console.warn(`[SQLitePatternStore] SKIPPING dedup: would delete ${deleteCount}/${totalBefore} patterns (>${Math.round(totalBefore * 0.10)} safety limit). Investigate manually.`);
+        } else {
+          this.db.exec(`
+            DELETE FROM qe_patterns WHERE rowid NOT IN (
+              SELECT MIN(rowid) FROM qe_patterns
+              GROUP BY name, qe_domain, pattern_type
+            )
+          `);
+          console.log(`[SQLitePatternStore] Deduplicated: removed ${deleteCount} duplicates from ${totalBefore} patterns (${keepCount} kept)`);
+        }
       }
 
       // Create unique index to prevent future duplicates
@@ -592,6 +605,30 @@ export class SQLitePatternStore {
     }
 
     return { totalPatterns: total, byDomain, byTier };
+  }
+
+  /**
+   * Check if there's any historical data (embeddings, usage, trajectories)
+   * even if qe_patterns is empty. Used to detect data loss vs fresh database.
+   */
+  hasAnyHistoricalData(): boolean {
+    if (!this.db) return false;
+    try {
+      const checks = [
+        "SELECT COUNT(*) as cnt FROM qe_pattern_embeddings",
+        "SELECT COUNT(*) as cnt FROM qe_pattern_usage",
+        "SELECT COUNT(*) as cnt FROM qe_trajectories",
+      ];
+      for (const sql of checks) {
+        try {
+          const row = this.db.prepare(sql).get() as { cnt: number } | undefined;
+          if (row && row.cnt > 0) return true;
+        } catch { /* table may not exist */ }
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   /**

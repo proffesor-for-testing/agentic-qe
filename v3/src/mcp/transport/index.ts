@@ -35,24 +35,23 @@ export interface WebSocketTransportOptions extends WebSocketTransportConfig {
 /**
  * Create a transport instance based on type
  *
- * For stdio transport, returns StdioTransport directly.
- * For SSE and WebSocket, use createSSETransport() or createWebSocketTransport()
- * as they require additional configuration.
+ * Routes to the appropriate transport factory:
+ * - stdio: Standard input/output (default)
+ * - sse: Server-Sent Events streaming
+ * - http: Alias for SSE (OpenCode convention)
+ * - websocket: Bidirectional WebSocket
  */
-export function createTransport(options: TransportOptions = {}): StdioTransport {
+export function createTransport(options: TransportOptions = {}): StdioTransport | SSETransport | WebSocketTransport {
   const type = options.type ?? 'stdio';
 
   switch (type) {
     case 'stdio':
       return createStdioTransport(options);
     case 'sse':
-      // SSE transport requires separate handling via createSSETransport
-      throw new Error('Use createSSETransport() for SSE transport');
-    case 'websocket':
-      // WebSocket transport requires separate handling via createWebSocketTransport
-      throw new Error('Use createWebSocketTransport() for WebSocket transport');
     case 'http':
-      throw new Error(`Transport type '${type}' not yet implemented`);
+      return createSSETransport(options as SSETransportConfig);
+    case 'websocket':
+      return createWebSocketTransport(options as WebSocketTransportConfig);
     default:
       throw new Error(`Unknown transport type: ${type}`);
   }

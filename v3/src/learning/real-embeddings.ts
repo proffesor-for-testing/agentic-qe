@@ -72,6 +72,28 @@ const embeddingCache = new Map<string, { embedding: number[]; timestamp: number 
 const CACHE_TTL_MS = 3600000; // 1 hour
 
 /**
+ * Detect if text is a JSON metrics/internal data string that shouldn't be embedded.
+ * These strings have no semantic value for vector search and waste compute.
+ */
+function isNonSemanticText(text: string): boolean {
+  const trimmed = text.trim();
+  // Skip JSON objects with metrics keys (e.g. {"metrics":{"tasksReceived":1,...}})
+  if (trimmed.startsWith('{') && /["']metrics["']/.test(trimmed)) {
+    return true;
+  }
+  // Skip raw JSON arrays
+  if (trimmed.startsWith('[') && trimmed.endsWith(']') && trimmed.length > 50) {
+    return true;
+  }
+  // Skip strings that are predominantly numeric/punctuation (UUIDs, hashes, etc.)
+  const alphaRatio = (trimmed.match(/[a-zA-Z]/g) || []).length / Math.max(trimmed.length, 1);
+  if (alphaRatio < 0.3 && trimmed.length > 20) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Initialize the transformer model
  */
 async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<void> {
@@ -124,6 +146,11 @@ export async function computeRealEmbedding(
 ): Promise<number[]> {
   const fullConfig = { ...DEFAULT_EMBEDDING_CONFIG, ...config };
 
+  // Skip non-semantic text (JSON metrics, UUIDs, etc.) - return zero vector
+  if (isNonSemanticText(text)) {
+    return new Array(getEmbeddingDimension()).fill(0);
+  }
+
   // Check cache first
   if (fullConfig.enableCache) {
     const cached = embeddingCache.get(text);
@@ -149,7 +176,7 @@ export async function computeRealEmbedding(
   const embedding = Array.from(output.data as Float32Array);
   const computeTime = performance.now() - startTime;
 
-  if (computeTime > 100) {
+  if (computeTime > 500) {
     console.warn(`[RealEmbeddings] Slow embedding computation: ${computeTime.toFixed(1)}ms for "${text.slice(0, 50)}..."`);
   }
 

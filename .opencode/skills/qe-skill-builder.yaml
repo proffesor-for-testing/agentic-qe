@@ -1,0 +1,45 @@
+name: qe-skill-builder
+description: "Create new Claude Code Skills with proper YAML frontmatter, progressive disclosure structure, and complete directory organization. Use when you need to build custom skills for specific workflows, generate skill templates, or understand the Claude Skills specification."
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: what-this-skill-does
+    description: "Creates production-ready Claude Code Skills with proper YAML frontmatter, progressive disclosure architecture, and complete file/folder structure. This skill guides you through building skills that Claude can autonomously discover and use across all surfaces (Claude.ai, Claude Code, SDK, API)."
+    tools: ["bash", "read"]
+    prompt: |
+      Creates production-ready Claude Code Skills with proper YAML frontmatter, progressive disclosure architecture, and complete file/folder structure. This skill guides you through building skills that Claude can autonomously discover and use across all surfaces (Claude.ai, Claude Code, SDK, API).
+  - name: creating-your-first-skill
+    description: "Creating Your First Skill"
+    tools: ["bash", "read"]
+    prompt: |
+      Creating Your First Skill
+  - name: what-this-skill-does
+    description: "[Your instructions here]"
+    tools: ["bash", "read"]
+    prompt: |
+      [Your instructions here]
+  - name: complete-specification
+    description: "Complete Specification"
+    tools: ["bash", "read"]
+    prompt: |
+      Complete Specification
+  - name: -yaml-frontmatter-required
+    description: "Every SKILL.md **must** start with YAML frontmatter containing exactly two required fields:"
+    tools: ["bash", "read"]
+    prompt: |
+      Every SKILL.md **must** start with YAML frontmatter containing exactly two required fields:
+  - name: -directory-structure
+    description: "📂 Directory Structure"
+    tools: ["bash", "read"]
+    prompt: |
+      📂 Directory Structure
+  - name: -progressive-disclosure-architecture
+    description: "Claude Code uses a **3-level progressive disclosure system** to scale to 100+ skills without context penalty:"
+    tools: ["bash", "read"]
+    prompt: |
+      Claude Code uses a **3-level progressive disclosure system** to scale to 100+ skills without context penalty:
+  - name: what-this-skill-does
+    description: "[Main instructions - loaded only when skill is active]"
+    tools: ["bash", "read"]
+    prompt: |
+      [Main instructions - loaded only when skill is active]

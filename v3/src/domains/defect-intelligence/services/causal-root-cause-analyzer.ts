@@ -6,6 +6,7 @@
  * to provide automated, learning-based root cause analysis.
  */
 
+import { randomUUID } from 'crypto';
 import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import { toError } from '../../../shared/error-utils.js';
@@ -439,7 +440,7 @@ export function createTestEvent(
     testId: options.testId,
     file: options.file,
     data: options.data,
-    id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `${type}-${Date.now()}-${randomUUID().split('-')[0]}`,
   };
 }
 

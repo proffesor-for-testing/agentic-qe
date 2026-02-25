@@ -19,6 +19,7 @@ import { createHash } from 'crypto';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'fs';
 import { join, resolve } from 'path';
 import Database from 'better-sqlite3';
+import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================
 // Types
@@ -118,7 +119,7 @@ function readJsonl<T = unknown>(filePath: string): T[] {
   if (!existsSync(filePath)) return [];
   const content = readFileSync(filePath, 'utf-8').trim();
   if (content === '') return [];
-  return content.split('\n').map(line => JSON.parse(line) as T);
+  return content.split('\n').map(line => safeJsonParse<T>(line));
 }
 
 /**
@@ -314,7 +315,7 @@ export function importBrain(
     throw new Error(`Manifest not found at ${manifestPath}`);
   }
 
-  const manifest: BrainExportManifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+  const manifest: BrainExportManifest = safeJsonParse<BrainExportManifest>(readFileSync(manifestPath, 'utf-8'));
 
   // Validate checksum
   const actualChecksum = computeChecksum(dir);
@@ -778,5 +779,5 @@ export function brainInfo(containerPath: string): BrainExportManifest {
   if (!existsSync(manifestPath)) {
     throw new Error(`Manifest not found at ${manifestPath}`);
   }
-  return JSON.parse(readFileSync(manifestPath, 'utf-8')) as BrainExportManifest;
+  return safeJsonParse<BrainExportManifest>(readFileSync(manifestPath, 'utf-8'));
 }

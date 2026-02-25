@@ -1,0 +1,45 @@
+name: qe-a11y-ally
+description: "Comprehensive WCAG accessibility auditing with multi-tool testing (axe-core + pa11y + Lighthouse), TRUE PARALLEL execution with Promise.allSettled, graceful degradation, retry with backoff, context-aware remediation, learning integration, and video accessibility. Uses 3-tier browser cascade: Vibium "
+minModelTier: tier3-best
+tags: ["accessibility", "wcag", "a11y", "video", "captions", "audiodesc", "vtt", "eu-compliance", "context-aware", "remediation", "axe-core", "pa11y", "lighthouse", "parallel", "resilient", "graceful-degradation", "retry", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: this-is-an-llm-powered-skill
+    description: "The value of this skill is **Claude's intelligence**, not just running automated tools:"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      The value of this skill is **Claude's intelligence**, not just running automated tools:
+  - name: execution-model
+    description: "**CLAUDE EXECUTES ALL STEPS WITHOUT STOPPING.**"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      **CLAUDE EXECUTES ALL STEPS WITHOUT STOPPING.**
+  - name: step-1-browser-automation---content-fetc
+    description: "STEP 1: BROWSER AUTOMATION - Content Fetching"
+    tools: ["bash", "read"]
+    prompt: |
+      STEP 1: BROWSER AUTOMATION - Content Fetching
+  - name: 11-try-vibium-first-primary
+    description: "1.1: Try VIBIUM First (Primary)"
+    tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      1.1: Try VIBIUM First (Primary)
+  - name: 1b-try-agent-browser-fallback
+    description: "1b: Try AGENT-BROWSER Fallback"
+    tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      1b: Try AGENT-BROWSER Fallback
+  - name: 1c-playwright-stealth-final-fallback
+    description: "1c: PLAYWRIGHT + STEALTH (Final Fallback)"
+    tools: ["bash", "read"]
+    prompt: |
+      1c: PLAYWRIGHT + STEALTH (Final Fallback)
+  - name: 1d-parallel-multi-page-audit-optional
+    description: "For auditing multiple URLs simultaneously, use parallel execution:"
+    tools: ["bash", "read"]
+    prompt: |
+      For auditing multiple URLs simultaneously, use parallel execution:
+  - name: 1e-site-crawl-mode-optional
+    description: "For comprehensive site audits, crawl and audit all pages:"
+    tools: ["bash", "read"]
+    prompt: |
+      For comprehensive site audits, crawl and audit all pages:

@@ -1,0 +1,45 @@
+name: qe-github-multi-repo
+description: "Multi-repository coordination, synchronization, and architecture management with AI swarm orchestration"
+minModelTier: tier2-good
+tags: ["multi-repo", "synchronization", "architecture", "coordination", "github", "qe", "quality-engineering", "github-integration"]
+steps:
+  - name: overview
+    description: "Advanced multi-repository coordination system that combines swarm intelligence, package synchronization, and repository architecture optimization. This skill enables organization-wide automation, cross-project collaboration, and scalable repository management."
+    tools: ["bash", "read"]
+    prompt: |
+      Advanced multi-repository coordination system that combines swarm intelligence, package synchronization, and repository architecture optimization. This skill enables organization-wide automation, cross-project collaboration, and scalable repository management.
+  - name: core-capabilities
+    description: "Core Capabilities"
+    tools: ["bash", "read"]
+    prompt: |
+      Core Capabilities
+  - name: -multi-repository-swarm-coordination
+    description: "Cross-repository AI swarm orchestration for distributed development workflows."
+    tools: ["bash", "read"]
+    prompt: |
+      Cross-repository AI swarm orchestration for distributed development workflows.
+  - name: -package-synchronization
+    description: "Intelligent dependency resolution and version alignment across multiple packages."
+    tools: ["bash", "read"]
+    prompt: |
+      Intelligent dependency resolution and version alignment across multiple packages.
+  - name: -repository-architecture
+    description: "Structure optimization and template management for scalable projects."
+    tools: ["bash", "read"]
+    prompt: |
+      Structure optimization and template management for scalable projects.
+  - name: -integration-management
+    description: "Cross-package integration testing and deployment coordination."
+    tools: ["bash", "read"]
+    prompt: |
+      Cross-package integration testing and deployment coordination.
+  - name: initialize-multi-repo-coordination
+    description: "Initialize Multi-Repo Coordination"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      Initialize Multi-Repo Coordination
+  - name: synchronize-packages
+    description: "Synchronize Packages"
+    tools: ["bash", "read"]
+    prompt: |
+      Synchronize Packages

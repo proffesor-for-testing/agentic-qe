@@ -8,6 +8,7 @@
  * @see docs/plans/AQE_V3_IMPROVEMENTS_PLAN.md - Phase 2: Multi-Model Verification
  */
 
+import { randomUUID } from 'crypto';
 import {
   ConsensusEngine,
   ConsensusEngineConfig,
@@ -625,7 +626,7 @@ export class ConsensusEngineImpl implements ConsensusEngine {
    * Generate a unique correlation ID
    */
   private generateCorrelationId(): string {
-    return `consensus-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    return `consensus-${Date.now()}-${randomUUID().split('-')[0]}`;
   }
 }
 

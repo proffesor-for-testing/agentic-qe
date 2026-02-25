@@ -389,18 +389,19 @@ describe('CloudSyncAgent', () => {
     it('should handle transaction commit/rollback correctly', async () => {
       await agent.syncAll();
 
-      // Each source should have begin/commit
-      expect(mockWriter._mocks.beginTransaction).toHaveBeenCalledTimes(3);
-      expect(mockWriter._mocks.commit).toHaveBeenCalledTimes(3);
+      // syncSource() delegates batching to postgres-writer (no outer transaction)
+      expect(mockWriter._mocks.beginTransaction).not.toHaveBeenCalled();
+      expect(mockWriter._mocks.commit).not.toHaveBeenCalled();
       expect(mockWriter._mocks.rollback).not.toHaveBeenCalled();
     });
 
-    it('should rollback transaction on upsert failure', async () => {
+    it('should mark report partial on upsert failure', async () => {
       mockWriter._mocks.upsert.mockRejectedValueOnce(new Error('Upsert failed'));
 
       const report = await agent.syncAll();
 
-      expect(mockWriter._mocks.rollback).toHaveBeenCalled();
+      // syncSource catches the error — no transaction rollback at this layer
+      expect(mockWriter._mocks.rollback).not.toHaveBeenCalled();
       expect(report.status).toBe('partial');
     });
 

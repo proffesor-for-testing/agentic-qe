@@ -1,0 +1,45 @@
+name: qe-github-workflow-automation
+description: "Advanced GitHub Actions workflow automation with AI swarm coordination, intelligent CI/CD pipelines, and comprehensive repository management"
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering", "github"]
+steps:
+  - name: overview
+    description: "This skill provides comprehensive GitHub Actions automation with AI swarm coordination. It integrates intelligent CI/CD pipelines, workflow orchestration, and repository management to create self-organizing, adaptive GitHub workflows."
+    tools: ["bash", "read"]
+    prompt: |
+      This skill provides comprehensive GitHub Actions automation with AI swarm coordination. It integrates intelligent CI/CD pipelines, workflow orchestration, and repository management to create self-organizing, adaptive GitHub workflows.
+  - name: initialize-github-workflow-automation
+    description: "Initialize GitHub Workflow Automation"
+    tools: ["bash", "read"]
+    prompt: |
+      Initialize GitHub Workflow Automation
+  - name: common-commands
+    description: "Common Commands"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Common Commands
+  - name: core-capabilities
+    description: "Core Capabilities"
+    tools: ["bash", "read"]
+    prompt: |
+      Core Capabilities
+  - name: -swarm-powered-github-modes
+    description: "🤖 Swarm-Powered GitHub Modes"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      🤖 Swarm-Powered GitHub Modes
+  - name: -workflow-templates
+    description: "🔧 Workflow Templates"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      🔧 Workflow Templates
+  - name: -monitoring-analytics
+    description: "📊 Monitoring & Analytics"
+    tools: ["bash", "read"]
+    prompt: |
+      📊 Monitoring & Analytics
+  - name: advanced-features
+    description: "Advanced Features"
+    tools: ["bash", "read"]
+    prompt: |
+      Advanced Features

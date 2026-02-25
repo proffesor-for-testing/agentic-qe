@@ -8,6 +8,7 @@
  * @module integrations/vibium/fallback
  */
 
+import { randomUUID } from 'crypto';
 import type {
   VibiumClient,
   VibiumConfig,
@@ -429,7 +430,7 @@ export class FallbackVibiumClient implements VibiumClient {
    * Generate stub session ID
    */
   private generateStubSessionId(): string {
-    return `fallback-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `fallback-session-${Date.now()}-${randomUUID().slice(0, 9)}`;
   }
 }
 

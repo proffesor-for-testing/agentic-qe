@@ -13,6 +13,7 @@ import * as path from 'path';
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 import {
   ALL_SECURITY_PATTERNS,
   SECRET_PATTERNS,
@@ -544,7 +545,7 @@ async function scanDependencies(target: string): Promise<Vulnerability[]> {
   const pkgJsonPath = path.join(resolved, 'package.json');
   if (fs.existsSync(pkgJsonPath)) {
     try {
-      const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+      const pkg = safeJsonParse<{ dependencies?: Record<string, string>; devDependencies?: Record<string, string> }>(fs.readFileSync(pkgJsonPath, 'utf-8'));
       const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
       vulnerabilities.push(...checkKnownVulnerableDeps(allDeps, 'package.json'));
     } catch { /* skip malformed */ }

@@ -812,7 +812,8 @@ export class GOAPPlanner {
 
       // Fleet
       activeAgents: state.fleet.activeAgents,
-      availableAgents: state.fleet.availableAgents.sort().join(','),
+      // PERF: Copy before sort to avoid mutating original array on every A* expansion
+      availableAgents: [...state.fleet.availableAgents].sort().join(','),
 
       // Resources (rounded to reduce state space)
       timeRemaining: Math.floor(state.resources.timeRemaining / 60),

@@ -1,0 +1,74 @@
+# AQE OpenCode Permission Mapping
+# Defines default and per-agent tool permission overrides.
+#
+# Permission values: allow, ask, deny
+# Patterns: "mcp:agentic-qe:*" matches all AQE MCP tools
+
+defaults:
+  read: allow
+  grep: allow
+  glob: allow
+  edit: ask
+  bash: ask
+  write: ask
+  fetch: allow
+  "mcp:agentic-qe:*": allow
+
+agents:
+  # Security agents — no arbitrary bash execution
+  qe-security-scanner:
+    bash: deny
+    edit: deny
+    "mcp:agentic-qe:security_scan_comprehensive": allow
+
+  # Read-only analysis agents
+  qe-coverage-analyst:
+    edit: deny
+    write: deny
+    bash: deny
+    "mcp:agentic-qe:coverage_analyze_sublinear": allow
+
+  qe-defect-predictor:
+    edit: deny
+    write: deny
+    bash: deny
+    "mcp:agentic-qe:defect_predict": allow
+    "mcp:agentic-qe:code_index": allow
+
+  # Development agents — need edit and bash for TDD workflow
+  qe-tdd-specialist:
+    edit: allow
+    bash: allow
+    write: allow
+
+  qe-debugger:
+    edit: allow
+    bash: allow
+    write: allow
+
+  qe-test-architect:
+    edit: ask
+    bash: ask
+
+  # Code review — read-only with analysis tools
+  qe-code-reviewer:
+    edit: deny
+    bash: deny
+    "mcp:agentic-qe:quality_assess": allow
+    "mcp:agentic-qe:code_index": allow
+
+  # Performance engineer — needs bash for benchmarks
+  qe-performance-engineer:
+    bash: allow
+    edit: ask
+
+  # API tester — needs bash for curl/httpie
+  qe-api-tester:
+    bash: allow
+    edit: deny
+
+  # Accessibility — read-only analysis
+  qe-accessibility-auditor:
+    edit: deny
+    bash: deny
+    "mcp:agentic-qe:accessibility_test": allow

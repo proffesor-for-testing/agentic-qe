@@ -534,6 +534,11 @@ export { createRvfStore, openRvfStore, isRvfNativeAvailable } from './rvf-native
 export type { RvfNativeAdapter, RvfSearchResult as RvfNativeSearchResult, RvfStatus as RvfNativeStatus } from './rvf-native-adapter.js';
 export { RvfDualWriter, createDualWriter } from './rvf-dual-writer.js';
 export type { DualWriteConfig, DualWriteResult, DivergenceReport } from './rvf-dual-writer.js';
+export {
+  getSharedRvfDualWriter,
+  getSharedRvfDualWriterSync,
+  resetSharedRvfDualWriter,
+} from './shared-rvf-dual-writer.js';
 
 // ============================================================================
 // Shared Memory Integration (Fleet Integration)

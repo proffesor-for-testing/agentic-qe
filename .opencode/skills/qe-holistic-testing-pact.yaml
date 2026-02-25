@@ -1,0 +1,45 @@
+name: qe-holistic-testing-pact
+description: "Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality practices."
+minModelTier: tier1-fast
+tags: ["holistic", "pact", "quality", "whole-team", "proactive", "autonomous", "collaborative", "targeted", "qe", "quality-engineering", "testing-methodologies"]
+steps:
+  - name: pact-principles
+    description: "PACT Principles"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      PACT Principles
+  - name: holistic-testing-quadrants
+    description: "Holistic Testing Quadrants"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Holistic Testing Quadrants
+  - name: agent-selection-by-pact-quadrant
+    description: "Agent Selection by PACT + Quadrant"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent Selection by PACT + Quadrant
+  - name: pact-in-practice
+    description: "PACT in Practice"
+    tools: ["bash", "read"]
+    prompt: |
+      PACT in Practice
+  - name: proactive-test-before-bugs
+    description: "Proactive: Test Before Bugs"
+    tools: ["bash", "read"]
+    prompt: |
+      Proactive: Test Before Bugs
+  - name: autonomous-teams-own-quality
+    description: "- Developers run full test suite locally - CI fails fast with clear diagnostics - No manual deployment approvals - Self-service test environments"
+    tools: ["bash", "read"]
+    prompt: |
+      - Developers run full test suite locally - CI fails fast with clear diagnostics - No manual deployment approvals - Self-service test environments
+  - name: collaborative-whole-team-thinking
+    description: "- QE attends planning and refinement - Three Amigos for every user story - Shared ownership of test code - Ensemble testing for complex scenarios"
+    tools: ["bash", "read"]
+    prompt: |
+      - QE attends planning and refinement - Three Amigos for every user story - Shared ownership of test code - Ensemble testing for complex scenarios
+  - name: targeted-test-what-matters
+    description: "Targeted: Test What Matters"
+    tools: ["bash", "read"]
+    prompt: |
+      Targeted: Test What Matters

@@ -1,0 +1,45 @@
+name: qe-n8n-security-testing
+description: "Credential exposure detection, OAuth flow validation, API key management testing, and data sanitization verification for n8n workflows. Use when validating n8n workflow security."
+minModelTier: tier3-best
+tags: ["n8n", "security", "credentials", "oauth", "api-keys", "encryption", "testing", "qe", "quality-engineering", "n8n-testing"]
+steps:
+  - name: security-risk-areas
+    description: "Security Risk Areas"
+    tools: ["bash", "read"]
+    prompt: |
+      Security Risk Areas
+  - name: credential-types
+    description: "Credential Types"
+    tools: ["bash", "read"]
+    prompt: |
+      Credential Types
+  - name: credential-security-testing
+    description: "Credential Security Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Credential Security Testing
+  - name: scan-for-exposed-credentials
+    description: "Scan for Exposed Credentials"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Scan for Exposed Credentials
+  - name: verify-credential-encryption
+    description: "Verify Credential Encryption"
+    tools: ["bash", "read"]
+    prompt: |
+      Verify Credential Encryption
+  - name: test-credential-rotation
+    description: "Test Credential Rotation"
+    tools: ["bash", "read"]
+    prompt: |
+      Test Credential Rotation
+  - name: webhook-security-testing
+    description: "Webhook Security Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Webhook Security Testing
+  - name: authentication-testing
+    description: "Authentication Testing"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Authentication Testing

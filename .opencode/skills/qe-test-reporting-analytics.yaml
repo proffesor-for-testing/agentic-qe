@@ -1,0 +1,45 @@
+name: qe-test-reporting-analytics
+description: "Advanced test reporting, quality dashboards, predictive analytics, trend analysis, and executive reporting for QE metrics. Use when communicating quality status, tracking trends, or making data-driven decisions."
+minModelTier: tier3-best
+tags: ["reporting", "analytics", "dashboards", "metrics", "trends", "predictive", "qe", "quality-engineering"]
+steps:
+  - name: essential-metrics
+    description: "Essential Metrics"
+    tools: ["bash", "read"]
+    prompt: |
+      Essential Metrics
+  - name: trend-indicators
+    description: "Trend Indicators"
+    tools: ["bash", "read"]
+    prompt: |
+      Trend Indicators
+  - name: report-types
+    description: "Report Types"
+    tools: ["bash", "read"]
+    prompt: |
+      Report Types
+  - name: real-time-dashboard
+    description: "Real-Time Dashboard"
+    tools: ["bash", "read"]
+    prompt: |
+      Real-Time Dashboard
+  - name: sprint-summary
+    description: "Sprint Summary"
+    tools: ["bash", "read"]
+    prompt: |
+      Sprint Summary
+  - name: sprint-47-quality-summary
+    description: "Sprint 47 Quality Summary"
+    tools: ["bash", "read"]
+    prompt: |
+      Sprint 47 Quality Summary
+  - name: metrics
+    description: "Metrics"
+    tools: ["bash", "read"]
+    prompt: |
+      Metrics
+  - name: highlights
+    description: "- ✅ Zero escaped defects - ⚠️ E2E suite now 45min (target: 30min)"
+    tools: ["bash", "read"]
+    prompt: |
+      - ✅ Zero escaped defects - ⚠️ E2E suite now 45min (target: 30min)

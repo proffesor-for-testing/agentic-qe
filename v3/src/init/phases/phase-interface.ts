@@ -98,6 +98,8 @@ export interface InitOptions {
   wizardAnswers?: Record<string, unknown>;
   /** Skip governance installation (ADR-058) - governance is ON by default */
   noGovernance?: boolean;
+  /** Install OpenCode agent/skill/tool provisioning */
+  withOpenCode?: boolean;
 }
 
 /**

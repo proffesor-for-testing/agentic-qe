@@ -1,0 +1,45 @@
+name: qe-coverage-analysis
+description: "O(log n) sublinear coverage gap detection with risk-weighted analysis and intelligent test prioritization."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Agent Workflow
+  - name: analysis-strategies
+    description: "Analysis Strategies"
+    tools: ["bash", "read"]
+    prompt: |
+      Analysis Strategies
+  - name: 1-sublinear-gap-detection
+    description: "1. Sublinear Gap Detection"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Sublinear Gap Detection
+  - name: 2-risk-weighted-coverage
+    description: "2. Risk-Weighted Coverage"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      2. Risk-Weighted Coverage
+  - name: 3-differential-coverage
+    description: "3. Differential Coverage"
+    tools: ["bash", "read"]
+    prompt: |
+      3. Differential Coverage
+  - name: coverage-thresholds
+    description: "Coverage Thresholds"
+    tools: ["bash", "read"]
+    prompt: |
+      Coverage Thresholds
+  - name: coverage-report
+    description: "Coverage Report"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Coverage Report
+  - name: quality-gates
+    description: "Quality Gates"
+    tools: ["bash", "read"]
+    prompt: |
+      Quality Gates

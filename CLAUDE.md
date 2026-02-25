@@ -52,7 +52,7 @@
 
 ## AQE Project Scope
 
-- This project contains ~75 AQE/QE skills and separate Claude Flow platform skills
+- This project contains ~78 AQE/QE skills and separate Claude Flow platform skills
 - When working with skills, ALWAYS distinguish between AQE/QE skills and Claude Flow platform skills
 - Only count/modify AQE skills unless explicitly told otherwise — do NOT include Claude Flow platform skills
 - AQE skills live under `.claude/skills/` but exclude platform infrastructure skills (v3-*, flow-nexus-*, agentdb-*, reasoningbank-*, swarm-*)

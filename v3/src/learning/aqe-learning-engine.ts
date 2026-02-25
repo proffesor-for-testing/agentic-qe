@@ -37,6 +37,7 @@
  * ```
  */
 
+import { randomUUID } from 'crypto';
 import type { MemoryBackend, EventBus } from '../kernel/interfaces.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
@@ -232,6 +233,15 @@ export class AQELearningEngine {
       this.coherenceService // Pass coherence service for coherence-gated retrieval
     );
     await this.reasoningBank.initialize();
+
+    // Wire RVF dual-writer for vector replication (optional, best-effort)
+    try {
+      const { getSharedRvfDualWriter } = await import('../integrations/ruvector/shared-rvf-dual-writer.js');
+      const dualWriter = await getSharedRvfDualWriter();
+      if (dualWriter) this.reasoningBank.setRvfDualWriter(dualWriter);
+    } catch (e) {
+      if (process.env.DEBUG) console.debug('[AQELearningEngine] RVF wiring skipped:', e instanceof Error ? e.message : e);
+    }
 
     // Initialize ExperienceCaptureService (always available)
     if (this.config.enableExperienceCapture) {
@@ -502,7 +512,7 @@ export class AQELearningEngine {
 
     try {
       // Store in memory backend for tracking
-      const key = `pattern-usage:search:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const key = `pattern-usage:search:${Date.now()}-${randomUUID().slice(0, 8)}`;
       await this.memory.set(key, searchEvent, {
         persist: true,
         ttl: 7 * 24 * 60 * 60 * 1000, // 7 days retention
@@ -685,7 +695,7 @@ export class AQELearningEngine {
    * Also starts experience capture for pattern learning.
    */
   async startTask(task: string, agent?: string, domain?: QEDomain): Promise<string> {
-    const id = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const id = `task-${Date.now()}-${randomUUID().slice(0, 8)}`;
 
     // Try to start SONA trajectory
     let trajectoryId = id;

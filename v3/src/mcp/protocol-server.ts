@@ -27,6 +27,7 @@ import {
   handleFleetInit,
   handleFleetStatus,
   handleFleetHealth,
+  handleAQEHealth,
   disposeFleet,
   handleTaskSubmit,
   handleTaskList,
@@ -506,7 +507,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'fleet_init',
-        description: 'Initialize the AQE v3 fleet with specified topology and configuration',
+        description: 'Initialize the AQE v3 fleet with topology and domain configuration. Example: fleet_init({ topology: "hierarchical", maxAgents: 8 })',
         category: 'core',
         parameters: [
           { name: 'topology', type: 'string', description: 'Swarm topology type', enum: ['hierarchical', 'mesh', 'ring', 'adaptive'] },
@@ -521,7 +522,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'fleet_status',
-        description: 'Get current fleet status including agents, tasks, and health',
+        description: 'Get fleet status: agents, tasks, health, and learning stats. Example: fleet_status({ verbose: true })',
         category: 'core',
         parameters: [
           { name: 'verbose', type: 'boolean', description: 'Include detailed information', default: false },
@@ -533,7 +534,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'fleet_health',
-        description: 'Check fleet and domain health status',
+        description: 'Check fleet and per-domain health status with load metrics. Example: fleet_health({ domain: "test-generation" })',
         category: 'core',
         parameters: [
           { name: 'domain', type: 'string', description: 'Specific domain to check' },
@@ -546,7 +547,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'task_submit',
-        description: 'Submit a task to the Queen Coordinator',
+        description: 'Submit a QE task to the Queen Coordinator for assignment. Example: task_submit({ type: "test-generation", priority: "p1" })',
         category: 'task',
         parameters: [
           { name: 'type', type: 'string', description: 'Task type', required: true },
@@ -560,7 +561,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'task_list',
-        description: 'List tasks with optional filtering',
+        description: 'List tasks with optional status/limit filtering. Example: task_list({ status: "running", limit: 10 })',
         category: 'task',
         parameters: [
           { name: 'status', type: 'string', description: 'Filter by status' },
@@ -573,7 +574,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'task_status',
-        description: 'Get detailed status of a specific task',
+        description: 'Get detailed status, progress, and result of a specific task. Example: task_status({ taskId: "abc-123" })',
         category: 'task',
         parameters: [
           { name: 'taskId', type: 'string', description: 'Task ID', required: true },
@@ -585,7 +586,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'task_cancel',
-        description: 'Cancel a running or pending task',
+        description: 'Cancel a running or pending task by ID. Example: task_cancel({ taskId: "abc-123" })',
         category: 'task',
         parameters: [
           { name: 'taskId', type: 'string', description: 'Task ID to cancel', required: true },
@@ -597,7 +598,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'task_orchestrate',
-        description: 'Orchestrate a high-level QE task across multiple agents',
+        description: 'Orchestrate a high-level QE task across multiple agents with parallel/sequential strategy. Example: task_orchestrate({ task: "full regression test", strategy: "parallel" })',
         category: 'task',
         parameters: [
           { name: 'task', type: 'string', description: 'Task description', required: true },
@@ -611,7 +612,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'agent_list',
-        description: 'List all active agents',
+        description: 'List all active agents, optionally filtered by domain. Example: agent_list({ domain: "test-generation" })',
         category: 'agent',
         parameters: [
           { name: 'domain', type: 'string', description: 'Filter by domain' },
@@ -623,7 +624,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'agent_spawn',
-        description: 'Spawn a new agent in a specific domain',
+        description: 'Spawn a new QE agent in a specific domain. Example: agent_spawn({ domain: "test-generation", type: "worker" })',
         category: 'agent',
         parameters: [
           { name: 'domain', type: 'string', description: 'Domain for the agent', required: true },
@@ -636,7 +637,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'agent_metrics',
-        description: 'Get performance metrics for agents',
+        description: 'Get CPU, memory, and task performance metrics for agents. Example: agent_metrics({ agentId: "agent-1" })',
         category: 'agent',
         parameters: [
           { name: 'agentId', type: 'string', description: 'Specific agent ID' },
@@ -648,7 +649,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'agent_status',
-        description: 'Get detailed status of a specific agent',
+        description: 'Get detailed status and current task of a specific agent. Example: agent_status({ agentId: "agent-1" })',
         category: 'agent',
         parameters: [
           { name: 'agentId', type: 'string', description: 'Agent ID', required: true },
@@ -661,7 +662,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'team_list',
-        description: 'List all domain teams',
+        description: 'List all active domain teams and their agent counts. Example: team_list({ domain: "coverage-analysis" })',
         category: 'agent',
         parameters: [
           { name: 'domain', type: 'string', description: 'Filter by domain' },
@@ -673,7 +674,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'team_health',
-        description: 'Get team health for a domain',
+        description: 'Get team health, agent utilization, and consensus status for a domain. Example: team_health({ domain: "security-compliance" })',
         category: 'agent',
         parameters: [
           { name: 'domain', type: 'string', description: 'Domain to check', required: true },
@@ -685,7 +686,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'team_message',
-        description: 'Send message between agents',
+        description: 'Send a typed message between two agents (findings, challenges, alerts). Example: team_message({ from: "a1", to: "a2", type: "finding", payload: { issue: "flaky test" } })',
         category: 'agent',
         parameters: [
           { name: 'from', type: 'string', description: 'Sender agent ID', required: true },
@@ -701,7 +702,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'team_broadcast',
-        description: 'Broadcast to all agents in a domain',
+        description: 'Broadcast a message to all agents in a domain. Example: team_broadcast({ domain: "test-execution", type: "alert", payload: { msg: "new build" } })',
         category: 'agent',
         parameters: [
           { name: 'domain', type: 'string', description: 'Domain to broadcast to', required: true },
@@ -715,7 +716,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'team_scale',
-        description: 'Scale a domain team up/down',
+        description: 'Scale a domain team to a target agent count. Example: team_scale({ domain: "test-generation", targetSize: 4 })',
         category: 'agent',
         parameters: [
           { name: 'domain', type: 'string', description: 'Domain to scale', required: true },
@@ -728,7 +729,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'team_rebalance',
-        description: 'Rebalance agents across teams',
+        description: 'Rebalance agents across domain teams based on current load. Example: team_rebalance({})',
         category: 'agent',
         parameters: [],
       },
@@ -739,7 +740,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'test_generate_enhanced',
-        description: 'Generate tests with AI enhancement and pattern recognition',
+        description: 'Generate unit/integration/e2e tests with AI pattern recognition and anti-pattern detection. Example: test_generate_enhanced({ sourceCode: "function add(a,b){return a+b}", testType: "unit" })',
         category: 'domain',
         parameters: [
           { name: 'sourceCode', type: 'string', description: 'Source code to generate tests for' },
@@ -754,7 +755,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'test_execute_parallel',
-        description: 'Execute tests in parallel with retry logic',
+        description: 'Execute test files in parallel with automatic retry on flaky failures. Example: test_execute_parallel({ testFiles: ["tests/auth.test.ts"], parallel: true })',
         category: 'domain',
         parameters: [
           { name: 'testFiles', type: 'array', description: 'Test files to execute' },
@@ -768,7 +769,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'coverage_analyze_sublinear',
-        description: 'Analyze coverage with O(log n) sublinear algorithm',
+        description: 'Analyze code coverage with O(log n) sublinear algorithm and ML-powered gap detection. Example: coverage_analyze_sublinear({ target: "src/", detectGaps: true })',
         category: 'domain',
         parameters: [
           { name: 'target', type: 'string', description: 'Target path to analyze' },
@@ -782,7 +783,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'quality_assess',
-        description: 'Assess code quality with optional quality gate',
+        description: 'Assess code quality metrics and optionally run a pass/fail quality gate. Example: quality_assess({ runGate: true })',
         category: 'domain',
         parameters: [
           { name: 'runGate', type: 'boolean', description: 'Run quality gate evaluation', default: false },
@@ -795,7 +796,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'security_scan_comprehensive',
-        description: 'Comprehensive security scanning with SAST/DAST',
+        description: 'Run SAST and/or DAST security scans with vulnerability classification. Example: security_scan_comprehensive({ target: "src/", sast: true })',
         category: 'domain',
         parameters: [
           { name: 'sast', type: 'boolean', description: 'Run SAST scan', default: true },
@@ -810,7 +811,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'contract_validate',
-        description: 'Validate API contracts for breaking changes',
+        description: 'Validate API contracts for breaking changes against consumers. Example: contract_validate({ contractPath: "api/openapi.yaml" })',
         category: 'domain',
         parameters: [
           { name: 'contractPath', type: 'string', description: 'Path to contract file' },
@@ -823,7 +824,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'accessibility_test',
-        description: 'Test accessibility against WCAG standards',
+        description: 'Test accessibility against WCAG 2.1/2.2 and Section 508 standards. Example: accessibility_test({ url: "http://localhost:3000", standard: "wcag21-aa" })',
         category: 'domain',
         parameters: [
           { name: 'url', type: 'string', description: 'URL to test' },
@@ -837,7 +838,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'chaos_test',
-        description: 'Run chaos engineering tests',
+        description: 'Inject faults (latency, errors, CPU) for chaos engineering resilience testing. Example: chaos_test({ faultType: "latency", target: "api-service" })',
         category: 'domain',
         parameters: [
           { name: 'faultType', type: 'string', description: 'Type of fault to inject' },
@@ -851,7 +852,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'defect_predict',
-        description: 'Predict potential defects using AI',
+        description: 'Predict potential defects using AI analysis of code complexity and change history. Example: defect_predict({ target: "src/auth/" })',
         category: 'domain',
         parameters: [
           { name: 'target', type: 'string', description: 'Target path' },
@@ -864,7 +865,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'requirements_validate',
-        description: 'Validate requirements and generate BDD scenarios',
+        description: 'Validate requirements for completeness and generate BDD scenarios. Example: requirements_validate({ requirementsPath: "docs/requirements.md" })',
         category: 'domain',
         parameters: [
           { name: 'requirementsPath', type: 'string', description: 'Path to requirements' },
@@ -877,7 +878,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'code_index',
-        description: 'Index code for knowledge graph',
+        description: 'Index source code into the knowledge graph for dependency and impact analysis. Example: code_index({ target: "src/" })',
         category: 'domain',
         parameters: [
           { name: 'target', type: 'string', description: 'Target path' },
@@ -890,7 +891,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'memory_store',
-        description: 'Store data in memory with optional TTL',
+        description: 'Store a key-value pair in memory with optional namespace and TTL. Example: memory_store({ key: "pattern-auth", value: { type: "jwt" }, namespace: "patterns" })',
         category: 'memory',
         parameters: [
           { name: 'key', type: 'string', description: 'Memory key', required: true },
@@ -904,7 +905,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'memory_retrieve',
-        description: 'Retrieve data from memory',
+        description: 'Retrieve a value by key from memory. Example: memory_retrieve({ key: "pattern-auth", namespace: "patterns" })',
         category: 'memory',
         parameters: [
           { name: 'key', type: 'string', description: 'Memory key', required: true },
@@ -917,7 +918,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'memory_query',
-        description: 'Query memory with pattern matching or HNSW semantic search',
+        description: 'Query memory using glob patterns or HNSW semantic vector search. Example: memory_query({ pattern: "auth*", namespace: "patterns" }) or memory_query({ pattern: "authentication best practices", semantic: true })',
         category: 'memory',
         parameters: [
           { name: 'pattern', type: 'string', description: 'Key pattern (glob) or natural language query (for semantic search)' },
@@ -931,7 +932,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'memory_delete',
-        description: 'Delete memory entry',
+        description: 'Delete a memory entry by key. Example: memory_delete({ key: "temp-data", namespace: "scratch" })',
         category: 'memory',
         parameters: [
           { name: 'key', type: 'string', description: 'Memory key', required: true },
@@ -944,7 +945,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'memory_usage',
-        description: 'Get memory usage statistics',
+        description: 'Get memory usage statistics: entry counts, namespaces, and storage size. Example: memory_usage({})',
         category: 'memory',
         parameters: [],
       },
@@ -954,7 +955,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'memory_share',
-        description: 'Share knowledge between agents',
+        description: 'Share knowledge from one agent to others within a domain. Example: memory_share({ sourceAgentId: "a1", targetAgentIds: ["a2","a3"], knowledgeDomain: "patterns" })',
         category: 'memory',
         parameters: [
           { name: 'sourceAgentId', type: 'string', description: 'Source agent ID', required: true },
@@ -972,7 +973,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'model_route',
-        description: 'Route a task to optimal model tier (0=Booster, 1=Haiku, 2=Sonnet, 3=Sonnet-Extended, 4=Opus). Analyzes complexity and returns routing decision.',
+        description: 'Route a task to the optimal model tier (0=Booster through 4=Opus) based on complexity analysis. Example: model_route({ task: "refactor auth module", domain: "code-intelligence" })',
         category: 'routing',
         parameters: [
           { name: 'task', type: 'string', description: 'Task description to analyze', required: true },
@@ -990,7 +991,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'routing_metrics',
-        description: 'Get model routing metrics and statistics',
+        description: 'Get model routing statistics: tier distribution, cost savings, and routing log. Example: routing_metrics({ includeLog: true, logLimit: 20 })',
         category: 'routing',
         parameters: [
           { name: 'includeLog', type: 'boolean', description: 'Include routing log entries', default: false },
@@ -1004,7 +1005,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'infra_healing_status',
-        description: 'Get infrastructure healing status, stats, and failing services',
+        description: 'Get infrastructure self-healing status: detected failures, recovery stats, and failing services. Example: infra_healing_status({ verbose: true })',
         category: 'infra-healing',
         parameters: [
           { name: 'verbose', type: 'boolean', description: 'Include detailed observation data', default: false },
@@ -1016,7 +1017,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'infra_healing_feed_output',
-        description: 'Feed test runner output for infrastructure error detection',
+        description: 'Feed test runner stdout/stderr for automatic infrastructure error detection. Example: infra_healing_feed_output({ output: "ECONNREFUSED 127.0.0.1:5432" })',
         category: 'infra-healing',
         parameters: [
           { name: 'output', type: 'string', description: 'Test runner stdout/stderr output' },
@@ -1028,7 +1029,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'infra_healing_recover',
-        description: 'Trigger infrastructure recovery cycle for detected failures',
+        description: 'Trigger infrastructure recovery for detected failures and optionally re-run affected tests. Example: infra_healing_recover({ services: ["postgres"], rerunTests: true })',
         category: 'infra-healing',
         parameters: [
           { name: 'services', type: 'array', description: 'Specific services to recover (empty = all failing)' },
@@ -1036,6 +1037,20 @@ export class MCPProtocolServer {
         ],
       },
       handler: (params) => handleInfraHealingRecover(params as { services?: string[]; rerunTests?: boolean }),
+    });
+
+    // =========================================================================
+    // OpenCode Integration: Health Endpoint
+    // =========================================================================
+
+    this.registerTool({
+      definition: {
+        name: 'aqe_health',
+        description: 'Check AQE server health: returns status, loaded domains, memory stats, HNSW index status, and pattern count. Example: aqe_health({})',
+        category: 'core',
+        parameters: [],
+      },
+      handler: () => handleAQEHealth(),
     });
 
     console.error(`[MCP] Registered ${this.tools.size} tools`);

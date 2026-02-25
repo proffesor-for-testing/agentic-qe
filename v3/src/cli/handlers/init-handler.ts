@@ -53,6 +53,7 @@ export class InitHandler implements ICommandHandler {
       .option('--minimal', 'Minimal configuration (skip optional features)')
       .option('--skip-patterns', 'Skip loading pre-trained patterns')
       .option('--with-n8n', 'Install n8n workflow testing agents and skills')
+      .option('--with-opencode', 'Include OpenCode agent/skill provisioning')
       .option('--auto-migrate', 'Automatically migrate from v2 if detected')
       .option('--with-claude-flow', 'Force Claude Flow integration setup')
       .option('--skip-claude-flow', 'Skip Claude Flow integration')
@@ -106,6 +107,7 @@ export class InitHandler implements ICommandHandler {
       minimal: options.minimal,
       skipPatterns: options.skipPatterns,
       withN8n: options.withN8n,
+      withOpenCode: options.withOpencode,
       autoMigrate: options.autoMigrate,
       noGovernance: options.noGovernance,
     });
@@ -367,6 +369,7 @@ Options:
   --minimal                  Minimal configuration (skip optional features)
   --skip-patterns            Skip loading pre-trained patterns
   --with-n8n                 Install n8n workflow testing agents and skills
+  --with-opencode            Include OpenCode agent/skill provisioning
   --auto-migrate             Automatically migrate from v2 if detected
   --with-claude-flow         Force Claude Flow integration setup
   --skip-claude-flow         Skip Claude Flow integration
@@ -406,6 +409,7 @@ interface InitOptions {
   minimal?: boolean;
   skipPatterns?: boolean;
   withN8n?: boolean;
+  withOpencode?: boolean;
   autoMigrate?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;

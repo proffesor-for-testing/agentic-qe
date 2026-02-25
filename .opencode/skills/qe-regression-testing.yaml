@@ -1,0 +1,40 @@
+name: qe-regression-testing
+description: "Strategic regression testing with test selection, impact analysis, and continuous regression management. Use when verifying fixes don't break existing functionality, planning regression suites, or optimizing test execution for faster feedback."
+minModelTier: tier3-best
+tags: ["regression", "test-selection", "impact-analysis", "ci-cd", "change-based", "risk-based", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: regression-types
+    description: "Regression Types"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Regression Types
+  - name: test-selection-strategies
+    description: "Test Selection Strategies"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Test Selection Strategies
+  - name: change-based-test-selection
+    description: "Change-Based Test Selection"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Change-Based Test Selection
+  - name: regression-suite-pyramid
+    description: "Regression Suite Pyramid"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Regression Suite Pyramid
+  - name: cicd-integration
+    description: "CI/CD Integration"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      CI/CD Integration
+  - name: optimization-techniques
+    description: "Optimization Techniques"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Optimization Techniques
+  - name: agent-driven-regression
+    description: "Agent-Driven Regression"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      Agent-Driven Regression

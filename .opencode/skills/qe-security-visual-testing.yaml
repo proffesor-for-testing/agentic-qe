@@ -1,0 +1,45 @@
+name: qe-security-visual-testing
+description: "Security-first visual testing combining URL validation, PII detection, and visual regression with parallel viewport support. Use when testing web applications that handle sensitive data, need visual regression coverage, or require WCAG accessibility compliance."
+minModelTier: tier3-best
+tags: ["security", "visual-testing", "pii", "accessibility", "wcag", "parallel-viewport", "regression", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: key-capabilities
+    description: "Key Capabilities"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Key Capabilities
+  - name: workflows
+    description: "Workflows"
+    tools: ["bash", "read"]
+    prompt: |
+      Workflows
+  - name: 1-security-visual-audit-full-pipeline
+    description: "1. Security Visual Audit (Full Pipeline)"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Security Visual Audit (Full Pipeline)
+  - name: 2-pii-safe-screenshot
+    description: "2. PII-Safe Screenshot"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      2. PII-Safe Screenshot
+  - name: 3-responsive-visual-audit
+    description: "3. Responsive Visual Audit"
+    tools: ["bash", "read"]
+    prompt: |
+      3. Responsive Visual Audit
+  - name: integration-with-aqe-v3
+    description: "Integration with AQE v3"
+    tools: ["bash", "read"]
+    prompt: |
+      Integration with AQE v3
+  - name: using-with-browsersecurityscanner
+    description: "Using with BrowserSecurityScanner"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      Using with BrowserSecurityScanner
+  - name: using-with-trajectoryadapter
+    description: "Using with TrajectoryAdapter"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      Using with TrajectoryAdapter

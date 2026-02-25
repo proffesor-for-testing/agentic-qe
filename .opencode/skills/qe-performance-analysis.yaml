@@ -1,0 +1,45 @@
+name: qe-performance-analysis
+description: "Comprehensive performance analysis, bottleneck detection, and optimization recommendations for Claude Flow swarms"
+minModelTier: tier3-best
+tags: ["performance", "bottleneck", "optimization", "profiling", "metrics", "analysis", "qe", "quality-engineering", "monitoring"]
+steps:
+  - name: overview
+    description: "This skill consolidates all performance analysis capabilities: - **Bottleneck Detection**: Identify performance bottlenecks across communication, processing, memory, and network - **Performance Profiling**: Real-time monitoring and historical analysis of swarm operations - **Report Generation**: Cre"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      This skill consolidates all performance analysis capabilities: - **Bottleneck Detection**: Identify performance bottlenecks across communication, processing, memory, and network - **Performance Profiling**: Real-time monitoring and historical analysis of swarm operations - **Report Generation**: Cre
+  - name: basic-bottleneck-detection
+    description: "Basic Bottleneck Detection"
+    tools: ["bash", "read"]
+    prompt: |
+      Basic Bottleneck Detection
+  - name: generate-performance-report
+    description: "Generate Performance Report"
+    tools: ["bash", "read"]
+    prompt: |
+      Generate Performance Report
+  - name: analyze-and-auto-fix
+    description: "Analyze and Auto-Fix"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Analyze and Auto-Fix
+  - name: core-capabilities
+    description: "Core Capabilities"
+    tools: ["bash", "read"]
+    prompt: |
+      Core Capabilities
+  - name: 1-bottleneck-detection
+    description: "1. Bottleneck Detection"
+    tools: ["bash", "read", "edit", "mcp:agentic-qe:*"]
+    prompt: |
+      1. Bottleneck Detection
+  - name: 2-performance-profiling
+    description: "2. Performance Profiling"
+    tools: ["bash", "read", "edit", "mcp:agentic-qe:*"]
+    prompt: |
+      2. Performance Profiling
+  - name: 3-report-generation
+    description: "3. Report Generation"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      3. Report Generation

@@ -1,0 +1,45 @@
+name: qe-observability-testing-patterns
+description: "Observability and monitoring validation patterns for dashboards, alerting, log aggregation, APM traces, and SLA/SLO verification. Use when testing monitoring infrastructure, dashboard accuracy, alert rules, or metric pipelines."
+minModelTier: tier3-best
+tags: ["observability", "monitoring", "kibana", "elasticsearch", "dashboards", "alerting", "metrics", "logging", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: testing-levels
+    description: "Testing Levels"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Testing Levels
+  - name: critical-test-scenarios
+    description: "Critical Test Scenarios"
+    tools: ["bash", "read"]
+    prompt: |
+      Critical Test Scenarios
+  - name: dashboard-data-accuracy-validation
+    description: "Dashboard Data Accuracy Validation"
+    tools: ["bash", "read"]
+    prompt: |
+      Dashboard Data Accuracy Validation
+  - name: compare-source-data-to-dashboard
+    description: "Compare Source Data to Dashboard"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Compare Source Data to Dashboard
+  - name: elasticsearch-query-result-validation
+    description: "Elasticsearch Query Result Validation"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      Elasticsearch Query Result Validation
+  - name: kibana-dashboard-element-assertions
+    description: "Kibana Dashboard Element Assertions"
+    tools: ["bash", "read"]
+    prompt: |
+      Kibana Dashboard Element Assertions
+  - name: alert-rule-testing
+    description: "Alert Rule Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Alert Rule Testing
+  - name: log-aggregation-completeness
+    description: "Log Aggregation Completeness"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Log Aggregation Completeness

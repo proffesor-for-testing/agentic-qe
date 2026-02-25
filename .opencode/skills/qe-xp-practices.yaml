@@ -1,0 +1,45 @@
+name: qe-xp-practices
+description: "Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace. Use when implementing agile development practices, improving team collaboration, or adopting technical excellence practices."
+minModelTier: tier1-fast
+tags: ["xp", "agile", "pair-programming", "tdd", "continuous-integration", "collaboration", "qe", "quality-engineering", "methodology"]
+steps:
+  - name: the-five-xp-values
+    description: "The Five XP Values"
+    tools: ["bash", "read"]
+    prompt: |
+      The Five XP Values
+  - name: core-practices
+    description: "Core Practices"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Core Practices
+  - name: pair-programming
+    description: "Pair Programming"
+    tools: ["bash", "read"]
+    prompt: |
+      Pair Programming
+  - name: when-to-pair
+    description: "When to Pair"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      When to Pair
+  - name: pairing-dos-and-donts
+    description: "**Do:** - ✅ Switch roles every 20-30 min - ✅ Take breaks together - ✅ Think out loud - ✅ Ask questions - ✅ Keep sessions 2-4 hours max"
+    tools: ["bash", "read"]
+    prompt: |
+      **Do:** - ✅ Switch roles every 20-30 min - ✅ Take breaks together - ✅ Think out loud - ✅ Ask questions - ✅ Keep sessions 2-4 hours max
+  - name: ensemble-mob-programming
+    description: "**Setup:** 3+ developers, one screen, rotating driver"
+    tools: ["bash", "read"]
+    prompt: |
+      **Setup:** 3+ developers, one screen, rotating driver
+  - name: continuous-integration
+    description: "**CI Workflow:**"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      **CI Workflow:**
+  - name: four-rules-of-simple-design
+    description: "(In priority order) 1. **Passes all tests** - Works correctly 2. **Reveals intention** - Clear, expressive code 3. **No duplication** - DRY principle 4. **Fewest elements** - No speculative code"
+    tools: ["bash", "read"]
+    prompt: |
+      (In priority order) 1. **Passes all tests** - Works correctly 2. **Reveals intention** - Clear, expressive code 3. **No duplication** - DRY principle 4. **Fewest elements** - No speculative code

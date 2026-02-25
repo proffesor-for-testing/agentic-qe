@@ -1,0 +1,45 @@
+name: qe-release
+description: "End-to-end npm release workflow with verification gates and hardcoded-version protection"
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering", "release-management"]
+steps:
+  - name: architecture
+    description: "This project has a **dual-package structure** — both must stay in sync:"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      This project has a **dual-package structure** — both must stay in sync:
+  - name: arguments
+    description: "- `<version>` — Target version (e.g., `3.5.5`). If omitted, prompt the user."
+    tools: ["bash", "read"]
+    prompt: |
+      - `<version>` — Target version (e.g., `3.5.5`). If omitted, prompt the user.
+  - name: steps
+    description: "Steps"
+    tools: ["bash", "read"]
+    prompt: |
+      Steps
+  - name: 1-pre-flight-ensure-clean-state
+    description: "1. Pre-Flight: Ensure Clean State"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      1. Pre-Flight: Ensure Clean State
+  - name: 2-version-audit
+    description: "Read the current version from `package.json` (source of truth). Then grep the ENTIRE codebase for hardcoded version strings — current version, old versions, and any version-like patterns. Check both package.json files are in sync."
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      Read the current version from `package.json` (source of truth). Then grep the ENTIRE codebase for hardcoded version strings — current version, old versions, and any version-like patterns. Check both package.json files are in sync.
+  - name: 3-bump-version
+    description: "Update both package.json files to the target version:"
+    tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      Update both package.json files to the target version:
+  - name: 4-update-changelog
+    description: "Add a new section to `v3/CHANGELOG.md` following Keep a Changelog format:"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Add a new section to `v3/CHANGELOG.md` following Keep a Changelog format:
+  - name: version---yyyy-mm-dd
+    description: "[<version>] - YYYY-MM-DD"
+    tools: ["bash", "read"]
+    prompt: |
+      [<version>] - YYYY-MM-DD

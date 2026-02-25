@@ -5,6 +5,32 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.1] - 2026-02-24
+
+### Added
+
+- **OpenCode integration** — Full multi-workstream integration making AQE accessible from OpenCode-compatible agent clients: SSE/WebSocket/HTTP transport routing, output compaction middleware, 59 agent configs, 86 skill configs (78 QE + 8 general dev), 5 tool wrappers, Zod config schema, graceful degradation, and provider capability matrix
+- **`aqe init --with-opencode` flag** — Provisions OpenCode assets (59 agent configs, 86 skill configs, 5 tools, permissions.yaml, opencode.json) into user projects during initialization; follows the N8n installer pattern with auto-detection in `--auto` mode when `opencode.json` exists
+- **RVF production wiring** — RVF dual-writer now activated in all production code paths (learning engine, hooks, dream tool, learning helpers); all QEReasoningBank instances receive the shared RvfDualWriter singleton for best-effort native vector replication alongside SQLite
+- **Shared RVF dual-writer singleton** — Lazy-initialized factory with graceful degradation when native binding is unavailable; `AQE_RVF_MODE=sqlite-only` env var override for operator control
+- **17 RVF integration tests** — 10 mock-based tests for graceful degradation and singleton lifecycle, plus 7 native-path tests exercising real RVF containers with QEReasoningBank integration
+
+### Fixed
+
+- **O(n^2) similarity edge explosion** — Dream engine spreading activation now caps edges to prevent quadratic blowup on large pattern sets; benchmark test DB pollution eliminated
+- **Non-semantic metrics embedding** — Skip embedding of JSON metrics objects that don't carry semantic meaning; raised slow-warning threshold to reduce noise
+- **Persistence reliability** — Fixed data loss scenarios in learning pipeline persistence
+- **Postgres test mocking** — Fixed unit test mocking for PostgreSQL backend; added real integration tests
+- **Security hardening** — God-file decomposition and security hardening across multiple modules
+- **Brain CLI documentation** — Corrected examples in README for brain export/import commands
+- **RVF shutdown ordering** — RVF cleanup now runs after MCP server drain (was before, risking data store closure during active requests)
+- **RVF reset race condition** — Replaced fire-and-forget async import with synchronous `registerRvfResetFn()` callback pattern for deterministic cleanup in tests
+
+### Changed
+
+- **Build externals** — Added all `@ruvector/rvf-node` platform variants to esbuild native module externals in both CLI and MCP build scripts
+- **MCP base module** — Added `registerRvfResetFn()` export for cross-module synchronous reset coordination
+
 ## [3.7.0] - 2026-02-23
 
 ### Added

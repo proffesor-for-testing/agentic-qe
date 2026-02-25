@@ -3,6 +3,7 @@
  * Microkernel implementation coordinating all domains
  */
 
+import { randomUUID } from 'crypto';
 import { DomainName, ALL_DOMAINS } from '../shared/types';
 import {
   QEKernel,
@@ -147,7 +148,7 @@ export class QEKernelImpl implements QEKernel {
       // getUnifiedPersistence() / getUnifiedMemory() don't crash.
       const tmpDbPath = path.join(
         require('os').tmpdir(),
-        `aqe-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`
+        `aqe-test-${Date.now()}-${randomUUID().slice(0, 12)}.db`
       );
       await initializeUnifiedPersistence({ dbPath: tmpDbPath });
     } else {

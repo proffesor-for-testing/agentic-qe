@@ -8,6 +8,7 @@
  * @module integrations/ruvector/sona-wrapper
  */
 
+import { randomUUID } from 'crypto';
 import { SonaEngine } from '@ruvector/sona';
 import type {
   RLState,
@@ -471,7 +472,7 @@ export class QESONA {
     metadata?: Record<string, unknown>
   ): QESONAPattern {
     const pattern: QESONAPattern = {
-      id: `qesona-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: `qesona-${Date.now()}-${randomUUID().slice(0, 7)}`,
       type,
       domain,
       stateEmbedding: this.createStateEmbedding(state),

@@ -1,0 +1,45 @@
+name: qe-context-driven-testing
+description: "Apply context-driven testing principles where practices are chosen based on project context, not universal 'best practices'. Use when making testing decisions, questioning dogma, or adapting approaches to specific project needs."
+minModelTier: tier1-fast
+tags: ["context-driven", "rst", "exploratory", "heuristics", "oracles", "skilled-testing", "qe", "quality-engineering", "testing-methodologies"]
+steps:
+  - name: seven-context-driven-principles
+    description: "1. Value of any practice depends on its context 2. Good practices in context, no universal best practices 3. People working together are most important 4. Projects unfold in unpredictable ways 5. Product is a solution - if problem not solved, product fails 6. Good testing is challenging intellectual"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Value of any practice depends on its context 2. Good practices in context, no universal best practices 3. People working together are most important 4. Projects unfold in unpredictable ways 5. Product is a solution - if problem not solved, product fails 6. Good testing is challenging intellectual
+  - name: context-factors
+    description: "Context Factors"
+    tools: ["bash", "read"]
+    prompt: |
+      Context Factors
+  - name: rst-heuristics
+    description: "RST Heuristics"
+    tools: ["bash", "read"]
+    prompt: |
+      RST Heuristics
+  - name: context-driven-decisions
+    description: "Context-Driven Decisions"
+    tools: ["bash", "read"]
+    prompt: |
+      Context-Driven Decisions
+  - name: example-test-automation-level
+    description: "**Startup Context:** - Small team, rapid changes, unclear product-market fit - **Decision:** Light automation on critical paths, heavy exploratory - **Rationale:** Requirements change too fast for extensive automation"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      **Startup Context:** - Small team, rapid changes, unclear product-market fit - **Decision:** Light automation on critical paths, heavy exploratory - **Rationale:** Requirements change too fast for extensive automation
+  - name: example-documentation
+    description: "**Regulated (FDA/medical):** - **Decision:** Detailed test protocols, traceability matrices - **Rationale:** Regulatory compliance isn't optional"
+    tools: ["bash", "read"]
+    prompt: |
+      **Regulated (FDA/medical):** - **Decision:** Detailed test protocols, traceability matrices - **Rationale:** Regulatory compliance isn't optional
+  - name: investigation-vs-checking
+    description: "Investigation vs. Checking"
+    tools: ["bash", "read"]
+    prompt: |
+      Investigation vs. Checking
+  - name: red-flags-not-context-driven
+    description: "- Follow process \"because that's how it's done\" - Can't explain *why* you're doing something - Measure test cases executed, not problems found - Test plan could apply to any project - Stop thinking once you have a script"
+    tools: ["bash", "read"]
+    prompt: |
+      - Follow process "because that's how it's done" - Can't explain *why* you're doing something - Measure test cases executed, not problems found - Test plan could apply to any project - Stop thinking once you have a script

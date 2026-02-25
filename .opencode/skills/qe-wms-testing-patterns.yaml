@@ -1,0 +1,45 @@
+name: qe-wms-testing-patterns
+description: "Warehouse Management System testing patterns for inventory operations, pick/pack/ship workflows, wave management, EDI X12/EDIFACT compliance, RF/barcode scanning, and WMS-ERP integration. Use when testing WMS platforms (Blue Yonder, Manhattan, SAP EWM)."
+minModelTier: tier3-best
+tags: ["wms", "warehouse", "inventory", "edi", "pick-pack-ship", "blue-yonder", "manhattan", "sap-ewm", "rf-scanning", "qe", "quality-engineering", "enterprise-integration"]
+steps:
+  - name: testing-levels
+    description: "Testing Levels"
+    tools: ["bash", "read"]
+    prompt: |
+      Testing Levels
+  - name: critical-test-scenarios
+    description: "Critical Test Scenarios"
+    tools: ["bash", "read"]
+    prompt: |
+      Critical Test Scenarios
+  - name: inventory-transaction-testing
+    description: "Inventory Transaction Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Inventory Transaction Testing
+  - name: receipt-and-putaway
+    description: "Receipt and Putaway"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Receipt and Putaway
+  - name: cycle-count-and-adjustments
+    description: "Cycle Count and Adjustments"
+    tools: ["bash", "read"]
+    prompt: |
+      Cycle Count and Adjustments
+  - name: pickpackship-workflow-testing
+    description: "Pick/Pack/Ship Workflow Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Pick/Pack/Ship Workflow Testing
+  - name: wave-management
+    description: "Wave Management"
+    tools: ["bash", "read"]
+    prompt: |
+      Wave Management
+  - name: allocation-logic
+    description: "Allocation Logic"
+    tools: ["bash", "read"]
+    prompt: |
+      Allocation Logic

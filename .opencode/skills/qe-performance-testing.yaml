@@ -1,0 +1,45 @@
+name: qe-performance-testing
+description: "Test application performance, scalability, and resilience. Use when planning load testing, stress testing, or optimizing system performance."
+minModelTier: tier3-best
+tags: ["performance", "load-testing", "stress-testing", "scalability", "k6", "bottlenecks", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: test-types
+    description: "Test Types"
+    tools: ["bash", "read", "edit", "mcp:agentic-qe:*"]
+    prompt: |
+      Test Types
+  - name: key-metrics
+    description: "Key Metrics"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      Key Metrics
+  - name: defining-slos
+    description: "**Bad:** \"The system should be fast\" **Good:** \"p95 response time < 200ms under 1,000 concurrent users\""
+    tools: ["bash", "read"]
+    prompt: |
+      **Bad:** "The system should be fast" **Good:** "p95 response time < 200ms under 1,000 concurrent users"
+  - name: realistic-scenarios
+    description: "**Bad:** Every user hits homepage repeatedly **Good:** Model actual user behavior"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      **Bad:** Every user hits homepage repeatedly **Good:** Model actual user behavior
+  - name: common-bottlenecks
+    description: "Common Bottlenecks"
+    tools: ["bash", "read"]
+    prompt: |
+      Common Bottlenecks
+  - name: database
+    description: "**Symptoms:** Slow queries under load, connection pool exhaustion **Fixes:** Add indexes, optimize N+1 queries, increase pool size, read replicas"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      **Symptoms:** Slow queries under load, connection pool exhaustion **Fixes:** Add indexes, optimize N+1 queries, increase pool size, read replicas
+  - name: n1-queries
+    description: "N+1 Queries"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      N+1 Queries
+  - name: synchronous-processing
+    description: "**Problem:** Blocking operations in request path (sending email during checkout) **Fix:** Use message queues, process async, return immediately"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      **Problem:** Blocking operations in request path (sending email during checkout) **Fix:** Use message queues, process async, return immediately

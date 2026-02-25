@@ -1,0 +1,45 @@
+name: qe-quality-assessment
+description: "Comprehensive quality gates, metrics analysis, and deployment readiness assessment for continuous quality assurance."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent Workflow
+  - name: quality-dimensions
+    description: "Quality Dimensions"
+    tools: ["bash", "read"]
+    prompt: |
+      Quality Dimensions
+  - name: 1-code-quality-metrics
+    description: "1. Code Quality Metrics"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Code Quality Metrics
+  - name: 2-quality-gates
+    description: "2. Quality Gates"
+    tools: ["bash", "read"]
+    prompt: |
+      2. Quality Gates
+  - name: 3-deployment-readiness
+    description: "3. Deployment Readiness"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      3. Deployment Readiness
+  - name: quality-score-calculation
+    description: "Quality Score Calculation"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Quality Score Calculation
+  - name: quality-dashboard
+    description: "Quality Dashboard"
+    tools: ["bash", "read"]
+    prompt: |
+      Quality Dashboard
+  - name: cicd-integration
+    description: "CI/CD Integration"
+    tools: ["bash", "read"]
+    prompt: |
+      CI/CD Integration
