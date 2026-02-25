@@ -188,7 +188,7 @@ function extractSteps(content: string): SkillStep[] {
 }
 
 function escapeYamlString(s: string): string {
-  return s.replace(/"/g, '\\"');
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 function generateSkillYaml(config: SkillConfig): string {
