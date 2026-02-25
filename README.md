@@ -11,7 +11,7 @@
 
 **V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Release Notes](docs/releases/README.md) | [Changelog](v3/CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 60 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, RVF cognitive container integration with portable brain export/import, OpenCode multi-client support, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
+> **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 60 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, RVF cognitive container integration with portable brain export/import, OpenCode multi-client support, AWS Kiro IDE integration, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
 🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **13 Bounded Contexts** | 📚 **78 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance**
 
@@ -36,11 +36,14 @@ aqe init --auto
 
 # Include OpenCode assets (agents, skills, tools, permissions)
 aqe init --auto --with-opencode
+
+# Include AWS Kiro IDE assets (agents, skills, hooks, steering)
+aqe init --auto --with-kiro
 ```
 
 > **Note:** `aqe init` automatically configures the MCP server in `.mcp.json` — Claude Code will auto-start it when connecting. For standalone MCP server usage (non-Claude-Code clients), run `aqe-mcp` or `npx agentic-qe mcp`.
 
-### Use from MCP-compatible agent clients (Claude Code, OpenCode, Codex, others)
+### Use from MCP-compatible agent clients (Claude Code, OpenCode, Kiro, Codex, others)
 
 AQE is exposed as an MCP server and can be used from any client that supports MCP tool connections.
 
@@ -51,6 +54,9 @@ AQE is exposed as an MCP server and can be used from any client that supports MC
 # For OpenCode: provision assets automatically during init
 aqe init --auto --with-opencode   # installs agents, skills, tools, permissions, opencode.json
 aqe-mcp                           # starts with SSE auto-detection
+
+# For AWS Kiro: provision Kiro-native assets during init
+aqe init --auto --with-kiro       # installs .kiro/ agents, skills, hooks, steering, MCP config
 
 # For other MCP clients: start the server manually
 aqe-mcp                  # if installed globally
@@ -76,6 +82,7 @@ For client-specific setup examples, see `docs/integration/mcp-clients.md`.
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
 - ✅ **RVF Cognitive Containers** (v3.7.0): MinCut task routing, witness chain audit trail, portable brain export/import, unified HNSW search, production dual-write to native RVF
 - ✅ **OpenCode Support** (v3.7.1): 59 agent configs, 86 skill configs (78 QE + 8 general dev), 5 tool wrappers, SSE/WS/HTTP transport, output compaction, graceful degradation, `aqe init --with-opencode` auto-provisioning
+- ✅ **AWS Kiro Support** (v3.7.2): 87 agent configs, 86 skill configs, 5 event-driven hooks, 2 steering files, MCP config, `aqe init --with-kiro` auto-provisioning
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
 - ✅ **78 QE Skills**: 46 Tier 3 verified + 32 additional QE skills (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 
@@ -327,6 +334,56 @@ aqe brain import --input ./my-brain --dry-run
 # View brain statistics
 aqe brain info --input ./my-brain
 ```
+
+---
+
+### 🏗️ AWS Kiro IDE Support (v3.7.2)
+
+V3.7.2 adds full **AWS Kiro IDE** integration, converting AQE agents, skills, hooks, and steering files to Kiro-native formats via `aqe init --with-kiro`.
+
+| Asset | Count | Description |
+|-------|-------|-------------|
+| **Agents** | 87 | `.kiro/agents/*.json` — 62 QE + 15 n8n + 10 infra/testing agents |
+| **Skills** | 86 | `.kiro/skills/*/SKILL.md` — full instructional content from Claude Code sources |
+| **Hooks** | 5 | `.kiro/hooks/*.kiro.hook` — event-driven automation (test update, coverage, security, quality gate, pre-commit) |
+| **Steering** | 2 | `.kiro/steering/*.md` — QE standards and testing conventions |
+| **MCP Config** | 1 | `.kiro/settings/mcp.json` — auto-approved AQE tools |
+
+**Setup:**
+
+```bash
+# Provision Kiro assets during init
+aqe init --auto --with-kiro
+
+# Or add Kiro to an existing project
+aqe init --with-kiro
+```
+
+**What gets generated:**
+
+```
+.kiro/
+├── agents/              # 87 agent definitions (Kiro JSON format)
+├── skills/*/SKILL.md    # 86 skill definitions (full markdown content)
+├── hooks/               # 5 event-driven hooks
+│   ├── aqe-test-updater.kiro.hook       # Auto-update tests on source changes
+│   ├── aqe-coverage-check.kiro.hook     # Coverage analysis on test edits
+│   ├── aqe-security-scan.kiro.hook      # Security scan on auth file changes
+│   ├── aqe-spec-quality-gate.kiro.hook  # Quality gate after spec tasks
+│   └── aqe-pre-commit-quality.kiro.hook # Quality check before agent stops
+├── steering/            # 2 project-wide guidance files
+│   ├── qe-standards.md              # QE standards (auto-triggered)
+│   └── testing-conventions.md       # Test file conventions (fileMatch)
+└── settings/mcp.json    # MCP server config with auto-approved tools
+```
+
+**Key features:**
+- Converts OpenCode YAML agents and Claude Code markdown agents to Kiro JSON format
+- Reads full SKILL.md content from Claude Code sources (not thin YAML stubs)
+- Maps `mcp:agentic-qe:` references to Kiro's `@agentic-qe/` format
+- Maps Claude Code tool names to Kiro builtins (`bash`→`shell`, `edit`→`write`)
+- Auto-detects existing `.kiro/` directory in `--auto` mode
+- Safe by default: won't overwrite existing files unless `--upgrade` is used
 
 ---
 
@@ -837,6 +894,12 @@ agentic-qe/
 ├── .claude/
 │   ├── agents/v3/           # V3 agent definitions (source)
 │   └── skills/              # 15 QE-specific skills
+├── .kiro/                   # AWS Kiro IDE integration (v3.7.2)
+│   ├── agents/              # 87 Kiro agent definitions (JSON)
+│   ├── skills/              # 86 Kiro skill definitions (SKILL.md)
+│   ├── hooks/               # 5 event-driven hooks
+│   ├── steering/            # 2 QE steering files
+│   └── settings/            # MCP server configuration
 ├── docs/                    # Shared documentation
 │   ├── plans/               # Migration plans
 │   ├── policies/            # Project policies
