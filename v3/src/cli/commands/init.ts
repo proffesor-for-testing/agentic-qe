@@ -42,6 +42,7 @@ export function createInitCommand(): Command {
     .option('--skip-patterns', 'Skip pattern loading')
     .option('--with-n8n', 'Include n8n workflow testing platform')
     .option('--with-opencode', 'Include OpenCode agent/skill provisioning')
+    .option('--with-kiro', 'Include AWS Kiro IDE integration (agents, skills, hooks, steering)')
     .option('--with-claude-flow', 'Force Claude Flow integration setup')
     .option('--skip-claude-flow', 'Skip Claude Flow integration')
     .option('--no-governance', 'Skip governance configuration (ADR-058)')
@@ -91,6 +92,7 @@ interface InitOptions {
   skipPatterns?: boolean;
   withN8n?: boolean;
   withOpencode?: boolean;
+  withKiro?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
   noGovernance?: boolean;
@@ -130,6 +132,7 @@ async function runInit(options: InitOptions): Promise<void> {
     skipPatterns: options.skipPatterns,
     withN8n: options.withN8n,
     withOpenCode: options.withOpencode,
+    withKiro: options.withKiro,
     noGovernance: options.noGovernance,
   });
 

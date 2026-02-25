@@ -21,6 +21,9 @@ export interface AssetsResult {
   n8nSkills: number;
   openCodeAgents: number;
   openCodeSkills: number;
+  kiroAgents: number;
+  kiroSkills: number;
+  kiroHooks: number;
 }
 
 /**
@@ -50,6 +53,9 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     let n8nSkills = 0;
     let openCodeAgents = 0;
     let openCodeSkills = 0;
+    let kiroAgents = 0;
+    let kiroSkills = 0;
+    let kiroHooks = 0;
 
     if (options.upgrade) {
       context.services.log(`  Upgrade mode: overwriting existing files`);
@@ -140,6 +146,37 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       context.services.log(`  OpenCode skills: ${openCodeSkills}`);
     }
 
+    // Install Kiro platform (optional)
+    const autoKiro = options.autoMode && existsSync(join(projectRoot, '.kiro'));
+    if (options.withKiro || autoKiro) {
+      const { createKiroInstaller } = await import('../kiro-installer.js');
+      const kiroInstaller = createKiroInstaller({
+        projectRoot,
+        installAgents: true,
+        installSkills: true,
+        installHooks: true,
+        installSteering: true,
+        overwrite: shouldOverwrite,
+      });
+
+      const kiroResult = await kiroInstaller.install();
+      kiroAgents = kiroResult.agentsInstalled.length;
+      kiroSkills = kiroResult.skillsInstalled.length;
+      kiroHooks = kiroResult.hooksInstalled.length;
+
+      if (kiroResult.errors.length > 0) {
+        context.services.warn(`Kiro warnings: ${kiroResult.errors.join(', ')}`);
+      }
+
+      context.services.log(`  Kiro agents: ${kiroAgents}`);
+      context.services.log(`  Kiro skills: ${kiroSkills}`);
+      context.services.log(`  Kiro hooks: ${kiroHooks}`);
+      context.services.log(`  Kiro steering: ${kiroResult.steeringInstalled.length}`);
+      if (kiroResult.mcpConfigured) {
+        context.services.log(`  Kiro MCP: .kiro/settings/mcp.json`);
+      }
+    }
+
     return {
       skillsInstalled,
       agentsInstalled,
@@ -147,6 +184,9 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       n8nSkills,
       openCodeAgents,
       openCodeSkills,
+      kiroAgents,
+      kiroSkills,
+      kiroHooks,
     };
   }
 

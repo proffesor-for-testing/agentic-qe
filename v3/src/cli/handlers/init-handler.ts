@@ -54,6 +54,7 @@ export class InitHandler implements ICommandHandler {
       .option('--skip-patterns', 'Skip loading pre-trained patterns')
       .option('--with-n8n', 'Install n8n workflow testing agents and skills')
       .option('--with-opencode', 'Include OpenCode agent/skill provisioning')
+      .option('--with-kiro', 'Include AWS Kiro IDE integration (agents, skills, hooks, steering)')
       .option('--auto-migrate', 'Automatically migrate from v2 if detected')
       .option('--with-claude-flow', 'Force Claude Flow integration setup')
       .option('--skip-claude-flow', 'Skip Claude Flow integration')
@@ -108,6 +109,7 @@ export class InitHandler implements ICommandHandler {
       skipPatterns: options.skipPatterns,
       withN8n: options.withN8n,
       withOpenCode: options.withOpencode,
+      withKiro: options.withKiro,
       autoMigrate: options.autoMigrate,
       noGovernance: options.noGovernance,
     });
@@ -410,6 +412,7 @@ interface InitOptions {
   skipPatterns?: boolean;
   withN8n?: boolean;
   withOpencode?: boolean;
+  withKiro?: boolean;
   autoMigrate?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;

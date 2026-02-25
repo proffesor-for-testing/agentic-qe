@@ -54,6 +54,7 @@ export class ModularInitOrchestrator {
         autoMigrate: options.autoMigrate,
         withN8n: options.withN8n,
         withOpenCode: options.withOpenCode,
+        withKiro: options.withKiro,
         n8nApiConfig: options.n8nApiConfig,
         wizardAnswers: options.wizardAnswers,
         noGovernance: options.noGovernance,
