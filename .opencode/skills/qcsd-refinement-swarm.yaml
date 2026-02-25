@@ -1,0 +1,45 @@
+name: qcsd-refinement-swarm
+description: "QCSD Refinement phase swarm for Sprint Refinement sessions using SFDIPOT product factors, BDD scenario generation, and requirements validation."
+minModelTier: tier3-best
+tags: ["qcsd", "refinement", "sfdipot", "bdd", "gherkin", "requirements", "swarm", "parallel", "ddd", "qe", "quality-engineering", "qcsd-phases"]
+steps:
+  - name: overview
+    description: "The Refinement Swarm takes user stories that passed Ideation and prepares them for Sprint commitment. Where the Ideation Swarm asks \"Should we build this?\" using HTSM quality criteria, the Refinement Swarm asks \"How should we test this?\" using SFDIPOT product factors, BDD scenarios, and INVEST valid"
+    tools: ["bash", "read"]
+    prompt: |
+      The Refinement Swarm takes user stories that passed Ideation and prepares them for Sprint commitment. Where the Ideation Swarm asks "Should we build this?" using HTSM quality criteria, the Refinement Swarm asks "How should we test this?" using SFDIPOT product factors, BDD scenarios, and INVEST valid
+  - name: key-differentiators-from-ideation-swarm
+    description: "Key Differentiators from Ideation Swarm"
+    tools: ["bash", "read"]
+    prompt: |
+      Key Differentiators from Ideation Swarm
+  - name: enforcement-rules---read-first
+    description: "**These rules are NON-NEGOTIABLE. Violation means skill execution failure.**"
+    tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      **These rules are NON-NEGOTIABLE. Violation means skill execution failure.**
+  - name: phase-1-analyze-story-content-flag-detec
+    description: "**MANDATORY: You must complete this analysis before Phase 2.**"
+    tools: ["bash", "read"]
+    prompt: |
+      **MANDATORY: You must complete this analysis before Phase 2.**
+  - name: flag-detection-check-all-seven
+    description: "Flag Detection (Check ALL SEVEN)"
+    tools: ["bash", "read"]
+    prompt: |
+      Flag Detection (Check ALL SEVEN)
+  - name: validation-checkpoint
+    description: "Before proceeding to Phase 2, confirm:"
+    tools: ["bash", "read"]
+    prompt: |
+      Before proceeding to Phase 2, confirm:
+  - name: mandatory-output-flag-detection-results
+    description: "You MUST output flag detection results before proceeding:"
+    tools: ["bash", "read"]
+    prompt: |
+      You MUST output flag detection results before proceeding:
+  - name: phase-2-spawn-core-agents-parallel-batch
+    description: "PHASE 2: Spawn Core Agents (PARALLEL BATCH 1)"
+    tools: ["bash", "read"]
+    prompt: |
+      PHASE 2: Spawn Core Agents (PARALLEL BATCH 1)

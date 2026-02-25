@@ -1,57 +1,45 @@
 name: qe-contract-testing
-description: "Consumer-driven contract testing with Pact, breaking change detection, API versioning, and backward compatibility validation."
+description: "Consumer-driven contract testing for APIs including REST, GraphQL, and event-driven systems with schema validation."
 minModelTier: tier3-best
-tags: ["contract", "pact", "consumer-driven", "api", "microservices", "qe", "quality-engineering"]
+tags: ["qe", "quality-engineering"]
 steps:
-  - name: define-consumer-contracts
-    description: "Define consumer expectations as contract definitions."
-    tools: ["read", "grep", "glob", "edit"]
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read", "edit"]
     prompt: |
-      Define consumer contracts:
-      - Identify all consumers of the API
-      - For each consumer, define expected request/response pairs
-      - Use Pact-style matchers (like() for pattern matching, not exact values)
-      - Include provider states needed for test setup
-      Generate contract definition files.
-
-  - name: verify-provider
-    description: "Verify the provider fulfills all consumer contracts."
-    tools: ["bash", "mcp:agentic-qe:contract_validate"]
+      Agent Workflow
+  - name: contract-testing-types
+    description: "Contract Testing Types"
+    tools: ["bash", "read"]
     prompt: |
-      Verify provider against all consumer contracts:
-      - Set up provider state handlers for each test scenario
-      - Run verification against all consumer pact files
-      - Report pass/fail for each interaction
-      - Identify any contract violations
-
-  - name: detect-breaking-changes
-    description: "Compare contract versions to detect breaking changes."
-    tools: ["bash", "read", "mcp:agentic-qe:contract_validate"]
+      Contract Testing Types
+  - name: 1-consumer-driven-contracts-pact
+    description: "1. Consumer-Driven Contracts (Pact)"
+    tools: ["bash", "read"]
     prompt: |
-      Detect breaking changes:
-      - Compare current contract with previous version
-      - Flag breaking changes: removed fields, renamed fields, type changes
-      - Flag non-breaking changes: added optional fields, new endpoints, bug fixes
-      - Calculate recommended semver bump (major/minor/patch)
-      - Generate migration guide if breaking changes found
-
-  - name: ci-integration
-    description: "Configure CI/CD pipeline to block deploys that break contracts."
-    tools: ["read", "edit", "bash"]
+      1. Consumer-Driven Contracts (Pact)
+  - name: 2-schema-validation
+    description: "2. Schema Validation"
+    tools: ["bash", "read"]
     prompt: |
-      Set up CI/CD integration:
-      - Consumer tests publish pacts on push
-      - Provider verification runs against all consumer pacts
-      - "Can I deploy?" check before deployment
-      - Block deploys that break existing contracts
-      Generate pipeline configuration.
-
-  - name: store-results
-    description: "Store contract validation results and version compatibility matrix."
-    tools: ["mcp:agentic-qe:memory_store"]
+      2. Schema Validation
+  - name: 3-graphql-contract-testing
+    description: "3. GraphQL Contract Testing"
+    tools: ["bash", "read"]
     prompt: |
-      Store contract testing results:
-      - Current contracts with version numbers
-      - Breaking changes detected
-      - Version compatibility matrix
-      - Verification history
+      3. GraphQL Contract Testing
+  - name: 4-event-contract-testing
+    description: "4. Event Contract Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      4. Event Contract Testing
+  - name: breaking-change-detection
+    description: "Breaking Change Detection"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Breaking Change Detection
+  - name: contract-report
+    description: "Contract Report"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Contract Report

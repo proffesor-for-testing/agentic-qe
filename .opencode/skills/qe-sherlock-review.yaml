@@ -1,0 +1,45 @@
+name: qe-sherlock-review
+description: "Evidence-based investigative code review using deductive reasoning to determine what actually happened versus what was claimed. Use when verifying implementation claims, investigating bugs, validating fixes, or conducting root cause analysis. Elementary approach to finding truth through systematic o"
+minModelTier: tier2-good
+tags: ["investigation", "evidence-based", "code-review", "root-cause", "deduction", "qe", "quality-engineering", "quality-review"]
+steps:
+  - name: evidence-collection-checklist
+    description: "Evidence Collection Checklist"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Evidence Collection Checklist
+  - name: verdict-levels
+    description: "Verdict Levels"
+    tools: ["bash", "read"]
+    prompt: |
+      Verdict Levels
+  - name: investigation-template
+    description: "Investigation Template"
+    tools: ["bash", "read"]
+    prompt: |
+      Investigation Template
+  - name: sherlock-investigation-claim
+    description: "Sherlock Investigation: [Claim]"
+    tools: ["bash", "read"]
+    prompt: |
+      Sherlock Investigation: [Claim]
+  - name: the-claim
+    description: "\"[What PR/commit claims to do]\""
+    tools: ["bash", "read"]
+    prompt: |
+      "[What PR/commit claims to do]"
+  - name: evidence-examined
+    description: "- Code changes: [files, lines] - Tests added: [count, coverage] - Behavior observed: [what actually happens]"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - Code changes: [files, lines] - Tests added: [count, coverage] - Behavior observed: [what actually happens]
+  - name: deductive-analysis
+    description: "**Claim**: [specific assertion] **Evidence**: [what you found] **Deduction**: [logical conclusion] **Verdict**: ✓/⚠/✗"
+    tools: ["bash", "read"]
+    prompt: |
+      **Claim**: [specific assertion] **Evidence**: [what you found] **Deduction**: [logical conclusion] **Verdict**: ✓/⚠/✗
+  - name: findings
+    description: "- What works: [with evidence] - What doesn't: [with evidence] - What's missing: [gaps in implementation/testing]"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      - What works: [with evidence] - What doesn't: [with evidence] - What's missing: [gaps in implementation/testing]

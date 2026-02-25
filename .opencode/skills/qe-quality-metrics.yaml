@@ -1,0 +1,45 @@
+name: qe-quality-metrics
+description: "Measure quality effectively with actionable metrics. Use when establishing quality dashboards, defining KPIs, or evaluating test effectiveness."
+minModelTier: tier3-best
+tags: ["metrics", "dora", "quality-gates", "dashboards", "kpis", "measurement", "qe", "quality-engineering", "testing-methodologies"]
+steps:
+  - name: meaningful-vs-vanity-metrics
+    description: "Meaningful vs Vanity Metrics"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Meaningful vs Vanity Metrics
+  - name: dora-metrics
+    description: "DORA Metrics"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      DORA Metrics
+  - name: quality-gate-thresholds
+    description: "Quality Gate Thresholds"
+    tools: ["bash", "read"]
+    prompt: |
+      Quality Gate Thresholds
+  - name: core-metrics
+    description: "Core Metrics"
+    tools: ["bash", "read"]
+    prompt: |
+      Core Metrics
+  - name: bug-escape-rate
+    description: "Bug Escape Rate"
+    tools: ["bash", "read"]
+    prompt: |
+      Bug Escape Rate
+  - name: test-effectiveness
+    description: "Test Effectiveness"
+    tools: ["bash", "read"]
+    prompt: |
+      Test Effectiveness
+  - name: defect-density
+    description: "Defect Density"
+    tools: ["bash", "read"]
+    prompt: |
+      Defect Density
+  - name: mean-time-to-detect-mttd
+    description: "Mean Time to Detect (MTTD)"
+    tools: ["bash", "read"]
+    prompt: |
+      Mean Time to Detect (MTTD)

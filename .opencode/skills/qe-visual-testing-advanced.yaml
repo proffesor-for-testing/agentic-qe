@@ -1,0 +1,40 @@
+name: qe-visual-testing-advanced
+description: "Advanced visual regression testing with pixel-perfect comparison, AI-powered diff analysis, responsive design validation, and cross-browser visual consistency. Use when detecting UI regressions, validating designs, or ensuring visual consistency."
+minModelTier: tier3-best
+tags: ["visual", "regression", "screenshot", "pixel-diff", "percy", "playwright", "responsive", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: visual-bug-types
+    description: "Visual Bug Types"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Visual Bug Types
+  - name: comparison-algorithms
+    description: "Comparison Algorithms"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Comparison Algorithms
+  - name: visual-regression-with-playwright
+    description: "Visual Regression with Playwright"
+    tools: ["bash", "read"]
+    prompt: |
+      Visual Regression with Playwright
+  - name: handling-dynamic-content
+    description: "Handling Dynamic Content"
+    tools: ["bash", "read"]
+    prompt: |
+      Handling Dynamic Content
+  - name: ai-powered-visual-testing-percy
+    description: "AI-Powered Visual Testing (Percy)"
+    tools: ["bash", "read"]
+    prompt: |
+      AI-Powered Visual Testing (Percy)
+  - name: playwright-configuration
+    description: "Playwright Configuration"
+    tools: ["bash", "read"]
+    prompt: |
+      Playwright Configuration
+  - name: agent-driven-visual-testing
+    description: "Agent-Driven Visual Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Visual Testing

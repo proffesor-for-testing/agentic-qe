@@ -1,0 +1,45 @@
+name: qe-security-compliance
+description: "Security auditing, vulnerability scanning, and compliance validation for OWASP, SOC2, GDPR, and other standards."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent Workflow
+  - name: security-operations
+    description: "Security Operations"
+    tools: ["bash", "read"]
+    prompt: |
+      Security Operations
+  - name: 1-sast-scanning
+    description: "1. SAST Scanning"
+    tools: ["bash", "read"]
+    prompt: |
+      1. SAST Scanning
+  - name: 2-dependency-scanning
+    description: "2. Dependency Scanning"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      2. Dependency Scanning
+  - name: 3-compliance-audit
+    description: "3. Compliance Audit"
+    tools: ["bash", "read"]
+    prompt: |
+      3. Compliance Audit
+  - name: 4-secret-detection
+    description: "4. Secret Detection"
+    tools: ["bash", "read"]
+    prompt: |
+      4. Secret Detection
+  - name: owasp-top-10-coverage
+    description: "OWASP Top 10 Coverage"
+    tools: ["bash", "read"]
+    prompt: |
+      OWASP Top 10 Coverage
+  - name: security-report
+    description: "Security Report"
+    tools: ["bash", "read"]
+    prompt: |
+      Security Report

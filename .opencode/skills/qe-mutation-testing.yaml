@@ -1,58 +1,35 @@
 name: qe-mutation-testing
-description: "Test quality validation through code mutation, measuring kill rate to prove tests actually catch bugs."
+description: "Test quality validation through mutation testing, assessing test suite effectiveness by introducing code mutations and measuring kill rate. Use when evaluating test quality, identifying weak tests, or proving tests actually catch bugs."
 minModelTier: tier3-best
-tags: ["mutation", "test-quality", "stryker", "kill-rate", "qe", "quality-engineering"]
+tags: ["mutation", "stryker", "test-quality", "kill-rate", "assertions", "effectiveness", "qe", "quality-engineering", "specialized-testing"]
 steps:
-  - name: configure-mutation
-    description: "Set up Stryker mutation testing configuration for the target code."
-    tools: ["read", "edit", "bash"]
+  - name: mutation-score-interpretation
+    description: "Mutation Score Interpretation"
+    tools: ["bash", "read"]
     prompt: |
-      Configure mutation testing:
-      - Install @stryker-mutator/core and appropriate runner
-      - Configure mutate patterns (src/**/*.ts, exclude tests)
-      - Set thresholds: high=90, low=70, break=60
-      - Set coverage analysis to perTest for efficiency
-      - Target critical code paths first (payment, auth, data integrity)
-
-  - name: run-mutations
-    description: "Execute mutation testing and collect results."
-    tools: ["bash"]
+      Mutation Score Interpretation
+  - name: common-mutation-operators
+    description: "Common Mutation Operators"
+    tools: ["bash", "read"]
     prompt: |
-      Run mutation testing:
-      - Execute: npx stryker run
-      - Collect results: killed, survived, no coverage, timeout counts
-      - Calculate mutation score: killed / (killed + survived)
-      - Identify all surviving mutants with their locations and operators
-
-  - name: analyze-survivors
-    description: "Analyze surviving mutants to identify weak tests."
-    tools: ["read", "bash", "mcp:agentic-qe:coverage_analyze_sublinear"]
+      Common Mutation Operators
+  - name: how-mutation-testing-works
+    description: "How Mutation Testing Works"
+    tools: ["bash", "read", "edit"]
     prompt: |
-      Analyze surviving mutants:
-      - For each survivor, identify which mutation operator was used
-      - Determine why existing tests did not catch it
-      - Common reasons: missing boundary tests, weak assertions, untested branches
-      - Correlate with coverage data to find coverage-without-assertions gaps
-      - Prioritize by code criticality
-
-  - name: generate-killing-tests
-    description: "Generate tests to kill surviving mutants."
-    tools: ["edit", "bash", "mcp:agentic-qe:test_generate_enhanced"]
+      How Mutation Testing Works
+  - name: using-stryker
+    description: "Using Stryker"
+    tools: ["bash", "read"]
     prompt: |
-      Generate tests to kill surviving mutants:
-      - For boundary mutations (>= to >): add boundary value tests
-      - For logical mutations (&& to ||): add condition combination tests
-      - For statement removal: add tests that depend on the removed statement
-      - Run tests to verify mutants are now killed
-      - Target mutation score above 80%
-
-  - name: report
-    description: "Generate mutation testing quality report."
-    tools: ["bash", "mcp:agentic-qe:memory_store"]
+      Using Stryker
+  - name: fixing-surviving-mutants
+    description: "Fixing Surviving Mutants"
+    tools: ["bash", "read", "edit"]
     prompt: |
-      Generate mutation testing report:
-      - Overall mutation score (before and after improvements)
-      - Surviving mutants remaining (with justification if intentional)
-      - Tests generated to kill mutants
-      - Recommendations for ongoing mutation testing
-      Store results for trend tracking.
+      Fixing Surviving Mutants
+  - name: agent-driven-mutation-testing
+    description: "Agent-Driven Mutation Testing"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Agent-Driven Mutation Testing

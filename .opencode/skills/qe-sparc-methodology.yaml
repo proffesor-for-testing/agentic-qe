@@ -1,0 +1,45 @@
+name: qe-sparc-methodology
+description: "SPARC (Specification, Pseudocode, Architecture, Refinement, Completion) comprehensive development methodology with multi-agent orchestration"
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering", "development"]
+steps:
+  - name: overview
+    description: "SPARC (Specification, Pseudocode, Architecture, Refinement, Completion) is a systematic development methodology integrated with Claude Flow's multi-agent orchestration capabilities. It provides 17 specialized modes for comprehensive software development, from initial research through deployment and "
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      SPARC (Specification, Pseudocode, Architecture, Refinement, Completion) is a systematic development methodology integrated with Claude Flow's multi-agent orchestration capabilities. It provides 17 specialized modes for comprehensive software development, from initial research through deployment and 
+  - name: table-of-contents
+    description: "1. [Core Philosophy](#core-philosophy) 2. [Development Phases](#development-phases) 3. [Available Modes](#available-modes) 4. [Activation Methods](#activation-methods) 5. [Orchestration Patterns](#orchestration-patterns) 6. [TDD Workflows](#tdd-workflows) 7. [Best Practices](#best-practices) 8. [Int"
+    tools: ["bash", "read"]
+    prompt: |
+      1. [Core Philosophy](#core-philosophy) 2. [Development Phases](#development-phases) 3. [Available Modes](#available-modes) 4. [Activation Methods](#activation-methods) 5. [Orchestration Patterns](#orchestration-patterns) 6. [TDD Workflows](#tdd-workflows) 7. [Best Practices](#best-practices) 8. [Int
+  - name: core-philosophy
+    description: "SPARC methodology emphasizes:"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      SPARC methodology emphasizes:
+  - name: key-principles
+    description: "1. **Specification Before Code**: Define requirements and constraints clearly 2. **Design Before Implementation**: Plan architecture and components 3. **Tests Before Features**: Write failing tests, then make them pass 4. **Review Everything**: Code quality, security, and performance checks 5. **Doc"
+    tools: ["bash", "read"]
+    prompt: |
+      1. **Specification Before Code**: Define requirements and constraints clearly 2. **Design Before Implementation**: Plan architecture and components 3. **Tests Before Features**: Write failing tests, then make them pass 4. **Review Everything**: Code quality, security, and performance checks 5. **Doc
+  - name: development-phases
+    description: "Development Phases"
+    tools: ["bash", "read"]
+    prompt: |
+      Development Phases
+  - name: specification
+    description: "**Goal**: Define requirements, constraints, and success criteria"
+    tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      **Goal**: Define requirements, constraints, and success criteria
+  - name: architecture
+    description: "**Goal**: Design system structure and component interfaces"
+    tools: ["bash", "read"]
+    prompt: |
+      **Goal**: Design system structure and component interfaces
+  - name: refinement-tdd-implementation
+    description: "**Goal**: Implement features with test-first approach"
+    tools: ["bash", "read"]
+    prompt: |
+      **Goal**: Implement features with test-first approach

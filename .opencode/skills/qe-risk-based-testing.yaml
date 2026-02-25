@@ -1,64 +1,45 @@
 name: qe-risk-based-testing
-description: "Focus testing effort on highest-risk areas using probability x impact risk assessment and dynamic prioritization."
+description: "Focus testing effort on highest-risk areas using risk assessment and prioritization. Use when planning test strategy, allocating testing resources, or making coverage decisions."
 minModelTier: tier3-best
-tags: ["risk", "prioritization", "test-planning", "coverage", "qe", "quality-engineering"]
+tags: ["risk", "prioritization", "test-planning", "coverage", "impact-analysis", "qe", "quality-engineering", "testing-methodologies"]
 steps:
-  - name: identify-risks
-    description: "List features/components and assess probability and impact factors."
-    tools: ["read", "grep", "glob", "mcp:agentic-qe:defect_predict"]
-    prompt: |
-      Identify and score risks for each feature/component:
-      Probability factors (1-5 each):
-      - Complexity: simple CRUD (1) to algorithms/integrations (5)
-      - Change rate: stable 6+ months (1) to daily changes (5)
-      - Developer experience: senior expert (1) to junior/new (5)
-      - Technical debt: clean code (1) to legacy/no tests (5)
-      Impact factors (1-5 each):
-      - Users affected: admin only (1) to all users (5)
-      - Revenue: none (1) to direct revenue (5)
-      - Safety: convenience (1) to physical harm (5)
-      - Reputation: internal (1) to public scandal (5)
-      Risk = Probability x Impact
-
-  - name: prioritize
-    description: "Prioritize testing effort: 60% critical, 25% high, 10% medium, 5% low."
+  - name: risk-calculation
+    description: "Risk Calculation"
     tools: ["bash", "read"]
     prompt: |
-      Categorize by risk score:
-      - Critical (20-25): 60% of testing effort, comprehensive multi-technique testing
-      - High (12-19): 25% of effort, thorough testing with automation priority
-      - Medium (6-11): 10% of effort, standard testing with basic automation
-      - Low (1-5): 5% of effort, smoke tests and exploratory only
-      Create a risk-prioritized test plan.
-
-  - name: generate-risk-tests
-    description: "Generate tests appropriate to each risk level."
-    tools: ["bash", "mcp:agentic-qe:test_generate_enhanced"]
+      Risk Calculation
+  - name: probability-factors
+    description: "Probability Factors"
+    tools: ["bash", "read", "edit"]
     prompt: |
-      Generate tests matched to risk level:
-      - Critical: unit + integration + e2e + performance + security tests
-      - High: unit + integration + e2e tests
-      - Medium: unit + integration tests
-      - Low: smoke tests only
-
-  - name: dynamic-reassessment
-    description: "Reassess risk scores based on new information and production incidents."
-    tools: ["bash", "mcp:agentic-qe:defect_predict", "mcp:agentic-qe:memory_query"]
+      Probability Factors
+  - name: impact-factors
+    description: "Impact Factors"
+    tools: ["bash", "read"]
     prompt: |
-      Reassess risk dynamically:
-      - Check for recent production incidents (increases probability)
-      - Check for recent bug fixes in an area (increases probability)
-      - Check for stable code with no recent issues (decreases probability)
-      - Update risk scores and reprioritize testing effort
-      Query memory for historical risk data.
-
-  - name: report
-    description: "Generate risk-based testing report with coverage by risk level."
-    tools: ["bash", "mcp:agentic-qe:memory_store"]
+      Impact Factors
+  - name: risk-assessment-workflow
+    description: "Risk Assessment Workflow"
+    tools: ["bash", "read"]
     prompt: |
-      Generate risk assessment report:
-      - Risk matrix with all features scored
-      - Test allocation by risk level
-      - Coverage achieved per risk category
-      - Recommendations for risk mitigation
-      Store risk scores in memory for tracking over time.
+      Risk Assessment Workflow
+  - name: list-featurescomponents
+    description: "List Features/Components"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      List Features/Components
+  - name: apply-test-depth
+    description: "Apply Test Depth"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Apply Test Depth
+  - name: reassess-dynamically
+    description: "Reassess Dynamically"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Reassess Dynamically
+  - name: ml-enhanced-risk-analysis
+    description: "ML-Enhanced Risk Analysis"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      ML-Enhanced Risk Analysis

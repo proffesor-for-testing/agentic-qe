@@ -1,0 +1,45 @@
+name: qe-github-code-review
+description: "Comprehensive GitHub code review with AI-powered swarm coordination"
+minModelTier: tier2-good
+tags: ["code-review", "github", "swarm", "pr-management", "automation", "qe", "quality-engineering"]
+steps:
+  - name: simple-review
+    description: "Simple Review"
+    tools: ["bash", "read"]
+    prompt: |
+      Simple Review
+  - name: complete-review-workflow
+    description: "Complete Review Workflow"
+    tools: ["bash", "read"]
+    prompt: |
+      Complete Review Workflow
+  - name: -table-of-contents
+    description: "📚 Table of Contents"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      📚 Table of Contents
+  - name: -core-features
+    description: "🚀 Core Features"
+    tools: ["bash", "read"]
+    prompt: |
+      🚀 Core Features
+  - name: multi-agent-review-system
+    description: "Deploy specialized AI agents for comprehensive code review:"
+    tools: ["bash", "read"]
+    prompt: |
+      Deploy specialized AI agents for comprehensive code review:
+  - name: -specialized-review-agents
+    description: "🤖 Specialized Review Agents"
+    tools: ["bash", "read"]
+    prompt: |
+      🤖 Specialized Review Agents
+  - name: security-review-agent
+    description: "**Focus:** Identify security vulnerabilities and suggest fixes"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      **Focus:** Identify security vulnerabilities and suggest fixes
+  - name: performance-review-agent
+    description: "**Focus:** Analyze performance impact and optimization opportunities"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      **Focus:** Analyze performance impact and optimization opportunities

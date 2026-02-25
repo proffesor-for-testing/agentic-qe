@@ -1,0 +1,45 @@
+name: qe-shift-right-testing
+description: "Testing in production with feature flags, canary deployments, synthetic monitoring, and chaos engineering. Use when implementing production observability or progressive delivery."
+minModelTier: tier3-best
+tags: ["shift-right", "production-testing", "canary", "feature-flags", "chaos-engineering", "monitoring", "qe", "quality-engineering", "testing-methodologies"]
+steps:
+  - name: shift-right-techniques
+    description: "Shift-Right Techniques"
+    tools: ["bash", "read"]
+    prompt: |
+      Shift-Right Techniques
+  - name: progressive-rollout-pattern
+    description: "Progressive Rollout Pattern"
+    tools: ["bash", "read"]
+    prompt: |
+      Progressive Rollout Pattern
+  - name: key-metrics-to-monitor
+    description: "Key Metrics to Monitor"
+    tools: ["bash", "read"]
+    prompt: |
+      Key Metrics to Monitor
+  - name: feature-flags
+    description: "Feature Flags"
+    tools: ["bash", "read"]
+    prompt: |
+      Feature Flags
+  - name: canary-deployment
+    description: "Canary Deployment"
+    tools: ["bash", "read"]
+    prompt: |
+      Canary Deployment
+  - name: synthetic-monitoring
+    description: "Synthetic Monitoring"
+    tools: ["bash", "read"]
+    prompt: |
+      Synthetic Monitoring
+  - name: chaos-engineering
+    description: "Chaos Engineering"
+    tools: ["bash", "read"]
+    prompt: |
+      Chaos Engineering
+  - name: production-pre-production-feedback-loop
+    description: "Production → Pre-Production Feedback Loop"
+    tools: ["bash", "read"]
+    prompt: |
+      Production → Pre-Production Feedback Loop

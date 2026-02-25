@@ -1,0 +1,45 @@
+name: qe-cicd-pipeline-qe-orchestrator
+description: "Orchestrate quality engineering across CI/CD pipeline phases. Use when designing test strategies, planning quality gates, or implementing shift-left/shift-right testing."
+minModelTier: tier3-best
+tags: ["cicd", "pipeline", "orchestration", "quality-gates", "shift-left", "shift-right", "fleet", "qe", "quality-engineering", "infrastructure"]
+steps:
+  - name: phase-agent-matrix
+    description: "Phase-Agent Matrix"
+    tools: ["bash", "read"]
+    prompt: |
+      Phase-Agent Matrix
+  - name: quality-gate-thresholds
+    description: "Quality Gate Thresholds"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Quality Gate Thresholds
+  - name: fleet-configuration
+    description: "- **Topology**: hierarchical - **Max Agents**: 10 per phase - **Coordination**: aqe/* memory namespace"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      - **Topology**: hierarchical - **Max Agents**: 10 per phase - **Coordination**: aqe/* memory namespace
+  - name: pipeline-phases
+    description: "Pipeline Phases"
+    tools: ["bash", "read"]
+    prompt: |
+      Pipeline Phases
+  - name: commit-shift-left
+    description: "**Goal:** Catch defects early, ensure testability"
+    tools: ["bash", "read"]
+    prompt: |
+      **Goal:** Catch defects early, ensure testability
+  - name: build
+    description: "**Goal:** Validate integration, ensure coverage"
+    tools: ["bash", "read"]
+    prompt: |
+      **Goal:** Validate integration, ensure coverage
+  - name: integrationtest
+    description: "**Goal:** Validate contracts, performance, security"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      **Goal:** Validate contracts, performance, security
+  - name: staging
+    description: "**Goal:** Validate production-like environment, resilience"
+    tools: ["bash", "read"]
+    prompt: |
+      **Goal:** Validate production-like environment, resilience

@@ -1,0 +1,45 @@
+name: qe-n8n-expression-testing
+description: "n8n expression syntax validation, context-aware testing, common pitfalls detection, and performance optimization. Use when validating n8n expressions and data transformations."
+minModelTier: tier3-best
+tags: ["n8n", "expressions", "javascript", "data-transformation", "validation", "qe", "quality-engineering", "n8n-testing"]
+steps:
+  - name: n8n-expression-syntax
+    description: "n8n Expression Syntax"
+    tools: ["bash", "read"]
+    prompt: |
+      n8n Expression Syntax
+  - name: context-variables
+    description: "Context Variables"
+    tools: ["bash", "read"]
+    prompt: |
+      Context Variables
+  - name: expression-syntax-patterns
+    description: "Expression Syntax Patterns"
+    tools: ["bash", "read"]
+    prompt: |
+      Expression Syntax Patterns
+  - name: safe-data-access
+    description: "Safe Data Access"
+    tools: ["bash", "read"]
+    prompt: |
+      Safe Data Access
+  - name: type-conversions
+    description: "Type Conversions"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Type Conversions
+  - name: string-operations
+    description: "String Operations"
+    tools: ["bash", "read"]
+    prompt: |
+      String Operations
+  - name: array-operations
+    description: "Array Operations"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Array Operations
+  - name: validation-patterns
+    description: "Validation Patterns"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      Validation Patterns

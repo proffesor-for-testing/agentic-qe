@@ -1,54 +1,45 @@
 name: qe-tdd-london-chicago
-description: "Apply London (mock-based) and Chicago (state-based) TDD schools with disciplined Red-Green-Refactor cycles."
+description: "Apply London (mock-based) and Chicago (state-based) TDD schools. Use when practicing test-driven development or choosing testing style for your context."
 minModelTier: tier2-good
-tags: ["tdd", "testing", "london-school", "chicago-school", "qe", "quality-engineering"]
+tags: ["tdd", "testing", "london-school", "chicago-school", "red-green-refactor", "mocks", "qe", "quality-engineering", "development-practices"]
 steps:
-  - name: identify-style
-    description: "Determine which TDD school fits the code: Chicago for domain logic, London for external dependencies."
-    tools: ["read", "grep", "glob"]
+  - name: tdd-cycle
+    description: "TDD Cycle"
+    tools: ["bash", "read"]
     prompt: |
-      Analyze the target code to determine the appropriate TDD school:
-      - Pure functions/calculations/value objects -> Chicago (state verification, real objects)
-      - Controllers/services with external dependencies -> London (mocks, interaction verification)
-      - Mixed: London for controllers, Chicago for domain logic
-      Report the chosen style and reasoning.
-
-  - name: red-phase
-    description: "Write a failing test first. Verify it fails with a clear message."
-    tools: ["edit", "bash", "mcp:agentic-qe:test_generate_enhanced"]
+      TDD Cycle
+  - name: school-comparison
+    description: "School Comparison"
+    tools: ["bash", "read"]
     prompt: |
-      Write a failing test for the target functionality.
-      Run the test and verify it FAILS.
-      Check that the failure message is clear and describes expected behavior.
-      If using Chicago: test observable state through public API.
-      If using London: test how objects collaborate using mocks.
-
-  - name: green-phase
-    description: "Implement minimal code to make the test pass. No extra features."
-    tools: ["edit", "bash"]
+      School Comparison
+  - name: chicago-school-state-based
+    description: "**Philosophy:** Test observable behavior through public API. Keep tests close to consumer usage."
+    tools: ["bash", "read"]
     prompt: |
-      Write the minimal code needed to make the failing test pass.
-      Rules:
-      - No extra features beyond what is tested
-      - Do not refactor yet
-      - Run the test and verify it PASSES
-
-  - name: refactor-phase
-    description: "Improve code structure while keeping all tests passing."
-    tools: ["edit", "bash", "mcp:agentic-qe:quality_assess"]
+      **Philosophy:** Test observable behavior through public API. Keep tests close to consumer usage.
+  - name: london-school-mock-based
+    description: "**Philosophy:** Test each unit in isolation. Focus on how objects collaborate."
+    tools: ["bash", "read"]
     prompt: |
-      Improve the code structure while keeping all tests green:
-      - Extract methods/classes if needed
-      - Remove duplication
-      - Improve naming
-      - Run all tests after each change to ensure they still pass
-      - No new functionality in this phase
-
-  - name: repeat
-    description: "Repeat the cycle for the next piece of functionality."
-    tools: ["read", "mcp:agentic-qe:coverage_analyze_sublinear"]
+      **Philosophy:** Test each unit in isolation. Focus on how objects collaborate.
+  - name: mixed-approach-recommended
+    description: "Mixed Approach (Recommended)"
+    tools: ["bash", "read"]
     prompt: |
-      Analyze remaining functionality to test.
-      Check coverage to identify untested paths.
-      If more functionality needs tests, go back to the red phase.
-      Store TDD session patterns in memory for future learning.
+      Mixed Approach (Recommended)
+  - name: -over-mocking-london
+    description: "❌ Over-Mocking (London)"
+    tools: ["bash", "read"]
+    prompt: |
+      ❌ Over-Mocking (London)
+  - name: -mocking-internals
+    description: "❌ Mocking Internals"
+    tools: ["bash", "read"]
+    prompt: |
+      ❌ Mocking Internals
+  - name: -test-pain-design-pain
+    description: "- Need many mocks? → Too many dependencies - Hard to set up? → Constructor does too much - Can't test without database? → Coupling issue"
+    tools: ["bash", "read"]
+    prompt: |
+      - Need many mocks? → Too many dependencies - Hard to set up? → Constructor does too much - Can't test without database? → Coupling issue

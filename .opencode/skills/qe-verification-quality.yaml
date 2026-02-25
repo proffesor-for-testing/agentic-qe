@@ -1,0 +1,45 @@
+name: qe-verification-quality
+description: "Comprehensive truth scoring, code quality verification, and automatic rollback system with 0.95 accuracy threshold for ensuring high-quality agent outputs and codebase reliability."
+minModelTier: tier2-good
+tags: ["verification", "truth-scoring", "quality", "rollback", "metrics", "ci-cd", "qe", "quality-engineering", "quality-assurance"]
+steps:
+  - name: what-this-skill-does
+    description: "This skill provides a comprehensive verification and quality assurance system that ensures code quality and correctness through:"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      This skill provides a comprehensive verification and quality assurance system that ensures code quality and correctness through:
+  - name: complete-guide
+    description: "Complete Guide"
+    tools: ["bash", "read"]
+    prompt: |
+      Complete Guide
+  - name: truth-scoring-system
+    description: "Truth Scoring System"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Truth Scoring System
+  - name: verification-checks
+    description: "Verification Checks"
+    tools: ["bash", "read", "edit", "mcp:agentic-qe:*"]
+    prompt: |
+      Verification Checks
+  - name: automatic-rollback
+    description: "Automatic Rollback"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Automatic Rollback
+  - name: verification-reports
+    description: "Verification Reports"
+    tools: ["bash", "read"]
+    prompt: |
+      Verification Reports
+  - name: interactive-dashboard
+    description: "Interactive Dashboard"
+    tools: ["bash", "read"]
+    prompt: |
+      Interactive Dashboard
+  - name: configuration
+    description: "Configuration"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Configuration

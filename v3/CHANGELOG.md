@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **OpenCode integration** — Full multi-workstream integration making AQE accessible from OpenCode-compatible agent clients: SSE/WebSocket/HTTP transport routing, output compaction middleware, 10 agent configs, 20 QE skills, 5 tool wrappers, Zod config schema, graceful degradation, and provider capability matrix
-- **`aqe init --with-opencode` flag** — Provisions OpenCode assets (10 agents, 20 skills, 5 tools, permissions.yaml, opencode.json) into user projects during initialization; follows the N8n installer pattern with auto-detection in `--auto` mode when `opencode.json` exists
+- **OpenCode integration** — Full multi-workstream integration making AQE accessible from OpenCode-compatible agent clients: SSE/WebSocket/HTTP transport routing, output compaction middleware, 59 agent configs, 86 QE skills, 5 tool wrappers, Zod config schema, graceful degradation, and provider capability matrix
+- **`aqe init --with-opencode` flag** — Provisions OpenCode assets (59 agents, 86 skills, 5 tools, permissions.yaml, opencode.json) into user projects during initialization; follows the N8n installer pattern with auto-detection in `--auto` mode when `opencode.json` exists
 - **RVF production wiring** — RVF dual-writer now activated in all production code paths (learning engine, hooks, dream tool, learning helpers); all QEReasoningBank instances receive the shared RvfDualWriter singleton for best-effort native vector replication alongside SQLite
 - **Shared RVF dual-writer singleton** — Lazy-initialized factory with graceful degradation when native binding is unavailable; `AQE_RVF_MODE=sqlite-only` env var override for operator control
 - **17 RVF integration tests** — 10 mock-based tests for graceful degradation and singleton lifecycle, plus 7 native-path tests exercising real RVF containers with QEReasoningBank integration

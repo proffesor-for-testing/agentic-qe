@@ -1,0 +1,45 @@
+name: qe-six-thinking-hats
+description: "Apply Edward de Bono's Six Thinking Hats methodology to software testing for comprehensive quality analysis. Use when designing test strategies, conducting test retrospectives, analyzing test failures, evaluating testing approaches, or facilitating testing discussions. Each hat provides a distinct t"
+minModelTier: tier1-fast
+tags: ["thinking", "methodology", "decision-making", "collaboration", "analysis", "qe", "quality-engineering"]
+steps:
+  - name: the-six-hats
+    description: "The Six Hats"
+    tools: ["bash", "read"]
+    prompt: |
+      The Six Hats
+  - name: hat-details
+    description: "Hat Details"
+    tools: ["bash", "read"]
+    prompt: |
+      Hat Details
+  - name: -white-hat---facts-data
+    description: "**Output: Quantitative testing baseline**"
+    tools: ["bash", "read"]
+    prompt: |
+      **Output: Quantitative testing baseline**
+  - name: -black-hat---risks-cautions
+    description: "**Output: Comprehensive risk assessment**"
+    tools: ["bash", "read"]
+    prompt: |
+      **Output: Comprehensive risk assessment**
+  - name: -yellow-hat---benefits-optimism
+    description: "**Output: Strengths and opportunities**"
+    tools: ["bash", "read"]
+    prompt: |
+      **Output: Strengths and opportunities**
+  - name: -green-hat---creativity
+    description: "**Output: Innovative testing ideas**"
+    tools: ["bash", "read"]
+    prompt: |
+      **Output: Innovative testing ideas**
+  - name: -red-hat---emotions
+    description: "**Output: Team gut feelings (NO justification needed)**"
+    tools: ["bash", "read"]
+    prompt: |
+      **Output: Team gut feelings (NO justification needed)**
+  - name: -blue-hat---process
+    description: "**Output: Action plan with owners and timelines**"
+    tools: ["bash", "read"]
+    prompt: |
+      **Output: Action plan with owners and timelines**

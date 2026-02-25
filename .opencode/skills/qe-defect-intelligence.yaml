@@ -1,0 +1,45 @@
+name: qe-defect-intelligence
+description: "AI-powered defect prediction, pattern learning, and root cause analysis for proactive quality management."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Agent Workflow
+  - name: prediction-models
+    description: "Prediction Models"
+    tools: ["bash", "read"]
+    prompt: |
+      Prediction Models
+  - name: 1-change-based-prediction
+    description: "1. Change-Based Prediction"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      1. Change-Based Prediction
+  - name: 2-pattern-learning
+    description: "2. Pattern Learning"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      2. Pattern Learning
+  - name: 3-root-cause-analysis
+    description: "3. Root Cause Analysis"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      3. Root Cause Analysis
+  - name: defect-prediction-report
+    description: "Defect Prediction Report"
+    tools: ["bash", "read"]
+    prompt: |
+      Defect Prediction Report
+  - name: pattern-categories
+    description: "Pattern Categories"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      Pattern Categories
+  - name: root-cause-templates
+    description: "Root Cause Templates"
+    tools: ["bash", "read"]
+    prompt: |
+      Root Cause Templates

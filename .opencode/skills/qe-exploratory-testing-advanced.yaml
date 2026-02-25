@@ -1,71 +1,45 @@
 name: qe-exploratory-testing-advanced
-description: "Advanced exploratory testing with SBTM sessions, SFDIPOT/FEW HICCUPPS heuristics, and structured test tours."
-minModelTier: tier2-good
-tags: ["exploratory", "sbtm", "heuristics", "test-tours", "qe", "quality-engineering"]
+description: "Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours. Use when planning exploration sessions, investigating bugs, or discovering unknown quality risks."
+minModelTier: tier1-fast
+tags: ["exploratory", "sbtm", "rst", "heuristics", "test-tours", "session-based", "qe", "quality-engineering", "testing-methodologies"]
 steps:
-  - name: create-charter
-    description: "Create a focused exploration charter with mission, scope, and time-box."
-    tools: ["read", "bash"]
+  - name: session-structure-sbtm
+    description: "Session Structure (SBTM)"
+    tools: ["bash", "read", "grep"]
     prompt: |
-      Create exploration charter:
-      - Mission: What are we exploring and why?
-      - Scope: What areas are in/out of scope?
-      - Time-box: 45-90 minutes
-      - Heuristic focus: Which SFDIPOT areas to emphasize?
-      - Tour type: Business District, Historical, Bad Neighborhood, Money, etc.
-      Format: "Explore [area] to discover [what] focusing on [heuristic]"
-
-  - name: apply-sfdipot
-    description: "Systematically explore using SFDIPOT: Structure, Function, Data, Interfaces, Platform, Operations, Time."
-    tools: ["read", "bash", "grep", "glob"]
+      Session Structure (SBTM)
+  - name: sfdipot-heuristic-what-to-test
+    description: "SFDIPOT Heuristic (What to Test)"
+    tools: ["bash", "read"]
     prompt: |
-      Apply SFDIPOT heuristic to guide exploration:
-      - Structure: Is the code/UI properly composed?
-      - Function: Does it do what it should?
-      - Data: Does it handle data correctly (CRUD, validation, persistence)?
-      - Interfaces: Does it interact well with APIs, UI, integrations?
-      - Platform: Does it work across browsers, OS, devices?
-      - Operations: Can it be installed, configured, monitored?
-      - Time: Does it handle concurrency, timeouts, scheduling?
-      Document observations in real-time.
-
-  - name: apply-oracles
-    description: "Use FEW HICCUPPS oracles to recognize problems."
-    tools: ["read", "bash"]
+      SFDIPOT Heuristic (What to Test)
+  - name: few-hiccupps-oracle-recognize-problems
+    description: "FEW HICCUPPS Oracle (Recognize Problems)"
+    tools: ["bash", "read"]
     prompt: |
-      Apply FEW HICCUPPS consistency oracles:
-      - Familiar: Does this look like a known bug pattern?
-      - Explainable: Can the behavior be explained rationally?
-      - World: Does it match real-world expectations?
-      - History: Is it consistent with prior versions?
-      - Image: Does it match brand/product image?
-      - Comparable: Is it similar to competing products?
-      - Claims: Does it match specs/docs/marketing?
-      - Users: Does it meet user expectations?
-      - Purpose: Does it fulfill its intended purpose?
-      - Standards: Does it follow industry standards?
-
-  - name: execute-tour
-    description: "Execute a structured test tour through the application."
-    tools: ["bash", "read", "mcp:agentic-qe:test_generate_enhanced"]
+      FEW HICCUPPS Oracle (Recognize Problems)
+  - name: test-tours-12-types
+    description: "Test Tours (12 Types)"
+    tools: ["bash", "read"]
     prompt: |
-      Execute the selected test tour:
-      - Business District: walk through critical business flows
-      - Historical: visit areas where bugs clustered before
-      - Bad Neighborhood: probe known problem areas
-      - Money: test revenue-impacting features
-      - FedEx: follow data through the entire system
-      - Rained-Out: test what happens when things fail
-      Generate edge case variations while exploring.
-
-  - name: debrief
-    description: "Summarize findings, prioritize issues, and share via memory."
-    tools: ["bash", "mcp:agentic-qe:memory_store"]
+      Test Tours (12 Types)
+  - name: session-note-template
+    description: "Session Note Template"
+    tools: ["bash", "read"]
     prompt: |
-      Debrief the exploration session:
-      - Bugs found (with severity: critical, major, minor)
-      - Questions raised (unclear behaviors)
-      - Ideas generated (test cases, improvements)
-      - Coverage: areas explored, heuristics used, time allocation
-      - Next steps: areas needing deeper exploration
-      Store session notes and findings in memory.
+      Session Note Template
+  - name: session-notes
+    description: "- [timestamp] Observation/finding - [timestamp] Bug: [description] - [severity] - [timestamp] Question: [unclear behavior]"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      - [timestamp] Observation/finding - [timestamp] Bug: [description] - [severity] - [timestamp] Question: [unclear behavior]
+  - name: findings-summary
+    description: "- Bugs: X (Critical: Y, Major: Z) - Questions: X - Ideas: X"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      - Bugs: X (Critical: Y, Major: Z) - Questions: X - Ideas: X
+  - name: coverage
+    description: "- Areas explored: [list] - Heuristics used: [SFDIPOT areas] - % Time on: Bug investigation 30%, Exploration 50%, Setup 20%"
+    tools: ["bash", "read"]
+    prompt: |
+      - Areas explored: [list] - Heuristics used: [SFDIPOT areas] - % Time on: Bug investigation 30%, Exploration 50%, Setup 20%

@@ -1,0 +1,45 @@
+name: qe-learning-optimization
+description: "Transfer learning, metrics optimization, and continuous improvement for AI-powered QE agents."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Agent Workflow
+  - name: learning-operations
+    description: "Learning Operations"
+    tools: ["bash", "read"]
+    prompt: |
+      Learning Operations
+  - name: 1-transfer-learning
+    description: "1. Transfer Learning"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Transfer Learning
+  - name: 2-hyperparameter-tuning
+    description: "2. Hyperparameter Tuning"
+    tools: ["bash", "read"]
+    prompt: |
+      2. Hyperparameter Tuning
+  - name: 3-ab-testing
+    description: "3. A/B Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      3. A/B Testing
+  - name: 4-feedback-loop
+    description: "4. Feedback Loop"
+    tools: ["bash", "read"]
+    prompt: |
+      4. Feedback Loop
+  - name: learning-metrics-dashboard
+    description: "Learning Metrics Dashboard"
+    tools: ["bash", "read"]
+    prompt: |
+      Learning Metrics Dashboard
+  - name: cross-framework-transfer
+    description: "Cross-Framework Transfer"
+    tools: ["bash", "read"]
+    prompt: |
+      Cross-Framework Transfer

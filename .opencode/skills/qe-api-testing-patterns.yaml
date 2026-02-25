@@ -1,58 +1,45 @@
 name: qe-api-testing-patterns
-description: "Comprehensive API testing with contract validation, REST/GraphQL testing, auth testing, and breaking change detection."
+description: "Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing. Use when testing APIs or designing API test strategies."
 minModelTier: tier3-best
-tags: ["api", "rest", "graphql", "contract-testing", "qe", "quality-engineering"]
+tags: ["api", "rest", "graphql", "contract-testing", "pact", "integration", "microservices", "qe", "quality-engineering", "testing-methodologies"]
 steps:
-  - name: identify-api-scope
-    description: "Identify API endpoints, their contracts, and testing level needed."
-    tools: ["read", "grep", "glob"]
+  - name: testing-levels
+    description: "Testing Levels"
+    tools: ["bash", "read"]
     prompt: |
-      Identify API endpoints to test:
-      - Scan for route definitions, OpenAPI specs, or controller files
-      - Classify each endpoint: contract, component, or integration testing level
-      - Identify consumer dependencies for contract testing
-      - Map critical scenarios: auth, validation, errors, idempotency, concurrency
-
+      Testing Levels
+  - name: critical-test-scenarios
+    description: "Critical Test Scenarios"
+    tools: ["bash", "read"]
+    prompt: |
+      Critical Test Scenarios
   - name: contract-testing
-    description: "Define and validate consumer-driven contracts."
-    tools: ["bash", "read", "mcp:agentic-qe:contract_validate"]
+    description: "**Pattern: Consumer-Driven Contracts**"
+    tools: ["bash", "read"]
     prompt: |
-      Validate API contracts:
-      - Define consumer expectations (request/response pairs)
-      - Verify provider fulfills all consumer contracts
-      - Detect breaking changes (removed fields, type changes, renamed fields)
-      - Determine semver impact (breaking = major, new optional field = minor)
-
-  - name: auth-and-validation
-    description: "Test authentication, authorization, and input validation on all endpoints."
-    tools: ["bash", "read", "mcp:agentic-qe:test_generate_enhanced"]
+      **Pattern: Consumer-Driven Contracts**
+  - name: critical-test-patterns
+    description: "Critical Test Patterns"
+    tools: ["bash", "read"]
     prompt: |
-      Generate and run auth/validation tests:
-      - 401 for missing/expired tokens
-      - 403 for cross-user and escalation attempts
-      - 400 for missing required fields, wrong types, out-of-range values
-      - Idempotency key handling for duplicate prevention
-      - Rate limiting for brute force prevention
-
-  - name: crud-and-integration
-    description: "Test CRUD operations and integration scenarios."
-    tools: ["bash", "mcp:agentic-qe:test_execute_parallel"]
+      Critical Test Patterns
+  - name: authentication-authorization
+    description: "Authentication & Authorization"
+    tools: ["bash", "read"]
     prompt: |
-      Test CRUD lifecycle and integrations:
-      - CREATE: correct status (201), returns resource
-      - READ: correct data, 404 for missing
-      - UPDATE: partial/full updates work
-      - DELETE: removes resource, subsequent GET returns 404
-      - Concurrency: parallel requests handle race conditions correctly
-
-  - name: report-findings
-    description: "Compile API test results and contract validation report."
-    tools: ["bash", "mcp:agentic-qe:memory_store"]
+      Authentication & Authorization
+  - name: input-validation
+    description: "Input Validation"
+    tools: ["bash", "read"]
     prompt: |
-      Compile API testing report:
-      - Contract compliance status
-      - Breaking changes detected (if any)
-      - Auth/validation test results
-      - CRUD and integration test results
-      - Recommendations for CI/CD pipeline integration
-      Store API contract definitions in memory.
+      Input Validation
+  - name: idempotency
+    description: "Idempotency"
+    tools: ["bash", "read"]
+    prompt: |
+      Idempotency
+  - name: concurrency
+    description: "Concurrency"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Concurrency

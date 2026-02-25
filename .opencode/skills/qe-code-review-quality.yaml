@@ -1,57 +1,45 @@
 name: qe-code-review-quality
-description: "Context-driven code reviews with prioritized feedback on quality, testability, security, and maintainability."
+description: "Conduct context-driven code reviews focusing on quality, testability, and maintainability. Use when reviewing code, providing feedback, or establishing review practices."
 minModelTier: tier2-good
-tags: ["code-review", "quality", "testability", "maintainability", "qe", "quality-engineering"]
+tags: ["code-review", "feedback", "quality", "testability", "maintainability", "pr-review", "qe", "quality-engineering", "development-practices"]
 steps:
-  - name: scope-review
-    description: "Identify changed files and scope the review to under 400 lines."
-    tools: ["bash", "read", "glob"]
+  - name: feedback-priority-levels
+    description: "Feedback Priority Levels"
+    tools: ["bash", "read", "edit"]
     prompt: |
-      Identify the files to review (git diff, PR files, or specified paths).
-      If changes exceed 400 lines, recommend splitting the review.
-      Prioritize review order: critical paths first, then supporting code.
-
-  - name: logic-review
-    description: "Check for correctness, edge cases, race conditions, and error handling."
-    tools: ["read", "grep", "mcp:agentic-qe:quality_assess"]
+      Feedback Priority Levels
+  - name: review-scope-limits
+    description: "Review Scope Limits"
+    tools: ["bash", "read", "edit"]
     prompt: |
-      Review code logic:
-      - Does it work correctly for all inputs?
-      - Are edge cases handled (null, empty, negative, boundary values)?
-      - Are there race conditions?
-      - What happens when API calls or operations fail?
-      - Is error handling appropriate?
-      Flag issues as Blocker, Major, Minor, or Suggestion.
-
-  - name: security-review
-    description: "Check for security vulnerabilities: input validation, auth, injection, secrets."
-    tools: ["read", "grep", "mcp:agentic-qe:security_scan_comprehensive"]
+      Review Scope Limits
+  - name: what-to-focus-on
+    description: "What to Focus On"
+    tools: ["bash", "read", "edit"]
     prompt: |
-      Review security aspects:
-      - Is user input validated and sanitized?
-      - Are auth checks in place on all endpoints?
-      - Any SQL injection or XSS risks?
-      - Are secrets or PII exposed in code or logs?
-      - Are dependencies up to date?
-
-  - name: testability-review
-    description: "Assess test coverage and testability of the code."
-    tools: ["read", "grep", "mcp:agentic-qe:coverage_analyze_sublinear"]
+      What to Focus On
+  - name: feedback-templates
+    description: "Feedback Templates"
+    tools: ["bash", "read"]
     prompt: |
-      Review testability:
-      - Is the code tested? Are there tests for the changed code?
-      - Are dependencies injectable (for mocking)?
-      - Are there tests for happy path AND edge cases?
-      - Does coverage meet minimum thresholds?
-
-  - name: compile-feedback
-    description: "Compile prioritized feedback with blocker/major/minor/suggestion levels."
-    tools: ["bash", "mcp:agentic-qe:memory_store"]
+      Feedback Templates
+  - name: blocker-must-fix
+    description: "Blocker (Must Fix)"
+    tools: ["bash", "read", "edit"]
     prompt: |
-      Compile all findings into prioritized feedback:
-      - Blocker: must fix before merge (bugs, security, crashes)
-      - Major: should fix before merge (logic, missing tests)
-      - Minor: nice to fix (naming, style)
-      - Suggestion: consider for future (alternatives, refactoring)
-      Use question-based feedback where possible.
-      Store review patterns in memory for learning.
+      Blocker (Must Fix)
+  - name: major-should-fix
+    description: "Major (Should Fix)"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Major (Should Fix)
+  - name: minor-nice-to-fix
+    description: "Minor (Nice to Fix)"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Minor (Nice to Fix)
+  - name: suggestion-consider
+    description: "Suggestion (Consider)"
+    tools: ["bash", "read"]
+    prompt: |
+      Suggestion (Consider)

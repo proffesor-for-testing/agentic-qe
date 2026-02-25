@@ -1,0 +1,45 @@
+name: qe-test-execution
+description: "Parallel test execution orchestration with intelligent scheduling, retry logic, and comprehensive result aggregation."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Agent Workflow
+  - name: execution-strategies
+    description: "Execution Strategies"
+    tools: ["bash", "read"]
+    prompt: |
+      Execution Strategies
+  - name: 1-parallel-execution
+    description: "1. Parallel Execution"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Parallel Execution
+  - name: 2-smart-test-selection
+    description: "2. Smart Test Selection"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      2. Smart Test Selection
+  - name: 3-flaky-test-handling
+    description: "3. Flaky Test Handling"
+    tools: ["bash", "read"]
+    prompt: |
+      3. Flaky Test Handling
+  - name: execution-configuration
+    description: "Execution Configuration"
+    tools: ["bash", "read"]
+    prompt: |
+      Execution Configuration
+  - name: cicd-integration
+    description: "CI/CD Integration"
+    tools: ["bash", "read"]
+    prompt: |
+      CI/CD Integration
+  - name: result-aggregation
+    description: "Result Aggregation"
+    tools: ["bash", "read"]
+    prompt: |
+      Result Aggregation

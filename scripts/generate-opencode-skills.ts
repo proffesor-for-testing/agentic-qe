@@ -1,7 +1,7 @@
 /**
  * generate-opencode-skills.ts
  *
- * Reads all .claude/skills/SKILL.md files and generates .opencode/skills/qe-{name}.yaml
+ * Reads all .claude/skills/SKILL.md files and generates .opencode/skills/{name}.yaml
  * configs for the OpenCode platform.
  *
  * Usage: npx tsx scripts/generate-opencode-skills.ts
@@ -60,15 +60,20 @@ function tierToMinModel(tier: number): string {
 }
 
 function parseFrontmatter(content: string): SkillFrontmatter | null {
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  // Normalize CRLF to LF before parsing
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const match = normalized.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return null;
 
   const yaml = match[1];
-  const result: any = {};
+  const result: Record<string, unknown> = {};
 
   for (const line of yaml.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
+
+    // Skip nested YAML keys (indented lines that are part of objects)
+    if (line.startsWith('  ') && !line.trim().startsWith('-')) continue;
 
     const colonIdx = trimmed.indexOf(':');
     if (colonIdx === -1) continue;
@@ -93,14 +98,15 @@ function parseFrontmatter(content: string): SkillFrontmatter | null {
     }
   }
 
-  return result as SkillFrontmatter;
+  return result as unknown as SkillFrontmatter;
 }
 
 /**
  * Extract phases/steps from markdown headers (## and ### sections)
  */
 function extractSteps(content: string): SkillStep[] {
-  const afterFrontmatter = content.replace(/^---[\s\S]*?---\n*/, '');
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const afterFrontmatter = normalized.replace(/^---[\s\S]*?---\n*/, '');
   const steps: SkillStep[] = [];
 
   // Find all ## and ### Phase/Step headers
@@ -128,6 +134,12 @@ function extractSteps(content: string): SkillStep[] {
     'common pitfalls',
     'anti-patterns',
     'tools',
+    'purpose',
+    'activation',
+    'quick start',
+    'prerequisites',
+    'see also',
+    'references',
   ];
 
   for (let i = 0; i < sections.length && steps.length < 8; i++) {
@@ -159,11 +171,14 @@ function extractSteps(content: string): SkillStep[] {
     // Determine tools from step content
     const tools: string[] = ['bash', 'read'];
     const bodyLower = body.toLowerCase();
-    if (bodyLower.includes('edit') || bodyLower.includes('fix') || bodyLower.includes('change')) {
+    if (bodyLower.includes('edit') || bodyLower.includes('fix') || bodyLower.includes('change') || bodyLower.includes('modify')) {
       tools.push('edit');
     }
     if (bodyLower.includes('grep') || bodyLower.includes('search') || bodyLower.includes('find')) {
       tools.push('grep');
+    }
+    if (bodyLower.includes('mcp') || bodyLower.includes('memory') || bodyLower.includes('agentic-qe')) {
+      tools.push('mcp:agentic-qe:*');
     }
 
     steps.push({
@@ -192,7 +207,7 @@ function escapeYamlString(s: string): string {
 }
 
 function generateSkillYaml(config: SkillConfig): string {
-  const tagsList = config.tags.map((t) => `"${t}"`).join(', ');
+  const tagsList = config.tags.map((t) => `"${escapeYamlString(t)}"`).join(', ');
 
   let yaml = `name: ${config.name}
 description: "${escapeYamlString(config.description)}"
@@ -218,15 +233,33 @@ function isExcluded(name: string): boolean {
   return EXCLUDED_PREFIXES.some((prefix) => name.startsWith(prefix));
 }
 
+/** Compute the output name, avoiding double qe- prefix */
+function computeOutputName(dirName: string): string {
+  const safeName = dirName.replace(/[^a-z0-9-]/g, '-');
+  // If directory already starts with qe- or qcsd-, don't add qe- prefix
+  if (safeName.startsWith('qe-') || safeName.startsWith('qcsd-')) {
+    return safeName;
+  }
+  return `qe-${safeName}`;
+}
+
 async function main(): Promise<void> {
   const skillsDir = path.resolve(__dirname, '../.claude/skills');
   const outputDir = path.resolve(__dirname, '../.opencode/skills');
 
   fs.mkdirSync(outputDir, { recursive: true });
 
+  // Clear existing generated skills
+  for (const existing of fs.readdirSync(outputDir)) {
+    if (existing.endsWith('.yaml')) {
+      fs.unlinkSync(path.join(outputDir, existing));
+    }
+  }
+
   const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
   let generated = 0;
   let skipped = 0;
+  const skippedNames: string[] = [];
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
@@ -237,6 +270,7 @@ async function main(): Promise<void> {
 
     const skillPath = path.join(skillsDir, entry.name, 'SKILL.md');
     if (!fs.existsSync(skillPath)) {
+      skippedNames.push(`${entry.name} (no SKILL.md)`);
       skipped++;
       continue;
     }
@@ -244,19 +278,21 @@ async function main(): Promise<void> {
     const content = fs.readFileSync(skillPath, 'utf-8');
     const frontmatter = parseFrontmatter(content);
     if (!frontmatter || !frontmatter.name) {
+      skippedNames.push(`${entry.name} (no frontmatter/name)`);
       skipped++;
       continue;
     }
 
-    const safeName = entry.name.replace(/[^a-z0-9-]/g, '-');
+    const outputName = computeOutputName(entry.name);
     const tags = [...(frontmatter.tags ?? []), 'qe', 'quality-engineering'];
     if (frontmatter.category) tags.push(frontmatter.category);
+    if (frontmatter.domain) tags.push(frontmatter.domain);
 
     const steps = extractSteps(content);
     const minModelTier = tierToMinModel(frontmatter.trust_tier ?? 2);
 
     const config: SkillConfig = {
-      name: `qe-${safeName}`,
+      name: outputName,
       description: (frontmatter.description || frontmatter.name).slice(0, 300),
       minModelTier,
       tags: [...new Set(tags)],
@@ -264,12 +300,15 @@ async function main(): Promise<void> {
     };
 
     const yaml = generateSkillYaml(config);
-    const outputPath = path.join(outputDir, `qe-${safeName}.yaml`);
+    const outputPath = path.join(outputDir, `${outputName}.yaml`);
     fs.writeFileSync(outputPath, yaml, 'utf-8');
     generated++;
   }
 
   console.log(`Skill generation complete: ${generated} generated, ${skipped} skipped`);
+  if (skippedNames.length > 0) {
+    console.log(`Skipped details: ${skippedNames.join(', ')}`);
+  }
   console.log(`Output directory: ${outputDir}`);
 }
 

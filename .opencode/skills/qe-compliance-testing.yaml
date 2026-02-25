@@ -1,62 +1,35 @@
 name: qe-compliance-testing
-description: "Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, and PCI-DSS with audit-ready report generation."
+description: "Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, PCI-DSS and industry-specific regulations. Use when ensuring legal compliance, preparing for audits, or handling sensitive data."
 minModelTier: tier3-best
-tags: ["compliance", "gdpr", "hipaa", "pci-dss", "privacy", "audit", "qe", "quality-engineering"]
+tags: ["compliance", "gdpr", "hipaa", "pci-dss", "ccpa", "soc2", "privacy", "audit", "qe", "quality-engineering", "specialized-testing"]
 steps:
-  - name: identify-regulations
-    description: "Identify applicable regulations based on data types, geography, and industry."
-    tools: ["read", "grep", "glob"]
+  - name: major-regulations
+    description: "Major Regulations"
+    tools: ["bash", "read"]
     prompt: |
-      Identify applicable regulations:
-      - EU personal data -> GDPR (fines: 20M EUR or 4% revenue)
-      - California consumer data -> CCPA (fines: $7,500/violation)
-      - Healthcare/PHI -> HIPAA (fines: $1.5M/violation)
-      - Payment card data -> PCI-DSS (fines: $100k/month)
-      - SaaS security -> SOC2
-      Map each regulation to testable controls.
-
-  - name: test-data-rights
-    description: "Test data subject rights: access, erasure, portability, consent tracking."
-    tools: ["bash", "read", "mcp:agentic-qe:test_generate_enhanced"]
+      Major Regulations
+  - name: penalties
+    description: "Penalties"
+    tools: ["bash", "read"]
     prompt: |
-      Test GDPR/CCPA data rights:
-      - Right to access: user can request and download their data
-      - Right to erasure: user can delete their account and all personal data
-      - Right to portability: data export in machine-readable format
-      - Consent tracking: timestamps, IP addresses, granular consent types
-      - Audit log retention: deletion logs kept even after data erasure
-
-  - name: test-encryption-and-access
-    description: "Verify encryption at rest/in transit and access logging for sensitive data."
-    tools: ["bash", "read", "grep", "mcp:agentic-qe:security_scan_comprehensive"]
-    prompt: |
-      Test encryption and access controls:
-      - PII/PHI encrypted at rest (not plaintext in database)
-      - All connections use HTTPS (no HTTP)
-      - Access to sensitive data is logged with user ID, timestamp, action
-      - Password hashing uses bcrypt/scrypt/Argon2
-      - No sensitive data in API responses (no password, SSN fields)
-      - No sensitive data in logs
-
-  - name: test-pci-dss
-    description: "Verify payment card data handling meets PCI-DSS requirements."
+      Penalties
+  - name: gdpr-compliance-testing
+    description: "GDPR Compliance Testing"
     tools: ["bash", "read", "grep"]
     prompt: |
-      Test PCI-DSS compliance:
-      - Credit card numbers are never stored (only tokenized)
-      - Only last 4 digits retained for display
-      - CVV is never stored
-      - Payment processing uses tokenization through payment gateway
-      - No card data in logs or error messages
-
-  - name: generate-audit-report
-    description: "Generate audit-ready compliance report with evidence."
-    tools: ["bash", "mcp:agentic-qe:quality_assess", "mcp:agentic-qe:memory_store"]
+      GDPR Compliance Testing
+  - name: hipaa-compliance-testing
+    description: "HIPAA Compliance Testing"
+    tools: ["bash", "read", "grep"]
     prompt: |
-      Generate compliance audit report:
-      - Regulation-by-regulation compliance status
-      - Controls tested with pass/fail results
-      - Evidence collected (test outputs, scan results)
-      - Violations found with severity and remediation steps
-      - Recommendations for continuous compliance monitoring
-      Store compliance status in memory for ongoing tracking.
+      HIPAA Compliance Testing
+  - name: pci-dss-compliance-testing
+    description: "PCI-DSS Compliance Testing"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      PCI-DSS Compliance Testing
+  - name: agent-driven-compliance
+    description: "Agent-Driven Compliance"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Compliance

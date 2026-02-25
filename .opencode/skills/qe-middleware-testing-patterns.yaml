@@ -1,0 +1,45 @@
+name: qe-middleware-testing-patterns
+description: "Enterprise middleware testing patterns for message routing, transformation, DLQ, protocol mediation, ESB error handling, and EIP patterns. Use when testing middleware layers, message brokers, ESBs, or integration buses."
+minModelTier: tier3-best
+tags: ["middleware", "esb", "soap", "messaging", "iib", "mq", "transformation", "routing", "qe", "quality-engineering", "enterprise-integration"]
+steps:
+  - name: testing-levels
+    description: "Testing Levels"
+    tools: ["bash", "read"]
+    prompt: |
+      Testing Levels
+  - name: critical-test-scenarios
+    description: "Critical Test Scenarios"
+    tools: ["bash", "read"]
+    prompt: |
+      Critical Test Scenarios
+  - name: message-routing-pattern-testing
+    description: "Message Routing Pattern Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Message Routing Pattern Testing
+  - name: content-based-router
+    description: "Content-Based Router"
+    tools: ["bash", "read"]
+    prompt: |
+      Content-Based Router
+  - name: header-based-router
+    description: "Header-Based Router"
+    tools: ["bash", "read"]
+    prompt: |
+      Header-Based Router
+  - name: recipient-list
+    description: "Recipient List"
+    tools: ["bash", "read"]
+    prompt: |
+      Recipient List
+  - name: message-transformation-testing
+    description: "Message Transformation Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Message Transformation Testing
+  - name: json-to-xml-transformation
+    description: "JSON-to-XML Transformation"
+    tools: ["bash", "read"]
+    prompt: |
+      JSON-to-XML Transformation

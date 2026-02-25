@@ -75,7 +75,7 @@ For client-specific setup examples, see `docs/integration/mcp-clients.md`.
 - ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
 - ✅ **RVF Cognitive Containers** (v3.7.0): MinCut task routing, witness chain audit trail, portable brain export/import, unified HNSW search, production dual-write to native RVF
-- ✅ **OpenCode Support** (v3.7.1): 10 agent configs, 20 QE skills, 5 tool wrappers, SSE/WS/HTTP transport, output compaction, graceful degradation, `aqe init --with-opencode` auto-provisioning
+- ✅ **OpenCode Support** (v3.7.1): 59 agent configs, 86 QE skills, 5 tool wrappers, SSE/WS/HTTP transport, output compaction, graceful degradation, `aqe init --with-opencode` auto-provisioning
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
 - ✅ **75 QE Skills**: 46 Tier 3 verified + 29 additional QE skills (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 

@@ -1,60 +1,40 @@
 name: qe-test-design-techniques
-description: "Systematic test design with BVA, equivalence partitioning, decision tables, state transitions, and pairwise testing."
-minModelTier: tier2-good
-tags: ["test-design", "bva", "equivalence-partitioning", "decision-tables", "pairwise", "qe", "quality-engineering"]
+description: "Systematic test design with boundary value analysis, equivalence partitioning, decision tables, state transition testing, and combinatorial testing. Use when designing comprehensive test cases, reducing redundant tests, or ensuring systematic coverage."
+minModelTier: tier3-best
+tags: ["test-design", "bva", "equivalence-partitioning", "decision-tables", "pairwise", "state-transition", "qe", "quality-engineering", "specialized-testing"]
 steps:
-  - name: select-technique
-    description: "Analyze the code to select the appropriate test design technique."
-    tools: ["read", "grep", "glob"]
+  - name: technique-selection-guide
+    description: "Technique Selection Guide"
+    tools: ["bash", "read"]
     prompt: |
-      Analyze target code and select techniques:
-      - Numeric input ranges -> Boundary Value Analysis (BVA) + Equivalence Partitioning (EP)
-      - Multiple conditions/business rules -> Decision Tables
-      - Stateful workflows -> State Transition Testing
-      - Many parameter combinations -> Pairwise Testing
-      - All combinations critical -> Full Factorial
-      Report which techniques apply and why.
-
-  - name: boundary-value-analysis
-    description: "Generate tests at boundaries: min, max, just below, just above."
-    tools: ["edit", "bash", "mcp:agentic-qe:test_generate_enhanced"]
+      Technique Selection Guide
+  - name: boundary-value-analysis-bva
+    description: "**Principle:** Bugs cluster at boundaries."
+    tools: ["bash", "read"]
     prompt: |
-      Apply Boundary Value Analysis:
-      - Test at minimum valid value
-      - Test just below minimum (invalid)
-      - Test just above minimum (valid)
-      - Test at maximum valid value
-      - Test just above maximum (invalid)
-      - Test just below maximum (valid)
-      Generate test cases for each boundary identified.
-
-  - name: equivalence-partitioning
-    description: "Identify equivalent classes and generate one test per partition."
-    tools: ["edit", "bash"]
+      **Principle:** Bugs cluster at boundaries.
+  - name: equivalence-partitioning-ep
+    description: "**Principle:** One test per equivalent class."
+    tools: ["bash", "read"]
     prompt: |
-      Apply Equivalence Partitioning:
-      - Identify valid and invalid partitions
-      - Select one representative value from each partition
-      - Generate one test per partition
-      This reduces test count significantly while maintaining coverage.
-
+      **Principle:** One test per equivalent class.
   - name: decision-tables
-    description: "Create decision tables for complex business rules with multiple conditions."
-    tools: ["edit", "bash"]
+    description: "**Use for:** Complex business rules with multiple conditions."
+    tools: ["bash", "read", "edit"]
     prompt: |
-      Apply Decision Tables (if multiple conditions exist):
-      - List all conditions and their possible values
-      - List all possible actions/outcomes
-      - Create the decision table with all rule combinations
-      - Simplify by merging rules where condition does not affect outcome
-      Generate one test per rule in the decision table.
-
-  - name: pairwise-testing
-    description: "Reduce combinatorial explosion using pairwise (all-pairs) testing."
-    tools: ["edit", "bash"]
+      **Use for:** Complex business rules with multiple conditions.
+  - name: state-transition-testing
+    description: "**Model state changes:**"
+    tools: ["bash", "read", "edit"]
     prompt: |
-      Apply Pairwise Testing (if many parameter combinations):
-      - List all parameters and their values
-      - Generate pairwise combinations where each pair appears at least once
-      - This reduces tests from N^k (full factorial) to approximately N^2
-      Example: 3 params x 3 values = 27 full -> 9 pairwise tests
+      **Model state changes:**
+  - name: pairwise-combinatorial-testing
+    description: "**Problem:** All combinations explode exponentially."
+    tools: ["bash", "read"]
+    prompt: |
+      **Problem:** All combinations explode exponentially.
+  - name: agent-driven-test-design
+    description: "Agent-Driven Test Design"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Test Design
