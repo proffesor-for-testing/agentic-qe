@@ -311,11 +311,16 @@ export class KiroInstaller {
     // Convert mcp: references in the prompt body
     const prompt = body.replace(/mcp:agentic-qe:/g, '@agentic-qe/');
 
-    // Map model based on category/priority
-    const category = getField('category');
+    // Map model from frontmatter, falling back to category/priority heuristics
+    const rawModel = getField('model');
     const priority = getField('priority');
     let model = 'claude-sonnet-4';
-    if (priority === 'critical' || category === 'n8n-testing') model = 'claude-sonnet-4';
+    if (rawModel) {
+      if (rawModel.includes('opus')) model = 'claude-opus-4';
+      else if (rawModel.includes('haiku')) model = 'claude-haiku-4';
+    } else if (priority === 'critical') {
+      model = 'claude-sonnet-4';
+    }
 
     return {
       name: agentName,
@@ -571,7 +576,6 @@ export class KiroInstaller {
     const descMatch = frontmatter.match(/^description:\s*"?([^"\n]*)"?/m);
     const tagsMatch = frontmatter.match(/^tags:\s*\[([^\]]*)\]/m);
 
-    const name = nameMatch?.[1]?.trim() ?? skillName;
     const description = descMatch?.[1]?.trim() ?? '';
     const tags = tagsMatch?.[1]?.trim() ?? '';
 

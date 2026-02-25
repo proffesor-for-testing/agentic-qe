@@ -5,6 +5,27 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.2] - 2026-02-25
+
+### Added
+
+- **AWS Kiro IDE integration** — Full Kiro support converting AQE agents, skills, hooks, and steering files to Kiro-native formats via `aqe init --with-kiro`: 87 agent JSON configs, 86 skill SKILL.md files with full content, 5 event-driven hooks (test-updater, coverage-check, security-scan, spec-quality-gate, pre-commit-quality), 2 steering files (qe-standards, testing-conventions), and MCP server configuration
+- **`aqe init --with-kiro` flag** — Provisions `.kiro/` directory with agents, skills, hooks, steering, and MCP config; follows the OpenCode/N8n installer pattern with auto-detection in `--auto` mode when `.kiro/` exists
+- **Kiro installer** (`v3/src/init/kiro-installer.ts`) — 937-line converter that reads OpenCode YAML agents and Claude Code markdown agents, converts `mcp:agentic-qe:` refs to `@agentic-qe/` format, maps tool names to Kiro builtins (`bash`→`shell`, `edit`→`write`), and prioritizes full SKILL.md content over thin YAML stubs
+
+### Fixed
+
+- **Kiro model mapping inconsistency** — `convertMdAgentToKiro()` now reads the `model` field from markdown agent frontmatter and properly maps opus/haiku models, matching the behavior of `convertToKiroAgent()` for YAML agents
+- **Unused variable warnings** — Removed unused `category` and `name` variables in kiro-installer.ts
+
+### Changed
+
+- **README updated** — Added dedicated AWS Kiro IDE section with asset table, directory structure, setup commands, and key features; updated Quick Start, client examples, feature bullets, and project architecture tree
+
+### Security
+
+- **hono 4.12.0 → 4.12.2** — Fixes incorrect `X-Forwarded-For` handling in AWS Lambda adapter that could allow IP-based access control bypass (GHSA-xh87-mx6m-69f3)
+
 ## [3.7.1] - 2026-02-24
 
 ### Added
