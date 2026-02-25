@@ -1,0 +1,12 @@
+{
+  "name": "AQE Pre-Commit Quality",
+  "description": "Run quality assessment before agent stops to ensure standards are met",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Before finishing, use @agentic-qe/quality_assess to verify all modified files meet quality standards. Store the result with @agentic-qe/memory_store for learning."
+  }
+}

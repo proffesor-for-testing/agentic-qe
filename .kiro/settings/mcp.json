@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "agentic-qe": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "agentic-qe@latest",
+        "mcp"
+      ],
+      "env": {
+        "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
+        "AQE_V3_MODE": "true"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "fleet_init",
+        "fleet_status",
+        "test_generate_enhanced",
+        "coverage_analyze_sublinear",
+        "quality_assess",
+        "memory_store",
+        "memory_query"
+      ]
+    }
+  }
+}

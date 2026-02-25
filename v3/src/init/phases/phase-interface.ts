@@ -100,6 +100,8 @@ export interface InitOptions {
   noGovernance?: boolean;
   /** Install OpenCode agent/skill/tool provisioning */
   withOpenCode?: boolean;
+  /** Install AWS Kiro IDE integration (agents, skills, hooks, steering) */
+  withKiro?: boolean;
 }
 
 /**
