@@ -8,6 +8,8 @@
  * @version 1.0.0
  */
 
+import { randomUUID } from 'crypto';
+
 // =============================================================================
 // Base Types
 // =============================================================================
@@ -182,7 +184,7 @@ export const SIGNAL_TTL = {
 
 export function createSignalId(loopType: FeedbackLoopType, prefix?: string): string {
   const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 8);
+  const random = randomUUID().split('-')[0];
   return `${prefix || loopType}-signal-${timestamp}-${random}`;
 }
 

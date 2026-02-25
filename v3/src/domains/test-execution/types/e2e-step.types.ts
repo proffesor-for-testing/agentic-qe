@@ -7,6 +7,7 @@
  * @module test-execution/types/e2e-step
  */
 
+import { randomUUID } from 'crypto';
 import type {
   ClickOptions,
   TypeOptions,
@@ -649,7 +650,7 @@ export interface E2ETestResult {
  * Generate a unique step ID
  */
 function generateStepId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  return `${prefix}-${Date.now()}-${randomUUID().split('-')[0]}`;
 }
 
 /**

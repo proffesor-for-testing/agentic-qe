@@ -23,6 +23,21 @@ let sharedMemoryBackend: MemoryBackend | null = null;
 let memoryInitPromise: Promise<MemoryBackend> | null = null;
 
 /**
+ * Cached reference to resetSharedRvfDualWriter(), populated lazily when the
+ * RVF module is first imported by any caller. Allows synchronous reset
+ * in resetSharedMemoryBackend() without a fire-and-forget dynamic import.
+ */
+let _cachedRvfReset: (() => void) | null = null;
+
+/**
+ * Register the RVF reset function. Called once by the shared-rvf-dual-writer
+ * module or any code that successfully imports it.
+ */
+export function registerRvfResetFn(fn: () => void): void {
+  _cachedRvfReset = fn;
+}
+
+/**
  * Get or create the shared memory backend for MCP tools.
  * All tools share the same backend to ensure data persistence.
  */
@@ -72,8 +87,17 @@ export async function getSharedMemoryBackend(): Promise<MemoryBackend> {
  * Used in tests to ensure clean state between test runs.
  */
 export function resetSharedMemoryBackend(): void {
+  // Reset RVF dual-writer singleton synchronously.
+  // If the module was never dynamically imported (RVF unavailable), _cachedRvfReset
+  // is null and we skip — there is no writer to close.
+  if (_cachedRvfReset) {
+    try { _cachedRvfReset(); } catch { /* ignore */ }
+  }
+
   if (sharedMemoryBackend) {
-    // Don't await dispose in reset - let tests handle cleanup
+    // Dispose to stop background cleanup timers that would otherwise
+    // run against a stale/closed DB connection causing "database is locked".
+    sharedMemoryBackend.dispose().catch(() => {});
     sharedMemoryBackend = null;
   }
   memoryInitPromise = null;

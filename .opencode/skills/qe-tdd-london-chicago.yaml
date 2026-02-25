@@ -1,0 +1,45 @@
+name: qe-tdd-london-chicago
+description: "Apply London (mock-based) and Chicago (state-based) TDD schools. Use when practicing test-driven development or choosing testing style for your context."
+minModelTier: tier2-good
+tags: ["tdd", "testing", "london-school", "chicago-school", "red-green-refactor", "mocks", "qe", "quality-engineering", "development-practices"]
+steps:
+  - name: tdd-cycle
+    description: "TDD Cycle"
+    tools: ["bash", "read"]
+    prompt: |
+      TDD Cycle
+  - name: school-comparison
+    description: "School Comparison"
+    tools: ["bash", "read"]
+    prompt: |
+      School Comparison
+  - name: chicago-school-state-based
+    description: "**Philosophy:** Test observable behavior through public API. Keep tests close to consumer usage."
+    tools: ["bash", "read"]
+    prompt: |
+      **Philosophy:** Test observable behavior through public API. Keep tests close to consumer usage.
+  - name: london-school-mock-based
+    description: "**Philosophy:** Test each unit in isolation. Focus on how objects collaborate."
+    tools: ["bash", "read"]
+    prompt: |
+      **Philosophy:** Test each unit in isolation. Focus on how objects collaborate.
+  - name: mixed-approach-recommended
+    description: "Mixed Approach (Recommended)"
+    tools: ["bash", "read"]
+    prompt: |
+      Mixed Approach (Recommended)
+  - name: -over-mocking-london
+    description: "❌ Over-Mocking (London)"
+    tools: ["bash", "read"]
+    prompt: |
+      ❌ Over-Mocking (London)
+  - name: -mocking-internals
+    description: "❌ Mocking Internals"
+    tools: ["bash", "read"]
+    prompt: |
+      ❌ Mocking Internals
+  - name: -test-pain-design-pain
+    description: "- Need many mocks? → Too many dependencies - Hard to set up? → Constructor does too much - Can't test without database? → Coupling issue"
+    tools: ["bash", "read"]
+    prompt: |
+      - Need many mocks? → Too many dependencies - Hard to set up? → Constructor does too much - Can't test without database? → Coupling issue

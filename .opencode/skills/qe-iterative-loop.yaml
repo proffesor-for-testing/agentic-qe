@@ -1,0 +1,45 @@
+name: qe-iterative-loop
+description: "Quality Engineering iteration loops for autonomous test improvement, coverage achievement, and quality gate compliance. Use when tests need to pass, coverage targets must be met, quality gates require compliance, or flaky tests need stabilization. Integrates with AQE v3 fleet agents for coordinated "
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: overview
+    description: "QE Iterative Loop is a specialized adaptation of the Ralph Wiggum technique for **Quality Engineering workflows**. It enables autonomous, self-correcting quality cycles where AI agents iterate until quality objectives are achieved - tests pass, coverage targets met, quality gates satisfied, or flaky"
+    tools: ["bash", "read"]
+    prompt: |
+      QE Iterative Loop is a specialized adaptation of the Ralph Wiggum technique for **Quality Engineering workflows**. It enables autonomous, self-correcting quality cycles where AI agents iterate until quality objectives are achieved - tests pass, coverage targets met, quality gates satisfied, or flaky
+  - name: why-qe-benefits-from-iteration
+    description: "Quality Engineering has **objective, measurable success criteria**: - Tests either pass or fail (exit code 0 vs non-zero) - Coverage is quantifiable (78.5% vs 80% target) - Quality gates have binary outcomes (pass/fail) - Contract validation has clear schemas"
+    tools: ["bash", "read"]
+    prompt: |
+      Quality Engineering has **objective, measurable success criteria**: - Tests either pass or fail (exit code 0 vs non-zero) - Coverage is quantifiable (78.5% vs 80% target) - Quality gates have binary outcomes (pass/fail) - Contract validation has clear schemas
+  - name: pattern-1-test-fix-iteration
+    description: "Pattern 1: Test Fix Iteration"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Pattern 1: Test Fix Iteration
+  - name: pattern-2-coverage-target-iteration
+    description: "Pattern 2: Coverage Target Iteration"
+    tools: ["bash", "read"]
+    prompt: |
+      Pattern 2: Coverage Target Iteration
+  - name: pattern-3-quality-gate-iteration
+    description: "Pattern 3: Quality Gate Iteration"
+    tools: ["bash", "read"]
+    prompt: |
+      Pattern 3: Quality Gate Iteration
+  - name: qe-iteration-patterns
+    description: "QE Iteration Patterns"
+    tools: ["bash", "read"]
+    prompt: |
+      QE Iteration Patterns
+  - name: pattern-1-test-fix-iteration-loop
+    description: "**Goal**: All tests pass"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      **Goal**: All tests pass
+  - name: qe-test-fix-loop
+    description: "QE Test-Fix Loop"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      QE Test-Fix Loop

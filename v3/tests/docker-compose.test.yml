@@ -1,0 +1,22 @@
+# Docker Compose for local Postgres integration tests
+# Usage:
+#   docker compose -f v3/tests/docker-compose.test.yml up -d
+#   POSTGRES_URL=postgresql://aqe_test:aqe_test@localhost:15432/aqe_test npx vitest run tests/integration/sync/
+#   docker compose -f v3/tests/docker-compose.test.yml down
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "15432:5432"
+    environment:
+      POSTGRES_DB: aqe_test
+      POSTGRES_USER: aqe_test
+      POSTGRES_PASSWORD: aqe_test
+    tmpfs:
+      - /var/lib/postgresql/data  # RAM-backed for speed
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aqe_test -d aqe_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 10

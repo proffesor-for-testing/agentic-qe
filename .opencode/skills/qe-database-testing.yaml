@@ -1,0 +1,40 @@
+name: qe-database-testing
+description: "Database schema validation, data integrity testing, migration testing, transaction isolation, and query performance. Use when testing data persistence, ensuring referential integrity, or validating database migrations."
+minModelTier: tier3-best
+tags: ["database", "schema", "migration", "transactions", "integrity", "sql", "performance", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: database-test-types
+    description: "Database Test Types"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Database Test Types
+  - name: acid-properties
+    description: "ACID Properties"
+    tools: ["bash", "read"]
+    prompt: |
+      ACID Properties
+  - name: schema-testing
+    description: "Schema Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Schema Testing
+  - name: data-integrity-testing
+    description: "Data Integrity Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Data Integrity Testing
+  - name: migration-testing
+    description: "Migration Testing"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Migration Testing
+  - name: transaction-testing
+    description: "Transaction Testing"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Transaction Testing
+  - name: agent-driven-database-testing
+    description: "Agent-Driven Database Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Database Testing

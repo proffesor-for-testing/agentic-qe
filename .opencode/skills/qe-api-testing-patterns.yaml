@@ -1,0 +1,45 @@
+name: qe-api-testing-patterns
+description: "Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing. Use when testing APIs or designing API test strategies."
+minModelTier: tier3-best
+tags: ["api", "rest", "graphql", "contract-testing", "pact", "integration", "microservices", "qe", "quality-engineering", "testing-methodologies"]
+steps:
+  - name: testing-levels
+    description: "Testing Levels"
+    tools: ["bash", "read"]
+    prompt: |
+      Testing Levels
+  - name: critical-test-scenarios
+    description: "Critical Test Scenarios"
+    tools: ["bash", "read"]
+    prompt: |
+      Critical Test Scenarios
+  - name: contract-testing
+    description: "**Pattern: Consumer-Driven Contracts**"
+    tools: ["bash", "read"]
+    prompt: |
+      **Pattern: Consumer-Driven Contracts**
+  - name: critical-test-patterns
+    description: "Critical Test Patterns"
+    tools: ["bash", "read"]
+    prompt: |
+      Critical Test Patterns
+  - name: authentication-authorization
+    description: "Authentication & Authorization"
+    tools: ["bash", "read"]
+    prompt: |
+      Authentication & Authorization
+  - name: input-validation
+    description: "Input Validation"
+    tools: ["bash", "read"]
+    prompt: |
+      Input Validation
+  - name: idempotency
+    description: "Idempotency"
+    tools: ["bash", "read"]
+    prompt: |
+      Idempotency
+  - name: concurrency
+    description: "Concurrency"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Concurrency

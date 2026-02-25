@@ -1,0 +1,45 @@
+name: qe-n8n-integration-testing-patterns
+description: "API contract testing, authentication flows, rate limit handling, and error scenario coverage for n8n integrations with external services. Use when testing n8n node integrations."
+minModelTier: tier3-best
+tags: ["n8n", "integration", "api", "authentication", "oauth", "rate-limiting", "testing", "qe", "quality-engineering", "n8n-testing"]
+steps:
+  - name: common-n8n-integrations
+    description: "Common n8n Integrations"
+    tools: ["bash", "read"]
+    prompt: |
+      Common n8n Integrations
+  - name: authentication-types
+    description: "Authentication Types"
+    tools: ["bash", "read"]
+    prompt: |
+      Authentication Types
+  - name: connectivity-testing
+    description: "Connectivity Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Connectivity Testing
+  - name: api-operation-testing
+    description: "API Operation Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      API Operation Testing
+  - name: authentication-testing
+    description: "Authentication Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Authentication Testing
+  - name: oauth2-flow-testing
+    description: "OAuth2 Flow Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      OAuth2 Flow Testing
+  - name: api-key-testing
+    description: "API Key Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      API Key Testing
+  - name: rate-limit-testing
+    description: "Rate Limit Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Rate Limit Testing

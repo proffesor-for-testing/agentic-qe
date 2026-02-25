@@ -157,15 +157,24 @@ class ConceptGraphAdapter implements SpreadingConceptGraph, InsightConceptGraph 
   constructor(private readonly graph: ConceptGraph) {}
 
   /**
-   * Load all nodes and edges into memory for fast access
+   * Load nodes and edges into memory for fast access.
+   * @param maxNodes - Maximum number of nodes to load (prevents slow loading
+   *   on accumulated concept graphs). Nodes are sorted by activation level
+   *   descending, so the most active concepts are prioritized. Default: no limit.
    */
-  async loadIntoMemory(): Promise<void> {
+  async loadIntoMemory(maxNodes?: number): Promise<void> {
     this.nodeCache.clear();
     this.edgeCache.clear();
     this.activationLevels.clear();
 
-    // Load all nodes
-    const nodes = await this.graph.getActiveNodes(0);
+    // Load nodes (all or capped)
+    let nodes = await this.graph.getActiveNodes(0);
+    if (maxNodes && nodes.length > maxNodes) {
+      nodes = nodes
+        .sort((a, b) => b.activationLevel - a.activationLevel)
+        .slice(0, maxNodes);
+    }
+
     for (const node of nodes) {
       this.nodeCache.set(node.id, node);
       this.activationLevels.set(node.id, node.activationLevel);
@@ -377,30 +386,25 @@ export class DreamEngine {
       const hasInsightType = colNames.has('insight_type');
       const hasSourceConcepts = colNames.has('source_concepts');
 
-      // If legacy schema lacks 'insight_type' or 'source_concepts', recreate the table
-      if (!hasInsightType || !hasSourceConcepts) {
-        this.db.exec('DROP TABLE IF EXISTS dream_insights');
-        this.db.exec(`
-          CREATE TABLE IF NOT EXISTS dream_insights (
-            id TEXT PRIMARY KEY,
-            cycle_id TEXT NOT NULL,
-            insight_type TEXT NOT NULL,
-            source_concepts TEXT NOT NULL,
-            description TEXT NOT NULL,
-            novelty_score REAL DEFAULT 0.5,
-            confidence_score REAL DEFAULT 0.5,
-            actionable INTEGER DEFAULT 0,
-            applied INTEGER DEFAULT 0,
-            suggested_action TEXT,
-            pattern_id TEXT,
-            created_at TEXT DEFAULT (datetime('now')),
-            FOREIGN KEY (cycle_id) REFERENCES dream_cycles(id) ON DELETE CASCADE
-          )
-        `);
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_cycle ON dream_insights(cycle_id)');
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_type ON dream_insights(insight_type)');
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_novelty ON dream_insights(novelty_score DESC)');
+      // SAFE migration: add missing columns instead of dropping the table.
+      // Previous implementation used DROP TABLE which destroyed all dream insights.
+      // See: Data loss incidents Feb 17-23, 2026.
+      if (!hasInsightType) {
+        try {
+          this.db.exec("ALTER TABLE dream_insights ADD COLUMN insight_type TEXT NOT NULL DEFAULT 'general'");
+          dreamLogger.info('Added insight_type column to dream_insights (safe migration)');
+        } catch { /* column may already exist */ }
       }
+      if (!hasSourceConcepts) {
+        try {
+          this.db.exec("ALTER TABLE dream_insights ADD COLUMN source_concepts TEXT NOT NULL DEFAULT '[]'");
+          dreamLogger.info('Added source_concepts column to dream_insights (safe migration)');
+        } catch { /* column may already exist */ }
+      }
+      // Ensure indexes exist regardless
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_cycle ON dream_insights(cycle_id)');
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_type ON dream_insights(insight_type)');
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_insight_novelty ON dream_insights(novelty_score DESC)');
     } catch (e) {
       // Ignore migration errors — table may not exist yet
       dreamLogger.debug('Dream schema migration skipped', { error: e instanceof Error ? e.message : String(e) });
@@ -459,9 +463,12 @@ export class DreamEngine {
         );
       }
 
-      // 2. Create adapter and load graph into memory
+      // 2. Create adapter and load graph into memory.
+      //    Cap nodes to keep wall-clock time reasonable on large concept graphs.
+      //    Each node requires DB queries for edges (O(N) queries per node),
+      //    so fewer nodes significantly reduces initialization time.
       const adapter = new ConceptGraphAdapter(this.graph!);
-      await adapter.loadIntoMemory();
+      await adapter.loadIntoMemory(30);
 
       // 3. Run spreading activation (the "dreaming")
       const activation = new SpreadingActivation(adapter, this.config.activationConfig);

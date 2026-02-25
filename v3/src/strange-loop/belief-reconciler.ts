@@ -24,6 +24,7 @@
  * @module strange-loop/belief-reconciler
  */
 
+import { randomUUID } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   Contradiction,
@@ -260,7 +261,7 @@ class NoOpVoteCollector implements IVoteCollector {
  */
 class NoOpWitnessAdapter implements IWitnessAdapter {
   async createWitness(data: unknown): Promise<WitnessRecord> {
-    const hash = `mock-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const hash = `mock-${Date.now()}-${randomUUID().replace(/-/g, '').slice(0, 12)}`;
     return {
       witnessId: uuidv4(),
       decisionId: (data as { id?: string })?.id || uuidv4(),

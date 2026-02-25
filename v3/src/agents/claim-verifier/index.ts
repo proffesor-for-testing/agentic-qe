@@ -35,6 +35,8 @@
  * ```
  */
 
+import { randomUUID } from 'crypto';
+
 // ============================================================================
 // Core Types
 // ============================================================================
@@ -287,7 +289,7 @@ export function calculateVerificationPriority(
  */
 export function generateClaimId(prefix = 'claim'): string {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 8);
+  const random = randomUUID().slice(0, 8);
   return `${prefix}-${timestamp}-${random}`;
 }
 

@@ -19,6 +19,8 @@ export interface AssetsResult {
   agentsInstalled: number;
   n8nAgents: number;
   n8nSkills: number;
+  openCodeAgents: number;
+  openCodeSkills: number;
 }
 
 /**
@@ -46,6 +48,8 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     let agentsInstalled = 0;
     let n8nAgents = 0;
     let n8nSkills = 0;
+    let openCodeAgents = 0;
+    let openCodeSkills = 0;
 
     if (options.upgrade) {
       context.services.log(`  Upgrade mode: overwriting existing files`);
@@ -104,11 +108,36 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       }
     }
 
+    // Install OpenCode platform (optional)
+    const autoOpenCode = options.autoMode && existsSync(join(projectRoot, 'opencode.json'));
+    if (options.withOpenCode || autoOpenCode) {
+      const { createOpenCodeInstaller } = await import('../opencode-installer.js');
+      const openCodeInstaller = createOpenCodeInstaller({
+        projectRoot,
+        installAgents: true,
+        installSkills: true,
+        installTools: true,
+        overwrite: shouldOverwrite,
+      });
+
+      const ocResult = await openCodeInstaller.install();
+      openCodeAgents = ocResult.agentsInstalled.length;
+      openCodeSkills = ocResult.skillsInstalled.length;
+
+      if (ocResult.errors.length > 0) {
+        context.services.warn(`OpenCode warnings: ${ocResult.errors.join(', ')}`);
+      }
+    }
+
     context.services.log(`  Skills: ${skillsInstalled}`);
     context.services.log(`  Agents: ${agentsInstalled}`);
     if (options.withN8n) {
       context.services.log(`  N8n agents: ${n8nAgents}`);
       context.services.log(`  N8n skills: ${n8nSkills}`);
+    }
+    if (options.withOpenCode || autoOpenCode) {
+      context.services.log(`  OpenCode agents: ${openCodeAgents}`);
+      context.services.log(`  OpenCode skills: ${openCodeSkills}`);
     }
 
     return {
@@ -116,6 +145,8 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       agentsInstalled,
       n8nAgents,
       n8nSkills,
+      openCodeAgents,
+      openCodeSkills,
     };
   }
 

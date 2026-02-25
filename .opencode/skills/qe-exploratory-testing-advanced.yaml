@@ -1,0 +1,45 @@
+name: qe-exploratory-testing-advanced
+description: "Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours. Use when planning exploration sessions, investigating bugs, or discovering unknown quality risks."
+minModelTier: tier1-fast
+tags: ["exploratory", "sbtm", "rst", "heuristics", "test-tours", "session-based", "qe", "quality-engineering", "testing-methodologies"]
+steps:
+  - name: session-structure-sbtm
+    description: "Session Structure (SBTM)"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Session Structure (SBTM)
+  - name: sfdipot-heuristic-what-to-test
+    description: "SFDIPOT Heuristic (What to Test)"
+    tools: ["bash", "read"]
+    prompt: |
+      SFDIPOT Heuristic (What to Test)
+  - name: few-hiccupps-oracle-recognize-problems
+    description: "FEW HICCUPPS Oracle (Recognize Problems)"
+    tools: ["bash", "read"]
+    prompt: |
+      FEW HICCUPPS Oracle (Recognize Problems)
+  - name: test-tours-12-types
+    description: "Test Tours (12 Types)"
+    tools: ["bash", "read"]
+    prompt: |
+      Test Tours (12 Types)
+  - name: session-note-template
+    description: "Session Note Template"
+    tools: ["bash", "read"]
+    prompt: |
+      Session Note Template
+  - name: session-notes
+    description: "- [timestamp] Observation/finding - [timestamp] Bug: [description] - [severity] - [timestamp] Question: [unclear behavior]"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      - [timestamp] Observation/finding - [timestamp] Bug: [description] - [severity] - [timestamp] Question: [unclear behavior]
+  - name: findings-summary
+    description: "- Bugs: X (Critical: Y, Major: Z) - Questions: X - Ideas: X"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      - Bugs: X (Critical: Y, Major: Z) - Questions: X - Ideas: X
+  - name: coverage
+    description: "- Areas explored: [list] - Heuristics used: [SFDIPOT areas] - % Time on: Bug investigation 30%, Exploration 50%, Setup 20%"
+    tools: ["bash", "read"]
+    prompt: |
+      - Areas explored: [list] - Heuristics used: [SFDIPOT areas] - % Time on: Bug investigation 30%, Exploration 50%, Setup 20%

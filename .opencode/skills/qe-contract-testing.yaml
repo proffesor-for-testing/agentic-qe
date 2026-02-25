@@ -1,0 +1,45 @@
+name: qe-contract-testing
+description: "Consumer-driven contract testing for APIs including REST, GraphQL, and event-driven systems with schema validation."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Agent Workflow
+  - name: contract-testing-types
+    description: "Contract Testing Types"
+    tools: ["bash", "read"]
+    prompt: |
+      Contract Testing Types
+  - name: 1-consumer-driven-contracts-pact
+    description: "1. Consumer-Driven Contracts (Pact)"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Consumer-Driven Contracts (Pact)
+  - name: 2-schema-validation
+    description: "2. Schema Validation"
+    tools: ["bash", "read"]
+    prompt: |
+      2. Schema Validation
+  - name: 3-graphql-contract-testing
+    description: "3. GraphQL Contract Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      3. GraphQL Contract Testing
+  - name: 4-event-contract-testing
+    description: "4. Event Contract Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      4. Event Contract Testing
+  - name: breaking-change-detection
+    description: "Breaking Change Detection"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Breaking Change Detection
+  - name: contract-report
+    description: "Contract Report"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Contract Report

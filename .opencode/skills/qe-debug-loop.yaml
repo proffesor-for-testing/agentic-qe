@@ -1,0 +1,45 @@
+name: qe-debug-loop
+description: "Hypothesis-driven autonomous debugging with real command validation"
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering", "debugging"]
+steps:
+  - name: arguments
+    description: "- `<symptom>` — Description of the bug or unexpected behavior. If omitted, prompt the user."
+    tools: ["bash", "read"]
+    prompt: |
+      - `<symptom>` — Description of the bug or unexpected behavior. If omitted, prompt the user.
+  - name: phases
+    description: "Phases"
+    tools: ["bash", "read"]
+    prompt: |
+      Phases
+  - name: reproduce
+    description: "Run the exact command that shows the bug. Capture and display the REAL output. Confirm the bug is visible."
+    tools: ["bash", "read"]
+    prompt: |
+      Run the exact command that shows the bug. Capture and display the REAL output. Confirm the bug is visible.
+  - name: hypothesize-and-test-up-to-5-iterations
+    description: "For each iteration: 1. State a specific hypothesis (e.g., \"the query targets v2 tables but data is in v3 tables\") 2. Run a REAL command to test it (e.g., `sqlite3 [db path] '.tables'` then `SELECT COUNT(*) FROM [table]`) 3. Record whether the hypothesis was confirmed or rejected 4. If rejected, form"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      For each iteration: 1. State a specific hypothesis (e.g., "the query targets v2 tables but data is in v3 tables") 2. Run a REAL command to test it (e.g., `sqlite3 [db path] '.tables'` then `SELECT COUNT(*) FROM [table]`) 3. Record whether the hypothesis was confirmed or rejected 4. If rejected, form
+  - name: fix
+    description: "Make the minimal targeted fix. Explain: - What the root cause was - What you're changing and why - What the blast radius is (which other code paths are affected)"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      Make the minimal targeted fix. Explain: - What the root cause was - What you're changing and why - What the blast radius is (which other code paths are affected)
+  - name: verify
+    description: "Run the SAME reproduction command from Phase 1. The output must now show correct values. If it doesn't, go back to Phase 2."
+    tools: ["bash", "read"]
+    prompt: |
+      Run the SAME reproduction command from Phase 1. The output must now show correct values. If it doesn't, go back to Phase 2.
+  - name: regression
+    description: "Regression"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Regression
+  - name: rules
+    description: "- NEVER guess or simulate output — always run real commands - NEVER make code changes before confirming root cause - Always check for the pattern across the entire codebase, not just one file - If blocked after 5 hypotheses, stop and ask the user for guidance"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - NEVER guess or simulate output — always run real commands - NEVER make code changes before confirming root cause - Always check for the pattern across the entire codebase, not just one file - If blocked after 5 hypotheses, stop and ask the user for guidance

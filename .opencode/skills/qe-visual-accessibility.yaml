@@ -1,0 +1,45 @@
+name: qe-visual-accessibility
+description: "Visual regression testing, responsive design validation, and WCAG accessibility compliance testing."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Agent Workflow
+  - name: visual-testing-operations
+    description: "Visual Testing Operations"
+    tools: ["bash", "read"]
+    prompt: |
+      Visual Testing Operations
+  - name: 1-visual-regression
+    description: "1. Visual Regression"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Visual Regression
+  - name: 2-responsive-testing
+    description: "2. Responsive Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      2. Responsive Testing
+  - name: 3-accessibility-audit
+    description: "3. Accessibility Audit"
+    tools: ["bash", "read"]
+    prompt: |
+      3. Accessibility Audit
+  - name: 4-cross-browser-testing
+    description: "4. Cross-Browser Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      4. Cross-Browser Testing
+  - name: wcag-22-checklist
+    description: "WCAG 2.2 Checklist"
+    tools: ["bash", "read"]
+    prompt: |
+      WCAG 2.2 Checklist
+  - name: visual-test-report
+    description: "Visual Test Report"
+    tools: ["bash", "read"]
+    prompt: |
+      Visual Test Report

@@ -6,6 +6,7 @@
  * Provides common functionality for scheduling, retries, and health tracking.
  */
 
+import { randomUUID } from 'crypto';
 import { toError } from '../shared/error-utils.js';
 import {
   Worker,
@@ -300,6 +301,6 @@ export abstract class BaseWorker implements Worker {
    * Generate a unique ID
    */
   protected generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `${Date.now()}-${randomUUID().slice(0, 9)}`;
   }
 }

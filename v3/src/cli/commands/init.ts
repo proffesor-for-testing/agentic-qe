@@ -41,6 +41,7 @@ export function createInitCommand(): Command {
     .option('--minimal', 'Minimal installation (no skills, patterns, or workers)')
     .option('--skip-patterns', 'Skip pattern loading')
     .option('--with-n8n', 'Include n8n workflow testing platform')
+    .option('--with-opencode', 'Include OpenCode agent/skill provisioning')
     .option('--with-claude-flow', 'Force Claude Flow integration setup')
     .option('--skip-claude-flow', 'Skip Claude Flow integration')
     .option('--no-governance', 'Skip governance configuration (ADR-058)')
@@ -89,6 +90,7 @@ interface InitOptions {
   minimal?: boolean;
   skipPatterns?: boolean;
   withN8n?: boolean;
+  withOpencode?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
   noGovernance?: boolean;
@@ -127,6 +129,7 @@ async function runInit(options: InitOptions): Promise<void> {
     minimal: options.minimal,
     skipPatterns: options.skipPatterns,
     withN8n: options.withN8n,
+    withOpenCode: options.withOpencode,
     noGovernance: options.noGovernance,
   });
 

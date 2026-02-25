@@ -93,6 +93,12 @@ import { AGUIEventType } from './transport/sse/types.js';
 // Memory for CRDT
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
 
+// Structured logging
+import { LoggerFactory } from '../logging/index.js';
+import type { Logger } from '../logging/index.js';
+
+const logger: Logger = LoggerFactory.create('HTTPServer');
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -357,7 +363,7 @@ class HTTPServerImpl implements HTTPServer {
         this.webhookService!.notifyArtifactCreated(event.taskId, {
           id: event.artifact.id ?? 'unknown',
           name: event.artifact.name ?? 'artifact',
-        }).catch((err: unknown) => console.error('[AQE] Artifact webhook delivery failed:', err));
+        }).catch((err: unknown) => logger.error('Artifact webhook delivery failed', err instanceof Error ? err : new Error(String(err))));
       });
     }
 
@@ -967,10 +973,10 @@ class HTTPServerImpl implements HTTPServer {
         const memory = getUnifiedMemory();
         if (!memory.isCRDTInitialized()) {
           memory.initializeCRDT(`aqe-http-${process.pid}-${Date.now()}`);
-          console.error('[AQE] CRDT store initialized');
+          logger.info('CRDT store initialized');
         }
       } catch (error) {
-        console.error('[AQE] WARNING: Failed to initialize CRDT:', error);
+        logger.warn('Failed to initialize CRDT', { error });
         // Non-fatal, continue without CRDT
       }
     }
@@ -980,9 +986,9 @@ class HTTPServerImpl implements HTTPServer {
       try {
         await this.discoveryService.loadCards(this.agentMarkdownDir);
         this.agentCardsLoaded = true;
-        console.error(`[AQE] Loaded ${this.discoveryService.getAgentCount()} agent cards`);
+        logger.info(`Loaded ${this.discoveryService.getAgentCount()} agent cards`);
       } catch (error) {
-        console.error('[AQE] WARNING: Failed to load agent cards:', error);
+        logger.warn('Failed to load agent cards', { error });
         // Non-fatal, discovery will return empty results
       }
     }
@@ -990,7 +996,7 @@ class HTTPServerImpl implements HTTPServer {
     return new Promise(async (resolve, reject) => {
       this.server = createServer((req, res) => {
         this.handleHttpRequest(req, res).catch((error) => {
-          console.error('[HTTP] Request error:', error);
+          logger.error('Request error', error instanceof Error ? error : new Error(String(error)));
           this.sendError(res, 500, 'Internal server error');
         });
       });
@@ -1003,9 +1009,9 @@ class HTTPServerImpl implements HTTPServer {
       if (this.webSocketTransport && this.enableWebSocket) {
         try {
           await this.webSocketTransport.attach(this.server, '/agent/ws');
-          console.error('[AQE] WebSocket transport attached at /agent/ws');
+          logger.info('WebSocket transport attached at /agent/ws');
         } catch (error) {
-          console.error('[AQE] WARNING: Failed to attach WebSocket transport:', error);
+          logger.warn('Failed to attach WebSocket transport', { error });
           // Non-fatal, SSE is still available as fallback
         }
       }
@@ -1013,7 +1019,7 @@ class HTTPServerImpl implements HTTPServer {
       // Start hot reload watcher if enabled (ADR-054)
       if (this.enableHotReload && this.hotReloadService) {
         this.hotReloadService.start().then(() => {
-          console.error('[AQE] Hot reload enabled for agent cards');
+          logger.info('Hot reload enabled for agent cards');
         }).catch(err => {
           console.error('[AQE] WARNING: Failed to start hot reload:', err);
         });

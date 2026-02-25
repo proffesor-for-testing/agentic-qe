@@ -1,0 +1,45 @@
+name: qe-test-idea-rewriting
+description: "Transform passive 'Verify X' test descriptions into active, observable test actions. Use when test ideas lack specificity, use vague language, or fail quality validation. Converts to action-verb format for clearer, more testable descriptions."
+minModelTier: tier2-good
+tags: ["test-ideas", "rewriting", "action-verbs", "quality", "transformation", "qe", "quality-engineering", "test-design"]
+steps:
+  - name: transformation-pattern
+    description: "Transformation Pattern"
+    tools: ["bash", "read"]
+    prompt: |
+      Transformation Pattern
+  - name: action-verb-quick-reference
+    description: "Action Verb Quick Reference"
+    tools: ["bash", "read"]
+    prompt: |
+      Action Verb Quick Reference
+  - name: common-transformations
+    description: "Common Transformations"
+    tools: ["bash", "read"]
+    prompt: |
+      Common Transformations
+  - name: transformation-rules
+    description: "Transformation Rules"
+    tools: ["bash", "read"]
+    prompt: |
+      Transformation Rules
+  - name: pattern-detection
+    description: "Pattern Detection"
+    tools: ["bash", "read"]
+    prompt: |
+      Pattern Detection
+  - name: transformation-categories
+    description: "Transformation Categories"
+    tools: ["bash", "read"]
+    prompt: |
+      Transformation Categories
+  - name: action-verb-reference
+    description: "Action Verb Reference"
+    tools: ["bash", "read"]
+    prompt: |
+      Action Verb Reference
+  - name: interaction-verbs
+    description: "Interaction Verbs"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Interaction Verbs

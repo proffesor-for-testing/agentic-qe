@@ -16,6 +16,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 // ============================================================================
@@ -95,6 +96,10 @@ async function runBenchmark(
 // Test Suite
 // ============================================================================
 
+// Use a temp directory so benchmarks never pollute the production database
+const BENCH_DB_DIR = path.join(os.tmpdir(), `aqe-bench-${process.pid}-${Date.now()}`);
+const BENCH_DB_PATH = path.join(BENCH_DB_DIR, 'memory.db');
+
 describe('ADR-051 Success Rate Benchmark', () => {
   const results: BenchmarkResult[] = [];
   let agentBooster: any;
@@ -134,10 +139,13 @@ describe('ADR-051 Success Rate Benchmark', () => {
     }
 
     try {
+      fs.mkdirSync(BENCH_DB_DIR, { recursive: true });
       const bankModule = await import(
         '../../src/learning/real-qe-reasoning-bank.js'
       );
-      reasoningBank = bankModule.createRealQEReasoningBank();
+      reasoningBank = bankModule.createRealQEReasoningBank({
+        sqlite: { dbPath: BENCH_DB_PATH, walMode: true, useUnified: false },
+      });
       await reasoningBank.initialize();
     } catch (e) {
       console.warn('ReasoningBank not available:', e);
@@ -149,6 +157,11 @@ describe('ADR-051 Success Rate Benchmark', () => {
     if (onnxAdapter?.dispose) await onnxAdapter.dispose();
     if (reasoningBank?.dispose) await reasoningBank.dispose();
     if (modelRouter?.dispose) await modelRouter.dispose();
+
+    // Remove temp benchmark database
+    try {
+      fs.rmSync(BENCH_DB_DIR, { recursive: true, force: true });
+    } catch { /* ignore */ }
 
     // Generate report
     const suite = generateReport(results);

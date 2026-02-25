@@ -1,0 +1,45 @@
+name: qe-testability-scoring
+description: "AI-powered testability assessment using 10 principles of intrinsic testability with Playwright and optional Vibium integration. Evaluates web applications against Observability, Controllability, Algorithmic Simplicity, Transparency, Stability, Explainability, Unbugginess, Smallness, Decomposability,"
+minModelTier: tier3-best
+tags: ["testability", "scoring", "playwright", "vibium", "assessment", "10-principles", "intrinsic-testability", "james-bach", "michael-bolton", "qe", "quality-engineering", "testing-methodologies"]
+steps:
+  - name: running-assessments
+    description: "Running Assessments"
+    tools: ["bash", "read"]
+    prompt: |
+      Running Assessments
+  - name: principle-details
+    description: "Principle Details"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Principle Details
+  - name: assessment-workflow
+    description: "Assessment Workflow"
+    tools: ["bash", "read"]
+    prompt: |
+      Assessment Workflow
+  - name: output-files
+    description: "Output Files"
+    tools: ["bash", "read"]
+    prompt: |
+      Output Files
+  - name: integration-examples
+    description: "Integration Examples"
+    tools: ["bash", "read"]
+    prompt: |
+      Integration Examples
+  - name: cicd-integration
+    description: "CI/CD Integration"
+    tools: ["bash", "read"]
+    prompt: |
+      CI/CD Integration
+  - name: qx-partner-integration
+    description: "QX Partner Integration"
+    tools: ["bash", "read"]
+    prompt: |
+      QX Partner Integration
+  - name: programmatic-usage
+    description: "Programmatic Usage"
+    tools: ["bash", "read"]
+    prompt: |
+      Programmatic Usage

@@ -1,0 +1,45 @@
+name: qe-test-generation
+description: "AI-powered test generation using pattern recognition, code analysis, and intelligent test synthesis for comprehensive test coverage."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent Workflow
+  - name: test-generation-strategies
+    description: "Test Generation Strategies"
+    tools: ["bash", "read"]
+    prompt: |
+      Test Generation Strategies
+  - name: 1-code-analysis-based
+    description: "1. Code Analysis Based"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Code Analysis Based
+  - name: 2-pattern-based-generation
+    description: "2. Pattern-Based Generation"
+    tools: ["bash", "read"]
+    prompt: |
+      2. Pattern-Based Generation
+  - name: 3-coverage-driven-generation
+    description: "3. Coverage-Driven Generation"
+    tools: ["bash", "read"]
+    prompt: |
+      3. Coverage-Driven Generation
+  - name: framework-support
+    description: "Framework Support"
+    tools: ["bash", "read"]
+    prompt: |
+      Framework Support
+  - name: test-quality-checks
+    description: "Test Quality Checks"
+    tools: ["bash", "read"]
+    prompt: |
+      Test Quality Checks
+  - name: coordination
+    description: "**Primary Agents**: qe-test-generator, qe-pattern-matcher, qe-test-architect **Coordinator**: qe-test-generation-coordinator **Related Skills**: qe-coverage-analysis, qe-test-execution"
+    tools: ["bash", "read"]
+    prompt: |
+      **Primary Agents**: qe-test-generator, qe-pattern-matcher, qe-test-architect **Coordinator**: qe-test-generation-coordinator **Related Skills**: qe-coverage-analysis, qe-test-execution

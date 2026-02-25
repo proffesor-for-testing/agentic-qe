@@ -496,6 +496,139 @@ export async function disposeFleet(): Promise<void> {
 }
 
 // ============================================================================
+// AQE Health Endpoint (OpenCode Integration)
+// ============================================================================
+
+/**
+ * Handle aqe_health tool call.
+ * Returns server status, loaded domains, memory stats, HNSW index status,
+ * and loaded pattern count for OpenCode health checks.
+ */
+export async function handleAQEHealth(): Promise<ToolResult<{
+  status: string;
+  version: string;
+  loadedDomains: number;
+  memory: { connected: boolean; totalEntries: number; namespaces: number };
+  hnsw: { enabled: boolean; vectorCount: number };
+  rvf?: { mode: string; vectorCount: number; divergences: number; promotionSafe: boolean };
+  loadedPatterns: number;
+  uptimeMs: number;
+  timestamp: string;
+}>> {
+  const startTime = performance.now();
+
+  try {
+    const isInit = isFleetInitialized();
+    const uptime = state.initTime
+      ? Date.now() - state.initTime.getTime()
+      : 0;
+
+    // Collect memory stats
+    let memoryStats = { connected: false, totalEntries: 0, namespaces: 0 };
+    let hnswStats = { enabled: false, vectorCount: 0 };
+    let patternCount = 0;
+
+    if (isInit && state.kernel) {
+      const mem = state.kernel.memory;
+
+      // Memory connectivity check
+      try {
+        memoryStats.connected = true;
+        // Count entries in default namespace as a proxy for total entries
+        const defaultCount = await mem.count('default');
+        const learningCount = await mem.count('learning');
+        const patternsCount = await mem.count('patterns');
+        memoryStats.totalEntries = defaultCount + learningCount + patternsCount;
+        // Count non-zero namespaces
+        let nsCount = 0;
+        for (const ns of ['default', 'learning', 'patterns', 'mcp-tools', 'coordination']) {
+          const c = await mem.count(ns);
+          if (c > 0) nsCount++;
+        }
+        memoryStats.namespaces = nsCount;
+      } catch {
+        // Memory stats unavailable but connection may still work
+      }
+
+      // Check HNSW status
+      try {
+        const hnswEnabled = process.env.AQE_V3_HNSW_ENABLED === 'true';
+        hnswStats.enabled = hnswEnabled;
+        const memAny = mem as unknown as Record<string, unknown>;
+        if (hnswEnabled && typeof memAny.getVectorCount === 'function') {
+          hnswStats.vectorCount = await (memAny.getVectorCount as () => Promise<number>)();
+        }
+      } catch {
+        // HNSW stats unavailable
+      }
+
+      // Get loaded pattern count from learning namespace
+      try {
+        const keys = await mem.search('pattern:*', 1000);
+        patternCount = keys.length;
+      } catch {
+        // Pattern count unavailable
+      }
+    }
+
+    const domainCount = isInit && state.kernel
+      ? (state.kernel.getLoadedDomains?.() ?? QE_USER_DOMAINS).length
+      : 0;
+
+    // RVF dual-writer status (optional)
+    let rvfStatus: { mode: string; vectorCount: number; divergences: number; promotionSafe: boolean } | null = null;
+    try {
+      const { getSharedRvfDualWriterSync } = await import('../../integrations/ruvector/shared-rvf-dual-writer.js');
+      const dw = getSharedRvfDualWriterSync();
+      if (dw) {
+        const dwStatus = dw.status();
+        const divergence = dw.getDivergenceReport();
+        rvfStatus = {
+          mode: dwStatus.mode,
+          vectorCount: dwStatus.rvf?.totalVectors ?? 0,
+          divergences: divergence.divergences,
+          promotionSafe: dw.isPromotionSafe(),
+        };
+      }
+    } catch { /* RVF status unavailable */ }
+
+    const healthStatus = isInit ? 'healthy' : 'unhealthy';
+
+    return {
+      success: true,
+      data: {
+        status: healthStatus,
+        version: '3.7.0',
+        loadedDomains: domainCount,
+        memory: memoryStats,
+        hnsw: hnswStats,
+        rvf: rvfStatus ?? undefined,
+        loadedPatterns: patternCount,
+        uptimeMs: uptime,
+        timestamp: new Date().toISOString(),
+      },
+      metadata: {
+        executionTime: performance.now() - startTime,
+        timestamp: new Date().toISOString(),
+        requestId: uuidv4(),
+        toolName: 'aqe_health',
+      },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: toErrorMessage(err),
+      metadata: {
+        executionTime: performance.now() - startTime,
+        timestamp: new Date().toISOString(),
+        requestId: uuidv4(),
+        toolName: 'aqe_health',
+      },
+    };
+  }
+}
+
+// ============================================================================
 // Domain Workflow Action Registration (Issue #206)
 // ============================================================================
 

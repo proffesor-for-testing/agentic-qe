@@ -68,6 +68,12 @@ import type { IQEReasoningBank } from '../learning/qe-reasoning-bank.js';
 import { TaskCompletedHook } from '../hooks/task-completed-hook.js';
 import { ReasoningBankPatternStore } from '../hooks/reasoning-bank-pattern-store.js';
 
+// Structured logging
+import { LoggerFactory } from '../logging/index.js';
+import type { Logger } from '../logging/index.js';
+
+const logger: Logger = LoggerFactory.create('QueenCoordinator');
+
 // ADR-064 Phase 3: Distributed Tracing
 import { TraceCollector, createTraceCollector } from './agent-teams/tracing.js';
 import type { TraceContext } from './agent-teams/tracing.js';
@@ -270,9 +276,9 @@ export class QueenCoordinator implements IQueenCoordinator {
     // ADR-058: Initialize governance adapter
     try {
       await queenGovernanceAdapter.initialize();
-      console.log('[QueenCoordinator] Governance adapter initialized');
+      logger.info('Governance adapter initialized');
     } catch (govError) {
-      console.warn('[QueenCoordinator] Governance initialization failed (continuing):', govError);
+      logger.warn('Governance initialization failed (continuing)', { error: govError });
     }
 
     // ADR-064: Initialize subsystems (non-fatal failures)
@@ -366,7 +372,7 @@ export class QueenCoordinator implements IQueenCoordinator {
         return err(new Error(`Task blocked by governance: ${governanceDecision.reason}`));
       }
     } catch (govError) {
-      console.warn('[QueenCoordinator] Governance check error (continuing):', govError);
+      logger.warn('Governance check error (continuing)', { error: govError });
     }
 
     // CC-002: Atomic increment before capacity check
@@ -530,17 +536,17 @@ export class QueenCoordinator implements IQueenCoordinator {
             } catch {
               // Race: another spawn created the team first — add as teammate instead
               if (!this.domainTeamManager.addTeammate(domain, result.value)) {
-                console.warn(`[QueenCoordinator] Agent ${result.value} could not join ${domain} team (full or max teams reached)`);
+                logger.warn(`Agent ${result.value} could not join ${domain} team (full or max teams reached)`);
               }
             }
           } else {
             if (!this.domainTeamManager.addTeammate(domain, result.value)) {
-              console.warn(`[QueenCoordinator] Agent ${result.value} could not join ${domain} team (full)`);
+              logger.warn(`Agent ${result.value} could not join ${domain} team (full)`);
             }
           }
         } catch (err) {
           // Auto-wiring is best-effort — don't fail agent spawn if teams layer errors
-          console.warn(`[QueenCoordinator] Auto-team-wiring failed for ${result.value}: ${err}`);
+          logger.warn(`Auto-team-wiring failed for ${result.value}`, { error: err });
         }
       }
 
@@ -628,24 +634,24 @@ export class QueenCoordinator implements IQueenCoordinator {
 
   injectMinCutBridgeIntoDomain(domainName: DomainName): boolean {
     if (!this.minCutBridge) {
-      console.warn(`[QueenCoordinator] Cannot inject MinCut bridge: bridge not initialized`);
+      logger.warn('Cannot inject MinCut bridge: bridge not initialized');
       return false;
     }
     if (!this.domainPlugins) {
-      console.warn(`[QueenCoordinator] Cannot inject MinCut bridge: no domain plugins registered`);
+      logger.warn('Cannot inject MinCut bridge: no domain plugins registered');
       return false;
     }
     const plugin = this.domainPlugins.get(domainName);
     if (!plugin) {
-      console.warn(`[QueenCoordinator] Cannot inject MinCut bridge: domain ${domainName} not found`);
+      logger.warn(`Cannot inject MinCut bridge: domain ${domainName} not found`);
       return false;
     }
     if (isMinCutAwarePlugin(plugin)) {
       plugin.setMinCutBridge(this.minCutBridge);
-      console.log(`[QueenCoordinator] MinCut bridge injected into ${domainName} (late binding)`);
+      logger.info(`MinCut bridge injected into ${domainName} (late binding)`);
       return true;
     }
-    console.warn(`[QueenCoordinator] Domain ${domainName} does not support MinCut integration`);
+    logger.warn(`Domain ${domainName} does not support MinCut integration`);
     return false;
   }
 
@@ -662,7 +668,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   connectReasoningBank(bank: IQEReasoningBank): void {
     const adapter = new ReasoningBankPatternStore(bank);
     this.taskCompletedHook = new TaskCompletedHook({}, adapter);
-    console.log('[QueenCoordinator] ReasoningBank connected for pattern training');
+    logger.info('ReasoningBank connected for pattern training');
   }
 
   // ============================================================================
@@ -749,10 +755,10 @@ export class QueenCoordinator implements IQueenCoordinator {
         isHotfix: task.payload?.isHotfix as boolean | undefined,
       };
       const tierResult = this.tierSelector.selectTier(tierContext);
-      console.log(`[Queen] Fleet tier: ${tierResult.selectedTier} (${tierResult.reason})`);
+      logger.info(`Fleet tier: ${tierResult.selectedTier} (${tierResult.reason})`);
       return tierResult.selectedTier;
     } catch (tierError) {
-      console.warn('[QueenCoordinator] Tier selection error (continuing):', tierError);
+      logger.warn('Tier selection error (continuing)', { error: tierError });
       return undefined;
     }
   }
@@ -773,7 +779,7 @@ export class QueenCoordinator implements IQueenCoordinator {
       }
       this.taskTraceContexts.set(taskId, context);
     } catch (traceError) {
-      console.warn('[QueenCoordinator] Trace start error (continuing):', traceError);
+      logger.warn('Trace start error (continuing)', { error: traceError });
     }
   }
 
@@ -790,33 +796,33 @@ export class QueenCoordinator implements IQueenCoordinator {
     if (this.config.enableCircuitBreakers !== false) {
       try {
         this.domainBreakerRegistry = createDomainBreakerRegistry();
-        console.log('[QueenCoordinator] Domain circuit breaker registry initialized');
-      } catch (e) { console.warn('[QueenCoordinator] Circuit breaker initialization failed (continuing):', e); }
+        logger.info('Domain circuit breaker registry initialized');
+      } catch (e) { logger.warn('Circuit breaker initialization failed (continuing)', { error: e }); }
     }
     if (this.config.enableDomainTeams !== false) {
       try {
         this.agentTeamsAdapter = createAgentTeamsAdapter();
         this.agentTeamsAdapter.initialize();
         this.domainTeamManager = createDomainTeamManager(this.agentTeamsAdapter);
-        console.log('[QueenCoordinator] Domain team manager initialized');
-      } catch (e) { console.warn('[QueenCoordinator] Domain team manager initialization failed (continuing):', e); }
+        logger.info('Domain team manager initialized');
+      } catch (e) { logger.warn('Domain team manager initialization failed (continuing)', { error: e }); }
     }
     if (this.config.enableFleetTiers !== false) {
       try {
         this.tierSelector = createTierSelector();
-        console.log('[QueenCoordinator] Fleet tier selector initialized');
-      } catch (e) { console.warn('[QueenCoordinator] Tier selector initialization failed (continuing):', e); }
+        logger.info('Fleet tier selector initialized');
+      } catch (e) { logger.warn('Tier selector initialization failed (continuing)', { error: e }); }
     }
     try {
       this.traceCollector = createTraceCollector();
-      console.log('[QueenCoordinator] Trace collector initialized');
-    } catch (e) { console.warn('[QueenCoordinator] Trace collector initialization failed (continuing):', e); }
+      logger.info('Trace collector initialized');
+    } catch (e) { logger.warn('Trace collector initialization failed (continuing)', { error: e }); }
     try {
       this.hypothesisManager = createHypothesisManager();
       this.federationMailbox = createFederationMailbox();
       this.dynamicScaler = createDynamicScaler();
-      console.log('[QueenCoordinator] Phase 4 modules initialized (hypotheses, federation, scaling)');
-    } catch (e) { console.warn('[QueenCoordinator] Phase 4 initialization failed (continuing):', e); }
+      logger.info('Phase 4 modules initialized (hypotheses, federation, scaling)');
+    } catch (e) { logger.warn('Phase 4 initialization failed (continuing)', { error: e }); }
   }
 
   // ============================================================================

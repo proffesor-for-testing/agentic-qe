@@ -1,0 +1,45 @@
+name: qe-github-release-management
+description: "Comprehensive GitHub release orchestration with AI swarm coordination for automated versioning, testing, deployment, and rollback management"
+minModelTier: tier2-good
+tags: ["release", "deployment", "versioning", "automation", "ci-cd", "swarm", "orchestration", "qe", "quality-engineering", "github"]
+steps:
+  - name: simple-release-flow
+    description: "Simple Release Flow"
+    tools: ["bash", "read"]
+    prompt: |
+      Simple Release Flow
+  - name: full-automated-release
+    description: "Full Automated Release"
+    tools: ["bash", "read"]
+    prompt: |
+      Full Automated Release
+  - name: core-capabilities
+    description: "Core Capabilities"
+    tools: ["bash", "read"]
+    prompt: |
+      Core Capabilities
+  - name: 1-release-planning-version-management
+    description: "- Semantic version analysis and suggestion - Breaking change detection from commits - Release timeline generation - Multi-package version coordination"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - Semantic version analysis and suggestion - Breaking change detection from commits - Release timeline generation - Multi-package version coordination
+  - name: 2-automated-testing-validation
+    description: "- Multi-stage test orchestration - Cross-platform compatibility testing - Performance regression detection - Security vulnerability scanning"
+    tools: ["bash", "read"]
+    prompt: |
+      - Multi-stage test orchestration - Cross-platform compatibility testing - Performance regression detection - Security vulnerability scanning
+  - name: 3-build-deployment-orchestration
+    description: "- Multi-platform build coordination - Parallel artifact generation - Progressive deployment strategies - Automated rollback mechanisms"
+    tools: ["bash", "read"]
+    prompt: |
+      - Multi-platform build coordination - Parallel artifact generation - Progressive deployment strategies - Automated rollback mechanisms
+  - name: 4-documentation-communication
+    description: "- Automated changelog generation - Release notes with categorization - Migration guide creation - Stakeholder notification"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - Automated changelog generation - Release notes with categorization - Migration guide creation - Stakeholder notification
+  - name: progressive-disclosure-level-1---basic-u
+    description: "Progressive Disclosure: Level 1 - Basic Usage"
+    tools: ["bash", "read"]
+    prompt: |
+      Progressive Disclosure: Level 1 - Basic Usage

@@ -7,6 +7,7 @@
  * @module integrations/vibium/client
  */
 
+import { randomUUID } from 'crypto';
 import type {
   VibiumClient,
   VibiumConfig,
@@ -813,7 +814,7 @@ export class VibiumClientImpl implements VibiumClient {
    * Generate unique session ID
    */
   private generateSessionId(): string {
-    return `vibium-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `vibium-session-${Date.now()}-${randomUUID().slice(0, 9)}`;
   }
 }
 

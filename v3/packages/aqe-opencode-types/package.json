@@ -1,0 +1,26 @@
+{
+  "name": "@agentic-qe/opencode-types",
+  "version": "0.1.0",
+  "description": "Shared TypeScript types for AQE-OpenCode integration",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "agentic-qe",
+    "opencode",
+    "types",
+    "mcp"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "files": [
+    "dist/**",
+    "src/**"
+  ]
+}

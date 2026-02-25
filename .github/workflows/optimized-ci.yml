@@ -137,6 +137,50 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=512'
         continue-on-error: true
 
+  # Postgres integration tests
+  integration-tests:
+    name: Postgres Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: aqe_test
+          POSTGRES_USER: aqe_test
+          POSTGRES_PASSWORD: aqe_test
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run Postgres integration tests
+        working-directory: v3
+        run: npm run test:integration:pg
+        env:
+          POSTGRES_URL: postgresql://aqe_test:aqe_test@localhost:15432/aqe_test
+          NODE_OPTIONS: '--max-old-space-size=1024'
+
   # V3 Performance gates
   performance-gates:
     name: V3 Performance Gates

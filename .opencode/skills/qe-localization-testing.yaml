@@ -1,0 +1,40 @@
+name: qe-localization-testing
+description: "Internationalization (i18n) and localization (l10n) testing for global products including translations, locale formats, RTL languages, and cultural appropriateness. Use when launching in new markets or building multi-language products."
+minModelTier: tier3-best
+tags: ["localization", "i18n", "l10n", "translation", "rtl", "unicode", "locale", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: i18n-vs-l10n
+    description: "i18n vs l10n"
+    tools: ["bash", "read"]
+    prompt: |
+      i18n vs l10n
+  - name: common-locale-formats
+    description: "Common Locale Formats"
+    tools: ["bash", "read"]
+    prompt: |
+      Common Locale Formats
+  - name: translation-coverage-testing
+    description: "Translation Coverage Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Translation Coverage Testing
+  - name: datetimecurrency-formats
+    description: "Date/Time/Currency Formats"
+    tools: ["bash", "read"]
+    prompt: |
+      Date/Time/Currency Formats
+  - name: rtl-right-to-left-testing
+    description: "RTL (Right-to-Left) Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      RTL (Right-to-Left) Testing
+  - name: unicode-character-support
+    description: "Unicode Character Support"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Unicode Character Support
+  - name: agent-driven-localization-testing
+    description: "Agent-Driven Localization Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent-Driven Localization Testing

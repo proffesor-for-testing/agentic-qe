@@ -271,6 +271,15 @@ export class HypergraphSchemaManager {
    * @param db - better-sqlite3 database instance
    */
   dropSchema(db: DatabaseType): void {
+    // Safety check: refuse to drop tables that contain data
+    const nodeCount = (db.prepare('SELECT COUNT(*) as cnt FROM hypergraph_nodes').get() as { cnt: number } | undefined)?.cnt ?? 0;
+    const edgeCount = (db.prepare('SELECT COUNT(*) as cnt FROM hypergraph_edges').get() as { cnt: number } | undefined)?.cnt ?? 0;
+    if (nodeCount > 0 || edgeCount > 0) {
+      throw new Error(
+        `REFUSING to drop hypergraph schema: tables contain data (${nodeCount} nodes, ${edgeCount} edges). ` +
+        'Backup and manually drop if needed.'
+      );
+    }
     const transaction = db.transaction(() => {
       db.exec('DROP TABLE IF EXISTS hypergraph_edges');
       db.exec('DROP TABLE IF EXISTS hypergraph_nodes');

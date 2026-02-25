@@ -6,6 +6,7 @@
  * Supports cost limits, alerts, and detailed breakdowns.
  */
 
+import { randomUUID } from 'crypto';
 import {
   LLMProviderType,
   TokenUsage,
@@ -322,7 +323,7 @@ export class CostTracker {
     period: CostPeriod,
     onThreshold: (summary: CostSummary) => void
   ): string {
-    const alertId = `alert-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const alertId = `alert-${Date.now()}-${randomUUID().slice(0, 12)}`;
 
     this.alerts.push({
       threshold,

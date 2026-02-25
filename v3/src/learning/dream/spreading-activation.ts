@@ -232,7 +232,8 @@ export class SpreadingActivation {
    */
   async spread(
     seedNodes: string[],
-    seedActivation: number = 1.0
+    seedActivation: number = 1.0,
+    deadlineMs?: number
   ): Promise<ActivationResult> {
     // Validate seed nodes
     const validSeeds = seedNodes.filter((id) => this.graph.getConcept(id) !== undefined);
@@ -260,6 +261,11 @@ export class SpreadingActivation {
 
     // Spread activation iteratively
     while (iterations < this.config.maxIterations) {
+      // Respect time deadline if provided
+      if (deadlineMs !== undefined && Date.now() >= deadlineMs) {
+        break;
+      }
+
       const nodesUpdated = await this.spreadIteration();
 
       // Track peak activation
@@ -352,8 +358,10 @@ export class SpreadingActivation {
       };
     }
 
-    // Dream loop
-    while (Date.now() - startTime < durationMs) {
+    // Dream loop with strict time enforcement
+    const deadlineMs = startTime + durationMs;
+
+    while (Date.now() < deadlineMs) {
       // Randomly select a concept to activate
       const randomIndex = Math.floor(Math.random() * allConcepts.length);
       const randomNode = allConcepts[randomIndex];
@@ -366,8 +374,8 @@ export class SpreadingActivation {
 
         this.graph.setActivation(randomNode.id, newActivation);
 
-        // Spread from this random activation
-        const result = await this.spread([randomNode.id], newActivation);
+        // Spread from this random activation (with deadline to prevent overrun)
+        const result = await this.spread([randomNode.id], newActivation, deadlineMs);
         totalIterations += result.iterations;
 
         if (result.peakActivation > maxPeakActivation) {
@@ -384,6 +392,9 @@ export class SpreadingActivation {
           allNovelAssociations.push(assoc);
         }
       }
+
+      // Check deadline again before sleeping
+      if (Date.now() >= deadlineMs) break;
 
       // Small delay to prevent CPU spike
       await this.sleep(50 + Math.random() * 50);

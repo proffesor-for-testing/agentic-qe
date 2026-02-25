@@ -12,6 +12,7 @@
  * @module validation/swarm-skill-validator
  */
 
+import { randomUUID } from 'crypto';
 import { toErrorMessage } from '../shared/error-utils.js';
 import type {
   SkillValidationLearner,
@@ -394,7 +395,7 @@ export class SwarmSkillValidator {
     for (const skill of skills) {
       for (const model of models) {
         tasks.push({
-          id: `${skill}-${model}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          id: `${skill}-${model}-${Date.now()}-${randomUUID().slice(0, 8)}`,
           skill,
           model,
           trustTier,

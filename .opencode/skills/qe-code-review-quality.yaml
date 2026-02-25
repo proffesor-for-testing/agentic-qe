@@ -1,0 +1,45 @@
+name: qe-code-review-quality
+description: "Conduct context-driven code reviews focusing on quality, testability, and maintainability. Use when reviewing code, providing feedback, or establishing review practices."
+minModelTier: tier2-good
+tags: ["code-review", "feedback", "quality", "testability", "maintainability", "pr-review", "qe", "quality-engineering", "development-practices"]
+steps:
+  - name: feedback-priority-levels
+    description: "Feedback Priority Levels"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Feedback Priority Levels
+  - name: review-scope-limits
+    description: "Review Scope Limits"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Review Scope Limits
+  - name: what-to-focus-on
+    description: "What to Focus On"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      What to Focus On
+  - name: feedback-templates
+    description: "Feedback Templates"
+    tools: ["bash", "read"]
+    prompt: |
+      Feedback Templates
+  - name: blocker-must-fix
+    description: "Blocker (Must Fix)"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Blocker (Must Fix)
+  - name: major-should-fix
+    description: "Major (Should Fix)"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Major (Should Fix)
+  - name: minor-nice-to-fix
+    description: "Minor (Nice to Fix)"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Minor (Nice to Fix)
+  - name: suggestion-consider
+    description: "Suggestion (Consider)"
+    tools: ["bash", "read"]
+    prompt: |
+      Suggestion (Consider)

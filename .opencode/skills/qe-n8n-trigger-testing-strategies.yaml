@@ -1,0 +1,45 @@
+name: qe-n8n-trigger-testing-strategies
+description: "Webhook testing, schedule validation, event-driven triggers, and polling mechanism testing for n8n workflows. Use when testing how workflows are triggered."
+minModelTier: tier3-best
+tags: ["n8n", "triggers", "webhook", "schedule", "cron", "polling", "testing", "qe", "quality-engineering", "n8n-testing"]
+steps:
+  - name: n8n-trigger-types
+    description: "n8n Trigger Types"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      n8n Trigger Types
+  - name: common-webhook-configurations
+    description: "Common Webhook Configurations"
+    tools: ["bash", "read"]
+    prompt: |
+      Common Webhook Configurations
+  - name: webhook-testing
+    description: "Webhook Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Webhook Testing
+  - name: basic-webhook-test
+    description: "Basic Webhook Test"
+    tools: ["bash", "read"]
+    prompt: |
+      Basic Webhook Test
+  - name: http-method-testing
+    description: "HTTP Method Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      HTTP Method Testing
+  - name: authentication-testing
+    description: "Authentication Testing"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Authentication Testing
+  - name: schedule-testing
+    description: "Schedule Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      Schedule Testing
+  - name: cron-expression-validation
+    description: "Cron Expression Validation"
+    tools: ["bash", "read"]
+    prompt: |
+      Cron Expression Validation

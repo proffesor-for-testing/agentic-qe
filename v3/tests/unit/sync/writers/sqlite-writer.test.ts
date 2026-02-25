@@ -18,7 +18,8 @@ import { SQLiteWriter, createSQLiteWriter } from '../../../../src/sync/writers/s
 import { openDatabase } from '../../../../src/shared/safe-db.js';
 
 // Use a temp directory for test databases
-const TEST_DB_DIR = path.join(process.cwd(), 'v3/tests/unit/sync/writers');
+// __dirname resolves correctly regardless of cwd
+const TEST_DB_DIR = path.resolve(import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname));
 const TEST_DB_PATH = path.join(TEST_DB_DIR, '_test_sqlite_writer.db');
 
 describe('SQLiteWriter', () => {

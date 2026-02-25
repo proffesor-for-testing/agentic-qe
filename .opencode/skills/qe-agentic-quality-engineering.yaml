@@ -1,0 +1,45 @@
+name: qe-agentic-quality-engineering
+description: "AI agents as force multipliers for quality work. Core skill for all 19 QE agents using PACT principles."
+minModelTier: tier1-fast
+tags: ["pact", "agents", "fleet", "coordination", "autonomous", "foundational", "qe", "quality-engineering", "qe-core"]
+steps:
+  - name: pact-principles
+    description: "PACT Principles"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      PACT Principles
+  - name: 19-agent-fleet
+    description: "19-Agent Fleet"
+    tools: ["bash", "read"]
+    prompt: |
+      19-Agent Fleet
+  - name: coordination-patterns
+    description: "Coordination Patterns"
+    tools: ["bash", "read"]
+    prompt: |
+      Coordination Patterns
+  - name: success-criteria
+    description: "✅ 10x deployment frequency with same/better quality ✅ Coverage gaps detected in real-time ✅ Bugs caught pre-production ❌ Agents acting without human oversight on critical decisions ❌ Deploying all 19 agents at once (start with 1-2)"
+    tools: ["bash", "read"]
+    prompt: |
+      ✅ 10x deployment frequency with same/better quality ✅ Coverage gaps detected in real-time ✅ Bugs caught pre-production ❌ Agents acting without human oversight on critical decisions ❌ Deploying all 19 agents at once (start with 1-2)
+  - name: core-concepts
+    description: "Core Concepts"
+    tools: ["bash", "read"]
+    prompt: |
+      Core Concepts
+  - name: qe-evolution
+    description: "QE Evolution"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      QE Evolution
+  - name: key-capabilities
+    description: "**1. Intelligent Test Generation**"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      **1. Intelligent Test Generation**
+  - name: three-phase-memory-protocol
+    description: "For coordinated multi-agent tasks, use the STATUS → PROGRESS → COMPLETE pattern:"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      For coordinated multi-agent tasks, use the STATUS → PROGRESS → COMPLETE pattern:

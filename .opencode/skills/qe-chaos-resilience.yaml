@@ -1,0 +1,45 @@
+name: qe-chaos-resilience
+description: "Chaos engineering and resilience testing including fault injection, load testing, and system recovery validation."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: agent-workflow
+    description: "Agent Workflow"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Agent Workflow
+  - name: chaos-experiments
+    description: "Chaos Experiments"
+    tools: ["bash", "read"]
+    prompt: |
+      Chaos Experiments
+  - name: 1-fault-injection
+    description: "1. Fault Injection"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Fault Injection
+  - name: 2-load-testing
+    description: "2. Load Testing"
+    tools: ["bash", "read"]
+    prompt: |
+      2. Load Testing
+  - name: 3-stress-testing
+    description: "3. Stress Testing"
+    tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      3. Stress Testing
+  - name: 4-resilience-validation
+    description: "4. Resilience Validation"
+    tools: ["bash", "read"]
+    prompt: |
+      4. Resilience Validation
+  - name: fault-types
+    description: "Fault Types"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      Fault Types
+  - name: chaos-report
+    description: "Chaos Report"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Chaos Report

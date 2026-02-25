@@ -105,16 +105,16 @@ async function tryClocCount(
   config: MetricCollectorConfig
 ): Promise<LOCMetrics | null> {
   try {
-    const excludeDirs = config.excludeDirs.join(',');
-    const command = `cloc --json --exclude-dir=${excludeDirs} "${projectPath}"`;
+    const args = ['--json', `--exclude-dir=${config.excludeDirs.join(',')}`, projectPath];
 
-    const output = execSync(command, {
+    const result = spawnSync('cloc', args, {
       encoding: 'utf-8',
       timeout: config.timeout,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer (reduced for memory safety)
     });
 
-    return parseClocOutput(output, config.excludeDirs);
+    if (result.error || result.status !== 0) return null;
+    return parseClocOutput(result.stdout, config.excludeDirs);
   } catch {
     // cloc not available or failed
     return null;
@@ -164,16 +164,20 @@ async function tryTokeiCount(
 ): Promise<LOCMetrics | null> {
   try {
     // tokei uses -e for exclude patterns
-    const excludeArgs = config.excludeDirs.map(dir => `-e "${dir}"`).join(' ');
-    const command = `tokei --output json ${excludeArgs} "${projectPath}"`;
+    const args = ['--output', 'json'];
+    for (const dir of config.excludeDirs) {
+      args.push('-e', dir);
+    }
+    args.push(projectPath);
 
-    const output = execSync(command, {
+    const result = spawnSync('tokei', args, {
       encoding: 'utf-8',
       timeout: config.timeout,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer (reduced for memory safety)
     });
 
-    return parseTokeiOutput(output, config.excludeDirs);
+    if (result.error || result.status !== 0) return null;
+    return parseTokeiOutput(result.stdout, config.excludeDirs);
   } catch {
     // tokei not available or failed
     return null;

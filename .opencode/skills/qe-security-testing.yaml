@@ -1,0 +1,45 @@
+name: qe-security-testing
+description: "Test for security vulnerabilities using OWASP principles. Use when conducting security audits, testing auth, or implementing security practices."
+minModelTier: tier3-best
+tags: ["security", "owasp", "sast", "dast", "vulnerabilities", "auth", "injection", "qe", "quality-engineering", "specialized-testing"]
+steps:
+  - name: owasp-top-10-2021
+    description: "OWASP Top 10 (2021)"
+    tools: ["bash", "read"]
+    prompt: |
+      OWASP Top 10 (2021)
+  - name: key-vulnerability-tests
+    description: "Key Vulnerability Tests"
+    tools: ["bash", "read"]
+    prompt: |
+      Key Vulnerability Tests
+  - name: 1-broken-access-control
+    description: "1. Broken Access Control"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Broken Access Control
+  - name: 2-injection-attacks
+    description: "2. Injection Attacks"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      2. Injection Attacks
+  - name: 3-cryptographic-failures
+    description: "3. Cryptographic Failures"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      3. Cryptographic Failures
+  - name: 4-security-misconfiguration
+    description: "4. Security Misconfiguration"
+    tools: ["bash", "read"]
+    prompt: |
+      4. Security Misconfiguration
+  - name: 5-rate-limiting
+    description: "5. Rate Limiting"
+    tools: ["bash", "read"]
+    prompt: |
+      5. Rate Limiting
+  - name: security-checklist
+    description: "Security Checklist"
+    tools: ["bash", "read"]
+    prompt: |
+      Security Checklist

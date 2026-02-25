@@ -13,6 +13,7 @@
  * - TTL-based schedule management
  */
 
+import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -552,7 +553,7 @@ export function createPersistentScheduler(
  */
 export function generateScheduleId(): string {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 8);
+  const random = randomUUID().slice(0, 8);
   return `sched-${timestamp}-${random}`;
 }
 

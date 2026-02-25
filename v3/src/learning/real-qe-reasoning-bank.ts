@@ -337,10 +337,22 @@ export class RealQEReasoningBank {
     // Load existing patterns into HNSW
     await this.loadPatternsIntoHNSW();
 
-    // Load foundational patterns if database is empty
+    // Load foundational patterns ONLY if this is a brand-new database (no tables or genuinely empty).
+    // CRITICAL: Do NOT overwrite existing data. If patterns were unexpectedly wiped,
+    // loading 22 seed patterns would mask the data loss. Log a warning instead.
     const stats = this.sqliteStore.getStats();
     if (stats.totalPatterns === 0) {
-      await this.loadFoundationalPatterns();
+      // Check if there's evidence of prior data (embeddings, usage, trajectories exist)
+      const hasHistoricalData = this.sqliteStore.hasAnyHistoricalData?.() ?? false;
+      if (hasHistoricalData) {
+        logger.error(
+          'qe_patterns table is EMPTY but historical data exists — possible data loss! ' +
+          'Restore from backup instead of loading seed patterns. ' +
+          'Skipping foundational pattern load to avoid masking data loss.'
+        );
+      } else {
+        await this.loadFoundationalPatterns();
+      }
     }
 
     this.initialized = true;

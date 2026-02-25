@@ -8,6 +8,7 @@
  * @see https://a2a-protocol.org/latest/specification/
  */
 
+import { randomUUID } from 'crypto';
 import type { WebhookConfig, WebhookEvent } from './webhook-service.js';
 
 // ============================================================================
@@ -643,7 +644,7 @@ export class SubscriptionStore {
   // ============================================================================
 
   private generateId(): string {
-    return `sub-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    return `sub-${Date.now()}-${randomUUID().split('-')[0]}`;
   }
 
   private addToTaskIndex(taskId: string, subscriptionId: string): void {

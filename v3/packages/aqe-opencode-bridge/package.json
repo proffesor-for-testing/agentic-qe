@@ -1,0 +1,30 @@
+{
+  "name": "@agentic-qe/opencode-bridge",
+  "version": "0.1.0",
+  "description": "Bridge between AQE MCP server and OpenCode — config templates, output compaction, tool mapping",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "agentic-qe",
+    "opencode",
+    "bridge",
+    "mcp"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@agentic-qe/opencode-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "files": [
+    "dist/**",
+    "src/**",
+    "templates/**"
+  ]
+}

@@ -6,6 +6,7 @@
  * integrating with PatternStore and TokenMetricsCollector.
  */
 
+import { randomUUID } from 'crypto';
 import { EarlyExitTokenOptimizer, EarlyExitConfig, EarlyExitResult, EarlyExitTask, ReuseStats, DEFAULT_EARLY_EXIT_CONFIG } from './early-exit-token-optimizer.js';
 import { PatternStore, createPatternStore } from '../learning/pattern-store.js';
 import { TokenMetricsCollector, formatDashboardSummary } from '../learning/token-tracker.js';
@@ -169,7 +170,7 @@ class TokenOptimizerServiceImpl {
     try {
       const result = await this.patternStore.store({
         ...pattern,
-        id: `pattern-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        id: `pattern-${Date.now()}-${randomUUID().slice(0, 8)}`,
         createdAt: new Date(),
         lastUsedAt: new Date(),
       } as QEPattern);

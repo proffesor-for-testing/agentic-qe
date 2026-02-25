@@ -1,0 +1,40 @@
+name: qe-refactoring-patterns
+description: "Apply safe refactoring patterns to improve code structure without changing behavior. Use when cleaning up code, reducing technical debt, or improving maintainability."
+minModelTier: tier2-good
+tags: ["refactoring", "code-quality", "technical-debt", "maintainability", "clean-code", "qe", "quality-engineering", "development-practices"]
+steps:
+  - name: common-refactorings
+    description: "Common Refactorings"
+    tools: ["bash", "read"]
+    prompt: |
+      Common Refactorings
+  - name: the-rule-of-three
+    description: "1. First time → Just do it 2. Second time → Wince and duplicate 3. Third time → **Refactor**"
+    tools: ["bash", "read"]
+    prompt: |
+      1. First time → Just do it 2. Second time → Wince and duplicate 3. Third time → **Refactor**
+  - name: key-patterns
+    description: "Key Patterns"
+    tools: ["bash", "read"]
+    prompt: |
+      Key Patterns
+  - name: extract-method
+    description: "Extract Method"
+    tools: ["bash", "read"]
+    prompt: |
+      Extract Method
+  - name: replace-loop-with-pipeline
+    description: "Replace Loop with Pipeline"
+    tools: ["bash", "read"]
+    prompt: |
+      Replace Loop with Pipeline
+  - name: decompose-conditional
+    description: "Decompose Conditional"
+    tools: ["bash", "read"]
+    prompt: |
+      Decompose Conditional
+  - name: agent-integration
+    description: "Agent Integration"
+    tools: ["bash", "read"]
+    prompt: |
+      Agent Integration

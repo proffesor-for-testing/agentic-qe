@@ -1,0 +1,45 @@
+name: qe-bug-reporting-excellence
+description: "Write high-quality bug reports that get fixed quickly. Use when reporting bugs, training teams on bug reporting, or establishing bug report standards."
+minModelTier: tier2-good
+tags: ["bugs", "reporting", "communication", "triage", "quality", "qe", "quality-engineering", "quality-communication"]
+steps:
+  - name: component-issue-title
+    description: "**Severity:** Critical/High/Medium/Low **Environment:** Production/Staging/Dev"
+    tools: ["bash", "read"]
+    prompt: |
+      **Severity:** Critical/High/Medium/Low **Environment:** Production/Staging/Dev
+  - name: expected-behavior
+    description: "What should happen"
+    tools: ["bash", "read"]
+    prompt: |
+      What should happen
+  - name: actual-behavior
+    description: "What actually happens (with error messages)"
+    tools: ["bash", "read"]
+    prompt: |
+      What actually happens (with error messages)
+  - name: steps-to-reproduce
+    description: "1. Step one 2. Step two 3. Observe issue"
+    tools: ["bash", "read"]
+    prompt: |
+      1. Step one 2. Step two 3. Observe issue
+  - name: impact
+    description: "How this affects users/business"
+    tools: ["bash", "read"]
+    prompt: |
+      How this affects users/business
+  - name: severity-levels
+    description: "Severity Levels"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Severity Levels
+  - name: title-formula
+    description: "❌ Bad: \"Checkout broken\" ✅ Good: \"Payment fails with Visa cards when order total > $1000\""
+    tools: ["bash", "read"]
+    prompt: |
+      ❌ Bad: "Checkout broken" ✅ Good: "Payment fails with Visa cards when order total > $1000"
+  - name: essential-information
+    description: "Essential Information"
+    tools: ["bash", "read"]
+    prompt: |
+      Essential Information

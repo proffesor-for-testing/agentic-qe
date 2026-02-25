@@ -574,6 +574,7 @@ export class ReasoningBankService {
         outcome.domain || 'general',
         outcome.agentId ? `agent:${outcome.agentId}` : undefined,
         outcome.modelTier ? `tier:${outcome.modelTier}` : undefined,
+        outcome.executionTimeMs ? `duration:${outcome.executionTimeMs}ms` : undefined,
       ].filter((t): t is string => t !== undefined);
 
       await this.enhancedAdapter.storePattern({
@@ -582,11 +583,9 @@ export class ReasoningBankService {
         description: outcome.task,
         template: {
           type: 'workflow',
-          content: JSON.stringify({
-            approach: outcome.task,
-            metrics: outcome.metrics,
-            executionTimeMs: outcome.executionTimeMs,
-          }),
+          // Store only the task approach as content - not JSON.stringify'd metrics
+          // This avoids expensive embedding computation on non-semantic JSON strings
+          content: outcome.task,
           variables: [],
         },
         context: {

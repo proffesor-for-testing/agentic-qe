@@ -2,8 +2,8 @@
   "version": "1.3.0",
   "generated": "2026-02-04T00:00:00.000Z",
   "totalSkills": 46,
-  "totalQESkills": 75,
-  "description": "Agentic QE Fleet skills manifest - 46 Tier 3 verified QE skills. Total 75 QE skills on disk (46 Tier 3 + 29 additional including QCSD swarms, n8n testing, enterprise integration, pentest validation, qe-* domains).",
+  "totalQESkills": 78,
+  "description": "Agentic QE Fleet skills manifest - 46 Tier 3 verified QE skills. Total 78 QE skills on disk (46 Tier 3 + 32 additional including QCSD swarms, n8n testing, enterprise integration, pentest validation, qe-* domains).",
   "categories": {
     "qcsd-phases": {
       "description": "QCSD (Quality Conscious Software Delivery) phase swarms for shift-left quality",
@@ -904,7 +904,7 @@
   },
   "metadata": {
     "generatedBy": "Agentic QE Fleet",
-    "fleetVersion": "3.7.0",
+    "fleetVersion": "3.7.1",
     "manifestVersion": "1.3.0",
     "lastUpdated": "2026-02-04T00:00:00.000Z",
     "contributors": [
@@ -914,11 +914,11 @@
         "url": "https://github.com/fndlalit"
       }
     ],
-    "notes": "This manifest tracks 46 Tier 3 verified QE skills. Total 75 QE skills on disk (46 Tier 3 + 29 additional). Claude Flow platform skills (36) are managed separately.",
+    "notes": "This manifest tracks 46 Tier 3 verified QE skills. Total 78 QE skills on disk (46 Tier 3 + 32 additional). Claude Flow platform skills (33) are managed separately.",
     "skillBreakdown": {
       "qeSkillsTier3": 46,
-      "qeSkillsAdditional": 21,
-      "totalQESkills": 75,
+      "qeSkillsAdditional": 32,
+      "totalQESkills": 78,
       "platformSkills": 36,
       "totalOnDisk": 111
     },

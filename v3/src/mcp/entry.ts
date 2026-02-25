@@ -46,6 +46,8 @@ async function main(): Promise<void> {
     if (server) {
       await server.stop();
     }
+    // Close data stores AFTER server has drained connections
+    try { const { resetSharedRvfDualWriter } = await import('../integrations/ruvector/shared-rvf-dual-writer.js'); resetSharedRvfDualWriter(); } catch { /* ignore */ }
     process.exit(0);
   });
 
@@ -58,6 +60,8 @@ async function main(): Promise<void> {
     if (server) {
       await server.stop();
     }
+    // Close data stores AFTER server has drained connections
+    try { const { resetSharedRvfDualWriter } = await import('../integrations/ruvector/shared-rvf-dual-writer.js'); resetSharedRvfDualWriter(); } catch { /* ignore */ }
     process.exit(0);
   });
 

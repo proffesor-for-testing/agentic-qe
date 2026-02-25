@@ -1,0 +1,45 @@
+name: qe-pair-programming
+description: "AI-assisted pair programming with multiple modes (driver/navigator/switch), real-time verification, quality monitoring, and comprehensive testing. Supports TDD, debugging, refactoring, and learning sessions. Features automatic role switching, continuous code review, security scanning, and performanc"
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: what-this-skill-does
+    description: "This skill provides professional pair programming capabilities with AI assistance, supporting multiple collaboration modes, continuous verification, and integrated testing. It manages driver/navigator roles, performs real-time code review, tracks quality metrics, and ensures high standards through t"
+    tools: ["bash", "read"]
+    prompt: |
+      This skill provides professional pair programming capabilities with AI assistance, supporting multiple collaboration modes, continuous verification, and integrated testing. It manages driver/navigator roles, performs real-time code review, tracks quality metrics, and ensures high standards through t
+  - name: basic-session
+    description: "Basic Session"
+    tools: ["bash", "read"]
+    prompt: |
+      Basic Session
+  - name: tdd-session
+    description: "TDD Session"
+    tools: ["bash", "read"]
+    prompt: |
+      TDD Session
+  - name: complete-guide
+    description: "Complete Guide"
+    tools: ["bash", "read"]
+    prompt: |
+      Complete Guide
+  - name: session-control-commands
+    description: "Session Control Commands"
+    tools: ["bash", "read"]
+    prompt: |
+      Session Control Commands
+  - name: available-modes
+    description: "Available Modes"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Available Modes
+  - name: in-session-commands
+    description: "In-Session Commands"
+    tools: ["bash", "read", "edit", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      In-Session Commands
+  - name: command-shortcuts
+    description: "Command Shortcuts"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Command Shortcuts
