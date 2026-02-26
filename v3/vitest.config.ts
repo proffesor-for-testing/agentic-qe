@@ -16,6 +16,10 @@ export default defineConfig({
       // This prevents test runs from inflating .agentic-qe/memory.db.
       AQE_PROJECT_ROOT: path.join(os.tmpdir(), `aqe-vitest-${process.pid}`),
     },
+    reporters: ['default', 'junit'],
+    outputFile: {
+      junit: 'junit.xml',
+    },
     include: ['tests/**/*.test.ts'],
     benchmark: {
       include: ['tests/**/*.bench.ts'],

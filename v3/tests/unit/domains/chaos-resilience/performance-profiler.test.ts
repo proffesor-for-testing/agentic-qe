@@ -3,6 +3,14 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Mock secureRandom so we can control randomness in tests
+const mockSecureRandom = vi.fn(() => 0.5);
+vi.mock('../../../../src/shared/utils/crypto-random', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../../src/shared/utils/crypto-random')>();
+  return { ...original, secureRandom: (...args: any[]) => mockSecureRandom(...args) };
+});
+
 import { PerformanceProfilerService } from '../../../../src/domains/chaos-resilience/services/performance-profiler';
 import { MemoryBackend, StoreOptions } from '../../../../src/kernel/interfaces';
 import {
@@ -124,9 +132,8 @@ describe('PerformanceProfilerService', () => {
         simulateRandomFailures: true, // Enable random failures for this test
       });
 
-      // Mock Math.random to force health check failure
-      const originalRandom = Math.random;
-      Math.random = () => 0.01; // Will make health check fail (< 0.05)
+      // Force secureRandom to return low value making health check fail (< 0.05)
+      mockSecureRandom.mockReturnValue(0.01);
 
       try {
         const result = await failureService.testRecovery('unhealthy-service', 'latency', 5000);
@@ -137,7 +144,7 @@ describe('PerformanceProfilerService', () => {
           expect(result.value.timeline[0].status).toBe('unhealthy');
         }
       } finally {
-        Math.random = originalRandom;
+        mockSecureRandom.mockReturnValue(0.5);
       }
     });
 
