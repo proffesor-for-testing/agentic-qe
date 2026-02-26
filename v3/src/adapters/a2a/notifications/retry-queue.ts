@@ -10,6 +10,7 @@
 
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
+import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Types
@@ -443,7 +444,7 @@ export class RetryQueue extends EventEmitter {
 
     // Add jitter
     if (jitterEnabled && jitterRatio && jitterRatio > 0) {
-      const jitter = delay * jitterRatio * (Math.random() * 2 - 1);
+      const jitter = delay * jitterRatio * (secureRandom() * 2 - 1);
       delay = Math.max(baseDelayMs, delay + jitter);
     }
 

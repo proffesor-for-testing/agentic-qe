@@ -18,6 +18,7 @@ import { LearningCoordinatorService } from '../../../domains/learning-optimizati
 import { MetricsOptimizerService } from '../../../domains/learning-optimization/services/metrics-optimizer.js';
 import { TransferSpecialistService } from '../../../domains/learning-optimization/services/transfer-specialist.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+import { secureRandom, secureRandomFloat } from '../../../shared/utils/crypto-random.js';
 import {
   Experience,
   PatternContext,
@@ -375,9 +376,9 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
           action: 'optimize',
           state: { context: {}, metrics: {} },
           result: {
-            success: Math.random() > 0.3,
-            outcome: { [objective.metric]: 70 + Math.random() * 30 },
-            duration: 1000 + Math.random() * 5000,
+            success: secureRandom() > 0.3,
+            outcome: { [objective.metric]: secureRandomFloat(70, 100) },
+            duration: secureRandomFloat(1000, 6000),
           },
           reward: mineResult.value.avgReward,
           timestamp: new Date(),

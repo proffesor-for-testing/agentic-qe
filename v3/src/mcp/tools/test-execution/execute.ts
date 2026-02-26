@@ -10,6 +10,7 @@
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+import { secureRandom, secureRandomFloat } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Types
@@ -143,13 +144,13 @@ export class TestExecuteTool extends MCPToolBase<TestExecuteParams, TestExecuteR
         });
 
         // Simulate test results
-        const passed = Math.random() > 0.1;
+        const passed = secureRandom() > 0.1;
         const result: TestResult = {
           id: `test-${i}`,
           name: `Test suite for ${file.split('/').pop()}`,
           file,
           status: passed ? 'passed' : 'failed',
-          duration: Math.random() * 5000,
+          duration: secureRandom() * 5000,
           error: passed ? undefined : 'Assertion failed',
           retries: passed ? 0 : Math.min(retryCount, 2),
         };
@@ -157,11 +158,11 @@ export class TestExecuteTool extends MCPToolBase<TestExecuteParams, TestExecuteR
         testResults.push(result);
 
         // Detect flaky tests (retried and eventually passed)
-        if (!passed && Math.random() > 0.7) {
+        if (!passed && secureRandom() > 0.7) {
           flakyTests.push({
             name: result.name,
             file: result.file,
-            flakinessScore: Math.random() * 0.5 + 0.5,
+            flakinessScore: secureRandomFloat(0.5, 1.0),
             failurePattern: 'intermittent-timeout',
           });
         }
@@ -187,10 +188,10 @@ export class TestExecuteTool extends MCPToolBase<TestExecuteParams, TestExecuteR
       // Generate coverage if requested
       const coverage: CoverageData | undefined = collectCoverage
         ? {
-            lines: Math.random() * 30 + 70,
-            branches: Math.random() * 20 + 60,
-            functions: Math.random() * 25 + 65,
-            statements: Math.random() * 25 + 70,
+            lines: secureRandomFloat(70, 100),
+            branches: secureRandomFloat(60, 80),
+            functions: secureRandomFloat(65, 90),
+            statements: secureRandomFloat(70, 95),
           }
         : undefined;
 

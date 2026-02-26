@@ -779,6 +779,7 @@ import { createFleetCommand } from './commands/fleet.js';
 import { createValidateSwarmCommand } from './commands/validate-swarm.js';
 import { createValidateCommand } from './commands/validate.js';
 import { createEvalCommand } from './commands/eval.js';
+import { createCICommand } from './commands/ci.js';
 
 // Register shortcut commands
 program.addCommand(createTestCommand(context, cleanupAndExit, ensureInitialized));
@@ -792,6 +793,7 @@ program.addCommand(createFleetCommand(context, cleanupAndExit, ensureInitialized
 program.addCommand(createValidateSwarmCommand(context, cleanupAndExit, ensureInitialized));
 program.addCommand(createValidateCommand(context, cleanupAndExit, ensureInitialized));
 program.addCommand(createEvalCommand());
+program.addCommand(createCICommand(context, cleanupAndExit, ensureInitialized));
 
 // ============================================================================
 // External Command Modules

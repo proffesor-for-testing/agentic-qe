@@ -28,6 +28,7 @@ import { MinCutCalculator, createMinCutCalculator } from './mincut-calculator';
 import { StrangeLoopController } from './strange-loop';
 import { WeakVertex, ReorganizationAction, ReorganizationResult } from './interfaces';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { secureRandom } from '../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // GOAP State - Current World State
@@ -702,8 +703,8 @@ export class NeuralPlanner {
     }
 
     // Apply adjustment with exploration noise
-    const noise = Math.random() < this.config.explorationFactor
-      ? (Math.random() - 0.5) * baseCost * 0.2
+    const noise = secureRandom() < this.config.explorationFactor
+      ? (secureRandom() - 0.5) * baseCost * 0.2
       : 0;
 
     return Math.max(0.1, baseCost + adjustment + noise);

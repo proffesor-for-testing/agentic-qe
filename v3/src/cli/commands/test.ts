@@ -8,6 +8,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { walkSourceFiles } from '../utils/file-discovery.js';
+import { type OutputFormat, writeOutput, toJSON, toJUnit, testRunToMarkdown, type TestRunSummary } from '../utils/ci-output.js';
 
 export function createTestCommand(
   context: CLIContext,
@@ -20,6 +21,8 @@ export function createTestCommand(
     .argument('[target]', 'Target file or directory')
     .option('-f, --framework <framework>', 'Test framework', 'vitest')
     .option('-t, --type <type>', 'Test type (unit|integration|e2e)', 'unit')
+    .option('-F, --format <format>', 'Output format (text|json|junit|markdown)', 'text')
+    .option('-o, --output <path>', 'Write output to file')
     .action(async (action: string, target: string, options) => {
       if (!await ensureInitialized()) return;
 
@@ -58,29 +61,44 @@ export function createTestCommand(
 
           if (result.success && result.value) {
             const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; testCode?: string; assertions: number }>; coverageEstimate: number; patternsUsed: string[] };
-            console.log(chalk.green(`Generated ${generated.tests.length} tests\n`));
-            console.log(chalk.cyan('  Tests:'));
-            for (const test of generated.tests.slice(0, 10)) {
-              console.log(`    ${chalk.white(test.name)}`);
-              console.log(chalk.gray(`      Source: ${path.basename(test.sourceFile)}`));
-              console.log(chalk.gray(`      Assertions: ${test.assertions}`));
-              if (test.testCode) {
-                console.log(chalk.gray(`      Test File: ${test.testFile}`));
+            const format = options.format as OutputFormat;
 
-                // Bug #295 fix: Write generated test code to disk
-                const fs = await import('fs');
-                const testDir = path.dirname(test.testFile);
-                fs.mkdirSync(testDir, { recursive: true });
-                fs.writeFileSync(test.testFile, test.testCode, 'utf-8');
-                console.log(chalk.green(`      Written to: ${test.testFile}`));
+            if (format === 'json') {
+              writeOutput(toJSON(generated), options.output);
+            } else if (format === 'markdown') {
+              const md = `# Test Generation Report\n\n` +
+                `- **Tests Generated**: ${generated.tests.length}\n` +
+                `- **Coverage Estimate**: ${generated.coverageEstimate}%\n` +
+                `- **Patterns Used**: ${generated.patternsUsed.join(', ') || 'none'}\n\n` +
+                `## Tests\n\n` +
+                generated.tests.map(t => `- **${t.name}** (${t.assertions} assertions) — \`${t.sourceFile}\``).join('\n') + '\n';
+              writeOutput(md, options.output);
+            } else {
+              // Default text output
+              console.log(chalk.green(`Generated ${generated.tests.length} tests\n`));
+              console.log(chalk.cyan('  Tests:'));
+              for (const test of generated.tests.slice(0, 10)) {
+                console.log(`    ${chalk.white(test.name)}`);
+                console.log(chalk.gray(`      Source: ${path.basename(test.sourceFile)}`));
+                console.log(chalk.gray(`      Assertions: ${test.assertions}`));
+                if (test.testCode) {
+                  console.log(chalk.gray(`      Test File: ${test.testFile}`));
+
+                  // Bug #295 fix: Write generated test code to disk
+                  const fs = await import('fs');
+                  const testDir = path.dirname(test.testFile);
+                  fs.mkdirSync(testDir, { recursive: true });
+                  fs.writeFileSync(test.testFile, test.testCode, 'utf-8');
+                  console.log(chalk.green(`      Written to: ${test.testFile}`));
+                }
               }
-            }
-            if (generated.tests.length > 10) {
-              console.log(chalk.gray(`    ... and ${generated.tests.length - 10} more`));
-            }
-            console.log(`\n  Coverage Estimate: ${chalk.yellow(generated.coverageEstimate + '%')}`);
-            if (generated.patternsUsed.length > 0) {
-              console.log(`  Patterns Used: ${chalk.cyan(generated.patternsUsed.join(', '))}`);
+              if (generated.tests.length > 10) {
+                console.log(chalk.gray(`    ... and ${generated.tests.length - 10} more`));
+              }
+              console.log(`\n  Coverage Estimate: ${chalk.yellow(generated.coverageEstimate + '%')}`);
+              if (generated.patternsUsed.length > 0) {
+                console.log(`  Patterns Used: ${chalk.cyan(generated.patternsUsed.join(', '))}`);
+              }
             }
           } else {
             console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));
@@ -118,15 +136,31 @@ export function createTestCommand(
           });
 
           if (result.success && result.value) {
-            const run = result.value as { runId: string; passed: number; failed: number; skipped: number; duration: number };
-            const total = run.passed + run.failed + run.skipped;
-            console.log(chalk.green(`Test run complete`));
-            console.log(`\n  Results:`);
-            console.log(`    Total: ${chalk.white(total)}`);
-            console.log(`    Passed: ${chalk.green(run.passed)}`);
-            console.log(`    Failed: ${chalk.red(run.failed)}`);
-            console.log(`    Skipped: ${chalk.yellow(run.skipped)}`);
-            console.log(`    Duration: ${chalk.cyan(run.duration + 'ms')}`);
+            const run = result.value as TestRunSummary;
+            const format = options.format as OutputFormat;
+
+            if (format === 'json') {
+              writeOutput(toJSON(run), options.output);
+            } else if (format === 'junit') {
+              writeOutput(toJUnit(run), options.output);
+            } else if (format === 'markdown') {
+              writeOutput(testRunToMarkdown(run), options.output);
+            } else {
+              // Default text output
+              const total = run.passed + run.failed + run.skipped;
+              console.log(chalk.green(`Test run complete`));
+              console.log(`\n  Results:`);
+              console.log(`    Total: ${chalk.white(total)}`);
+              console.log(`    Passed: ${chalk.green(run.passed)}`);
+              console.log(`    Failed: ${chalk.red(run.failed)}`);
+              console.log(`    Skipped: ${chalk.yellow(run.skipped)}`);
+              console.log(`    Duration: ${chalk.cyan(run.duration + 'ms')}`);
+            }
+
+            // Exit with code 1 if tests failed (CI-friendly)
+            if (run.failed > 0) {
+              await cleanupAndExit(1);
+            }
           } else {
             console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));
           }

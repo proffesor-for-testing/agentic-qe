@@ -17,6 +17,7 @@ import { MemoryBackend } from '../../../kernel/interfaces';
 import { TEST_EXECUTION_CONSTANTS, RETRY_CONSTANTS } from '../../constants.js';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Configuration
@@ -893,18 +894,18 @@ export class FlakyDetectorService implements IFlakyTestDetector {
       const records: TestExecutionRecord[] = [];
 
       // Determine if this test is flaky
-      const isFlaky = Math.random() < this.config.simulatedFlakinessRate;
+      const isFlaky = secureRandom() < this.config.simulatedFlakinessRate;
 
       for (let i = 0; i < runs; i++) {
         // If flaky, randomly pass/fail; otherwise always pass
         const passed = isFlaky
-          ? Math.random() < this.config.simulatedFlakyPassRate
+          ? secureRandom() < this.config.simulatedFlakyPassRate
           : true;
 
         records.push({
           runId: uuidv4(),
           passed,
-          duration: Math.random() * 1000 + 100,
+          duration: secureRandom() * 1000 + 100,
           error: passed ? undefined : 'Assertion failed',
           timestamp: new Date(),
           context: { parallelRuns: runs },

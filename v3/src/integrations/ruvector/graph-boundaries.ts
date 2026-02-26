@@ -6,6 +6,7 @@
  */
 
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { secureRandom } from '../../shared/utils/crypto-random.js';
 import type {
   GraphBoundariesAnalyzer,
   GraphBoundariesResult,
@@ -479,12 +480,12 @@ export class RuVectorGraphBoundariesAnalyzer implements GraphBoundariesAnalyzer 
         // Simulate a dependency to another module
         const targetModules = ['shared', 'core', 'common', 'utils'];
         for (const target of targetModules) {
-          if (target !== currentModule && Math.random() > 0.5) {
+          if (target !== currentModule && secureRandom() > 0.5) {
             deps.push({
               source: currentModule,
               target,
               type,
-              weight: weight * (0.5 + Math.random() * 0.5),
+              weight: weight * (0.5 + secureRandom() * 0.5),
             });
           }
         }

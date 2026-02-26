@@ -5,6 +5,7 @@
  */
 
 import { BaseRLAlgorithm } from '../base-algorithm';
+import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
 import type {
   RLState,
   RLAction,
@@ -249,11 +250,11 @@ export class PPOAlgorithm extends BaseRLAlgorithm {
   }
 
   private sampleAction(probabilities: Float32Array): number {
-    if (Math.random() < this.config.explorationRate) {
-      return Math.floor(Math.random() * this.actions.length);
+    if (secureRandom() < this.config.explorationRate) {
+      return secureRandomInt(0, this.actions.length);
     }
 
-    const rand = Math.random();
+    const rand = secureRandom();
     let cumProb = 0;
 
     for (let i = 0; i < probabilities.length; i++) {

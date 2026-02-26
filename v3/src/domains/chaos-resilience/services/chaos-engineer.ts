@@ -29,6 +29,7 @@ import { execFile } from 'child_process';
 import { validateCommand } from '../../../mcp/security/cve-prevention';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 /**
  * Configuration for the chaos engineer service
@@ -326,7 +327,7 @@ export class ChaosEngineerService implements IChaosEngineeringService {
       const startTime = Date.now();
 
       // Apply probability check
-      if (fault.probability !== undefined && Math.random() > fault.probability) {
+      if (fault.probability !== undefined && secureRandom() > fault.probability) {
         return ok({
           faultId: fault.id,
           injected: false,
@@ -833,7 +834,7 @@ Provide:
       const busyStart = Date.now();
       while (Date.now() - busyStart < busyTime) {
         // Busy loop - CPU intensive operations
-        Math.random() * Math.random();
+        secureRandom() * secureRandom();
       }
       // Note: Idle time is handled by the interval itself (10ms interval)
       // In real implementation, this would use worker threads for true parallelism
@@ -860,7 +861,7 @@ Provide:
       for (let i = 0; i < chunks; i++) {
         const size = Math.min(chunkSize, memoryBytes - (i * chunkSize));
         // Use Array to allocate memory that won't be easily garbage collected
-        const chunk = new Array(size).fill(Math.random());
+        const chunk = new Array(size).fill(secureRandom());
         allocatedMemory.push(chunk);
       }
 

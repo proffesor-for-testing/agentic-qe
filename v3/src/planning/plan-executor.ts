@@ -15,6 +15,7 @@
 import type Database from 'better-sqlite3';
 import { openDatabase } from '../shared/safe-db.js';
 import { randomUUID } from 'crypto';
+import { secureRandom } from '../shared/utils/crypto-random.js';
 import type {
   GOAPPlan,
   GOAPAction,
@@ -1097,7 +1098,7 @@ export class MockAgentSpawner implements AgentSpawner {
     // Simulate execution time
     await new Promise((resolve) => setTimeout(resolve, this.executionDelay));
 
-    const success = Math.random() < this.successRate;
+    const success = secureRandom() < this.successRate;
     const agentId = `mock-agent-${randomUUID().slice(0, 8)}`;
 
     if (success) {

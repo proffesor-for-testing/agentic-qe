@@ -15,6 +15,7 @@ import type {
   ParameterSuggestion,
   MetricStats,
 } from './types.js';
+import { secureRandom, secureRandomInt, secureRandomShuffle } from '../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Tuning Algorithm Interface
@@ -105,7 +106,7 @@ export class CoordinateDescentTuner implements TuningAlgorithm {
     }
 
     // Decide: explore or exploit
-    const shouldExplore = Math.random() < config.explorationRate;
+    const shouldExplore = secureRandom() < config.explorationRate;
 
     if (shouldExplore) {
       return this.generateExploratoryConfiguration(parameters, config);
@@ -149,11 +150,11 @@ export class CoordinateDescentTuner implements TuningAlgorithm {
     const enabledParams = parameters.filter(p => p.enabled);
 
     // Randomly perturb 1-3 parameters
-    const numToPerturb = Math.min(1 + Math.floor(Math.random() * 3), enabledParams.length);
-    const toPerturb = this.shuffleArray([...enabledParams]).slice(0, numToPerturb);
+    const numToPerturb = Math.min(1 + secureRandomInt(0, 3), enabledParams.length);
+    const toPerturb = secureRandomShuffle([...enabledParams]).slice(0, numToPerturb);
 
     for (const param of toPerturb) {
-      const direction = Math.random() < 0.5 ? -1 : 1;
+      const direction = secureRandom() < 0.5 ? -1 : 1;
       result[param.name] = this.perturbParameter(param, config.maxChangePerCycle, direction);
     }
 
@@ -188,7 +189,7 @@ export class CoordinateDescentTuner implements TuningAlgorithm {
 
     // Calculate perturbation
     const maxDelta = range * maxChange;
-    const delta = direction * Math.min(step + Math.random() * step, maxDelta);
+    const delta = direction * Math.min(step + secureRandom() * step, maxDelta);
 
     // Apply and clamp
     let newValue = param.current + delta;
@@ -374,11 +375,7 @@ export class CoordinateDescentTuner implements TuningAlgorithm {
    * Shuffle array (Fisher-Yates)
    */
   private shuffleArray<T>(array: T[]): T[] {
-    for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
+    return secureRandomShuffle(array);
   }
 
   /**

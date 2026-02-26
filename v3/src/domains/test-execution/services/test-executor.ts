@@ -19,6 +19,7 @@ import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { TEST_EXECUTION_CONSTANTS, LLM_ANALYSIS_CONSTANTS } from '../../constants.js';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Configuration
@@ -854,9 +855,9 @@ Provide:
    * Simulate test execution with random outcomes (for unit testing only)
    */
   private simulateTestExecution(file: string): TestExecutionResult {
-    const testCount = Math.floor(Math.random() * 10) + 1;
-    const failCount = Math.random() > (1 - this.config.simulatedFailureRate) ? 1 : 0;
-    const skipCount = Math.random() > (1 - this.config.simulatedSkipRate) ? 1 : 0;
+    const testCount = secureRandomInt(0, 10) + 1;
+    const failCount = secureRandom() > (1 - this.config.simulatedFailureRate) ? 1 : 0;
+    const skipCount = secureRandom() > (1 - this.config.simulatedSkipRate) ? 1 : 0;
 
     const failedTests: FailedTest[] = [];
     if (failCount > 0) {
@@ -866,7 +867,7 @@ Provide:
         file,
         error: 'Assertion failed',
         stack: `Error: Assertion failed\n    at ${file}:10:5`,
-        duration: Math.random() * 1000,
+        duration: secureRandom() * 1000,
       });
     }
 

@@ -25,6 +25,7 @@ import { Result, ok, err, DomainName } from '../../shared/types/index.js';
 import { MemoryBackend } from '../../kernel/interfaces.js';
 import type { WorkflowOrchestrator, WorkflowContext } from '../../../src/coordination/workflow-orchestrator.js';
 import { toErrorMessage, toError } from '../../shared/error-utils.js';
+import { secureRandom } from '../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Types
@@ -1062,7 +1063,7 @@ export class QCSDIdeationPlugin {
 
     // Testability based on specificity
     const hasSpecificCriteria = categoryKeywords.some(kw => acceptanceCriteria.includes(kw));
-    const testabilityScore = hasSpecificCriteria ? 70 + Math.random() * 20 : 40 + Math.random() * 30;
+    const testabilityScore = hasSpecificCriteria ? 70 + secureRandom() * 20 : 40 + secureRandom() * 30;
 
     // Generate risks
     const risks = this.generateCategoryRisks(category, mentionCount === 0);
@@ -1154,14 +1155,14 @@ export class QCSDIdeationPlugin {
     return {
       controllability: Math.min(100, 40 + acCount * 10),
       observability: hasGivenWhenThen ? 80 : 50,
-      isolability: Math.min(100, 50 + Math.random() * 30),
-      separationOfConcerns: Math.min(100, 40 + Math.random() * 40),
+      isolability: Math.min(100, 50 + secureRandom() * 30),
+      separationOfConcerns: Math.min(100, 40 + secureRandom() * 40),
       simplicity: Math.max(30, 100 - descLength / 20),
-      stability: Math.min(100, 60 + Math.random() * 20),
+      stability: Math.min(100, 60 + secureRandom() * 20),
       informationCapture: hasGivenWhenThen ? 85 : 45,
       automationSupport: hasGivenWhenThen ? 90 : 40,
       selfDocumenting: Math.min(100, 30 + descLength / 10),
-      independence: Math.min(100, 50 + Math.random() * 30),
+      independence: Math.min(100, 50 + secureRandom() * 30),
     };
   }
 

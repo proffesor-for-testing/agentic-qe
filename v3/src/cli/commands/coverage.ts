@@ -9,6 +9,8 @@ import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { runCoverageAnalysisWizard, type CoverageWizardResult } from '../wizards/coverage-wizard.js';
 import { walkSourceFiles } from '../utils/file-discovery.js';
+import { type OutputFormat, type CoverageResult, writeOutput, toJSON, coverageToMarkdown } from '../utils/ci-output.js';
+import { buildCoverageData } from '../utils/coverage-data.js';
 
 function getColorForPercent(percent: number): (str: string) => string {
   if (percent >= 80) return chalk.green;
@@ -30,6 +32,8 @@ export function createCoverageCommand(
     .option('--sensitivity <level>', 'Gap detection sensitivity (low|medium|high)', 'medium')
     .option('--wizard', 'Run interactive coverage analysis wizard')
     .option('--ghost', 'Include ghost intent coverage analysis (detect untested behavioral intents)')
+    .option('-F, --format <format>', 'Output format (text|json|markdown)', 'text')
+    .option('-o, --output <path>', 'Write output to file')
     .action(async (target: string, options) => {
       let analyzeTarget = target;
       let includeRisk = options.risk;
@@ -80,7 +84,6 @@ export function createCoverageCommand(
           return;
         }
 
-        const fs = await import('fs');
         const path = await import('path');
         const targetPath = path.resolve(analyzeTarget);
 
@@ -94,47 +97,15 @@ export function createCoverageCommand(
 
         console.log(chalk.gray(`  Analyzing ${sourceFiles.length} files...\n`));
 
-        // Build coverage data from file analysis
-        const files = sourceFiles.map(filePath => {
-          const content = fs.readFileSync(filePath, 'utf-8');
-          const lines = content.split('\n');
-          const totalLines = lines.length;
+        // Build coverage data from real V8/istanbul output or deterministic estimation
+        const coverageData = buildCoverageData(sourceFiles);
 
-          const testFile = filePath.replace('.ts', '.test.ts').replace('/src/', '/tests/');
-          const hasTest = fs.existsSync(testFile);
-          const coverageRate = hasTest ? 0.75 + Math.random() * 0.2 : 0.2 + Math.random() * 0.3;
-
-          const coveredLines = Math.floor(totalLines * coverageRate);
-          const uncoveredLines = Array.from({ length: totalLines - coveredLines }, (_, i) => i + coveredLines + 1);
-
-          return {
-            path: filePath,
-            lines: { covered: coveredLines, total: totalLines },
-            branches: { covered: Math.floor(coveredLines * 0.8), total: totalLines },
-            functions: { covered: Math.floor(coveredLines * 0.9), total: Math.ceil(totalLines / 20) },
-            statements: { covered: coveredLines, total: totalLines },
-            uncoveredLines,
-            uncoveredBranches: uncoveredLines.slice(0, Math.floor(uncoveredLines.length / 2)),
-          };
-        });
-
-        const totalLines = files.reduce((sum, f) => sum + f.lines.total, 0);
-        const coveredLines = files.reduce((sum, f) => sum + f.lines.covered, 0);
-        const totalBranches = files.reduce((sum, f) => sum + f.branches.total, 0);
-        const coveredBranches = files.reduce((sum, f) => sum + f.branches.covered, 0);
-        const totalFunctions = files.reduce((sum, f) => sum + f.functions.total, 0);
-        const coveredFunctions = files.reduce((sum, f) => sum + f.functions.covered, 0);
-
-        const coverageData = {
-          files,
-          summary: {
-            line: Math.round((coveredLines / totalLines) * 100),
-            branch: Math.round((coveredBranches / totalBranches) * 100),
-            function: Math.round((coveredFunctions / totalFunctions) * 100),
-            statement: Math.round((coveredLines / totalLines) * 100),
-            files: files.length,
-          },
-        };
+        if (coverageData.instrumented) {
+          console.log(chalk.green('  Using instrumented coverage data (V8/istanbul)\n'));
+        } else {
+          console.log(chalk.yellow('  No instrumented coverage found — using heuristic estimation'));
+          console.log(chalk.gray('  Run tests with coverage first: npm test -- --coverage\n'));
+        }
 
         const result = await coverageAPI.analyze({
           coverageData,
@@ -142,20 +113,33 @@ export function createCoverageCommand(
           includeFileDetails: true,
         });
 
+        const format = options.format as OutputFormat;
+        let coverageResult: CoverageResult | undefined;
+
         if (result.success && result.value) {
           const report = result.value as { summary: { line: number; branch: number; function: number; statement: number }; meetsThreshold: boolean; recommendations: string[] };
 
-          console.log(chalk.cyan('  Coverage Summary:'));
-          console.log(`    Lines:      ${getColorForPercent(report.summary.line)(report.summary.line + '%')}`);
-          console.log(`    Branches:   ${getColorForPercent(report.summary.branch)(report.summary.branch + '%')}`);
-          console.log(`    Functions:  ${getColorForPercent(report.summary.function)(report.summary.function + '%')}`);
-          console.log(`    Statements: ${getColorForPercent(report.summary.statement)(report.summary.statement + '%')}`);
-          console.log(`\n    Threshold: ${report.meetsThreshold ? chalk.green(`Met (${threshold}%)`) : chalk.red(`Not met (${threshold}%)`)}`);
+          // For non-text formats, collect all data and output at end
+          coverageResult = {
+            summary: report.summary,
+            meetsThreshold: report.meetsThreshold,
+            threshold,
+            recommendations: report.recommendations,
+          };
 
-          if (report.recommendations.length > 0) {
-            console.log(chalk.cyan('\n  Recommendations:'));
-            for (const rec of report.recommendations) {
-              console.log(chalk.gray(`    - ${rec}`));
+          if (format === 'text') {
+            console.log(chalk.cyan('  Coverage Summary:'));
+            console.log(`    Lines:      ${getColorForPercent(report.summary.line)(report.summary.line + '%')}`);
+            console.log(`    Branches:   ${getColorForPercent(report.summary.branch)(report.summary.branch + '%')}`);
+            console.log(`    Functions:  ${getColorForPercent(report.summary.function)(report.summary.function + '%')}`);
+            console.log(`    Statements: ${getColorForPercent(report.summary.statement)(report.summary.statement + '%')}`);
+            console.log(`\n    Threshold: ${report.meetsThreshold ? chalk.green(`Met (${threshold}%)`) : chalk.red(`Not met (${threshold}%)`)}`);
+
+            if (report.recommendations.length > 0) {
+              console.log(chalk.cyan('\n  Recommendations:'));
+              for (const rec of report.recommendations) {
+                console.log(chalk.gray(`    - ${rec}`));
+              }
             }
           }
         }
@@ -172,6 +156,13 @@ export function createCoverageCommand(
 
           if (gapResult.success && gapResult.value) {
             const gaps = gapResult.value as { gaps: Array<{ file: string; lines: number[]; riskScore: number; severity: string; recommendation: string }>; totalUncoveredLines: number; estimatedEffort: number };
+
+            if (coverageResult) coverageResult.gaps = gaps.gaps.map(g => ({
+              file: g.file.replace(process.cwd() + '/', ''),
+              lines: g.lines,
+              riskScore: g.riskScore,
+              severity: g.severity,
+            }));
 
             console.log(chalk.gray(`    Total uncovered lines: ${gaps.totalUncoveredLines}`));
             console.log(chalk.gray(`    Estimated effort: ${gaps.estimatedEffort} hours\n`));
@@ -193,7 +184,7 @@ export function createCoverageCommand(
           console.log(chalk.cyan('\n  Ghost Intent Coverage (ADR-059):'));
 
           try {
-            const testPaths = files.map(f => f.path);
+            const testPaths = coverageData.files.map(f => f.path);
             const ghostResult = await coverageAPI.analyzeGhostCoverage(testPaths, analyzeTarget);
 
             if (ghostResult.success && ghostResult.value) {
@@ -223,7 +214,7 @@ export function createCoverageCommand(
         if (includeRisk) {
           console.log(chalk.cyan('\n  Risk Analysis:'));
 
-          const lowCoverageFiles = [...files]
+          const lowCoverageFiles = [...coverageData.files]
             .sort((a, b) => (a.lines.covered / a.lines.total) - (b.lines.covered / b.lines.total))
             .slice(0, 5);
 
@@ -243,7 +234,14 @@ export function createCoverageCommand(
           }
         }
 
-        console.log(chalk.green('\n Coverage analysis complete\n'));
+        // Non-text format output (collected all data)
+        if (coverageResult && format === 'json') {
+          writeOutput(toJSON(coverageResult), options.output);
+        } else if (coverageResult && format === 'markdown') {
+          writeOutput(coverageToMarkdown(coverageResult), options.output);
+        } else if (format === 'text') {
+          console.log(chalk.green('\n Coverage analysis complete\n'));
+        }
         await cleanupAndExit(0);
 
       } catch (error) {

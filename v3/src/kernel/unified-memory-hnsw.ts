@@ -14,6 +14,7 @@
  */
 
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
+import { secureRandom } from '../shared/utils/crypto-random.js';
 import { HNSW_CONSTANTS } from './constants.js';
 import { HnswAdapter } from './hnsw-adapter.js';
 import type { HnswConfig } from './hnsw-index-provider.js';
@@ -147,7 +148,7 @@ export class InMemoryHNSWIndex {
    */
   private randomLevel(): number {
     return Math.min(
-      Math.floor(-Math.log(Math.random()) * this.mL),
+      Math.floor(-Math.log(secureRandom()) * this.mL),
       this.maxLevel
     );
   }

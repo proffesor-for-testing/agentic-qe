@@ -21,6 +21,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'yaml';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { secureRandom, secureRandomInt, secureRandomFloat } from '../shared/utils/crypto-random.js';
 import {
   SkillValidationLearner,
   TestCaseResult,
@@ -364,7 +365,7 @@ export class MockLLMExecutor implements LLMExecutor {
     options?: { timeout?: number }
   ): Promise<{ output: string; tokensUsed: number; durationMs: number }> {
     // Simulate LLM response time
-    const delay = Math.random() * MOCK_LLM_MAX_DELAY_MS + MOCK_LLM_MIN_DELAY_MS;
+    const delay = secureRandomFloat(MOCK_LLM_MIN_DELAY_MS, MOCK_LLM_MAX_DELAY_MS + MOCK_LLM_MIN_DELAY_MS);
     await new Promise((resolve) => setTimeout(resolve, delay));
 
     // Generate mock response based on test case content
@@ -372,7 +373,7 @@ export class MockLLMExecutor implements LLMExecutor {
 
     return {
       output,
-      tokensUsed: Math.floor(Math.random() * MOCK_LLM_MAX_TOKENS) + MOCK_LLM_MIN_TOKENS,
+      tokensUsed: secureRandomInt(MOCK_LLM_MIN_TOKENS, MOCK_LLM_MAX_TOKENS + MOCK_LLM_MIN_TOKENS),
       durationMs: delay,
     };
   }

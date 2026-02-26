@@ -8,6 +8,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { walkSourceFiles } from '../utils/file-discovery.js';
+import { type OutputFormat, type SecurityScanResult, type SecurityVulnerability, writeOutput, toJSON, toSARIF, securityToMarkdown } from '../utils/ci-output.js';
 
 export function createSecurityCommand(
   context: CLIContext,
@@ -20,6 +21,8 @@ export function createSecurityCommand(
     .option('--dast', 'Run DAST scan')
     .option('--compliance <frameworks>', 'Check compliance (gdpr,hipaa,soc2)', '')
     .option('-t, --target <path>', 'Target directory to scan', '.')
+    .option('-F, --format <format>', 'Output format (text|json|sarif|markdown)', 'text')
+    .option('-o, --output <path>', 'Write output to file')
     .action(async (options) => {
       if (!await ensureInitialized()) return;
 
@@ -50,6 +53,13 @@ export function createSecurityCommand(
 
         console.log(chalk.gray(`  Scanning ${files.length} files...\n`));
 
+        const format = options.format as OutputFormat;
+        const scanResult: SecurityScanResult = {
+          vulnerabilities: [],
+          target: options.target,
+          scanType: [options.sast && 'SAST', options.dast && 'DAST', options.compliance && 'Compliance'].filter(Boolean).join('+') || 'SAST',
+        };
+
         // Run SAST if requested
         if (options.sast) {
           console.log(chalk.blue(' SAST Scan:'));
@@ -57,17 +67,20 @@ export function createSecurityCommand(
           if (sastResult.success && sastResult.value) {
             const result = sastResult.value as { vulnerabilities?: Array<{ severity: string; type: string; file: string; line: number; message: string }> };
             const vulns = result.vulnerabilities || [];
-            if (vulns.length === 0) {
-              console.log(chalk.green('  * No vulnerabilities found'));
-            } else {
-              console.log(chalk.yellow(`  ! Found ${vulns.length} potential issues:`));
-              for (const v of vulns.slice(0, 10)) {
-                const color = v.severity === 'high' ? chalk.red : v.severity === 'medium' ? chalk.yellow : chalk.gray;
-                console.log(color(`    [${v.severity}] ${v.type}: ${v.file}:${v.line}`));
-                console.log(chalk.gray(`           ${v.message}`));
-              }
-              if (vulns.length > 10) {
-                console.log(chalk.gray(`    ... and ${vulns.length - 10} more`));
+            scanResult.vulnerabilities = vulns as SecurityVulnerability[];
+            if (format === 'text') {
+              if (vulns.length === 0) {
+                console.log(chalk.green('  * No vulnerabilities found'));
+              } else {
+                console.log(chalk.yellow(`  ! Found ${vulns.length} potential issues:`));
+                for (const v of vulns.slice(0, 10)) {
+                  const color = v.severity === 'high' ? chalk.red : v.severity === 'medium' ? chalk.yellow : chalk.gray;
+                  console.log(color(`    [${v.severity}] ${v.type}: ${v.file}:${v.line}`));
+                  console.log(chalk.gray(`           ${v.message}`));
+                }
+                if (vulns.length > 10) {
+                  console.log(chalk.gray(`    ... and ${vulns.length - 10} more`));
+                }
               }
             }
           } else {
@@ -83,12 +96,15 @@ export function createSecurityCommand(
           const compResult = await securityAPI.checkCompliance(frameworks);
           if (compResult.success && compResult.value) {
             const result = compResult.value as { compliant: boolean; issues?: Array<{ framework: string; issue: string }> };
-            if (result.compliant) {
-              console.log(chalk.green('  * Compliant with all frameworks'));
-            } else {
-              console.log(chalk.yellow('  ! Compliance issues found:'));
-              for (const issue of (result.issues || []).slice(0, 5)) {
-                console.log(chalk.yellow(`    [${issue.framework}] ${issue.issue}`));
+            scanResult.compliance = result;
+            if (format === 'text') {
+              if (result.compliant) {
+                console.log(chalk.green('  * Compliant with all frameworks'));
+              } else {
+                console.log(chalk.yellow('  ! Compliance issues found:'));
+                for (const issue of (result.issues || []).slice(0, 5)) {
+                  console.log(chalk.yellow(`    [${issue.framework}] ${issue.issue}`));
+                }
               }
             }
           } else {
@@ -102,7 +118,25 @@ export function createSecurityCommand(
           console.log(chalk.gray('Note: DAST requires running application URLs. Use --target with URLs for DAST scanning.'));
         }
 
-        console.log(chalk.green(' Security scan complete\n'));
+        // Format-aware output
+        if (format === 'json') {
+          writeOutput(toJSON(scanResult), options.output);
+        } else if (format === 'sarif') {
+          writeOutput(toSARIF(scanResult), options.output);
+        } else if (format === 'markdown') {
+          writeOutput(securityToMarkdown(scanResult), options.output);
+        } else {
+          console.log(chalk.green(' Security scan complete\n'));
+        }
+
+        // Exit with code 1 if high/critical vulnerabilities found
+        const hasHighSeverity = scanResult.vulnerabilities.some(v =>
+          v.severity === 'high' || v.severity === 'critical'
+        );
+        if (hasHighSeverity) {
+          await cleanupAndExit(1);
+        }
+
         await cleanupAndExit(0);
 
       } catch (err) {

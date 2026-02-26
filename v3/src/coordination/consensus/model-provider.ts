@@ -20,6 +20,7 @@ import {
 } from './interfaces';
 import { Severity } from '../../shared/types';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { secureRandom } from '../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Abstract Base Model Provider
@@ -631,7 +632,7 @@ export class MockModelProvider extends BaseModelProvider {
     await new Promise(resolve => setTimeout(resolve, this.config.latencyMs));
 
     // Simulate failures
-    if (Math.random() < this.config.failureRate) {
+    if (secureRandom() < this.config.failureRate) {
       throw new Error('Mock provider simulated failure');
     }
 
