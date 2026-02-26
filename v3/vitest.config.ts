@@ -4,16 +4,17 @@
 
 import { defineConfig } from 'vitest/config';
 import path from 'path';
+import os from 'os';
 
 export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
     env: {
-      // Default: point at repo root so unit tests that accidentally touch DB
-      // don't create a shadow v3/.agentic-qe/. Integration tests override this
-      // in their setup file to use a temp directory (tests/integration/setup.ts).
-      AQE_PROJECT_ROOT: path.resolve(__dirname, '..'),
+      // ISOLATION: Use temp directory so tests never write to production memory.db.
+      // Each test process (via forks pool) gets its own DB in the OS temp dir.
+      // This prevents test runs from inflating .agentic-qe/memory.db.
+      AQE_PROJECT_ROOT: path.join(os.tmpdir(), `aqe-vitest-${process.pid}`),
     },
     include: ['tests/**/*.test.ts'],
     benchmark: {
@@ -29,7 +30,7 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'junit'],
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.d.ts', 'src/**/index.ts'],
     },
