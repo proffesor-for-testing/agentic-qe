@@ -1,6 +1,6 @@
 name: qe-six-thinking-hats
 description: "Apply Edward de Bono's Six Thinking Hats methodology to software testing for comprehensive quality analysis. Use when designing test strategies, conducting test retrospectives, analyzing test failures, evaluating testing approaches, or facilitating testing discussions. Each hat provides a distinct t"
-minModelTier: tier1-fast
+minModelTier: tier1-any
 tags: ["thinking", "methodology", "decision-making", "collaboration", "analysis", "qe", "quality-engineering"]
 steps:
   - name: the-six-hats
