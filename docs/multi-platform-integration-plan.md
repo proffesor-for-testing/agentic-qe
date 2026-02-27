@@ -32,7 +32,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 |----------|-------|-------------|------------|------------|
 | GitHub Copilot | 20M | `.vscode/mcp.json` | `servers` | `.github/copilot-instructions.md` |
 | Cursor | 360K paid | `.cursor/mcp.json` | `mcpServers` | `.cursorrules` |
-| Cline | 5M installs | `cline_mcp_settings.json` | `mcpServers` | Custom modes (JSON) |
+| Cline | 5M installs | `.vscode/cline_mcp_settings.json` | `mcpServers` | Custom modes (JSON) |
 | Kilo Code | 1.5M | `.kilocode/mcp.json` | `mcpServers` | Custom modes (JSON) |
 | Roo Code | Growing | `.roo/mcp.json` | `mcpServers` | Custom modes (JSON) |
 
@@ -40,9 +40,9 @@ MCP has become the universal standard — nearly all major platforms support it 
 
 | Platform | Users | Config Path | Format | Rules File |
 |----------|-------|-------------|--------|------------|
-| OpenAI Codex CLI | 1M+ | `config.toml` `[mcp_servers]` | TOML | `AGENTS.md` |
-| Windsurf | Large | `~/.codeium/windsurf/mcp_config.json` | JSON | `.windsurfrules` |
-| Continue.dev | Enterprise | `.continue/mcpServers/` | YAML | `config.yaml` rules |
+| OpenAI Codex CLI | 1M+ | `.codex/config.toml` `[mcp_servers]` | TOML | `AGENTS.md` |
+| Windsurf | Large | `.windsurf/mcp_config.json` | JSON | `.windsurfrules` |
+| Continue.dev | Enterprise | `.continue/config.yaml` | YAML | `.continue/rules/aqe-qe-standards.yaml` |
 
 ---
 

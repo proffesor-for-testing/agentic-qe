@@ -101,7 +101,8 @@ export class ContinueDevInstaller {
 
   /**
    * Merge AQE MCP server into existing Continue config.yaml.
-   * Appends the mcpServers block if not already present.
+   * If existing config already has mcpServers, appends just the server entry.
+   * Otherwise appends the full mcpServers block.
    */
   private mergeExistingYamlConfig(configPath: string, newContent: string): string {
     try {
@@ -112,7 +113,22 @@ export class ContinueDevInstaller {
         return existing;
       }
 
-      // Append AQE MCP config block
+      // If existing config already has mcpServers key, append just the server entry
+      // to avoid duplicate mcpServers keys (which produces invalid YAML)
+      if (existing.includes('mcpServers:')) {
+        const serverEntry = `  - name: agentic-qe
+    command: npx
+    args:
+      - "-y"
+      - agentic-qe@latest
+      - mcp
+    env:
+      AQE_MEMORY_PATH: .agentic-qe/memory.db
+      AQE_V3_MODE: "true"`;
+        return existing.trimEnd() + '\n' + serverEntry + '\n';
+      }
+
+      // No existing mcpServers — append the full block
       return existing.trimEnd() + '\n\n' + newContent;
     } catch {
       return newContent;

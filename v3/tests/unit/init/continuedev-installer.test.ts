@@ -148,6 +148,31 @@ describe('ContinueDevInstaller', () => {
       expect(content).toContain('mcpServers:');
     });
 
+    it('appends server entry (not full block) when mcpServers key already exists', async () => {
+      mockExistsSync.mockReturnValue(true);
+      const existingYaml = `mcpServers:
+  - name: other-server
+    command: other
+`;
+      mockReadFileSync.mockReturnValue(existingYaml);
+
+      const { createContinueDevInstaller } = await import('../../../src/init/continuedev-installer.js');
+      const installer = createContinueDevInstaller({ projectRoot, overwrite: true });
+      await installer.install();
+
+      const configCall = mockWriteFileSync.mock.calls.find(
+        (c: unknown[]) => (c[0] as string).endsWith('config.yaml')
+      );
+      expect(configCall).toBeDefined();
+      const content = configCall![1] as string;
+      // Should NOT have duplicate mcpServers: keys
+      const mcpCount = (content.match(/^mcpServers:/gm) || []).length;
+      expect(mcpCount).toBe(1);
+      // Should contain both servers
+      expect(content).toContain('other-server');
+      expect(content).toContain('agentic-qe');
+    });
+
     it('skips YAML merge if agentic-qe already present', async () => {
       mockExistsSync.mockReturnValue(true);
       const existingYaml = `mcpServers:

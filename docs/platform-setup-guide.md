@@ -138,12 +138,14 @@ Create `.vscode/cline_mcp_settings.json`:
       },
       "alwaysAllow": [
         "fleet_init", "fleet_status", "fleet_health",
-        "task_list", "task_status", "agent_list", "agent_metrics",
+        "agent_list", "agent_metrics", "agent_status",
         "team_list", "team_health",
-        "test_generate_enhanced", "test_execute_parallel",
+        "task_list", "task_status",
+        "test_generate_enhanced",
         "coverage_analyze_sublinear", "quality_assess",
-        "memory_store", "memory_retrieve", "memory_query",
-        "code_index", "defect_predict", "model_route"
+        "defect_predict", "code_index",
+        "memory_store", "memory_retrieve", "memory_query", "memory_usage",
+        "model_route", "routing_metrics", "aqe_health"
       ]
     }
   }
@@ -180,7 +182,15 @@ Create `.kilocode/mcp.json`:
         "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
         "AQE_V3_MODE": "true"
       },
-      "alwaysAllow": ["fleet_init", "fleet_status", "fleet_health", "task_list", "task_status"]
+      "alwaysAllow": [
+        "fleet_init", "fleet_status", "fleet_health",
+        "agent_list", "agent_metrics", "agent_status",
+        "team_list", "team_health", "task_list", "task_status",
+        "test_generate_enhanced", "coverage_analyze_sublinear",
+        "quality_assess", "defect_predict", "code_index",
+        "memory_store", "memory_retrieve", "memory_query", "memory_usage",
+        "model_route", "routing_metrics", "aqe_health"
+      ]
     }
   }
 }
@@ -214,7 +224,15 @@ Create `.roo/mcp.json`:
         "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
         "AQE_V3_MODE": "true"
       },
-      "alwaysAllow": ["fleet_init", "fleet_status", "fleet_health", "task_list", "task_status"]
+      "alwaysAllow": [
+        "fleet_init", "fleet_status", "fleet_health",
+        "agent_list", "agent_metrics", "agent_status",
+        "team_list", "team_health", "task_list", "task_status",
+        "test_generate_enhanced", "coverage_analyze_sublinear",
+        "quality_assess", "defect_predict", "code_index",
+        "memory_store", "memory_retrieve", "memory_query", "memory_usage",
+        "model_route", "routing_metrics", "aqe_health"
+      ]
     }
   }
 }
