@@ -102,6 +102,22 @@ export interface InitOptions {
   withOpenCode?: boolean;
   /** Install AWS Kiro IDE integration (agents, skills, hooks, steering) */
   withKiro?: boolean;
+  /** Install GitHub Copilot MCP config and instructions */
+  withCopilot?: boolean;
+  /** Install Cursor MCP config and rules */
+  withCursor?: boolean;
+  /** Install Cline MCP config and custom mode */
+  withCline?: boolean;
+  /** Install Kilo Code MCP config and custom mode */
+  withKiloCode?: boolean;
+  /** Install Roo Code MCP config and custom mode */
+  withRooCode?: boolean;
+  /** Install OpenAI Codex CLI MCP config and AGENTS.md */
+  withCodex?: boolean;
+  /** Install Windsurf MCP config and rules */
+  withWindsurf?: boolean;
+  /** Install Continue.dev MCP config and rules */
+  withContinueDev?: boolean;
 }
 
 /**

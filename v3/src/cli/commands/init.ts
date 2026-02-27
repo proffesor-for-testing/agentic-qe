@@ -43,6 +43,14 @@ export function createInitCommand(): Command {
     .option('--with-n8n', 'Include n8n workflow testing platform')
     .option('--with-opencode', 'Include OpenCode agent/skill provisioning')
     .option('--with-kiro', 'Include AWS Kiro IDE integration (agents, skills, hooks, steering)')
+    .option('--with-copilot', 'Include GitHub Copilot MCP config and instructions')
+    .option('--with-cursor', 'Include Cursor MCP config and rules')
+    .option('--with-cline', 'Include Cline MCP config and custom QE mode')
+    .option('--with-kilocode', 'Include Kilo Code MCP config and custom QE mode')
+    .option('--with-roocode', 'Include Roo Code MCP config and custom QE mode')
+    .option('--with-codex', 'Include OpenAI Codex CLI MCP config and AGENTS.md')
+    .option('--with-windsurf', 'Include Windsurf MCP config and rules')
+    .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
     .option('--with-claude-flow', 'Force Claude Flow integration setup')
     .option('--skip-claude-flow', 'Skip Claude Flow integration')
     .option('--no-governance', 'Skip governance configuration (ADR-058)')
@@ -93,6 +101,14 @@ interface InitOptions {
   withN8n?: boolean;
   withOpencode?: boolean;
   withKiro?: boolean;
+  withCopilot?: boolean;
+  withCursor?: boolean;
+  withCline?: boolean;
+  withKilocode?: boolean;
+  withRoocode?: boolean;
+  withCodex?: boolean;
+  withWindsurf?: boolean;
+  withContinuedev?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
   noGovernance?: boolean;
@@ -133,6 +149,14 @@ async function runInit(options: InitOptions): Promise<void> {
     withN8n: options.withN8n,
     withOpenCode: options.withOpencode,
     withKiro: options.withKiro,
+    withCopilot: options.withCopilot,
+    withCursor: options.withCursor,
+    withCline: options.withCline,
+    withKiloCode: options.withKilocode,
+    withRooCode: options.withRoocode,
+    withCodex: options.withCodex,
+    withWindsurf: options.withWindsurf,
+    withContinueDev: options.withContinuedev,
     noGovernance: options.noGovernance,
   });
 
