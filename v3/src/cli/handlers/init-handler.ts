@@ -63,6 +63,7 @@ export class InitHandler implements ICommandHandler {
       .option('--with-codex', 'Include OpenAI Codex CLI MCP config and AGENTS.md')
       .option('--with-windsurf', 'Include Windsurf MCP config and rules')
       .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
+      .option('--with-all-platforms', 'Include all coding agent platform configurations')
       .option('--auto-migrate', 'Automatically migrate from v2 if detected')
       .option('--with-claude-flow', 'Force Claude Flow integration setup')
       .option('--skip-claude-flow', 'Skip Claude Flow integration')
@@ -75,6 +76,18 @@ export class InitHandler implements ICommandHandler {
 
   async execute(options: InitOptions, context: CLIContext): Promise<void> {
     try {
+      // Expand --with-all-platforms into individual flags
+      if (options.withAllPlatforms) {
+        options.withCopilot = true;
+        options.withCursor = true;
+        options.withCline = true;
+        options.withKilocode = true;
+        options.withRoocode = true;
+        options.withCodex = true;
+        options.withWindsurf = true;
+        options.withContinuedev = true;
+      }
+
       // --auto-migrate implies --auto (must use orchestrator for migration)
       if (options.autoMigrate && !options.auto && !options.wizard) {
         options.auto = true;
@@ -437,6 +450,7 @@ interface InitOptions {
   withCodex?: boolean;
   withWindsurf?: boolean;
   withContinuedev?: boolean;
+  withAllPlatforms?: boolean;
   autoMigrate?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;

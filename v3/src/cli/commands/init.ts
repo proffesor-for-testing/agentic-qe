@@ -51,6 +51,7 @@ export function createInitCommand(): Command {
     .option('--with-codex', 'Include OpenAI Codex CLI MCP config and AGENTS.md')
     .option('--with-windsurf', 'Include Windsurf MCP config and rules')
     .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
+    .option('--with-all-platforms', 'Include all coding agent platform configurations')
     .option('--with-claude-flow', 'Force Claude Flow integration setup')
     .option('--skip-claude-flow', 'Skip Claude Flow integration')
     .option('--no-governance', 'Skip governance configuration (ADR-058)')
@@ -109,6 +110,7 @@ interface InitOptions {
   withCodex?: boolean;
   withWindsurf?: boolean;
   withContinuedev?: boolean;
+  withAllPlatforms?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
   noGovernance?: boolean;
@@ -136,6 +138,18 @@ async function runInit(options: InitOptions): Promise<void> {
     console.log(chalk.gray('    Use --upgrade to update all skills, agents, and validation'));
     console.log(chalk.gray('    Use --auto-migrate to migrate from v2'));
     console.log('');
+  }
+
+  // Expand --with-all-platforms into individual flags
+  if (options.withAllPlatforms) {
+    options.withCopilot = true;
+    options.withCursor = true;
+    options.withCline = true;
+    options.withKilocode = true;
+    options.withRoocode = true;
+    options.withCodex = true;
+    options.withWindsurf = true;
+    options.withContinuedev = true;
   }
 
   // Create orchestrator

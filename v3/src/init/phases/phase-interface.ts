@@ -118,6 +118,8 @@ export interface InitOptions {
   withWindsurf?: boolean;
   /** Install Continue.dev MCP config and rules */
   withContinueDev?: boolean;
+  /** Install all coding agent platform configurations */
+  withAllPlatforms?: boolean;
 }
 
 /**

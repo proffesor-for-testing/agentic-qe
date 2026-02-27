@@ -176,7 +176,7 @@ AQE_V3_MODE = "true"
 ## Phase 3: CLI Integration and Init Wizard
 
 **Timeline**: 1 week
-**Status**: [x] Partially Complete
+**Status**: [x] Complete
 
 ### Milestone 3.1: CLI `init` Command Enhancement
 
@@ -188,10 +188,10 @@ AQE_V3_MODE = "true"
 - [x] Add `--with-codex` flag
 - [x] Add `--with-windsurf` flag
 - [x] Add `--with-continuedev` flag
-- [ ] Add `--with-all-platforms` flag
-- [ ] Add `aqe platform setup <name>` command
-- [ ] Add `aqe platform list` command
-- [ ] Add `aqe platform verify <name>` command
+- [x] Add `--with-all-platforms` flag
+- [x] Add `aqe platform setup <name>` command
+- [x] Add `aqe platform list` command
+- [x] Add `aqe platform verify <name>` command
 
 ### Milestone 3.2: Export Init Module
 
@@ -202,20 +202,21 @@ AQE_V3_MODE = "true"
 ## Phase 4: Testing Strategy
 
 **Timeline**: 1 week (parallel with Phase 1-2)
-**Status**: [x] Partially Complete (unit tests done, integration/E2E pending)
+**Status**: [x] Complete
 
 ### Per Platform
 
 | Test Type | Location | What It Tests |
 |-----------|----------|---------------|
 | Unit | `v3/tests/unit/init/<platform>-installer.test.ts` | Config generation, file writing |
-| Integration | `v3/tests/integration/<platform>/` | MCP server compatibility, schema |
-| E2E Smoke | `v3/tests/e2e/<platform>-aqe-smoke.test.ts` | Full init + MCP server start |
+| Integration | `v3/tests/integration/platform-installers.test.ts` | Real fs, format validation, merge (76 tests) |
+| E2E | `v3/tests/e2e/cross-platform-init.test.ts` | Full init + auto-detection (23 tests) |
 
 ### Shared
 
 - [x] `v3/tests/helpers/platform-test-utils.ts` -- shared test utilities
-- [ ] `v3/tests/e2e/cross-platform-init.test.ts` -- all platforms simultaneously
+- [x] `v3/tests/integration/platform-installers.test.ts` -- all platforms integration (76 tests)
+- [x] `v3/tests/e2e/cross-platform-init.test.ts` -- all platforms simultaneously (23 tests)
 
 ---
 

@@ -44,6 +44,9 @@ export class ModularInitOrchestrator {
    * Create init context
    */
   private createContext(options: OrchestratorOptions): InitContext {
+    // Expand withAllPlatforms into individual platform flags
+    const allPlatforms = options.withAllPlatforms;
+
     return {
       projectRoot: options.projectRoot,
       options: {
@@ -55,14 +58,15 @@ export class ModularInitOrchestrator {
         withN8n: options.withN8n,
         withOpenCode: options.withOpenCode,
         withKiro: options.withKiro,
-        withCopilot: options.withCopilot,
-        withCursor: options.withCursor,
-        withCline: options.withCline,
-        withKiloCode: options.withKiloCode,
-        withRooCode: options.withRooCode,
-        withCodex: options.withCodex,
-        withWindsurf: options.withWindsurf,
-        withContinueDev: options.withContinueDev,
+        withCopilot: options.withCopilot || allPlatforms,
+        withCursor: options.withCursor || allPlatforms,
+        withCline: options.withCline || allPlatforms,
+        withKiloCode: options.withKiloCode || allPlatforms,
+        withRooCode: options.withRooCode || allPlatforms,
+        withCodex: options.withCodex || allPlatforms,
+        withWindsurf: options.withWindsurf || allPlatforms,
+        withContinueDev: options.withContinueDev || allPlatforms,
+        withAllPlatforms: options.withAllPlatforms,
         n8nApiConfig: options.n8nApiConfig,
         wizardAnswers: options.wizardAnswers,
         noGovernance: options.noGovernance,
