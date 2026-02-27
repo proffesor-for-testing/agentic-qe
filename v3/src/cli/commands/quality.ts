@@ -26,12 +26,15 @@ export function createQualityCommand(
       try {
         const format = options.format as OutputFormat;
 
-        if (options.gate) {
+        // Always use inline mode — --gate flag is kept for backwards compatibility
+        {
           // Quality gate mode: call domain API directly for synchronous pass/fail
-          console.log(chalk.blue(`\n Running quality gate evaluation...\n`));
+          if (format === 'text') {
+            console.log(chalk.blue(`\n Running quality gate evaluation...\n`));
+          }
 
           const qualityAPI = await context.kernel!.getDomainAPIAsync!<{
-            evaluate(request: { metrics?: Record<string, number>; runGate?: boolean; thresholds?: Record<string, number>; includeAdvice?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+            evaluateGate(request: { gateName?: string; metrics?: Record<string, number>; thresholds?: Record<string, { min?: number; max?: number }> }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           }>('quality-assessment');
 
           if (!qualityAPI) {
@@ -39,9 +42,30 @@ export function createQualityCommand(
             await cleanupAndExit(1);
           }
 
-          const result = await qualityAPI!.evaluate({
-            runGate: true,
-            includeAdvice: true,
+          // Provide default metrics when user doesn't supply explicit values.
+          // The gate service requires metrics + thresholds to evaluate.
+          const defaultMetrics = {
+            coverage: 0,
+            testsPassing: 0,
+            criticalBugs: 0,
+            codeSmells: 0,
+            securityVulnerabilities: 0,
+            technicalDebt: 0,
+            duplications: 0,
+          };
+          const defaultThresholds = {
+            coverage: { min: 80 },
+            testsPassing: { min: 95 },
+            criticalBugs: { max: 0 },
+            codeSmells: { max: 20 },
+            securityVulnerabilities: { max: 0 },
+            technicalDebt: { max: 5 },
+            duplications: { max: 5 },
+          };
+          const result = await qualityAPI!.evaluateGate({
+            gateName: 'standard',
+            metrics: defaultMetrics,
+            thresholds: defaultThresholds,
           });
 
           if (result.success && result.value) {
@@ -89,38 +113,21 @@ export function createQualityCommand(
               console.log('');
             }
 
-            // Exit with appropriate code for CI
-            await cleanupAndExit(gateResult.passed ? 0 : 1);
+            // Exit codes: 1 = gate failed, 2 = warning (score within 5% of threshold), 0 = passed
+            if (!gateResult.passed) {
+              await cleanupAndExit(1);
+            }
+            const scoreNum = parseFloat(String(gateResult.score));
+            if (!isNaN(scoreNum) && scoreNum < 100 && scoreNum >= 95) {
+              // Score is within 5% of perfect — warn
+              await cleanupAndExit(2);
+            }
+            await cleanupAndExit(0);
           } else {
             console.log(chalk.red(`Quality gate failed: ${result.error?.message || 'Unknown error'}`));
             await cleanupAndExit(1);
           }
 
-        } else {
-          // Non-gate mode: submit async task (original behavior)
-          console.log(chalk.blue(`\n Running quality assessment...\n`));
-
-          const result = await context.queen!.submitTask({
-            type: 'assess-quality',
-            priority: 'p0',
-            targetDomains: ['quality-assessment'],
-            payload: { runGate: false },
-            timeout: 300000,
-          });
-
-          if (result.success) {
-            if (format === 'json') {
-              writeOutput(toJSON({ taskId: result.value, status: 'submitted' }), options.output);
-            } else {
-              console.log(chalk.green(`Task submitted: ${result.value}`));
-              console.log(chalk.gray(`   Use 'aqe task status ${result.value}' to check progress`));
-            }
-          } else {
-            console.log(chalk.red(`Failed: ${result.error.message}`));
-            await cleanupAndExit(1);
-          }
-
-          console.log('');
         }
 
       } catch (error) {

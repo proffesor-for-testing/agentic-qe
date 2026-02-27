@@ -157,9 +157,13 @@ export function createTestCommand(
               console.log(`    Duration: ${chalk.cyan(run.duration + 'ms')}`);
             }
 
-            // Exit with code 1 if tests failed (CI-friendly)
+            // Exit codes: 1 = failures, 2 = >20% skipped, 0 = all good
             if (run.failed > 0) {
               await cleanupAndExit(1);
+            }
+            const total = run.passed + run.failed + run.skipped;
+            if (total > 0 && run.skipped / total > 0.2) {
+              await cleanupAndExit(2);
             }
           } else {
             console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));

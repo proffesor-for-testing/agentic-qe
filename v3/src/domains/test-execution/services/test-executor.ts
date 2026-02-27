@@ -448,7 +448,21 @@ Provide:
     // Production mode: spawn actual test runner process
     const result = await this.spawnTestRunner(file, framework, timeout);
     if (result.success === false) {
-      throw result.error;
+      // Return as a failed test rather than throwing — allows other files to still run
+      return {
+        total: 1,
+        passed: 0,
+        failed: 1,
+        skipped: 0,
+        failedTests: [{
+          testId: file,
+          testName: file,
+          file,
+          error: result.error.message,
+          duration: 0,
+        }],
+        coverage: this.aggregateCoverage([]),
+      };
     }
     return result.value;
   }

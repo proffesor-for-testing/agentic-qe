@@ -128,11 +128,12 @@ export function createCoverageCommand(
           };
 
           if (format === 'text') {
+            const fmt = (v: number) => typeof v === 'number' ? v.toFixed(1) : v;
             console.log(chalk.cyan('  Coverage Summary:'));
-            console.log(`    Lines:      ${getColorForPercent(report.summary.line)(report.summary.line + '%')}`);
-            console.log(`    Branches:   ${getColorForPercent(report.summary.branch)(report.summary.branch + '%')}`);
-            console.log(`    Functions:  ${getColorForPercent(report.summary.function)(report.summary.function + '%')}`);
-            console.log(`    Statements: ${getColorForPercent(report.summary.statement)(report.summary.statement + '%')}`);
+            console.log(`    Lines:      ${getColorForPercent(report.summary.line)(fmt(report.summary.line) + '%')}`);
+            console.log(`    Branches:   ${getColorForPercent(report.summary.branch)(fmt(report.summary.branch) + '%')}`);
+            console.log(`    Functions:  ${getColorForPercent(report.summary.function)(fmt(report.summary.function) + '%')}`);
+            console.log(`    Statements: ${getColorForPercent(report.summary.statement)(fmt(report.summary.statement) + '%')}`);
             console.log(`\n    Threshold: ${report.meetsThreshold ? chalk.green(`Met (${threshold}%)`) : chalk.red(`Not met (${threshold}%)`)}`);
 
             if (report.recommendations.length > 0) {
@@ -241,6 +242,18 @@ export function createCoverageCommand(
           writeOutput(coverageToMarkdown(coverageResult), options.output);
         } else if (format === 'text') {
           console.log(chalk.green('\n Coverage analysis complete\n'));
+        }
+
+        // Exit codes: 1 = below threshold, 2 = within 5% of threshold, 0 = above threshold
+        if (coverageResult && !coverageResult.meetsThreshold) {
+          await cleanupAndExit(1);
+        }
+        if (coverageResult) {
+          const avg = (coverageResult.summary.line + coverageResult.summary.branch +
+            coverageResult.summary.function + coverageResult.summary.statement) / 4;
+          if (avg < threshold + 5 && avg >= threshold) {
+            await cleanupAndExit(2);
+          }
         }
         await cleanupAndExit(0);
 

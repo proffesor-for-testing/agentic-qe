@@ -72,6 +72,43 @@ import { createCommandRegistry } from './command-registry.js';
 import { CLIContext, formatDuration, getStatusColor, walkDirectory, getColorForPercent, ScheduledWorkflow } from './handlers/interfaces.js';
 
 // ============================================================================
+// Redirect internal domain logs to stderr so stdout stays clean for CI/JSON
+// ============================================================================
+
+const INTERNAL_LOG_PREFIXES = [
+  '[UnifiedMemory]', '[HybridBackend]', '[UnifiedPersistence]',
+  '[PersistentSONAEngine]', '[QueenGovernance]', '[QueenCoordinator]',
+  '[Queen]', '[QUEEN]', '[DomainBreakerRegistry]',
+  '[RealEmbeddings]', '[HNSWIndex]', '[PatternStore]',
+  '[TestGenerationCoordinator]', '[CodeIntelligence]', '[ProductFactorsBridge]',
+  '[LearningOptimizationCoordinator]', '[DreamEngine]', '[DreamScheduler]',
+  '[SecurityCompliance]', '[Providers]', '[GNN]',
+  '[test-generation]', '[test-execution]', '[coverage-analysis]',
+  '[quality-assessment]', '[defect-intelligence]', '[requirements-validation]',
+  '[code-intelligence]', '[security-compliance]', '[contract-testing]',
+  '[visual-accessibility]', '[chaos-resilience]', '[learning-optimization]',
+  '[enterprise-integration]', '[coordination]', '[PatternLearnerService]',
+  '[RequirementsValidation]',
+];
+
+const originalConsoleLog = console.log.bind(console);
+console.log = (...args: unknown[]) => {
+  const first = typeof args[0] === 'string' ? args[0] : '';
+  const trimmed = first.trimStart();
+  if (INTERNAL_LOG_PREFIXES.some(prefix => trimmed.startsWith(prefix))) {
+    process.stderr.write(args.map(String).join(' ') + '\n');
+    return;
+  }
+  originalConsoleLog(...args);
+};
+
+// Also redirect timestamped INFO/WARN/ERROR log lines (e.g. "[07:12:24.372] [INFO ]")
+const originalConsoleInfo = console.info.bind(console);
+console.info = (...args: unknown[]) => {
+  process.stderr.write(args.map(String).join(' ') + '\n');
+};
+
+// ============================================================================
 // CLI State
 // ============================================================================
 
@@ -166,12 +203,30 @@ async function autoInitialize(): Promise<void> {
   context.initialized = true;
 }
 
+async function ensureInitializedStrict(): Promise<boolean> {
+  if (context.initialized && context.kernel && context.queen) {
+    return true;
+  }
+
+  // For diagnostic commands: check if project was explicitly initialized
+  const fs = await import('fs');
+  const path = await import('path');
+  const configDir = path.resolve('.agentic-qe');
+  if (!fs.existsSync(configDir)) {
+    console.error(chalk.red('\nError: AQE system not initialized in this directory.'));
+    console.log(chalk.yellow('Run `aqe init` first to set up this project.\n'));
+    return false;
+  }
+
+  return ensureInitialized();
+}
+
 async function ensureInitialized(): Promise<boolean> {
   if (context.initialized && context.kernel && context.queen) {
     return true;
   }
 
-  console.log(chalk.gray('Auto-initializing v3 system...'));
+  process.stderr.write(chalk.gray('Auto-initializing v3 system...') + '\n');
   const timeout = 30000;
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error('Initialization timeout after 30 seconds')), timeout);
@@ -179,7 +234,7 @@ async function ensureInitialized(): Promise<boolean> {
 
   try {
     await Promise.race([autoInitialize(), timeoutPromise]);
-    console.log(chalk.green('System ready\n'));
+    process.stderr.write(chalk.green('System ready') + '\n\n');
     return true;
   } catch (err) {
     const error = err as Error;
@@ -198,6 +253,10 @@ async function ensureInitialized(): Promise<boolean> {
  * Cleanup resources and exit the process
  */
 async function cleanupAndExit(code: number = 0): Promise<never> {
+  // Safety net: force exit after 3s if async handles keep event loop alive
+  const forceExitTimer = setTimeout(() => process.exit(code), 3000);
+  forceExitTimer.unref?.();
+
   try {
     await shutdownTokenTracking();
 
@@ -239,7 +298,7 @@ program
 // Register Handlers via CommandRegistry
 // ============================================================================
 
-const registry = createCommandRegistry(context, cleanupAndExit, ensureInitialized);
+const registry = createCommandRegistry(context, cleanupAndExit, ensureInitialized, ensureInitializedStrict);
 registry.registerAll(program);
 
 // ============================================================================
@@ -839,7 +898,11 @@ async function main(): Promise<void> {
     verbose: process.env.AQE_VERBOSE === 'true',
   });
 
-  program.parse();
+  await program.parseAsync();
+
+  // If the command didn't explicitly exit, clean up and exit now.
+  // This prevents process hangs from active handles (domain init, embeddings, etc.)
+  await cleanupAndExit(0);
 }
 
 main().catch(async (error) => {

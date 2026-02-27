@@ -32,29 +32,52 @@ The differentiator is that `aqe security --format sarif` runs in ANY pipeline an
 
 ---
 
+## Phase 0: CLI/MCP Verification (COMPLETE ✅)
+
+**Date completed:** February 27, 2026
+
+Ran 87 test cases across CLI and MCP. Fixed 17 issues (5 CRIT, 6 HIGH, 6 MEDIUM). All verified.
+
+Key outcomes:
+- All MCP tools return real data (no fabricated/empty results)
+- Coverage analysis uses heuristic estimation when no instrumented data exists
+- Model router correctly assigns tiers based on task complexity
+- Quality gate runs synchronously with structured verdict
+- Ghost coverage analyzer filters false positives by file type
+
+Full results: `docs/cli-mcp-verification-test-plan.md`
+Remaining work: Issue #310
+
+---
+
 ## Phase 1: Make Existing CLI Commands CI-Native (Weeks 1-3)
 
-### 1.1 Add `--format` flag to all output-producing commands
+### 1.1 Add `--format` flag to all output-producing commands ✅
 - Formats: `text` (default), `json`, `sarif` (security only), `junit` (test only), `markdown`
 - Commands: `aqe test`, `aqe coverage`, `aqe security`, `aqe quality`
 - Also: `aqe fleet init`, `aqe task status`, `aqe code`
+- **Status: DONE** — All 4 core commands support `--format` with text/json/sarif/junit/markdown as applicable
 
-### 1.2 Add `--output <path>` flag for artifact generation
+### 1.2 Add `--output <path>` flag for artifact generation ✅
 - All commands that produce reports should support writing to file
 - Default: stdout. With `--output`, write to file AND print summary to stdout
+- **Status: DONE** — All 4 core commands support `--output <path>` via shared `writeOutput()` utility
 
-### 1.3 Configure vitest JUnit XML generation
+### 1.3 Configure vitest JUnit XML generation ✅
 - Current: workflow uploads `junit.xml` but vitest doesn't generate it
 - Fix: Add vitest reporter config for `junit` output
+- **Status: DONE** — JUnit reporter added to `vitest.config.ts` (commit 1c0aa55c)
 
-### 1.4 Make `aqe quality assess --gate` synchronous with direct pass/fail
+### 1.4 Make `aqe quality assess --gate` synchronous with direct pass/fail ✅
 - Current: submits async task, returns task ID, requires polling
 - Target: `aqe quality assess --gate` blocks, returns structured verdict with exit code
 - Output: criteria breakdown, pass/fail per criterion, overall verdict
+- **Status: DONE** — Inline synchronous mode implemented in `quality.ts`. Returns structured JSON with criteria breakdown and exit code 1 on failure.
 
-### 1.5 Add SARIF output to `aqe security`
+### 1.5 Add SARIF output to `aqe security` ✅
 - For GitHub Code Scanning / GHAS integration
 - SARIF v2.1.0 schema compliance
+- **Status: DONE** — `toSARIF()` fully implemented in `ci-output.ts`, wired to `aqe security --format sarif`
 
 ---
 

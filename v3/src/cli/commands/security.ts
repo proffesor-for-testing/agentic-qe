@@ -27,12 +27,16 @@ export function createSecurityCommand(
       if (!await ensureInitialized()) return;
 
       try {
-        console.log(chalk.blue(`\n Running security scan on ${options.target}...\n`));
+        const format = options.format as OutputFormat;
+
+        if (format === 'text') {
+          console.log(chalk.blue(`\n Running security scan on ${options.target}...\n`));
+        }
 
         const securityAPI = await context.kernel!.getDomainAPIAsync!<{
           runSASTScan(files: string[]): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           runDASTScan(urls: string[]): Promise<{ success: boolean; value?: unknown; error?: Error }>;
-          checkCompliance(frameworks: string[]): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+          runComplianceCheck(standardId: string): Promise<{ success: boolean; value?: unknown; error?: Error }>;
         }>('security-compliance');
 
         if (!securityAPI) {
@@ -51,9 +55,9 @@ export function createSecurityCommand(
           return;
         }
 
-        console.log(chalk.gray(`  Scanning ${files.length} files...\n`));
-
-        const format = options.format as OutputFormat;
+        if (format === 'text') {
+          console.log(chalk.gray(`  Scanning ${files.length} files...\n`));
+        }
         const scanResult: SecurityScanResult = {
           vulnerabilities: [],
           target: options.target,
@@ -62,7 +66,7 @@ export function createSecurityCommand(
 
         // Run SAST if requested
         if (options.sast) {
-          console.log(chalk.blue(' SAST Scan:'));
+          if (format === 'text') console.log(chalk.blue(' SAST Scan:'));
           const sastResult = await securityAPI.runSASTScan(files);
           if (sastResult.success && sastResult.value) {
             const result = sastResult.value as { vulnerabilities?: Array<{ severity: string; type: string; file: string; line: number; message: string }> };
@@ -83,17 +87,21 @@ export function createSecurityCommand(
                 }
               }
             }
-          } else {
+          } else if (format === 'text') {
             console.log(chalk.red(`  x SAST failed: ${sastResult.error?.message || 'Unknown error'}`));
           }
-          console.log('');
+          if (format === 'text') console.log('');
         }
 
         // Run compliance check if requested
         if (options.compliance) {
           const frameworks = options.compliance.split(',');
-          console.log(chalk.blue(` Compliance Check (${frameworks.join(', ')}):`));
-          const compResult = await securityAPI.checkCompliance(frameworks);
+          if (format === 'text') console.log(chalk.blue(` Compliance Check (${frameworks.join(', ')}):`));
+          // Run compliance check for each framework
+          const compResults = await Promise.all(
+            frameworks.map((f: string) => securityAPI.runComplianceCheck(f.trim()))
+          );
+          const compResult = compResults[0]; // Primary result for display
           if (compResult.success && compResult.value) {
             const result = compResult.value as { compliant: boolean; issues?: Array<{ framework: string; issue: string }> };
             scanResult.compliance = result;
@@ -107,14 +115,14 @@ export function createSecurityCommand(
                 }
               }
             }
-          } else {
+          } else if (format === 'text') {
             console.log(chalk.red(`  x Compliance check failed: ${compResult.error?.message || 'Unknown error'}`));
           }
-          console.log('');
+          if (format === 'text') console.log('');
         }
 
         // DAST note
-        if (options.dast) {
+        if (options.dast && format === 'text') {
           console.log(chalk.gray('Note: DAST requires running application URLs. Use --target with URLs for DAST scanning.'));
         }
 
@@ -129,12 +137,17 @@ export function createSecurityCommand(
           console.log(chalk.green(' Security scan complete\n'));
         }
 
-        // Exit with code 1 if high/critical vulnerabilities found
+        // Exit codes: 1 = critical/high vulns, 2 = medium-only vulns, 0 = low/none
         const hasHighSeverity = scanResult.vulnerabilities.some(v =>
           v.severity === 'high' || v.severity === 'critical'
         );
+        const hasMediumSeverity = scanResult.vulnerabilities.some(v =>
+          v.severity === 'medium'
+        );
         if (hasHighSeverity) {
           await cleanupAndExit(1);
+        } else if (hasMediumSeverity) {
+          await cleanupAndExit(2);
         }
 
         await cleanupAndExit(0);

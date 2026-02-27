@@ -454,6 +454,7 @@ export function createFleetCommand(
             console.clear();
             await showStatus();
           }, 2000);
+          interval.unref?.();
 
           process.once('SIGINT', async () => {
             clearInterval(interval);
