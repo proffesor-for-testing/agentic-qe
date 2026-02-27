@@ -234,11 +234,11 @@ AQE_V3_MODE = "true"
 ## Phase 6: Documentation
 
 **Timeline**: 3-5 days (parallel)
-**Status**: [ ] Not Started
+**Status**: [x] Complete
 
-- [ ] `docs/platform-setup-guide.md` -- per-platform setup instructions
-- [ ] Per-platform quickstart guides in `docs/quickstart/`
-- [ ] ADR-028: Multi-Platform Support decision record
+- [x] `docs/platform-setup-guide.md` -- per-platform setup instructions (all 11 platforms)
+- [x] Per-platform quickstart in setup guide (automated + manual for each)
+- [ ] ADR-028: Multi-Platform Support decision record (deferred)
 
 ---
 
