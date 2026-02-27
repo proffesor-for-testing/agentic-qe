@@ -598,7 +598,7 @@ export async function handleAQEHealth(): Promise<ToolResult<{
       success: true,
       data: {
         status: healthStatus,
-        version: '3.7.0',
+        version: typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : '3.7.2',
         loadedDomains: domainCount,
         memory: memoryStats,
         hnsw: hnswStats,

@@ -31,6 +31,7 @@ import type { StrangeLoopController } from './strange-loop';
 import type { MinCutHealthMonitor } from './mincut-health-monitor';
 import type { TestFailureCausalGraph } from './causal-discovery';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { secureRandom, secureRandomInt, secureRandomFloat } from '../../shared/utils/crypto-random.js';
 import {
   KuramotoCPG,
   createKuramotoCPG,
@@ -323,24 +324,24 @@ export class DefaultPhaseExecutor implements PhaseExecutor {
 
     // Simulate test execution with some variance
     const basePassRate = phase.qualityThresholds.minPassRate;
-    const variance = (Math.random() - 0.5) * 0.1; // ±5% variance
+    const variance = (secureRandom() - 0.5) * 0.1; // ±5% variance
     const actualPassRate = Math.min(1, Math.max(0, basePassRate + variance));
 
-    const testsRun = Math.floor(50 + Math.random() * 100);
+    const testsRun = secureRandomInt(50, 150);
     const testsPassed = Math.floor(testsRun * actualPassRate);
     const testsFailed = testsRun - testsPassed;
 
     // Simulate execution time with variance
     const expectedDuration = phase.expectedDuration;
-    const durationVariance = (Math.random() - 0.5) * 0.3; // ±15% variance
+    const durationVariance = (secureRandom() - 0.5) * 0.3; // ±15% variance
     const actualDuration = Math.floor(expectedDuration * (1 + durationVariance));
 
     // Simulate wait (scaled down for testing - use 1% of expected duration)
     const simulatedWait = Math.min(100, actualDuration * 0.01);
     await new Promise((resolve) => setTimeout(resolve, simulatedWait));
 
-    const flakyRatio = Math.random() * phase.qualityThresholds.maxFlakyRatio;
-    const coverage = phase.qualityThresholds.minCoverage + Math.random() * 0.1;
+    const flakyRatio = secureRandom() * phase.qualityThresholds.maxFlakyRatio;
+    const coverage = secureRandomFloat(phase.qualityThresholds.minCoverage, phase.qualityThresholds.minCoverage + 0.1);
 
     const qualityMet =
       actualPassRate >= phase.qualityThresholds.minPassRate &&

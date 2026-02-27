@@ -12,6 +12,7 @@
  */
 
 import { Command } from 'commander';
+import { secureRandomInt } from '../../shared/utils/crypto-random.js';
 import chalk from 'chalk';
 import {
   ALL_PROVIDER_TYPES,
@@ -582,7 +583,7 @@ async function checkProviderHealth(timeout: number): Promise<Array<{
     return {
       provider,
       healthy: status === 'available' || provider === 'ollama' || provider === 'onnx',
-      latencyMs: isConfigured ? Math.floor(Math.random() * 200 + 50) : undefined,
+      latencyMs: isConfigured ? secureRandomInt(50, 250) : undefined,
       message: status === 'available' ? 'OK' :
                status === 'configured' ? 'API key not verified' :
                'Not configured',

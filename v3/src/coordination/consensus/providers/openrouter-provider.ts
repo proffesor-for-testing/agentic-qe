@@ -283,8 +283,8 @@ export class OpenRouterModelProvider extends BaseModelProvider {
       apiKey,
     };
 
-    this.id = `openrouter-${this.config.defaultModel.replace(/[^a-z0-9]/gi, '-')}`;
-    this.name = `OpenRouter (${this.config.defaultModel})`;
+    this.id = `openrouter-${(this.config.defaultModel ?? 'default').replace(/[^a-z0-9]/gi, '-')}`;
+    this.name = `OpenRouter (${this.config.defaultModel ?? 'default'})`;
 
     // Set cost per token based on default model
     const modelCosts = MODEL_COSTS[this.config.defaultModel];

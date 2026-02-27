@@ -1,6 +1,6 @@
 name: qe-exploratory-testing-advanced
 description: "Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours. Use when planning exploration sessions, investigating bugs, or discovering unknown quality risks."
-minModelTier: tier1-fast
+minModelTier: tier1-any
 tags: ["exploratory", "sbtm", "rst", "heuristics", "test-tours", "session-based", "qe", "quality-engineering", "testing-methodologies"]
 steps:
   - name: session-structure-sbtm

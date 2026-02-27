@@ -426,6 +426,7 @@ export function createTimedSpinner(text: string): {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     spinner.text = `${text} (${elapsed}s)`;
   }, 100);
+  updateTimer.unref?.();
 
   const cleanup = () => {
     clearInterval(updateTimer);

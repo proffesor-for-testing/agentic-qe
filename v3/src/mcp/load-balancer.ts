@@ -24,6 +24,8 @@ export interface AgentLoadInfo {
   isHealthy: boolean;
 }
 
+import { secureRandomInt } from '../shared/utils/crypto-random.js';
+
 export type LoadBalancingStrategy = 'least-connections' | 'response-time' | 'round-robin' | 'random';
 
 export interface LoadBalancerConfig {
@@ -311,7 +313,7 @@ class LoadBalancerImpl {
   }
 
   private selectRandom(candidates: AgentLoadInfo[]): AgentLoadInfo {
-    const index = Math.floor(Math.random() * candidates.length);
+    const index = secureRandomInt(0, candidates.length);
     return candidates[index];
   }
 

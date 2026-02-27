@@ -1,6 +1,6 @@
 name: qe-holistic-testing-pact
 description: "Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality practices."
-minModelTier: tier1-fast
+minModelTier: tier1-any
 tags: ["holistic", "pact", "quality", "whole-team", "proactive", "autonomous", "collaborative", "targeted", "qe", "quality-engineering", "testing-methodologies"]
 steps:
   - name: pact-principles

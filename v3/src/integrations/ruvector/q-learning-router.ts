@@ -6,6 +6,7 @@
  */
 
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { secureRandom, secureRandomInt } from '../../shared/utils/crypto-random.js';
 import type {
   QLearningRouter,
   QLearningState,
@@ -268,7 +269,7 @@ export class RuVectorQLearningRouter implements QLearningRouter {
    */
   private selectAction(state: QLearningState): QLearningAction {
     // Exploration: random action
-    if (Math.random() < this.params.explorationRate) {
+    if (secureRandom() < this.params.explorationRate) {
       return this.getRandomAction(state);
     }
 
@@ -284,8 +285,8 @@ export class RuVectorQLearningRouter implements QLearningRouter {
     const domains = this.getRelevantDomains(state);
 
     return {
-      agentType: agentTypes[Math.floor(Math.random() * agentTypes.length)],
-      domain: domains[Math.floor(Math.random() * domains.length)],
+      agentType: agentTypes[secureRandomInt(0, agentTypes.length)],
+      domain: domains[secureRandomInt(0, domains.length)],
     };
   }
 

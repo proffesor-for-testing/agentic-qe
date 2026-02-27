@@ -330,7 +330,9 @@ export class DomainTeamManager {
       );
     }
 
-    const maxSize = this.getMaxTeamSize(domain);
+    // When user explicitly requests scaling, allow up to maxActiveTeams * reasonable per-team cap.
+    // The defaultTeamSize is for initial creation only, not a hard cap on explicit scaling.
+    const maxSize = Math.max(this.getMaxTeamSize(domain), targetSize, this.config.maxActiveTeams);
     const clampedTarget = Math.max(1, Math.min(targetSize, maxSize));
     const currentSize = 1 + team.teammateIds.length;
     const addedAgents: string[] = [];

@@ -8,6 +8,7 @@ import { Result, ok, err } from '../../../shared/types';
 import { HttpClient, createHttpClient } from '../../../shared/http';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import { toError } from '../../../shared/error-utils.js';
+import { secureRandom } from '../../../shared/utils/crypto-random.js';
 import {
   FaultType,
   RecoveryTestResult,
@@ -489,7 +490,7 @@ export class PerformanceProfilerService implements IResilienceTestingService {
   private simulateHealthCheck(): boolean {
     // Deterministic by default - only use random failures when explicitly configured
     if (this.config.simulateRandomFailures) {
-      return Math.random() > 0.05; // 95% success rate
+      return secureRandom() > 0.05; // 95% success rate
     }
     return true; // Always healthy in deterministic mode
   }
@@ -515,7 +516,7 @@ export class PerformanceProfilerService implements IResilienceTestingService {
   private simulateServiceActive(): boolean {
     // Deterministic by default - only use random failures when explicitly configured
     if (this.config.simulateRandomFailures) {
-      return Math.random() > 0.1; // 90% success rate
+      return secureRandom() > 0.1; // 90% success rate
     }
     return true; // Always active in deterministic mode
   }

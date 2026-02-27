@@ -10,6 +10,7 @@
  */
 
 import type { IValueNetwork } from './types';
+import { secureRandom } from '../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Value Network Implementation
@@ -82,8 +83,8 @@ export class ValueNetwork implements IValueNetwork {
    * Using Box-Muller transform
    */
   private randn(): number {
-    const u1 = Math.random();
-    const u2 = Math.random();
+    const u1 = secureRandom();
+    const u2 = secureRandom();
     return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
   }
 

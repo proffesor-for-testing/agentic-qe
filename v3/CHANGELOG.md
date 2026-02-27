@@ -5,6 +5,37 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.3] - 2026-02-27
+
+### Added
+
+- **CI-native exit code 2 for warnings** — All 4 core CLI commands (`security`, `quality`, `coverage`, `test`) now return exit code 2 for warning conditions: medium-only vulns, score near threshold, coverage near threshold, high skip rate
+- **CI/CD best-in-class plan and verification docs** — Research report on CI landscape, 87-test verification plan, and Phase 0 verification report
+
+### Fixed
+
+- **17 CLI/MCP bugs fixed (Phase 0 verification)** — 5 critical, 6 high, 6 medium issues found during 87-test verification pass:
+  - CLI process hang after command completion (parseAsync + cleanupAndExit)
+  - Auto-init stdout pollution in `--format json` mode (routed to stderr)
+  - Quality command calling wrong domain API method (`evaluate` → `evaluateGate`)
+  - Security `--compliance` calling wrong method signature
+  - OpenRouter/Ollama providers crashing on undefined defaultModel
+  - Team scale ignoring requested size due to clamping
+  - Test executor throwing on failed tests instead of returning result
+  - Infra healing showing "not initialized" (added default playbook fallback)
+  - Coverage decimal formatting, ghost coverage false positives, model router minimum complexity
+  - MCP coverage returning 0% (added heuristic fallback)
+- **Coverage exit code bug** — `aqe coverage` always exited 0 regardless of threshold; now correctly exits 1 when below threshold
+- **concept_edges O(n^2) bloat** — Prevented quadratic edge growth and isolated test DB
+- **JUnit reporter missing** — Added JUnit reporter to vitest config
+- **secureRandom test mocks** — Fixed crypto-secure randomness test mocking
+- **Crypto-secure randomness** — Replaced Math.random() with crypto.randomUUID() in CI-sensitive paths
+
+### Changed
+
+- **Phase 1 CI-native features verified complete** — All `--format` (text/json/sarif/junit/markdown), `--output <path>`, and SARIF v2.1.0 support confirmed implemented across all 4 core commands
+- **Docs updated** — Phase 1 items 1.1, 1.2, 1.5 marked DONE in CI/CD plan and test plan
+
 ## [3.7.2] - 2026-02-25
 
 ### Added

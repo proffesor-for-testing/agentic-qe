@@ -145,6 +145,22 @@ export class ScoreCalculator implements IScoreCalculator {
     if (signals.hasSecurityScope) minScore = Math.max(minScore, 50);
     if (signals.hasArchitectureScope) minScore = Math.max(minScore, 55);
     if (signals.requiresCrossDomainCoordination) minScore = Math.max(minScore, 35);
+    if (signals.requiresMultiStepReasoning) minScore = Math.max(minScore, 30);
+
+    // MED-5 fix: Ensure non-trivial tasks get a minimum complexity floor.
+    // When no keywords matched and no scope signals fired, the weighted score
+    // can be 0 even for legitimate tasks like "refactor auth module".
+    // Apply a minimum floor based on any keyword matches present.
+    const totalKeywords =
+      signals.keywordMatches.simple.length +
+      signals.keywordMatches.moderate.length +
+      signals.keywordMatches.complex.length +
+      signals.keywordMatches.critical.length;
+    if (totalKeywords === 0 && !signals.isMechanicalTransform && weighted < 15) {
+      // No keywords matched at all — this likely means the task description
+      // uses different phrasing. Apply a baseline floor of 15 (Tier 2 minimum).
+      minScore = Math.max(minScore, 15);
+    }
 
     return Math.min(Math.max(Math.round(weighted), minScore), 100);
   }

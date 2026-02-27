@@ -697,7 +697,8 @@ describe('ScoreCalculator', () => {
       it('should handle zero complexity', () => {
         const signals = createSignals();
         const result = calculator.calculateOverallComplexity(0, 0, 0, signals);
-        expect(result).toBe(0);
+        // MED-5 fix: minimum floor of 15 when no keywords match and not mechanical
+        expect(result).toBe(15);
       });
     });
 
@@ -997,7 +998,8 @@ describe('ScoreCalculator', () => {
       expect(calculator.calculateCodeComplexity(signals)).toBe(0);
       expect(calculator.calculateReasoningComplexity(signals)).toBe(0);
       expect(calculator.calculateScopeComplexity(signals)).toBe(0);
-      expect(calculator.calculateOverallComplexity(0, 0, 0, signals)).toBe(0);
+      // MED-5 fix: minimum floor of 15 when no keywords match and not mechanical
+      expect(calculator.calculateOverallComplexity(0, 0, 0, signals)).toBe(15);
       expect(calculator.calculateConfidence(signals, input)).toBe(0.5);
     });
 

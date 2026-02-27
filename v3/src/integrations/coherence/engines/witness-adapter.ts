@@ -24,6 +24,7 @@ import type {
   WasmModule,
 } from '../types';
 import { WasmNotLoadedError, DEFAULT_COHERENCE_LOGGER } from '../types';
+import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Witness Adapter Interface
@@ -205,7 +206,7 @@ export class WitnessAdapter implements IWitnessAdapter {
            '-' +
            Date.now().toString(16) +
            '-' +
-           Math.random().toString(16).slice(2, 10);
+           secureRandom().toString(16).slice(2, 10);
   }
 
   /**

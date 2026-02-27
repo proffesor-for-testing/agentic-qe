@@ -289,10 +289,11 @@ describe('PatternEvolution Standalone', () => {
     const db = memory.getDatabase();
 
     testPatternId = `test-pattern-${Date.now()}`;
+    const uniqueName = `Test Pattern Evolution ${testPatternId}`;
     db.prepare(`
       INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name, description)
-      VALUES (?, 'test-template', 'test-generation', 'test-generation', 'Test Pattern', 'A test pattern for evolution testing')
-    `).run(testPatternId);
+      VALUES (?, 'test-template', 'test-generation', 'test-generation', ?, 'A test pattern for evolution testing')
+    `).run(testPatternId, uniqueName);
 
     // Also create embedding for the pattern
     const embedding = new Array(384).fill(0).map(() => Math.random());
@@ -301,7 +302,7 @@ describe('PatternEvolution Standalone', () => {
       buffer.writeFloatLE(embedding[i], i * 4);
     }
     db.prepare(`
-      INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model)
+      INSERT OR REPLACE INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model)
       VALUES (?, ?, ?, 'all-MiniLM-L6-v2')
     `).run(testPatternId, buffer, embedding.length);
   });

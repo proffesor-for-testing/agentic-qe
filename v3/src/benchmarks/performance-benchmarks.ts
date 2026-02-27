@@ -8,6 +8,7 @@
  */
 
 import { toErrorMessage } from '../shared/error-utils.js';
+import { secureRandom, secureRandomInt, secureRandomFloat } from '../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Types
@@ -304,18 +305,18 @@ export async function benchmarkHNSWIndex(): Promise<BenchmarkResult[]> {
 
     // Insert vectors for search benchmarks
     for (let i = 0; i < 1000; i++) {
-      const vector = Array.from({ length: dimensions }, () => Math.random());
+      const vector = Array.from({ length: dimensions }, () => secureRandom());
       await index.insert(`vec-${i}`, vector, {
         filePath: `src/file${i}.ts`,
-        lineCoverage: 50 + Math.random() * 50,
-        branchCoverage: 50 + Math.random() * 50,
-        functionCoverage: 50 + Math.random() * 50,
-        statementCoverage: 50 + Math.random() * 50,
-        uncoveredLineCount: Math.floor(Math.random() * 100),
-        uncoveredBranchCount: Math.floor(Math.random() * 50),
-        riskScore: Math.random(),
+        lineCoverage: secureRandomFloat(50, 100),
+        branchCoverage: secureRandomFloat(50, 100),
+        functionCoverage: secureRandomFloat(50, 100),
+        statementCoverage: secureRandomFloat(50, 100),
+        uncoveredLineCount: secureRandomInt(0, 100),
+        uncoveredBranchCount: secureRandomInt(0, 50),
+        riskScore: secureRandom(),
         lastUpdated: Date.now(),
-        totalLines: 100 + Math.floor(Math.random() * 500),
+        totalLines: 100 + secureRandomInt(0, 500),
       });
     }
 
@@ -325,7 +326,7 @@ export async function benchmarkHNSWIndex(): Promise<BenchmarkResult[]> {
       'HNSW',
       'insert',
       async () => {
-        const vector = Array.from({ length: dimensions }, () => Math.random());
+        const vector = Array.from({ length: dimensions }, () => secureRandom());
         await index.insert(`temp-${insertCounter++}`, vector);
       },
       { iterations: 100 }
@@ -337,7 +338,7 @@ export async function benchmarkHNSWIndex(): Promise<BenchmarkResult[]> {
       'HNSW',
       'search (k=10)',
       async () => {
-        const query = Array.from({ length: dimensions }, () => Math.random());
+        const query = Array.from({ length: dimensions }, () => secureRandom());
         await index.search(query, 10);
       },
       { iterations: 100 }
@@ -363,13 +364,13 @@ export async function benchmarkHNSWIndex(): Promise<BenchmarkResult[]> {
         await testIndex.initialize();
 
         for (let i = 0; i < size; i++) {
-          const vector = Array.from({ length: dimensions }, () => Math.random());
+          const vector = Array.from({ length: dimensions }, () => secureRandom());
           await testIndex.insert(`vec-${i}`, vector);
         }
 
         return {
           runFn: async () => {
-            const query = Array.from({ length: dimensions }, () => Math.random());
+            const query = Array.from({ length: dimensions }, () => secureRandom());
             await testIndex.search(query, 10);
           },
         };
@@ -434,7 +435,7 @@ export async function benchmarkCoverageParser(): Promise<BenchmarkResult[]> {
       for (let f = 0; f < numFiles; f++) {
         lcov += `SF:src/file${f}.ts\n`;
         for (let l = 1; l <= linesPerFile; l++) {
-          lcov += `DA:${l},${Math.random() > 0.3 ? 1 : 0}\n`;
+          lcov += `DA:${l},${secureRandom() > 0.3 ? 1 : 0}\n`;
         }
         lcov += `LF:${linesPerFile}\n`;
         lcov += `LH:${Math.floor(linesPerFile * 0.7)}\n`;
