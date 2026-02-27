@@ -49,7 +49,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 ## Phase 1: Universal Config Generator + Priority 1 Platforms
 
 **Timeline**: 2-3 weeks
-**Status**: [x] In Progress
+**Status**: [x] Complete
 
 ### Milestone 1.1: Universal Config Generator
 
@@ -57,7 +57,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 
 - [x] `PlatformConfigGenerator` class with `generateMcpConfig()` and `generateBehavioralRules()`
 - [x] Platform registry mapping all 8 platforms to their config paths, keys, and formats
-- [ ] Unit tests for all platform config formats
+- [x] Unit tests for all platform config formats (22 tests in `platform-config-generator.test.ts`)
 
 ### Milestone 1.2: GitHub Copilot Integration
 
@@ -67,7 +67,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] MCP config generation (`.vscode/mcp.json` with `servers` key)
 - [x] Behavioral rules template (`copilot-instructions.md`)
 - [ ] Integration test: `v3/tests/integration/copilot/`
-- [ ] Unit test: `v3/tests/unit/init/copilot-installer.test.ts`
+- [x] Unit test: `v3/tests/unit/init/copilot-installer.test.ts` (9 tests)
 
 **MCP Config format**:
 ```json
@@ -94,7 +94,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] MCP config generation (`.cursor/mcp.json` with `mcpServers` key)
 - [x] Behavioral rules template (`.cursorrules`)
 - [ ] Integration test
-- [ ] Unit test
+- [x] Unit test: `v3/tests/unit/init/cursor-installer.test.ts` (8 tests)
 
 ### Milestone 1.4: Cline Integration
 
@@ -105,7 +105,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] Custom QE mode definition
 - [x] `alwaysAllow` list for safe tools
 - [ ] Integration test
-- [ ] Unit test
+- [x] Unit test: `v3/tests/unit/init/cline-installer.test.ts` (11 tests)
 
 ### Milestone 1.5: Kilo Code Integration
 
@@ -116,7 +116,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] Custom QE mode definition
 - [ ] Marketplace listing investigation
 - [ ] Integration test
-- [ ] Unit test
+- [x] Unit test: `v3/tests/unit/init/kilocode-installer.test.ts` (10 tests)
 
 ### Milestone 1.6: Roo Code Integration
 
@@ -126,7 +126,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] MCP config generation (`.roo/mcp.json` with `mcpServers` key)
 - [x] Mode configuration
 - [ ] Integration test
-- [ ] Unit test
+- [x] Unit test: `v3/tests/unit/init/roocode-installer.test.ts` (11 tests)
 
 ---
 
@@ -141,7 +141,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] TOML config generation (`config.toml` under `[mcp_servers]`)
 - [x] `AGENTS.md` behavioral rules template
 - [ ] Integration test
-- [ ] Unit test
+- [x] Unit test: `v3/tests/unit/init/codex-installer.test.ts` (11 tests)
 
 **MCP Config format**:
 ```toml
@@ -161,7 +161,7 @@ AQE_V3_MODE = "true"
 - [x] JSON config generation (project-level `.windsurf/mcp_config.json`)
 - [x] `.windsurfrules` behavioral rules template
 - [ ] Integration test
-- [ ] Unit test
+- [x] Unit test: `v3/tests/unit/init/windsurf-installer.test.ts` (11 tests)
 
 ### Milestone 2.3: Continue.dev Integration
 
@@ -169,7 +169,7 @@ AQE_V3_MODE = "true"
 - [x] YAML config generation (`.continue/config.yaml`)
 - [x] Rules in YAML format
 - [ ] Integration test
-- [ ] Unit test
+- [x] Unit test: `v3/tests/unit/init/continuedev-installer.test.ts` (10 tests)
 
 ---
 
@@ -195,14 +195,14 @@ AQE_V3_MODE = "true"
 
 ### Milestone 3.2: Export Init Module
 
-- [ ] Update `v3/src/init/index.ts` with all new installer exports
+- [x] Update `v3/src/init/index.ts` with all new installer exports
 
 ---
 
 ## Phase 4: Testing Strategy
 
 **Timeline**: 1 week (parallel with Phase 1-2)
-**Status**: [ ] Not Started
+**Status**: [x] Partially Complete (unit tests done, integration/E2E pending)
 
 ### Per Platform
 
@@ -214,7 +214,7 @@ AQE_V3_MODE = "true"
 
 ### Shared
 
-- [ ] `v3/tests/helpers/platform-test-utils.ts` -- shared test utilities
+- [x] `v3/tests/helpers/platform-test-utils.ts` -- shared test utilities
 - [ ] `v3/tests/e2e/cross-platform-init.test.ts` -- all platforms simultaneously
 
 ---
