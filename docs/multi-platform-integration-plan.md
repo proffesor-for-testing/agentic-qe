@@ -66,7 +66,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] Installer class following OpenCode/Kiro pattern
 - [x] MCP config generation (`.vscode/mcp.json` with `servers` key)
 - [x] Behavioral rules template (`copilot-instructions.md`)
-- [ ] Integration test: `v3/tests/integration/copilot/`
+- [x] Integration test: `v3/tests/integration/platform-installers.test.ts` (shared, 76 tests)
 - [x] Unit test: `v3/tests/unit/init/copilot-installer.test.ts` (9 tests)
 
 **MCP Config format**:
@@ -93,7 +93,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] Installer class
 - [x] MCP config generation (`.cursor/mcp.json` with `mcpServers` key)
 - [x] Behavioral rules template (`.cursorrules`)
-- [ ] Integration test
+- [x] Integration test: (shared in platform-installers.test.ts)
 - [x] Unit test: `v3/tests/unit/init/cursor-installer.test.ts` (8 tests)
 
 ### Milestone 1.4: Cline Integration
@@ -104,7 +104,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] MCP config generation (`cline_mcp_settings.json` with `mcpServers` key)
 - [x] Custom QE mode definition
 - [x] `alwaysAllow` list for safe tools
-- [ ] Integration test
+- [x] Integration test: (shared in platform-installers.test.ts)
 - [x] Unit test: `v3/tests/unit/init/cline-installer.test.ts` (11 tests)
 
 ### Milestone 1.5: Kilo Code Integration
@@ -115,7 +115,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] MCP config generation (`.kilocode/mcp.json` with `mcpServers` key)
 - [x] Custom QE mode definition
 - [ ] Marketplace listing investigation
-- [ ] Integration test
+- [x] Integration test: (shared in platform-installers.test.ts)
 - [x] Unit test: `v3/tests/unit/init/kilocode-installer.test.ts` (10 tests)
 
 ### Milestone 1.6: Roo Code Integration
@@ -125,7 +125,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] Installer class
 - [x] MCP config generation (`.roo/mcp.json` with `mcpServers` key)
 - [x] Mode configuration
-- [ ] Integration test
+- [x] Integration test: (shared in platform-installers.test.ts)
 - [x] Unit test: `v3/tests/unit/init/roocode-installer.test.ts` (11 tests)
 
 ---
@@ -140,7 +140,7 @@ MCP has become the universal standard — nearly all major platforms support it 
 - [x] `v3/src/init/codex-installer.ts`
 - [x] TOML config generation (`config.toml` under `[mcp_servers]`)
 - [x] `AGENTS.md` behavioral rules template
-- [ ] Integration test
+- [x] Integration test: (shared in platform-installers.test.ts)
 - [x] Unit test: `v3/tests/unit/init/codex-installer.test.ts` (11 tests)
 
 **MCP Config format**:
@@ -160,7 +160,7 @@ AQE_V3_MODE = "true"
 - [x] `v3/src/init/windsurf-installer.ts`
 - [x] JSON config generation (project-level `.windsurf/mcp_config.json`)
 - [x] `.windsurfrules` behavioral rules template
-- [ ] Integration test
+- [x] Integration test: (shared in platform-installers.test.ts)
 - [x] Unit test: `v3/tests/unit/init/windsurf-installer.test.ts` (11 tests)
 
 ### Milestone 2.3: Continue.dev Integration
@@ -168,8 +168,8 @@ AQE_V3_MODE = "true"
 - [x] `v3/src/init/continuedev-installer.ts`
 - [x] YAML config generation (`.continue/config.yaml`)
 - [x] Rules in YAML format
-- [ ] Integration test
-- [x] Unit test: `v3/tests/unit/init/continuedev-installer.test.ts` (10 tests)
+- [x] Integration test: (shared in platform-installers.test.ts)
+- [x] Unit test: `v3/tests/unit/init/continuedev-installer.test.ts` (11 tests)
 
 ---
 
@@ -210,13 +210,12 @@ AQE_V3_MODE = "true"
 |-----------|----------|---------------|
 | Unit | `v3/tests/unit/init/<platform>-installer.test.ts` | Config generation, file writing |
 | Integration | `v3/tests/integration/platform-installers.test.ts` | Real fs, format validation, merge (76 tests) |
-| E2E | `v3/tests/e2e/cross-platform-init.test.ts` | Full init + auto-detection (23 tests) |
+| Integration | `v3/tests/integration/cross-platform-init.test.ts` | Multi-platform init, auto-detection (23 tests) |
 
 ### Shared
 
-- [x] `v3/tests/helpers/platform-test-utils.ts` -- shared test utilities
 - [x] `v3/tests/integration/platform-installers.test.ts` -- all platforms integration (76 tests)
-- [x] `v3/tests/e2e/cross-platform-init.test.ts` -- all platforms simultaneously (23 tests)
+- [x] `v3/tests/integration/cross-platform-init.test.ts` -- cross-platform init + auto-detection (23 tests)
 
 ---
 
@@ -244,28 +243,28 @@ AQE_V3_MODE = "true"
 
 ## Files Inventory
 
-### New Files to Create
+### New Files Created
 
-| File | Purpose |
-|------|---------|
-| `v3/src/init/platform-config-generator.ts` | Universal config generator |
-| `v3/src/init/copilot-installer.ts` | GitHub Copilot installer |
-| `v3/src/init/cursor-installer.ts` | Cursor installer |
-| `v3/src/init/cline-installer.ts` | Cline installer |
-| `v3/src/init/kilocode-installer.ts` | Kilo Code installer |
-| `v3/src/init/roocode-installer.ts` | Roo Code installer |
-| `v3/src/init/codex-installer.ts` | OpenAI Codex CLI installer |
-| `v3/src/init/windsurf-installer.ts` | Windsurf installer |
-| `v3/src/init/continuedev-installer.ts` | Continue.dev installer |
-| `v3/assets/templates/copilot-instructions.md` | Copilot behavioral rules |
-| `v3/assets/templates/cursorrules` | Cursor rules |
-| `v3/assets/templates/windsurfrules` | Windsurf rules |
-| `v3/assets/templates/agents-md` | Codex AGENTS.md |
-| `v3/assets/templates/cline-qe-mode.json` | Cline custom mode |
-| 8x integration tests | Per-platform MCP compatibility |
-| 8x unit tests | Per-platform installer logic |
-| 1x cross-platform E2E test | Multi-platform init verification |
-| `v3/tests/helpers/platform-test-utils.ts` | Shared test utilities |
+| File | Purpose | Status |
+|------|---------|--------|
+| `v3/src/init/platform-config-generator.ts` | Universal config generator | Done |
+| `v3/src/init/copilot-installer.ts` | GitHub Copilot installer | Done |
+| `v3/src/init/cursor-installer.ts` | Cursor installer | Done |
+| `v3/src/init/cline-installer.ts` | Cline installer | Done |
+| `v3/src/init/kilocode-installer.ts` | Kilo Code installer | Done |
+| `v3/src/init/roocode-installer.ts` | Roo Code installer | Done |
+| `v3/src/init/codex-installer.ts` | OpenAI Codex CLI installer | Done |
+| `v3/src/init/windsurf-installer.ts` | Windsurf installer | Done |
+| `v3/src/init/continuedev-installer.ts` | Continue.dev installer | Done |
+| `v3/src/cli/commands/platform.ts` | `aqe platform list/setup/verify` CLI | Done |
+| `v3/tests/unit/init/*-installer.test.ts` (x8) | Per-platform unit tests | Done |
+| `v3/tests/unit/init/platform-config-generator.test.ts` | Config generator tests (22) | Done |
+| `v3/tests/integration/platform-installers.test.ts` | Real fs integration (76 tests) | Done |
+| `v3/tests/integration/cross-platform-init.test.ts` | Cross-platform init (23 tests) | Done |
+| `docs/platform-setup-guide.md` | Per-platform setup instructions | Done |
+
+Note: Behavioral rules (copilot-instructions.md, .cursorrules, etc.) are generated inline by
+`PlatformConfigGenerator` — no separate template files needed.
 
 ### Files to Modify
 
