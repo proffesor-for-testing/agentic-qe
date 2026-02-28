@@ -25,7 +25,8 @@ import { generateTC01Report } from './report-generator';
 import { runOrdersInParallel } from './parallel-order-runner';
 import { createHealingHandler } from './healing-handler';
 import { loadSterlingPatterns } from './sterling-patterns';
-import type { PatternLookup } from './recovery-playbook';
+import { initHealingTelemetry } from './healing-telemetry';
+import type { PatternLookup } from '../../shared/types/pattern-lookup';
 import type { RunResult, StageResult } from '../../integrations/orchestration/action-types';
 
 // ============================================================================
@@ -103,15 +104,12 @@ async function createPatternLookup(): Promise<PatternLookup | undefined> {
       )
     `);
 
-    const searchStmt = db.prepare(`
-      SELECT name, content, confidence, rowid as id
-      FROM sterling_patterns
-      WHERE content LIKE '%' || ? || '%'
-         OR description LIKE '%' || ? || '%'
-         OR tags LIKE '%' || ? || '%'
-      ORDER BY confidence DESC
-      LIMIT ?
-    `);
+    // Fetch all patterns (small dataset ~18 rows) and score in-memory.
+    // Uses keyword overlap + tag filtering + confidence weighting.
+    // More effective than LIKE '%keyword%' for relevance ranking.
+    const allStmt = db.prepare(
+      `SELECT name, description, content, confidence, tags, rowid as id FROM sterling_patterns`
+    );
 
     const usageStmt = db.prepare(`
       UPDATE sterling_patterns
@@ -124,11 +122,40 @@ async function createPatternLookup(): Promise<PatternLookup | undefined> {
     const patternLookup: PatternLookup = {
       async search(query, options) {
         const limit = options?.limit ?? 5;
-        const keyword = query.split(/\s+/).slice(0, 3).join(' ');
-        const rows = searchStmt.all(keyword, keyword, keyword, limit) as Array<{
-          name: string; content: string; confidence: number; id: string;
+        const allPatterns = allStmt.all() as Array<{
+          name: string; description: string; content: string;
+          confidence: number; tags: string; id: number;
         }>;
-        return rows;
+
+        // Filter by tags if specified (exact match on each required tag)
+        let filtered = allPatterns;
+        if (options?.tags?.length) {
+          filtered = filtered.filter((p) => {
+            try {
+              const patternTags = JSON.parse(p.tags) as string[];
+              return options.tags!.every((t) => patternTags.includes(t));
+            } catch {
+              return false;
+            }
+          });
+        }
+
+        // Score by keyword overlap: each query word checked against name+description+content
+        const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+        if (queryWords.length === 0) return [];
+
+        const scored = filtered.map((p) => {
+          const text = `${p.name} ${p.description} ${p.content}`.toLowerCase();
+          const hits = queryWords.filter((w) => text.includes(w)).length;
+          const relevance = hits / queryWords.length;
+          return { name: p.name, content: p.content, confidence: p.confidence, id: String(p.id), relevance };
+        });
+
+        return scored
+          .filter((p) => p.relevance > 0)
+          .sort((a, b) => (b.relevance * b.confidence) - (a.relevance * a.confidence))
+          .slice(0, limit)
+          .map(({ name, content, confidence, id }) => ({ name, content, confidence, id }));
       },
       async recordUsage(patternId, outcome) {
         usageStmt.run(outcome.success ? 1 : 0, patternId);
@@ -253,7 +280,11 @@ export async function main(): Promise<void> {
     }
   }
 
-  // --- Create cross-session pattern lookup for healing ---
+  // --- Initialize healing telemetry (structured outcome recording) ---
+  const dbPath = resolve(process.cwd(), '.agentic-qe', 'memory.db');
+  const telemetry = await initHealingTelemetry(dbPath);
+
+  // --- Create cross-session pattern lookup (HNSW fallback — dormant until 50+ outcomes) ---
   const patternLookup = await createPatternLookup();
 
   // --- Parallel mode ---
@@ -284,6 +315,7 @@ export async function main(): Promise<void> {
       skipLayer2: args.skipLayer2,
       skipLayer3: args.skipLayer3,
       patternStore: patternLookup,
+      telemetry: telemetry ?? undefined,
       onOrderComplete: (orderNo, result, index) => {
         const healed = result.stages.some(s => !s.overallSuccess);
         const icon = result.overallSuccess
@@ -314,8 +346,14 @@ export async function main(): Promise<void> {
   }
 
   console.log(`  Layers: Sterling${args.skipLayer2 ? '' : ' + IIB'}${args.skipLayer3 ? '' : ' + NShift/Email/PDF/Browser'}`);
+  console.log(`  XAPI: ${config.xapi.enabled ? 'enabled' : 'disabled (set ADIDAS_XAPI_URL + credentials)'}`);
   console.log(`  Self-healing: enabled (invoice recovery playbook)`);
-  console.log(`  Cross-session learning: ${patternLookup ? 'enabled' : 'disabled (memory.db not available)'}`);
+  if (telemetry) {
+    const stats = telemetry.getStats();
+    console.log(`  Telemetry: ${stats.totalOutcomes} outcomes recorded, HNSW fallback: ${stats.hnswActivated ? 'active' : `dormant (${50 - stats.totalOutcomes} more to activate)`}`);
+  } else {
+    console.log(`  Telemetry: disabled (memory.db not available)`);
+  }
   console.log('');
 
   const ctx = createAdidasTestContext(config);
@@ -331,9 +369,12 @@ export async function main(): Promise<void> {
   console.log('Pre-flight: Sterling is reachable\n');
 
   const stages = buildTC01Lifecycle();
+  const runId = `o2c-${Date.now()}`;
   const healingHandler = createHealingHandler({
     enterpriseCode: config.enterpriseCode,
-    patternStore: patternLookup,
+    runId,
+    telemetry: telemetry ?? undefined,
+    patternStore: patternLookup ?? undefined,
   });
   const orchestrator = createActionOrchestrator({
     stages,
@@ -347,6 +388,12 @@ export async function main(): Promise<void> {
   });
 
   const result = await orchestrator.runAll(ctx);
+
+  // Close Playwright browser if XAPI client was used
+  await ctx.xapiClient?.close?.();
+
+  // Update pattern confidence from actual outcomes (telemetry → sterling_patterns)
+  telemetry?.updateConfidenceFromOutcomes();
 
   // ctx.orderId is set by the create-order stage when creating new orders
   const finalOrderId = ctx.orderId || orderId || 'unknown';

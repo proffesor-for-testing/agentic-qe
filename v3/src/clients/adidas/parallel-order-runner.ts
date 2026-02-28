@@ -12,7 +12,8 @@ import { createAdidasTestContext, type AdidasTestContext } from './context';
 import { createHealingHandler } from './healing-handler';
 import type { AdidasClientConfig } from './config';
 import type { RunResult, StageResult } from '../../integrations/orchestration/action-types';
-import type { PatternLookup } from './recovery-playbook';
+import type { PatternLookup } from '../../shared/types/pattern-lookup';
+import type { HealingTelemetry } from './healing-telemetry';
 
 export interface ParallelRunOptions {
   maxConcurrency?: number;  // Default: 5
@@ -21,6 +22,8 @@ export interface ParallelRunOptions {
   skipLayer3?: boolean;
   /** Cross-session pattern store — shared across all parallel orders. */
   patternStore?: PatternLookup;
+  /** Shared telemetry — records outcomes from all parallel orders. */
+  telemetry?: HealingTelemetry;
   onOrderComplete?: (orderNo: string, result: RunResult, index: number) => void;
   onOrderStart?: (testData: TC01TestData, index: number) => void;
   onStageComplete?: (orderIndex: number, stageId: string, result: StageResult) => void;
@@ -51,6 +54,7 @@ export async function runOrdersInParallel(
     skipLayer2,
     skipLayer3,
     patternStore,
+    telemetry,
     onOrderComplete,
     onOrderStart,
     onStageComplete,
@@ -67,9 +71,11 @@ export async function runOrdersInParallel(
         const ctx = createAdidasTestContext(config);
 
         // Each order gets its own healing handler — recovery is per-order,
-        // but they share the cross-session pattern store for learning.
+        // but they share the cross-session pattern store and telemetry.
         const healingHandler = createHealingHandler({
           enterpriseCode: config.enterpriseCode,
+          runId: `parallel-${index}-${Date.now()}`,
+          telemetry,
           patternStore,
           verbose: false, // suppress per-stage healing logs in parallel mode
         });
