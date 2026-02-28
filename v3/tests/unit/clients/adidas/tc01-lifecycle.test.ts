@@ -45,20 +45,28 @@ describe('buildTC01Lifecycle', () => {
   });
 
   it('action stages have act functions', () => {
-    const actionStageIds = ['create-order', 'confirm-shipment', 'create-return'];
+    // All write stages now have act functions (XAPI primary, REST fallback)
+    const actionStageIds = ['create-order', 'wait-for-release', 'confirm-shipment', 'delivery', 'create-return', 'return-delivery'];
     for (const id of actionStageIds) {
       const stage = stages.find((s) => s.id === id);
       expect(stage?.act, `${id} should have an act function`).toBeDefined();
     }
   });
 
-  it('poll-only stages have poll but no act', () => {
-    const pollOnlyIds = ['wait-for-release', 'delivery', 'forward-invoice', 'return-delivery'];
-    for (const id of pollOnlyIds) {
+  it('XAPI-driven stages have both act and poll', () => {
+    // These stages now actively drive transitions via XAPI (or skip if XAPI not available)
+    const xapiDrivenIds = ['wait-for-release', 'delivery', 'return-delivery'];
+    for (const id of xapiDrivenIds) {
       const stage = stages.find((s) => s.id === id);
-      expect(stage?.act, `${id} should NOT have an act function`).toBeUndefined();
+      expect(stage?.act, `${id} should have an act function (XAPI-driven)`).toBeDefined();
       expect(stage?.poll, `${id} should have a poll function`).toBeDefined();
     }
+  });
+
+  it('forward-invoice is poll-only (invoice is auto-generated)', () => {
+    const stage = stages.find((s) => s.id === 'forward-invoice');
+    expect(stage?.act, 'forward-invoice should NOT have an act function').toBeUndefined();
+    expect(stage?.poll, 'forward-invoice should have a poll function').toBeDefined();
   });
 
   it('verify-only stages have neither act nor poll', () => {
@@ -78,9 +86,17 @@ describe('buildTC01Lifecycle', () => {
     }
   });
 
-  it('non-action stages have fallback: "skip"', () => {
-    const nonActionIds = ['wait-for-release', 'delivery', 'forward-invoice', 'forward-comms', 'return-delivery', 'return-comms'];
-    for (const id of nonActionIds) {
+  it('non-write stages have fallback: "skip"', () => {
+    const skipFallbackIds = ['forward-invoice', 'forward-comms', 'return-comms'];
+    for (const id of skipFallbackIds) {
+      const stage = stages.find((s) => s.id === id);
+      expect(stage?.fallback, `${id} should fallback to skip`).toBe('skip');
+    }
+  });
+
+  it('XAPI-driven poll stages have fallback: "skip"', () => {
+    const xapiDrivenIds = ['wait-for-release', 'delivery', 'return-delivery'];
+    for (const id of xapiDrivenIds) {
       const stage = stages.find((s) => s.id === id);
       expect(stage?.fallback, `${id} should fallback to skip`).toBe('skip');
     }

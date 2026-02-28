@@ -1,7 +1,11 @@
 /**
  * Agentic QE v3 - Sterling OMS Client
  * Generic Sterling Order Management System REST client.
- * Reusable across all Sterling OMS clients — pass different SterlingClientConfig per customer.
+ * Reusable across all Sterling OMS clients -- pass different SterlingClientConfig per customer.
+ *
+ * All API calls use POST /invoke/{apiName} with JSON body.
+ * EnterpriseCode is auto-injected into every request.
+ * Responses are JSON (not XML). The XML parser import is kept only for sterlingObjectToXml.
  *
  * Follows VibiumClientImpl pattern: interface-driven, Result<T,E> returns,
  * circuit breaker via HttpClient, factory function for DI.
@@ -11,7 +15,7 @@ import type { Result } from '../../shared/types';
 import { ok, err } from '../../shared/types';
 import { HttpClient, getHttpClient } from '../../shared/http/http-client';
 import type { HttpError } from '../../shared/http/http-client';
-import { createSterlingXmlParser, ensureArray } from './xml-helpers';
+import { ensureArray } from './xml-helpers';
 import type {
   SterlingClient,
   SterlingClientConfig,
@@ -23,8 +27,12 @@ import type {
   ChangeOrderInput,
   CreateOrderInput,
   OrderAuditListParams,
+  OrderListParams,
+  ManageTaskQueueParams,
   PollOptions,
   Order,
+  OrderLine,
+  OrderRelease,
   Shipment,
   OrderInvoice,
   OrderAudit,
@@ -35,7 +43,7 @@ import type {
 // ============================================================================
 
 function buildAuthHeaders(auth: SterlingAuthConfig): Record<string, string> {
-  const headers: Record<string, string> = { 'Accept': 'application/xml' };
+  const headers: Record<string, string> = { 'Accept': 'application/json' };
   switch (auth.method) {
     case 'basic': {
       const encoded = Buffer.from(`${auth.username ?? ''}:${auth.password ?? ''}`).toString('base64');
@@ -53,26 +61,15 @@ function buildAuthHeaders(auth: SterlingAuthConfig): Record<string, string> {
 }
 
 // ============================================================================
-// Query String Builder
-// ============================================================================
-
-function buildQueryString(params: Record<string, string | undefined>): string {
-  const entries = Object.entries(params).filter(
-    (entry): entry is [string, string] => entry[1] !== undefined
-  );
-  if (entries.length === 0) return '';
-  return '?' + new URLSearchParams(entries).toString();
-}
-
-// ============================================================================
 // XML Body Serializer (Sterling XAPI REST format)
 // ============================================================================
 
 /**
  * Serialize a JS object to Sterling XML format.
- * Convention: scalar values → XML attributes, objects → child elements, arrays → repeated elements.
+ * Convention: scalar values -> XML attributes, objects -> child elements, arrays -> repeated elements.
+ * Kept for XAPI XML template building.
  */
-function sterlingObjectToXml(obj: Record<string, unknown>, rootElement: string): string {
+export function sterlingObjectToXml(obj: Record<string, unknown>, rootElement: string): string {
   const attrs: string[] = [];
   const children: string[] = [];
 
@@ -101,141 +98,189 @@ function escapeXmlAttr(s: string): string {
 }
 
 // ============================================================================
+// Sterling JSON Error Extractor
+// ============================================================================
+
+/**
+ * Check a JSON response body for Sterling error-in-body patterns.
+ * Sterling can return HTTP 200 OK with an error payload inside the JSON.
+ */
+function extractSterlingJsonError(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed?.Errors?.Error) {
+      const errors = ensureArray(parsed.Errors.Error);
+      return errors
+        .map((e: Record<string, unknown>) => e.ErrorDescription || e.ErrorCode || 'Unknown error')
+        .join('; ');
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================================
 // Sterling Client Implementation
 // ============================================================================
 
 class SterlingClientImpl implements SterlingClient {
   private http: HttpClient;
-  private parser: ReturnType<typeof createSterlingXmlParser>;
   private baseUrl: string;
   private healthUrl: string;
   private authHeaders: Record<string, string>;
   private timeout: number;
-  private inputFormat: 'json' | 'xml';
+  private enterpriseCode: string;
 
   constructor(config: SterlingClientConfig) {
     this.http = getHttpClient();
-    this.parser = createSterlingXmlParser();
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
     this.healthUrl = config.healthUrl ?? this.baseUrl.replace('/smcfs/restapi', '/smcfs/console/health');
     this.authHeaders = buildAuthHeaders(config.auth);
     this.timeout = config.timeout ?? 30000;
-    this.inputFormat = config.inputFormat ?? 'xml';
+    this.enterpriseCode = config.enterpriseCode;
   }
+
+  // --------------------------------------------------------------------------
+  // Order CRUD
+  // --------------------------------------------------------------------------
 
   async getOrderDetails(params: OrderDetailsParams): Promise<Result<Order, SterlingApiError>> {
-    const qs = buildQueryString({
+    return this.invoke<Order>('getOrderDetails', {
       OrderNo: params.OrderNo,
-      DocumentType: params.DocumentType,
+      ...(params.DocumentType ? { DocumentType: params.DocumentType } : {}),
     });
-
-    const result = await this.http.get(`${this.baseUrl}/getOrderDetails${qs}`, {
-      headers: this.authHeaders,
-      timeout: this.timeout,
-    });
-
-    if (!result.success) {
-      return err(this.toSterlingError(result.error, 'getOrderDetails'));
-    }
-
-    return this.parseXmlResponse<Order>(result.value, 'Order', 'getOrderDetails');
-  }
-
-  async changeOrder(payload: ChangeOrderInput): Promise<Result<Order, SterlingApiError>> {
-    const result = await this.postToSterling(
-      `${this.baseUrl}/changeOrder`,
-      payload as Record<string, unknown>,
-      'Order'
-    );
-
-    if (!result.success) {
-      return err(this.toSterlingError(result.error, 'changeOrder'));
-    }
-
-    return this.parseXmlResponse<Order>(result.value, 'Order', 'changeOrder');
   }
 
   async createOrder(payload: CreateOrderInput): Promise<Result<Order, SterlingApiError>> {
-    const result = await this.postToSterling(
-      `${this.baseUrl}/createOrder`,
-      payload as Record<string, unknown>,
-      'Order'
+    return this.invoke<Order>('createOrder', payload as Record<string, unknown>);
+  }
+
+  async changeOrder(payload: ChangeOrderInput): Promise<Result<Order, SterlingApiError>> {
+    return this.invoke<Order>('changeOrder', payload as Record<string, unknown>);
+  }
+
+  // --------------------------------------------------------------------------
+  // Order Queries
+  // --------------------------------------------------------------------------
+
+  async getOrderList(params: OrderListParams): Promise<Result<Order[], SterlingApiError>> {
+    const body = this.stripUndefined(params);
+    return this.invokeList<Order>(
+      'getOrderList',
+      body,
+      (parsed) => ensureArray(parsed?.OrderList?.Order ?? parsed?.Order),
     );
+  }
 
-    if (!result.success) {
-      return err(this.toSterlingError(result.error, 'createOrder'));
-    }
+  async getOrderLineList(params: OrderDetailsParams): Promise<Result<OrderLine[], SterlingApiError>> {
+    return this.invokeList<OrderLine>(
+      'getOrderLineList',
+      {
+        OrderNo: params.OrderNo,
+        ...(params.DocumentType ? { DocumentType: params.DocumentType } : {}),
+      },
+      (parsed) => ensureArray(parsed?.OrderLineList?.OrderLine ?? parsed?.OrderLine),
+    );
+  }
 
-    return this.parseXmlResponse<Order>(result.value, 'Order', 'createOrder');
+  async getOrderReleaseList(params: OrderDetailsParams): Promise<Result<OrderRelease[], SterlingApiError>> {
+    return this.invokeList<OrderRelease>(
+      'getOrderReleaseList',
+      {
+        OrderNo: params.OrderNo,
+        ...(params.DocumentType ? { DocumentType: params.DocumentType } : {}),
+      },
+      (parsed) => ensureArray(parsed?.OrderReleaseList?.OrderRelease ?? parsed?.OrderRelease),
+    );
   }
 
   async getOrderAuditList(params: OrderAuditListParams): Promise<Result<OrderAudit[], SterlingApiError>> {
-    const auditQuery: Record<string, unknown> = {
+    return this.invokeList<OrderAudit>(
+      'getOrderAuditList',
+      {
+        OrderNo: params.OrderNo,
+        ...(params.DocumentType ? { DocumentType: params.DocumentType } : {}),
+        ...(params.AuditType ? { AuditType: params.AuditType } : {}),
+      },
+      (parsed) => ensureArray(parsed?.OrderAudits?.OrderAudit ?? parsed?.OrderAudit),
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // Shipment Queries
+  // --------------------------------------------------------------------------
+
+  async getShipmentListForOrder(params: ShipmentListParams): Promise<Result<Shipment[], SterlingApiError>> {
+    return this.invokeList<Shipment>(
+      'getShipmentListForOrder',
+      {
+        OrderNo: params.OrderNo,
+        ...(params.DocumentType ? { DocumentType: params.DocumentType } : {}),
+      },
+      (parsed) => ensureArray(parsed?.Shipments?.Shipment ?? parsed?.Shipment),
+    );
+  }
+
+  async getShipmentDetails(
+    params: { ShipmentKey?: string; ShipmentNo?: string }
+  ): Promise<Result<Shipment, SterlingApiError>> {
+    return this.invoke<Shipment>('getShipmentDetails', {
+      ...(params.ShipmentKey ? { ShipmentKey: params.ShipmentKey } : {}),
+      ...(params.ShipmentNo ? { ShipmentNo: params.ShipmentNo } : {}),
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // Invoice Queries
+  // --------------------------------------------------------------------------
+
+  async getOrderInvoiceList(params: InvoiceParams): Promise<Result<OrderInvoice[], SterlingApiError>> {
+    return this.invokeList<OrderInvoice>(
+      'getOrderInvoiceList',
+      {
+        OrderNo: params.OrderNo,
+        ...(params.DocumentType ? { DocumentType: params.DocumentType } : {}),
+      },
+      (parsed) => ensureArray(parsed?.OrderInvoiceList?.OrderInvoice ?? parsed?.OrderInvoice),
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // Order Actions
+  // --------------------------------------------------------------------------
+
+  async scheduleOrder(params: OrderDetailsParams): Promise<Result<Order, SterlingApiError>> {
+    return this.invoke<Order>('scheduleOrder', {
       OrderNo: params.OrderNo,
       ...(params.DocumentType ? { DocumentType: params.DocumentType } : {}),
-      ...(params.AuditType ? { AuditType: params.AuditType } : {}),
-    };
-
-    const result = await this.postToSterling(
-      `${this.baseUrl}/getOrderAuditList`,
-      auditQuery,
-      'OrderAudit'
-    );
-
-    if (!result.success) {
-      return err(this.toSterlingError(result.error, 'getOrderAuditList'));
-    }
-
-    return this.parseXmlListResponse<OrderAudit>(
-      result.value,
-      (parsed) => ensureArray(parsed?.OrderAudits?.OrderAudit ?? parsed?.OrderAudit),
-      'getOrderAuditList'
-    );
+    });
   }
 
-  async getShipmentList(params: ShipmentListParams): Promise<Result<Shipment[], SterlingApiError>> {
-    const qs = buildQueryString({
+  async releaseOrder(params: OrderDetailsParams): Promise<Result<Order, SterlingApiError>> {
+    return this.invoke<Order>('releaseOrder', {
       OrderNo: params.OrderNo,
-      DocumentType: params.DocumentType,
+      ...(params.DocumentType ? { DocumentType: params.DocumentType } : {}),
     });
-
-    const result = await this.http.get(`${this.baseUrl}/getShipmentList${qs}`, {
-      headers: this.authHeaders,
-      timeout: this.timeout,
-    });
-
-    if (!result.success) {
-      return err(this.toSterlingError(result.error, 'getShipmentList'));
-    }
-
-    return this.parseXmlListResponse<Shipment>(
-      result.value,
-      (parsed) => ensureArray(parsed?.Shipments?.Shipment ?? parsed?.Shipment),
-      'getShipmentList'
-    );
   }
 
-  async getOrderInvoiceDetails(params: InvoiceParams): Promise<Result<OrderInvoice[], SterlingApiError>> {
-    const qs = buildQueryString({
-      OrderNo: params.OrderNo,
-      DocumentType: params.DocumentType,
+  // --------------------------------------------------------------------------
+  // Task Queue (Self-Healing Recovery)
+  // --------------------------------------------------------------------------
+
+  async manageTaskQueue(params: ManageTaskQueueParams): Promise<Result<unknown, SterlingApiError>> {
+    return this.invoke<unknown>('manageTaskQueue', {
+      ...(params.DataKey ? { DataKey: params.DataKey } : {}),
+      ...(params.DataType ? { DataType: params.DataType } : {}),
+      ...(params.TaskQKey ? { TaskQKey: params.TaskQKey } : {}),
+      ...(params.AvailableDate ? { AvailableDate: params.AvailableDate } : {}),
+      ...(params.TransactionId ? { TransactionId: params.TransactionId } : {}),
     });
-
-    const result = await this.http.get(`${this.baseUrl}/getOrderInvoiceDetails${qs}`, {
-      headers: this.authHeaders,
-      timeout: this.timeout,
-    });
-
-    if (!result.success) {
-      return err(this.toSterlingError(result.error, 'getOrderInvoiceDetails'));
-    }
-
-    return this.parseXmlListResponse<OrderInvoice>(
-      result.value,
-      (parsed) => ensureArray(parsed?.OrderInvoiceList?.OrderInvoice ?? parsed?.OrderInvoice),
-      'getOrderInvoiceDetails'
-    );
   }
+
+  // --------------------------------------------------------------------------
+  // Infrastructure
+  // --------------------------------------------------------------------------
 
   async healthCheck(): Promise<boolean> {
     return this.http.healthCheck(this.healthUrl);
@@ -258,37 +303,65 @@ class SterlingClientImpl implements SterlingClient {
     });
   }
 
-  // ============================================================================
-  // POST Body Handling (JSON / XML)
-  // ============================================================================
+  // ==========================================================================
+  // Private: Core invoke method (POST /invoke/{apiName})
+  // ==========================================================================
 
-  private async postToSterling(
-    url: string,
-    body: Record<string, unknown>,
-    rootElement: string
-  ): Promise<Result<Response, HttpError>> {
-    if (this.inputFormat === 'xml') {
-      return this.http.postRaw(
-        url,
-        sterlingObjectToXml(body, rootElement),
-        'application/xml',
-        { headers: this.authHeaders, timeout: this.timeout }
-      );
-    }
-    // Sterling JSON format requires root element wrapper: { "Order": { ... } }
-    return this.http.post(url, { [rootElement]: body }, {
+  /**
+   * Invoke a Sterling REST API. All calls are POST to /invoke/{apiName}
+   * with JSON body. EnterpriseCode is auto-injected.
+   */
+  private async invoke<T>(
+    apiName: string,
+    body: Record<string, unknown>
+  ): Promise<Result<T, SterlingApiError>> {
+    const url = `${this.baseUrl}/invoke/${apiName}`;
+    const requestBody = { EnterpriseCode: this.enterpriseCode, ...body };
+
+    const result = await this.http.post(url, requestBody, {
       headers: this.authHeaders,
       timeout: this.timeout,
     });
+
+    if (!result.success) {
+      return err(this.toSterlingError(result.error, apiName));
+    }
+
+    return this.parseJsonResponse<T>(result.value, apiName);
   }
 
-  // ============================================================================
-  // Private Helpers
-  // ============================================================================
+  /**
+   * Invoke a Sterling list API and extract the array from the response wrapper.
+   * Sterling wraps lists: e.g., { "Shipments": { "Shipment": [...] } }.
+   * The extractor function pulls the array out and ensureArray normalizes it.
+   */
+  private async invokeList<T>(
+    apiName: string,
+    body: Record<string, unknown>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    extractor: (parsed: any) => T[],
+  ): Promise<Result<T[], SterlingApiError>> {
+    const url = `${this.baseUrl}/invoke/${apiName}`;
+    const requestBody = { EnterpriseCode: this.enterpriseCode, ...body };
 
-  private async parseXmlResponse<T>(
+    const result = await this.http.post(url, requestBody, {
+      headers: this.authHeaders,
+      timeout: this.timeout,
+    });
+
+    if (!result.success) {
+      return err(this.toSterlingError(result.error, apiName));
+    }
+
+    return this.parseJsonListResponse<T>(result.value, extractor, apiName);
+  }
+
+  // ==========================================================================
+  // Private: JSON Response Parsing
+  // ==========================================================================
+
+  private async parseJsonResponse<T>(
     response: Response,
-    rootElement: string,
     apiName: string
   ): Promise<Result<T, SterlingApiError>> {
     try {
@@ -303,18 +376,23 @@ class SterlingClientImpl implements SterlingClient {
         });
       }
 
-      const parsed = this.parser.parse(body);
-      const data = parsed?.[rootElement] ?? parsed;
-      return ok(data as T);
+      // Check for Sterling error-in-body (200 OK with error payload)
+      const sterlingError = extractSterlingJsonError(body);
+      if (sterlingError) {
+        return err({ message: sterlingError, apiName, rawResponse: body.slice(0, 500) });
+      }
+
+      const data = JSON.parse(body) as T;
+      return ok(data);
     } catch (e) {
       return err({
-        message: `XML parse failed: ${e instanceof Error ? e.message : String(e)}`,
+        message: `JSON parse failed: ${e instanceof Error ? e.message : String(e)}`,
         apiName,
       });
     }
   }
 
-  private async parseXmlListResponse<T>(
+  private async parseJsonListResponse<T>(
     response: Response,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     extractor: (parsed: any) => T[],
@@ -332,15 +410,25 @@ class SterlingClientImpl implements SterlingClient {
         });
       }
 
-      const parsed = this.parser.parse(body);
+      // Check for Sterling error-in-body (200 OK with error payload)
+      const sterlingError = extractSterlingJsonError(body);
+      if (sterlingError) {
+        return err({ message: sterlingError, apiName, rawResponse: body.slice(0, 500) });
+      }
+
+      const parsed = JSON.parse(body);
       return ok(extractor(parsed));
     } catch (e) {
       return err({
-        message: `XML parse failed: ${e instanceof Error ? e.message : String(e)}`,
+        message: `JSON parse failed: ${e instanceof Error ? e.message : String(e)}`,
         apiName,
       });
     }
   }
+
+  // ==========================================================================
+  // Private: Helpers
+  // ==========================================================================
 
   private toSterlingError(httpError: HttpError, apiName: string): SterlingApiError {
     return {
@@ -348,6 +436,17 @@ class SterlingClientImpl implements SterlingClient {
       status: httpError.status,
       apiName,
     };
+  }
+
+  /** Strip undefined values from a params object for clean request bodies. */
+  private stripUndefined(params: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined) {
+        result[key] = value;
+      }
+    }
+    return result;
   }
 
   private sleep(ms: number): Promise<void> {
@@ -360,7 +459,7 @@ class SterlingClientImpl implements SterlingClient {
 // ============================================================================
 
 /**
- * Create a Sterling OMS client. Pass client-specific config —
+ * Create a Sterling OMS client. Pass client-specific config --
  * the client implementation is generic across all Sterling instances.
  */
 export function createSterlingClient(config: SterlingClientConfig): SterlingClient {

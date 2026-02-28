@@ -80,10 +80,24 @@ function mockSterlingClient(): SterlingClient {
     createOrder: vi.fn(async () => ok(baseOrder)),
     changeOrder: vi.fn(async () => ok(baseOrder)),
     getShipmentList: vi.fn(async () => ok(baseOrder.Shipments!.Shipment)),
+    getShipmentListForOrder: vi.fn(async () => ok([
+      { ShipmentKey: 'SK-001', ShipmentNo: 'SHP-001', Status: '3700', SCAC: 'DHL', TrackingNo: 'TRK-12345', ShipNode: 'WH-NL-01' },
+    ])),
+    getOrderInvoiceList: vi.fn(async () => ok([
+      { InvoiceNo: 'INV-001', InvoiceType: 'STANDARD', TotalAmount: '220.00' },
+    ] as OrderInvoice[])),
     getOrderInvoiceDetails: vi.fn(async () => ok([
       { InvoiceNo: 'INV-001', InvoiceType: 'STANDARD', TotalAmount: '220.00' },
     ] as OrderInvoice[])),
+    getOrderReleaseList: vi.fn(async () => ok([
+      { ReleaseNo: '0001', Status: '3200' },
+    ])),
+    getOrderLineList: vi.fn(async () => ok(baseOrder.OrderLines!.OrderLine)),
     getOrderAuditList: vi.fn(async () => ok([] as OrderAudit[])),
+    getShipmentDetails: vi.fn(async () => ok(baseOrder.Shipments!.Shipment[0])),
+    scheduleOrder: vi.fn(async () => ok(baseOrder)),
+    releaseOrder: vi.fn(async () => ok(baseOrder)),
+    manageTaskQueue: vi.fn(async () => ok({})),
     healthCheck: vi.fn(async () => true),
     pollUntil: vi.fn(async (fn, predicate) => {
       // Immediately resolve — in tests we don't actually wait
@@ -105,7 +119,9 @@ function mockAdidasCtx(): AdidasTestContext {
     shipments: [],
     originalOrderTotal: '',
     paymentMethod: '',
+    enterpriseCode: 'adidas_PT',
     // Layer 2/3 providers not available — steps will be skipped
+    // No xapiClient → XAPI-driven stages will gracefully skip their act
   };
 }
 
@@ -168,7 +184,7 @@ describe('TC_01 Integration: Lifecycle + Steps + Orchestrator', () => {
     expect(ctx.sterlingClient.changeOrder).toHaveBeenCalled();
   });
 
-  it('poll-only stages run their poll (not silently skipped)', async () => {
+  it('poll-only stage (forward-invoice) runs poll without act', async () => {
     const ctx = mockAdidasCtx();
     const stages = buildTC01Lifecycle();
 
@@ -182,14 +198,36 @@ describe('TC_01 Integration: Lifecycle + Steps + Orchestrator', () => {
 
     const result = await orchestrator.runAll(ctx);
 
-    const pollOnlyStageIds = ['wait-for-release', 'delivery', 'forward-invoice', 'return-delivery'];
-    for (const id of pollOnlyStageIds) {
+    // forward-invoice is the only true poll-only stage (invoice is auto-generated)
+    const forwardInvoice = result.stages.find((s) => s.stageId === 'forward-invoice');
+    expect(forwardInvoice, 'forward-invoice should be in results').toBeDefined();
+    expect(forwardInvoice!.action.success, 'forward-invoice action should be success (skipped)').toBe(true);
+    expect(forwardInvoice!.action.data?.actionStatus, 'forward-invoice should show action was skipped').toBe('skipped');
+    expect(forwardInvoice!.poll.success, 'forward-invoice poll should have run').toBe(true);
+  });
+
+  it('XAPI-driven stages run act (skipped without XAPI) then poll', async () => {
+    const ctx = mockAdidasCtx();
+    // No xapiClient set → act functions will skip, then poll runs
+    const stages = buildTC01Lifecycle();
+
+    const orchestrator = createActionOrchestrator<AdidasTestContext>({
+      stages,
+      verificationSteps: tc01Steps,
+      skipLayer2: true,
+      skipLayer3: true,
+      continueOnVerifyFailure: true,
+    });
+
+    const result = await orchestrator.runAll(ctx);
+
+    const xapiDrivenIds = ['wait-for-release', 'delivery', 'return-delivery'];
+    for (const id of xapiDrivenIds) {
       const stage = result.stages.find((s) => s.stageId === id);
       expect(stage, `Stage '${id}' should be in results`).toBeDefined();
-      // Action should be marked as skipped (not failed)
-      expect(stage!.action.success, `${id} action should be success (skipped)`).toBe(true);
-      expect(stage!.action.data?.actionStatus, `${id} should show action was skipped`).toBe('skipped');
-      // Poll should have run (not skipped)
+      // Without xapiClient, act runs but returns success with 'skipped' status
+      expect(stage!.action.success, `${id} action should succeed (graceful skip)`).toBe(true);
+      // Poll should have run
       expect(stage!.poll.success, `${id} poll should have run`).toBe(true);
     }
   });

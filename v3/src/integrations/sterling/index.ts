@@ -4,12 +4,16 @@
  */
 
 export { createSterlingClient } from './sterling-client';
+export { createXAPIClient, extractSterlingXmlError } from './xapi-client';
 export { createSterlingXmlParser, ensureArray } from './xml-helpers';
 export type {
   SterlingClient,
   SterlingClientConfig,
   SterlingAuthConfig,
   SterlingApiError,
+  XAPIClient,
+  XAPIClientConfig,
+  XAPIResponse,
   OrderDetailsParams,
   ShipmentListParams,
   InvoiceParams,

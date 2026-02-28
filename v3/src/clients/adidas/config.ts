@@ -4,7 +4,7 @@
  * This is the ONLY file that knows about Adidas env var naming conventions.
  */
 
-import type { SterlingClientConfig } from '../../integrations/sterling/types';
+import type { SterlingClientConfig, XAPIClientConfig } from '../../integrations/sterling/types';
 import type { MQBrowseConfig, EpochDBConfig } from '../../integrations/iib/types';
 import type { NShiftClientConfig } from '../../integrations/nshift/types';
 import type { EmailConfig } from '../../integrations/email/types';
@@ -16,6 +16,10 @@ import type { BrowserConfig } from '../../integrations/browser/types';
 
 export interface AdidasClientConfig {
   sterling: SterlingClientConfig;
+  xapi: {
+    enabled: boolean;
+    config?: XAPIClientConfig;
+  };
   epochDB: {
     enabled: boolean;
     config?: EpochDBConfig;
@@ -36,6 +40,7 @@ export interface AdidasClientConfig {
     enabled: boolean;
     config?: BrowserConfig;
   };
+  enterpriseCode: string;
   region: string;
 }
 
@@ -133,6 +138,12 @@ export function loadAdidasConfig(): AdidasClientConfig {
   const emailMsGraphEnabled = !!(msTenantId && msClientId && msClientSecret && emailUser);
   const emailEnabled = emailImapEnabled || emailMsGraphEnabled;
 
+  // XAPI is enabled when URL + username + password are all set
+  const xapiUrl = optionalEnv('ADIDAS_XAPI_URL');
+  const xapiUsername = optionalEnv('ADIDAS_XAPI_USERNAME') ?? optionalEnv('ADIDAS_STERLING_USERNAME');
+  const xapiPassword = optionalEnv('ADIDAS_XAPI_PASSWORD') ?? optionalEnv('ADIDAS_STERLING_PASSWORD');
+  const xapiEnabled = !!(xapiUrl && xapiUsername && xapiPassword);
+
   // Browser is enabled when SSR base URL is set
   const ssrBaseUrl = optionalEnv('ADIDAS_SSR_BASE_URL');
   const browserEnabled = !!ssrBaseUrl;
@@ -140,12 +151,22 @@ export function loadAdidasConfig(): AdidasClientConfig {
   return {
     sterling: {
       baseUrl: requireEnv('ADIDAS_OMNI_HOST') + '/smcfs/restapi',
+      enterpriseCode: optionalEnv('ADIDAS_ENTERPRISE_CODE') ?? 'adidas_PT',
       auth: {
         method: authMethod,
         username: optionalEnv('ADIDAS_STERLING_USERNAME'),
         password: optionalEnv('ADIDAS_STERLING_PASSWORD'),
         token: optionalEnv('ADIDAS_STERLING_TOKEN'),
       },
+    },
+    xapi: {
+      enabled: xapiEnabled,
+      config: xapiEnabled ? {
+        baseUrl: xapiUrl!,
+        username: xapiUsername!,
+        password: xapiPassword!,
+        timeout: 60_000,
+      } : undefined,
     },
     epochDB: {
       enabled: epochEnabled,
@@ -195,6 +216,7 @@ export function loadAdidasConfig(): AdidasClientConfig {
         password: optionalEnv('ADIDAS_SSR_PASSWORD'),
       } : undefined,
     },
+    enterpriseCode: optionalEnv('ADIDAS_ENTERPRISE_CODE') ?? 'adidas_PT',
     region: optionalEnv('ADIDAS_REGION') ?? 'ADWE',
   };
 }

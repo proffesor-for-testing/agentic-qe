@@ -248,14 +248,14 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     requires: {},
     execute: async (ctx) => {
       const start = Date.now();
-      const result = await ctx.sterlingClient.getShipmentList({ OrderNo: ctx.orderId });
+      const result = await ctx.sterlingClient.getShipmentListForOrder({ OrderNo: ctx.orderId });
 
       if (!result.success) {
         return { success: false, error: result.error.message, durationMs: Date.now() - start, checks: [] };
       }
 
       const shipments = result.value;
-      ctx.shipments = shipments.map((s) => ({
+      ctx.shipments = shipments.map((s: { ShipmentNo: string; TrackingNo: string; ContainerNo?: string; SCAC: string }) => ({
         shipmentNo: s.ShipmentNo,
         trackingNo: s.TrackingNo,
         containerNo: (s.ContainerNo as string) ?? '',
@@ -371,14 +371,14 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     requires: {},
     execute: async (ctx) => {
       const start = Date.now();
-      const result = await ctx.sterlingClient.getOrderInvoiceDetails({ OrderNo: ctx.orderId });
+      const result = await ctx.sterlingClient.getOrderInvoiceList({ OrderNo: ctx.orderId });
 
       if (!result.success) {
         return { success: false, error: result.error.message, durationMs: Date.now() - start, checks: [] };
       }
 
       const invoices = result.value;
-      const forwardInvoice = invoices.find((inv) => inv.InvoiceType !== 'CREDIT_MEMO');
+      const forwardInvoice = invoices.find((inv: { InvoiceType?: string }) => inv.InvoiceType !== 'CREDIT_MEMO');
       if (forwardInvoice) {
         ctx.forwardInvoiceNo = forwardInvoice.InvoiceNo;
       }
@@ -531,7 +531,7 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     execute: async (ctx) => {
       const start = Date.now();
       const returnOrderNo = ctx.returnOrderNo ?? ctx.orderId;
-      const result = await ctx.sterlingClient.getOrderInvoiceDetails({
+      const result = await ctx.sterlingClient.getOrderInvoiceList({
         OrderNo: returnOrderNo,
         DocumentType: '0003',
       });
@@ -540,7 +540,7 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
         return { success: false, error: result.error.message, durationMs: Date.now() - start, checks: [] };
       }
 
-      const creditNote = result.value.find((inv) => inv.InvoiceType === 'CREDIT_MEMO');
+      const creditNote = result.value.find((inv: { InvoiceType?: string }) => inv.InvoiceType === 'CREDIT_MEMO');
       if (creditNote) {
         ctx.creditNoteNo = creditNote.InvoiceNo;
       }

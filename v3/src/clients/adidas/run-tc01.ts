@@ -1,0 +1,337 @@
+/**
+ * Agentic QE v3 - TC01 Entry Point
+ * CLI runner for Adidas O2C lifecycle test.
+ *
+ * Usage:
+ *   npx tsx v3/src/clients/adidas/run-tc01.ts --order APT26149445
+ *   npx tsx v3/src/clients/adidas/run-tc01.ts --parallel 3
+ *
+ * Environment: Requires ADIDAS_OMNI_HOST, ADIDAS_STERLING_AUTH_METHOD, etc.
+ * See config.ts for full env var documentation.
+ */
+
+import { resolve } from 'path';
+import { loadAdidasConfig } from './config';
+import { createAdidasTestContext } from './context';
+import { buildTC01Lifecycle } from './tc01-lifecycle';
+import { tc01Steps } from './tc01-steps';
+import { createActionOrchestrator } from '../../integrations/orchestration/action-orchestrator';
+import { generateTC01Report } from './report-generator';
+import { runOrdersInParallel } from './parallel-order-runner';
+import { createHealingHandler } from './healing-handler';
+import { loadSterlingPatterns } from './sterling-patterns';
+import type { PatternLookup } from './recovery-playbook';
+import type { RunResult, StageResult } from '../../integrations/orchestration/action-types';
+
+// ============================================================================
+// CLI Argument Parsing
+// ============================================================================
+
+interface CliArgs {
+  orderId?: string;
+  parallel?: number;
+  skipLayer2: boolean;
+  skipLayer3: boolean;
+  continueOnFailure: boolean;
+}
+
+function parseArgs(): CliArgs {
+  const args = process.argv.slice(2);
+  const result: CliArgs = {
+    skipLayer2: false,
+    skipLayer3: false,
+    continueOnFailure: false,
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    switch (args[i]) {
+      case '--order':
+        result.orderId = args[++i];
+        break;
+      case '--parallel':
+        result.parallel = parseInt(args[++i], 10);
+        break;
+      case '--skip-layer2':
+        result.skipLayer2 = true;
+        break;
+      case '--skip-layer3':
+        result.skipLayer3 = true;
+        break;
+      case '--continue-on-failure':
+        result.continueOnFailure = true;
+        break;
+    }
+  }
+
+  return result;
+}
+
+// ============================================================================
+// Pattern Store Adapter (memory.db → PatternLookup)
+// ============================================================================
+
+/**
+ * Create a PatternLookup adapter backed by memory.db (SQLite).
+ * Uses the same database as the AQE learning system.
+ * Returns null if the database is not available (e.g., first run, CI).
+ */
+async function createPatternLookup(): Promise<PatternLookup | undefined> {
+  try {
+    // Dynamic import to avoid hard dependency on better-sqlite3
+    const Database = (await import('better-sqlite3')).default;
+    const dbPath = resolve(process.cwd(), '.agentic-qe', 'memory.db');
+    const db = new Database(dbPath);
+
+    // Ensure the patterns table exists
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS sterling_patterns (
+        name TEXT PRIMARY KEY,
+        description TEXT NOT NULL,
+        tags TEXT NOT NULL,
+        content TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 0.8,
+        metadata TEXT,
+        usage_count INTEGER DEFAULT 0,
+        success_count INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+
+    const searchStmt = db.prepare(`
+      SELECT name, content, confidence, rowid as id
+      FROM sterling_patterns
+      WHERE content LIKE '%' || ? || '%'
+         OR description LIKE '%' || ? || '%'
+         OR tags LIKE '%' || ? || '%'
+      ORDER BY confidence DESC
+      LIMIT ?
+    `);
+
+    const usageStmt = db.prepare(`
+      UPDATE sterling_patterns
+      SET usage_count = usage_count + 1,
+          success_count = success_count + CASE WHEN ? = 1 THEN 1 ELSE 0 END,
+          updated_at = datetime('now')
+      WHERE rowid = ?
+    `);
+
+    const patternLookup: PatternLookup = {
+      async search(query, options) {
+        const limit = options?.limit ?? 5;
+        const keyword = query.split(/\s+/).slice(0, 3).join(' ');
+        const rows = searchStmt.all(keyword, keyword, keyword, limit) as Array<{
+          name: string; content: string; confidence: number; id: string;
+        }>;
+        return rows;
+      },
+      async recordUsage(patternId, outcome) {
+        usageStmt.run(outcome.success ? 1 : 0, patternId);
+      },
+    };
+
+    return patternLookup;
+  } catch {
+    // Database not available — cross-session learning disabled
+    return undefined;
+  }
+}
+
+/**
+ * Create a PatternStoreAdapter for loadSterlingPatterns().
+ * Backed by the same sterling_patterns table in memory.db.
+ */
+async function createPatternStoreAdapter() {
+  try {
+    const Database = (await import('better-sqlite3')).default;
+    const dbPath = resolve(process.cwd(), '.agentic-qe', 'memory.db');
+    const db = new Database(dbPath);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS sterling_patterns (
+        name TEXT PRIMARY KEY,
+        description TEXT NOT NULL,
+        tags TEXT NOT NULL,
+        content TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 0.8,
+        metadata TEXT,
+        usage_count INTEGER DEFAULT 0,
+        success_count INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+
+    const insertStmt = db.prepare(`
+      INSERT OR REPLACE INTO sterling_patterns (name, description, tags, content, confidence, metadata)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    const getStmt = db.prepare('SELECT name FROM sterling_patterns WHERE name = ?');
+
+    return {
+      async storePattern(pattern: {
+        name: string; description: string; tags: string[]; content: string;
+        confidence: number; metadata: Record<string, string>;
+      }) {
+        insertStmt.run(
+          pattern.name,
+          pattern.description,
+          JSON.stringify(pattern.tags),
+          pattern.content,
+          pattern.confidence,
+          JSON.stringify(pattern.metadata),
+        );
+      },
+      async getPattern(name: string) {
+        return getStmt.get(name) ?? null;
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================================
+// Console Output
+// ============================================================================
+
+function printStageResult(stageId: string, result: StageResult): void {
+  const icon = result.overallSuccess ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m';
+  const duration = (result.durationMs / 1000).toFixed(1);
+  const verify = `${result.verification.passed}/${result.verification.passed + result.verification.failed}`;
+  console.log(`  [${icon}] ${result.stageName} (${verify} checks, ${duration}s)`);
+
+  if (result.action.error) {
+    console.log(`         Action error: ${result.action.error}`);
+  }
+  if (result.poll.error) {
+    console.log(`         Poll error: ${result.poll.error}`);
+  }
+
+  for (const step of result.verification.steps) {
+    if (!step.result.success && step.result.error) {
+      console.log(`         ${step.stepId}: ${step.result.error}`);
+    }
+  }
+}
+
+function printSummary(result: RunResult, orderId: string, reportPath: string): void {
+  console.log('\n' + '='.repeat(60));
+  console.log(`  Order: ${orderId}`);
+  console.log(`  Stages: ${result.passed} passed, ${result.failed} failed`);
+  console.log(`  Checks: ${result.totalChecks}`);
+  console.log(`  Duration: ${(result.totalDurationMs / 1000).toFixed(1)}s`);
+  console.log(`  Result: ${result.overallSuccess ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m'}`);
+  console.log(`  Report: ${reportPath}`);
+  console.log('='.repeat(60));
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+async function main(): Promise<void> {
+  const args = parseArgs();
+
+  console.log('Loading Adidas configuration...');
+  const config = loadAdidasConfig();
+
+  const orderId = args.orderId ?? process.env.ADIDAS_ORDER_NO;
+
+  // --- Load Sterling patterns into memory.db (idempotent) ---
+  const patternStoreAdapter = await createPatternStoreAdapter();
+  if (patternStoreAdapter) {
+    const count = await loadSterlingPatterns(patternStoreAdapter);
+    if (count > 0) {
+      console.log(`Loaded ${count} Sterling patterns into memory.db`);
+    }
+  }
+
+  // --- Create cross-session pattern lookup for healing ---
+  const patternLookup = await createPatternLookup();
+
+  // --- Parallel mode ---
+  if (args.parallel && args.parallel > 1) {
+    if (!orderId) {
+      console.error('Parallel mode requires --order or ADIDAS_ORDER_NO for the base order template');
+      process.exit(1);
+    }
+
+    // Generate test data for N orders
+    const orderInputs = Array.from({ length: args.parallel }, () => ({
+      enterpriseCode: config.enterpriseCode,
+      sellerOrganizationCode: config.enterpriseCode,
+      items: [{ itemId: 'EE6464_530', quantity: '1' }],
+      shipTo: { firstName: 'QE', lastName: 'Automation', addressLine1: 'Rua Marques de Fronteira', city: 'Lisboa', zipCode: '1050-999', country: 'PT' },
+    }));
+
+    console.log(`Running ${args.parallel} orders in parallel (max concurrency: 5)...`);
+    const parallelResult = await runOrdersInParallel(orderInputs, config, {
+      maxConcurrency: 5,
+      continueOnOrderFailure: true,
+      skipLayer2: args.skipLayer2,
+      skipLayer3: args.skipLayer3,
+      onOrderComplete: (orderNo, result, index) => {
+        const icon = result.overallSuccess ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m';
+        console.log(`  [${icon}] Order ${index + 1}/${args.parallel}: ${orderNo}`);
+      },
+    });
+
+    console.log(`\nParallel run complete: ${parallelResult.passed}/${parallelResult.totalOrders} orders passed`);
+    process.exit(parallelResult.overallSuccess ? 0 : 1);
+  }
+
+  // --- Single order mode ---
+  if (!orderId) {
+    console.error('Usage: npx tsx v3/src/clients/adidas/run-tc01.ts --order <ORDER_NO>');
+    console.error('  Or set ADIDAS_ORDER_NO environment variable');
+    process.exit(1);
+  }
+
+  console.log(`Running TC01 for order: ${orderId}`);
+  console.log(`  Layers: Sterling${args.skipLayer2 ? '' : ' + IIB'}${args.skipLayer3 ? '' : ' + NShift/Email/PDF/Browser'}`);
+  console.log(`  Self-healing: enabled (invoice recovery playbook)`);
+  console.log(`  Cross-session learning: ${patternLookup ? 'enabled' : 'disabled (memory.db not available)'}`);
+  console.log('');
+
+  const ctx = createAdidasTestContext(config);
+  ctx.orderId = orderId;
+
+  // Pre-flight health check
+  console.log('Pre-flight: checking Sterling connectivity...');
+  const healthy = await ctx.sterlingClient.healthCheck();
+  if (!healthy) {
+    console.error('Pre-flight FAILED: Sterling is unreachable. Check VPN and ADIDAS_OMNI_HOST.');
+    process.exit(1);
+  }
+  console.log('Pre-flight: Sterling is reachable\n');
+
+  const stages = buildTC01Lifecycle();
+  const healingHandler = createHealingHandler({
+    enterpriseCode: config.enterpriseCode,
+    patternStore: patternLookup,
+  });
+  const orchestrator = createActionOrchestrator({
+    stages,
+    verificationSteps: tc01Steps,
+    skipLayer2: args.skipLayer2,
+    skipLayer3: args.skipLayer3,
+    continueOnVerifyFailure: args.continueOnFailure,
+    onStageComplete: printStageResult,
+    onStageFailed: healingHandler,
+    maxStageRetries: 1,
+  });
+
+  const result = await orchestrator.runAll(ctx);
+
+  const reportPath = await generateTC01Report(result, orderId);
+  printSummary(result, orderId, reportPath);
+
+  process.exit(result.overallSuccess ? 0 : 1);
+}
+
+main().catch((error) => {
+  console.error('Fatal error:', error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});

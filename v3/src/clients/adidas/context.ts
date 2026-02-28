@@ -7,8 +7,10 @@ import type { BaseTestContext } from '../../integrations/orchestration/base-cont
 import type { BrowserProvider } from '../../integrations/browser/types';
 import type { EmailProvider } from '../../integrations/email/types';
 import type { PdfExtractor } from '../../integrations/pdf/types';
+import type { XAPIClient } from '../../integrations/sterling/types';
 import type { AdidasClientConfig } from './config';
 import { createSterlingClient } from '../../integrations/sterling/sterling-client';
+import { createXAPIClient } from '../../integrations/sterling/xapi-client';
 import { createMQBrowseProvider } from '../../integrations/iib/providers/mq-browse';
 import { createEpochDBProvider } from '../../integrations/iib/providers/epoch-db';
 import { createNShiftClient } from '../../integrations/nshift/nshift-client';
@@ -41,6 +43,16 @@ export interface AdidasTestContext extends BaseTestContext {
   returnTracking?: string;
   creditNoteNo?: string;
 
+  // Lifecycle state — populated during stage execution for XML templates
+  shipNode?: string;
+  releaseNo?: string;
+
+  // Config pass-through for XAPI templates and recovery
+  enterpriseCode: string;
+
+  // XAPI client — available when XAPI URL + credentials are configured
+  xapiClient?: XAPIClient;
+
   // Layer 3 providers — available when credentials/packages are configured
   emailProvider?: EmailProvider;
   pdfExtractor?: PdfExtractor;
@@ -69,6 +81,15 @@ export interface AdidasTestContext extends BaseTestContext {
  */
 export function createAdidasTestContext(config: AdidasClientConfig): AdidasTestContext {
   const queueMappings = buildAdidasQueueMappings(config.region);
+
+  // XAPI client — available when XAPI tester JSP URL + credentials are configured
+  let xapiClient: XAPIClient | undefined;
+  if (config.xapi?.enabled && config.xapi.config) {
+    const result = createXAPIClient(config.xapi.config);
+    if (result.success) {
+      xapiClient = result.value;
+    }
+  }
 
   // Layer 2: MQ Browse is primary (verifies actual IIB message flow execution).
   // EPOCH DB is fallback only (verifies Sterling DB state — indirect evidence).
@@ -110,5 +131,6 @@ export function createAdidasTestContext(config: AdidasClientConfig): AdidasTestC
     shipments: [],
     originalOrderTotal: '',
     paymentMethod: '',
+    enterpriseCode: config.enterpriseCode,
   };
 }

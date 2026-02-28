@@ -55,8 +55,10 @@ class ActionOrchestratorImpl<TContext extends BaseTestContext> implements Action
   private skipLayer2: boolean;
   private skipLayer3: boolean;
   private onStageComplete?: (stageId: string, result: StageResult) => void;
+  private onStageFailed?: (stageId: string, result: StageResult, ctx: TContext) => Promise<'retry' | 'continue' | 'abort'>;
   private onManualAction?: (stage: LifecycleStage<TContext>) => Promise<void>;
   private continueOnVerifyFailure: boolean;
+  private maxStageRetries: number;
   private results: RunResult;
 
   constructor(config: ActionOrchestratorConfig<TContext>) {
@@ -65,8 +67,10 @@ class ActionOrchestratorImpl<TContext extends BaseTestContext> implements Action
     this.skipLayer2 = config.skipLayer2 ?? false;
     this.skipLayer3 = config.skipLayer3 ?? false;
     this.onStageComplete = config.onStageComplete;
+    this.onStageFailed = config.onStageFailed;
     this.onManualAction = config.onManualAction;
     this.continueOnVerifyFailure = config.continueOnVerifyFailure ?? false;
+    this.maxStageRetries = config.maxStageRetries ?? 1;
     this.results = this.emptyResult();
   }
 
@@ -110,7 +114,28 @@ class ActionOrchestratorImpl<TContext extends BaseTestContext> implements Action
     const runStart = Date.now();
 
     for (const stage of stages) {
-      const stageResult = await this.executeStage(ctx, stage);
+      let stageResult = await this.executeStage(ctx, stage);
+      let retries = 0;
+
+      // Self-healing loop: if stage fails and handler says 'retry', re-execute
+      while (!stageResult.overallSuccess && this.onStageFailed && retries < this.maxStageRetries) {
+        const decision = await this.onStageFailed(stage.id, stageResult, ctx);
+
+        if (decision === 'retry') {
+          retries++;
+          stageResult = await this.executeStage(ctx, stage);
+        } else if (decision === 'continue') {
+          break;
+        } else {
+          // 'abort'
+          this.results.stages.push(stageResult);
+          this.results.totalChecks += stageResult.verification.passed + stageResult.verification.failed;
+          this.results.failed++;
+          this.results.totalDurationMs = Date.now() - runStart;
+          this.results.overallSuccess = false;
+          return this.getReport();
+        }
+      }
 
       this.results.stages.push(stageResult);
       this.results.totalChecks += stageResult.verification.passed + stageResult.verification.failed;

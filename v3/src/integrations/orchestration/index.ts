@@ -4,6 +4,7 @@
  */
 
 export { createStepRunner } from './step-runner';
+export { createActionOrchestrator } from './action-orchestrator';
 export type { BaseTestContext } from './base-context';
 export type {
   StepDef,
@@ -13,3 +14,11 @@ export type {
   StepRunner,
   StepRunnerConfig,
 } from './types';
+export type {
+  ActionOrchestrator,
+  ActionOrchestratorConfig,
+  ActionResult,
+  LifecycleStage,
+  RunResult,
+  StageResult,
+} from './action-types';

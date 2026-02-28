@@ -82,6 +82,21 @@ export interface ActionOrchestratorConfig<TContext extends BaseTestContext = Bas
   /** Called when a stage requires manual intervention (fallback: 'manual') */
   onManualAction?: (stage: LifecycleStage<TContext>) => Promise<void>;
 
+  /**
+   * Called when a stage fails. Return value controls flow:
+   *   'retry'    → re-execute the same stage (after healing)
+   *   'continue' → skip this stage failure and proceed to next
+   *   'abort'    → stop the run
+   *
+   * The handler receives the context so it can perform recovery actions
+   * (e.g., manageTaskQueue fix) before the retry.
+   * maxRetries limits how many times a single stage can be retried (default: 1).
+   */
+  onStageFailed?: (stageId: string, result: StageResult, ctx: TContext) => Promise<'retry' | 'continue' | 'abort'>;
+
+  /** Max retries per stage when onStageFailed returns 'retry' (default: 1) */
+  maxStageRetries?: number;
+
   /** Continue running verification on remaining stages even when a stage fails */
   continueOnVerifyFailure?: boolean;
 }
