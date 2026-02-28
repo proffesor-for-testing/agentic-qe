@@ -11,9 +11,9 @@
 
 **V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Release Notes](docs/releases/README.md) | [Changelog](v3/CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 60 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, RVF cognitive container integration with portable brain export/import, OpenCode multi-client support, AWS Kiro IDE integration, and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
+> **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 60 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, RVF cognitive container integration with portable brain export/import, **11 coding agent platform integrations** (Claude Code, OpenCode, Kiro, GitHub Copilot, Cursor, Cline, Kilo Code, Roo Code, OpenAI Codex CLI, Windsurf, Continue.dev), and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
-🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **13 Bounded Contexts** | 📚 **78 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance**
+🏗️ **DDD Architecture** | 🧠 **ReasoningBank + Dream Cycles** | 🎯 **TinyDancer Model Routing** | 🔍 **HNSW Vector Search** | 👑 **Queen Coordinator** | 📊 **O(log n) Coverage** | 🔗 **Claude Flow Integration** | 🎯 **13 Bounded Contexts** | 📚 **78 QE Skills** | 🧬 **Coherence Verification** | ✅ **Trust Tiers** | 🛡️ **Governance** | 🌐 **11 Platform Integrations**
 
 </div>
 
@@ -39,11 +39,17 @@ aqe init --auto --with-opencode
 
 # Include AWS Kiro IDE assets (agents, skills, hooks, steering)
 aqe init --auto --with-kiro
+
+# Include any coding agent platform (Copilot, Cursor, Cline, etc.)
+aqe init --auto --with-copilot --with-cursor --with-cline
+
+# Or include all 8 additional platforms at once
+aqe init --auto --with-all-platforms
 ```
 
 > **Note:** `aqe init` automatically configures the MCP server in `.mcp.json` — Claude Code will auto-start it when connecting. For standalone MCP server usage (non-Claude-Code clients), run `aqe-mcp` or `npx agentic-qe mcp`.
 
-### Use from MCP-compatible agent clients (Claude Code, OpenCode, Kiro, Codex, others)
+### Use from MCP-compatible agent clients (11 platforms supported)
 
 AQE is exposed as an MCP server and can be used from any client that supports MCP tool connections.
 
@@ -53,23 +59,27 @@ AQE is exposed as an MCP server and can be used from any client that supports MC
 
 # For OpenCode: provision assets automatically during init
 aqe init --auto --with-opencode   # installs agents, skills, tools, permissions, opencode.json
-aqe-mcp                           # starts with SSE auto-detection
 
 # For AWS Kiro: provision Kiro-native assets during init
 aqe init --auto --with-kiro       # installs .kiro/ agents, skills, hooks, steering, MCP config
 
+# For GitHub Copilot, Cursor, Cline, Kilo Code, Roo Code, Codex, Windsurf, Continue.dev:
+aqe init --auto --with-copilot    # .vscode/mcp.json + copilot-instructions.md
+aqe init --auto --with-cursor     # .cursor/mcp.json + .cursorrules
+aqe init --auto --with-cline      # cline_mcp_settings.json + custom QE mode
+aqe init --auto --with-all-platforms  # all 8 platforms at once
+
+# Or set up a specific platform after init:
+aqe platform setup copilot        # configure a single platform
+aqe platform list                 # show all platforms with install status
+aqe platform verify cursor        # validate config format and content
+
 # For other MCP clients: start the server manually
 aqe-mcp                  # if installed globally
 npx agentic-qe mcp       # without global install
-
-# Then ask your client to invoke AQE tools (prefixed mcp__agentic-qe__):
-#    - fleet_init (required first step)
-#    - test_generate_enhanced for test generation
-#    - task_orchestrate for multi-agent coordination
-#    - quality_assess for quality gate evaluation
 ```
 
-For client-specific setup examples, see `docs/integration/mcp-clients.md`.
+For client-specific setup examples, see [Platform Setup Guide](docs/platform-setup-guide.md).
 
 **What V3 provides:**
 - ✅ **13 DDD Bounded Contexts**: Organized by business domain (test-generation, coverage-analysis, security-compliance, enterprise-integration, etc.)
@@ -83,6 +93,7 @@ For client-specific setup examples, see `docs/integration/mcp-clients.md`.
 - ✅ **RVF Cognitive Containers** (v3.7.0): MinCut task routing, witness chain audit trail, portable brain export/import, unified HNSW search, production dual-write to native RVF
 - ✅ **OpenCode Support** (v3.7.1): 59 agent configs, 86 skill configs (78 QE + 8 general dev), 5 tool wrappers, SSE/WS/HTTP transport, output compaction, graceful degradation, `aqe init --with-opencode` auto-provisioning
 - ✅ **AWS Kiro Support** (v3.7.2): 87 agent configs, 86 skill configs, 5 event-driven hooks, 2 steering files, MCP config, `aqe init --with-kiro` auto-provisioning
+- ✅ **Multi-Platform Support** (v3.7.4): 8 new platform integrations — GitHub Copilot, Cursor, Cline, Kilo Code, Roo Code, OpenAI Codex CLI, Windsurf, Continue.dev — with JSON/TOML/YAML config generation, behavioral rules, and `aqe platform list/setup/verify` CLI
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
 - ✅ **78 QE Skills**: 46 Tier 3 verified + 32 additional QE skills (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 
@@ -384,6 +395,48 @@ aqe init --with-kiro
 - Maps Claude Code tool names to Kiro builtins (`bash`→`shell`, `edit`→`write`)
 - Auto-detects existing `.kiro/` directory in `--auto` mode
 - Safe by default: won't overwrite existing files unless `--upgrade` is used
+
+---
+
+### 🌐 Multi-Platform Coding Agent Support (v3.7.4)
+
+V3.7.4 adds support for **8 additional coding agent platforms**, bringing the total to **11 supported platforms**. A single AQE MCP server works across all of them.
+
+| Platform | Users | Config Format | Setup Flag |
+|----------|-------|---------------|------------|
+| **Claude Code** | Native | `.mcp.json` | Built-in |
+| **OpenCode** | Growing | `opencode.json` | `--with-opencode` |
+| **AWS Kiro** | Growing | `.kiro/settings/mcp.json` | `--with-kiro` |
+| **GitHub Copilot** | 20M | `.vscode/mcp.json` | `--with-copilot` |
+| **Cursor** | 360K paid | `.cursor/mcp.json` | `--with-cursor` |
+| **Cline** | 5M installs | `cline_mcp_settings.json` | `--with-cline` |
+| **Kilo Code** | 1.5M | `.kilocode/mcp.json` | `--with-kilocode` |
+| **Roo Code** | Growing | `.roo/mcp.json` | `--with-roocode` |
+| **OpenAI Codex CLI** | 1M+ | `.codex/config.toml` | `--with-codex` |
+| **Windsurf** | Large | `.windsurf/mcp_config.json` | `--with-windsurf` |
+| **Continue.dev** | Enterprise | `.continue/config.yaml` | `--with-continuedev` |
+
+Each installer generates:
+- **MCP config** in the platform's native format (JSON, TOML, or YAML)
+- **Behavioral rules** (e.g., `.cursorrules`, `copilot-instructions.md`, `AGENTS.md`)
+- **Auto-approve lists** for platforms that support them (Cline, Kilo Code, Roo Code)
+
+```bash
+# Set up all platforms at once
+aqe init --auto --with-all-platforms
+
+# Or individual platforms
+aqe platform setup copilot
+aqe platform setup cursor
+
+# Check what's installed
+aqe platform list
+
+# Validate a platform's config
+aqe platform verify cursor
+```
+
+For detailed per-platform setup instructions, see [Platform Setup Guide](docs/platform-setup-guide.md).
 
 ---
 
