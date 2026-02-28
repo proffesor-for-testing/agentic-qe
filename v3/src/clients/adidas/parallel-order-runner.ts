@@ -1,7 +1,7 @@
 /**
  * Parallel Order Runner -- Adidas O2C Lifecycle (v3)
  * Runs N orders concurrently through the ActionOrchestrator,
- * each with its own independent context and orchestrator instance.
+ * each with its own independent context, orchestrator, and healing handler.
  */
 
 import { Semaphore } from './semaphore';
@@ -9,16 +9,21 @@ import { createActionOrchestrator } from '../../integrations/orchestration/actio
 import { buildTC01Lifecycle, type TC01TestData } from './tc01-lifecycle';
 import { tc01Steps } from './tc01-steps';
 import { createAdidasTestContext, type AdidasTestContext } from './context';
+import { createHealingHandler } from './healing-handler';
 import type { AdidasClientConfig } from './config';
-import type { RunResult } from '../../integrations/orchestration/action-types';
+import type { RunResult, StageResult } from '../../integrations/orchestration/action-types';
+import type { PatternLookup } from './recovery-playbook';
 
 export interface ParallelRunOptions {
   maxConcurrency?: number;  // Default: 5
   continueOnOrderFailure?: boolean;  // Default: true
   skipLayer2?: boolean;
   skipLayer3?: boolean;
+  /** Cross-session pattern store — shared across all parallel orders. */
+  patternStore?: PatternLookup;
   onOrderComplete?: (orderNo: string, result: RunResult, index: number) => void;
   onOrderStart?: (testData: TC01TestData, index: number) => void;
+  onStageComplete?: (orderIndex: number, stageId: string, result: StageResult) => void;
 }
 
 export interface ParallelRunResult {
@@ -45,8 +50,10 @@ export async function runOrdersInParallel(
     continueOnOrderFailure = true,
     skipLayer2,
     skipLayer3,
+    patternStore,
     onOrderComplete,
     onOrderStart,
+    onStageComplete,
   } = options;
 
   const semaphore = new Semaphore(maxConcurrency);
@@ -58,12 +65,26 @@ export async function runOrdersInParallel(
         onOrderStart?.(testData, index);
 
         const ctx = createAdidasTestContext(config);
+
+        // Each order gets its own healing handler — recovery is per-order,
+        // but they share the cross-session pattern store for learning.
+        const healingHandler = createHealingHandler({
+          enterpriseCode: config.enterpriseCode,
+          patternStore,
+          verbose: false, // suppress per-stage healing logs in parallel mode
+        });
+
         const orchestrator = createActionOrchestrator<AdidasTestContext>({
           stages: buildTC01Lifecycle(testData),
           verificationSteps: tc01Steps,
           skipLayer2: skipLayer2 ?? (!config.mqBrowse.enabled && !config.epochDB.enabled),
           skipLayer3: skipLayer3 ?? !config.nshift.enabled,
           continueOnVerifyFailure: true,
+          onStageFailed: healingHandler,
+          maxStageRetries: 1,
+          onStageComplete: onStageComplete
+            ? (stageId, result) => onStageComplete(index, stageId, result)
+            : undefined,
         });
 
         try {

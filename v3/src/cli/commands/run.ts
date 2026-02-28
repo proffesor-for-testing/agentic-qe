@@ -1,10 +1,10 @@
 /**
  * Agentic QE v3 - Run Command
  *
- * Wraps client test runners (e.g., Adidas TC01) so they can be invoked via:
- *   aqe run tc01                         # Create new order + run full lifecycle
- *   aqe run tc01 --order APT26149445     # Validate existing order (debug mode)
- *   aqe run tc01 --parallel 3            # Run N orders in parallel
+ * Wraps client test runners so they can be invoked via the aqe CLI:
+ *   aqe run o2c                          # Create new order + run full lifecycle
+ *   aqe run o2c --order APT26149445      # Validate existing order (debug mode)
+ *   aqe run o2c --parallel 3             # Run N orders in parallel
  *
  * This is a thin CLI wrapper — all execution logic lives in the client modules.
  */
@@ -18,12 +18,12 @@ export function createRunCommand(): Command {
     .description('Run client test cases');
 
   // =========================================================================
-  // aqe run tc01 — Adidas O2C lifecycle test
+  // aqe run o2c — Adidas Order-to-Cash lifecycle
   // =========================================================================
 
   runCmd
-    .command('tc01')
-    .description('Run Adidas O2C TC_01 lifecycle test (forward + return flow)')
+    .command('o2c')
+    .description('Adidas Order-to-Cash lifecycle (create → ship → deliver → invoice → return → credit)')
     .option('--order <orderNo>', 'Validate an existing order instead of creating new (e.g., APT26149445)')
     .option('--parallel <count>', 'Run N orders in parallel', parseInt)
     .option('--skip-layer2', 'Skip IIB/MQ checks (Layer 2)')
@@ -60,10 +60,10 @@ export function createRunCommand(): Command {
 
       // Inject args so the runner's parseArgs() picks them up
       const originalArgv = process.argv;
-      process.argv = ['node', 'run-tc01', ...args];
+      process.argv = ['node', 'run-o2c', ...args];
 
       try {
-        console.log(chalk.blue('\n Agentic QE — TC_01 Adidas O2C Lifecycle\n'));
+        console.log(chalk.blue('\n Agentic QE — Adidas Order-to-Cash Lifecycle\n'));
 
         // Dynamic import to avoid loading Adidas client code unless needed
         const { main } = await import('../../clients/adidas/run-tc01.js');

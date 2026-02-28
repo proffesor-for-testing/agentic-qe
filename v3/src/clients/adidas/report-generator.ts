@@ -18,8 +18,8 @@ export async function generateTC01Report(
   outputDir?: string,
 ): Promise<string> {
   return generateLifecycleReport(result, orderId, {
-    title: 'TC_01 Order Lifecycle Report',
-    filenamePrefix: 'tc01',
+    title: 'Adidas O2C Lifecycle Report',
+    filenamePrefix: 'o2c',
     outputDir,
   });
 }

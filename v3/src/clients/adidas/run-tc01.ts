@@ -1,11 +1,11 @@
 /**
- * Agentic QE v3 - TC01 Entry Point
- * CLI runner for Adidas O2C lifecycle test.
+ * Agentic QE v3 - Adidas Order-to-Cash Runner
+ * Drives the full O2C lifecycle: create → ship → deliver → invoice → return → credit.
  *
  * Usage:
- *   aqe run tc01                                  # Create new order + full lifecycle
- *   aqe run tc01 --order APT26149445              # Validate existing order
- *   aqe run tc01 --parallel 3                     # Run N orders in parallel
+ *   aqe run o2c                                   # Create new order + full lifecycle
+ *   aqe run o2c --order APT26149445               # Validate existing order
+ *   aqe run o2c --parallel 3                      # Run N orders in parallel
  *
  * Direct (without aqe CLI):
  *   npx tsx v3/src/clients/adidas/run-tc01.ts
@@ -258,8 +258,10 @@ export async function main(): Promise<void> {
 
   // --- Parallel mode ---
   if (args.parallel && args.parallel > 1) {
-    if (!orderId) {
-      console.error('Parallel mode requires --order or ADIDAS_ORDER_NO for the base order template');
+    // Each order is created fresh via the create-order stage (XAPI required)
+    if (!config.xapi.enabled) {
+      console.error('Error: Parallel mode creates new orders — XAPI credentials required.');
+      console.error('  Set ADIDAS_XAPI_URL (+ ADIDAS_XAPI_USERNAME / ADIDAS_XAPI_PASSWORD)');
       process.exit(1);
     }
 
@@ -272,14 +274,23 @@ export async function main(): Promise<void> {
     }));
 
     console.log(`Running ${args.parallel} orders in parallel (max concurrency: 5)...`);
+    console.log(`  Self-healing: enabled (each order has its own healing handler)`);
+    console.log(`  Cross-session learning: ${patternLookup ? 'enabled (shared pattern store)' : 'disabled'}`);
+    console.log('');
+
     const parallelResult = await runOrdersInParallel(orderInputs, config, {
       maxConcurrency: 5,
       continueOnOrderFailure: true,
       skipLayer2: args.skipLayer2,
       skipLayer3: args.skipLayer3,
+      patternStore: patternLookup,
       onOrderComplete: (orderNo, result, index) => {
-        const icon = result.overallSuccess ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m';
-        console.log(`  [${icon}] Order ${index + 1}/${args.parallel}: ${orderNo}`);
+        const healed = result.stages.some(s => !s.overallSuccess);
+        const icon = result.overallSuccess
+          ? (healed ? '\x1b[33mHEAL\x1b[0m' : '\x1b[32mPASS\x1b[0m')
+          : '\x1b[31mFAIL\x1b[0m';
+        const checks = `${result.passed}/${result.passed + result.failed} stages`;
+        console.log(`  [${icon}] Order ${index + 1}/${args.parallel}: ${orderNo} (${checks})`);
       },
     });
 
@@ -291,9 +302,9 @@ export async function main(): Promise<void> {
   const mode = orderId ? 'validate' : 'create';
 
   if (mode === 'validate') {
-    console.log(`Running TC01 for existing order: ${orderId}`);
+    console.log(`O2C: Validating existing order ${orderId}`);
   } else {
-    console.log('Running TC01: creating new order via XAPI');
+    console.log('O2C: Creating new order via XAPI');
     if (!config.xapi.enabled) {
       console.error('Error: XAPI credentials required to create new orders.');
       console.error('  Set ADIDAS_XAPI_URL (+ ADIDAS_XAPI_USERNAME / ADIDAS_XAPI_PASSWORD)');
