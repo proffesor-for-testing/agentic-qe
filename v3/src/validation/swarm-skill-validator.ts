@@ -14,6 +14,7 @@
 
 import { randomUUID } from 'crypto';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { secureRandom } from '../shared/utils/crypto-random.js';
 import type {
   SkillValidationLearner,
   SkillValidationOutcome,
@@ -555,10 +556,10 @@ export class SwarmSkillValidator {
    * Create a simulated result for testing without a validator
    */
   private createSimulatedResult(task: ValidationTask, startTime: number): SwarmValidationResult {
-    const durationMs = Date.now() - startTime + Math.random() * 100;
+    const durationMs = Date.now() - startTime + secureRandom() * 100;
 
     // Simulate varying pass rates
-    const passRate = 0.85 + Math.random() * 0.15;
+    const passRate = 0.85 + secureRandom() * 0.15;
 
     return {
       skill: task.skill,

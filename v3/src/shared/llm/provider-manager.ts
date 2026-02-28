@@ -28,6 +28,7 @@ import {
   LLMCacheConfig,
   createLLMError,
 } from './interfaces';
+import { secureRandomInt } from '../utils/crypto-random.js';
 import { CircuitBreaker, CircuitBreakerManager } from './circuit-breaker';
 import { LLMResponseCache } from './cache';
 import { CostTracker, getGlobalCostTracker } from './cost-tracker';
@@ -588,7 +589,7 @@ export class ProviderManager {
    * Random selection
    */
   private selectRandom(available: LLMProviderType[]): ProviderSelection {
-    const index = Math.floor(Math.random() * available.length);
+    const index = secureRandomInt(0, available.length);
     const type = available[index];
     return { provider: this.providers.get(type)!, reason: 'load-balance' };
   }

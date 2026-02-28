@@ -556,11 +556,13 @@ export class ConceptGraph {
       }
     }
 
-    // Create similarity edges only for newly loaded patterns (O(k*n) not O(n^2))
+    // Create similarity edges only for newly loaded patterns (capped per-node and per-domain)
     if (loaded > 0) {
       const edgesCreated = await this.discoverSameDomainEdges(newNodeDomains);
+      // Prune after discovery to keep graph lean
+      const pruned = await this.pruneEdges();
       if (this.config.debug) {
-        console.log(`[ConceptGraph] Discovered ${edgesCreated} same-domain edges`);
+        console.log(`[ConceptGraph] Discovered ${edgesCreated} same-domain edges, pruned ${pruned}`);
       }
     }
 
@@ -572,10 +574,9 @@ export class ConceptGraph {
   /**
    * Discover similarity edges between pattern nodes in the same domain.
    *
-   * When newNodesByDomain is provided, only creates edges between new nodes
-   * and existing same-domain nodes (O(k*n) where k=new nodes). Without it,
-   * falls back to connecting all unconnected pairs but caps at 50 edges per
-   * domain to prevent O(n^2) explosion.
+   * Caps per-node edges at MAX_EDGES_PER_NODE (15) and total domain edges at
+   * MAX_TOTAL_EDGES_PER_DOMAIN (5000) to prevent O(n^2) bloat. Skips domains
+   * that are already saturated. Uses transactions for batched inserts.
    *
    * @param newNodesByDomain - Map of domain -> newly added node IDs (optional)
    * @returns Number of new edges created
@@ -584,52 +585,81 @@ export class ConceptGraph {
     this.ensureInitialized();
     if (!this.db) return 0;
 
+    const MAX_EDGES_PER_NODE = 15;
+    const MAX_TOTAL_EDGES_PER_DOMAIN = 5000;
+
     let edgesCreated = 0;
 
     if (newNodesByDomain && newNodesByDomain.size > 0) {
       // Targeted mode: only connect new nodes to existing same-domain nodes
       for (const [domain, newIds] of newNodesByDomain) {
-        const newIdSet = new Set(newIds);
+        // Check if domain is already saturated
+        const existingDomainEdgeCount = this.countDomainSimilarityEdges(domain);
+        if (existingDomainEdgeCount >= MAX_TOTAL_EDGES_PER_DOMAIN) {
+          console.log(`[ConceptGraph] Domain '${domain}' already at edge cap (${existingDomainEdgeCount}/${MAX_TOTAL_EDGES_PER_DOMAIN}), skipping`);
+          continue;
+        }
 
-        // Get all pattern nodes in this domain
+        const newIdSet = new Set(newIds);
+        const domainBudget = MAX_TOTAL_EDGES_PER_DOMAIN - existingDomainEdgeCount;
+
+        // Get existing (non-new) same-domain nodes
         const allDomainNodes = this.db.prepare(
           "SELECT id, metadata FROM concept_nodes WHERE concept_type = 'pattern'"
         ).all() as NodeRow[];
 
-        const sameDomainNodes = allDomainNodes.filter((n) => {
+        const existingDomainNodes = allDomainNodes.filter((n) => {
+          if (newIdSet.has(n.id)) return false;
           const meta = n.metadata ? safeJsonParse<Record<string, unknown>>(n.metadata) : {};
           return String(meta.domain || 'unknown') === domain;
         });
 
-        // Connect each new node to existing (non-new) same-domain nodes
-        for (const newId of newIds) {
-          for (const existing of sameDomainNodes) {
-            if (newIdSet.has(existing.id)) continue; // skip new-to-new
-            const edge = await this.getEdgeBetween(newId, existing.id);
-            if (!edge) {
-              await this.addEdge(newId, existing.id, 'similarity', 0.6);
-              edgesCreated++;
-            }
-          }
-        }
+        // Batch inserts in a transaction
+        const batchInsert = this.db.transaction(() => {
+          let batchCreated = 0;
 
-        // Also connect new nodes to each other
-        for (let i = 0; i < newIds.length; i++) {
-          for (let j = i + 1; j < newIds.length; j++) {
-            const edge = await this.getEdgeBetween(newIds[i], newIds[j]);
-            if (!edge) {
-              await this.addEdge(newIds[i], newIds[j], 'similarity', 0.6);
-              edgesCreated++;
+          // Connect each new node to a limited number of existing same-domain nodes
+          for (const newId of newIds) {
+            let nodeEdges = 0;
+            for (const existing of existingDomainNodes) {
+              if (nodeEdges >= MAX_EDGES_PER_NODE) break;
+              if (batchCreated >= domainBudget) break;
+
+              const edge = this.prepared.get('getEdge')?.get(newId, existing.id) as EdgeRow | undefined;
+              if (!edge) {
+                const id = uuidv4();
+                this.prepared.get('insertEdge')!.run(id, newId, existing.id, 'similarity', 0.6, 1);
+                batchCreated++;
+                nodeEdges++;
+              }
+            }
+            if (batchCreated >= domainBudget) break;
+          }
+
+          // Also connect new nodes to each other (capped)
+          for (let i = 0; i < newIds.length && batchCreated < domainBudget; i++) {
+            let nodeEdges = 0;
+            for (let j = i + 1; j < newIds.length && batchCreated < domainBudget; j++) {
+              if (nodeEdges >= MAX_EDGES_PER_NODE) break;
+              const edge = this.prepared.get('getEdge')?.get(newIds[i], newIds[j]) as EdgeRow | undefined;
+              if (!edge) {
+                const id = uuidv4();
+                this.prepared.get('insertEdge')!.run(id, newIds[i], newIds[j], 'similarity', 0.6, 1);
+                batchCreated++;
+                nodeEdges++;
+              }
             }
           }
-        }
+
+          return batchCreated;
+        });
+
+        edgesCreated += batchInsert();
       }
     } else {
-      // Fallback mode: cap edges per domain to prevent O(n^2) explosion
-      const MAX_EDGES_PER_DOMAIN = 50;
-
+      // Fallback mode: cap edges per domain
       const patternNodes = this.db.prepare(
-        "SELECT * FROM concept_nodes WHERE concept_type = 'pattern'"
+        "SELECT id, metadata FROM concept_nodes WHERE concept_type = 'pattern'"
       ).all() as NodeRow[];
 
       const domainGroups = new Map<string, NodeRow[]>();
@@ -642,22 +672,116 @@ export class ConceptGraph {
         domainGroups.get(domain)!.push(node);
       }
 
-      for (const [, nodes] of domainGroups) {
-        let domainEdges = 0;
-        for (let i = 0; i < nodes.length && domainEdges < MAX_EDGES_PER_DOMAIN; i++) {
-          for (let j = i + 1; j < nodes.length && domainEdges < MAX_EDGES_PER_DOMAIN; j++) {
-            const existingEdge = await this.getEdgeBetween(nodes[i].id, nodes[j].id);
-            if (!existingEdge) {
-              await this.addEdge(nodes[i].id, nodes[j].id, 'similarity', 0.6);
-              edgesCreated++;
-              domainEdges++;
+      const batchInsert = this.db.transaction(() => {
+        let batchCreated = 0;
+
+        for (const [domain, nodes] of domainGroups) {
+          const existingCount = this.countDomainSimilarityEdges(domain);
+          if (existingCount >= MAX_TOTAL_EDGES_PER_DOMAIN) continue;
+
+          let domainEdges = 0;
+          const domainBudget = MAX_TOTAL_EDGES_PER_DOMAIN - existingCount;
+
+          for (let i = 0; i < nodes.length && domainEdges < domainBudget; i++) {
+            let nodeEdges = 0;
+            for (let j = i + 1; j < nodes.length && domainEdges < domainBudget; j++) {
+              if (nodeEdges >= MAX_EDGES_PER_NODE) break;
+              const existingEdge = this.prepared.get('getEdge')?.get(nodes[i].id, nodes[j].id) as EdgeRow | undefined;
+              if (!existingEdge) {
+                const id = uuidv4();
+                this.prepared.get('insertEdge')!.run(id, nodes[i].id, nodes[j].id, 'similarity', 0.6, 1);
+                batchCreated++;
+                domainEdges++;
+                nodeEdges++;
+              }
             }
           }
         }
-      }
+
+        return batchCreated;
+      });
+
+      edgesCreated += batchInsert();
     }
 
     return edgesCreated;
+  }
+
+  /**
+   * Count existing similarity edges for a domain.
+   * Uses concept_nodes metadata to identify domain membership.
+   */
+  private countDomainSimilarityEdges(domain: string): number {
+    if (!this.db) return 0;
+
+    // Count similarity edges where source is in the given domain
+    const result = this.db.prepare(`
+      SELECT COUNT(*) as count FROM concept_edges e
+      JOIN concept_nodes n ON e.source = n.id
+      WHERE e.edge_type = 'similarity'
+        AND n.concept_type = 'pattern'
+        AND json_extract(n.metadata, '$.domain') = ?
+    `).get(domain) as { count: number };
+
+    return result.count;
+  }
+
+  /**
+   * Prune low-weight and old similarity edges to control database growth.
+   * Keeps the top edges per node (by weight) and removes the rest.
+   *
+   * @param maxEdgesPerNode - Maximum similarity edges to keep per node (default: 15)
+   * @param minWeight - Minimum weight threshold; edges below are pruned (default: 0.3)
+   * @returns Number of edges pruned
+   */
+  async pruneEdges(maxEdgesPerNode: number = 15, minWeight: number = 0.3): Promise<number> {
+    this.ensureInitialized();
+    if (!this.db) return 0;
+
+    let pruned = 0;
+
+    const runPrune = this.db.transaction(() => {
+      let txPruned = 0;
+
+      // 1. Remove low-weight similarity edges
+      const lowWeightResult = this.db!.prepare(`
+        DELETE FROM concept_edges
+        WHERE edge_type = 'similarity' AND weight < ?
+      `).run(minWeight);
+      txPruned += lowWeightResult.changes;
+
+      // 2. For each node, keep only top N similarity edges by weight
+      const nodesWithTooMany = this.db!.prepare(`
+        SELECT source, COUNT(*) as cnt FROM concept_edges
+        WHERE edge_type = 'similarity'
+        GROUP BY source
+        HAVING cnt > ?
+      `).all(maxEdgesPerNode) as Array<{ source: string; cnt: number }>;
+
+      for (const { source } of nodesWithTooMany) {
+        // Delete edges beyond top N (keep highest weight)
+        const deleteResult = this.db!.prepare(`
+          DELETE FROM concept_edges
+          WHERE id IN (
+            SELECT id FROM concept_edges
+            WHERE source = ? AND edge_type = 'similarity'
+            ORDER BY weight DESC
+            LIMIT -1 OFFSET ?
+          )
+        `).run(source, maxEdgesPerNode);
+        txPruned += deleteResult.changes;
+      }
+
+      return txPruned;
+    });
+
+    pruned = runPrune();
+
+    if (pruned > 0) {
+      console.log(`[ConceptGraph] Pruned ${pruned} edges (maxPerNode=${maxEdgesPerNode}, minWeight=${minWeight})`);
+    }
+
+    return pruned;
   }
 
   // ==========================================================================

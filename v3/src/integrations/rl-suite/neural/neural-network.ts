@@ -5,6 +5,8 @@
  * No external ML libraries - pure TypeScript implementation.
  */
 
+import { secureRandom } from '../../../shared/utils/crypto-random.js';
+
 // ============================================================================
 // Activation Functions
 // ============================================================================
@@ -167,7 +169,7 @@ export class Layer {
     this.biasGradients = new Float32Array(this.outputSize);
 
     for (let i = 0; i < this.weights.length; i++) {
-      this.weights[i] = (Math.random() * 2 - 1) * scale;
+      this.weights[i] = (secureRandom() * 2 - 1) * scale;
     }
 
     for (let i = 0; i < this.biases.length; i++) {

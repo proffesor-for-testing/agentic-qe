@@ -32,6 +32,7 @@ import {
   createDefaultCollectorRegistry,
 } from './metric-collectors.js';
 import { toError } from '../shared/error-utils.js';
+import { secureRandom } from '../shared/utils/crypto-random.js';
 import {
   TuningAlgorithm,
   createTuningAlgorithm,
@@ -464,7 +465,7 @@ export class AQEAutoTuner {
         if (stat && stat.count > 0) {
           // Add small variance to simulate different configurations
           // In real usage, users should register applicators for actual results
-          const variance = stat.stdDev * (Math.random() - 0.5) * 0.1;
+          const variance = stat.stdDev * (secureRandom() - 0.5) * 0.1;
           metricValues[param.metric] = stat.mean + variance;
         } else {
           // No data - use parameter target as baseline

@@ -45,7 +45,9 @@ describe('DreamCycleTool Integration Tests', () => {
     }
     fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
 
-    // Reset memory systems to ensure clean state
+    // Reset ALL memory systems to ensure clean state when running in full suite.
+    // resetUnifiedPersistence() also resets UnifiedMemory internally.
+    resetUnifiedPersistence();
     resetUnifiedMemory();
     resetSharedMemoryBackend();
 
@@ -130,6 +132,18 @@ describe('DreamCycleTool Integration Tests', () => {
     }, SINGLE_DREAM_TIMEOUT);
 
     it('should respect duration configuration changes', async () => {
+      // Reset instance cache and wait for async engine close to complete.
+      // resetInstanceCache() fires engine.close() asynchronously — without
+      // waiting, the old DB connection may still be held when the next dream
+      // cycle tries to open a new one, causing "database is locked".
+      tool.resetInstanceCache();
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Reset shared singletons so a fresh DB connection is created
+      resetUnifiedPersistence();
+      resetUnifiedMemory();
+      resetSharedMemoryBackend();
+
       // First call with 2000ms
       const result1 = await tool.invoke({
         action: 'dream',
@@ -150,6 +164,10 @@ describe('DreamCycleTool Integration Tests', () => {
         minPatterns: 1,
         loadFromReasoningBank: true,
       });
+      if (!result2.success) {
+        console.log(`\n=== Duration Test - result2 FAILED ===`);
+        console.log(`  error: ${result2.error}`);
+      }
       expect(result2.success).toBe(true);
     }, DOUBLE_DREAM_TIMEOUT);
   });
@@ -323,8 +341,11 @@ describe('DreamCycleTool Integration Tests', () => {
 
 describe('Pattern Loading from ReasoningBank', () => {
   it('should load patterns from ReasoningBank when enabled', async () => {
-    // Reset singletons to avoid accumulated concept graph from prior tests
+    // Reset singletons to avoid accumulated concept graph from prior tests.
+    // Wait for any lingering async engine.close() to release DB connections.
+    await new Promise(resolve => setTimeout(resolve, 500));
     resetUnifiedPersistence();
+    resetUnifiedMemory();
     resetSharedMemoryBackend();
 
     const localTool = createDreamCycleTool();
@@ -361,13 +382,18 @@ describe('Pattern Loading from ReasoningBank', () => {
     expect(result.success).toBe(true);
     expect(['completed', 'insufficient_concepts']).toContain(result.data.dreamResult?.status);
 
+    // Reset and wait for async engine close to release DB connection
     localTool.resetInstanceCache();
+    await new Promise(resolve => setTimeout(resolve, 300));
   }, SINGLE_DREAM_TIMEOUT);
 
   it('should use empty string query (not wildcard) when loading patterns', async () => {
     // Reset ALL shared singletons to avoid state pollution from prior tests.
-    // resetUnifiedPersistence() also resets UnifiedMemory internally.
+    // Wait briefly for any lingering async engine.close() from the prior test
+    // to release its DB connection — prevents "database is locked" errors.
+    await new Promise(resolve => setTimeout(resolve, 500));
     resetUnifiedPersistence();
+    resetUnifiedMemory();
     resetSharedMemoryBackend();
 
     const localTool = createDreamCycleTool();

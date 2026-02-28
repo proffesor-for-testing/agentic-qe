@@ -1215,7 +1215,7 @@ export class QualityAssessmentCoordinator
   }
 
   private async tuneThresholdsWithRL(metrics: QualityMetrics): Promise<RLIntegration.RLThresholdResult | null> {
-    if (!this.actorCritic) return null;
+    if (!this.actorCritic || !metrics) return null;
     return RLIntegration.tuneThresholdsWithRL(this.actorCritic, metrics);
   }
 

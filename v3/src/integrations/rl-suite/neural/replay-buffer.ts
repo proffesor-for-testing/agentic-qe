@@ -5,6 +5,7 @@
  */
 
 import type { RLExperience } from '../interfaces';
+import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Replay Buffer
@@ -76,7 +77,7 @@ export class ReplayBuffer {
     const indices = new Set<number>();
 
     while (indices.size < Math.min(batchSize, this.buffer.length)) {
-      indices.add(Math.floor(Math.random() * this.buffer.length));
+      indices.add(secureRandomInt(0, this.buffer.length));
     }
 
     for (const index of indices) {
@@ -96,7 +97,7 @@ export class ReplayBuffer {
 
     // Sample indices based on probabilities
     for (let i = 0; i < Math.min(batchSize, this.buffer.length); i++) {
-      const rand = Math.random() * probs.reduce((a, b) => a + b, 0);
+      const rand = secureRandom() * probs.reduce((a, b) => a + b, 0);
       let cumProb = 0;
 
       for (let j = 0; j < probs.length; j++) {

@@ -1,6 +1,6 @@
 name: qe-test-environment-management
 description: "Test environment provisioning, infrastructure as code for testing, Docker/Kubernetes for test environments, service virtualization, and cost optimization. Use when managing test infrastructure, ensuring environment parity, or optimizing testing costs."
-minModelTier: tier1-fast
+minModelTier: tier1-any
 tags: ["environment", "docker", "kubernetes", "infrastructure", "parity", "cost-optimization", "qe", "quality-engineering", "specialized-testing"]
 steps:
   - name: environment-types

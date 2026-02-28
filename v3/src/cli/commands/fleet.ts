@@ -5,6 +5,7 @@
  */
 
 import { Command } from 'commander';
+import { secureRandomFloat } from '../../shared/utils/crypto-random.js';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { DomainName, ALL_DOMAINS } from '../../shared/types/index.js';
@@ -18,6 +19,7 @@ import { integrateCodeIntelligence, type FleetIntegrationResult } from '../../in
 import { runFleetInitWizard, type FleetWizardResult } from '../wizards/fleet-wizard.js';
 import { FleetProgressManager, createTimedSpinner } from '../utils/progress.js';
 import type { QEKernel } from '../../kernel/interfaces.js';
+import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 
 export function createFleetCommand(
   context: CLIContext,
@@ -40,6 +42,8 @@ export function createFleetCommand(
     .option('--lazy', 'Enable lazy loading', true)
     .option('--skip-patterns', 'Skip loading pre-trained patterns')
     .option('--skip-code-scan', 'Skip code intelligence index check')
+    .option('-F, --format <format>', 'Output format (text|json)', 'text')
+    .option('-o, --output <path>', 'Write output to file')
     .action(async (options) => {
       try {
         let topology = options.topology;
@@ -158,11 +162,24 @@ export function createFleetCommand(
           context.initialized = true;
         }
 
-        console.log(chalk.green('\n Fleet initialized successfully!\n'));
-        console.log(chalk.white('Next steps:'));
-        console.log(chalk.gray('  1. Spawn agents: aqe fleet spawn --domains test-generation'));
-        console.log(chalk.gray('  2. Run operation: aqe fleet run test --target ./src'));
-        console.log(chalk.gray('  3. Check status: aqe fleet status\n'));
+        const format = (options.format || 'text') as OutputFormat;
+        if (format === 'json') {
+          writeOutput(toJSON({
+            status: 'initialized',
+            topology,
+            maxAgents,
+            domains: enabledDomains,
+            memoryBackend,
+            lazyLoading,
+            loadPatterns,
+          }), options.output);
+        } else {
+          console.log(chalk.green('\n Fleet initialized successfully!\n'));
+          console.log(chalk.white('Next steps:'));
+          console.log(chalk.gray('  1. Spawn agents: aqe fleet spawn --domains test-generation'));
+          console.log(chalk.gray('  2. Run operation: aqe fleet run test --target ./src'));
+          console.log(chalk.gray('  3. Check status: aqe fleet status\n'));
+        }
 
         await cleanupAndExit(0);
       } catch (error) {
@@ -312,7 +329,7 @@ export function createFleetCommand(
 
             try {
               for (let p = 10; p <= 90; p += 20) {
-                await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 200));
+                await new Promise(resolve => setTimeout(resolve, secureRandomFloat(300, 500)));
                 progress.updateAgent(op.id, p, {
                   eta: Math.round((100 - p) * 50),
                 });
@@ -363,6 +380,8 @@ export function createFleetCommand(
     .command('status')
     .description('Show fleet status with agent progress')
     .option('-w, --watch', 'Watch mode with live updates')
+    .option('-F, --format <format>', 'Output format (text|json)', 'text')
+    .option('-o, --output <path>', 'Write output to file')
     .action(async (options) => {
       if (!await ensureInitialized()) return;
 
@@ -400,6 +419,31 @@ export function createFleetCommand(
           console.log('');
         };
 
+        const format = (options.format || 'text') as OutputFormat;
+        if (format === 'json') {
+          const health = context.queen!.getHealth();
+          const metrics = context.queen!.getMetrics();
+          const domainStatus: Record<string, unknown> = {};
+          for (const [domain, domainHealth] of health.domainHealth) {
+            domainStatus[domain] = {
+              status: domainHealth.status,
+              agents: domainHealth.agents,
+              errors: domainHealth.errors.length,
+            };
+          }
+          writeOutput(toJSON({
+            status: health.status,
+            utilization: metrics.agentUtilization,
+            activeAgents: health.activeAgents,
+            totalAgents: health.totalAgents,
+            runningTasks: health.runningTasks,
+            pendingTasks: health.pendingTasks,
+            domains: domainStatus,
+          }), options.output);
+          await cleanupAndExit(0);
+          return;
+        }
+
         if (options.watch) {
           const spinner = createTimedSpinner('Watching fleet status (Ctrl+C to exit)');
 
@@ -410,6 +454,7 @@ export function createFleetCommand(
             console.clear();
             await showStatus();
           }, 2000);
+          interval.unref?.();
 
           process.once('SIGINT', async () => {
             clearInterval(interval);

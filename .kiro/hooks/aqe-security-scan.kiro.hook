@@ -1,0 +1,19 @@
+{
+  "name": "AQE Security Scan",
+  "description": "Run security scan when security-sensitive files change",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/auth/**",
+      "**/security/**",
+      "**/middleware/**",
+      "**/*credential*",
+      "**/*secret*"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A security-sensitive file was modified. Use @agentic-qe/security_scan_comprehensive to check for vulnerabilities. Flag any OWASP Top 10 issues."
+  }
+}

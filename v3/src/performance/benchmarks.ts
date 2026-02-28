@@ -13,6 +13,7 @@ import * as os from 'os';
 import { PerformanceProfiler, createProfiler } from './profiler.js';
 import { CircularBuffer } from '../shared/utils/index.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { secureRandom, secureRandomInt } from '../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Performance Targets (Issue #177)
@@ -236,7 +237,7 @@ export class BenchmarkSuite {
     return this.runBenchmark(
       'AGUI Event Emission',
       () => {
-        emitter.emit('event', { type: 'TEST', data: { value: Math.random() } });
+        emitter.emit('event', { type: 'TEST', data: { value: secureRandom() } });
       },
       PERFORMANCE_TARGETS.aguiEventEmission.p95
     );
@@ -351,7 +352,7 @@ export class BenchmarkSuite {
       'A2A Agent Discovery',
       () => {
         // Simulate discovery lookup
-        const agentId = `agent-${Math.floor(Math.random() * 100)}`;
+        const agentId = `agent-${secureRandomInt(0, 100)}`;
         const card = agentCards.get(agentId);
         // Simulate capability matching
         const matches = card && (card as Record<string, unknown>).capabilities;
@@ -448,7 +449,7 @@ export class BenchmarkSuite {
       'A2UI Data Binding',
       () => {
         // Simulate JSON Pointer resolution
-        const pointer = `/users/${Math.floor(Math.random() * 100)}/name`;
+        const pointer = `/users/${secureRandomInt(0, 100)}/name`;
         const parts = pointer.split('/').filter(Boolean);
         let value: unknown = dataModel;
         for (const part of parts) {
@@ -476,7 +477,7 @@ export class BenchmarkSuite {
     return this.runBenchmark(
       'A2UI Component Validation',
       () => {
-        const type = componentTypes[Math.floor(Math.random() * 3)];
+        const type = componentTypes[secureRandomInt(0, 3)];
         const component = {
           id: `comp-${Date.now()}`,
           type,
@@ -560,7 +561,7 @@ export class BenchmarkSuite {
           id: Date.now().toString(36),
           data: Array.from({ length: 100 }, (_, i) => ({
             key: `key-${i}`,
-            value: Math.random(),
+            value: secureRandom(),
           })),
           timestamp: new Date().toISOString(),
         };

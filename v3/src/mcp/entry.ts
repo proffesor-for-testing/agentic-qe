@@ -115,7 +115,21 @@ async function main(): Promise<void> {
         playbookContent = readFileSync(playbookPath, 'utf-8');
       } catch {
         // Fallback for bundled environments where the YAML may not be at the resolved path
-        playbookContent = '';
+        playbookContent = [
+          'services:',
+          '  postgres:',
+          '    check: "pg_isready -h localhost -p 5432"',
+          '    recover: "echo postgres-recovery-placeholder"',
+          '    patterns: ["ECONNREFUSED.*5432", "connection.*refused.*postgres"]',
+          '  redis:',
+          '    check: "redis-cli ping"',
+          '    recover: "echo redis-recovery-placeholder"',
+          '    patterns: ["ECONNREFUSED.*6379", "connection.*refused.*redis"]',
+          '  node:',
+          '    check: "node --version"',
+          '    recover: "echo node-recovery-placeholder"',
+          '    patterns: ["MODULE_NOT_FOUND", "Cannot find module"]',
+        ].join('\n');
       }
 
       if (playbookContent) {

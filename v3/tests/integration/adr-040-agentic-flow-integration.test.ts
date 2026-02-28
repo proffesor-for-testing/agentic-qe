@@ -16,6 +16,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { performance } from 'perf_hooks';
+import { resetUnifiedMemory } from '../../src/kernel/unified-memory';
 import { MCPProtocolServer, createMCPProtocolServer } from '../../src/mcp/protocol-server';
 import {
   computeRealEmbedding,
@@ -37,6 +38,9 @@ describe('ADR-040 Agentic-Flow Integration Tests', () => {
   let server: MCPProtocolServer;
 
   beforeAll(async () => {
+    // Reset shared memory to avoid state pollution from prior test files
+    resetUnifiedMemory();
+
     server = createMCPProtocolServer({
       name: 'aqe-v3-adr040-test',
       version: '3.0.0-adr040-test',

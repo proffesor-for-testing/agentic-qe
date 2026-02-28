@@ -329,6 +329,7 @@ export class TestResultStreamer {
       this.flush();
     } else if (!this.flushTimer) {
       this.flushTimer = setTimeout(() => this.flush(), this.options.updateIntervalMs);
+      this.flushTimer.unref?.();
     }
   }
 

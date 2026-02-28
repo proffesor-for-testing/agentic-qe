@@ -142,6 +142,43 @@ export {
   createEnhancementRegistry,
 } from './enhancements/index.js';
 
+// Platform Config Generator
+export type {
+  PlatformId,
+  PlatformDefinition,
+  GeneratedConfig,
+} from './platform-config-generator.js';
+export {
+  PlatformConfigGenerator,
+  createPlatformConfigGenerator,
+  PLATFORM_REGISTRY,
+} from './platform-config-generator.js';
+
+// Platform Installers
+export type { CopilotInstallerOptions, CopilotInstallResult } from './copilot-installer.js';
+export { CopilotInstaller, createCopilotInstaller } from './copilot-installer.js';
+
+export type { CursorInstallerOptions, CursorInstallResult } from './cursor-installer.js';
+export { CursorInstaller, createCursorInstaller } from './cursor-installer.js';
+
+export type { ClineInstallerOptions, ClineInstallResult } from './cline-installer.js';
+export { ClineInstaller, createClineInstaller } from './cline-installer.js';
+
+export type { KiloCodeInstallerOptions, KiloCodeInstallResult } from './kilocode-installer.js';
+export { KiloCodeInstaller, createKiloCodeInstaller } from './kilocode-installer.js';
+
+export type { RooCodeInstallerOptions, RooCodeInstallResult } from './roocode-installer.js';
+export { RooCodeInstaller, createRooCodeInstaller } from './roocode-installer.js';
+
+export type { CodexInstallerOptions, CodexInstallResult } from './codex-installer.js';
+export { CodexInstaller, createCodexInstaller } from './codex-installer.js';
+
+export type { WindsurfInstallerOptions, WindsurfInstallResult } from './windsurf-installer.js';
+export { WindsurfInstaller, createWindsurfInstaller } from './windsurf-installer.js';
+
+export type { ContinueDevInstallerOptions, ContinueDevInstallResult } from './continuedev-installer.js';
+export { ContinueDevInstaller, createContinueDevInstaller } from './continuedev-installer.js';
+
 // Migration
 export type {
   V2DetectionInfo,

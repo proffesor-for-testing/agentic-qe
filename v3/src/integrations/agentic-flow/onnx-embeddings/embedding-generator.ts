@@ -15,6 +15,7 @@ import type {
   EmbeddingStats
 } from './types.js';
 import { EmbeddingModel, EmbeddingError, EmbeddingErrorType } from './types.js';
+import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 /**
  * LRU Cache for embeddings
@@ -114,7 +115,7 @@ export class EmbeddingGenerator {
 
           // Mock implementation - in production, this calls ONNX
           const dimensions = model === EmbeddingModel.MINI_LM_L6 ? 384 : 768;
-          const vector = new Array(dimensions).fill(0).map(() => Math.random() * 2 - 1);
+          const vector = new Array(dimensions).fill(0).map(() => secureRandom() * 2 - 1);
 
           // Normalize if configured
           if (this.config.normalize) {

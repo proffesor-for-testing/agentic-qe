@@ -21,6 +21,7 @@
 
 import { MemoryBackend } from '../../../kernel/interfaces';
 import { HnswAdapter } from '../../../kernel/hnsw-adapter.js';
+import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // HNSW Index Configuration
@@ -600,7 +601,7 @@ export async function benchmarkHNSW(
 
   // Insert vectors
   for (let i = 0; i < vectorCount; i++) {
-    const vector = Array.from({ length: dimensions }, () => Math.random());
+    const vector = Array.from({ length: dimensions }, () => secureRandom());
     await index.insert(`bench-${i}`, vector);
   }
 
@@ -610,7 +611,7 @@ export async function benchmarkHNSW(
   const startSearch = performance.now();
 
   for (let i = 0; i < searchCount; i++) {
-    const query = Array.from({ length: dimensions }, () => Math.random());
+    const query = Array.from({ length: dimensions }, () => secureRandom());
     await index.search(query, 10);
   }
 

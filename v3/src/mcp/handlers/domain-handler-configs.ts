@@ -373,11 +373,14 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
   }),
 
   mapToResult: (taskId, data, duration, savedFiles) => {
-    const lineCoverage = (data.lineCoverage as number) || 0;
-    const branchCoverage = (data.branchCoverage as number) || 0;
-    const functionCoverage = (data.functionCoverage as number) || 0;
-    const statementCoverage = (data.statementCoverage as number) || lineCoverage;
-    const totalFiles = (data.totalFiles as number) || 5;
+    // The domain returns CoverageReport { summary: { line, branch, function, statement, files }, ... }
+    // Map from both nested (domain) and flat (legacy) field shapes.
+    const summary = data.summary as { line?: number; branch?: number; function?: number; statement?: number; files?: number } | undefined;
+    const lineCoverage = summary?.line ?? (data.lineCoverage as number) ?? 0;
+    const branchCoverage = summary?.branch ?? (data.branchCoverage as number) ?? 0;
+    const functionCoverage = summary?.function ?? (data.functionCoverage as number) ?? 0;
+    const statementCoverage = summary?.statement ?? (data.statementCoverage as number) ?? lineCoverage;
+    const totalFiles = summary?.files ?? (data.totalFiles as number) ?? 0;
     const gaps = (data.gaps as unknown[]) || [];
 
     const learning = generateV2LearningFeedback('coverage-analyzer');

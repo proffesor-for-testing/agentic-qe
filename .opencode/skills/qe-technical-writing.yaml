@@ -1,6 +1,6 @@
 name: qe-technical-writing
 description: "Write clear, engaging technical content from real experience. Use when writing blog posts, documentation, tutorials, or technical articles."
-minModelTier: tier1-fast
+minModelTier: tier1-any
 tags: ["writing", "documentation", "communication", "blogs", "tutorials", "qe", "quality-engineering"]
 steps:
   - name: opening-2-3-paragraphs

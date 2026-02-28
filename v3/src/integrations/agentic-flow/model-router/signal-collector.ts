@@ -51,9 +51,13 @@ export const COMPLEXITY_KEYWORDS = {
   // Tier 2 - Moderate complexity
   moderate: [
     'implement feature',
+    'implement',
+    'refactor',
     'complex refactor',
     'performance optimization',
+    'optimize',
     'test generation',
+    'generate test',
     'error handling',
     'validation logic',
     'api integration',
@@ -63,6 +67,10 @@ export const COMPLEXITY_KEYWORDS = {
     'defect prediction',
     'predict defect',
     'analyze coverage',
+    'analyze',
+    'assess',
+    'scan',
+    'detect',
   ],
 
   // Tier 3 - High complexity
@@ -107,7 +115,7 @@ export const COMPLEXITY_KEYWORDS = {
  */
 export const SCOPE_PATTERNS = {
   architecture: /\b(architect|design|system design|overall structure|component design)\b/i,
-  security: /\b(security|vulnerability|audit|xss|sql injection|csrf|encryption)\b/i,
+  security: /\b(security|vulnerability|audit|xss|sql injection|csrf|encryption|auth|authentication|authorization)\b/i,
   multiStep: /\b(orchestrate|coordinate|workflow|pipeline|multi[- ]step)\b/i,
   crossDomain: /\b(cross[- ]domain|across (domains|modules)|integrate|coordination)\b/i,
 } as const;

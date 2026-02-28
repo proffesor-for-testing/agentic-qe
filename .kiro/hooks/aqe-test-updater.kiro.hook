@@ -1,0 +1,19 @@
+{
+  "name": "AQE Test Updater",
+  "description": "Auto-generate or update tests when source files change",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/**/*.ts",
+      "src/**/*.js",
+      "!**/*.test.*",
+      "!**/*.spec.*",
+      "!**/node_modules/**"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A source file was edited. Use @agentic-qe/test_generate_enhanced to check if corresponding tests need updating. Only update tests if the public API changed."
+  }
+}

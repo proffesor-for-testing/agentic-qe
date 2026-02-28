@@ -11,6 +11,7 @@ import { MemoryBackend } from '../../../kernel/interfaces';
 import { TEST_EXECUTION_CONSTANTS, RETRY_CONSTANTS } from '../../constants.js';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Configuration
@@ -418,7 +419,7 @@ export class RetryHandlerService implements IRetryHandler {
   private async executeTest(test: FailedTest): Promise<{ passed: boolean; error?: string }> {
     // In simulation mode (for unit testing), use random behavior
     if (this.config.simulateForTesting) {
-      const passOnRetry = Math.random() < this.config.simulatedRetrySuccessRate;
+      const passOnRetry = secureRandom() < this.config.simulatedRetrySuccessRate;
       return {
         passed: passOnRetry,
         error: passOnRetry ? undefined : test.error,
@@ -721,7 +722,7 @@ export class RetryHandlerService implements IRetryHandler {
 
     // Add jitter only when explicitly enabled
     if (this.config.enableJitter) {
-      const jitter = delay * this.config.maxJitterPercent * Math.random();
+      const jitter = delay * this.config.maxJitterPercent * secureRandom();
       delay += jitter;
     }
 

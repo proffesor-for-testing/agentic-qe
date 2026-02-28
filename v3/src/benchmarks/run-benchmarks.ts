@@ -17,6 +17,7 @@ import {
 } from './performance-benchmarks.js';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { secureRandomInt, secureRandomFloat } from '../shared/utils/crypto-random.js';
 import type { MemoryBackend } from '../kernel/interfaces.js';
 
 /**
@@ -133,12 +134,12 @@ async function verifyCoverageAnalyzerComplexity(): Promise<void> {
         // Generate coverage data with specified size
         const files = Array.from({ length: size }, (_, i) => ({
           path: `src/file${i}.ts`,
-          lines: { covered: 70 + Math.floor(Math.random() * 30), total: 100 },
-          branches: { covered: 50 + Math.floor(Math.random() * 30), total: 80 },
-          functions: { covered: 8 + Math.floor(Math.random() * 2), total: 10 },
-          statements: { covered: 75 + Math.floor(Math.random() * 25), total: 100 },
-          uncoveredLines: Array.from({ length: 10 }, (_, j) => j * 10 + Math.floor(Math.random() * 10)),
-          uncoveredBranches: Array.from({ length: 5 }, (_, j) => j * 15 + Math.floor(Math.random() * 10)),
+          lines: { covered: 70 + secureRandomInt(0, 30), total: 100 },
+          branches: { covered: 50 + secureRandomInt(0, 30), total: 80 },
+          functions: { covered: 8 + secureRandomInt(0, 2), total: 10 },
+          statements: { covered: 75 + secureRandomInt(0, 25), total: 100 },
+          uncoveredLines: Array.from({ length: 10 }, (_, j) => j * 10 + secureRandomInt(0, 10)),
+          uncoveredBranches: Array.from({ length: 5 }, (_, j) => j * 15 + secureRandomInt(0, 10)),
         }));
 
         return {

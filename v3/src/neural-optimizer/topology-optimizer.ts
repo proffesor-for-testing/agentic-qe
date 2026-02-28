@@ -23,6 +23,7 @@ import type {
 import { DEFAULT_OPTIMIZER_CONFIG, actionToIndex, indexToActionType, ACTION_TYPES } from './types';
 import { ValueNetwork } from './value-network';
 import { PrioritizedReplayBuffer } from './replay-buffer';
+import { secureRandom, secureRandomInt } from '../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Neural Topology Optimizer
@@ -441,7 +442,7 @@ export class NeuralTopologyOptimizer {
    */
   private selectAction(state: number[]): TopologyAction {
     // Exploration: random action
-    if (Math.random() < this.epsilon) {
+    if (secureRandom() < this.epsilon) {
       return this.randomAction();
     }
 
@@ -505,13 +506,13 @@ export class NeuralTopologyOptimizer {
     const agents = this.topology.agents;
     if (agents.length < 2) return { type: 'no_op' };
 
-    const actionTypeIdx = Math.floor(Math.random() * ACTION_TYPES.length);
+    const actionTypeIdx = secureRandomInt(0, ACTION_TYPES.length);
     const actionType = ACTION_TYPES[actionTypeIdx];
 
-    const fromIdx = Math.floor(Math.random() * agents.length);
-    let toIdx = Math.floor(Math.random() * agents.length);
+    const fromIdx = secureRandomInt(0, agents.length);
+    let toIdx = secureRandomInt(0, agents.length);
     while (toIdx === fromIdx && agents.length > 1) {
-      toIdx = Math.floor(Math.random() * agents.length);
+      toIdx = secureRandomInt(0, agents.length);
     }
 
     const from = agents[fromIdx].id;

@@ -1,5 +1,5 @@
 {
-  "version": "3.6.8",
+  "version": "3.7.2",
   "maxConcurrent": 6,
   "workers": {
     "pattern-consolidator": {

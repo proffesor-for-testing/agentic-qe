@@ -13,6 +13,7 @@ import {
   formatUptime,
 } from './interfaces.js';
 import { DomainName } from '../../shared/types/index.js';
+import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 
 // ============================================================================
 // Status Handler
@@ -38,6 +39,8 @@ export class StatusHandler implements ICommandHandler {
       .command('status')
       .description(this.description)
       .option('-v, --verbose', 'Show detailed status')
+      .option('-F, --format <format>', 'Output format (text|json)', 'text')
+      .option('-o, --output <path>', 'Write output to file')
       .action(async (options) => {
         await this.executeStatus(options, context);
       });
@@ -49,6 +52,32 @@ export class StatusHandler implements ICommandHandler {
     try {
       const health = context.queen!.getHealth();
       const metrics = context.queen!.getMetrics();
+      const format = (options.format || 'text') as OutputFormat;
+
+      if (format === 'json') {
+        const domainStatus: Record<string, unknown> = {};
+        if (options.verbose) {
+          for (const [domain, dh] of health.domainHealth) {
+            domainStatus[domain] = {
+              status: dh.status,
+              agents: dh.agents,
+              errors: dh.errors.length,
+            };
+          }
+        }
+        writeOutput(toJSON({
+          status: health.status,
+          uptime: metrics.uptime,
+          workStealing: health.workStealingActive,
+          agents: { total: health.totalAgents, active: health.activeAgents, utilization: metrics.agentUtilization },
+          tasks: { received: metrics.tasksReceived, completed: metrics.tasksCompleted, failed: metrics.tasksFailed, pending: health.pendingTasks, running: health.runningTasks, stolen: metrics.tasksStolen },
+          coordination: { protocols: metrics.protocolsExecuted, workflows: metrics.workflowsExecuted },
+          ...(options.verbose ? { domains: domainStatus } : {}),
+          issues: health.issues,
+        }), options.output);
+        await this.cleanupAndExit(0);
+        return;
+      }
 
       console.log(chalk.blue('\n  AQE v3 Status\n'));
 
@@ -162,6 +191,8 @@ export class HealthHandler implements ICommandHandler {
       .command('health')
       .description(this.description)
       .option('-d, --domain <domain>', 'Check specific domain health')
+      .option('-F, --format <format>', 'Output format (text|json)', 'text')
+      .option('-o, --output <path>', 'Write output to file')
       .action(async (options) => {
         await this.executeHealth(options, context);
       });
@@ -171,6 +202,40 @@ export class HealthHandler implements ICommandHandler {
     if (!await this.ensureInitialized()) return;
 
     try {
+      const format = (options.format || 'text') as OutputFormat;
+
+      if (format === 'json') {
+        if (options.domain) {
+          const health = context.queen!.getDomainHealth(options.domain as DomainName);
+          if (!health) {
+            writeOutput(toJSON({ error: `Domain not found: ${options.domain}` }), options.output);
+            await this.cleanupAndExit(1);
+            return;
+          }
+          writeOutput(toJSON({
+            domain: options.domain,
+            status: health.status,
+            agents: health.agents,
+            lastActivity: health.lastActivity?.toISOString() || null,
+            errors: health.errors,
+          }), options.output);
+        } else {
+          const health = context.queen!.getHealth();
+          const domainSummary: Record<string, unknown> = {};
+          for (const [domain, dh] of health.domainHealth) {
+            domainSummary[domain] = { status: dh.status, agents: dh.agents };
+          }
+          writeOutput(toJSON({
+            status: health.status,
+            lastCheck: health.lastHealthCheck.toISOString(),
+            domains: domainSummary,
+            issues: health.issues,
+          }), options.output);
+        }
+        await this.cleanupAndExit(0);
+        return;
+      }
+
       if (options.domain) {
         const health = context.queen!.getDomainHealth(options.domain as DomainName);
 
@@ -252,10 +317,14 @@ Examples:
 
 interface StatusOptions {
   verbose?: boolean;
+  format?: string;
+  output?: string;
 }
 
 interface HealthOptions {
   domain?: string;
+  format?: string;
+  output?: string;
 }
 
 // ============================================================================

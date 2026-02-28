@@ -9,6 +9,7 @@
  */
 
 import type { Experience, IReplayBuffer } from './types';
+import { secureRandom, secureRandomInt } from '../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Sum Tree for Efficient Priority Sampling
@@ -263,7 +264,7 @@ export class PrioritizedReplayBuffer implements IReplayBuffer {
     for (let i = 0; i < actualBatchSize; i++) {
       const low = segment * i;
       const high = segment * (i + 1);
-      const value = Math.random() * (high - low) + low;
+      const value = secureRandom() * (high - low) + low;
 
       const { leafIdx } = this.sumTree.get(value);
 
@@ -306,7 +307,7 @@ export class PrioritizedReplayBuffer implements IReplayBuffer {
     for (let i = 0; i < actualBatchSize; i++) {
       const low = segment * i;
       const high = segment * (i + 1);
-      const value = Math.random() * (high - low) + low;
+      const value = secureRandom() * (high - low) + low;
 
       const { leafIdx, priority } = this.sumTree.get(value);
 
@@ -410,7 +411,7 @@ export class UniformReplayBuffer implements IReplayBuffer {
     const usedIndices = new Set<number>();
 
     while (samples.length < actualBatchSize) {
-      const idx = Math.floor(Math.random() * this.buffer.length);
+      const idx = secureRandomInt(0, this.buffer.length);
       if (!usedIndices.has(idx)) {
         usedIndices.add(idx);
         samples.push(this.buffer[idx]);

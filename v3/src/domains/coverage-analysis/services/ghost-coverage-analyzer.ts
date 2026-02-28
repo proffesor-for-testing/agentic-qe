@@ -174,8 +174,10 @@ export class GhostCoverageAnalyzerService {
       for (const [filePath, ghostVector] of surface.ghostVectors) {
         if (magnitude(ghostVector) < 0.01) continue;
         const similarGhosts = await this.hnswIndex.search(ghostVector, 5);
+        const applicableCategories = this.getApplicableCategories(filePath);
         for (const det of this.classifyGhost(ghostVector, similarGhosts)) {
           if (det.confidence < threshold) continue;
+          if (!applicableCategories.has(det.category)) continue;
           const riskScore = this.gapRiskScore(ghostVector, det.category);
           const ghostDistance = Math.min(1, magnitude(ghostVector));
           gaps.push({
@@ -319,6 +321,47 @@ export class GhostCoverageAnalyzerService {
     const lines: number[] = [];
     for (let i = 0; i < count && lines.length < 10; i++) lines.push(base + i * 5);
     return lines;
+  }
+
+  /**
+   * Determine which phantom gap categories are applicable to a given file path.
+   * Prevents false positives by filtering out categories that don't make sense
+   * for the file type (e.g., 'missing-security-check' on a math utility).
+   */
+  private getApplicableCategories(filePath: string): Set<PhantomGapCategory> {
+    const lower = filePath.toLowerCase();
+    const name = lower.split('/').pop() || lower;
+
+    // Universal categories — always applicable
+    const cats = new Set<PhantomGapCategory>(['missing-error-handler', 'absent-edge-case']);
+
+    // Math / utility / helper files: only edge-case and boundary validation
+    const isUtility = /\b(math|calc|util|helper|format|parse|convert|transform)\b/.test(name);
+    if (isUtility) {
+      cats.add('absent-boundary-validation');
+      return cats;
+    }
+
+    // Boundary validation applies to most non-trivial files
+    cats.add('absent-boundary-validation');
+
+    // Auth / security files
+    if (/\b(auth|security|token|credential|password|session|permission|rbac|acl|encrypt|crypto)\b/.test(lower)) {
+      cats.add('missing-security-check');
+    }
+
+    // Service / controller / handler / API files
+    if (/\b(service|controller|handler|router|middleware|api|endpoint|gateway|adapter)\b/.test(lower)) {
+      cats.add('missing-integration-contract');
+      cats.add('unprotected-state-transition');
+    }
+
+    // State-related files
+    if (/\b(state|store|reducer|saga|machine|workflow|queue|scheduler)\b/.test(lower)) {
+      cats.add('unprotected-state-transition');
+    }
+
+    return cats;
   }
 
   // -- Private: Scoring --

@@ -31,15 +31,18 @@ export class CommandRegistry {
   private context: CLIContext;
   private cleanupAndExit: (code: number) => Promise<never>;
   private ensureInitialized: () => Promise<boolean>;
+  private ensureInitializedStrict: () => Promise<boolean>;
 
   constructor(
     context: CLIContext,
     cleanupAndExit: (code: number) => Promise<never>,
-    ensureInitialized: () => Promise<boolean>
+    ensureInitialized: () => Promise<boolean>,
+    ensureInitializedStrict?: () => Promise<boolean>
   ) {
     this.context = context;
     this.cleanupAndExit = cleanupAndExit;
     this.ensureInitialized = ensureInitialized;
+    this.ensureInitializedStrict = ensureInitializedStrict || ensureInitialized;
   }
 
   /**
@@ -93,8 +96,8 @@ export class CommandRegistry {
   registerBuiltinHandlers(): void {
     // Core commands
     this.register(createInitHandler(this.cleanupAndExit));
-    this.register(createStatusHandler(this.cleanupAndExit, this.ensureInitialized));
-    this.register(createHealthHandler(this.cleanupAndExit, this.ensureInitialized));
+    this.register(createStatusHandler(this.cleanupAndExit, this.ensureInitializedStrict));
+    this.register(createHealthHandler(this.cleanupAndExit, this.ensureInitializedStrict));
 
     // Task management
     this.register(createTaskHandler(this.cleanupAndExit, this.ensureInitialized));
@@ -137,9 +140,10 @@ export class CommandRegistry {
 export function createCommandRegistry(
   context: CLIContext,
   cleanupAndExit: (code: number) => Promise<never>,
-  ensureInitialized: () => Promise<boolean>
+  ensureInitialized: () => Promise<boolean>,
+  ensureInitializedStrict?: () => Promise<boolean>
 ): CommandRegistry {
-  const registry = new CommandRegistry(context, cleanupAndExit, ensureInitialized);
+  const registry = new CommandRegistry(context, cleanupAndExit, ensureInitialized, ensureInitializedStrict);
   registry.registerBuiltinHandlers();
   return registry;
 }

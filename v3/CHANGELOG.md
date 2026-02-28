@@ -5,6 +5,73 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.4] - 2026-02-28
+
+### Added
+
+- **Multi-platform coding agent support (8 new platforms)** — GitHub Copilot, Cursor, Cline, Kilo Code, Roo Code, OpenAI Codex CLI, Windsurf, and Continue.dev installers with JSON/TOML/YAML config generation, behavioral rules, and merge-safe writing
+- **Universal `PlatformConfigGenerator`** — Unified config generator with platform registry mapping all 8 platforms to their config paths, keys, and formats
+- **`aqe init --with-all-platforms` flag** — Configures all 8 additional platforms in a single command; individual `--with-copilot`, `--with-cursor`, `--with-cline`, `--with-kilocode`, `--with-roocode`, `--with-codex`, `--with-windsurf`, `--with-continuedev` flags also available
+- **`aqe platform list/setup/verify` CLI commands** — List all platforms with install status, set up individual platforms, and validate config format and content
+- **Platform setup guide** (`docs/platform-setup-guide.md`) — Per-platform automated and manual setup instructions for all 11 supported platforms
+- **202 new tests** — 81 per-platform unit tests, 22 config generator tests, 76 integration tests, 23 cross-platform init tests
+
+### Fixed
+
+- **Continue.dev YAML merge duplicate keys** — `mergeExistingYamlConfig()` previously appended full `mcpServers:` block when existing config already had that key, producing invalid YAML; now detects existing key and appends only the server entry
+
+## [3.7.3] - 2026-02-27
+
+### Added
+
+- **CI-native exit code 2 for warnings** — All 4 core CLI commands (`security`, `quality`, `coverage`, `test`) now return exit code 2 for warning conditions: medium-only vulns, score near threshold, coverage near threshold, high skip rate
+- **CI/CD best-in-class plan and verification docs** — Research report on CI landscape, 87-test verification plan, and Phase 0 verification report
+
+### Fixed
+
+- **17 CLI/MCP bugs fixed (Phase 0 verification)** — 5 critical, 6 high, 6 medium issues found during 87-test verification pass:
+  - CLI process hang after command completion (parseAsync + cleanupAndExit)
+  - Auto-init stdout pollution in `--format json` mode (routed to stderr)
+  - Quality command calling wrong domain API method (`evaluate` → `evaluateGate`)
+  - Security `--compliance` calling wrong method signature
+  - OpenRouter/Ollama providers crashing on undefined defaultModel
+  - Team scale ignoring requested size due to clamping
+  - Test executor throwing on failed tests instead of returning result
+  - Infra healing showing "not initialized" (added default playbook fallback)
+  - Coverage decimal formatting, ghost coverage false positives, model router minimum complexity
+  - MCP coverage returning 0% (added heuristic fallback)
+- **Coverage exit code bug** — `aqe coverage` always exited 0 regardless of threshold; now correctly exits 1 when below threshold
+- **concept_edges O(n^2) bloat** — Prevented quadratic edge growth and isolated test DB
+- **JUnit reporter missing** — Added JUnit reporter to vitest config
+- **secureRandom test mocks** — Fixed crypto-secure randomness test mocking
+- **Crypto-secure randomness** — Replaced Math.random() with crypto.randomUUID() in CI-sensitive paths
+
+### Changed
+
+- **Phase 1 CI-native features verified complete** — All `--format` (text/json/sarif/junit/markdown), `--output <path>`, and SARIF v2.1.0 support confirmed implemented across all 4 core commands
+- **Docs updated** — Phase 1 items 1.1, 1.2, 1.5 marked DONE in CI/CD plan and test plan
+
+## [3.7.2] - 2026-02-25
+
+### Added
+
+- **AWS Kiro IDE integration** — Full Kiro support converting AQE agents, skills, hooks, and steering files to Kiro-native formats via `aqe init --with-kiro`: 87 agent JSON configs, 86 skill SKILL.md files with full content, 5 event-driven hooks (test-updater, coverage-check, security-scan, spec-quality-gate, pre-commit-quality), 2 steering files (qe-standards, testing-conventions), and MCP server configuration
+- **`aqe init --with-kiro` flag** — Provisions `.kiro/` directory with agents, skills, hooks, steering, and MCP config; follows the OpenCode/N8n installer pattern with auto-detection in `--auto` mode when `.kiro/` exists
+- **Kiro installer** (`v3/src/init/kiro-installer.ts`) — 937-line converter that reads OpenCode YAML agents and Claude Code markdown agents, converts `mcp:agentic-qe:` refs to `@agentic-qe/` format, maps tool names to Kiro builtins (`bash`→`shell`, `edit`→`write`), and prioritizes full SKILL.md content over thin YAML stubs
+
+### Fixed
+
+- **Kiro model mapping inconsistency** — `convertMdAgentToKiro()` now reads the `model` field from markdown agent frontmatter and properly maps opus/haiku models, matching the behavior of `convertToKiroAgent()` for YAML agents
+- **Unused variable warnings** — Removed unused `category` and `name` variables in kiro-installer.ts
+
+### Changed
+
+- **README updated** — Added dedicated AWS Kiro IDE section with asset table, directory structure, setup commands, and key features; updated Quick Start, client examples, feature bullets, and project architecture tree
+
+### Security
+
+- **hono 4.12.0 → 4.12.2** — Fixes incorrect `X-Forwarded-For` handling in AWS Lambda adapter that could allow IP-based access control bypass (GHSA-xh87-mx6m-69f3)
+
 ## [3.7.1] - 2026-02-24
 
 ### Added

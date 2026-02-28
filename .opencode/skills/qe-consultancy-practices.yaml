@@ -1,6 +1,6 @@
 name: qe-consultancy-practices
 description: "Apply effective software quality consultancy practices. Use when consulting, advising clients, or establishing consultancy workflows."
-minModelTier: tier1-fast
+minModelTier: tier1-any
 tags: ["consulting", "advisory", "client-engagement", "quality-assessment", "transformation", "qe", "quality-engineering", "professional-practice"]
 steps:
   - name: the-consulting-process

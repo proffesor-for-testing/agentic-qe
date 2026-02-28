@@ -1,0 +1,12 @@
+{
+  "name": "AQE Spec Quality Gate",
+  "description": "Run quality assessment after each spec task completes",
+  "version": "1",
+  "when": {
+    "type": "postSpecTask"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A spec task just completed. Use @agentic-qe/quality_assess on the files changed by this task. If coverage drops below 80% or quality gates fail, flag it before moving to the next task."
+  }
+}

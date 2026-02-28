@@ -9,6 +9,7 @@
  */
 
 import { BaseRLAlgorithm } from '../base-algorithm';
+import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
 import type {
   RLState,
   RLAction,
@@ -238,8 +239,8 @@ export class DDPGAlgorithm extends BaseRLAlgorithm {
     let u = 0;
     let v = 0;
 
-    while (u === 0) u = Math.random();
-    while (v === 0) v = Math.random();
+    while (u === 0) u = secureRandom();
+    while (v === 0) v = secureRandom();
 
     return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
   }
@@ -253,7 +254,7 @@ export class DDPGAlgorithm extends BaseRLAlgorithm {
     const indices = new Set<number>();
 
     while (indices.size < this.ddpgConfig.batchSize && indices.size < this.ddpgReplayBuffer.length) {
-      indices.add(Math.floor(Math.random() * this.ddpgReplayBuffer.length));
+      indices.add(secureRandomInt(0, this.ddpgReplayBuffer.length));
     }
 
     for (const index of indices) {

@@ -269,8 +269,8 @@ export class OllamaModelProvider extends BaseModelProvider {
       ...config,
     };
 
-    this.id = `ollama-${this.config.defaultModel.replace(/[^a-z0-9]/gi, '-')}`;
-    this.name = `Ollama (${this.config.defaultModel})`;
+    this.id = `ollama-${(this.config.defaultModel ?? 'default').replace(/[^a-z0-9]/gi, '-')}`;
+    this.name = `Ollama (${this.config.defaultModel ?? 'default'})`;
   }
 
   /**

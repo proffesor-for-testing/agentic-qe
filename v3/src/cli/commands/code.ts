@@ -8,6 +8,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { walkSourceFiles } from '../utils/file-discovery.js';
+import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 
 export function createCodeCommand(
   context: CLIContext,
@@ -20,6 +21,8 @@ export function createCodeCommand(
     .argument('[target]', 'Target path or query')
     .option('--depth <depth>', 'Analysis depth', '3')
     .option('--include-tests', 'Include test files')
+    .option('-F, --format <format>', 'Output format (text|json)', 'text')
+    .option('-o, --output <path>', 'Write output to file')
     .action(async (action: string, target: string, options) => {
       if (!await ensureInitialized()) return;
 
@@ -37,6 +40,7 @@ export function createCodeCommand(
         }
 
         const path = await import('path');
+        const format = (options.format || 'text') as OutputFormat;
 
         if (action === 'index') {
           console.log(chalk.blue(`\n Indexing codebase at ${target || '.'}...\n`));
@@ -57,16 +61,20 @@ export function createCodeCommand(
 
           if (result.success && result.value) {
             const idx = result.value as { filesIndexed: number; nodesCreated: number; edgesCreated: number; duration: number; errors: Array<{ file: string; error: string }> };
-            console.log(chalk.green(`Indexing complete\n`));
-            console.log(chalk.cyan('  Results:'));
-            console.log(`    Files indexed: ${chalk.white(idx.filesIndexed)}`);
-            console.log(`    Nodes created: ${chalk.white(idx.nodesCreated)}`);
-            console.log(`    Edges created: ${chalk.white(idx.edgesCreated)}`);
-            console.log(`    Duration: ${chalk.yellow(idx.duration + 'ms')}`);
-            if (idx.errors.length > 0) {
-              console.log(chalk.red(`\n  Errors (${idx.errors.length}):`));
-              for (const err of idx.errors.slice(0, 5)) {
-                console.log(chalk.red(`    ${err.file}: ${err.error}`));
+            if (format === 'json') {
+              writeOutput(toJSON(idx), options.output);
+            } else {
+              console.log(chalk.green(`Indexing complete\n`));
+              console.log(chalk.cyan('  Results:'));
+              console.log(`    Files indexed: ${chalk.white(idx.filesIndexed)}`);
+              console.log(`    Nodes created: ${chalk.white(idx.nodesCreated)}`);
+              console.log(`    Edges created: ${chalk.white(idx.edgesCreated)}`);
+              console.log(`    Duration: ${chalk.yellow(idx.duration + 'ms')}`);
+              if (idx.errors.length > 0) {
+                console.log(chalk.red(`\n  Errors (${idx.errors.length}):`));
+                for (const err of idx.errors.slice(0, 5)) {
+                  console.log(chalk.red(`    ${err.file}: ${err.error}`));
+                }
               }
             }
           } else {
@@ -89,13 +97,17 @@ export function createCodeCommand(
 
           if (result.success && result.value) {
             const search = result.value as { results: Array<{ file: string; line?: number; snippet: string; score: number }>; total: number; searchTime: number };
-            console.log(chalk.green(`Found ${search.total} results (${search.searchTime}ms)\n`));
+            if (format === 'json') {
+              writeOutput(toJSON(search), options.output);
+            } else {
+              console.log(chalk.green(`Found ${search.total} results (${search.searchTime}ms)\n`));
 
-            for (const r of search.results) {
-              const filePath = r.file.replace(process.cwd() + '/', '');
-              console.log(`  ${chalk.cyan(filePath)}${r.line ? ':' + r.line : ''}`);
-              console.log(chalk.gray(`    ${r.snippet.slice(0, 100)}...`));
-              console.log(chalk.gray(`    Score: ${(r.score * 100).toFixed(0)}%\n`));
+              for (const r of search.results) {
+                const filePath = r.file.replace(process.cwd() + '/', '');
+                console.log(`  ${chalk.cyan(filePath)}${r.line ? ':' + r.line : ''}`);
+                console.log(chalk.gray(`    ${r.snippet.slice(0, 100)}...`));
+                console.log(chalk.gray(`    Score: ${(r.score * 100).toFixed(0)}%\n`));
+              }
             }
           } else {
             console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));
@@ -123,35 +135,39 @@ export function createCodeCommand(
               recommendations: string[];
             };
 
-            const riskColor = impact.riskLevel === 'high' ? chalk.red : impact.riskLevel === 'medium' ? chalk.yellow : chalk.green;
-            console.log(`  Risk Level: ${riskColor(impact.riskLevel)}\n`);
+            if (format === 'json') {
+              writeOutput(toJSON(impact), options.output);
+            } else {
+              const riskColor = impact.riskLevel === 'high' ? chalk.red : impact.riskLevel === 'medium' ? chalk.yellow : chalk.green;
+              console.log(`  Risk Level: ${riskColor(impact.riskLevel)}\n`);
 
-            console.log(chalk.cyan(`  Direct Impact (${impact.directImpact.length} files):`));
-            for (const file of impact.directImpact.slice(0, 5)) {
-              const filePath = file.file.replace(process.cwd() + '/', '');
-              console.log(`    ${chalk.white(filePath)}`);
-              console.log(chalk.gray(`      Reason: ${file.reason}, Risk: ${(file.riskScore * 100).toFixed(0)}%`));
-            }
-
-            if (impact.transitiveImpact.length > 0) {
-              console.log(chalk.cyan(`\n  Transitive Impact (${impact.transitiveImpact.length} files):`));
-              for (const file of impact.transitiveImpact.slice(0, 5)) {
+              console.log(chalk.cyan(`  Direct Impact (${impact.directImpact.length} files):`));
+              for (const file of impact.directImpact.slice(0, 5)) {
                 const filePath = file.file.replace(process.cwd() + '/', '');
-                console.log(`    ${chalk.white(filePath)} (distance: ${file.distance})`);
+                console.log(`    ${chalk.white(filePath)}`);
+                console.log(chalk.gray(`      Reason: ${file.reason}, Risk: ${(file.riskScore * 100).toFixed(0)}%`));
               }
-            }
 
-            if (impact.impactedTests.length > 0) {
-              console.log(chalk.cyan(`\n  Impacted Tests (${impact.impactedTests.length}):`));
-              for (const test of impact.impactedTests.slice(0, 5)) {
-                console.log(`    ${chalk.gray(test)}`);
+              if (impact.transitiveImpact.length > 0) {
+                console.log(chalk.cyan(`\n  Transitive Impact (${impact.transitiveImpact.length} files):`));
+                for (const file of impact.transitiveImpact.slice(0, 5)) {
+                  const filePath = file.file.replace(process.cwd() + '/', '');
+                  console.log(`    ${chalk.white(filePath)} (distance: ${file.distance})`);
+                }
               }
-            }
 
-            if (impact.recommendations.length > 0) {
-              console.log(chalk.cyan('\n  Recommendations:'));
-              for (const rec of impact.recommendations) {
-                console.log(chalk.gray(`    - ${rec}`));
+              if (impact.impactedTests.length > 0) {
+                console.log(chalk.cyan(`\n  Impacted Tests (${impact.impactedTests.length}):`));
+                for (const test of impact.impactedTests.slice(0, 5)) {
+                  console.log(`    ${chalk.gray(test)}`);
+                }
+              }
+
+              if (impact.recommendations.length > 0) {
+                console.log(chalk.cyan('\n  Recommendations:'));
+                for (const rec of impact.recommendations) {
+                  console.log(chalk.gray(`    - ${rec}`));
+                }
               }
             }
           } else {
@@ -179,26 +195,30 @@ export function createCodeCommand(
               metrics: { totalNodes: number; totalEdges: number; avgDegree: number; maxDepth: number; cyclomaticComplexity: number };
             };
 
-            console.log(chalk.cyan('  Dependency Metrics:'));
-            console.log(`    Nodes: ${chalk.white(deps.metrics.totalNodes)}`);
-            console.log(`    Edges: ${chalk.white(deps.metrics.totalEdges)}`);
-            console.log(`    Avg Degree: ${chalk.yellow(deps.metrics.avgDegree.toFixed(2))}`);
-            console.log(`    Max Depth: ${chalk.yellow(deps.metrics.maxDepth)}`);
-            console.log(`    Cyclomatic Complexity: ${chalk.yellow(deps.metrics.cyclomaticComplexity)}`);
+            if (format === 'json') {
+              writeOutput(toJSON(deps), options.output);
+            } else {
+              console.log(chalk.cyan('  Dependency Metrics:'));
+              console.log(`    Nodes: ${chalk.white(deps.metrics.totalNodes)}`);
+              console.log(`    Edges: ${chalk.white(deps.metrics.totalEdges)}`);
+              console.log(`    Avg Degree: ${chalk.yellow(deps.metrics.avgDegree.toFixed(2))}`);
+              console.log(`    Max Depth: ${chalk.yellow(deps.metrics.maxDepth)}`);
+              console.log(`    Cyclomatic Complexity: ${chalk.yellow(deps.metrics.cyclomaticComplexity)}`);
 
-            if (deps.cycles.length > 0) {
-              console.log(chalk.red(`\n  Circular Dependencies (${deps.cycles.length}):`));
-              for (const cycle of deps.cycles.slice(0, 3)) {
-                console.log(chalk.red(`    ${cycle.join(' -> ')}`));
+              if (deps.cycles.length > 0) {
+                console.log(chalk.red(`\n  Circular Dependencies (${deps.cycles.length}):`));
+                for (const cycle of deps.cycles.slice(0, 3)) {
+                  console.log(chalk.red(`    ${cycle.join(' -> ')}`));
+                }
               }
-            }
 
-            console.log(chalk.cyan(`\n  Top Dependencies (by connections):`));
-            const sortedNodes = [...deps.nodes].sort((a, b) => (b.inDegree + b.outDegree) - (a.inDegree + a.outDegree));
-            for (const node of sortedNodes.slice(0, 8)) {
-              const filePath = node.path.replace(process.cwd() + '/', '');
-              console.log(`    ${chalk.white(filePath)}`);
-              console.log(chalk.gray(`      In: ${node.inDegree}, Out: ${node.outDegree}, Type: ${node.type}`));
+              console.log(chalk.cyan(`\n  Top Dependencies (by connections):`));
+              const sortedNodes = [...deps.nodes].sort((a, b) => (b.inDegree + b.outDegree) - (a.inDegree + a.outDegree));
+              for (const node of sortedNodes.slice(0, 8)) {
+                const filePath = node.path.replace(process.cwd() + '/', '');
+                console.log(`    ${chalk.white(filePath)}`);
+                console.log(chalk.gray(`      In: ${node.inDegree}, Out: ${node.outDegree}, Type: ${node.type}`));
+              }
             }
           } else {
             console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));

@@ -42,6 +42,16 @@ export function createInitCommand(): Command {
     .option('--skip-patterns', 'Skip pattern loading')
     .option('--with-n8n', 'Include n8n workflow testing platform')
     .option('--with-opencode', 'Include OpenCode agent/skill provisioning')
+    .option('--with-kiro', 'Include AWS Kiro IDE integration (agents, skills, hooks, steering)')
+    .option('--with-copilot', 'Include GitHub Copilot MCP config and instructions')
+    .option('--with-cursor', 'Include Cursor MCP config and rules')
+    .option('--with-cline', 'Include Cline MCP config and custom QE mode')
+    .option('--with-kilocode', 'Include Kilo Code MCP config and custom QE mode')
+    .option('--with-roocode', 'Include Roo Code MCP config and custom QE mode')
+    .option('--with-codex', 'Include OpenAI Codex CLI MCP config and AGENTS.md')
+    .option('--with-windsurf', 'Include Windsurf MCP config and rules')
+    .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
+    .option('--with-all-platforms', 'Include all coding agent platform configurations')
     .option('--with-claude-flow', 'Force Claude Flow integration setup')
     .option('--skip-claude-flow', 'Skip Claude Flow integration')
     .option('--no-governance', 'Skip governance configuration (ADR-058)')
@@ -91,6 +101,16 @@ interface InitOptions {
   skipPatterns?: boolean;
   withN8n?: boolean;
   withOpencode?: boolean;
+  withKiro?: boolean;
+  withCopilot?: boolean;
+  withCursor?: boolean;
+  withCline?: boolean;
+  withKilocode?: boolean;
+  withRoocode?: boolean;
+  withCodex?: boolean;
+  withWindsurf?: boolean;
+  withContinuedev?: boolean;
+  withAllPlatforms?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
   noGovernance?: boolean;
@@ -120,6 +140,18 @@ async function runInit(options: InitOptions): Promise<void> {
     console.log('');
   }
 
+  // Expand --with-all-platforms into individual flags
+  if (options.withAllPlatforms) {
+    options.withCopilot = true;
+    options.withCursor = true;
+    options.withCline = true;
+    options.withKilocode = true;
+    options.withRoocode = true;
+    options.withCodex = true;
+    options.withWindsurf = true;
+    options.withContinuedev = true;
+  }
+
   // Create orchestrator
   const orchestrator = createModularInitOrchestrator({
     projectRoot,
@@ -130,6 +162,15 @@ async function runInit(options: InitOptions): Promise<void> {
     skipPatterns: options.skipPatterns,
     withN8n: options.withN8n,
     withOpenCode: options.withOpencode,
+    withKiro: options.withKiro,
+    withCopilot: options.withCopilot,
+    withCursor: options.withCursor,
+    withCline: options.withCline,
+    withKiloCode: options.withKilocode,
+    withRooCode: options.withRoocode,
+    withCodex: options.withCodex,
+    withWindsurf: options.withWindsurf,
+    withContinueDev: options.withContinuedev,
     noGovernance: options.noGovernance,
   });
 

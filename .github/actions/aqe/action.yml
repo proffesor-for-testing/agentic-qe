@@ -1,0 +1,136 @@
+name: 'Agentic QE'
+description: 'Run Agentic QE quality checks in your CI pipeline'
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+
+inputs:
+  command:
+    description: 'AQE command to run (ci run, test generate, coverage, security, quality --gate)'
+    required: false
+    default: 'ci run'
+  config:
+    description: 'Path to .aqe-ci.yml config file'
+    required: false
+  format:
+    description: 'Output format (text|json|sarif|junit|markdown)'
+    required: false
+    default: 'json'
+  output:
+    description: 'Output file path for report artifacts'
+    required: false
+  phase:
+    description: 'Specific phases to run (comma-separated, for ci run only)'
+    required: false
+  threshold:
+    description: 'Coverage/quality threshold percentage'
+    required: false
+    default: '80'
+  node-version:
+    description: 'Node.js version to use'
+    required: false
+    default: '20'
+  version:
+    description: 'AQE package version to install (default: latest)'
+    required: false
+    default: 'latest'
+
+outputs:
+  status:
+    description: 'Overall status (passed|failed|warning)'
+    value: ${{ steps.run.outputs.status }}
+  report-path:
+    description: 'Path to generated report'
+    value: ${{ steps.run.outputs.report_path }}
+  exit-code:
+    description: 'Exit code from AQE command'
+    value: ${{ steps.run.outputs.exit_code }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install Agentic QE
+      shell: bash
+      run: |
+        # Install AQE globally so `npx aqe` resolves to the published package.
+        # For monorepo consumers that have agentic-qe in devDependencies,
+        # npm ci will provide it; this ensures it exists either way.
+        npm install -g agentic-qe@${{ inputs.version }}
+
+    - name: Initialize AQE
+      shell: bash
+      run: npx aqe init --non-interactive 2>/dev/null || true
+
+    - name: Run AQE
+      id: run
+      shell: bash
+      run: |
+        set +e
+
+        # Build the command
+        CMD="npx aqe ${{ inputs.command }}"
+
+        # Add format flag
+        if [ -n "${{ inputs.format }}" ]; then
+          CMD="$CMD -F ${{ inputs.format }}"
+        fi
+
+        # Add config flag for ci commands
+        if [ -n "${{ inputs.config }}" ]; then
+          CMD="$CMD -c ${{ inputs.config }}"
+        fi
+
+        # Add output flag
+        if [ -n "${{ inputs.output }}" ]; then
+          CMD="$CMD -o ${{ inputs.output }}"
+        fi
+
+        # Add phase filter
+        if [ -n "${{ inputs.phase }}" ]; then
+          CMD="$CMD --phase ${{ inputs.phase }}"
+        fi
+
+        # Add threshold for coverage/quality commands
+        if echo "${{ inputs.command }}" | grep -qE "coverage|quality"; then
+          CMD="$CMD --threshold ${{ inputs.threshold }}"
+        fi
+
+        echo "Running: $CMD"
+        eval "$CMD"
+        EXIT_CODE=$?
+
+        # Set outputs
+        echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "status=passed" >> $GITHUB_OUTPUT
+        elif [ $EXIT_CODE -eq 2 ]; then
+          echo "status=warning" >> $GITHUB_OUTPUT
+        else
+          echo "status=failed" >> $GITHUB_OUTPUT
+        fi
+
+        # Set report path
+        if [ -n "${{ inputs.output }}" ]; then
+          echo "report_path=${{ inputs.output }}" >> $GITHUB_OUTPUT
+        elif [ -d ".aqe-ci-output" ]; then
+          echo "report_path=.aqe-ci-output/" >> $GITHUB_OUTPUT
+        fi
+
+        exit $EXIT_CODE
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: aqe-reports
+        path: |
+          .aqe-ci-output/
+          ${{ inputs.output }}
+        retention-days: 30
+        if-no-files-found: ignore

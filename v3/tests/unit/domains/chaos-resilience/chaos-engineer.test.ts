@@ -3,6 +3,14 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Mock secureRandom so we can control randomness in tests
+const mockSecureRandom = vi.fn(() => 0.5);
+vi.mock('../../../../src/shared/utils/crypto-random', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../../src/shared/utils/crypto-random')>();
+  return { ...original, secureRandom: (...args: any[]) => mockSecureRandom(...args) };
+});
+
 import { ChaosEngineerService } from '../../../../src/domains/chaos-resilience/services/chaos-engineer';
 import { MemoryBackend, StoreOptions } from '../../../../src/kernel/interfaces';
 import {
@@ -406,9 +414,8 @@ describe('ChaosEngineerService', () => {
     });
 
     it('should skip fault injection based on probability', async () => {
-      // Mock Math.random to return a value higher than probability
-      const originalRandom = Math.random;
-      Math.random = () => 0.9;
+      // Force secureRandom to return value higher than probability
+      mockSecureRandom.mockReturnValue(0.9);
 
       try {
         const fault = createValidFault({ probability: 0.5 });
@@ -420,7 +427,7 @@ describe('ChaosEngineerService', () => {
           expect(result.value.errors).toContain('Skipped due to probability check');
         }
       } finally {
-        Math.random = originalRandom;
+        mockSecureRandom.mockReturnValue(0.5);
       }
     });
 

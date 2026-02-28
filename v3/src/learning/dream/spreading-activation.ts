@@ -19,6 +19,7 @@ import type {
   ConceptEdge,
   ConceptGraphStats,
 } from './types.js';
+import { secureRandom, secureRandomInt } from '../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Utility: Quickselect (O(n) average k-th smallest)
@@ -363,12 +364,12 @@ export class SpreadingActivation {
 
     while (Date.now() < deadlineMs) {
       // Randomly select a concept to activate
-      const randomIndex = Math.floor(Math.random() * allConcepts.length);
+      const randomIndex = secureRandomInt(0, allConcepts.length);
       const randomNode = allConcepts[randomIndex];
 
       if (randomNode) {
         // Apply noise to activation (dream-style random boost)
-        const noiseBoost = this.config.noiseLevel + Math.random() * this.config.noiseLevel * 2;
+        const noiseBoost = this.config.noiseLevel + secureRandom() * this.config.noiseLevel * 2;
         const currentActivation = randomNode.activationLevel;
         const newActivation = Math.min(1, currentActivation + noiseBoost + 0.3);
 
@@ -397,7 +398,7 @@ export class SpreadingActivation {
       if (Date.now() >= deadlineMs) break;
 
       // Small delay to prevent CPU spike
-      await this.sleep(50 + Math.random() * 50);
+      await this.sleep(50 + secureRandom() * 50);
     }
 
     // Deduplicate and sort novel associations
@@ -693,7 +694,7 @@ export class SpreadingActivation {
     for (const node of allNodes) {
       if (node.activationLevel > 0) {
         // Add small random noise (positive or negative)
-        const noise = (Math.random() - 0.5) * 2 * this.config.noiseLevel;
+        const noise = (secureRandom() - 0.5) * 2 * this.config.noiseLevel;
         const newActivation = Math.max(0, Math.min(1, node.activationLevel + noise));
         this.graph.setActivation(node.id, newActivation);
       }

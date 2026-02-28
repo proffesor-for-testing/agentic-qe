@@ -10,6 +10,7 @@
 
 import { randomUUID } from 'crypto';
 import { SonaEngine } from '@ruvector/sona';
+import { secureRandom } from '../../shared/utils/crypto-random.js';
 import type {
   RLState,
   RLAction,
@@ -836,7 +837,7 @@ export class QESONA {
 
     const testState: RLState = {
       id: 'test-state',
-      features: new Array(384).fill(0).map(() => Math.random()),
+      features: new Array(384).fill(0).map(() => secureRandom()),
     };
 
     for (let i = 0; i < iterations; i++) {

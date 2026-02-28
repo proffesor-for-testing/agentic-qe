@@ -8,6 +8,7 @@ import { Result, ok, err } from '../../../shared/types';
 import { HttpClient, RequestOptions } from '../../../shared/http';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
+import { secureRandom } from '../../../shared/utils/crypto-random.js';
 import {
   LoadTest,
   LoadTestType,
@@ -593,7 +594,7 @@ export class LoadTesterService implements ILoadTestingService {
     const timestamp = start;
 
     // Apply error injection for testing (optional, based on strategy)
-    if (strategy.errorInjectionRate > 0 && Math.random() < strategy.errorInjectionRate) {
+    if (strategy.errorInjectionRate > 0 && secureRandom() < strategy.errorInjectionRate) {
       return {
         status: 0,
         latency: Date.now() - start,

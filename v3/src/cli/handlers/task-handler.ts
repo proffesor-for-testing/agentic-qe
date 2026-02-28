@@ -16,6 +16,7 @@ import type { TaskType } from '../../coordination/queen-coordinator.js';
 import { DomainName, Priority } from '../../shared/types/index.js';
 import { createTimedSpinner } from '../utils/progress.js';
 import { parseJsonOption } from '../helpers/safe-json.js';
+import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 
 // ============================================================================
 // Task Handler
@@ -62,6 +63,8 @@ export class TaskHandler implements ICommandHandler {
       .option('-s, --status <status>', 'Filter by status')
       .option('-p, --priority <priority>', 'Filter by priority')
       .option('-d, --domain <domain>', 'Filter by domain')
+      .option('-F, --format <format>', 'Output format (text|json)', 'text')
+      .option('-o, --output <path>', 'Write output to file')
       .action(async (options) => {
         await this.executeList(options, context);
       });
@@ -78,8 +81,10 @@ export class TaskHandler implements ICommandHandler {
     taskCmd
       .command('status <taskId>')
       .description('Get task status')
-      .action(async (taskId: string) => {
-        await this.executeTaskStatus(taskId, context);
+      .option('-F, --format <format>', 'Output format (text|json)', 'text')
+      .option('-o, --output <path>', 'Write output to file')
+      .action(async (taskId: string, options) => {
+        await this.executeTaskStatus(taskId, options, context);
       });
   }
 
@@ -174,6 +179,21 @@ export class TaskHandler implements ICommandHandler {
         domain: options.domain as DomainName | undefined,
       });
 
+      const format = (options.format || 'text') as OutputFormat;
+
+      if (format === 'json') {
+        const data = tasks.map(task => ({
+          taskId: task.taskId,
+          type: task.task.type,
+          status: task.status,
+          priority: task.task.priority,
+          domain: task.assignedDomain || null,
+          startedAt: task.startedAt?.toISOString() || null,
+        }));
+        writeOutput(toJSON(data), options.output);
+        return;
+      }
+
       console.log(chalk.blue(`\n  Tasks (${tasks.length})\n`));
 
       if (tasks.length === 0) {
@@ -218,7 +238,7 @@ export class TaskHandler implements ICommandHandler {
     }
   }
 
-  private async executeTaskStatus(taskId: string, context: CLIContext): Promise<void> {
+  private async executeTaskStatus(taskId: string, options: { format?: string; output?: string }, context: CLIContext): Promise<void> {
     if (!await this.ensureInitialized()) return;
 
     try {
@@ -226,6 +246,29 @@ export class TaskHandler implements ICommandHandler {
 
       if (!task) {
         console.log(chalk.red(`\n  Task not found: ${taskId}\n`));
+        return;
+      }
+
+      const format = (options.format || 'text') as OutputFormat;
+
+      if (format === 'json') {
+        const data = {
+          taskId,
+          type: task.task.type,
+          status: task.status,
+          priority: task.task.priority,
+          domain: task.assignedDomain || null,
+          agents: task.assignedAgents,
+          createdAt: task.task.createdAt.toISOString(),
+          startedAt: task.startedAt?.toISOString() || null,
+          completedAt: task.completedAt?.toISOString() || null,
+          duration: task.completedAt && task.startedAt
+            ? task.completedAt.getTime() - task.startedAt.getTime()
+            : null,
+          error: task.error || null,
+          retryCount: task.retryCount,
+        };
+        writeOutput(toJSON(data), options.output);
         return;
       }
 
@@ -316,6 +359,8 @@ interface ListOptions {
   status?: string;
   priority?: string;
   domain?: string;
+  format?: string;
+  output?: string;
 }
 
 // ============================================================================

@@ -8,6 +8,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { secureRandom } from '../../shared/utils/crypto-random.js';
 import type { RLState, RLAction, DomainName } from './interfaces';
 import { HNSWEmbeddingIndex } from '../embeddings/index/HNSWIndex.js';
 import type { IEmbedding, EmbeddingNamespace } from '../embeddings/base/types';
@@ -865,7 +866,7 @@ export class SONA {
     // Create test state
     const testState: RLState = {
       id: 'test-state',
-      features: new Array(384).fill(0).map(() => Math.random()),
+      features: new Array(384).fill(0).map(() => secureRandom()),
     };
 
     // Add some patterns first
@@ -874,10 +875,10 @@ export class SONA {
         id: `test-pattern-${i}`,
         type: 'test-generation',
         domain: 'test-generation',
-        stateEmbedding: new Array(384).fill(0).map(() => Math.random()),
+        stateEmbedding: new Array(384).fill(0).map(() => secureRandom()),
         action: { type: 'test-action', value: i },
-        outcome: { reward: Math.random(), success: Math.random() > 0.5, quality: Math.random() },
-        confidence: Math.random(),
+        outcome: { reward: secureRandom(), success: secureRandom() > 0.5, quality: secureRandom() },
+        confidence: secureRandom(),
         usageCount: 0,
         createdAt: new Date(),
       };

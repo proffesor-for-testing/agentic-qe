@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
+import { secureRandom } from '../../../shared/utils/crypto-random.js';
 import {
   Strategy,
   OptimizedStrategy,
@@ -678,7 +679,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     // If not enough real data, generate simulated data
     while (metrics.length < minSamples) {
       const expected = strategy.expectedOutcome[metric] || 0.5;
-      const variation = (Math.random() - 0.5) * 0.2;
+      const variation = (secureRandom() - 0.5) * 0.2;
       metrics.push(expected + variation);
     }
 

@@ -1,6 +1,6 @@
 name: qe-xp-practices
 description: "Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace. Use when implementing agile development practices, improving team collaboration, or adopting technical excellence practices."
-minModelTier: tier1-fast
+minModelTier: tier1-any
 tags: ["xp", "agile", "pair-programming", "tdd", "continuous-integration", "collaboration", "qe", "quality-engineering", "methodology"]
 steps:
   - name: the-five-xp-values

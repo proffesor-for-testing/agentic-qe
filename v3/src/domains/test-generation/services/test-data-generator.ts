@@ -8,6 +8,7 @@
 import { Faker, faker as fakerEN, allLocales, base, en } from '@faker-js/faker';
 import type { LocaleDefinition } from '@faker-js/faker';
 import { TestDataRequest, TestData } from '../interfaces';
+import { secureRandomInt } from '../../../shared/utils/crypto-random.js';
 
 /**
  * Schema field definition for test data generation
@@ -292,7 +293,7 @@ export class TestDataGeneratorService implements ITestDataGeneratorService {
         const record = records[i] as Record<string, unknown>;
         for (const { field, reference } of referenceFields) {
           if (i > 0 && reference === 'id') {
-            const prevRecord = records[Math.floor(Math.random() * i)] as Record<string, unknown>;
+            const prevRecord = records[secureRandomInt(0, i)] as Record<string, unknown>;
             record[field] = prevRecord['id'] ?? f.string.uuid();
           } else {
             record[field] = f.string.uuid();

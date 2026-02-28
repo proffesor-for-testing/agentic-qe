@@ -21,6 +21,7 @@ import type {
   RewardCalculation,
   RLAlgorithmError
 } from './interfaces';
+import { secureRandom, secureRandomInt } from '../../shared/utils/crypto-random.js';
 import { RLTrainingError, RLPredictionError, RLConfigError } from './interfaces';
 import { QValueStore } from './persistence/q-value-store.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
@@ -559,7 +560,7 @@ export abstract class BaseRLAlgorithm implements RLAlgorithm {
     // Random sampling
     const indices = new Set<number>();
     while (indices.size < Math.min(size, buffer.length)) {
-      indices.add(Math.floor(Math.random() * buffer.length));
+      indices.add(secureRandomInt(0, buffer.length));
     }
 
     return Array.from(indices).map((i) => buffer[i]);
@@ -572,7 +573,7 @@ export abstract class BaseRLAlgorithm implements RLAlgorithm {
     explorationAction: () => T,
     exploitationAction: () => T
   ): T {
-    if (Math.random() < this.config.explorationRate) {
+    if (secureRandom() < this.config.explorationRate) {
       return explorationAction();
     }
     return exploitationAction();
