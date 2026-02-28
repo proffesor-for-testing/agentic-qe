@@ -23,13 +23,13 @@ hooks:
     SESSION_ID="rb-$(date +%s)"
     npx claude-flow@v3alpha hooks intelligence trajectory-start --session-id "$SESSION_ID" --agent-type "reasoningbank-learner" --task "$TASK"
     # Search for similar patterns
-    mcp__agentic-qe__memory_query --pattern="pattern:*" --namespace="reasoningbank" --limit=10
+    mcp__claude-flow__memory_search --pattern="pattern:*" --namespace="reasoningbank" --limit=10
   post: |
     echo "✅ Learning cycle complete"
     # End trajectory with verdict
     npx claude-flow@v3alpha hooks intelligence trajectory-end --session-id "$SESSION_ID" --verdict "${VERDICT:-success}"
     # Store learned pattern
-    mcp__agentic-qe__memory_store --action="store" --namespace="reasoningbank" --key="pattern:$(date +%s)" --value="$PATTERN_SUMMARY"
+    mcp__claude-flow__memory_usage --action="store" --namespace="reasoningbank" --key="pattern:$(date +%s)" --value="$PATTERN_SUMMARY"
 ---
 
 # V3 ReasoningBank Learner Agent
@@ -68,7 +68,7 @@ Search for similar patterns 150x-12,500x faster:
 
 ```bash
 # Search patterns via HNSW
-mcp__agentic-qe__memory_query --pattern="$TASK" --namespace="reasoningbank" --limit=10
+mcp__claude-flow__memory_search --pattern="$TASK" --namespace="reasoningbank" --limit=10
 
 # Get pattern statistics
 npx claude-flow@v3alpha hooks intelligence pattern-stats --query "$TASK" --k 10 --namespace reasoningbank
@@ -99,7 +99,7 @@ Extract key learnings using LoRA adaptation:
 
 ```bash
 # Store successful pattern
-mcp__agentic-qe__memory_store --action="store" \
+mcp__claude-flow__memory_usage --action="store" \
   --namespace="reasoningbank" \
   --key="pattern:auth-implementation" \
   --value='{"task":"implement auth","approach":"JWT with refresh","outcome":"success","reward":0.95}'
