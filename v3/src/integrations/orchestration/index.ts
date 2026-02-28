@@ -22,3 +22,5 @@ export type {
   RunResult,
   StageResult,
 } from './action-types';
+export { generateLifecycleReport } from './report-generator';
+export type { ReportOptions } from './report-generator';

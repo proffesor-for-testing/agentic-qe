@@ -4,6 +4,8 @@
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import { generateTC01Report } from '../../../../src/clients/adidas/report-generator';
+// Note: generateTC01Report is a thin wrapper over the generic generateLifecycleReport
+// from ../../../../src/integrations/orchestration/report-generator
 import { readFile, rm, stat } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';

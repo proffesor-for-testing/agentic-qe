@@ -2,7 +2,7 @@
  * Semaphore Unit Tests
  */
 import { describe, it, expect } from 'vitest';
-import { Semaphore } from '../../../../src/clients/adidas/semaphore';
+import { Semaphore } from '../../../../src/shared/concurrency/semaphore';
 
 describe('Semaphore', () => {
   it('allows up to N concurrent operations', async () => {

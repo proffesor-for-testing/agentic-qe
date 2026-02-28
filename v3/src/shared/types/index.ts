@@ -3,6 +3,8 @@
  * Core type definitions used across all domains
  */
 
+export type { PatternLookup } from './pattern-lookup';
+
 // ============================================================================
 // Agent Types
 // ============================================================================
