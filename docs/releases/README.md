@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.7.4](v3.7.4.md) | 2026-02-28 | 8 new platform integrations (Copilot, Cursor, Cline, Kilo, Roo, Codex, Windsurf, Continue.dev), 202 new tests |
 | [v3.7.3](v3.7.3.md) | 2026-02-27 | 17 bug fixes (Phase 0), CI-native exit codes, Phase 1 complete |
 | [v3.7.2](v3.7.2.md) | 2026-02-25 | AWS Kiro IDE integration, hono security patch |
 | [v3.7.1](v3.7.1.md) | 2026-02-24 | OpenCode integration, RVF production wiring, 8 bug fixes |

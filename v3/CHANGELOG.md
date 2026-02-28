@@ -5,6 +5,21 @@ All notable changes to Agentic QE will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.4] - 2026-02-28
+
+### Added
+
+- **Multi-platform coding agent support (8 new platforms)** — GitHub Copilot, Cursor, Cline, Kilo Code, Roo Code, OpenAI Codex CLI, Windsurf, and Continue.dev installers with JSON/TOML/YAML config generation, behavioral rules, and merge-safe writing
+- **Universal `PlatformConfigGenerator`** — Unified config generator with platform registry mapping all 8 platforms to their config paths, keys, and formats
+- **`aqe init --with-all-platforms` flag** — Configures all 8 additional platforms in a single command; individual `--with-copilot`, `--with-cursor`, `--with-cline`, `--with-kilocode`, `--with-roocode`, `--with-codex`, `--with-windsurf`, `--with-continuedev` flags also available
+- **`aqe platform list/setup/verify` CLI commands** — List all platforms with install status, set up individual platforms, and validate config format and content
+- **Platform setup guide** (`docs/platform-setup-guide.md`) — Per-platform automated and manual setup instructions for all 11 supported platforms
+- **202 new tests** — 81 per-platform unit tests, 22 config generator tests, 76 integration tests, 23 cross-platform init tests
+
+### Fixed
+
+- **Continue.dev YAML merge duplicate keys** — `mergeExistingYamlConfig()` previously appended full `mcpServers:` block when existing config already had that key, producing invalid YAML; now detects existing key and appends only the server entry
+
 ## [3.7.3] - 2026-02-27
 
 ### Added
