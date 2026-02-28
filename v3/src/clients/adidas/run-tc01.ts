@@ -3,8 +3,13 @@
  * CLI runner for Adidas O2C lifecycle test.
  *
  * Usage:
+ *   aqe run tc01                                  # Create new order + full lifecycle
+ *   aqe run tc01 --order APT26149445              # Validate existing order
+ *   aqe run tc01 --parallel 3                     # Run N orders in parallel
+ *
+ * Direct (without aqe CLI):
+ *   npx tsx v3/src/clients/adidas/run-tc01.ts
  *   npx tsx v3/src/clients/adidas/run-tc01.ts --order APT26149445
- *   npx tsx v3/src/clients/adidas/run-tc01.ts --parallel 3
  *
  * Environment: Requires ADIDAS_OMNI_HOST, ADIDAS_STERLING_AUTH_METHOD, etc.
  * See config.ts for full env var documentation.
@@ -231,7 +236,7 @@ function printSummary(result: RunResult, orderId: string, reportPath: string): v
 // Main
 // ============================================================================
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const args = parseArgs();
 
   console.log('Loading Adidas configuration...');
@@ -283,20 +288,27 @@ async function main(): Promise<void> {
   }
 
   // --- Single order mode ---
-  if (!orderId) {
-    console.error('Usage: npx tsx v3/src/clients/adidas/run-tc01.ts --order <ORDER_NO>');
-    console.error('  Or set ADIDAS_ORDER_NO environment variable');
-    process.exit(1);
+  const mode = orderId ? 'validate' : 'create';
+
+  if (mode === 'validate') {
+    console.log(`Running TC01 for existing order: ${orderId}`);
+  } else {
+    console.log('Running TC01: creating new order via XAPI');
+    if (!config.xapi.enabled) {
+      console.error('Error: XAPI credentials required to create new orders.');
+      console.error('  Set ADIDAS_XAPI_URL (+ ADIDAS_XAPI_USERNAME / ADIDAS_XAPI_PASSWORD)');
+      console.error('  Or use --order <ORDER_NO> to validate an existing order.');
+      process.exit(1);
+    }
   }
 
-  console.log(`Running TC01 for order: ${orderId}`);
   console.log(`  Layers: Sterling${args.skipLayer2 ? '' : ' + IIB'}${args.skipLayer3 ? '' : ' + NShift/Email/PDF/Browser'}`);
   console.log(`  Self-healing: enabled (invoice recovery playbook)`);
   console.log(`  Cross-session learning: ${patternLookup ? 'enabled' : 'disabled (memory.db not available)'}`);
   console.log('');
 
   const ctx = createAdidasTestContext(config);
-  ctx.orderId = orderId;
+  ctx.orderId = orderId ?? '';
 
   // Pre-flight health check
   console.log('Pre-flight: checking Sterling connectivity...');
@@ -325,13 +337,22 @@ async function main(): Promise<void> {
 
   const result = await orchestrator.runAll(ctx);
 
-  const reportPath = await generateTC01Report(result, orderId);
-  printSummary(result, orderId, reportPath);
+  // ctx.orderId is set by the create-order stage when creating new orders
+  const finalOrderId = ctx.orderId || orderId || 'unknown';
+  const reportPath = await generateTC01Report(result, finalOrderId);
+  printSummary(result, finalOrderId, reportPath);
 
   process.exit(result.overallSuccess ? 0 : 1);
 }
 
-main().catch((error) => {
-  console.error('Fatal error:', error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+// Auto-execute only when run directly (not when imported by CLI wrapper)
+const isDirectRun = process.argv[1]?.includes('run-tc01') ||
+                    process.argv[1]?.endsWith('/adidas/run-tc01.ts') ||
+                    process.argv[1]?.endsWith('/adidas/run-tc01.js');
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error('Fatal error:', error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}
