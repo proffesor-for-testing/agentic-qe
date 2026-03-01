@@ -26,21 +26,20 @@ import { attemptAgenticHealing } from './agentic-healer';
 // Failure Signature Matchers
 // ============================================================================
 
-function isInvoiceFailure(stageId: string, result: StageResult): boolean {
+function isForwardInvoiceFailure(stageId: string, result: StageResult): boolean {
   // Stage 5 (forward-invoice) polls for invoices — fails when none generated
   if (stageId === 'forward-invoice') return true;
 
-  // Stage 8 (return-delivery) needs CREDIT_MEMO invoice — same root cause
-  // Sterling batch job hasn't generated the credit note yet.
-  if (stageId === 'return-delivery') return true;
-
-  // Verify steps 12/12a fail when invoice is missing
+  // Verify steps 12/12a fail when forward invoice is missing
   const failedSteps = result.verification.steps
     .filter((s) => !s.result.success)
     .map((s) => s.stepId);
 
   return failedSteps.includes('step-12') || failedSteps.includes('step-12a');
 }
+
+// return-delivery goes to agentic healer — it probes state, detects missing
+// CREDIT_MEMO, and attempts return-specific task queue recovery via XAPI.
 
 function isHealthFailure(result: StageResult): boolean {
   const errorMsg = result.action.error ?? result.poll.error ?? '';
@@ -109,8 +108,10 @@ export function createHealingHandler(options: HealingOptions) {
       return 'abort';
     }
 
-    // --- Invoice delay: run manageTaskQueue recovery (Playwright XAPI) ---
-    if (isInvoiceFailure(stageId, result)) {
+    // --- Forward invoice delay: run manageTaskQueue recovery (Playwright XAPI) ---
+    // NOTE: return-delivery is NOT matched here — it goes to the agentic healer
+    // which probes state and attempts return-specific credit note recovery.
+    if (isForwardInvoiceFailure(stageId, result)) {
       if (!ctx.xapiClient) {
         if (verbose) {
           console.log(`  [HEAL] ${stageId}: Invoice failure detected but no XAPI client — cannot run recovery`);
@@ -168,7 +169,7 @@ export function createHealingHandler(options: HealingOptions) {
 
     if (verbose) {
       console.log(`  [AGENTIC] ${stageId}: ${attempt.diagnosis}`);
-      console.log(`  [AGENTIC] Probe: status=${attempt.snapshot.maxStatus}, shipments=${attempt.snapshot.shipmentCount}, invoices=${attempt.snapshot.invoiceCount}, notes=[${attempt.snapshot.noteReasonCodes.join(',')}]`);
+      console.log(`  [AGENTIC] Probe: status=${attempt.snapshot.maxStatus}, shipments=${attempt.snapshot.shipmentCount}, invoices=${attempt.snapshot.invoiceCount}, creditMemo=${attempt.snapshot.hasCreditMemo}, notes=[${attempt.snapshot.noteReasonCodes.join(',')}]`);
       if (attempt.matchedPatternId) {
         console.log(`  [AGENTIC] Matched pattern: ${attempt.recoveryAction} (id=${attempt.matchedPatternId})`);
       }
