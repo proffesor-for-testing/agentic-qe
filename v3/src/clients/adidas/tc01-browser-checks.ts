@@ -21,8 +21,14 @@ export const tc01BrowserSteps: StepDef<AdidasTestContext>[] = [
     requires: { browser: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'Browser provider not available';
       if (!ctx.browserProvider) {
-        return { success: false, error: 'Browser provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Return page loads', passed: false, expected: 'page content', actual: reason },
+          { name: 'Order reference shown', passed: false, expected: ctx.orderId, actual: reason },
+          { name: 'Product details shown', passed: false, expected: 'product content', actual: reason },
+          { name: 'Return content present', passed: false, expected: 'return section', actual: reason },
+        ] };
       }
 
       // The return URL pattern includes the order number

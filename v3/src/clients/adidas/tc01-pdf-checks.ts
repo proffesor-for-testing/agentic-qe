@@ -20,13 +20,22 @@ export const tc01PdfSteps: StepDef<AdidasTestContext>[] = [
     requires: { pdf: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = !ctx.pdfExtractor ? 'PDF extractor not available' : 'Forward label PDF not available';
       if (!ctx.pdfExtractor || !ctx.forwardLabelPdf) {
-        return { success: false, error: 'PDF extractor or forward label not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Label recipient present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Label address present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Label REF = order number', passed: false, expected: ctx.orderId, actual: reason },
+        ] };
       }
 
       const fields = await ctx.pdfExtractor.extractLabelFields(ctx.forwardLabelPdf);
       if (!fields) {
-        return { success: false, error: 'Could not extract label fields', durationMs: Date.now() - start, checks: [] };
+        return { success: false, error: 'Could not extract label fields', durationMs: Date.now() - start, checks: [
+          { name: 'Label recipient present', passed: false, expected: 'truthy', actual: 'extraction failed' },
+          { name: 'Label address present', passed: false, expected: 'truthy', actual: 'extraction failed' },
+          { name: 'Label REF = order number', passed: false, expected: ctx.orderId, actual: 'extraction failed' },
+        ] };
       }
 
       return {
@@ -48,13 +57,26 @@ export const tc01PdfSteps: StepDef<AdidasTestContext>[] = [
     requires: { pdf: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = !ctx.pdfExtractor ? 'PDF extractor not available' : 'Return label PDF not available';
       if (!ctx.pdfExtractor || !ctx.returnLabelPdf) {
-        return { success: false, error: 'PDF extractor or return label not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Return tracking present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Sender/recipient present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Destination present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'REF = order number', passed: false, expected: ctx.orderId, actual: reason },
+          { name: 'Carrier present', passed: false, expected: 'truthy', actual: reason },
+        ] };
       }
 
       const fields = await ctx.pdfExtractor.extractLabelFields(ctx.returnLabelPdf);
       if (!fields) {
-        return { success: false, error: 'Could not extract label fields', durationMs: Date.now() - start, checks: [] };
+        return { success: false, error: 'Could not extract label fields', durationMs: Date.now() - start, checks: [
+          { name: 'Return tracking present', passed: false, expected: 'truthy', actual: 'extraction failed' },
+          { name: 'Sender/recipient present', passed: false, expected: 'truthy', actual: 'extraction failed' },
+          { name: 'Destination present', passed: false, expected: 'truthy', actual: 'extraction failed' },
+          { name: 'REF = order number', passed: false, expected: ctx.orderId, actual: 'extraction failed' },
+          { name: 'Carrier present', passed: false, expected: 'truthy', actual: 'extraction failed' },
+        ] };
       }
 
       return {
@@ -78,13 +100,36 @@ export const tc01PdfSteps: StepDef<AdidasTestContext>[] = [
     requires: { pdf: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = !ctx.pdfExtractor ? 'PDF extractor not available' : 'Credit note PDF not available';
       if (!ctx.pdfExtractor || !ctx.creditNotePdf) {
-        return { success: false, error: 'PDF extractor or credit note not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Credit note number present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'OrderNo present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Date present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Article code present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Size present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Quantity > 0', passed: false, expected: '>0', actual: reason },
+          { name: 'Unit price excl tax > 0', passed: false, expected: '>0', actual: reason },
+          { name: 'Unit price incl tax > 0', passed: false, expected: '>0', actual: reason },
+          { name: 'Total > 0', passed: false, expected: '>0', actual: reason },
+          { name: 'Tax amount > 0', passed: false, expected: '>0', actual: reason },
+        ] };
       }
 
       const fields = await ctx.pdfExtractor.extractInvoiceFields(ctx.creditNotePdf);
       if (!fields) {
-        return { success: false, error: 'Could not extract invoice fields', durationMs: Date.now() - start, checks: [] };
+        return { success: false, error: 'Could not extract invoice fields', durationMs: Date.now() - start, checks: [
+          { name: 'Credit note number present', passed: false, expected: 'truthy', actual: 'extraction failed' },
+          { name: 'OrderNo present', passed: false, expected: 'truthy', actual: 'extraction failed' },
+          { name: 'Date present', passed: false, expected: 'truthy', actual: 'extraction failed' },
+          { name: 'Article code present', passed: false, expected: 'truthy', actual: 'extraction failed' },
+          { name: 'Size present', passed: false, expected: 'truthy', actual: 'extraction failed' },
+          { name: 'Quantity > 0', passed: false, expected: '>0', actual: 'extraction failed' },
+          { name: 'Unit price excl tax > 0', passed: false, expected: '>0', actual: 'extraction failed' },
+          { name: 'Unit price incl tax > 0', passed: false, expected: '>0', actual: 'extraction failed' },
+          { name: 'Total > 0', passed: false, expected: '>0', actual: 'extraction failed' },
+          { name: 'Tax amount > 0', passed: false, expected: '>0', actual: 'extraction failed' },
+        ] };
       }
 
       const line = fields.lineItems[0];

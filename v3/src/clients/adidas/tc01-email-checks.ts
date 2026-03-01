@@ -42,8 +42,18 @@ export const tc01EmailSteps: StepDef<AdidasTestContext>[] = [
     requires: { email: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'Email provider not available';
       if (!ctx.emailProvider) {
-        return { success: false, error: 'Email provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Email received', passed: false, expected: 'confirmation email', actual: reason },
+          { name: 'Subject is order confirmation', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Body contains OrderNo', passed: false, expected: ctx.orderId, actual: reason },
+          { name: 'Body contains carrier', passed: false, expected: 'carrier ref', actual: reason },
+          { name: 'Body contains address', passed: false, expected: 'address section', actual: reason },
+          { name: 'Body contains payment method', passed: false, expected: 'payment ref', actual: reason },
+          { name: 'Body contains total', passed: false, expected: 'amount', actual: reason },
+          { name: 'Body contains item details', passed: false, expected: 'prices and quantities', actual: reason },
+        ] };
       }
 
       const emails = await ctx.emailProvider.getEmails({
@@ -91,8 +101,12 @@ export const tc01EmailSteps: StepDef<AdidasTestContext>[] = [
     requires: { email: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'Email provider not available';
       if (!ctx.emailProvider) {
-        return { success: false, error: 'Email provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Email trigger executed', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Email received in inbox', passed: false, expected: 'truthy', actual: reason },
+        ] };
       }
 
       const emails = await ctx.emailProvider.getEmails({
@@ -125,8 +139,16 @@ export const tc01EmailSteps: StepDef<AdidasTestContext>[] = [
     requires: { email: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'Email provider not available';
       if (!ctx.emailProvider) {
-        return { success: false, error: 'Email provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Subject matches', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Body contains OrderNo', passed: false, expected: ctx.orderId, actual: reason },
+          { name: 'Body contains carrier', passed: false, expected: 'carrier ref', actual: reason },
+          { name: 'Body contains total', passed: false, expected: 'amount', actual: reason },
+          { name: 'Body contains delivery date', passed: false, expected: 'date reference', actual: reason },
+          { name: 'Body contains item details', passed: false, expected: 'order ref + amounts', actual: reason },
+        ] };
       }
 
       const emails = await ctx.emailProvider.getEmails({
@@ -173,8 +195,12 @@ export const tc01EmailSteps: StepDef<AdidasTestContext>[] = [
     requires: { email: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'Email provider not available';
       if (!ctx.emailProvider) {
-        return { success: false, error: 'Email provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Delivery email sent', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Email trigger in IIB', passed: false, expected: 'truthy', actual: reason },
+        ] };
       }
 
       const emails = await ctx.emailProvider.getEmails({
@@ -206,8 +232,11 @@ export const tc01EmailSteps: StepDef<AdidasTestContext>[] = [
     requires: { email: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'Email provider not available';
       if (!ctx.emailProvider) {
-        return { success: false, error: 'Email provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Return creation email received', passed: false, expected: 'truthy', actual: reason },
+        ] };
       }
 
       const emails = await ctx.emailProvider.getEmails({
@@ -238,8 +267,13 @@ export const tc01EmailSteps: StepDef<AdidasTestContext>[] = [
     requires: { email: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'Email provider not available';
       if (!ctx.emailProvider) {
-        return { success: false, error: 'Email provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Pickup email received', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Body contains OrderNo', passed: false, expected: ctx.orderId, actual: reason },
+          { name: 'Body addressed to customer', passed: false, expected: 'order ref or address', actual: reason },
+        ] };
       }
 
       const emails = await ctx.emailProvider.getEmails({
@@ -283,8 +317,16 @@ export const tc01EmailSteps: StepDef<AdidasTestContext>[] = [
     requires: { email: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'Email provider not available';
       if (!ctx.emailProvider) {
-        return { success: false, error: 'Email provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Refund email received', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Billing info present', passed: false, expected: 'billing address', actual: reason },
+          { name: 'Payment method present', passed: false, expected: 'payment ref', actual: reason },
+          { name: 'Returned item present', passed: false, expected: ctx.orderId, actual: reason },
+          { name: 'Size and qty present', passed: false, expected: 'currency amounts', actual: reason },
+          { name: 'Total amount present', passed: false, expected: 'amount', actual: reason },
+        ] };
       }
 
       const emails = await ctx.emailProvider.getEmails({

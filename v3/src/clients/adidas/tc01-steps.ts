@@ -143,8 +143,23 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     requires: { iib: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'IIB provider not available';
       if (!ctx.iibProvider) {
-        return { success: false, error: 'IIB provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Has transactions', passed: false, expected: '>0', actual: reason },
+          { name: 'Terminal name present (#28)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'OrderNo matches (#29)', passed: false, expected: ctx.orderId, actual: reason },
+          { name: 'ShipAdviceNo present (#30)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'CarrierServiceCode present (#31)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'SCAC present (#32)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ShipNode present (#33)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'EnterpriseCode present (#34)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Currency present (#35)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ItemID present (#36)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'OrderedQty present (#37)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'PersonInfoShipTo present (#38)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'PaymentType present (#39)', passed: false, expected: 'truthy', actual: reason },
+        ] };
       }
 
       const result = await ctx.iibProvider.getFlowTransactions(
@@ -179,8 +194,14 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     requires: { iib: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'IIB provider not available';
       if (!ctx.iibProvider) {
-        return { success: false, error: 'IIB provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Has ShipConfirm txns', passed: false, expected: '>0', actual: reason },
+          { name: 'Terminal name present (#77)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'SOAP operation is ShipmentConfirmation (#78)', passed: false, expected: 'ShipmentConfirmation', actual: reason },
+          { name: 'Payload contains order/shipment refs (#79)', passed: false, expected: ctx.orderId, actual: reason },
+        ] };
       }
 
       const result = await ctx.iibProvider.getFlowTransactions(
@@ -214,8 +235,17 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     requires: { iib: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'IIB provider not available';
       if (!ctx.iibProvider) {
-        return { success: false, error: 'IIB provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Has AFS SO Creation txns', passed: false, expected: '>0', actual: reason },
+          { name: 'Terminal name present (#68)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'OrderNo matches (#69)', passed: false, expected: ctx.orderId, actual: reason },
+          { name: 'ShipmentNo present (#70)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Currency present (#71)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ItemID present (#72)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ExtnDivision present (#73)', passed: false, expected: 'truthy', actual: reason },
+        ] };
       }
 
       const result = await ctx.iibProvider.getFlowTransactions(
@@ -249,8 +279,23 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     requires: { iib: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'IIB provider not available';
       if (!ctx.iibProvider) {
-        return { success: false, error: 'IIB provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Has NShift label txns', passed: false, expected: '>0', actual: reason },
+          { name: 'Terminal name present (#136)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'OrderNo matches (#137)', passed: false, expected: ctx.orderId, actual: reason },
+          { name: 'DocumentType present (#138)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'SCAC present (#139)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ShipNode present (#140)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Address elements present (#141)', passed: false, expected: 'address element', actual: reason },
+          { name: 'SCAC in response (#142)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ShipmentCSID present (#143)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ReturnSCAC/ReturnCarrier present (#144)', passed: false, expected: 'return carrier info', actual: reason },
+          { name: 'ReturnTrackingNo present (#145)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ReturnTrackingURL present (#146)', passed: false, expected: 'tracking URL', actual: reason },
+          { name: 'ReturnLabelPDF present (#147)', passed: false, expected: 'label PDF reference', actual: reason },
+        ] };
       }
 
       const result = await ctx.iibProvider.getFlowTransactions(
@@ -284,8 +329,15 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     requires: { iib: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'IIB provider not available';
       if (!ctx.iibProvider) {
-        return { success: false, error: 'IIB provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Has AFS SO Ack txns', passed: false, expected: '>0', actual: reason },
+          { name: 'Terminal name present (#54)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ShipmentNo present (#55)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ItemID present (#56)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Country/ShipNode present (#57)', passed: false, expected: 'Country or ShipNode', actual: reason },
+        ] };
       }
 
       const result = await ctx.iibProvider.getFlowTransactions(
@@ -365,8 +417,12 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     requires: { nshift: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const nshiftReason = !ctx.nshiftClient ? 'NShift client not available' : 'No shipments available';
       if (!ctx.nshiftClient || ctx.shipments.length === 0) {
-        return { success: false, error: 'NShift client not available or no shipments', durationMs: 0, checks: [] };
+        return { success: false, error: nshiftReason, durationMs: 0, checks: [
+          { name: 'Carrier name present', passed: false, expected: 'truthy', actual: nshiftReason },
+          { name: 'Receiver name present', passed: false, expected: 'truthy', actual: nshiftReason },
+        ] };
       }
 
       const tracking = ctx.shipments[0].trackingNo;
@@ -395,8 +451,24 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     requires: { iib: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'IIB provider not available';
       if (!ctx.iibProvider) {
-        return { success: false, error: 'IIB provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Has POD Kafka txns', passed: false, expected: '>0', actual: reason },
+          { name: 'POD flow triggered (#80)', passed: false, expected: '>0', actual: reason },
+          { name: 'Terminal name present (#81)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'InTransit event present (#82)', passed: false, expected: 'InTransit', actual: reason },
+          { name: 'InTransit: TrackingNo present (#83)', passed: false, expected: 'tracking number', actual: reason },
+          { name: 'SourceSystem present (#84)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'POD payloads reference order (#85)', passed: false, expected: ctx.orderId, actual: reason },
+          { name: 'InTransit description text (#86)', passed: false, expected: 'description text', actual: reason },
+          { name: 'OutForDelivery event present (#87)', passed: false, expected: 'OutForDelivery', actual: reason },
+          { name: 'OutForDelivery: TrackingNo present (#88)', passed: false, expected: 'tracking number', actual: reason },
+          { name: 'DeliveryAttempt event present (#89)', passed: false, expected: 'DeliveryAttempt', actual: reason },
+          { name: 'DeliveryAttempt description text (#90)', passed: false, expected: 'description text', actual: reason },
+          { name: 'Delivered event present (#91)', passed: false, expected: 'Delivered', actual: reason },
+          { name: 'Delivered description text (#92)', passed: false, expected: 'description text', actual: reason },
+        ] };
       }
 
       const result = await ctx.iibProvider.getFlowTransactions(
@@ -693,8 +765,18 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     requires: { iib: true },
     execute: async (ctx) => {
       const start = Date.now();
+      const reason = 'IIB provider not available';
       if (!ctx.iibProvider) {
-        return { success: false, error: 'IIB provider not available', durationMs: 0, checks: [] };
+        return { success: false, error: reason, durationMs: 0, checks: [
+          { name: 'Has return auth txns', passed: false, expected: '>0', actual: reason },
+          { name: 'Terminal name present (#149)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'SalesOrderNo matches (#150)', passed: false, expected: ctx.orderId, actual: reason },
+          { name: 'DocumentType present (#152)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ReceivingNode present (#153)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'TrackingNo present (#154)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ItemID present (#155)', passed: false, expected: 'truthy', actual: reason },
+          { name: 'StatusQuantity present (#156)', passed: false, expected: 'truthy', actual: reason },
+        ] };
       }
 
       const result = await ctx.iibProvider.getFlowTransactions(
