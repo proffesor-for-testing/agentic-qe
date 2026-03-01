@@ -229,10 +229,20 @@ async function createPatternStoreAdapter() {
 // ============================================================================
 
 function printStageResult(stageId: string, result: StageResult): void {
-  const icon = result.overallSuccess ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m';
+  // A stage is SKIPPED when all verification steps were skipped (no real checks ran)
+  const allSkipped = result.overallSuccess &&
+    result.verification.skipped > 0 &&
+    result.verification.passed === 0 &&
+    result.verification.failed === 0;
+
+  const icon = allSkipped
+    ? '\x1b[33mSKIP\x1b[0m'
+    : result.overallSuccess ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m';
   const duration = (result.durationMs / 1000).toFixed(1);
-  const verify = `${result.verification.passed}/${result.verification.passed + result.verification.failed}`;
-  console.log(`  [${icon}] ${result.stageName} (${verify} checks, ${duration}s)`);
+  const verify = allSkipped
+    ? `0/${result.verification.skipped} skipped`
+    : `${result.verification.passed}/${result.verification.passed + result.verification.failed} checks`;
+  console.log(`  [${icon}] ${result.stageName} (${verify}, ${duration}s)`);
 
   if (result.action.error) {
     console.log(`         Action error: ${result.action.error}`);
@@ -251,7 +261,9 @@ function printStageResult(stageId: string, result: StageResult): void {
 function printSummary(result: RunResult, orderId: string, reportPath: string): void {
   console.log('\n' + '='.repeat(60));
   console.log(`  Order: ${orderId}`);
-  console.log(`  Stages: ${result.passed} passed, ${result.failed} failed`);
+  const parts = [`${result.passed} passed`, `${result.failed} failed`];
+  if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
+  console.log(`  Stages: ${parts.join(', ')}`);
   console.log(`  Checks: ${result.totalChecks}`);
   console.log(`  Duration: ${(result.totalDurationMs / 1000).toFixed(1)}s`);
   console.log(`  Result: ${result.overallSuccess ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m'}`);

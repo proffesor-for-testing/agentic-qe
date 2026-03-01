@@ -54,7 +54,10 @@ export async function generateLifecycleReport(
 function buildHtml(result: RunResult, runId: string, title: string): string {
   const now = new Date().toISOString();
   const totalStages = result.stages.length;
-  const passedStages = result.stages.filter((s) => s.overallSuccess).length;
+  const skippedStages = result.stages.filter((s) =>
+    s.overallSuccess && s.verification.skipped > 0 && s.verification.passed === 0 && s.verification.failed === 0
+  ).length;
+  const passedStages = result.stages.filter((s) => s.overallSuccess).length - skippedStages;
   const failedStages = result.stages.filter((s) => !s.overallSuccess).length;
   const totalDuration = (result.totalDurationMs / 1000).toFixed(1);
 
@@ -83,6 +86,7 @@ ${CSS}
     <div class="stat"><span class="num">${totalStages}</span><span class="label">Stages</span></div>
     <div class="stat pass"><span class="num">${passedStages}</span><span class="label">Passed</span></div>
     <div class="stat fail"><span class="num">${failedStages}</span><span class="label">Failed</span></div>
+    <div class="stat skip"><span class="num">${skippedStages}</span><span class="label">Skipped</span></div>
     <div class="stat"><span class="num">${result.totalChecks}</span><span class="label">Checks</span></div>
     <div class="stat"><span class="num">${totalDuration}s</span><span class="label">Duration</span></div>
   </section>
@@ -116,11 +120,21 @@ ${result.stages.map((s) => stageDetails(s)).join('\n')}
 // HTML Fragments
 // ============================================================================
 
+function isStageSkipped(stage: StageResult): boolean {
+  return stage.overallSuccess &&
+    stage.verification.skipped > 0 &&
+    stage.verification.passed === 0 &&
+    stage.verification.failed === 0;
+}
+
 function stageRow(stage: StageResult, index: number): string {
-  const status = stage.overallSuccess ? 'pass' : 'fail';
+  const skipped = isStageSkipped(stage);
+  const status = skipped ? 'skip' : stage.overallSuccess ? 'pass' : 'fail';
+  const statusLabel = skipped ? 'SKIP' : stage.overallSuccess ? 'PASS' : 'FAIL';
   const actionStatus = stage.action.success ? 'OK' : 'FAIL';
   const pollStatus = stage.poll.success ? 'OK' : 'FAIL';
-  const verifyStr = `${stage.verification.passed}/${stage.verification.passed + stage.verification.failed + stage.verification.skipped}`;
+  const totalSteps = stage.verification.passed + stage.verification.failed + stage.verification.skipped;
+  const verifyStr = skipped ? `0/${totalSteps} skipped` : `${stage.verification.passed}/${totalSteps}`;
   const duration = (stage.durationMs / 1000).toFixed(1) + 's';
 
   return `        <tr class="${status}">
@@ -130,7 +144,7 @@ function stageRow(stage: StageResult, index: number): string {
           <td class="${stage.poll.success ? 'pass' : 'fail'}">${pollStatus}</td>
           <td>${verifyStr}</td>
           <td>${duration}</td>
-          <td><span class="badge ${status}">${stage.overallSuccess ? 'PASS' : 'FAIL'}</span></td>
+          <td><span class="badge ${status}">${statusLabel}</span></td>
         </tr>`;
 }
 
@@ -165,16 +179,18 @@ function stageDetails(stage: StageResult): string {
 
   const stepRows = stage.verification.steps.map((s) => {
     const r = s.result;
-    const status = r.success ? 'pass' : 'fail';
+    const stepSkipped = r.success && r.data?.skipped === true;
+    const status = stepSkipped ? 'skip' : r.success ? 'pass' : 'fail';
+    const statusLabel = stepSkipped ? 'SKIP' : r.success ? 'PASS' : 'FAIL';
     const checks = (r.checks ?? [])
       .map((c) => `<li class="${c.passed ? 'check-pass' : 'check-fail'}">${c.name}: expected ${c.expected}, got ${c.actual}</li>`)
       .join('');
 
     return `      <div class="step ${status}">
         <div class="step-header">
-          <span class="badge ${status}">${r.success ? 'PASS' : 'FAIL'}</span>
+          <span class="badge ${status}">${statusLabel}</span>
           <strong>${s.stepId}</strong>
-          <span class="dur">${r.durationMs}ms</span>
+          <span class="dur">${stepSkipped ? 'skipped' : `${r.durationMs}ms`}</span>
           ${r.error ? `<span class="err">${escapeHtml(r.error)}</span>` : ''}
         </div>
         ${checks ? `<ul class="checks">${checks}</ul>` : ''}
@@ -205,12 +221,14 @@ header h1 { font-size: 1.4rem; margin-bottom: 0.5rem; }
 .badge { padding: 2px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
 .badge.pass { background: #22c55e; color: #fff; }
 .badge.fail { background: #ef4444; color: #fff; }
+.badge.skip { background: #a3a3a3; color: #fff; }
 .summary { display: flex; gap: 1rem; padding: 1.5rem 2rem; background: #fff; border-bottom: 1px solid #e5e5e5; flex-wrap: wrap; }
 .stat { text-align: center; min-width: 80px; }
 .stat .num { display: block; font-size: 1.8rem; font-weight: 700; }
 .stat .label { font-size: 0.75rem; text-transform: uppercase; color: #888; }
 .stat.pass .num { color: #22c55e; }
 .stat.fail .num { color: #ef4444; }
+.stat.skip .num { color: #a3a3a3; }
 .stages, .details { background: #fff; padding: 1.5rem 2rem; border-bottom: 1px solid #e5e5e5; }
 .stages h2, .details h2 { font-size: 1.1rem; margin-bottom: 1rem; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -218,6 +236,8 @@ th { text-align: left; padding: 8px 12px; background: #f0f0f0; border-bottom: 2p
 td { padding: 8px 12px; border-bottom: 1px solid #eee; }
 tr.pass td:first-child { border-left: 3px solid #22c55e; }
 tr.fail td:first-child { border-left: 3px solid #ef4444; }
+tr.skip td:first-child { border-left: 3px solid #a3a3a3; }
+tr.skip td { color: #888; }
 td.pass { color: #16a34a; }
 td.fail { color: #dc2626; }
 .stage-detail { margin-bottom: 1.5rem; }
@@ -226,6 +246,7 @@ td.fail { color: #dc2626; }
 .step { padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; border-radius: 4px; border-left: 3px solid #ddd; }
 .step.pass { border-left-color: #22c55e; background: #f0fdf4; }
 .step.fail { border-left-color: #ef4444; background: #fef2f2; }
+.step.skip { border-left-color: #a3a3a3; background: #f5f5f5; color: #888; }
 .step-header { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
 .dur { color: #888; font-size: 0.8rem; }
 .err { color: #dc2626; font-size: 0.8rem; }

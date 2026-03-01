@@ -140,7 +140,15 @@ class ActionOrchestratorImpl<TContext extends BaseTestContext> implements Action
       this.results.stages.push(stageResult);
       this.results.totalChecks += stageResult.verification.passed + stageResult.verification.failed;
 
-      if (stageResult.overallSuccess) {
+      // A stage is SKIPPED when all its verification steps were skipped (no real checks ran)
+      const isStageSkipped = stageResult.overallSuccess &&
+        stageResult.verification.skipped > 0 &&
+        stageResult.verification.passed === 0 &&
+        stageResult.verification.failed === 0;
+
+      if (isStageSkipped) {
+        this.results.skipped++;
+      } else if (stageResult.overallSuccess) {
         this.results.passed++;
       } else {
         this.results.failed++;
@@ -353,6 +361,7 @@ class ActionOrchestratorImpl<TContext extends BaseTestContext> implements Action
       stages: [],
       passed: 0,
       failed: 0,
+      skipped: 0,
       totalChecks: 0,
       totalDurationMs: 0,
       overallSuccess: true,

@@ -107,6 +107,7 @@ export async function runOrdersInParallel(
             stages: [],
             passed: 0,
             failed: 1,
+            skipped: 0,
             totalChecks: 0,
             totalDurationMs: Date.now() - start,
             overallSuccess: false,

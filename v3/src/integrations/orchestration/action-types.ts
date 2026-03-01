@@ -130,6 +130,7 @@ export interface RunResult {
   stages: StageResult[];
   passed: number;
   failed: number;
+  skipped: number;
   totalChecks: number;
   totalDurationMs: number;
   overallSuccess: boolean;
