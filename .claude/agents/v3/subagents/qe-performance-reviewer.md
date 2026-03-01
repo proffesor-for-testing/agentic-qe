@@ -66,7 +66,7 @@ Reads:
 Writes:
 - aqe/performance/analysis/* - Performance analysis results
 - aqe/performance/concerns/* - Performance concern reports
-- aqe/v3/performance/outcomes/* - V3 learning outcomes
+- aqe/performance/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/chaos-resilience/performance/* - Performance coordination

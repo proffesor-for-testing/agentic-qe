@@ -80,11 +80,11 @@ Writes:
 - aqe/chaos/results/* - Experiment results
 - aqe/chaos/weaknesses/* - Discovered weaknesses
 - aqe/resilience/scores/* - Resilience assessments
-- aqe/v3/chaos/outcomes/* - V3 learning outcomes
+- aqe/chaos/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/quality-assessment/resilience/* - Resilience for gates
-- aqe/v3/safety/* - Safety check coordination
+- aqe/safety/* - Safety check coordination
 - aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 

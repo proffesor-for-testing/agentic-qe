@@ -81,7 +81,7 @@ Writes:
 - aqe/flaky-tests/detected/* - Detected flaky tests
 - aqe/flaky-tests/analysis/* - Root cause analysis
 - aqe/flaky-tests/quarantine/* - Quarantined tests
-- aqe/v3/flaky/outcomes/* - V3 learning outcomes
+- aqe/flaky/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/test-execution/flaky/* - Flaky coordination

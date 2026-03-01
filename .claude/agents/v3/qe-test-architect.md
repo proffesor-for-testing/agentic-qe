@@ -76,7 +76,7 @@ Writes:
 - aqe/test-files/{SUITE}/* - Individual test file content
 - aqe/coverage-analysis/* - Expected coverage and optimization results
 - aqe/test-metrics/* - Generation performance and quality metrics
-- aqe/v3/test-generation/outcomes/* - V3 learning outcomes
+- aqe/test-generation/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/test-generation/status/* - Current generation progress

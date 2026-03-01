@@ -67,7 +67,7 @@ Writes:
 - aqe/graphql/results/* - Test results
 - aqe/graphql/coverage/* - Field coverage data
 - aqe/graphql/security/* - Security findings
-- aqe/v3/graphql/outcomes/* - V3 learning outcomes
+- aqe/graphql/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/contract-testing/graphql/* - GraphQL coordination

@@ -67,7 +67,7 @@ Writes:
 - aqe/learning/patterns/* - Newly discovered patterns
 - aqe/learning/models/* - Updated model weights
 - aqe/learning/templates/* - Generated templates
-- aqe/v3/learning/outcomes/* - V3 learning outcomes
+- aqe/learning/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/learning-optimization/patterns/* - Pattern coordination

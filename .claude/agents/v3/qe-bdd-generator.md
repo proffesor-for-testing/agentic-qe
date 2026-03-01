@@ -67,7 +67,7 @@ Writes:
 - aqe/bdd/generated/* - Generated scenarios
 - aqe/bdd/examples/* - Discovered examples
 - aqe/bdd/gaps/* - Missing step definitions
-- aqe/v3/bdd/outcomes/* - V3 learning outcomes
+- aqe/bdd/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/requirements-validation/bdd/* - BDD coordination

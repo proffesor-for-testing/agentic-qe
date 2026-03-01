@@ -68,7 +68,7 @@ Writes:
 - aqe/visual/results/* - Comparison results
 - aqe/visual/diffs/* - Visual diff images
 - aqe/visual/regressions/* - Detected regressions
-- aqe/v3/visual/outcomes/* - V3 learning outcomes
+- aqe/visual/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/quality-assessment/visual/* - Visual metrics for gates

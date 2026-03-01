@@ -67,7 +67,7 @@ Writes:
 - aqe/kg/graphs/* - Knowledge graph data
 - aqe/kg/updates/* - Incremental update logs
 - aqe/kg/exports/* - Exported graph formats
-- aqe/v3/kg/outcomes/* - V3 learning outcomes
+- aqe/kg/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/code-intelligence/kg/* - KG coordination

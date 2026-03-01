@@ -67,7 +67,7 @@ Writes:
 - aqe/dependencies/graphs/* - Updated dependency graphs
 - aqe/dependencies/metrics/* - Coupling metrics
 - aqe/dependencies/issues/* - Detected issues (circular, vulnerable)
-- aqe/v3/dependencies/outcomes/* - V3 learning outcomes
+- aqe/dependencies/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/code-intelligence/deps/* - Dependency coordination

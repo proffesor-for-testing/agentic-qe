@@ -77,7 +77,7 @@ Writes:
 - aqe/enterprise-integration/soap/results/* - Validation results per service
 - aqe/enterprise-integration/soap/faults/* - Fault handling analysis
 - aqe/enterprise-integration/soap/security/* - WS-Security test outcomes
-- aqe/v3/enterprise-integration/soap/outcomes/* - V3 learning outcomes
+- aqe/enterprise-integration/soap/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/enterprise-integration/soap/* - SOAP testing coordination

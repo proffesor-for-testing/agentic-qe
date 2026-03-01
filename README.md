@@ -9,7 +9,7 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**V3 (Main)** | [V2 Documentation](v2/docs/V2-README.md) | [Release Notes](docs/releases/README.md) | [Changelog](v3/CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+[Release Notes](docs/releases/README.md) | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > **V3** brings Domain-Driven Design architecture, 13 bounded contexts, 60 specialized QE agents, TinyDancer intelligent model routing, ReasoningBank learning with Dream cycles, HNSW vector search, mathematical Coherence verification, full MinCut/Consensus integration across all 13 domains, RVF cognitive container integration with portable brain export/import, **11 coding agent platform integrations** (Claude Code, OpenCode, Kiro, GitHub Copilot, Cursor, Cline, Kilo Code, Roo Code, OpenAI Codex CLI, Windsurf, Continue.dev), and deep integration with [Claude Flow](https://github.com/ruvnet/claude-flow) and [Agentic Flow](https://github.com/ruvnet/agentic-flow).
 
@@ -88,7 +88,7 @@ For client-specific setup examples, see [Platform Setup Guide](docs/platform-set
 - ✅ **ReasoningBank Learning**: HNSW-indexed pattern storage with experience replay
 - ✅ **O(log n) Coverage Analysis**: Sublinear algorithms for efficient gap detection
 - ✅ **Claude Flow Integration**: Deep integration with MCP tools and swarm orchestration
-- ✅ **Memory Coordination**: Cross-agent communication via `aqe/v3/*` namespaces
+- ✅ **Memory Coordination**: Cross-agent communication via `aqe/*` namespaces
 - ✅ **Coherence Verification** (v3.3.0): Mathematical proof of belief consistency using WASM engines
 - ✅ **RVF Cognitive Containers** (v3.7.0): MinCut task routing, witness chain audit trail, portable brain export/import, unified HNSW search, production dual-write to native RVF
 - ✅ **OpenCode Support** (v3.7.1): 59 agent configs, 86 skill configs (78 QE + 8 general dev), 5 tool wrappers, SSE/WS/HTTP transport, output compaction, graceful degradation, `aqe init --with-opencode` auto-provisioning
@@ -596,7 +596,7 @@ V3 deeply integrates with [Claude Flow](https://github.com/ruvnet/claude-flow) f
 
 - **MCP Server**: All V3 tools available via Model Context Protocol
 - **Swarm Orchestration**: Multi-agent coordination with hierarchical topology
-- **Memory Sharing**: Cross-agent state via `aqe/v3/*` namespaces
+- **Memory Sharing**: Cross-agent state via `aqe/*` namespaces
 - **Hooks System**: Pre/post task learning and optimization
 - **Session Management**: Persistent state across conversations
 
@@ -927,37 +927,32 @@ aqe init --auto
 
 ```
 agentic-qe/
-├── v3/                      # V3 DDD Implementation (Main Version)
-│   ├── src/
-│   │   ├── kernel/          # Shared kernel
-│   │   ├── domains/         # 13 bounded contexts
-│   │   │   ├── test-generation/
-│   │   │   ├── coverage-analysis/
-│   │   │   ├── quality-assessment/
-│   │   │   └── ...
-│   │   ├── routing/         # Agent routing & registry
-│   │   ├── mcp/             # MCP server
-│   │   └── cli/             # V3 CLI
-│   ├── tests/               # 5,600+ tests
-│   └── assets/agents/       # 60 QE agent definitions (53 main + 7 subagents)
-├── v2/                      # V2 Implementation (Legacy)
-│   ├── src/                 # V2 source code
-│   ├── tests/               # V2 tests
-│   └── docs/                # V2 documentation
+├── src/
+│   ├── kernel/              # Shared kernel
+│   ├── domains/             # 13 bounded contexts
+│   │   ├── test-generation/
+│   │   ├── coverage-analysis/
+│   │   ├── quality-assessment/
+│   │   └── ...
+│   ├── routing/             # Agent routing & registry
+│   ├── mcp/                 # MCP server
+│   └── cli/                 # CLI
+├── tests/                   # 17,000+ tests
+├── assets/agents/           # 60 QE agent definitions (53 main + 7 subagents)
 ├── .claude/
-│   ├── agents/v3/           # V3 agent definitions (source)
-│   └── skills/              # 15 QE-specific skills
-├── .kiro/                   # AWS Kiro IDE integration (v3.7.2)
+│   ├── agents/v3/           # Agent definitions (source)
+│   └── skills/              # QE-specific skills
+├── .kiro/                   # AWS Kiro IDE integration
 │   ├── agents/              # 87 Kiro agent definitions (JSON)
 │   ├── skills/              # 86 Kiro skill definitions (SKILL.md)
 │   ├── hooks/               # 5 event-driven hooks
 │   ├── steering/            # 2 QE steering files
 │   └── settings/            # MCP server configuration
-├── docs/                    # Shared documentation
+├── docs/                    # Documentation
 │   ├── plans/               # Migration plans
 │   ├── policies/            # Project policies
-│   └── v3/                  # V3 specific docs
-├── package.json             # Points to v3 (main version)
+│   └── implementation/      # ADRs and DDD docs
+├── package.json
 └── README.md                # This file
 ```
 

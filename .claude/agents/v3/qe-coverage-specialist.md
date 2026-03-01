@@ -71,7 +71,7 @@ Writes:
 - aqe/coverage-analysis/results/* - Analysis results with metrics
 - aqe/coverage-analysis/gaps/* - Detected coverage gaps
 - aqe/coverage-analysis/risk-scores/* - Risk assessment data
-- aqe/v3/coverage/outcomes/* - V3 learning outcomes
+- aqe/coverage/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/test-generation/gaps/* - Gap handoff to test generators

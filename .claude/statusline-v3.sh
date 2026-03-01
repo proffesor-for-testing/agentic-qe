@@ -83,7 +83,7 @@ DOMAINS_IN_PROGRESS=0
 V3_DOMAINS="test-generation test-execution coverage-analysis quality-assessment defect-intelligence requirements-validation code-intelligence security-compliance contract-testing visual-accessibility chaos-resilience learning-optimization"
 
 for domain in $V3_DOMAINS; do
-  domain_dir="${PROJECT_DIR}/v3/src/domains/$domain"
+  domain_dir="${PROJECT_DIR}/src/domains/$domain"
   if [ -d "$domain_dir" ]; then
     ts_count=$(find "$domain_dir" -name "*.ts" 2>/dev/null | wc -l | tr -d ' ')
     if [ "$ts_count" -ge 3 ]; then
@@ -97,9 +97,9 @@ done
 # Get v3 test breakdown by type
 UNIT_TESTS=0
 INT_TESTS=0
-if [ -d "${PROJECT_DIR}/v3/tests" ]; then
-  UNIT_TESTS=$(find "${PROJECT_DIR}/v3/tests/unit" -name "*.test.ts" 2>/dev/null | wc -l | tr -d ' ')
-  INT_TESTS=$(find "${PROJECT_DIR}/v3/tests/integration" -name "*.test.ts" 2>/dev/null | wc -l | tr -d ' ')
+if [ -d "${PROJECT_DIR}/tests" ]; then
+  UNIT_TESTS=$(find "${PROJECT_DIR}/tests/unit" -name "*.test.ts" 2>/dev/null | wc -l | tr -d ' ')
+  INT_TESTS=$(find "${PROJECT_DIR}/tests/integration" -name "*.test.ts" 2>/dev/null | wc -l | tr -d ' ')
 fi
 
 # Get REAL test coverage from coverage reports
@@ -365,7 +365,7 @@ OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Mode${RESET} ${LEARNING_MODE_COLOR}
 OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Transfer${RESET} ${TRANSFER_COLOR}${TRANSFER_INDICATOR}${TRANSFER_COUNT}${RESET}"
 
 # Line 4: Architecture Status
-ADR_DIR="${PROJECT_DIR}/v3/implementation/adrs"
+ADR_DIR="${PROJECT_DIR}/implementation/adrs"
 ADR_FILE="${ADR_DIR}/v3-adrs.md"
 ADR_COUNT=0
 ADR_ACCEPTED=0

@@ -68,7 +68,7 @@ Writes:
 - aqe/quality-gates/evaluations/* - Gate evaluation results
 - aqe/quality-gates/overrides/* - Override requests and approvals
 - aqe/quality-gates/trends/* - Quality trend data
-- aqe/v3/quality/outcomes/* - V3 learning outcomes
+- aqe/quality/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/coverage-analysis/metrics/* - Coverage input

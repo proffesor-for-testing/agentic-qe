@@ -159,8 +159,8 @@ async function computeEmbeddingSimilarities(
   skills: SkillInfo[]
 ): Promise<ConflictPair[] | null> {
   try {
-    const { computeBatchEmbeddings } = await import('../v3/src/learning/real-embeddings.js');
-    const { cosineSimilarity } = await import('../v3/src/shared/utils/vector-math.js');
+    const { computeBatchEmbeddings } = await import('../src/learning/real-embeddings.js');
+    const { cosineSimilarity } = await import('../src/shared/utils/vector-math.js');
 
     console.log(`Computing embeddings for ${skills.length} skill descriptions...`);
     const descriptions = skills.map(s => s.description);

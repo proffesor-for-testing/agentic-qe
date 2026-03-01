@@ -68,7 +68,7 @@ Writes:
 - aqe/test-execution/results/* - Execution results
 - aqe/test-execution/timing/* - Updated timing data
 - aqe/test-execution/failures/* - Failure details
-- aqe/v3/execution/outcomes/* - V3 learning outcomes
+- aqe/execution/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/coverage-analysis/execution/* - Coverage data handoff

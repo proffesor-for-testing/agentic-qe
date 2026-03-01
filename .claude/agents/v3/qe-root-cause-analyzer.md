@@ -67,7 +67,7 @@ Writes:
 - aqe/rca/reports/* - RCA reports
 - aqe/rca/patterns/* - Discovered failure patterns
 - aqe/rca/preventions/* - Prevention recommendations
-- aqe/v3/rca/outcomes/* - V3 learning outcomes
+- aqe/rca/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/defect-intelligence/rca/* - RCA coordination

@@ -71,7 +71,7 @@ Reads:
 Writes:
 - aqe/tdd/tests/failing/* - Failing test files
 - aqe/tdd/assertions/* - Assertion specifications
-- aqe/v3/tdd/red/outcomes/* - V3 learning outcomes
+- aqe/tdd/red/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/test-generation/tdd/* - TDD cycle coordination

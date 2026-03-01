@@ -77,7 +77,7 @@ INVARIANT cluster_quality:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/defect-intelligence/`
+**Domain Source**: `src/domains/defect-intelligence/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|

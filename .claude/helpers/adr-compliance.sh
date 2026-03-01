@@ -41,7 +41,7 @@ check_adr_001() {
   grep -q "agentic-flow" "$PROJECT_ROOT/package.json" 2>/dev/null && score=$((score + 50))
 
   # Check for imports from agentic-flow
-  local imports=$(grep -r "from.*agentic-flow\|require.*agentic-flow" "$PROJECT_ROOT/v3" "$PROJECT_ROOT/src" 2>/dev/null | grep -v node_modules | wc -l)
+  local imports=$(grep -r "from.*agentic-flow\|require.*agentic-flow" "$PROJECT_ROOT/src" 2>/dev/null | grep -v node_modules | wc -l)
   [ "$imports" -gt 5 ] && score=$((score + 50))
 
   echo "$score"
@@ -52,14 +52,14 @@ check_adr_002() {
   local score=0
 
   # Check for domain directories
-  [ -d "$PROJECT_ROOT/v3" ] || [ -d "$PROJECT_ROOT/src/domains" ] && score=$((score + 30))
+  [ -d "$PROJECT_ROOT/src/domains" ] && score=$((score + 30))
 
   # Check for bounded contexts
-  local contexts=$(find "$PROJECT_ROOT/v3" "$PROJECT_ROOT/src" -type d -name "domain" 2>/dev/null | wc -l)
+  local contexts=$(find "$PROJECT_ROOT/src" -type d -name "domain" 2>/dev/null | wc -l)
   [ "$contexts" -gt 0 ] && score=$((score + 35))
 
   # Check for anti-corruption layers
-  local acl=$(grep -r "AntiCorruption\|Adapter\|Port" "$PROJECT_ROOT/v3" "$PROJECT_ROOT/src" 2>/dev/null | grep -v node_modules | wc -l)
+  local acl=$(grep -r "AntiCorruption\|Adapter\|Port" "$PROJECT_ROOT/src" 2>/dev/null | grep -v node_modules | wc -l)
   [ "$acl" -gt 0 ] && score=$((score + 35))
 
   echo "$score"
@@ -70,10 +70,10 @@ check_adr_003() {
   local score=0
 
   # Check for unified SwarmCoordinator
-  grep -rq "SwarmCoordinator\|UnifiedCoordinator" "$PROJECT_ROOT/v3" "$PROJECT_ROOT/src" 2>/dev/null && score=$((score + 50))
+  grep -rq "SwarmCoordinator\|UnifiedCoordinator" "$PROJECT_ROOT/src" 2>/dev/null && score=$((score + 50))
 
   # Check for no duplicate coordinators
-  local coordinators=$(grep -r "class.*Coordinator" "$PROJECT_ROOT/v3" "$PROJECT_ROOT/src" 2>/dev/null | grep -v node_modules | grep -v ".test." | wc -l)
+  local coordinators=$(grep -r "class.*Coordinator" "$PROJECT_ROOT/src" 2>/dev/null | grep -v node_modules | grep -v ".test." | wc -l)
   [ "$coordinators" -le 3 ] && score=$((score + 50))
 
   echo "$score"
@@ -84,14 +84,14 @@ check_adr_005() {
   local score=0
 
   # Check for MCP server implementation
-  [ -d "$PROJECT_ROOT/v3/@claude-flow/mcp" ] && score=$((score + 40))
+  [ -d "$PROJECT_ROOT/src/mcp" ] && score=$((score + 40))
 
   # Check for MCP tools
-  local tools=$(grep -r "tool.*name\|registerTool" "$PROJECT_ROOT/v3" 2>/dev/null | wc -l)
+  local tools=$(grep -r "tool.*name\|registerTool" "$PROJECT_ROOT/src" 2>/dev/null | wc -l)
   [ "$tools" -gt 5 ] && score=$((score + 30))
 
   # Check for MCP schemas
-  grep -rq "schema\|jsonSchema" "$PROJECT_ROOT/v3/@claude-flow/mcp" 2>/dev/null && score=$((score + 30))
+  grep -rq "schema\|jsonSchema" "$PROJECT_ROOT/src/mcp" 2>/dev/null && score=$((score + 30))
 
   echo "$score"
 }
@@ -104,7 +104,7 @@ check_adr_008() {
   grep -q "vitest" "$PROJECT_ROOT/package.json" 2>/dev/null && score=$((score + 50))
 
   # Check for no jest references
-  local jest_refs=$(grep -r "from.*jest\|jest\." "$PROJECT_ROOT/v3" "$PROJECT_ROOT/src" 2>/dev/null | grep -v node_modules | grep -v "vitest" | wc -l)
+  local jest_refs=$(grep -r "from.*jest\|jest\." "$PROJECT_ROOT/src" 2>/dev/null | grep -v node_modules | grep -v "vitest" | wc -l)
   [ "$jest_refs" -eq 0 ] && score=$((score + 50))
 
   echo "$score"

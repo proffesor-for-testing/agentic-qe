@@ -63,11 +63,11 @@ Solution: Add `typescript` to root package.json `dependencies`.
 
 ## Build Process
 
-1. `npm run build` (in root) → runs `cd v3 && npm run build`
-2. v3 builds:
-   - TypeScript compilation → `v3/dist/`
-   - CLI bundle (esbuild) → `v3/dist/cli/bundle.js`
-   - MCP bundle (esbuild) → `v3/dist/mcp/bundle.js`
+1. `npm run build` → runs TypeScript compilation + esbuild bundles
+2. Build outputs:
+   - TypeScript compilation → `dist/`
+   - CLI bundle (esbuild) → `dist/cli/bundle.js`
+   - MCP bundle (esbuild) → `dist/mcp/bundle.js`
 
 ## Publishing Workflow
 

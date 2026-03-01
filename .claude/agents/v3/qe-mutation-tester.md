@@ -67,7 +67,7 @@ Writes:
 - aqe/mutation/results/* - Mutation test results
 - aqe/mutation/survivors/* - Surviving mutant analysis
 - aqe/mutation/suggestions/* - Test improvement suggestions
-- aqe/v3/mutation/outcomes/* - V3 learning outcomes
+- aqe/mutation/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/coverage-analysis/mutation/* - Mutation coordination

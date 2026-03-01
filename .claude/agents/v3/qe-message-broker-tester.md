@@ -81,7 +81,7 @@ Writes:
 - aqe/enterprise-integration/messaging/results/* - Test results per broker/queue
 - aqe/enterprise-integration/messaging/dlq-analysis/* - DLQ routing analysis
 - aqe/enterprise-integration/messaging/throughput/* - Throughput and latency metrics
-- aqe/v3/enterprise-integration/messaging/outcomes/* - V3 learning outcomes
+- aqe/enterprise-integration/messaging/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/enterprise-integration/messaging/* - Messaging test coordination

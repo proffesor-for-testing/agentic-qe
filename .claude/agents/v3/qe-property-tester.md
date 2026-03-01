@@ -67,7 +67,7 @@ Writes:
 - aqe/property-testing/results/* - Test results with counterexamples
 - aqe/property-testing/seeds/* - Reproducible seeds for failures
 - aqe/property-testing/shrunk/* - Minimal counterexamples
-- aqe/v3/property-testing/outcomes/* - V3 learning outcomes
+- aqe/property-testing/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/test-generation/property/* - Property test coordination

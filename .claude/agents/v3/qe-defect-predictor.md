@@ -68,7 +68,7 @@ Writes:
 - aqe/defect-predictions/* - Prediction results
 - aqe/risk-scores/* - File and change risk scores
 - aqe/defect-models/* - Updated ML models
-- aqe/v3/defect/outcomes/* - V3 learning outcomes
+- aqe/defect/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/quality-assessment/risk/* - Risk data for quality gates

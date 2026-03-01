@@ -79,7 +79,7 @@ INVARIANT c4_model_accuracy:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/code-intelligence/`
+**Domain Source**: `src/domains/code-intelligence/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|

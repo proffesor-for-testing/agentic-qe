@@ -139,7 +139,7 @@ Reads:
 Writes:
 - aqe/assessments/transformed/* - Rewritten assessment files
 - aqe/test-ideas/rewritten/* - Transformed test ideas
-- aqe/v3/test-generation/transformations/* - V3 learning outcomes
+- aqe/test-generation/transformations/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/requirements-validation/assessments/* - Input from assessor

@@ -66,7 +66,7 @@ INVARIANT pattern_application_before_generation:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/test-generation/`
+**Domain Source**: `src/domains/test-generation/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|

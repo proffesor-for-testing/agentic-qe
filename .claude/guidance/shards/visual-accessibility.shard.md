@@ -83,7 +83,7 @@ INVARIANT keyboard_navigability:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/visual-accessibility/`
+**Domain Source**: `src/domains/visual-accessibility/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|
