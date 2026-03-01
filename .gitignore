@@ -1,3 +1,6 @@
+# FFmpeg artifacts
+ffmpeg2pass-*.log*
+
 # macOS
 .DS_Store
 .AppleDouble
