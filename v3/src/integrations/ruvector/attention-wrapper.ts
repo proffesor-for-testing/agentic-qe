@@ -8,17 +8,50 @@
  * @module integrations/ruvector/attention-wrapper
  */
 
-import {
-  FlashAttention,
-  DotProductAttention,
-  MultiHeadAttention,
-  HyperbolicAttention,
-  LinearAttention,
-  MoEAttention,
-  type ArrayInput
-} from '@ruvector/attention';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../../kernel/unified-memory.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+
+// Lazy-load @ruvector/attention native bindings (may not be available on all platforms)
+// Follows the pattern in kernel/unified-memory-hnsw.ts (lines 22-35)
+let _FlashAttention: any = null;
+let _DotProductAttention: any = null;
+let _MultiHeadAttention: any = null;
+let _HyperbolicAttention: any = null;
+let _LinearAttention: any = null;
+let _MoEAttention: any = null;
+let _attentionAvailable = false;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const attn = require('@ruvector/attention');
+  _FlashAttention = attn.FlashAttention;
+  _DotProductAttention = attn.DotProductAttention;
+  _MultiHeadAttention = attn.MultiHeadAttention;
+  _HyperbolicAttention = attn.HyperbolicAttention;
+  _LinearAttention = attn.LinearAttention;
+  _MoEAttention = attn.MoEAttention;
+  _attentionAvailable = true;
+} catch {
+  // @ruvector/attention not available — wrapper methods will throw clear errors
+}
+
+/** Check if native attention module is available */
+export function isAttentionAvailable(): boolean {
+  return _attentionAvailable;
+}
+
+function requireAttention(): void {
+  if (!_attentionAvailable) {
+    throw new Error(
+      '@ruvector/attention native module is not available on this platform. ' +
+      'Install the appropriate optional dependency for your platform, ' +
+      'or use a platform where pre-built binaries are available.'
+    );
+  }
+}
+
+/** ArrayInput type compatible with @ruvector/attention */
+export type ArrayInput = Float32Array | number[];
 
 // ============================================================================
 // QE-Specific Types
@@ -284,31 +317,33 @@ class AttentionFactory {
    * Create attention instance based on strategy
    */
   static create(config: QEFlashAttentionConfig): unknown {
+    requireAttention();
+
     switch (config.strategy) {
       case 'flash':
-        return new FlashAttention(config.dim, config.blockSize);
+        return new _FlashAttention(config.dim, config.blockSize);
 
       case 'dot-product':
-        return new DotProductAttention(config.dim);
+        return new _DotProductAttention(config.dim);
 
       case 'multi-head':
-        return new MultiHeadAttention(config.dim, config.numHeads ?? 8);
+        return new _MultiHeadAttention(config.dim, config.numHeads ?? 8);
 
       case 'hyperbolic':
-        return new HyperbolicAttention(config.dim, config.curvature);
+        return new _HyperbolicAttention(config.dim, config.curvature);
 
       case 'linear':
-        return new LinearAttention(config.dim, config.features);
+        return new _LinearAttention(config.dim, config.features);
 
       case 'moe':
-        return MoEAttention.simple(
+        return _MoEAttention.simple(
           config.dim,
           config.moeConfig?.numExperts ?? 8,
           config.moeConfig?.topK ?? 2
         );
 
       default:
-        return new FlashAttention(config.dim, config.blockSize);
+        return new _FlashAttention(config.dim, config.blockSize);
     }
   }
 }
@@ -393,21 +428,14 @@ export class QEFlashAttention {
     // Call @ruvector/attention's compute method
     let output: Float32Array;
 
-    if (this.attention instanceof FlashAttention) {
-      output = this.attention.compute(query, keys, values);
-    } else if (this.attention instanceof DotProductAttention) {
-      output = this.attention.compute(query, keys, values);
-    } else if (this.attention instanceof MultiHeadAttention) {
-      output = this.attention.compute(query, keys, values);
-    } else if (this.attention instanceof HyperbolicAttention) {
-      output = this.attention.compute(query, keys, values);
-    } else if (this.attention instanceof LinearAttention) {
-      output = this.attention.compute(query, keys, values);
-    } else if (this.attention instanceof MoEAttention) {
-      output = this.attention.compute(query, keys, values);
+    // All @ruvector/attention instances expose a .compute() method
+    const attn = this.attention as { compute: (q: Float32Array, k: Float32Array[], v: Float32Array[]) => Float32Array };
+    if (typeof attn.compute === 'function') {
+      output = attn.compute(query, keys, values);
     } else {
       // Fallback to FlashAttention
-      const fallback = new FlashAttention(this.config.dim);
+      requireAttention();
+      const fallback = new _FlashAttention(this.config.dim);
       output = fallback.compute(query, keys, values);
     }
 
@@ -771,15 +799,14 @@ export function getWorkloadTypes(): QEWorkloadType[] {
 // Re-exports from @ruvector/attention for advanced users
 // ============================================================================
 
-export {
-  FlashAttention as RuvectorFlashAttention,
-  DotProductAttention as RuvectorDotProductAttention,
-  MultiHeadAttention as RuvectorMultiHeadAttention,
-  HyperbolicAttention as RuvectorHyperbolicAttention,
-  LinearAttention as RuvectorLinearAttention,
-  MoEAttention as RuvectorMoEAttention,
-  type ArrayInput,
-};
+// Lazy re-exports from @ruvector/attention for advanced users
+// These are getters so importing this module doesn't crash when the native binary is missing.
+export function getRuvectorFlashAttention() { requireAttention(); return _FlashAttention; }
+export function getRuvectorDotProductAttention() { requireAttention(); return _DotProductAttention; }
+export function getRuvectorMultiHeadAttention() { requireAttention(); return _MultiHeadAttention; }
+export function getRuvectorHyperbolicAttention() { requireAttention(); return _HyperbolicAttention; }
+export function getRuvectorLinearAttention() { requireAttention(); return _LinearAttention; }
+export function getRuvectorMoEAttention() { requireAttention(); return _MoEAttention; }
 
 // ============================================================================
 // Utility Functions

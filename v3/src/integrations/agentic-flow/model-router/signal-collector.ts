@@ -235,11 +235,11 @@ export class SignalCollector implements ISignalCollector {
     confidence: number;
     reason: string;
   }> {
-    if (!this.config.enableAgentBooster || !this.agentBoosterAdapter) {
+    if (!this.config.enableAgentBooster) {
       return {
         eligible: false,
         confidence: 0,
-        reason: 'Agent Booster is disabled or not available',
+        reason: 'Agent Booster is disabled',
       };
     }
 
@@ -274,8 +274,8 @@ export class SignalCollector implements ISignalCollector {
       }
     }
 
-    // If code context provided, try Agent Booster detection
-    if (input.codeContext && detectedTransformType) {
+    // If code context provided and adapter available, try Agent Booster WASM detection
+    if (input.codeContext && detectedTransformType && this.agentBoosterAdapter) {
       try {
         const opportunities = await this.agentBoosterAdapter.detectTransformOpportunities(
           input.codeContext

@@ -101,9 +101,17 @@
   },
   "optionalDependencies": {
     "@ruvector/attention-darwin-arm64": "0.1.3",
+    "@ruvector/attention-darwin-x64": "0.1.3",
     "@ruvector/attention-linux-arm64-gnu": "0.1.3",
+    "@ruvector/attention-linux-x64-gnu": "0.1.3",
+    "@ruvector/attention-linux-x64-musl": "npm:@ruvector/attention-linux-x64-gnu@0.1.3",
+    "@ruvector/attention-linux-arm64-musl": "npm:@ruvector/attention-linux-arm64-gnu@0.1.3",
     "@ruvector/gnn-darwin-arm64": "0.1.19",
-    "@ruvector/gnn-linux-arm64-gnu": "0.1.19"
+    "@ruvector/gnn-darwin-x64": "0.1.19",
+    "@ruvector/gnn-linux-arm64-gnu": "0.1.19",
+    "@ruvector/gnn-linux-x64-gnu": "0.1.19",
+    "@ruvector/gnn-linux-x64-musl": "npm:@ruvector/gnn-linux-x64-gnu@0.1.19",
+    "@ruvector/gnn-linux-arm64-musl": "npm:@ruvector/gnn-linux-arm64-gnu@0.1.19"
   },
   "resolutions": {
     "graceful-fs": "^4.2.11",

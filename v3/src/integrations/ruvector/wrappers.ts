@@ -53,13 +53,14 @@ export {
   QE_SONA_CONFIG,
   QE_PERFORMANCE_TARGETS,
 
-  // Re-exports from @ruvector/attention
-  RuvectorFlashAttention,
-  RuvectorDotProductAttention,
-  RuvectorMultiHeadAttention,
-  RuvectorHyperbolicAttention,
-  RuvectorLinearAttention,
-  RuvectorMoEAttention,
+  // Lazy re-exports from @ruvector/attention (getter functions, not classes)
+  getRuvectorFlashAttention,
+  getRuvectorDotProductAttention,
+  getRuvectorMultiHeadAttention,
+  getRuvectorHyperbolicAttention,
+  getRuvectorLinearAttention,
+  getRuvectorMoEAttention,
+  isAttentionAvailable,
   type ArrayInput,
 } from './attention-wrapper.js';
 
@@ -82,13 +83,14 @@ export {
   type QECompressionLevel,
   type QECompressedTensor,
 
-  // Re-exports from @ruvector/gnn
-  RuvectorLayer,
-  TensorCompress,
-  differentiableSearch,
-  hierarchicalForward,
-  getCompressionLevel,
-  init,
+  // Lazy re-exports from @ruvector/gnn (getter functions, not classes)
+  getRuvectorLayer,
+  getTensorCompress,
+  getDifferentiableSearch,
+  getHierarchicalForward,
+  getGetCompressionLevel,
+  getInit,
+  isGNNAvailable,
   type CompressionLevelConfig,
   type SearchResult,
 } from './gnn-wrapper.js';

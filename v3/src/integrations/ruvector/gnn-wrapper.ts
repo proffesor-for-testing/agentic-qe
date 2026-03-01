@@ -8,17 +8,6 @@
  * @module integrations/ruvector/gnn-wrapper
  */
 
-import {
-  RuvectorLayer,
-  TensorCompress,
-  differentiableSearch,
-  hierarchicalForward,
-  getCompressionLevel,
-  init,
-  type CompressionLevelConfig,
-  type SearchResult
-} from '@ruvector/gnn';
-
 import type {
   IEmbedding,
   IHNSWConfig,
@@ -26,6 +15,61 @@ import type {
   ISearchOptions,
 } from '../embeddings/base/types';
 import { safeJsonParse } from '../../shared/safe-json.js';
+
+// Lazy-load @ruvector/gnn native bindings (may not be available on all platforms)
+// Follows the pattern in kernel/unified-memory-hnsw.ts (lines 22-35)
+let _RuvectorLayer: any = null;
+let _TensorCompress: any = null;
+let _differentiableSearch: any = null;
+let _hierarchicalForward: any = null;
+let _getCompressionLevel: any = null;
+let _init: any = null;
+let _gnnAvailable = false;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const gnn = require('@ruvector/gnn');
+  _RuvectorLayer = gnn.RuvectorLayer;
+  _TensorCompress = gnn.TensorCompress;
+  _differentiableSearch = gnn.differentiableSearch;
+  _hierarchicalForward = gnn.hierarchicalForward;
+  _getCompressionLevel = gnn.getCompressionLevel;
+  _init = gnn.init;
+  _gnnAvailable = true;
+} catch {
+  // @ruvector/gnn not available — wrapper methods will throw clear errors
+}
+
+/** Check if native GNN module is available */
+export function isGNNAvailable(): boolean {
+  return _gnnAvailable;
+}
+
+function requireGNN(): void {
+  if (!_gnnAvailable) {
+    throw new Error(
+      '@ruvector/gnn native module is not available on this platform. ' +
+      'Install the appropriate optional dependency for your platform, ' +
+      'or use a platform where pre-built binaries are available.'
+    );
+  }
+}
+
+/** CompressionLevelConfig type compatible with @ruvector/gnn */
+export interface CompressionLevelConfig {
+  levelType: string;
+  scale?: number;
+  subvectors?: number;
+  centroids?: number;
+  outlierThreshold?: number;
+  threshold?: number;
+}
+
+/** SearchResult type compatible with @ruvector/gnn */
+export interface SearchResult {
+  indices: number[];
+  weights: number[];
+}
 
 // ============================================================================
 // Initialize @ruvector/gnn
@@ -38,7 +82,8 @@ let gnnInitialized = false;
  */
 export function initGNN(): string {
   if (!gnnInitialized) {
-    const result = init();
+    requireGNN();
+    const result = _init();
     gnnInitialized = true;
     return result;
   }
@@ -111,8 +156,8 @@ export class QEGNNEmbeddingIndex {
   private indexes: Map<EmbeddingNamespace, Map<number, IEmbedding>>;
   private config: IHNSWConfig;
   private nextId: Map<EmbeddingNamespace, number>;
-  private gnnLayers: Map<string, RuvectorLayer>;
-  private compressor: TensorCompress;
+  private gnnLayers: Map<string, any>;
+  private compressor: any;
 
   constructor(config: Partial<IHNSWConfig> = {}) {
     this.config = {
@@ -127,7 +172,9 @@ export class QEGNNEmbeddingIndex {
     this.indexes = new Map();
     this.nextId = new Map();
     this.gnnLayers = new Map();
-    this.compressor = new TensorCompress();
+
+    requireGNN();
+    this.compressor = new _TensorCompress();
 
     // Initialize @ruvector/gnn if not already done
     initGNN();
@@ -214,7 +261,7 @@ export class QEGNNEmbeddingIndex {
     const queryFloat32 = new Float32Array(query.vector);
     const candidateFloat32s = candidates.map((c) => new Float32Array(c.vector));
 
-    const result = differentiableSearch(
+    const result = _differentiableSearch(
       queryFloat32 as unknown as number[],
       candidateFloat32s as unknown as number[][],
       Math.min(k, candidates.length),
@@ -222,7 +269,7 @@ export class QEGNNEmbeddingIndex {
     );
 
     // Map indices back to IDs and convert weights to distances
-    return result.indices.map((idx, i) => ({
+    return result.indices.map((idx: number, i: number) => ({
       id: candidates[idx]?.id ?? idx,
       // Convert soft weight to distance (higher weight = lower distance)
       distance: 1 - result.weights[i],
@@ -247,7 +294,7 @@ export class QEGNNEmbeddingIndex {
       new Float32Array(c.embedding.vector)
     );
 
-    const result = differentiableSearch(
+    const result = _differentiableSearch(
       queryVector as unknown as number[],
       candidateVectors as unknown as number[][],
       Math.min(k, candidates.length),
@@ -255,7 +302,7 @@ export class QEGNNEmbeddingIndex {
     );
 
     return {
-      indices: result.indices.map((idx) => candidates[idx]?.id ?? idx),
+      indices: result.indices.map((idx: number) => candidates[idx]?.id ?? idx),
       weights: result.weights,
     };
   }
@@ -274,9 +321,9 @@ export class QEGNNEmbeddingIndex {
     const layerKey = layerConfigs.map((c) => `${c.inputDim}-${c.hiddenDim}`).join(',');
 
     if (!this.gnnLayers.has(layerKey)) {
-      const layers: RuvectorLayer[] = [];
+      const layers: any[] = [];
       for (const config of layerConfigs) {
-        const layer = new RuvectorLayer(
+        const layer = new _RuvectorLayer(
           config.inputDim,
           config.hiddenDim,
           config.heads,
@@ -300,7 +347,7 @@ export class QEGNNEmbeddingIndex {
       layer.map((emb) => new Float32Array(emb))
     );
 
-    return Array.from(hierarchicalForward(
+    return Array.from(_hierarchicalForward(
       queryFloat32 as unknown as number[],
       layerEmbeddingsFloat32 as unknown as number[][][],
       [gnnLayerJson]
@@ -319,7 +366,7 @@ export class QEGNNEmbeddingIndex {
     embedding: IEmbedding,
     accessFreq: number
   ): QECompressedTensor {
-    const rawLevel = getCompressionLevel(accessFreq);
+    const rawLevel = _getCompressionLevel(accessFreq);
     // Map @ruvector/gnn compression levels to our QE type
     const levelMap: Record<string, QECompressionLevel> = {
       'none': 'none',
@@ -375,7 +422,8 @@ export class QEGNNEmbeddingIndex {
    * Get compression level for access frequency
    */
   getCompressionLevelForFrequency(accessFreq: number): QECompressionLevel {
-    return getCompressionLevel(accessFreq) as QECompressionLevel;
+    requireGNN();
+    return _getCompressionLevel(accessFreq) as QECompressionLevel;
   }
 
   /**
@@ -559,16 +607,17 @@ export class QEGNNIndexFactory {
  * Factory for creating GNN layers
  */
 export class GNNLayerFactory {
-  private static layers: Map<string, RuvectorLayer> = new Map();
+  private static layers: Map<string, any> = new Map();
 
   /**
    * Get or create a GNN layer
    */
-  static getLayer(config: QEGNNLayerConfig): RuvectorLayer {
+  static getLayer(config: QEGNNLayerConfig): any {
     const key = `${config.inputDim}-${config.hiddenDim}-${config.heads}-${config.dropout}`;
 
     if (!this.layers.has(key)) {
-      const layer = new RuvectorLayer(
+      requireGNN();
+      const layer = new _RuvectorLayer(
         config.inputDim,
         config.hiddenDim,
         config.heads,
@@ -583,8 +632,9 @@ export class GNNLayerFactory {
   /**
    * Create layer from JSON
    */
-  static layerFromJson(json: string): RuvectorLayer {
-    return RuvectorLayer.fromJson(json);
+  static layerFromJson(json: string): any {
+    requireGNN();
+    return _RuvectorLayer.fromJson(json);
   }
 
   /**
@@ -603,7 +653,14 @@ export class GNNLayerFactory {
  * Factory for tensor compression operations
  */
 export class TensorCompressionFactory {
-  private static compressor = new TensorCompress();
+  private static _compressor: any = null;
+  private static get compressor(): any {
+    if (!this._compressor) {
+      requireGNN();
+      this._compressor = new _TensorCompress();
+    }
+    return this._compressor;
+  }
 
   /**
    * Compress tensor with specific level
@@ -641,7 +698,8 @@ export class TensorCompressionFactory {
    * Get compression level for frequency
    */
   static getLevel(accessFreq: number): QECompressionLevel {
-    return getCompressionLevel(accessFreq) as QECompressionLevel;
+    requireGNN();
+    return _getCompressionLevel(accessFreq) as QECompressionLevel;
   }
 }
 
@@ -649,16 +707,14 @@ export class TensorCompressionFactory {
 // Re-exports from @ruvector/gnn for advanced users
 // ============================================================================
 
-export {
-  RuvectorLayer,
-  TensorCompress,
-  differentiableSearch,
-  hierarchicalForward,
-  getCompressionLevel,
-  init,
-  type CompressionLevelConfig,
-  type SearchResult,
-};
+// Lazy re-exports from @ruvector/gnn for advanced users
+// These are getters so importing this module doesn't crash when the native binary is missing.
+export function getRuvectorLayer() { requireGNN(); return _RuvectorLayer; }
+export function getTensorCompress() { requireGNN(); return _TensorCompress; }
+export function getDifferentiableSearch() { requireGNN(); return _differentiableSearch; }
+export function getHierarchicalForward() { requireGNN(); return _hierarchicalForward; }
+export function getGetCompressionLevel() { requireGNN(); return _getCompressionLevel; }
+export function getInit() { requireGNN(); return _init; }
 
 // ============================================================================
 // Utility Functions
@@ -736,7 +792,7 @@ export function batchDifferentiableSearch(
 
   for (const query of queries) {
     const queryFloat32 = query instanceof Float32Array ? query : new Float32Array(query);
-    const result = differentiableSearch(
+    const result = _differentiableSearch(
       queryFloat32 as unknown as number[],
       candidatesFloat32 as unknown as number[][],
       k,
