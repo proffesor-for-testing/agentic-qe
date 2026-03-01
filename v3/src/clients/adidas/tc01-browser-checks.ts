@@ -1,7 +1,7 @@
 /**
  * Agentic QE v3 - Adidas TC01 Browser Check Steps
  * Step definitions for SSR return portal verification via Playwright.
- * Covers checks 117-124 across 2 step definitions (8 checks total).
+ * Covers checks 117-121 (5 live checks) + 122-124 (3 placeholders, NOT counted as coverage).
  *
  * Return journey flow:
  * - Customer navigates to order-integrated-return URL on staging.adidas.pt

@@ -40,10 +40,10 @@ export interface SterlingAuthConfig {
 // ============================================================================
 
 export interface XAPIClientConfig {
-  baseUrl: string;           // e.g. https://host/smcfs/yfshttpapi/yantrahttpapitester.jsp
-  username: string;
-  password: string;
-  timeout?: number;          // Default: 60000
+  baseUrl: string;           // JSP URL: https://host/smcfs/yfshttpapi/yantrahttpapitester.jsp
+  username: string;          // Form field: YFSEnvironment.userId
+  password: string;          // Form field: YFSEnvironment.password
+  timeout?: number;          // Default: 60000 (page navigation timeout)
   maxRetries?: number;       // Default: 2
   retryBaseDelay?: number;   // Default: 2000
 }
@@ -51,6 +51,8 @@ export interface XAPIClientConfig {
 export interface XAPIClient {
   invoke(serviceName: string, xmlPayload: string): Promise<XAPIResponse>;
   invokeOrThrow(serviceName: string, xmlPayload: string): Promise<XAPIResponse>;
+  /** Close browser / release resources. Safe to call multiple times. */
+  close?(): Promise<void>;
 }
 
 export interface XAPIResponse {

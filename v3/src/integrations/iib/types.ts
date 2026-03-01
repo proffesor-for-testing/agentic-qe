@@ -54,6 +54,8 @@ export interface IIBTransaction {
   direction: 'input' | 'output';
   correlationId?: string;
   messageId?: string;
+  /** EPOCH GraphQL EVENT_NAME — the IIB terminal name (e.g., "Input", "HTTP Reply") */
+  eventName?: string;
 }
 
 // ============================================================================

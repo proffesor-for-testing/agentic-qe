@@ -1,22 +1,20 @@
 /**
- * Agentic QE v3 - Sterling XAPI HTTP Tester Client
+ * Agentic QE v3 - Sterling XAPI Client (Playwright)
  *
- * Sends XML payloads to the Sterling XAPI HTTP API Tester endpoint.
- * Used for lifecycle operations that require write/mutate access
- * (create order, ship confirm, deliver, return, etc.).
+ * Drives the Sterling XAPI HTTP API Tester JSP page via Playwright.
+ * This is the proven approach from the Adidas O2C MVP (15/15 PASS).
  *
- * Endpoint: POST https://<host>/smcfs/yfshttpapi/yantrahttpapitester.jsp
- * Auth: Basic (always)
- * Body: application/x-www-form-urlencoded with form fields:
- *   YFSEnvironment, YantraMessageGroupId, APIName, IsFlow, InteropType=SYNC, InputXml
+ * How it works:
+ *   1. Launches headless Chromium with HTTP Basic credentials
+ *   2. Navigates to the JSP page (yantrahttpapitester.jsp)
+ *   3. Fills YFSEnvironment.userId / .password on the form
+ *   4. For flows: checks "Is a Service?" checkbox, fills ServiceName
+ *   5. For APIs: unchecks checkbox, selects ApiName from dropdown
+ *   6. Pastes XML into InteropApiData textarea
+ *   7. Clicks "Test API Now!" and reads the response
  *
- * Unlike the REST client (JSON, read-only), this client:
- *   - Sends XML payloads via form-encoded POST
- *   - Supports write/mutate operations
- *   - Detects Sterling 200-OK-with-error-body responses
- *   - Retries on transient HTTP errors with exponential backoff
- *
- * Ported from the proven Adidas O2C POC implementation.
+ * The JSP page handles session/auth naturally, avoiding the transient
+ * 403 errors seen with direct InteropHttpServlet POST calls.
  */
 
 import type { XAPIClientConfig, XAPIClient, XAPIResponse } from './types';
@@ -29,7 +27,8 @@ import { ok, err } from '../../shared/types';
 
 /**
  * Services that are "flows" (composite services) vs simple API calls.
- * The XAPI tester JSP needs IsFlow=Y for these.
+ * Flows use the "Is a Service?" checkbox + ServiceName field.
+ * APIs use the ApiName dropdown.
  */
 const KNOWN_SERVICE_FLOWS = new Set([
   'adidasWE_CreateOrderSync',
@@ -51,170 +50,234 @@ function isServiceFlow(serviceName: string): boolean {
 // ============================================================================
 
 /**
- * Check if an XML response body contains a Sterling error.
- * Sterling returns 200 OK even for logical errors -- the error is buried in the XML body.
- *
- * Three detection patterns:
- *  1. ErrorDescription attribute: `<Error ... ErrorDescription="..." />`
- *  2. ErrorCode attribute: `<Error ... ErrorCode="..." />`
- *  3. Generic Error element: `<Error>...</Error>`
+ * Check if a response body contains a Sterling error.
+ * Sterling returns 200 OK even for logical errors — the error is in the body.
  */
-export function extractSterlingXmlError(xml: string): string | undefined {
-  // Pattern 1: ErrorDescription attribute
-  const descMatch = xml.match(/ErrorDescription="([^"]+)"/);
+export function extractSterlingXmlError(text: string): string | undefined {
+  const trimmed = text.trimStart();
+
+  // HTML page returned instead of API response
+  if (trimmed.startsWith('<HTML') || trimmed.startsWith('<html') || trimmed.startsWith('<!DOCTYPE')) {
+    return 'XAPI returned HTML page instead of XML response';
+  }
+
+  // Error patterns in response text
+  const descMatch = text.match(/ErrorDescription="([^"]+)"/);
   if (descMatch) return descMatch[1];
 
-  // Pattern 2: ErrorCode attribute
-  const codeMatch = xml.match(/ErrorCode="([^"]+)"/);
+  const codeMatch = text.match(/ErrorCode="([^"]+)"/);
   if (codeMatch) return `Error code: ${codeMatch[1]}`;
 
-  // Pattern 3: Generic Error element with body text
-  const errorMatch = xml.match(/<Error[^>]*>(.*?)<\/Error>/s);
+  const errorMatch = text.match(/<Error[^>]*>(.*?)<\/Error>/s);
   if (errorMatch) return errorMatch[1].trim() || 'Unknown Sterling error';
+
+  // HTTP error patterns in page text
+  if (text.includes('Error 403') || text.includes('SRVE0295E')) return 'HTTP 403 Forbidden';
+  if (text.includes('Error 401')) return 'HTTP 401 Unauthorized';
+  if (text.includes('Error 500')) return 'HTTP 500 Internal Server Error';
 
   return undefined;
 }
 
 // ============================================================================
-// Helpers
+// Playwright XAPI Client
 // ============================================================================
 
-function isRetryableStatus(status: number): boolean {
-  return status === 429 || status === 502 || status === 503 || status === 504;
-}
-
-function isNetworkError(error: Error): boolean {
-  return (
-    error.name === 'AbortError' ||
-    error.message.includes('fetch failed') ||
-    error.message.includes('ECONNREFUSED') ||
-    error.message.includes('ECONNRESET') ||
-    error.message.includes('ETIMEDOUT')
-  );
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// ============================================================================
-// XAPI Client Implementation
-// ============================================================================
-
-class XAPIClientImpl implements XAPIClient {
+class PlaywrightXAPIClient implements XAPIClient {
   private readonly baseUrl: string;
-  private readonly authHeader: string;
+  private readonly username: string;
+  private readonly password: string;
   private readonly timeout: number;
   private readonly maxRetries: number;
   private readonly retryBaseDelay: number;
+
+  // Lazy-initialized browser resources
+  private browser: import('playwright').Browser | null = null;
+  private context: import('playwright').BrowserContext | null = null;
+  private page: import('playwright').Page | null = null;
+  private launching: Promise<void> | null = null;
 
   constructor(config: XAPIClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
     this.timeout = config.timeout ?? 60_000;
     this.maxRetries = config.maxRetries ?? 2;
     this.retryBaseDelay = config.retryBaseDelay ?? 2_000;
-    this.authHeader = `Basic ${Buffer.from(
-      `${config.username}:${config.password}`,
-    ).toString('base64')}`;
+    this.username = config.username;
+    this.password = config.password;
   }
 
   // --------------------------------------------------------------------------
-  // Core request method
+  // Browser lifecycle (lazy init)
+  // --------------------------------------------------------------------------
+
+  private async ensureBrowser(): Promise<import('playwright').Page> {
+    if (this.page) return this.page;
+
+    // Prevent concurrent launches
+    if (this.launching) {
+      await this.launching;
+      return this.page!;
+    }
+
+    this.launching = (async () => {
+      const { chromium } = await import('playwright');
+      this.browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox'],
+      });
+      this.context = await this.browser.newContext({
+        httpCredentials: { username: this.username, password: this.password },
+      });
+      this.page = await this.context.newPage();
+      this.page.setDefaultTimeout(this.timeout);
+    })();
+
+    await this.launching;
+    return this.page!;
+  }
+
+  async close(): Promise<void> {
+    if (this.browser) {
+      await this.browser.close().catch(() => {});
+      this.browser = null;
+      this.context = null;
+      this.page = null;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Core: invoke a service/API via the JSP form
   // --------------------------------------------------------------------------
 
   async invoke(serviceName: string, xmlPayload: string): Promise<XAPIResponse> {
-    const startTotal = Date.now();
+    const start = Date.now();
     let lastError: Error | null = null;
 
-    // Build form-encoded body that the XAPI tester JSP expects
-    const formBody = new URLSearchParams();
-    formBody.append('YFSEnvironment', '');
-    formBody.append('YantraMessageGroupId', '');
-    formBody.append('APIName', serviceName);
-    formBody.append('IsFlow', isServiceFlow(serviceName) ? 'Y' : 'N');
-    formBody.append('InteropType', 'SYNC');
-    formBody.append('InputXml', xmlPayload);
-
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      // Exponential backoff with jitter on retries
       if (attempt > 0) {
-        const delay =
-          this.retryBaseDelay * Math.pow(2, attempt - 1) + Math.random() * 500;
-        await sleep(delay);
+        const delay = this.retryBaseDelay * Math.pow(2, attempt - 1) + Math.random() * 500;
+        await new Promise((r) => setTimeout(r, delay));
       }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
       try {
-        const response = await fetch(this.baseUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Authorization: this.authHeader,
-          },
-          body: formBody.toString(),
-          signal: controller.signal,
-        });
+        const page = await this.ensureBrowser();
+        let responseText: string;
 
-        clearTimeout(timeoutId);
-        const duration = Date.now() - startTotal;
-
-        // Retry on transient HTTP errors
-        if (isRetryableStatus(response.status) && attempt < this.maxRetries) {
-          lastError = new Error(`HTTP ${response.status} from ${serviceName}`);
-          continue;
+        if (isServiceFlow(serviceName)) {
+          responseText = await this.invokeServiceOnPage(page, serviceName, xmlPayload);
+        } else {
+          responseText = await this.invokeAPIOnPage(page, serviceName, xmlPayload);
         }
 
-        // Non-OK HTTP status — throw immediately (not retryable)
-        if (!response.ok) {
-          const bodyText = await response.text();
-          const preview = bodyText.slice(0, 200).replace(/\n/g, ' ');
-          throw new Error(
-            `HTTP ${response.status} from XAPI ${serviceName} after ${attempt} retries: ${preview}`,
-          );
-        }
-
-        // Parse 200 response — check for Sterling error-in-body
-        const body = await response.text();
-        const error = extractSterlingXmlError(body);
+        const duration = Date.now() - start;
+        const error = extractSterlingXmlError(responseText);
 
         return {
-          body,
-          status: response.status,
+          body: responseText,
+          status: 200,
           duration,
           retries: attempt,
           success: !error,
           error,
         };
-      } catch (catchErr) {
-        clearTimeout(timeoutId);
-        lastError =
-          catchErr instanceof Error ? catchErr : new Error(String(catchErr));
+      } catch (e) {
+        lastError = e instanceof Error ? e : new Error(String(e));
 
-        // Only retry on network/timeout errors; anything else propagates
-        if (!isNetworkError(lastError) || attempt >= this.maxRetries) {
+        // On page crash or navigation timeout, open a fresh page and retry
+        if (lastError.message.includes('crash') || lastError.message.includes('Target closed')) {
+          try {
+            this.page = await this.context!.newPage();
+            this.page.setDefaultTimeout(this.timeout);
+          } catch { /* will retry with ensureBrowser */ }
+        }
+
+        if (attempt >= this.maxRetries) {
           throw lastError;
         }
       }
     }
 
-    throw (
-      lastError ??
-      new Error(
-        `XAPI ${serviceName} failed after ${this.maxRetries} retries`,
-      )
-    );
+    throw lastError ?? new Error(`XAPI ${serviceName} failed after ${this.maxRetries} retries`);
+  }
+
+  // --------------------------------------------------------------------------
+  // JSP form interaction — Service (IsFlow=Y)
+  // --------------------------------------------------------------------------
+
+  private async invokeServiceOnPage(
+    page: import('playwright').Page,
+    serviceName: string,
+    xml: string,
+  ): Promise<string> {
+    // Navigate fresh each time to avoid stale state
+    await page.goto(this.baseUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+
+    // Fill credentials on the form
+    await page.locator('input[name="YFSEnvironment.userId"]').first().fill(this.username);
+    await page.locator('input[name="YFSEnvironment.password"]').first().fill(this.password);
+
+    // Check "Is a Service?" checkbox
+    const checkbox = page.locator('input[name="InvokeFlow"]');
+    if (!(await checkbox.isChecked())) {
+      await checkbox.check();
+    }
+
+    // Fill service name
+    await page.locator('input[name="ServiceName"]').fill(serviceName);
+
+    // Paste XML into Message textarea
+    await page.locator('textarea[name="InteropApiData"]').fill(xml);
+
+    // Click "Test API Now!"
+    await page.locator('input[name="btnTest"]').click();
+
+    // Wait for response page
+    await page.waitForLoadState('networkidle', { timeout: this.timeout });
+
+    return page.evaluate(() => document.body.innerText);
+  }
+
+  // --------------------------------------------------------------------------
+  // JSP form interaction — API (IsFlow=N)
+  // --------------------------------------------------------------------------
+
+  private async invokeAPIOnPage(
+    page: import('playwright').Page,
+    apiName: string,
+    xml: string,
+  ): Promise<string> {
+    await page.goto(this.baseUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+
+    // Fill credentials
+    await page.locator('input[name="YFSEnvironment.userId"]').first().fill(this.username);
+    await page.locator('input[name="YFSEnvironment.password"]').first().fill(this.password);
+
+    // Uncheck "Is a Service?" if checked
+    const checkbox = page.locator('input[name="InvokeFlow"]');
+    if (await checkbox.isChecked()) {
+      await checkbox.uncheck();
+    }
+
+    // Select API from dropdown
+    await page.locator('select[name="ApiName"]').selectOption(apiName);
+
+    // Paste XML into Message textarea
+    await page.locator('textarea[name="InteropApiData"]').fill(xml);
+
+    // Click "Test API Now!"
+    await page.locator('input[name="btnTest"]').click();
+
+    // Wait for response page
+    await page.waitForLoadState('networkidle', { timeout: this.timeout });
+
+    return page.evaluate(() => document.body.innerText);
   }
 
   // --------------------------------------------------------------------------
   // Convenience: invoke and assert success
   // --------------------------------------------------------------------------
 
-  async invokeOrThrow(
-    serviceName: string,
-    xmlPayload: string,
-  ): Promise<XAPIResponse> {
+  async invokeOrThrow(serviceName: string, xmlPayload: string): Promise<XAPIResponse> {
     const result = await this.invoke(serviceName, xmlPayload);
     if (!result.success) {
       throw new Error(
@@ -230,9 +293,7 @@ class XAPIClientImpl implements XAPIClient {
 // ============================================================================
 
 /**
- * Create an XAPI client for Sterling OMS.
- *
- * @returns A Result wrapping the client, or an error if config validation fails.
+ * Create a Playwright-based XAPI client for Sterling OMS.
  *
  * @example
  * ```ts
@@ -243,6 +304,7 @@ class XAPIClientImpl implements XAPIClient {
  * });
  * if (!result.success) throw new Error(result.error);
  * const response = await result.value.invoke('getOrderDetails', orderXml);
+ * await result.value.close?.();
  * ```
  */
 export function createXAPIClient(
@@ -254,5 +316,5 @@ export function createXAPIClient(
   if (!config.username || !config.password) {
     return err('XAPIClientConfig.username and password are required');
   }
-  return ok(new XAPIClientImpl(config));
+  return ok(new PlaywrightXAPIClient(config));
 }

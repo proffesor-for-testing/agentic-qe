@@ -6,6 +6,7 @@
 
 import type { SterlingClientConfig, XAPIClientConfig } from '../../integrations/sterling/types';
 import type { MQBrowseConfig, EpochDBConfig } from '../../integrations/iib/types';
+import type { EpochGraphQLConfig } from '../../integrations/iib/providers/epoch-graphql';
 import type { NShiftClientConfig } from '../../integrations/nshift/types';
 import type { EmailConfig } from '../../integrations/email/types';
 import type { BrowserConfig } from '../../integrations/browser/types';
@@ -23,6 +24,10 @@ export interface AdidasClientConfig {
   epochDB: {
     enabled: boolean;
     config?: EpochDBConfig;
+  };
+  epochGraphQL: {
+    enabled: boolean;
+    config?: EpochGraphQLConfig;
   };
   mqBrowse: {
     enabled: boolean;
@@ -111,7 +116,11 @@ export function loadAdidasConfig(): AdidasClientConfig {
   }
   const authMethod = authMethodRaw as 'basic' | 'bearer' | 'apikey';
 
-  // EPOCH DB is enabled when host + user + password are set (FALLBACK Layer 2 — MQ Browse is primary)
+  // EPOCH GraphQL is enabled when URL is set (PREFERRED fallback — actual IIB payloads via GraphQL)
+  const epochGraphQLUrl = optionalEnv('ADIDAS_EPOCH_GRAPHQL_URL');
+  const epochGraphQLEnabled = !!epochGraphQLUrl;
+
+  // EPOCH DB is enabled when host + user + password are set (LAST RESORT Layer 2 — indirect DB state only)
   const epochHost = optionalEnv('ADIDAS_EPOCH_DB_HOST');
   const epochUser = optionalEnv('ADIDAS_EPOCH_DB_USER');
   const epochPassword = optionalEnv('ADIDAS_EPOCH_DB_PASSWORD');
@@ -166,6 +175,14 @@ export function loadAdidasConfig(): AdidasClientConfig {
         username: xapiUsername!,
         password: xapiPassword!,
         timeout: 60_000,
+      } : undefined,
+    },
+    epochGraphQL: {
+      enabled: epochGraphQLEnabled,
+      config: epochGraphQLEnabled ? {
+        baseUrl: epochGraphQLUrl!,
+        endpoint: optionalEnv('ADIDAS_EPOCH_GRAPHQL_ENDPOINT') ?? '/graphqlmdsit',
+        timeout: optionalInt('ADIDAS_EPOCH_GRAPHQL_TIMEOUT') ?? 30_000,
       } : undefined,
     },
     epochDB: {

@@ -291,16 +291,23 @@ class SterlingClientImpl implements SterlingClient {
     predicate: (value: T) => boolean,
     options: PollOptions = { maxAttempts: 20, intervalMs: 5000 }
   ): Promise<Result<T, SterlingApiError>> {
+    let lastError: SterlingApiError | null = null;
     for (let attempt = 0; attempt < options.maxAttempts; attempt++) {
       const result = await fn();
-      if (!result.success) return result;
+      if (!result.success) {
+        // Retry on transient errors instead of aborting immediately.
+        // Sterling may return 400/500 briefly after XAPI-created orders.
+        lastError = result.error;
+        await this.sleep(options.intervalMs);
+        continue;
+      }
       if (predicate(result.value)) return result;
+      lastError = null;
       await this.sleep(options.intervalMs);
     }
-    return err({
-      message: `Polling timed out after ${options.maxAttempts} attempts`,
-      apiName: 'pollUntil',
-    });
+    return err(
+      lastError ?? { message: `Polling timed out after ${options.maxAttempts} attempts`, apiName: 'pollUntil' },
+    );
   }
 
   // ==========================================================================

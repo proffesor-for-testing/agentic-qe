@@ -12,6 +12,7 @@ import type { AdidasClientConfig } from './config';
 import { createSterlingClient } from '../../integrations/sterling/sterling-client';
 import { createXAPIClient } from '../../integrations/sterling/xapi-client';
 import { createMQBrowseProvider } from '../../integrations/iib/providers/mq-browse';
+import { createEpochGraphQLProvider } from '../../integrations/iib/providers/epoch-graphql';
 import { createEpochDBProvider } from '../../integrations/iib/providers/epoch-db';
 import { createNShiftClient } from '../../integrations/nshift/nshift-client';
 import { createEmailProvider } from '../../integrations/email/email-provider';
@@ -91,13 +92,17 @@ export function createAdidasTestContext(config: AdidasClientConfig): AdidasTestC
     }
   }
 
-  // Layer 2: MQ Browse is primary (verifies actual IIB message flow execution).
-  // EPOCH DB is fallback only (verifies Sterling DB state — indirect evidence).
+  // Layer 2 provider priority:
+  //   1. MQ Browse (primary — actual queue messages, highest fidelity)
+  //   2. EPOCH GraphQL (preferred fallback — actual IIB payloads via monitoring API)
+  //   3. EPOCH DB (last resort — indirect Sterling DB state evidence only)
   const iibProvider = config.mqBrowse.enabled && config.mqBrowse.config
     ? createMQBrowseProvider(config.mqBrowse.config, queueMappings)
-    : config.epochDB.enabled && config.epochDB.config
-      ? createEpochDBProvider(config.epochDB.config, queueMappings)
-      : undefined;
+    : config.epochGraphQL.enabled && config.epochGraphQL.config
+      ? createEpochGraphQLProvider(config.epochGraphQL.config, queueMappings)
+      : config.epochDB.enabled && config.epochDB.config
+        ? createEpochDBProvider(config.epochDB.config, queueMappings)
+        : undefined;
 
   return {
     // BaseTestContext fields
@@ -126,6 +131,9 @@ export function createAdidasTestContext(config: AdidasClientConfig): AdidasTestC
     browserProvider: config.browser.enabled && config.browser.config
       ? createBrowserProvider(config.browser.config)
       : undefined,
+
+    // XAPI client — form-encoded XML for write/mutate operations (Adidas custom flows)
+    xapiClient,
 
     // Adidas-specific fields — populated during test execution
     shipments: [],

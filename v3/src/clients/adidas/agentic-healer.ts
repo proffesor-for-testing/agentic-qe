@@ -104,7 +104,7 @@ async function probeOrderState(ctx: AdidasTestContext): Promise<OrderSnapshot> {
         if (invoiceResult.success) {
           snapshot.invoiceCount = invoiceResult.value.length;
           snapshot.hasCreditMemo = invoiceResult.value.some(
-            (inv) => inv.InvoiceType === 'CREDIT_MEMO',
+            (inv) => inv.InvoiceType === 'RETURN' || inv.InvoiceType === 'CREDIT_MEMO',
           );
         }
       } catch {
@@ -145,8 +145,15 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Attempt return credit note recovery via XAPI.
- * Same pattern as forward invoice: find task in YFS_TASK_Q → move AvailableDate → poll.
- * Uses DocumentType="0003" to target return shipment, not forward.
+ *
+ * Sterling uses InvoiceType="RETURN" (not "CREDIT_MEMO") for credit notes.
+ * The return invoice is on the RETURN order number (DocumentType 0003),
+ * not the sales order. Evidence: TC_01-APT93030618 SSR doc.
+ *
+ * Strategy:
+ *   1. Check if return invoice already exists (queried on wrong order before)
+ *   2. If not, try task queue approach (find pending task, move AvailableDate)
+ *   3. Poll for InvoiceType="RETURN" on return order
  */
 async function attemptCreditNoteRecovery(
   ctx: AdidasTestContext,
@@ -155,86 +162,129 @@ async function attemptCreditNoteRecovery(
     return { recovered: false, diagnosis: 'No XAPI client — cannot attempt credit note recovery' };
   }
 
-  const orderNo = ctx.orderId;
+  const salesOrderNo = ctx.orderId;
+  const returnOrderNo = ctx.returnOrderNo ?? ctx.orderId;
   const enterpriseCode = ctx.enterpriseCode;
+  const steps: string[] = [];
 
   try {
-    // Step 1: Get return shipment's ShipmentKey (DocumentType 0003)
-    // If no 0003 exists (Adidas PT processes returns on forward order), fall back to 0001
+    // Step 1: Check if return invoice already exists on the RETURN order (DocumentType 0003)
+    // Previous code only checked sales order — the invoice lives on the return order.
+    const returnInvoiceResp = await ctx.xapiClient.invoke('getOrderInvoiceList',
+      `<OrderInvoice OrderNo="${returnOrderNo}" EnterpriseCode="${enterpriseCode}" DocumentType="0003"/>`);
+
+    if (returnInvoiceResp.success &&
+        (returnInvoiceResp.body.includes('InvoiceType="RETURN"') ||
+         returnInvoiceResp.body.includes('InvoiceType="CREDIT_MEMO"'))) {
+      const invoiceNo = returnInvoiceResp.body.match(/InvoiceNo="([^"]+)"/)?.[1] ?? 'unknown';
+      return {
+        recovered: true,
+        diagnosis: `Return invoice already exists on return order ${returnOrderNo}: InvoiceNo=${invoiceNo}. Previous check queried sales order instead.`,
+      };
+    }
+    steps.push(`No return invoice on ${returnOrderNo} (DocType 0003) yet`);
+
+    // Also check sales order invoices (some deployments put return invoices here)
+    const salesInvoiceResp = await ctx.xapiClient.invoke('getOrderInvoiceList',
+      `<OrderInvoice OrderNo="${salesOrderNo}" EnterpriseCode="${enterpriseCode}" DocumentType="0001"/>`);
+
+    if (salesInvoiceResp.success &&
+        (salesInvoiceResp.body.includes('InvoiceType="RETURN"') ||
+         salesInvoiceResp.body.includes('InvoiceType="CREDIT_MEMO"'))) {
+      const invoiceNo = salesInvoiceResp.body.match(/InvoiceNo="([^"]+)"/)?.[1] ?? 'unknown';
+      return {
+        recovered: true,
+        diagnosis: `Return invoice found on sales order ${salesOrderNo}: InvoiceNo=${invoiceNo} (InvoiceType=RETURN).`,
+      };
+    }
+    steps.push(`No return invoice on ${salesOrderNo} (DocType 0001) either`);
+
+    // Step 2: Try task queue approach — find pending return credit note task
     let shipmentKey: string | undefined;
 
-    const returnShipmentResp = await ctx.xapiClient.invoke('getShipmentListForOrder',
-      `<Order OrderNo="${orderNo}" EnterpriseCode="${enterpriseCode}" DocumentType="0003"/>`);
-    const returnKeyMatch = returnShipmentResp.body.match(/ShipmentKey="([^"]+)"/);
+    // Try return shipments first (DocumentType 0003)
+    const returnShipResp = await ctx.xapiClient.invoke('getShipmentListForOrder',
+      `<Order OrderNo="${returnOrderNo}" EnterpriseCode="${enterpriseCode}" DocumentType="0003"/>`);
+    const returnKeyMatch = returnShipResp.body.match(/ShipmentKey="([^"]+)"/);
     if (returnKeyMatch) {
       shipmentKey = returnKeyMatch[1];
+      steps.push(`Return ShipmentKey: ${shipmentKey}`);
     }
 
-    // Fallback: try forward order shipments if no return-specific shipment found
+    // Fallback: forward order shipments
     if (!shipmentKey) {
-      const fwdShipmentResp = await ctx.xapiClient.invoke('getShipmentListForOrder',
-        `<Order OrderNo="${orderNo}" EnterpriseCode="${enterpriseCode}" DocumentType="0001"/>`);
-      // Get ALL ShipmentKeys — credit note task might be on any shipment
-      const allKeys = [...fwdShipmentResp.body.matchAll(/ShipmentKey="([^"]+)"/g)].map(m => m[1]);
+      const fwdShipResp = await ctx.xapiClient.invoke('getShipmentListForOrder',
+        `<Order OrderNo="${salesOrderNo}" EnterpriseCode="${enterpriseCode}" DocumentType="0001"/>`);
+      const allKeys = [...fwdShipResp.body.matchAll(/ShipmentKey="([^"]+)"/g)].map(m => m[1]);
       if (allKeys.length === 0) {
-        return { recovered: false, diagnosis: 'No shipments found for order — cannot query task queue' };
+        return { recovered: false, diagnosis: [...steps, 'No shipments found — cannot query task queue'].join('. ') };
       }
-      // Try each shipment key to find a pending credit note task
       for (const key of allKeys) {
         const taskResp = await ctx.xapiClient.invoke('manageTaskQueue',
           `<TaskQueue DataKey="${key}" DataType="ShipmentKey"/>`);
         if (taskResp.body.includes('TaskQKey')) {
           shipmentKey = key;
+          steps.push(`Forward ShipmentKey with task: ${key}`);
           break;
         }
       }
       if (!shipmentKey) {
-        return { recovered: false, diagnosis: `No pending tasks found for ${allKeys.length} shipment(s) — credit note may require SAP integration` };
+        // No pending tasks — return invoice may be generated by WMS ReturnConfirmation flow
+        // which is triggered externally, not via task queue
+        return {
+          recovered: false,
+          diagnosis: [...steps, `No pending tasks for ${allKeys.length} shipment(s). Return invoice is generated by WMS ReturnConfirmation flow, not task queue`].join('. '),
+        };
       }
     }
 
-    // Step 2: Query task queue for credit note task
+    // Step 3: Move AvailableDate to past
     const taskResp = await ctx.xapiClient.invoke('manageTaskQueue',
       `<TaskQueue DataKey="${shipmentKey}" DataType="ShipmentKey"/>`);
     const taskQKeyMatch = taskResp.body.match(/TaskQKey="([^"]+)"/);
     if (!taskQKeyMatch) {
-      return { recovered: false, diagnosis: `No task in YFS_TASK_Q for ShipmentKey ${shipmentKey} — credit note task may not exist` };
+      return { recovered: false, diagnosis: [...steps, `No task in YFS_TASK_Q for ShipmentKey ${shipmentKey}`].join('. ') };
     }
 
     const taskQKey = taskQKeyMatch[1];
     const availDate = taskResp.body.match(/AvailableDate="([^"]+)"/)?.[1] ?? 'unknown';
-
-    // Step 3: Move AvailableDate to past
     const pastDate = new Date(Date.now() - ONE_DAY_MS)
       .toISOString().replace('T', ' ').replace(/\.\d+Z$/, '.000');
 
     const manageResp = await ctx.xapiClient.invoke('manageTaskQueue',
       `<TaskQueue AvailableDate="${pastDate}" DataKey="${shipmentKey}" DataType="ShipmentKey" TaskQKey="${taskQKey}"/>`);
     if (!manageResp.success) {
-      // Try alternative API
       const altResp = await ctx.xapiClient.invoke('changeAvailDateInTaskQueue',
         `<TaskQueue AvailableDate="${pastDate}" TaskQKey="${taskQKey}"/>`);
       if (!altResp.success) {
-        return { recovered: false, diagnosis: `Failed to move AvailableDate for TaskQKey ${taskQKey}: ${altResp.error}` };
+        return { recovered: false, diagnosis: [...steps, `Failed to move AvailableDate: ${altResp.error}`].join('. ') };
       }
     }
+    steps.push(`TaskQKey=${taskQKey}, AvailableDate ${availDate} → ${pastDate}`);
 
-    // Step 4: Poll for CREDIT_MEMO invoice
+    // Step 4: Poll for return invoice (InvoiceType="RETURN")
     for (let i = 0; i < CREDIT_NOTE_POLL_MAX; i++) {
       await sleep(CREDIT_NOTE_POLL_INTERVAL);
-      const invoiceResp = await ctx.xapiClient.invoke('getOrderInvoiceList',
-        `<OrderInvoice OrderNo="${orderNo}" EnterpriseCode="${enterpriseCode}" DocumentType="0001"/>`);
-      if (invoiceResp.success && invoiceResp.body.includes('CREDIT_MEMO')) {
-        return {
-          recovered: true,
-          diagnosis: `Credit note recovery succeeded: TaskQKey=${taskQKey}, AvailableDate ${availDate} → ${pastDate}, CREDIT_MEMO found after ${i + 1} poll(s)`,
-        };
+
+      // Check return order first, then sales order
+      for (const [oNo, docType] of [[returnOrderNo, '0003'], [salesOrderNo, '0001']] as const) {
+        const invoiceResp = await ctx.xapiClient.invoke('getOrderInvoiceList',
+          `<OrderInvoice OrderNo="${oNo}" EnterpriseCode="${enterpriseCode}" DocumentType="${docType}"/>`);
+        if (invoiceResp.success &&
+            (invoiceResp.body.includes('InvoiceType="RETURN"') ||
+             invoiceResp.body.includes('InvoiceType="CREDIT_MEMO"'))) {
+          const invoiceNo = invoiceResp.body.match(/InvoiceNo="([^"]+)"/)?.[1] ?? 'unknown';
+          return {
+            recovered: true,
+            diagnosis: [...steps, `Return invoice found after ${i + 1} poll(s): InvoiceNo=${invoiceNo} on order ${oNo}`].join('. '),
+          };
+        }
       }
     }
 
     return {
       recovered: false,
-      diagnosis: `Task queue fix applied (TaskQKey=${taskQKey}, AvailableDate ${availDate} → ${pastDate}) but no CREDIT_MEMO after ${CREDIT_NOTE_POLL_MAX} polls — SAP integration may not be configured in UAT`,
+      diagnosis: [...steps, `No return invoice after ${CREDIT_NOTE_POLL_MAX} polls. Return invoice is generated by WMS ReturnConfirmation flow — may not have been triggered in UAT`].join('. '),
     };
   } catch (e) {
     return { recovered: false, diagnosis: `Credit note recovery error: ${e instanceof Error ? e.message : String(e)}` };
