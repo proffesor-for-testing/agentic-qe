@@ -1,8 +1,0 @@
-{
-  "requirementsAnalyzed": 15,
-  "testable": 12,
-  "ambiguous": 2,
-  "untestable": 1,
-  "coverage": 80,
-  "bddScenarios": []
-}
