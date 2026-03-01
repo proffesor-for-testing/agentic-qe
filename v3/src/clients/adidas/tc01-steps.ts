@@ -38,12 +38,42 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
     requires: {},
     execute: async (ctx) => {
       const start = Date.now();
-      const result = await ctx.sterlingClient.getOrderDetails({
-        OrderNo: ctx.orderId,
-      });
+
+      // Retry up to 3 times with backoff — fresh XAPI-created orders may not be
+      // immediately readable via REST (Sterling eventual consistency / HTTP 400).
+      let result = await ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId });
+      if (!result.success) {
+        for (let retry = 1; retry <= 3; retry++) {
+          const waitMs = retry * 3000; // 3s, 6s, 9s
+          console.log(`  [step-01] Retry ${retry}/3 after ${waitMs}ms (${result.error.message})`);
+          await new Promise(r => setTimeout(r, waitMs));
+          result = await ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId });
+          if (result.success) break;
+        }
+      }
 
       if (!result.success) {
-        return { success: false, error: result.error.message, durationMs: Date.now() - start, checks: [] };
+        const reason = result.error.message;
+        return { success: false, error: reason, durationMs: Date.now() - start, checks: [
+          { name: 'OrderNo present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Status defined', passed: false, expected: 'truthy', actual: reason },
+          { name: 'EnterpriseCode matches', passed: false, expected: ctx.enterpriseCode, actual: reason },
+          { name: 'DocumentType is 0001', passed: false, expected: '0001', actual: reason },
+          { name: 'SellerOrganizationCode present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ShipTo FirstName present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ShipTo LastName present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ShipTo City present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'ShipTo Country present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Has order lines', passed: false, expected: '>0', actual: reason },
+          { name: 'Line ItemID present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Line UOM present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Line OrderedQty present', passed: false, expected: 'truthy', actual: reason },
+          { name: 'Line has price info', passed: false, expected: 'truthy', actual: reason },
+          { name: 'PaymentStatus present', passed: false, expected: 'AUTHORIZED|PAID|SETTLED', actual: reason },
+          { name: 'OrderType is ShipToHome', passed: false, expected: 'ShipToHome', actual: reason },
+          { name: 'Currency is EUR', passed: false, expected: 'EUR', actual: reason },
+          { name: 'EntryType is web', passed: false, expected: 'web', actual: reason },
+        ] };
       }
 
       const order = result.value;
