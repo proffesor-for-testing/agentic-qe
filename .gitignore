@@ -216,3 +216,4 @@ L2C Documents/
 # v2 archive
 v2-archive.tar.gz
 .agentic-qe/.claude/memory/
+.test-tmp/

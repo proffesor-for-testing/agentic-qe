@@ -13,6 +13,7 @@ import {
   exportBrain,
   importBrain,
   brainInfo,
+  type BrainManifest,
 } from '../brain-commands.js';
 
 // ============================================================================
@@ -43,7 +44,7 @@ export class BrainHandler implements ICommandHandler {
       .command('export')
       .description('Export brain state to a portable directory')
       .requiredOption('-o, --output <path>', 'Output directory path')
-      .option('--format <format>', 'Export format', 'jsonl')
+      .option('--format <format>', 'Export format: rvf (default) or jsonl', 'rvf')
       .option('--db <path>', 'Source database path', defaultDbPath())
       .action(async (options: ExportOptions) => {
         await this.executeExport(options);
@@ -71,15 +72,29 @@ export class BrainHandler implements ICommandHandler {
 
   private async executeExport(options: ExportOptions): Promise<void> {
     try {
-      console.log(chalk.blue('\n  Exporting brain state...\n'));
+      console.log(chalk.blue(`\n  Exporting brain state (format: ${options.format})...\n`));
 
-      const manifest = await exportBrain(options.db, {
+      const manifest: BrainManifest = await exportBrain(options.db, {
         outputPath: path.resolve(options.output),
+        format: options.format,
       });
 
       console.log(chalk.green('  Export complete.'));
+      console.log(`  Format:   ${chalk.cyan('format' in manifest ? (manifest as { format?: string }).format ?? 'jsonl' : 'jsonl')}`);
       console.log(`  Patterns: ${chalk.cyan(manifest.stats.patternCount)}`);
-      console.log(`  Vectors:  ${chalk.cyan(manifest.stats.vectorCount)}`);
+
+      if ('embeddingCount' in manifest.stats) {
+        console.log(`  Vectors:  ${chalk.cyan((manifest.stats as { embeddingCount: number }).embeddingCount)}`);
+      } else if ('vectorCount' in manifest.stats) {
+        console.log(`  Vectors:  ${chalk.cyan((manifest.stats as { vectorCount: number }).vectorCount)}`);
+      }
+
+      if ('rvfStatus' in manifest) {
+        const rvf = (manifest as { rvfStatus: { fileSizeBytes: number; totalSegments: number } }).rvfStatus;
+        console.log(`  RVF Size: ${chalk.cyan(formatBytes(rvf.fileSizeBytes))}`);
+        console.log(`  Segments: ${chalk.cyan(rvf.totalSegments)}`);
+      }
+
       console.log(`  Checksum: ${chalk.gray(manifest.checksum)}`);
       console.log(`  Output:   ${chalk.cyan(path.resolve(options.output))}`);
       console.log('');
@@ -108,6 +123,9 @@ export class BrainHandler implements ICommandHandler {
       console.log(`  Imported:  ${chalk.cyan(result.imported)}`);
       console.log(`  Skipped:   ${chalk.yellow(result.skipped)}`);
       console.log(`  Conflicts: ${chalk.red(result.conflicts)}`);
+      if ('embeddingsRestored' in result) {
+        console.log(`  Embeddings: ${chalk.cyan((result as { embeddingsRestored: number }).embeddingsRestored)}`);
+      }
       console.log('');
 
       await this.cleanupAndExit(0);
@@ -121,14 +139,44 @@ export class BrainHandler implements ICommandHandler {
     try {
       console.log(chalk.blue('\n  Brain Export Info\n'));
 
-      const manifest = await brainInfo(path.resolve(options.input));
+      const inputPath = path.resolve(options.input);
+      const manifest: BrainManifest = await brainInfo(inputPath);
 
       console.log(`  Version:    ${chalk.cyan(manifest.version)}`);
+      const format = 'format' in manifest ? (manifest as { format?: string }).format ?? 'jsonl' : 'jsonl';
+      console.log(`  Format:     ${chalk.cyan(format)}`);
       console.log(`  Exported:   ${chalk.cyan(manifest.exportedAt)}`);
       console.log(`  Source DB:  ${chalk.cyan(manifest.sourceDb)}`);
       console.log(`  Patterns:   ${chalk.cyan(manifest.stats.patternCount)}`);
-      console.log(`  Vectors:    ${chalk.cyan(manifest.stats.vectorCount)}`);
+
+      if ('embeddingCount' in manifest.stats) {
+        console.log(`  Embeddings: ${chalk.cyan((manifest.stats as { embeddingCount: number }).embeddingCount)}`);
+      } else if ('vectorCount' in manifest.stats) {
+        console.log(`  Vectors:    ${chalk.cyan((manifest.stats as { vectorCount: number }).vectorCount)}`);
+      }
+
+      if ('qValueCount' in manifest.stats) {
+        console.log(`  Q-Values:   ${chalk.cyan((manifest.stats as { qValueCount: number }).qValueCount)}`);
+      }
+      if ('dreamInsightCount' in manifest.stats) {
+        console.log(`  Dreams:     ${chalk.cyan((manifest.stats as { dreamInsightCount: number }).dreamInsightCount)}`);
+      }
+      if ('witnessChainLength' in manifest.stats) {
+        console.log(`  Witnesses:  ${chalk.cyan((manifest.stats as { witnessChainLength: number }).witnessChainLength)}`);
+      }
+
+      if ('rvfStatus' in manifest) {
+        const rvf = (manifest as { rvfStatus: { fileSizeBytes: number; totalVectors: number; totalSegments: number } }).rvfStatus;
+        console.log(`  RVF Size:   ${chalk.cyan(formatBytes(rvf.fileSizeBytes))}`);
+        console.log(`  RVF Vectors:${chalk.cyan(rvf.totalVectors)}`);
+        console.log(`  Segments:   ${chalk.cyan(rvf.totalSegments)}`);
+      }
+
       console.log(`  Checksum:   ${chalk.gray(manifest.checksum)}`);
+
+      if ('domains' in manifest && Array.isArray(manifest.domains) && manifest.domains.length > 0) {
+        console.log(`  Domains:    ${chalk.cyan(manifest.domains.join(', '))}`);
+      }
       console.log('');
 
       await this.cleanupAndExit(0);
@@ -142,21 +190,28 @@ export class BrainHandler implements ICommandHandler {
     return `
 Export, import, and inspect QE brain state.
 
+Formats:
+  rvf   — Single portable .rvf file (default, requires @ruvector/rvf-node)
+  jsonl — JSONL directory format (fallback when native not available)
+
 Usage:
-  aqe brain export --output <path> [--format jsonl] [--db <path>]
-  aqe brain import --input <path> [--strategy skip-conflicts] [--dry-run] [--db <path>]
-  aqe brain info --input <path>
+  aqe brain export -o brain.rvf [--format rvf] [--db <path>]
+  aqe brain export -o ./brain-dir --format jsonl [--db <path>]
+  aqe brain import -i brain.rvf [--strategy skip-conflicts] [--dry-run] [--db <path>]
+  aqe brain info -i brain.rvf
 
 Subcommands:
-  export    Export brain patterns and vectors to a portable directory
+  export    Export brain state to a portable .rvf file or JSONL directory
   import    Import a brain export into the local database
   info      Show manifest metadata for an existing brain export
 
 Examples:
-  aqe brain export -o ./my-brain-export
-  aqe brain import -i ./my-brain-export --strategy latest-wins
-  aqe brain import -i ./my-brain-export --dry-run
-  aqe brain info -i ./my-brain-export
+  aqe brain export -o .agentic-qe/brain.rvf
+  aqe brain export -o .agentic-qe/brain.rvf --format rvf
+  aqe brain export -o ./brain-export --format jsonl
+  aqe brain import -i .agentic-qe/brain.rvf --strategy latest-wins
+  aqe brain import -i .agentic-qe/brain.rvf --dry-run
+  aqe brain info -i .agentic-qe/brain.rvf
 `;
   }
 }
@@ -188,6 +243,12 @@ interface InfoOptions {
 
 function defaultDbPath(): string {
   return path.join(process.cwd(), '.agentic-qe', 'memory.db');
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // ============================================================================

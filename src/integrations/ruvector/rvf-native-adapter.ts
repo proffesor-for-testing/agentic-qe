@@ -21,7 +21,13 @@ function getNative(): typeof import('@ruvector/rvf-node') | null {
   _nativeChecked = true;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    _native = require('@ruvector/rvf-node');
+    let mod = require('@ruvector/rvf-node');
+    // When bundled, the native-require plugin wraps the module —
+    // the actual exports may be on .default
+    if (!mod.RvfDatabase && mod.default && mod.default.RvfDatabase) {
+      mod = mod.default;
+    }
+    _native = mod;
   } catch {
     _native = null;
   }
@@ -86,6 +92,12 @@ export interface RvfNativeAdapter {
 
   /** Filesystem path of the RVF container */
   path(): string;
+
+  /** Embed arbitrary binary data as a kernel segment */
+  embedKernel(data: Buffer): number;
+
+  /** Extract the kernel segment data (returns null if none) */
+  extractKernel(): { header: Buffer; image: Buffer } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -324,6 +336,18 @@ class RvfNativeAdapterImpl implements RvfNativeAdapter {
     return this._path;
   }
 
+  // -- kernel ---------------------------------------------------------------
+
+  embedKernel(data: Buffer): number {
+    this.ensureOpen();
+    return this.db.embedKernel(0, 99, 0, data, 0, '');
+  }
+
+  extractKernel(): { header: Buffer; image: Buffer } | null {
+    this.ensureOpen();
+    return this.db.extractKernel();
+  }
+
   // -- internal -------------------------------------------------------------
 
   private ensureOpen(): void {
@@ -370,6 +394,20 @@ export function openRvfStore(path: string): RvfNativeAdapter {
     );
   }
   const db = native.RvfDatabase.open(path);
+  const dim = db.dimension();
+  const { strToNum, numToStr, nextLabel } = loadIdMap(path);
+  return new RvfNativeAdapterImpl(db, path, dim, strToNum, numToStr, nextLabel);
+}
+
+/** Open an existing RVF container in read-only mode */
+export function openRvfStoreReadonly(path: string): RvfNativeAdapter {
+  const native = getNative();
+  if (!native) {
+    throw new Error(
+      '@ruvector/rvf-node is not available — install the package or check platform compatibility',
+    );
+  }
+  const db = native.RvfDatabase.openReadonly(path);
   const dim = db.dimension();
   const { strToNum, numToStr, nextLabel } = loadIdMap(path);
   return new RvfNativeAdapterImpl(db, path, dim, strToNum, numToStr, nextLabel);
