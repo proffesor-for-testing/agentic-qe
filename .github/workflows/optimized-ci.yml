@@ -81,17 +81,17 @@ jobs:
         run: |
           FAILED=0
           if [ "${{ steps.journey-tests.outcome }}" == "failure" ]; then
-            echo "❌ Journey tests failed"
+            echo "Journey tests failed"
             FAILED=1
           fi
           if [ "${{ steps.code-intelligence-tests.outcome }}" == "failure" ]; then
-            echo "❌ Code Intelligence tests failed (MinCut/Graph algorithms)"
+            echo "Code Intelligence tests failed (MinCut/Graph algorithms)"
             FAILED=1
           fi
           if [ "$FAILED" -eq 1 ]; then
             exit 1
           fi
-          echo "✅ Fast tests passed (including Code Intelligence)"
+          echo "Fast tests passed (including Code Intelligence)"
 
   # Infrastructure tests (can run in parallel)
   infrastructure-tests:
@@ -175,15 +175,14 @@ jobs:
         run: npm run build
 
       - name: Run Postgres integration tests
-        working-directory: v3
         run: npm run test:integration:pg
         env:
           POSTGRES_URL: postgresql://aqe_test:aqe_test@localhost:15432/aqe_test
           NODE_OPTIONS: '--max-old-space-size=1024'
 
-  # V3 Performance gates
+  # Performance gates
   performance-gates:
-    name: V3 Performance Gates
+    name: Performance Gates
     runs-on: ubuntu-latest
     needs: fast-tests
     timeout-minutes: 10
@@ -204,10 +203,9 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Run V3 Performance Gates
+      - name: Run Performance Gates
         id: perf-gates
         run: |
-          cd v3
           npm run performance:gate > perf-report.md 2>&1 || PERF_EXIT=$?
           echo "PERF_EXIT_CODE=${PERF_EXIT:-0}" >> $GITHUB_OUTPUT
           cat perf-report.md
@@ -218,7 +216,7 @@ jobs:
         if: always()
         with:
           name: performance-report
-          path: v3/perf-report.md
+          path: perf-report.md
           retention-days: 30
 
       - name: Check performance gate results
@@ -226,11 +224,11 @@ jobs:
         run: |
           EXIT_CODE="${{ steps.perf-gates.outputs.PERF_EXIT_CODE }}"
           if [ "$EXIT_CODE" -eq 0 ]; then
-            echo "✅ All performance gates passed"
+            echo "All performance gates passed"
           elif [ "$EXIT_CODE" -eq 2 ]; then
-            echo "⚠️ Performance gates passed with warnings"
+            echo "Performance gates passed with warnings"
           else
-            echo "❌ Performance gates failed (exit code: $EXIT_CODE)"
+            echo "Performance gates failed (exit code: $EXIT_CODE)"
             # Don't fail the build on performance warnings, only on failures
             if [ "$EXIT_CODE" -eq 1 ]; then
               exit 1
@@ -262,7 +260,7 @@ jobs:
         run: npm run build
 
       - name: Run tests with coverage (excluding browser E2E)
-        run: cd v3 && npm run test:coverage
+        run: npm run test:coverage
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
           CI: 'true'
@@ -284,9 +282,9 @@ jobs:
             echo "Line coverage: ${COVERAGE}%"
 
             if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-              echo "⚠️ Coverage below 80% threshold"
+              echo "Coverage below 80% threshold"
             else
-              echo "✅ Coverage meets threshold"
+              echo "Coverage meets threshold"
             fi
           fi
 
@@ -319,10 +317,10 @@ jobs:
           echo "**Commit**: ${{ github.sha }}" >> ci-metrics.md
           echo "" >> ci-metrics.md
 
-          total_files=$(find v3/tests -name "*.test.ts" 2>/dev/null | wc -l || echo "0")
-          total_lines=$(find v3/tests -name "*.test.ts" -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
-          large_files=$(find v3/tests -name "*.test.ts" -exec wc -l {} \; 2>/dev/null | awk '$1 > 600' | wc -l || echo "0")
-          skipped=$(grep -r "describe.skip\|it.skip\|test.skip" v3/tests --include="*.test.ts" 2>/dev/null | wc -l || echo "0")
+          total_files=$(find tests -name "*.test.ts" 2>/dev/null | wc -l || echo "0")
+          total_lines=$(find tests -name "*.test.ts" -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+          large_files=$(find tests -name "*.test.ts" -exec wc -l {} \; 2>/dev/null | awk '$1 > 600' | wc -l || echo "0")
+          skipped=$(grep -r "describe.skip\|it.skip\|test.skip" tests --include="*.test.ts" 2>/dev/null | wc -l || echo "0")
 
           echo "## Current State" >> ci-metrics.md
           echo "- Total test files: $total_files (target: 50)" >> ci-metrics.md
@@ -359,7 +357,7 @@ jobs:
 
             const metrics = fs.readFileSync('ci-metrics.md', 'utf8');
 
-            const body = `## 📊 Test Suite Metrics
+            const body = `## Test Suite Metrics
 
             ${metrics}
 

@@ -63,19 +63,19 @@ Use up to 7 concurrent strategies per review.
 
 <memory_namespace>
 Reads:
-- aqe/v3/domains/test-generation/results/* - Test generation outputs to challenge
-- aqe/v3/domains/coverage-analysis/results/* - Coverage reports to critique
-- aqe/v3/domains/security-compliance/scans/* - Security scans to review
-- aqe/v3/domains/quality-assessment/reports/* - Quality reports to question
+- aqe/domains/test-generation/results/* - Test generation outputs to challenge
+- aqe/domains/coverage-analysis/results/* - Coverage reports to critique
+- aqe/domains/security-compliance/scans/* - Security scans to review
+- aqe/domains/quality-assessment/reports/* - Quality reports to question
 
 Writes:
-- aqe/v3/devils-advocate/reviews/* - Challenge review results
-- aqe/v3/devils-advocate/stats/* - Cumulative challenge statistics
-- aqe/v3/devils-advocate/patterns/* - Learned gap patterns
+- aqe/devils-advocate/reviews/* - Challenge review results
+- aqe/devils-advocate/stats/* - Cumulative challenge statistics
+- aqe/devils-advocate/patterns/* - Learned gap patterns
 
 Coordination:
-- aqe/v3/queen/tasks/* - Task status updates
-- aqe/v3/domains/*/results/* - Cross-domain output access
+- aqe/queen/tasks/* - Task status updates
+- aqe/domains/*/results/* - Cross-domain output access
 </memory_namespace>
 
 <learning_protocol>
@@ -184,7 +184,7 @@ Output: CHALLENGED (Score: 0.52, 2 challenges)
 
 <v3_integration>
 ### Code Implementation
-The Devil's Advocate agent is implemented in `v3/src/agents/devils-advocate/`:
+The Devil's Advocate agent is implemented in `src/agents/devils-advocate/`:
 - `agent.ts` - Core `DevilsAdvocate` class with `review()` method
 - `strategies.ts` - 7 pluggable challenge strategies
 - `types.ts` - Type definitions for targets, challenges, results

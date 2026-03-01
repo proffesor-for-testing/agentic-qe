@@ -136,7 +136,7 @@ async function benchmarkPureJS(
   groundTruth: string[][]
 ) {
   // Import from compiled output
-  const { InMemoryHNSWIndex } = await import('../v3/dist/kernel/unified-memory-hnsw.js');
+  const { InMemoryHNSWIndex } = await import('../dist/kernel/unified-memory-hnsw.js');
 
   const index = new InMemoryHNSWIndex();
   if (efConstruction !== 200) {
@@ -193,7 +193,7 @@ async function benchmarkPureJSFastDeser(
   queries: number[][],
   groundTruth: string[][]
 ) {
-  const { InMemoryHNSWIndex } = await import('../v3/dist/kernel/unified-memory-hnsw.js');
+  const { InMemoryHNSWIndex } = await import('../dist/kernel/unified-memory-hnsw.js');
   const index = new InMemoryHNSWIndex();
 
   const memBefore = process.memoryUsage().heapUsed;
@@ -301,7 +301,7 @@ async function benchmarkOptimizedJS(
   queries: number[][],
   groundTruth: string[][]
 ) {
-  const { InMemoryHNSWIndex } = await import('../v3/dist/kernel/unified-memory-hnsw.js');
+  const { InMemoryHNSWIndex } = await import('../dist/kernel/unified-memory-hnsw.js');
   const index = new InMemoryHNSWIndex();
   (index as any).efConstruction = 50;
 
@@ -331,6 +331,57 @@ async function benchmarkOptimizedJS(
 
   return {
     label: 'Optimized JS (efC=50 + Float32Array deser)',
+    buildMs: Math.round(buildMs),
+    searchMs: Math.round(searchMs),
+    avgSearchMs: (searchMs / queries.length).toFixed(2),
+    memoryMB: Math.round((memAfter - memBefore) / 1024 / 1024),
+    recall: ((totalRecall / queries.length) * 100).toFixed(1),
+    indexSize: index.size(),
+  };
+}
+
+// ============================================================================
+// Implementation 5: RuvectorFlatIndex (actual integrated implementation)
+// ============================================================================
+
+async function benchmarkRuvectorFlatIndex(
+  buffers: Buffer[],
+  ids: string[],
+  embeddings: number[][],
+  queries: number[][],
+  groundTruth: string[][]
+) {
+  const { RuvectorFlatIndex } = await import('../dist/kernel/unified-memory-hnsw.js');
+  const index = new RuvectorFlatIndex();
+
+  const memBefore = process.memoryUsage().heapUsed;
+
+  // Simulate loadVectorIndex: deserialize buffers + add to index
+  const buildStart = performance.now();
+  for (let i = 0; i < buffers.length; i++) {
+    const f32 = new Float32Array(buffers[i].buffer, buffers[i].byteOffset, DIMENSIONS);
+    index.add(ids[i], Array.from(f32));
+  }
+  const buildMs = performance.now() - buildStart;
+
+  const memAfter = process.memoryUsage().heapUsed;
+
+  // Search
+  const searchStart = performance.now();
+  const searchResults: string[][] = [];
+  for (const q of queries) {
+    const results = index.search(q, SEARCH_K);
+    searchResults.push(results.map((r: any) => r.id));
+  }
+  const searchMs = performance.now() - searchStart;
+
+  let totalRecall = 0;
+  for (let i = 0; i < queries.length; i++) {
+    totalRecall += recallAtK(searchResults[i], groundTruth[i]);
+  }
+
+  return {
+    label: 'RuvectorFlatIndex [NEW IMPL]',
     buildMs: Math.round(buildMs),
     searchMs: Math.round(searchMs),
     avgSearchMs: (searchMs / queries.length).toFixed(2),
@@ -395,7 +446,7 @@ async function main() {
   const results: any[] = [];
 
   // 1. Current implementation (Pure JS, efC=200, slow deser)
-  console.log('\n[1/5] Pure JS HNSW (efC=200, readFloatLE) — current baseline...');
+  console.log('\n[1/6] Pure JS HNSW (efC=200, readFloatLE) — current baseline...');
   results.push(await benchmarkPureJS(
     'Pure JS (efC=200) + readFloatLE [CURRENT]',
     200, buffers, ids, embeddings, queries, groundTruth
@@ -406,21 +457,21 @@ async function main() {
   if (global.gc) global.gc();
 
   // 2. Pure JS with fast deserialization
-  console.log('\n[2/5] Pure JS HNSW (efC=200, Float32Array)...');
+  console.log('\n[2/6] Pure JS HNSW (efC=200, Float32Array)...');
   results.push(await benchmarkPureJSFastDeser(buffers, ids, embeddings, queries, groundTruth));
   console.log(`  Build: ${results[results.length-1].buildMs}ms`);
 
   if (global.gc) global.gc();
 
   // 3. Optimized JS (efC=50 + fast deser)
-  console.log('\n[3/5] Optimized JS HNSW (efC=50, Float32Array)...');
+  console.log('\n[3/6] Optimized JS HNSW (efC=50, Float32Array)...');
   results.push(await benchmarkOptimizedJS(buffers, ids, embeddings, queries, groundTruth));
   console.log(`  Build: ${results[results.length-1].buildMs}ms`);
 
   if (global.gc) global.gc();
 
   // 4. Pure JS with efC=50 but slow deser
-  console.log('\n[4/5] Pure JS HNSW (efC=50, readFloatLE)...');
+  console.log('\n[4/6] Pure JS HNSW (efC=50, readFloatLE)...');
   results.push(await benchmarkPureJS(
     'Pure JS (efC=50) + readFloatLE',
     50, buffers, ids, embeddings, queries, groundTruth
@@ -429,10 +480,21 @@ async function main() {
 
   if (global.gc) global.gc();
 
-  // 5. @ruvector/gnn
-  console.log('\n[5/5] @ruvector/gnn differentiableSearch (Rust/NAPI)...');
+  // 5. @ruvector/gnn raw
+  console.log('\n[5/6] @ruvector/gnn differentiableSearch (Rust/NAPI)...');
   try {
     results.push(await benchmarkRuvector(buffers, ids, embeddings, queries, groundTruth));
+    console.log(`  Build: ${results[results.length-1].buildMs}ms, Search: ${results[results.length-1].searchMs}ms`);
+  } catch (e) {
+    console.log(`  SKIPPED: ${(e as Error).message}`);
+  }
+
+  if (global.gc) global.gc();
+
+  // 6. RuvectorFlatIndex (actual integrated implementation)
+  console.log('\n[6/6] RuvectorFlatIndex (integrated, ruvector + cosine scores)...');
+  try {
+    results.push(await benchmarkRuvectorFlatIndex(buffers, ids, embeddings, queries, groundTruth));
     console.log(`  Build: ${results[results.length-1].buildMs}ms, Search: ${results[results.length-1].searchMs}ms`);
   } catch (e) {
     console.log(`  SKIPPED: ${(e as Error).message}`);

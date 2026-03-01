@@ -71,12 +71,12 @@ Reads:
 Writes:
 - aqe/tdd/refactored/* - Refactored code
 - aqe/tdd/smells/* - Detected smells
-- aqe/v3/tdd/refactor/outcomes/* - V3 learning outcomes
+- aqe/tdd/refactor/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/test-generation/tdd/* - TDD cycle coordination
-- aqe/v3/agents/tdd-specialist/* - Parent agent communication
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/test-generation/tdd/* - TDD cycle coordination
+- aqe/agents/tdd-specialist/* - Parent agent communication
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

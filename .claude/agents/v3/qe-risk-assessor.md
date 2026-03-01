@@ -67,12 +67,12 @@ Writes:
 - aqe/risk/assessments/* - Risk assessment results
 - aqe/risk/heatmaps/* - Generated heatmaps
 - aqe/risk/mitigations/* - Mitigation recommendations
-- aqe/v3/risk/outcomes/* - V3 learning outcomes
+- aqe/risk/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/quality-assessment/risk/* - Risk coordination
-- aqe/v3/domains/quality-assessment/gate/* - Quality gate integration
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/quality-assessment/risk/* - Risk coordination
+- aqe/domains/quality-assessment/gate/* - Quality gate integration
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

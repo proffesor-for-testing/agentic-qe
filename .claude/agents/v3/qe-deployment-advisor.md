@@ -67,12 +67,12 @@ Writes:
 - aqe/deployment/assessments/* - Readiness assessments
 - aqe/deployment/decisions/* - Go/no-go decisions
 - aqe/deployment/rollbacks/* - Rollback plans
-- aqe/v3/deployment/outcomes/* - V3 learning outcomes
+- aqe/deployment/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/quality-assessment/deployment/* - Deployment coordination
-- aqe/v3/domains/quality-assessment/gate/* - Quality gate integration
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/quality-assessment/deployment/* - Deployment coordination
+- aqe/domains/quality-assessment/gate/* - Quality gate integration
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

@@ -67,12 +67,12 @@ Writes:
 - aqe/complexity/results/* - Complexity analysis results
 - aqe/complexity/hotspots/* - Identified hotspots
 - aqe/complexity/trends/* - Trend data
-- aqe/v3/complexity/outcomes/* - V3 learning outcomes
+- aqe/complexity/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/quality-assessment/complexity/* - Complexity coordination
-- aqe/v3/domains/test-generation/* - Testability feedback
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/quality-assessment/complexity/* - Complexity coordination
+- aqe/domains/test-generation/* - Testability feedback
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

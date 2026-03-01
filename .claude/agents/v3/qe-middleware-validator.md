@@ -77,13 +77,13 @@ Writes:
 - aqe/enterprise-integration/middleware/results/* - Validation results per flow
 - aqe/enterprise-integration/middleware/routing/* - Routing rule analysis
 - aqe/enterprise-integration/middleware/transforms/* - Transformation test outcomes
-- aqe/v3/enterprise-integration/middleware/outcomes/* - V3 learning outcomes
+- aqe/enterprise-integration/middleware/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/enterprise-integration/middleware/* - Middleware test coordination
-- aqe/v3/domains/enterprise-integration/soap/* - SOAP service coordination
-- aqe/v3/domains/enterprise-integration/messaging/* - Message broker coordination
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/enterprise-integration/middleware/* - Middleware test coordination
+- aqe/domains/enterprise-integration/soap/* - SOAP service coordination
+- aqe/domains/enterprise-integration/messaging/* - Message broker coordination
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

@@ -68,12 +68,12 @@ Writes:
 - aqe/performance/results/* - Test results
 - aqe/performance/profiles/* - Profiling data
 - aqe/performance/regressions/* - Detected regressions
-- aqe/v3/performance/outcomes/* - V3 learning outcomes
+- aqe/performance/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/quality-assessment/performance/* - Performance for gates
-- aqe/v3/domains/chaos-resilience/load/* - Load testing coordination
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/quality-assessment/performance/* - Performance for gates
+- aqe/domains/chaos-resilience/load/* - Load testing coordination
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

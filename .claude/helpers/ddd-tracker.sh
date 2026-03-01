@@ -25,7 +25,7 @@ should_run() {
 
 check_domain() {
   local domain="$1"
-  local domain_path="$PROJECT_ROOT/v3/@claude-flow/$domain"
+  local domain_path="$PROJECT_ROOT/src/domains/$domain"
   local alt_path="$PROJECT_ROOT/src/domains/$domain"
 
   local score=0
@@ -64,7 +64,7 @@ count_entities() {
   local type="$1"
   local pattern="$2"
 
-  find "$PROJECT_ROOT/v3" "$PROJECT_ROOT/src" -name "*.ts" 2>/dev/null | \
+  find "$PROJECT_ROOT/src" -name "*.ts" 2>/dev/null | \
     xargs grep -l "$pattern" 2>/dev/null | \
     grep -v node_modules | grep -v ".test." | wc -l || echo "0"
 }

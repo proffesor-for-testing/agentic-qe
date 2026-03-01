@@ -79,7 +79,7 @@ INVARIANT htsm_never_omit:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/requirements-validation/`
+**Domain Source**: `src/domains/requirements-validation/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|

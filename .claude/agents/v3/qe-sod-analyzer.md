@@ -84,13 +84,13 @@ Writes:
 - aqe/enterprise-integration/sap-authorization/audit-trails/* - Generated compliance audit trails
 - aqe/enterprise-integration/sap-authorization/remediation/* - Remediation recommendations
 - aqe/enterprise-integration/sap-authorization/migration-diffs/* - Role migration delta analysis
-- aqe/v3/enterprise-integration/authorization/outcomes/* - V3 learning outcomes
+- aqe/enterprise-integration/authorization/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/enterprise-integration/authorization/* - Authorization test coordination
-- aqe/v3/domains/security-compliance/sod/* - Security compliance integration
-- aqe/v3/domains/quality-assessment/compliance/* - Compliance quality metrics for gates
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/enterprise-integration/authorization/* - Authorization test coordination
+- aqe/domains/security-compliance/sod/* - Security compliance integration
+- aqe/domains/quality-assessment/compliance/* - Compliance quality metrics for gates
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

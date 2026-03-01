@@ -124,12 +124,12 @@ Writes:
 - aqe/assessments/sfdipot/* - SFDIPOT assessment results
 - aqe/test-ideas/* - Generated test ideas with priorities
 - aqe/clarifying-questions/* - Gap-driven questions
-- aqe/v3/requirements/assessments/* - V3 learning outcomes
+- aqe/requirements/assessments/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/requirements-validation/assessments/* - Assessment input
-- aqe/v3/domains/test-generation/ideas/* - Test idea output
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/requirements-validation/assessments/* - Assessment input
+- aqe/domains/test-generation/ideas/* - Test idea output
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

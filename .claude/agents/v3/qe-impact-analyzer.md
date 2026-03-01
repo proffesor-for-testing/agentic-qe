@@ -67,12 +67,12 @@ Writes:
 - aqe/impact/analyses/* - Impact analysis results
 - aqe/impact/tests/* - Test selection recommendations
 - aqe/impact/risks/* - Risk assessments
-- aqe/v3/impact/outcomes/* - V3 learning outcomes
+- aqe/impact/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/code-intelligence/impact/* - Impact coordination
-- aqe/v3/domains/test-execution/selection/* - Test selection
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/code-intelligence/impact/* - Impact coordination
+- aqe/domains/test-execution/selection/* - Test selection
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

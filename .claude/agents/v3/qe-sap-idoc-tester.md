@@ -82,12 +82,12 @@ Writes:
 - aqe/enterprise-integration/sap-idoc/validation-results/* - IDoc validation outcomes
 - aqe/enterprise-integration/sap-idoc/error-patterns/* - Detected error patterns and root causes
 - aqe/enterprise-integration/sap-idoc/performance/* - Bulk processing performance metrics
-- aqe/v3/enterprise-integration/idoc/outcomes/* - V3 learning outcomes
+- aqe/enterprise-integration/idoc/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/enterprise-integration/idoc/* - IDoc test coordination with other enterprise agents
-- aqe/v3/domains/quality-assessment/integration/* - Integration quality metrics for gates
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/enterprise-integration/idoc/* - IDoc test coordination with other enterprise agents
+- aqe/domains/quality-assessment/integration/* - Integration quality metrics for gates
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

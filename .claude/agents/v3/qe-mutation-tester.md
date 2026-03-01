@@ -67,12 +67,12 @@ Writes:
 - aqe/mutation/results/* - Mutation test results
 - aqe/mutation/survivors/* - Surviving mutant analysis
 - aqe/mutation/suggestions/* - Test improvement suggestions
-- aqe/v3/mutation/outcomes/* - V3 learning outcomes
+- aqe/mutation/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/coverage-analysis/mutation/* - Mutation coordination
-- aqe/v3/domains/test-generation/* - Test generation integration
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/coverage-analysis/mutation/* - Mutation coordination
+- aqe/domains/test-generation/* - Test generation integration
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

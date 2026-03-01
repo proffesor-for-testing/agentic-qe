@@ -71,12 +71,12 @@ Writes:
 - aqe/coverage-analysis/results/* - Analysis results with metrics
 - aqe/coverage-analysis/gaps/* - Detected coverage gaps
 - aqe/coverage-analysis/risk-scores/* - Risk assessment data
-- aqe/v3/coverage/outcomes/* - V3 learning outcomes
+- aqe/coverage/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/test-generation/gaps/* - Gap handoff to test generators
-- aqe/v3/domains/quality-assessment/metrics/* - Metrics for quality gates
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/test-generation/gaps/* - Gap handoff to test generators
+- aqe/domains/quality-assessment/metrics/* - Metrics for quality gates
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

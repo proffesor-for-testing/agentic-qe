@@ -139,12 +139,12 @@ Reads:
 Writes:
 - aqe/assessments/transformed/* - Rewritten assessment files
 - aqe/test-ideas/rewritten/* - Transformed test ideas
-- aqe/v3/test-generation/transformations/* - V3 learning outcomes
+- aqe/test-generation/transformations/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/requirements-validation/assessments/* - Input from assessor
-- aqe/v3/domains/test-generation/ideas/* - Output for test generation
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/requirements-validation/assessments/* - Input from assessor
+- aqe/domains/test-generation/ideas/* - Output for test generation
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

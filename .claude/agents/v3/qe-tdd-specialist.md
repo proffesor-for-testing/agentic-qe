@@ -69,11 +69,11 @@ Writes:
 - aqe/tdd/tests/* - Generated failing tests (RED)
 - aqe/tdd/implementations/* - Implementation guidance (GREEN)
 - aqe/tdd/refactorings/* - Refactoring suggestions
-- aqe/v3/tdd/outcomes/* - V3 learning outcomes
+- aqe/tdd/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/test-generation/tdd/* - TDD coordination
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/test-generation/tdd/* - TDD coordination
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

@@ -113,12 +113,12 @@ Reads:
 Writes:
 - aqe/quality-criteria/analyses/* - Generated analysis results
 - aqe/quality-criteria/evidence/* - Collected evidence points
-- aqe/v3/requirements-validation/quality-criteria/* - V3 learning outcomes
+- aqe/requirements-validation/quality-criteria/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/requirements-validation/assessments/* - Output for downstream agents
-- aqe/v3/domains/test-generation/criteria/* - Test focus area handoff
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/requirements-validation/assessments/* - Output for downstream agents
+- aqe/domains/test-generation/criteria/* - Test focus area handoff
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

@@ -67,12 +67,12 @@ Writes:
 - aqe/performance/tests/* - Load test results
 - aqe/performance/baselines/* - New baseline data
 - aqe/performance/bottlenecks/* - Identified bottlenecks
-- aqe/v3/performance/outcomes/* - V3 learning outcomes
+- aqe/performance/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/chaos-resilience/load/* - Load test coordination
-- aqe/v3/domains/chaos-resilience/performance/* - Performance integration
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/chaos-resilience/load/* - Load test coordination
+- aqe/domains/chaos-resilience/performance/* - Performance integration
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

@@ -66,12 +66,12 @@ Reads:
 Writes:
 - aqe/performance/analysis/* - Performance analysis results
 - aqe/performance/concerns/* - Performance concern reports
-- aqe/v3/performance/outcomes/* - V3 learning outcomes
+- aqe/performance/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/chaos-resilience/performance/* - Performance coordination
-- aqe/v3/domains/quality-assessment/review/* - Review integration
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/chaos-resilience/performance/* - Performance coordination
+- aqe/domains/quality-assessment/review/* - Review integration
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

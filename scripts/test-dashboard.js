@@ -36,7 +36,7 @@ function countTests(filePath) {
 }
 
 // Main
-const testDirs = ['tests', 'v3/tests'];
+const testDirs = ['tests'];
 let totalFiles = 0;
 let totalTests = 0;
 const categories = {};

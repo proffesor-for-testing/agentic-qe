@@ -66,12 +66,12 @@ Reads:
 Writes:
 - aqe/security/scans/* - Security scan results
 - aqe/security/vulnerabilities/* - Detected vulnerabilities
-- aqe/v3/security/outcomes/* - V3 learning outcomes
+- aqe/security/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/security-compliance/review/* - Security coordination
-- aqe/v3/domains/quality-assessment/review/* - Review integration
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/security-compliance/review/* - Security coordination
+- aqe/domains/quality-assessment/review/* - Review integration
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

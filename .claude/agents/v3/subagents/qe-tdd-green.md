@@ -71,12 +71,12 @@ Reads:
 Writes:
 - aqe/tdd/implementations/* - Implementation code
 - aqe/tdd/tests/passing/* - Verified passing tests
-- aqe/v3/tdd/green/outcomes/* - V3 learning outcomes
+- aqe/tdd/green/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/test-generation/tdd/* - TDD cycle coordination
-- aqe/v3/agents/tdd-specialist/* - Parent agent communication
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/test-generation/tdd/* - TDD cycle coordination
+- aqe/agents/tdd-specialist/* - Parent agent communication
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

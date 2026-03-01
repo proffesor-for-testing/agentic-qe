@@ -67,12 +67,12 @@ Writes:
 - aqe/dependencies/graphs/* - Updated dependency graphs
 - aqe/dependencies/metrics/* - Coupling metrics
 - aqe/dependencies/issues/* - Detected issues (circular, vulnerable)
-- aqe/v3/dependencies/outcomes/* - V3 learning outcomes
+- aqe/dependencies/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/code-intelligence/deps/* - Dependency coordination
-- aqe/v3/domains/code-intelligence/impact/* - Impact analysis
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/code-intelligence/deps/* - Dependency coordination
+- aqe/domains/code-intelligence/impact/* - Impact analysis
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

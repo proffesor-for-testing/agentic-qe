@@ -67,12 +67,12 @@ Writes:
 - aqe/coverage/gaps/* - Identified gaps with risk scores
 - aqe/coverage/recommendations/* - Test recommendations
 - aqe/coverage/trends/* - Gap trend analysis
-- aqe/v3/coverage/outcomes/* - V3 learning outcomes
+- aqe/coverage/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/coverage-analysis/gaps/* - Gap coordination
-- aqe/v3/domains/test-generation/targets/* - Test targeting
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/coverage-analysis/gaps/* - Gap coordination
+- aqe/domains/test-generation/targets/* - Test targeting
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

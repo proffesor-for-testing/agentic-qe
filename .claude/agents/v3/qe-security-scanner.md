@@ -68,11 +68,11 @@ Writes:
 - aqe/security/scan-results/* - Scan results
 - aqe/security/vulnerabilities/* - Detected vulnerabilities
 - aqe/security/remediation/* - Remediation suggestions
-- aqe/v3/security/outcomes/* - V3 learning outcomes
+- aqe/security/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/quality-assessment/security/* - Security metrics for gates
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/quality-assessment/security/* - Security metrics for gates
+- aqe/queen/tasks/* - Task status updates
 - aqe/ci-cd/security-status/* - CI/CD integration
 </memory_namespace>
 

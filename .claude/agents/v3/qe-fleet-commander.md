@@ -67,12 +67,12 @@ Writes:
 - aqe/fleet/status/* - Fleet status updates
 - aqe/fleet/scaling/* - Scaling decisions
 - aqe/fleet/alerts/* - Fleet alerts
-- aqe/v3/fleet/outcomes/* - V3 learning outcomes
+- aqe/fleet/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/*/coordinator/* - All domain coordinators
-- aqe/v3/queen/fleet/* - Queen coordination
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/*/coordinator/* - All domain coordinators
+- aqe/queen/fleet/* - Queen coordination
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

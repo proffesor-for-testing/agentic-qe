@@ -41,7 +41,7 @@ yarn-error.log*
 # Core dumps (file only, not directories)
 /core
 # Allow wizard core infrastructure
-!v3/src/cli/wizards/core/
+!src/cli/wizards/core/
 
 # Test results (generated files)
 test-results/
@@ -121,13 +121,13 @@ coordination/orchestration/*
 *.sqlite-wal
 # Claude Flow runtime (but not source adapters)
 /claude-flow
-!v3/src/adapters/claude-flow/
+!src/adapters/claude-flow/
 .agentic-qe/memory/
 .agentic-qe/data/learning/state.json
 .agentic-qe/data/improvement/state.json
 .agentic-qe/a11y-scans/
 data/
-!v3/src/adapters/a2ui/data/
+!src/adapters/a2ui/data/
 test-projects/
 
 
@@ -154,7 +154,8 @@ QX-*.md
 # Claude Flow generated files
 .claude/settings.local.json
 .claude/memory/
-v3/.claude/
+# Visual test artifacts
+.visual-tests/
 .mcp.json
 claude-flow.config.json
 .swarm/
@@ -189,16 +190,11 @@ tmp/*
 **/.ruvector/
 .env.supabase
 
-#v3 database files
-v3/agentdb.*
-
 # AQE data directories (local, not for git)
 .agentic-qe/results/*
 .agentic-qe/.cve-cache
 .agentic-qe/*-scans/
-v3/.agentic-qe/
 *.db-shm
-v3/.test-tmp/*
 
 # Accessibility scan outputs (generated, may contain site-specific data)
 docs/accessibility-scans/
@@ -215,9 +211,8 @@ scripts/n8n-predeploy-check.sh
 
 # L2C Documents (user-specific, not for git)
 L2C Documents/
-v3/.test-evals/
-v3/docs/reports/
-
-v3/.agentic-qe-REMOVED/
 :memory:
+
+# v2 archive
+v2-archive.tar.gz
 .agentic-qe/.claude/memory/

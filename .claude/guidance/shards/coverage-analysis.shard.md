@@ -71,7 +71,7 @@ INVARIANT embedding_freshness:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/coverage-analysis/`
+**Domain Source**: `src/domains/coverage-analysis/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|

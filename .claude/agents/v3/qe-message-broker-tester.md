@@ -81,12 +81,12 @@ Writes:
 - aqe/enterprise-integration/messaging/results/* - Test results per broker/queue
 - aqe/enterprise-integration/messaging/dlq-analysis/* - DLQ routing analysis
 - aqe/enterprise-integration/messaging/throughput/* - Throughput and latency metrics
-- aqe/v3/enterprise-integration/messaging/outcomes/* - V3 learning outcomes
+- aqe/enterprise-integration/messaging/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/enterprise-integration/messaging/* - Messaging test coordination
-- aqe/v3/domains/chaos-resilience/broker-chaos/* - Chaos testing for brokers
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/enterprise-integration/messaging/* - Messaging test coordination
+- aqe/domains/chaos-resilience/broker-chaos/* - Chaos testing for brokers
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

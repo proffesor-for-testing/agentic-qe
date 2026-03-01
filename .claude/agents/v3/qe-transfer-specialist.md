@@ -67,12 +67,12 @@ Writes:
 - aqe/transfer/results/* - Transfer outcomes
 - aqe/transfer/adaptations/* - Applied adaptations
 - aqe/transfer/warnings/* - Negative transfer warnings
-- aqe/v3/transfer/outcomes/* - V3 learning outcomes
+- aqe/transfer/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/learning-optimization/transfer/* - Transfer coordination
-- aqe/v3/domains/learning-optimization/patterns/* - Pattern sharing
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/learning-optimization/transfer/* - Transfer coordination
+- aqe/domains/learning-optimization/patterns/* - Pattern sharing
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

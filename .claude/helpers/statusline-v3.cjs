@@ -47,14 +47,11 @@ const CONFIG = {
   // Paths - ROOT database is the consolidated source (MCP writes here)
   // Priority: root > v3 (v3 db is stale, kept only for backup)
   memoryDbPaths: [
-    '.agentic-qe/memory.db',       // ROOT: Primary when CWD is project root
-    '../.agentic-qe/memory.db',    // ROOT: When CWD is v3/ or other subdirectory
-    'v3/.agentic-qe/memory.db',    // V3: Fallback only (stale after consolidation)
+    '.agentic-qe/memory.db',       // PRIMARY: Project root memory database
   ],
   cveCache: '.agentic-qe/.cve-cache',
   cveCacheAge: 3600, // 1 hour
   learningConfigPaths: [
-    'v3/.agentic-qe/learning-config.json',      // V3 config
     '.agentic-qe/data/learning-config.json',    // Root data dir
     '.agentic-qe/learning-config.json',         // Root fallback
   ],
@@ -230,7 +227,7 @@ function getDomainProgress(projectDir) {
   let inProgress = 0;
 
   for (const domain of CONFIG.domains) {
-    const domainDir = path.join(projectDir, 'v3/src/domains', domain);
+    const domainDir = path.join(projectDir, 'src/domains', domain);
     if (fileExists(domainDir)) {
       try {
         const files = fs.readdirSync(domainDir).filter(f => f.endsWith('.ts'));
@@ -252,8 +249,8 @@ function getTestCounts(projectDir) {
   let unit = 0;
   let integration = 0;
 
-  const unitDir = path.join(projectDir, 'v3/tests/unit');
-  const intDir = path.join(projectDir, 'v3/tests/integration');
+  const unitDir = path.join(projectDir, 'tests/unit');
+  const intDir = path.join(projectDir, 'tests/integration');
 
   try {
     if (fileExists(unitDir)) {
@@ -343,7 +340,7 @@ function getLearningMetrics(projectDir) {
   }
 
   // Determine dbSource from which path was found
-  const dbSource = dbPath.includes('v3/.agentic-qe') ? 'v3' : 'root';
+  const dbSource = 'root';
 
   return {
     patterns,
@@ -453,7 +450,7 @@ function getContextUsage(claudeInput) {
 function getArchitectureMetrics(projectDir) {
   // ADR count - deduplicated across embedded and standalone files
   let adrCount = 0;
-  const adrDir = path.join(projectDir, 'v3/implementation/adrs');
+  const adrDir = path.join(projectDir, 'implementation/adrs');
   const adrFile = path.join(adrDir, 'v3-adrs.md');
   const uniqueAdrNums = new Set();
 

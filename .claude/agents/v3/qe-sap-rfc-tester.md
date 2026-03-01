@@ -78,12 +78,12 @@ Writes:
 - aqe/enterprise-integration/sap-rfc/results/* - RFC test results per function module
 - aqe/enterprise-integration/sap-rfc/errors/* - ABAP error analysis
 - aqe/enterprise-integration/sap-rfc/compatibility/* - Cross-version compatibility results
-- aqe/v3/enterprise-integration/sap-rfc/outcomes/* - V3 learning outcomes
+- aqe/enterprise-integration/sap-rfc/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/enterprise-integration/sap-rfc/* - SAP RFC test coordination
-- aqe/v3/domains/enterprise-integration/sap-idoc/* - IDoc integration coordination
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/enterprise-integration/sap-rfc/* - SAP RFC test coordination
+- aqe/domains/enterprise-integration/sap-idoc/* - IDoc integration coordination
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

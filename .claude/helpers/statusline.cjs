@@ -307,7 +307,7 @@ function getSystemMetrics() {
   if (intelligencePct === 0) {
     let score = 0;
     if (fs.existsSync(path.join(CWD, '.claude'))) score += 15;
-    const srcDirs = ['src', 'lib', 'app', 'packages', 'v3'];
+    const srcDirs = ['src', 'lib', 'app', 'packages'];
     for (const d of srcDirs) { if (fs.existsSync(path.join(CWD, d))) { score += 15; break; } }
     const testDirs = ['tests', 'test', '__tests__', 'spec'];
     for (const d of testDirs) { if (fs.existsSync(path.join(CWD, d))) { score += 10; break; } }
@@ -344,7 +344,7 @@ function getADRStatus() {
 
   // Fallback: just count ADR files (don't read them)
   const adrPaths = [
-    path.join(CWD, 'v3', 'implementation', 'adrs'),
+    path.join(CWD, 'docs', 'implementation', 'adrs'),
     path.join(CWD, 'docs', 'adrs'),
     path.join(CWD, '.claude-flow', 'adrs'),
   ];
@@ -474,7 +474,7 @@ function getTestStats() {
     } catch { /* ignore */ }
   }
 
-  var testDirNames = ['tests', 'test', '__tests__', 'v3/__tests__'];
+  var testDirNames = ['tests', 'test', '__tests__'];
   for (var i = 0; i < testDirNames.length; i++) {
     countTestFiles(path.join(CWD, testDirNames[i]));
   }

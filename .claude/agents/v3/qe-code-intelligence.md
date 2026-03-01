@@ -68,12 +68,12 @@ Writes:
 - aqe/code-intelligence/kg/* - Knowledge Graph data
 - aqe/code-intelligence/indices/* - HNSW vector indices
 - aqe/code-intelligence/impact/* - Impact analysis results
-- aqe/v3/code-intelligence/outcomes/* - V3 learning outcomes
+- aqe/code-intelligence/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/test-generation/targets/* - Test targeting data
-- aqe/v3/domains/coverage-analysis/code/* - Code analysis for coverage
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/test-generation/targets/* - Test targeting data
+- aqe/domains/coverage-analysis/code/* - Code analysis for coverage
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

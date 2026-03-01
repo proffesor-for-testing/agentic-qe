@@ -68,12 +68,12 @@ Writes:
 - aqe/test-execution/results/* - Execution results
 - aqe/test-execution/timing/* - Updated timing data
 - aqe/test-execution/failures/* - Failure details
-- aqe/v3/execution/outcomes/* - V3 learning outcomes
+- aqe/execution/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/v3/domains/coverage-analysis/execution/* - Coverage data handoff
-- aqe/v3/domains/quality-assessment/results/* - Results for quality gates
-- aqe/v3/queen/tasks/* - Task status updates
+- aqe/domains/coverage-analysis/execution/* - Coverage data handoff
+- aqe/domains/quality-assessment/results/* - Results for quality gates
+- aqe/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>
