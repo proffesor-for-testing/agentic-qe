@@ -1,5 +1,5 @@
 {
-  "version": "3.7.2",
+  "version": "3.0.0",
   "maxConcurrent": 6,
   "workers": {
     "pattern-consolidator": {
@@ -31,6 +31,6 @@
       "status": "pending"
     }
   },
-  "createdAt": "2026-02-16T09:20:23.281Z",
+  "createdAt": "2026-03-01T21:02:04.606Z",
   "daemonPid": null
 }

@@ -5,8 +5,8 @@
     "AQE_LEARNING_ENABLED": "true",
     "AQE_V3_MODE": "true",
     "AQE_V3_DDD_ENABLED": "true",
-    "AQE_V3_DOMAINS": "test-generation,test-execution,coverage-analysis,quality-assessment,defect-intelligence,learning-optimization,requirements-validation,code-intelligence,security-compliance,contract-testing,visual-accessibility,chaos-resilience",
-    "AQE_V3_SWARM_SIZE": "21",
+    "AQE_V3_DOMAINS": "test-generation,test-execution,coverage-analysis,quality-assessment,defect-intelligence,requirements-validation,code-intelligence,security-compliance,contract-testing,visual-accessibility,chaos-resilience,learning-optimization",
+    "AQE_V3_SWARM_SIZE": "15",
     "AQE_V3_TOPOLOGY": "hierarchical",
     "AQE_V3_SUBLINEAR_ENABLED": "true",
     "AQE_V3_HNSW_ENABLED": "true",
@@ -20,6 +20,50 @@
   },
   "hooks": {
     "PreToolUse": [
+      {
+        "matcher": "^(Write|Edit|MultiEdit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx agentic-qe hooks guard --file \"$TOOL_INPUT_file_path\" --json",
+            "timeout": 3000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "matcher": "^(Write|Edit|MultiEdit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx agentic-qe hooks pre-edit --file \"$TOOL_INPUT_file_path\" --json",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx agentic-qe hooks pre-command --command \"$TOOL_INPUT_command\" --json",
+            "timeout": 3000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "matcher": "^Task$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx agentic-qe hooks pre-task --description \"$TOOL_INPUT_prompt\" --json",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
       {
         "matcher": "^(Write|Edit|MultiEdit)$",
         "hooks": [
@@ -71,6 +115,39 @@
         "hooks": [
           {
             "type": "command",
+            "command": "npx agentic-qe hooks post-edit --file \"$TOOL_INPUT_file_path\" --success --json",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx agentic-qe hooks post-command --command \"$TOOL_INPUT_command\" --success --json",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "matcher": "^Task$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx agentic-qe hooks post-task --task-id \"$TOOL_RESULT_agent_id\" --success --json",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "matcher": "^(Write|Edit|MultiEdit)$",
+        "hooks": [
+          {
+            "type": "command",
             "command": "node ./dist/cli/bundle.js hooks post-edit --file \"$TOOL_INPUT_file_path\" --success --json",
             "timeout": 5000,
             "continueOnError": true
@@ -105,6 +182,16 @@
         "hooks": [
           {
             "type": "command",
+            "command": "npx agentic-qe hooks route --task \"$PROMPT\" --json",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "node ./dist/cli/bundle.js hooks route --task \"$PROMPT\" --json",
             "timeout": 5000,
             "continueOnError": true
@@ -113,6 +200,26 @@
       }
     ],
     "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx agentic-qe hooks session-start --session-id \"$SESSION_ID\" --json",
+            "timeout": 10000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/helpers/brain-checkpoint.cjs verify --json",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
       {
         "hooks": [
           {
@@ -135,6 +242,26 @@
       }
     ],
     "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx agentic-qe hooks session-end --save-state --json",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/helpers/brain-checkpoint.cjs export --json",
+            "timeout": 60000,
+            "continueOnError": true
+          }
+        ]
+      },
       {
         "hooks": [
           {
@@ -277,25 +404,24 @@
   },
   "v3Configuration": {
     "domains": {
-      "total": 13,
+      "total": 12,
       "names": [
         "test-generation",
         "test-execution",
         "coverage-analysis",
         "quality-assessment",
         "defect-intelligence",
-        "learning-optimization",
         "requirements-validation",
         "code-intelligence",
         "security-compliance",
         "contract-testing",
         "visual-accessibility",
         "chaos-resilience",
-        "enterprise-integration"
+        "learning-optimization"
       ]
     },
     "swarm": {
-      "totalAgents": 60,
+      "totalAgents": 15,
       "topology": "hierarchical",
       "coordination": "queen-led"
     }
@@ -310,5 +436,10 @@
       "threshold": 3,
       "successRateMin": 0.7
     }
+  },
+  "aqe": {
+    "version": "3.0.0",
+    "initialized": "2026-03-01T21:02:04.016Z",
+    "hooksConfigured": true
   }
 }
