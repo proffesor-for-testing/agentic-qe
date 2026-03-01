@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "aqe hooks guard --file \"$TOOL_INPUT_file_path\" --json",
+            "command": "node ./dist/cli/bundle.js hooks guard --file \"$TOOL_INPUT_file_path\" --json",
             "timeout": 3000,
             "continueOnError": true
           }
@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "aqe hooks pre-edit --file \"$TOOL_INPUT_file_path\" --json",
+            "command": "node ./dist/cli/bundle.js hooks pre-edit --file \"$TOOL_INPUT_file_path\" --json",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "aqe hooks pre-command --command \"$TOOL_INPUT_command\" --json",
+            "command": "node ./dist/cli/bundle.js hooks pre-command --command \"$TOOL_INPUT_command\" --json",
             "timeout": 3000,
             "continueOnError": true
           }
@@ -58,7 +58,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "aqe hooks pre-task --description \"$TOOL_INPUT_prompt\" --json",
+            "command": "node ./dist/cli/bundle.js hooks pre-task --description \"$TOOL_INPUT_prompt\" --json",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -71,7 +71,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "aqe hooks post-edit --file \"$TOOL_INPUT_file_path\" --success --json",
+            "command": "node ./dist/cli/bundle.js hooks post-edit --file \"$TOOL_INPUT_file_path\" --success --json",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -82,7 +82,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "aqe hooks post-command --command \"$TOOL_INPUT_command\" --success --json",
+            "command": "node ./dist/cli/bundle.js hooks post-command --command \"$TOOL_INPUT_command\" --success --json",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -93,7 +93,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "aqe hooks post-task --task-id \"$TOOL_RESULT_agent_id\" --success --json",
+            "command": "node ./dist/cli/bundle.js hooks post-task --task-id \"$TOOL_RESULT_agent_id\" --success --json",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -105,7 +105,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "aqe hooks route --task \"$PROMPT\" --json",
+            "command": "node ./dist/cli/bundle.js hooks route --task \"$PROMPT\" --json",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -117,8 +117,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "aqe hooks session-start --session-id \"$SESSION_ID\" --json",
+            "command": "node ./dist/cli/bundle.js hooks session-start --session-id \"$SESSION_ID\" --json",
             "timeout": 10000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/helpers/brain-checkpoint.cjs verify --json",
+            "timeout": 5000,
             "continueOnError": true
           }
         ]
@@ -129,8 +139,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "aqe hooks session-end --save-state --json",
+            "command": "node ./dist/cli/bundle.js hooks session-end --save-state --json",
             "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/helpers/brain-checkpoint.cjs export --json",
+            "timeout": 60000,
             "continueOnError": true
           }
         ]
@@ -240,13 +260,13 @@
     },
     "adr": {
       "autoGenerate": true,
-      "directory": "/v3/implementation/adrs",
+      "directory": "/docs/implementation/adrs",
       "template": "madr"
     },
     "ddd": {
       "trackDomains": true,
       "validateBoundedContexts": true,
-      "directory": "/v3/implementation/ddd"
+      "directory": "/docs/implementation/ddd"
     },
     "security": {
       "autoScan": true,

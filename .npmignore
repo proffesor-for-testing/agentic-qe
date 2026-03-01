@@ -41,6 +41,7 @@ Thumbs.db
 .claude/settings*.json
 .claude/aqe-fleet.json
 .claude/statusline-command.sh
+.claude/agents/v3/.claude-flow/
 
 # Environment files
 .env

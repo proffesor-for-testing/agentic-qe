@@ -5,6 +5,24 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.5] - 2026-03-01
+
+### Changed
+
+- **Flat project structure** — Archived v2, promoted v3 to root. All source (`src/`, `dist/`, `tests/`) now lives at project root with a single `package.json`. Removes the dual-package complexity and simplifies the build pipeline.
+- **Updated release workflow** — `/release` skill rewritten for single-package flat structure (no more `v3/` paths)
+
+### Added
+
+- **RVF binary brain export** — Native `@ruvector/rvf-node` integration for exporting learning patterns to compact binary `.rvf` format
+- **Multi-platform coding agent support (v3.7.4)** — 8 new platforms (Copilot, Cursor, Cline, Kilo Code, Roo Code, Codex CLI, Windsurf, Continue.dev) with `--with-all-platforms` flag, platform CLI commands, and 103 new tests
+
+### Fixed
+
+- **@ruvector native module crashes** — Graceful fallback on platforms without native binaries (#314, #315)
+- **Stale v3/ path references** — Cleaned up post-flatten; protected memory namespaces from accidental renames
+- **Release notes corrections** — Fixed alwaysAllow count, stale plan references
+
 ## [3.5.1] - 2026-02-04
 
 ### Security

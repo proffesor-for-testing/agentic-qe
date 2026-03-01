@@ -66,7 +66,7 @@ Reads:
 Writes:
 - aqe/integration/analysis/* - Integration impact analysis
 - aqe/integration/breaking/* - Breaking change reports
-- aqe/v3/integration/outcomes/* - V3 learning outcomes
+- aqe/integration/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/contract-testing/integration/* - Integration coordination

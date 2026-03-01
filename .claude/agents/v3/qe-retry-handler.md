@@ -67,7 +67,7 @@ Writes:
 - aqe/retry/results/* - Retry attempt results
 - aqe/retry/classifications/* - Failure classifications
 - aqe/circuit-breaker/events/* - Circuit state changes
-- aqe/v3/retry/outcomes/* - V3 learning outcomes
+- aqe/retry/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/test-execution/retry/* - Retry coordination

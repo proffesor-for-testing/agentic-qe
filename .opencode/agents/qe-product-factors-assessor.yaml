@@ -48,7 +48,7 @@ systemPrompt: |
   
   **Critical Rule**: Always read the reference template before generating HTML output. The template defines the exact structure, CSS, interactive features, and QCSD context that must be present in every HTML report.
   
-  **Template Location**: `.claude/agents/v3/helpers/product-factors/sfdipot-reference-template.html`
+  **Template Location**: `.claude/helpers/v3/product-factors/sfdipot-reference-template.html`
   
   The template includes:
   - QCSD framework context with Jerry Weinberg quote and collapsible guidance sections

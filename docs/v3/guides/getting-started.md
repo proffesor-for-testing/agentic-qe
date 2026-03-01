@@ -29,40 +29,40 @@ aqe init
 
 ```bash
 # Generate unit tests for a file
-aqe-v3 test generate --file src/services/UserService.ts --framework jest
+aqe test generate --file src/services/UserService.ts --framework jest
 
 # Generate with coverage target
-aqe-v3 test generate --scope src/api/ --coverage 90
+aqe test generate --scope src/api/ --coverage 90
 ```
 
 ### 2. Analyze Coverage
 
 ```bash
 # O(log n) coverage gap detection
-aqe-v3 coverage analyze --source src/ --tests tests/
+aqe coverage analyze --source src/ --tests tests/
 
 # Risk-weighted analysis
-aqe-v3 coverage gaps --risk-weighted --threshold 80
+aqe coverage gaps --risk-weighted --threshold 80
 ```
 
 ### 3. Run Quality Gate
 
 ```bash
 # Evaluate deployment readiness
-aqe-v3 quality assess --gates all
+aqe quality assess --gates all
 
 # Check specific gates
-aqe-v3 quality check --coverage 80 --no-critical-vulns
+aqe quality check --coverage 80 --no-critical-vulns
 ```
 
 ### 4. Execute Tests
 
 ```bash
 # Parallel execution with retry
-aqe-v3 test run --parallel --workers 4 --retry 3
+aqe test run --parallel --workers 4 --retry 3
 
 # Run affected tests only
-aqe-v3 test run --affected --since HEAD~1
+aqe test run --affected --since HEAD~1
 ```
 
 ## Using Agents
@@ -74,16 +74,16 @@ aqe-v3 test run --affected --since HEAD~1
 Task("Generate tests", `
   Analyze src/services/PaymentService.ts and generate comprehensive tests.
   Include happy paths, edge cases, and error handling.
-`, "v3-qe-test-generator")
+`, "qe-test-generator")
 ```
 
 ### Multi-Agent Workflows
 
 ```typescript
 // Parallel agent execution
-Task("Coverage analysis", "Analyze coverage gaps", "v3-qe-coverage-specialist")
-Task("Quality check", "Evaluate quality gates", "v3-qe-quality-gate")
-Task("Security scan", "Run security audit", "v3-qe-security-scanner")
+Task("Coverage analysis", "Analyze coverage gaps", "qe-coverage-specialist")
+Task("Quality check", "Evaluate quality gates", "qe-quality-gate")
+Task("Security scan", "Run security audit", "qe-security-scanner")
 ```
 
 ## Domain Commands
@@ -92,18 +92,18 @@ Each of the 12 domains has dedicated CLI commands:
 
 | Domain | Command Prefix | Example |
 |--------|---------------|---------|
-| Test Generation | `aqe-v3 test` | `aqe-v3 test generate` |
-| Test Execution | `aqe-v3 test run` | `aqe-v3 test run --parallel` |
-| Coverage | `aqe-v3 coverage` | `aqe-v3 coverage analyze` |
-| Quality | `aqe-v3 quality` | `aqe-v3 quality assess` |
-| Defects | `aqe-v3 defect` | `aqe-v3 defect predict` |
-| Code Intelligence | `aqe-v3 kg` | `aqe-v3 kg index` |
-| Requirements | `aqe-v3 requirements` | `aqe-v3 requirements trace` |
-| Security | `aqe-v3 security` | `aqe-v3 security scan` |
-| Contracts | `aqe-v3 contract` | `aqe-v3 contract verify` |
-| Visual | `aqe-v3 visual` | `aqe-v3 visual test` |
-| Chaos | `aqe-v3 chaos` | `aqe-v3 chaos run` |
-| Learning | `aqe-v3 learn` | `aqe-v3 learn status` |
+| Test Generation | `aqe test` | `aqe test generate` |
+| Test Execution | `aqe test run` | `aqe test run --parallel` |
+| Coverage | `aqe coverage` | `aqe coverage analyze` |
+| Quality | `aqe quality` | `aqe quality assess` |
+| Defects | `aqe defect` | `aqe defect predict` |
+| Code Intelligence | `aqe kg` | `aqe kg index` |
+| Requirements | `aqe requirements` | `aqe requirements trace` |
+| Security | `aqe security` | `aqe security scan` |
+| Contracts | `aqe contract` | `aqe contract verify` |
+| Visual | `aqe visual` | `aqe visual test` |
+| Chaos | `aqe chaos` | `aqe chaos run` |
+| Learning | `aqe learn` | `aqe learn status` |
 
 ## Configuration
 

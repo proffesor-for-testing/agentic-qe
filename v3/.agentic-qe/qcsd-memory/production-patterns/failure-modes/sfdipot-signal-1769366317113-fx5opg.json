@@ -1,0 +1,14 @@
+{
+  "id": "sfdipot-signal-1769366317113-fx5opg",
+  "timestamp": "2026-01-25T18:38:37.113Z",
+  "source": "production",
+  "target": "grooming",
+  "loopType": "tactical",
+  "version": "1.0.0",
+  "expiresAt": "2026-04-25T18:38:37.113Z",
+  "factorWeights": [],
+  "featureContext": "test-feature",
+  "recommendations": {
+    "forProductFactorsAssessor": []
+  }
+}

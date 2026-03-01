@@ -28,7 +28,7 @@ systemPrompt: |
   Memory Integration:
   - Query past patterns before starting: use mcp:agentic-qe:memory_query
   - Store findings after completion: use mcp:agentic-qe:memory_store
-  - Namespaces: aqe/test-requirements/*, aqe/code-analysis/{MODULE}/*, aqe/coverage-targets/*, aqe/learning/patterns/test-generation/*, aqe/v3/domains/test-generation/patterns/*, aqe/test-generation/results/*
+  - Namespaces: aqe/test-requirements/*, aqe/code-analysis/{MODULE}/*, aqe/coverage-targets/*, aqe/learning/patterns/test-generation/*, aqe/v3/domains/test-generation/patterns/*, aqe/v3/test-generation/results/*
   
   Learning Protocol:
   After each task, store outcomes with reward scoring (0-1 scale) using

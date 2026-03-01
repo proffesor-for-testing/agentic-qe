@@ -1,0 +1,9 @@
+{
+  "contractPath": "contracts/api.yaml",
+  "valid": true,
+  "breakingChanges": [],
+  "warnings": [
+    "Deprecated field \"legacyId\" should be removed in next major version"
+  ],
+  "coverage": 95
+}

@@ -141,7 +141,7 @@ Workers interact with domains through the `WorkerContext`:
 ### Files Created
 
 ```
-v3/src/workers/
+src/workers/
 ├── index.ts                    # Main exports
 ├── interfaces.ts               # Type definitions
 ├── base-worker.ts              # Abstract base class
@@ -164,7 +164,7 @@ v3/src/workers/
 ### Tests
 
 ```
-v3/tests/unit/workers/
+tests/unit/workers/
 ├── base-worker.test.ts         # 23 tests
 ├── worker-manager.test.ts      # 20 tests
 └── daemon.test.ts              # 23 tests
@@ -177,7 +177,7 @@ v3/tests/unit/workers/
 ### Starting the Daemon
 
 ```typescript
-import { createDaemon, getDaemon } from '@agentic-qe/v3/workers';
+import { createDaemon, getDaemon } from 'agentic-qe/workers';
 
 // Create and start daemon
 const daemon = createDaemon({
@@ -216,7 +216,7 @@ console.log({
 ### Creating a Custom Worker
 
 ```typescript
-import { BaseWorker, WorkerConfig, WorkerContext, WorkerResult } from '@agentic-qe/v3/workers';
+import { BaseWorker, WorkerConfig, WorkerContext, WorkerResult } from 'agentic-qe/workers';
 
 class CustomWorker extends BaseWorker {
   constructor() {

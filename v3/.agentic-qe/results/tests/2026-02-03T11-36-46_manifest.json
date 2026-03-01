@@ -1,0 +1,17 @@
+{
+  "generated": "2026-02-03T11:36:46.116Z",
+  "testsGenerated": 1,
+  "coverageEstimate": 19.6,
+  "patternsUsed": [],
+  "language": "typescript",
+  "framework": "vitest",
+  "tests": [
+    {
+      "name": "aqe-temp-722cc8a3-d565-46ca-8c7b-7cb5a162d340 tests",
+      "file": "/tmp/aqe-temp-722cc8a3-d565-46ca-8c7b-7cb5a162d340.test.ts",
+      "type": "unit",
+      "sourceFile": "/tmp/aqe-temp-722cc8a3-d565-46ca-8c7b-7cb5a162d340.ts",
+      "assertions": 12
+    }
+  ]
+}

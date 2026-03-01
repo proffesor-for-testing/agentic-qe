@@ -56,12 +56,14 @@
 - When working with skills, ALWAYS distinguish between AQE/QE skills and Claude Flow platform skills
 - Only count/modify AQE skills unless explicitly told otherwise — do NOT include Claude Flow platform skills
 - AQE skills live under `.claude/skills/` but exclude platform infrastructure skills (v3-*, flow-nexus-*, agentdb-*, reasoningbank-*, swarm-*)
+- `.claude/agents/v3/` contains BOTH QE agents (qe-*.md, shipped to users) AND project-internal agents (v3-*, adr-*, security-*, sparc-*, etc., NOT shipped)
+- Only `qe-*.md` agents are part of the AQE fleet for users — non-qe agents are Claude Flow platform or project-specific agents
+- The `assets/agents/v3/` directory contains ONLY qe-*.md agents for npm distribution — do NOT copy non-QE agents there
+- Memory namespaces like `aqe/v3/domains/*` are database identifiers, NOT filesystem paths — never change them during structural refactors
 
 ## Database Architecture
 
-- v2 database tables are LEGACY — do NOT use them. All work must target v3 tables only
-- Unified persistence system: all data goes through v3 SQLite (better-sqlite3) — one DB, one schema
-- If you encounter v2 table references in code, flag them for migration to v3
+- Unified persistence system: all data goes through SQLite (better-sqlite3) — one DB, one schema
 
 ## Build & Test
 
@@ -113,7 +115,7 @@ npm run lint
 6. **Verify** on npmjs.com after workflow succeeds
 
 - **CRITICAL**: The production publish workflow is `.github/workflows/npm-publish.yml` — triggered by `on: release: [published]`
-- **DO NOT** use `publish-v3-alpha.yml` for production releases — it publishes `@agentic-qe/v3` (scoped alpha), not `agentic-qe` (root package)
+- **DO NOT** use `publish-v3-alpha.yml` for production releases — it is for alpha/beta only
 - **DO NOT** run `npm publish` locally or attempt manual publish steps
 - **DO NOT** run local tests in Codespace if they OOM — CI tests in the workflow are sufficient
 - If publish fails due to test assertions, fix tests, push to main, delete release + tag, recreate both

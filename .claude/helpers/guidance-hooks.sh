@@ -28,8 +28,8 @@ case "$COMMAND" in
             if [[ "$FILE_PATH" =~ (config|secret|credential|password|key|auth) ]]; then
                 echo -e "${YELLOW}[Guidance] Security-sensitive file${RESET}"
             fi
-            if [[ "$FILE_PATH" =~ ^v3/ ]]; then
-                echo -e "${CYAN}[Guidance] V3 module - follow ADR guidelines${RESET}"
+            if [[ "$FILE_PATH" =~ ^src/ ]]; then
+                echo -e "${CYAN}[Guidance] Source module - follow ADR guidelines${RESET}"
             fi
         fi
         exit 0

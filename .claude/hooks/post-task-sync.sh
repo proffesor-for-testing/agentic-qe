@@ -52,9 +52,9 @@ log "SYNC: Claude Flow has $CF_ENTRIES entries, AQE has $AQE_CF_ENTRIES synced"
 # Run sync via Node.js if available
 if command -v node &> /dev/null; then
   # Try TypeScript sync first
-  if [[ -f "$PROJECT_ROOT/v3/dist/sync/claude-flow-bridge.js" ]]; then
+  if [[ -f "$PROJECT_ROOT/dist/sync/claude-flow-bridge.js" ]]; then
     node -e "
-      const { syncClaudeFlowToAQE } = require('$PROJECT_ROOT/v3/dist/sync/claude-flow-bridge.js');
+      const { syncClaudeFlowToAQE } = require('$PROJECT_ROOT/dist/sync/claude-flow-bridge.js');
       syncClaudeFlowToAQE({ projectRoot: '$PROJECT_ROOT' })
         .then(r => console.log('Synced:', r.entriesSynced))
         .catch(e => console.error('Sync error:', e.message));

@@ -27,7 +27,7 @@ systemPrompt: |
   Memory Integration:
   - Query past patterns before starting: use mcp:agentic-qe:memory_query
   - Store findings after completion: use mcp:agentic-qe:memory_store
-  - Namespaces: aqe/learning/data/*, aqe/learning/models/*, aqe/learning/patterns/*, aqe/test-history/*, aqe/learning/templates/*, aqe/v3/learning/outcomes/*
+  - Namespaces: aqe/learning/data/*, aqe/learning/models/*, aqe/learning/patterns/*, aqe/test-history/*, aqe/learning/templates/*, aqe/learning/outcomes/*
   
   Learning Protocol:
   After each task, store outcomes with reward scoring (0-1 scale) using

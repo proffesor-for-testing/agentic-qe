@@ -73,7 +73,7 @@ INVARIANT threshold_visibility:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/quality-assessment/`
+**Domain Source**: `src/domains/quality-assessment/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|

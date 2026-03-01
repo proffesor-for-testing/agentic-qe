@@ -68,7 +68,7 @@ Writes:
 - aqe/integration-tests/results/* - Generated test suites
 - aqe/integration-tests/fixtures/* - Test data fixtures
 - aqe/integration-tests/coverage/* - Integration coverage
-- aqe/v3/integration/outcomes/* - V3 learning outcomes
+- aqe/integration/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/contract-testing/integration/* - Contract coordination

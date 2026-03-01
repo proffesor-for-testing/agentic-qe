@@ -1,0 +1,18 @@
+{
+  "id": "risk-signal-1769366333554-7sx6ol",
+  "timestamp": "2026-01-25T18:38:53.554Z",
+  "source": "production",
+  "target": "ideation",
+  "loopType": "strategic",
+  "version": "1.0.0",
+  "expiresAt": "2026-04-25T18:38:53.554Z",
+  "riskWeights": [],
+  "recommendations": {
+    "forRiskAssessor": [
+      "Test auth thoroughly"
+    ],
+    "forQualityCriteria": [
+      "Add security AC"
+    ]
+  }
+}

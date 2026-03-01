@@ -8,14 +8,14 @@ echo "=========================================="
 echo "  QCSD Demo Warmup"
 echo "=========================================="
 
-cd /workspaces/agentic-qe/v3
+cd /workspaces/agentic-qe-new
 
 echo ""
 echo "[1/4] Checking Node.js..."
 node --version
 
 echo ""
-echo "[2/4] Building v3 (if needed)..."
+echo "[2/4] Building (if needed)..."
 npm run build 2>/dev/null || echo "Build skipped (already built)"
 
 echo ""
@@ -38,7 +38,7 @@ echo "Open Claude Code and paste:"
 echo ""
 echo '  I need to demonstrate QE fleet capabilities.'
 echo '  Spawn qe-risk-assessor to analyze'
-echo '  v3/src/memory/cross-phase-memory.ts'
+echo '  src/memory/cross-phase-memory.ts'
 echo '  for quality risks using SFDIPOT factors.'
 echo ""
 echo "Demo script: docs/demos/qcsd-10min-demo.md"

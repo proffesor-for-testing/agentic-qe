@@ -83,7 +83,7 @@ INVARIANT vulnerability_sla:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/security-compliance/`
+**Domain Source**: `src/domains/security-compliance/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|

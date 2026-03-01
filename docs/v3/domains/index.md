@@ -56,7 +56,7 @@ Domain-specific testing:
 Each domain follows this standard structure:
 
 ```
-v3/src/domains/<domain>/
+src/domains/<domain>/
 ├── index.ts              # Public exports
 ├── coordinator.ts        # Domain coordinator
 ├── plugin.ts             # Plugin registration

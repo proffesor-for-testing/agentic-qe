@@ -1,0 +1,1225 @@
+{
+  "version": "1.0",
+  "created": "2026-01-27T10:45:23.109Z",
+  "updated": "2026-02-08T14:16:04.487Z",
+  "results": [
+    {
+      "id": "task_a1a9cd15-a09d-4362-a38d-86391662a0df",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:54:11.009Z",
+      "files": [
+        "coverage/2026-02-08T13-54-11_coverage.json",
+        "coverage/2026-02-08T13-54-11_coverage.lcov",
+        "coverage/2026-02-08T13-54-11_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_c6401f37-f60e-4015-8895-11a0721a3e19",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:54:11.471Z",
+      "files": [
+        "coverage/2026-02-08T13-54-11_coverage.json",
+        "coverage/2026-02-08T13-54-11_coverage.lcov",
+        "coverage/2026-02-08T13-54-11_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_30233f28-e02b-4e1d-9829-c0f446ef87a5",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:54:11.878Z",
+      "files": [
+        "coverage/2026-02-08T13-54-11_coverage.json",
+        "coverage/2026-02-08T13-54-11_coverage.lcov",
+        "coverage/2026-02-08T13-54-11_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_599bb423-23c2-474b-bd54-ebaff7cbca93",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:54:12.310Z",
+      "files": [
+        "coverage/2026-02-08T13-54-12_coverage.json",
+        "coverage/2026-02-08T13-54-12_coverage.lcov",
+        "coverage/2026-02-08T13-54-12_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_00a457b3-6f10-486d-b26c-6c97db941346",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:54:12.936Z",
+      "files": [
+        "coverage/2026-02-08T13-54-12_coverage.json",
+        "coverage/2026-02-08T13-54-12_coverage.lcov",
+        "coverage/2026-02-08T13-54-12_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_330d6987-4d14-4e23-8dbf-31362e03d46e",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:54:13.302Z",
+      "files": [
+        "coverage/2026-02-08T13-54-13_coverage.json",
+        "coverage/2026-02-08T13-54-13_coverage.lcov",
+        "coverage/2026-02-08T13-54-13_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_8e629105-5ee0-4771-a02d-582fc2f9f1d4",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:54:13.876Z",
+      "files": [
+        "coverage/2026-02-08T13-54-13_coverage.json",
+        "coverage/2026-02-08T13-54-13_coverage.lcov",
+        "coverage/2026-02-08T13-54-13_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_69c9630d-e549-4ff7-a36a-9f5c48de5d3f",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:54:14.537Z",
+      "files": [
+        "coverage/2026-02-08T13-54-14_coverage.json",
+        "coverage/2026-02-08T13-54-14_coverage.lcov",
+        "coverage/2026-02-08T13-54-14_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_11b0cbbd-3886-4825-b55a-56a22eaecd14",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T13:54:30.914Z",
+      "files": [
+        "quality/2026-02-08T13-54-30_assessment.json",
+        "quality/2026-02-08T13-54-30_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_c971c86a-8a87-4464-9efa-ec36d2b146ae",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T13:54:35.415Z",
+      "files": [
+        "quality/2026-02-08T13-54-35_assessment.json",
+        "quality/2026-02-08T13-54-35_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_d778fbe1-dc6a-4993-ab5a-595f179881c7",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T13:54:39.292Z",
+      "files": [
+        "quality/2026-02-08T13-54-39_assessment.json",
+        "quality/2026-02-08T13-54-39_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_38bc8e91-7b33-4603-ac6a-a728534538aa",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T13:54:42.686Z",
+      "files": [
+        "quality/2026-02-08T13-54-42_assessment.json",
+        "quality/2026-02-08T13-54-42_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_37791072-1af3-4249-ba6f-b6e2bcd785b7",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T13:54:46.676Z",
+      "files": [
+        "quality/2026-02-08T13-54-46_assessment.json",
+        "quality/2026-02-08T13-54-46_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_7c83ef30-149a-4a8d-89d0-fa7c67e334ee",
+      "type": "scan-security",
+      "timestamp": "2026-02-08T13:54:48.979Z",
+      "files": [
+        "security/2026-02-08T13-54-48_scan.json",
+        "security/2026-02-08T13-54-48_scan.sarif",
+        "security/2026-02-08T13-54-48_report.md"
+      ],
+      "summary": {
+        "vulnerabilities": 2252,
+        "critical": 27,
+        "high": 35
+      }
+    },
+    {
+      "id": "task_4bb3ad42-39d3-4202-aaec-6826fb4824ed",
+      "type": "scan-security",
+      "timestamp": "2026-02-08T13:54:51.118Z",
+      "files": [
+        "security/2026-02-08T13-54-51_scan.json",
+        "security/2026-02-08T13-54-51_scan.sarif",
+        "security/2026-02-08T13-54-51_report.md"
+      ],
+      "summary": {
+        "vulnerabilities": 2252,
+        "critical": 27,
+        "high": 35
+      }
+    },
+    {
+      "id": "task_d22afc6a-e60a-4a3c-8740-8a57f9f1bfd8",
+      "type": "scan-security",
+      "timestamp": "2026-02-08T13:54:53.584Z",
+      "files": [
+        "security/2026-02-08T13-54-53_scan.json",
+        "security/2026-02-08T13-54-53_scan.sarif",
+        "security/2026-02-08T13-54-53_report.md"
+      ],
+      "summary": {
+        "vulnerabilities": 2252,
+        "critical": 27,
+        "high": 35
+      }
+    },
+    {
+      "id": "task_5eedaf2b-e242-4331-b66f-207c80c8a749",
+      "type": "scan-security",
+      "timestamp": "2026-02-08T13:54:55.739Z",
+      "files": [
+        "security/2026-02-08T13-54-55_scan.json",
+        "security/2026-02-08T13-54-55_scan.sarif",
+        "security/2026-02-08T13-54-55_report.md"
+      ],
+      "summary": {
+        "vulnerabilities": 2252,
+        "critical": 27,
+        "high": 35
+      }
+    },
+    {
+      "id": "task_13dbb6c6-73a7-4a3e-8127-bd3297ba5d2b",
+      "type": "scan-security",
+      "timestamp": "2026-02-08T13:54:58.202Z",
+      "files": [
+        "security/2026-02-08T13-54-58_scan.json",
+        "security/2026-02-08T13-54-58_scan.sarif",
+        "security/2026-02-08T13-54-58_report.md"
+      ],
+      "summary": {
+        "vulnerabilities": 2252,
+        "critical": 27,
+        "high": 35
+      }
+    },
+    {
+      "id": "task_7c8b8739-577b-40b5-aadc-72b9c8e343f3",
+      "type": "scan-security",
+      "timestamp": "2026-02-08T13:55:00.477Z",
+      "files": [
+        "security/2026-02-08T13-55-00_scan.json",
+        "security/2026-02-08T13-55-00_scan.sarif",
+        "security/2026-02-08T13-55-00_report.md"
+      ],
+      "summary": {
+        "vulnerabilities": 2252,
+        "critical": 27,
+        "high": 35
+      }
+    },
+    {
+      "id": "task_6a6ac2c2-5db0-4119-8989-75414c946fc2",
+      "type": "scan-security",
+      "timestamp": "2026-02-08T13:55:02.500Z",
+      "files": [
+        "security/2026-02-08T13-55-02_scan.json",
+        "security/2026-02-08T13-55-02_scan.sarif",
+        "security/2026-02-08T13-55-02_report.md"
+      ],
+      "summary": {
+        "vulnerabilities": 2252,
+        "critical": 27,
+        "high": 35
+      }
+    },
+    {
+      "id": "task_3b1bc8b8-f229-4d2d-b582-4f58d65eff4a",
+      "type": "validate-contracts",
+      "timestamp": "2026-02-08T13:55:02.956Z",
+      "files": [
+        "contracts/2026-02-08T13-55-02_validation.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_989dfdcb-c0ac-4550-ac9a-1359d5015b5d",
+      "type": "validate-contracts",
+      "timestamp": "2026-02-08T13:55:03.184Z",
+      "files": [
+        "contracts/2026-02-08T13-55-03_validation.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_b19d741f-cd72-4f8d-9b7e-701568dde013",
+      "type": "validate-contracts",
+      "timestamp": "2026-02-08T13:55:03.392Z",
+      "files": [
+        "contracts/2026-02-08T13-55-03_validation.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_ccd2d800-c4fa-4eb1-abfd-04b107901991",
+      "type": "test-accessibility",
+      "timestamp": "2026-02-08T13:55:03.695Z",
+      "files": [
+        "accessibility/2026-02-08T13-55-03_test.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_7a8109fb-0a75-45ea-ad2d-a53adf6641a2",
+      "type": "test-accessibility",
+      "timestamp": "2026-02-08T13:55:03.835Z",
+      "files": [
+        "accessibility/2026-02-08T13-55-03_test.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_759cef6b-5745-4e36-ac7d-538e2746630d",
+      "type": "test-accessibility",
+      "timestamp": "2026-02-08T13:55:03.942Z",
+      "files": [
+        "accessibility/2026-02-08T13-55-03_test.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_ff305e14-c309-4f1b-b115-91f7db9dd9e3",
+      "type": "test-accessibility",
+      "timestamp": "2026-02-08T13:55:04.081Z",
+      "files": [
+        "accessibility/2026-02-08T13-55-04_test.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_181d6443-8a6c-4881-9dce-3364695f6cdd",
+      "type": "test-accessibility",
+      "timestamp": "2026-02-08T13:55:04.257Z",
+      "files": [
+        "accessibility/2026-02-08T13-55-04_test.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_5fc2bc6d-de1d-4773-b432-3eb2e00fcf41",
+      "type": "run-chaos",
+      "timestamp": "2026-02-08T13:55:04.510Z",
+      "files": [
+        "chaos/2026-02-08T13-55-04_chaos.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_afc67f7b-ea30-471a-80cf-961e291ea50c",
+      "type": "run-chaos",
+      "timestamp": "2026-02-08T13:55:04.639Z",
+      "files": [
+        "chaos/2026-02-08T13-55-04_chaos.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_299be81b-2ed7-406b-bfcf-c2004b8b40d9",
+      "type": "run-chaos",
+      "timestamp": "2026-02-08T13:55:04.904Z",
+      "files": [
+        "chaos/2026-02-08T13-55-04_chaos.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_045cb6f7-3a53-4023-80fc-d4ea9ffc1e92",
+      "type": "run-chaos",
+      "timestamp": "2026-02-08T13:55:04.989Z",
+      "files": [
+        "chaos/2026-02-08T13-55-04_chaos.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_b805cb92-f86b-4c69-bc44-4f1e99d2af2e",
+      "type": "run-chaos",
+      "timestamp": "2026-02-08T13:55:05.069Z",
+      "files": [
+        "chaos/2026-02-08T13-55-05_chaos.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_d32c7878-509c-4a01-9b16-2ebb05838332",
+      "type": "run-chaos",
+      "timestamp": "2026-02-08T13:55:05.256Z",
+      "files": [
+        "chaos/2026-02-08T13-55-05_chaos.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_4b565a97-4b9a-4083-8de8-88d6931aea17",
+      "type": "predict-defects",
+      "timestamp": "2026-02-08T13:55:05.653Z",
+      "files": [
+        "defects/2026-02-08T13-55-05_prediction.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_93a6f828-a7d7-4e3b-a3ee-930d491902ce",
+      "type": "predict-defects",
+      "timestamp": "2026-02-08T13:55:05.917Z",
+      "files": [
+        "defects/2026-02-08T13-55-05_prediction.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_e8070f54-f07c-4a24-8078-6aacd0b5f9ed",
+      "type": "predict-defects",
+      "timestamp": "2026-02-08T13:55:06.108Z",
+      "files": [
+        "defects/2026-02-08T13-55-06_prediction.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_a1a2ed07-daac-4372-ab90-5be011635736",
+      "type": "predict-defects",
+      "timestamp": "2026-02-08T13:55:06.286Z",
+      "files": [
+        "defects/2026-02-08T13-55-06_prediction.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_05902db7-15a7-4863-aebf-3fd9f617c030",
+      "type": "predict-defects",
+      "timestamp": "2026-02-08T13:55:06.457Z",
+      "files": [
+        "defects/2026-02-08T13-55-06_prediction.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_c7b09193-7b02-4414-b261-555c11a59b77",
+      "type": "validate-requirements",
+      "timestamp": "2026-02-08T13:55:06.691Z",
+      "files": [
+        "other/2026-02-08T13-55-06_validate-requirements.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_613f9b7f-53a7-4862-bc3d-40e71be4020a",
+      "type": "validate-requirements",
+      "timestamp": "2026-02-08T13:55:06.853Z",
+      "files": [
+        "other/2026-02-08T13-55-06_validate-requirements.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_d63b5412-73f0-4ef5-af85-321d1f46188f",
+      "type": "validate-requirements",
+      "timestamp": "2026-02-08T13:55:07.029Z",
+      "files": [
+        "other/2026-02-08T13-55-07_validate-requirements.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_51796096-48d7-4289-a044-2731158e040f",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:55:07.409Z",
+      "files": [
+        "tests/2026-02-08T13-55-07_manifest.json",
+        "tests/2026-02-08T13-55-07_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 6.8
+      }
+    },
+    {
+      "id": "task_325d9bc4-08ed-41ca-a667-724cf990108f",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:55:07.610Z",
+      "files": [
+        "tests/2026-02-08T13-55-07_manifest.json",
+        "tests/2026-02-08T13-55-07_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 0,
+        "coverageEstimate": 0
+      }
+    },
+    {
+      "id": "task_c50e1ca5-dab8-4199-83c8-0b2ea6033e5c",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:55:07.993Z",
+      "files": [
+        "tests/2026-02-08T13-55-07_manifest.json",
+        "tests/2026-02-08T13-55-07_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 0
+      }
+    },
+    {
+      "id": "task_1e655b70-9acf-4db7-be94-40e8023d0c5d",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:55:08.407Z",
+      "files": [
+        "tests/2026-02-08T13-55-08_manifest.json",
+        "tests/2026-02-08T13-55-08_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 19.6
+      }
+    },
+    {
+      "id": "task_1b892794-d556-4286-a375-a37c8a29b628",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:55:08.440Z",
+      "files": [
+        "coverage/2026-02-08T13-55-08_coverage.json",
+        "coverage/2026-02-08T13-55-08_coverage.lcov",
+        "coverage/2026-02-08T13-55-08_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_4074b2c5-191d-4744-a17a-5366003bb2e9",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T13:55:13.187Z",
+      "files": [
+        "quality/2026-02-08T13-55-13_assessment.json",
+        "quality/2026-02-08T13-55-13_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_35b72e07-d907-461d-b9c3-df44bee80907",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:55:13.392Z",
+      "files": [
+        "tests/2026-02-08T13-55-13_manifest.json",
+        "tests/2026-02-08T13-55-13_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 19.6
+      }
+    },
+    {
+      "id": "task_6b21a698-785c-4479-a6f0-49b58511adaf",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:55:13.638Z",
+      "files": [
+        "tests/2026-02-08T13-55-13_manifest.json",
+        "tests/2026-02-08T13-55-13_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 19.6
+      }
+    },
+    {
+      "id": "task_fb3abd1e-8ab4-47cd-8e78-1cb1fb2f1a6f",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:56:33.378Z",
+      "files": [
+        "tests/2026-02-08T13-56-33_manifest.json",
+        "tests/2026-02-08T13-56-33_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 9.5
+      }
+    },
+    {
+      "id": "task_b6f53876-d4bc-43e3-8b89-0edc02ffec61",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:56:33.646Z",
+      "files": [
+        "tests/2026-02-08T13-56-33_manifest.json",
+        "tests/2026-02-08T13-56-33_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 19.6
+      }
+    },
+    {
+      "id": "task_78e188b8-0093-4d8d-aa16-ff570762bc7d",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:56:33.904Z",
+      "files": [
+        "tests/2026-02-08T13-56-33_manifest.json",
+        "tests/2026-02-08T13-56-33_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 21.3
+      }
+    },
+    {
+      "id": "task_936ddbeb-1f48-414a-9994-8f0003b2cd4e",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:56:34.098Z",
+      "files": [
+        "tests/2026-02-08T13-56-34_manifest.json",
+        "tests/2026-02-08T13-56-34_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 6.8
+      }
+    },
+    {
+      "id": "task_1bcaa237-676e-471e-8412-3eb1ad21cf45",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:56:34.293Z",
+      "files": [
+        "tests/2026-02-08T13-56-34_manifest.json",
+        "tests/2026-02-08T13-56-34_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 9.5
+      }
+    },
+    {
+      "id": "task_25aac8f4-182b-44de-947f-376f28312976",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:56:34.462Z",
+      "files": [
+        "tests/2026-02-08T13-56-34_manifest.json",
+        "tests/2026-02-08T13-56-34_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 6.8
+      }
+    },
+    {
+      "id": "task_136812f1-566b-416f-beaf-30f0890d7278",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:56:35.031Z",
+      "files": [
+        "tests/2026-02-08T13-56-35_manifest.json",
+        "tests/2026-02-08T13-56-35_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 8.1
+      }
+    },
+    {
+      "id": "task_d60c31aa-8fbf-4694-9ed4-1c681a346d6b",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:56:35.290Z",
+      "files": [
+        "tests/2026-02-08T13-56-35_manifest.json",
+        "tests/2026-02-08T13-56-35_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 6.8
+      }
+    },
+    {
+      "id": "task_3f7fd888-f128-4431-a34c-b04cd5c7e8e7",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T13:56:35.534Z",
+      "files": [
+        "tests/2026-02-08T13-56-35_manifest.json",
+        "tests/2026-02-08T13-56-35_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 6.8
+      }
+    },
+    {
+      "id": "task_99a0fcd1-5733-42bf-9a62-8294be2511a8",
+      "type": "execute-tests",
+      "timestamp": "2026-02-08T13:56:35.868Z",
+      "files": [
+        "other/2026-02-08T13-56-35_execute-tests.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_59073dd9-9ad7-4af5-b930-e7b97444af2e",
+      "type": "execute-tests",
+      "timestamp": "2026-02-08T13:56:36.116Z",
+      "files": [
+        "other/2026-02-08T13-56-36_execute-tests.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_8bb0d6ad-2b24-45c9-be57-575144074496",
+      "type": "execute-tests",
+      "timestamp": "2026-02-08T13:56:36.357Z",
+      "files": [
+        "other/2026-02-08T13-56-36_execute-tests.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_0d305bca-f8b2-499c-a6af-4dc6d88253a1",
+      "type": "execute-tests",
+      "timestamp": "2026-02-08T13:56:36.653Z",
+      "files": [
+        "other/2026-02-08T13-56-36_execute-tests.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_10cdb0f2-f6b0-4329-95c3-65daf91bb8cd",
+      "type": "execute-tests",
+      "timestamp": "2026-02-08T13:56:36.867Z",
+      "files": [
+        "other/2026-02-08T13-56-36_execute-tests.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_f03a9247-9616-4271-9ef1-182de01ebd35",
+      "type": "execute-tests",
+      "timestamp": "2026-02-08T13:56:37.156Z",
+      "files": [
+        "other/2026-02-08T13-56-37_execute-tests.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_200da97f-ad9b-4732-ab83-926cad83f90c",
+      "type": "execute-tests",
+      "timestamp": "2026-02-08T13:56:37.509Z",
+      "files": [
+        "other/2026-02-08T13-56-37_execute-tests.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_c80f11ef-421c-44a6-90a3-ba9328d1a180",
+      "type": "execute-tests",
+      "timestamp": "2026-02-08T13:56:37.803Z",
+      "files": [
+        "other/2026-02-08T13-56-37_execute-tests.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_271d397b-942a-4fb2-a2ec-5a40a5d64868",
+      "type": "execute-tests",
+      "timestamp": "2026-02-08T13:56:38.108Z",
+      "files": [
+        "other/2026-02-08T13-56-38_execute-tests.json"
+      ],
+      "summary": {}
+    },
+    {
+      "id": "task_bb636295-334f-4c74-aa9d-6ddffb19c2b9",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:56:38.452Z",
+      "files": [
+        "coverage/2026-02-08T13-56-38_coverage.json",
+        "coverage/2026-02-08T13-56-38_coverage.lcov",
+        "coverage/2026-02-08T13-56-38_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_4386974c-ef26-4f05-baa3-5ff84ee930b2",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:56:38.639Z",
+      "files": [
+        "coverage/2026-02-08T13-56-38_coverage.json",
+        "coverage/2026-02-08T13-56-38_coverage.lcov",
+        "coverage/2026-02-08T13-56-38_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_fb6240ab-5b45-4d3b-91ea-bb48c4055da0",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:56:38.867Z",
+      "files": [
+        "coverage/2026-02-08T13-56-38_coverage.json",
+        "coverage/2026-02-08T13-56-38_coverage.lcov",
+        "coverage/2026-02-08T13-56-38_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_38a4e3ab-e005-4b1d-9093-7e429fe39458",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:56:39.122Z",
+      "files": [
+        "coverage/2026-02-08T13-56-39_coverage.json",
+        "coverage/2026-02-08T13-56-39_coverage.lcov",
+        "coverage/2026-02-08T13-56-39_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_4ed3c58c-ac74-4121-b059-587724ecdd9e",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:56:39.338Z",
+      "files": [
+        "coverage/2026-02-08T13-56-39_coverage.json",
+        "coverage/2026-02-08T13-56-39_coverage.lcov",
+        "coverage/2026-02-08T13-56-39_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_8e6a23a7-0c09-4803-95a6-137b96a17894",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:56:39.557Z",
+      "files": [
+        "coverage/2026-02-08T13-56-39_coverage.json",
+        "coverage/2026-02-08T13-56-39_coverage.lcov",
+        "coverage/2026-02-08T13-56-39_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_0d740c82-6360-4bf1-98e9-eddd3b62a782",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:56:39.796Z",
+      "files": [
+        "coverage/2026-02-08T13-56-39_coverage.json",
+        "coverage/2026-02-08T13-56-39_coverage.lcov",
+        "coverage/2026-02-08T13-56-39_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_4fda7302-4f93-4094-9be3-8412d38e4cc5",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:56:40.026Z",
+      "files": [
+        "coverage/2026-02-08T13-56-40_coverage.json",
+        "coverage/2026-02-08T13-56-40_coverage.lcov",
+        "coverage/2026-02-08T13-56-40_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_625d6f83-9abb-496a-a520-a1f7422956b1",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T13:56:40.260Z",
+      "files": [
+        "coverage/2026-02-08T13-56-40_coverage.json",
+        "coverage/2026-02-08T13-56-40_coverage.lcov",
+        "coverage/2026-02-08T13-56-40_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_520352c8-5c94-4fb5-a093-7a9e4c1c4f87",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T13:56:44.425Z",
+      "files": [
+        "quality/2026-02-08T13-56-44_assessment.json",
+        "quality/2026-02-08T13-56-44_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_4ac111da-915d-4876-8cce-1b3cb4967f34",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T13:56:47.757Z",
+      "files": [
+        "quality/2026-02-08T13-56-47_assessment.json",
+        "quality/2026-02-08T13-56-47_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_8f83b621-62b1-48e0-a8dc-125490a247b3",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T13:56:51.113Z",
+      "files": [
+        "quality/2026-02-08T13-56-51_assessment.json",
+        "quality/2026-02-08T13-56-51_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_8264afa9-1b70-41f4-8f40-f755df593ae6",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T13:56:54.631Z",
+      "files": [
+        "quality/2026-02-08T13-56-54_assessment.json",
+        "quality/2026-02-08T13-56-54_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_900b6a52-5134-437d-b934-35cdda1cc9fa",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T13:56:57.899Z",
+      "files": [
+        "quality/2026-02-08T13-56-57_assessment.json",
+        "quality/2026-02-08T13-56-57_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_2a047a82-155b-415c-b0af-eb16fa521d67",
+      "type": "scan-security",
+      "timestamp": "2026-02-08T13:57:00.487Z",
+      "files": [
+        "security/2026-02-08T13-57-00_scan.json",
+        "security/2026-02-08T13-57-00_scan.sarif",
+        "security/2026-02-08T13-57-00_report.md"
+      ],
+      "summary": {
+        "vulnerabilities": 2252,
+        "critical": 27,
+        "high": 35
+      }
+    },
+    {
+      "id": "task_7ca64db6-2ab8-4660-b954-3695c13a97fa",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T14:15:23.285Z",
+      "files": [
+        "tests/2026-02-08T14-15-23_manifest.json",
+        "tests/2026-02-08T14-15-23_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 9.5
+      }
+    },
+    {
+      "id": "task_03ff3d91-e9e0-4792-9d44-81f11c4d4fd7",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T14:15:23.364Z",
+      "files": [
+        "tests/2026-02-08T14-15-23_manifest.json",
+        "tests/2026-02-08T14-15-23_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 9.5
+      }
+    },
+    {
+      "id": "task_2e6569f7-1152-411a-8f1f-bdada4f8f6d5",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T14:15:23.487Z",
+      "files": [
+        "tests/2026-02-08T14-15-23_manifest.json",
+        "tests/2026-02-08T14-15-23_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 9.5
+      }
+    },
+    {
+      "id": "task_73b94dcf-2ce8-4337-9a31-669e82a26d7a",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T14:15:24.606Z",
+      "files": [
+        "tests/2026-02-08T14-15-24_manifest.json",
+        "tests/2026-02-08T14-15-24_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 9.5
+      }
+    },
+    {
+      "id": "task_38d57593-8b7b-493d-b7fc-eb87e091672c",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T14:15:24.719Z",
+      "files": [
+        "coverage/2026-02-08T14-15-24_coverage.json",
+        "coverage/2026-02-08T14-15-24_coverage.lcov",
+        "coverage/2026-02-08T14-15-24_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_92bec45e-ee1d-42c2-9909-38f8498b2e85",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T14:15:28.633Z",
+      "files": [
+        "quality/2026-02-08T14-15-28_assessment.json",
+        "quality/2026-02-08T14-15-28_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_d89499a1-f1ae-4867-a9aa-1f19743291da",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T14:15:35.752Z",
+      "files": [
+        "tests/2026-02-08T14-15-35_manifest.json",
+        "tests/2026-02-08T14-15-35_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 6.8
+      }
+    },
+    {
+      "id": "task_befa26b5-fc5f-4b25-8515-fb34ef2842b2",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T14:15:35.860Z",
+      "files": [
+        "coverage/2026-02-08T14-15-35_coverage.json",
+        "coverage/2026-02-08T14-15-35_coverage.lcov",
+        "coverage/2026-02-08T14-15-35_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_582846e8-bc4e-4378-a731-3e75bc5f49bb",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T14:15:39.405Z",
+      "files": [
+        "quality/2026-02-08T14-15-39_assessment.json",
+        "quality/2026-02-08T14-15-39_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    },
+    {
+      "id": "task_33c5b61f-4564-4605-b48d-ed18bbcb7e40",
+      "type": "scan-security",
+      "timestamp": "2026-02-08T14:15:43.557Z",
+      "files": [
+        "security/2026-02-08T14-15-43_scan.json",
+        "security/2026-02-08T14-15-43_scan.sarif",
+        "security/2026-02-08T14-15-43_report.md"
+      ],
+      "summary": {
+        "vulnerabilities": 2252,
+        "critical": 27,
+        "high": 35
+      }
+    },
+    {
+      "id": "task_7d3891d5-b274-4f0b-a01d-ad818329bb0a",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T14:15:44.200Z",
+      "files": [
+        "tests/2026-02-08T14-15-44_manifest.json",
+        "tests/2026-02-08T14-15-44_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 9.5
+      }
+    },
+    {
+      "id": "task_93684527-e141-4069-9b40-d9a0ac5f0e69",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T14:15:44.616Z",
+      "files": [
+        "tests/2026-02-08T14-15-44_manifest.json",
+        "tests/2026-02-08T14-15-44_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 9.5
+      }
+    },
+    {
+      "id": "task_160c83b1-0fb9-470e-958a-4440fedb9f54",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T14:15:45.015Z",
+      "files": [
+        "tests/2026-02-08T14-15-45_manifest.json",
+        "tests/2026-02-08T14-15-45_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 6.8
+      }
+    },
+    {
+      "id": "task_c64d166d-b9aa-442e-946c-6abccf90f45b",
+      "type": "generate-tests",
+      "timestamp": "2026-02-08T14:15:58.459Z",
+      "files": [
+        "tests/2026-02-08T14-15-58_manifest.json",
+        "tests/2026-02-08T14-15-58_report.md"
+      ],
+      "summary": {
+        "testsGenerated": 1,
+        "coverageEstimate": 19.6
+      }
+    },
+    {
+      "id": "task_d9c44254-e32e-4857-94fc-86f63d2ba87c",
+      "type": "analyze-coverage",
+      "timestamp": "2026-02-08T14:15:58.583Z",
+      "files": [
+        "coverage/2026-02-08T14-15-58_coverage.json",
+        "coverage/2026-02-08T14-15-58_coverage.lcov",
+        "coverage/2026-02-08T14-15-58_report.md"
+      ],
+      "summary": {
+        "lineCoverage": 0,
+        "branchCoverage": 0
+      }
+    },
+    {
+      "id": "task_a1c4430b-c95f-46fd-8d26-49cc5bd743d6",
+      "type": "scan-security",
+      "timestamp": "2026-02-08T14:15:58.692Z",
+      "files": [
+        "security/2026-02-08T14-15-58_scan.json",
+        "security/2026-02-08T14-15-58_scan.sarif",
+        "security/2026-02-08T14-15-58_report.md"
+      ],
+      "summary": {
+        "vulnerabilities": 0,
+        "critical": 0,
+        "high": 0
+      }
+    },
+    {
+      "id": "task_a43cd977-4cfc-4a67-849e-7aaf0cbe7f65",
+      "type": "assess-quality",
+      "timestamp": "2026-02-08T14:16:04.430Z",
+      "files": [
+        "quality/2026-02-08T14-16-04_assessment.json",
+        "quality/2026-02-08T14-16-04_report.md"
+      ],
+      "summary": {
+        "qualityScore": 33,
+        "passed": false
+      }
+    }
+  ],
+  "trends": {}
+}

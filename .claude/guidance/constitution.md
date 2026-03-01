@@ -3,7 +3,7 @@
 **Version**: 1.0.0
 **Date**: 2026-02-03
 **Authority**: Architecture Team
-**ADR Reference**: [ADR-058](../../v3/implementation/adrs/ADR-058-guidance-governance-integration.md)
+**ADR Reference**: [ADR-058](../../docs/implementation/adrs/ADR-058-guidance-governance-integration.md)
 
 ---
 

@@ -1,0 +1,207 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "agentic-qe-v3",
+          "version": "3.0.0",
+          "informationUri": "https://github.com/ruvnet/agentic-qe"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "VULN-001",
+          "level": "error",
+          "message": {
+            "text": "Command Injection via exec()"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "assets/skills/testability-scoring/resources/templates/testability-scoring.spec.template.js"
+                },
+                "region": {
+                  "startLine": 512
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "VULN-002",
+          "level": "error",
+          "message": {
+            "text": "Command Injection via exec()"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "assets/skills/testability-scoring/scripts/generate-html-report.js"
+                },
+                "region": {
+                  "startLine": 977
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "VULN-003",
+          "level": "error",
+          "message": {
+            "text": "Potential AWS Secret Key Detected"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "scripts/coherence-check.js"
+                },
+                "region": {
+                  "startLine": 230
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "VULN-004",
+          "level": "error",
+          "message": {
+            "text": "Potential AWS Secret Key Detected"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/wizards/core/wizard-utils.ts"
+                },
+                "region": {
+                  "startLine": 50
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "VULN-005",
+          "level": "error",
+          "message": {
+            "text": "Potential AWS Secret Key Detected"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/wizards/core/wizard-utils.ts"
+                },
+                "region": {
+                  "startLine": 52
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "VULN-006",
+          "level": "error",
+          "message": {
+            "text": "Potential AWS Secret Key Detected"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/wizards/core/wizard-utils.ts"
+                },
+                "region": {
+                  "startLine": 65
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "VULN-007",
+          "level": "error",
+          "message": {
+            "text": "Potential AWS Secret Key Detected"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/cli/wizards/core/wizard-utils.ts"
+                },
+                "region": {
+                  "startLine": 67
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "VULN-008",
+          "level": "error",
+          "message": {
+            "text": "Command Injection via exec()"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/kernel/unified-memory.ts"
+                },
+                "region": {
+                  "startLine": 904
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "VULN-009",
+          "level": "error",
+          "message": {
+            "text": "Code Injection via eval()"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/mcp/handlers/handler-factory.ts"
+                },
+                "region": {
+                  "startLine": 302
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "VULN-010",
+          "level": "error",
+          "message": {
+            "text": "Code Injection via eval()"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/mcp/handlers/handler-factory.ts"
+                },
+                "region": {
+                  "startLine": 305
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

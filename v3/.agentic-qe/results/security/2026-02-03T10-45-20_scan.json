@@ -1,0 +1,101 @@
+{
+  "vulnerabilities": 2134,
+  "critical": 27,
+  "high": 35,
+  "medium": 2067,
+  "low": 5,
+  "informational": 0,
+  "topVulnerabilities": [
+    {
+      "type": "Command Injection via exec()",
+      "severity": "critical",
+      "file": "assets/skills/testability-scoring/resources/templates/testability-scoring.spec.template.js",
+      "line": 512,
+      "description": "Shell command execution with unsanitized input [CWE-78]"
+    },
+    {
+      "type": "Command Injection via exec()",
+      "severity": "critical",
+      "file": "assets/skills/testability-scoring/scripts/generate-html-report.js",
+      "line": 977,
+      "description": "Shell command execution with unsanitized input [CWE-78]"
+    },
+    {
+      "type": "Potential AWS Secret Key Detected",
+      "severity": "critical",
+      "file": "scripts/coherence-check.js",
+      "line": 230,
+      "description": "Potential hardcoded AWS Secret Access Key found [CWE-798]"
+    },
+    {
+      "type": "Potential AWS Secret Key Detected",
+      "severity": "critical",
+      "file": "src/cli/wizards/core/wizard-utils.ts",
+      "line": 50,
+      "description": "Potential hardcoded AWS Secret Access Key found [CWE-798]"
+    },
+    {
+      "type": "Potential AWS Secret Key Detected",
+      "severity": "critical",
+      "file": "src/cli/wizards/core/wizard-utils.ts",
+      "line": 52,
+      "description": "Potential hardcoded AWS Secret Access Key found [CWE-798]"
+    },
+    {
+      "type": "Potential AWS Secret Key Detected",
+      "severity": "critical",
+      "file": "src/cli/wizards/core/wizard-utils.ts",
+      "line": 65,
+      "description": "Potential hardcoded AWS Secret Access Key found [CWE-798]"
+    },
+    {
+      "type": "Potential AWS Secret Key Detected",
+      "severity": "critical",
+      "file": "src/cli/wizards/core/wizard-utils.ts",
+      "line": 67,
+      "description": "Potential hardcoded AWS Secret Access Key found [CWE-798]"
+    },
+    {
+      "type": "Command Injection via exec()",
+      "severity": "critical",
+      "file": "src/kernel/unified-memory.ts",
+      "line": 873,
+      "description": "Shell command execution with unsanitized input [CWE-78]"
+    },
+    {
+      "type": "Code Injection via eval()",
+      "severity": "critical",
+      "file": "src/mcp/handlers/handler-factory.ts",
+      "line": 300,
+      "description": "eval() executes arbitrary code and is a major security risk [CWE-95]"
+    },
+    {
+      "type": "Code Injection via eval()",
+      "severity": "critical",
+      "file": "src/mcp/handlers/handler-factory.ts",
+      "line": 303,
+      "description": "eval() executes arbitrary code and is a major security risk [CWE-95]"
+    }
+  ],
+  "recommendations": [
+    "Use parameterized queries and input validation to prevent injection attacks",
+    "Never hardcode secrets; use environment variables or secret managers",
+    "Sanitize user input and use Content-Security-Policy headers",
+    "Avoid deserializing untrusted data; use safe alternatives",
+    "Implement proper authentication and authorization checks",
+    "Use strong authentication mechanisms and secure session management",
+    "Review and harden security configurations",
+    "CRITICAL: Address critical vulnerabilities immediately before deployment",
+    "Prioritize fixing high-severity issues in the next sprint"
+  ],
+  "scanTypes": {
+    "sast": true,
+    "dast": false
+  },
+  "filesScanned": 1403,
+  "coverage": {
+    "filesScanned": 1403,
+    "linesScanned": 722518,
+    "rulesApplied": 83
+  }
+}

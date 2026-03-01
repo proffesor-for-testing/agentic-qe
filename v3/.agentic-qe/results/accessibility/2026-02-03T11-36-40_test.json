@@ -1,0 +1,14 @@
+{
+  "url": "https://example.com",
+  "standard": "wcag21-aa",
+  "passed": true,
+  "violations": [],
+  "warnings": [
+    {
+      "rule": "color-contrast",
+      "impact": "minor",
+      "element": "nav > a"
+    }
+  ],
+  "score": 94
+}

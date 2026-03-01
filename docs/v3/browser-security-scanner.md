@@ -7,7 +7,7 @@
 ## Location
 
 ```
-/workspaces/agentic-qe/v3/src/domains/visual-accessibility/services/browser-security-scanner.ts
+src/domains/visual-accessibility/services/browser-security-scanner.ts
 ```
 
 ## Features
@@ -231,7 +231,6 @@ interface BrowserSecurityScannerConfig {
 ### Unit Tests
 
 ```bash
-cd v3
 npm test -- tests/domains/visual-accessibility/services/browser-security-scanner.test.ts
 ```
 
@@ -320,8 +319,8 @@ if (result.success) {
 ## Dependencies
 
 ### Required
-- `@agentic-qe/v3/shared/types` - Result type
-- `@agentic-qe/v3/adapters/browser-result-adapter` - MCP result adapter
+- `agentic-qe/shared/types` - Result type
+- `agentic-qe/adapters/browser-result-adapter` - MCP result adapter
 
 ### Optional
 - `@claude-flow/browser` MCP server (graceful degradation if missing)

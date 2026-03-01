@@ -82,7 +82,7 @@ INVARIANT load_test_baseline:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/chaos-resilience/`
+**Domain Source**: `src/domains/chaos-resilience/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|

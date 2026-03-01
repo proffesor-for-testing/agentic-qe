@@ -1,0 +1,19 @@
+{
+  "predictedDefects": [
+    {
+      "file": "./complex-module.ts",
+      "probability": 0.78,
+      "reason": "High cyclomatic complexity combined with low test coverage"
+    },
+    {
+      "file": "./legacy-handler.ts",
+      "probability": 0.65,
+      "reason": "Frequent changes in recent commits with error-prone patterns"
+    }
+  ],
+  "riskScore": 42,
+  "recommendations": [
+    "Add integration tests for complex-module.ts",
+    "Refactor legacy-handler.ts to reduce complexity"
+  ]
+}

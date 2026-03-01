@@ -1,0 +1,38 @@
+{
+  "id": "test-health-signal-1769368598617-2dlq34",
+  "timestamp": "2026-01-25T19:16:38.617Z",
+  "source": "cicd",
+  "target": "development",
+  "loopType": "operational",
+  "version": "1.0.0",
+  "expiresAt": "2026-02-24T19:16:38.617Z",
+  "flakyPatterns": [
+    {
+      "pattern": "database connection race condition",
+      "frequency": 0.23,
+      "affectedTests": [
+        "user-service.test.ts",
+        "order-service.test.ts"
+      ],
+      "rootCause": "Shared DB state between tests",
+      "fix": "Use test isolation with transactions"
+    }
+  ],
+  "gateFailures": [
+    {
+      "reason": "flaky tests > 5%",
+      "percentage": 8.5,
+      "trend": "increasing"
+    }
+  ],
+  "recommendations": {
+    "forTestArchitect": [
+      "Implement test isolation pattern",
+      "Use database transactions for cleanup"
+    ],
+    "antiPatterns": [
+      "Avoid shared mutable state",
+      "Never use sleep() for timing"
+    ]
+  }
+}

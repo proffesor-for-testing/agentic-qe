@@ -67,7 +67,7 @@ Writes:
 - aqe/performance/tests/* - Load test results
 - aqe/performance/baselines/* - New baseline data
 - aqe/performance/bottlenecks/* - Identified bottlenecks
-- aqe/v3/performance/outcomes/* - V3 learning outcomes
+- aqe/performance/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/chaos-resilience/load/* - Load test coordination

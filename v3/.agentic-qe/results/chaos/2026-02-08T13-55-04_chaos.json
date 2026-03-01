@@ -1,0 +1,12 @@
+{
+  "faultType": "error",
+  "target": "service",
+  "dryRun": true,
+  "duration": 30000,
+  "systemBehavior": "simulated",
+  "resilience": {
+    "recovered": true,
+    "recoveryTime": 2500,
+    "dataLoss": false
+  }
+}

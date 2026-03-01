@@ -1,0 +1,14 @@
+{
+  "id": "sfdipot-signal-1769368598494-pydpr7",
+  "timestamp": "2026-01-25T19:16:38.494Z",
+  "source": "production",
+  "target": "grooming",
+  "loopType": "tactical",
+  "version": "1.0.0",
+  "expiresAt": "2026-04-25T19:16:38.494Z",
+  "factorWeights": [],
+  "featureContext": "test-feature",
+  "recommendations": {
+    "forProductFactorsAssessor": []
+  }
+}

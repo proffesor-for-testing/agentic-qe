@@ -66,7 +66,7 @@ Reads:
 Writes:
 - aqe/security/scans/* - Security scan results
 - aqe/security/vulnerabilities/* - Detected vulnerabilities
-- aqe/v3/security/outcomes/* - V3 learning outcomes
+- aqe/security/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/security-compliance/review/* - Security coordination

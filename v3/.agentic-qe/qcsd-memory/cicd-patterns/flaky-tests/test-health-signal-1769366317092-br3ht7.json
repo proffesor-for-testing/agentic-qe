@@ -1,0 +1,23 @@
+{
+  "id": "test-health-signal-1769366317092-br3ht7",
+  "timestamp": "2026-01-25T18:38:37.092Z",
+  "source": "cicd",
+  "target": "development",
+  "loopType": "operational",
+  "version": "1.0.0",
+  "expiresAt": "2026-02-24T18:38:37.092Z",
+  "flakyPatterns": [
+    {
+      "pattern": "test-flaky",
+      "frequency": 0.1,
+      "affectedTests": [],
+      "rootCause": "timing",
+      "fix": "retry"
+    }
+  ],
+  "gateFailures": [],
+  "recommendations": {
+    "forTestArchitect": [],
+    "antiPatterns": []
+  }
+}

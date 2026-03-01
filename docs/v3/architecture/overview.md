@@ -111,7 +111,7 @@ QUEEN COORDINATOR
 Each domain follows this structure:
 
 ```
-v3/src/domains/<domain-name>/
+src/domains/<domain-name>/
 ├── index.ts              # Domain entry point
 ├── coordinator.ts        # Domain coordinator
 ├── plugin.ts             # Plugin registration

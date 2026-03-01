@@ -106,7 +106,7 @@ MCP Tool → getSharedMemoryBackend() → HybridMemoryBackend → UnifiedMemoryM
 ### Immediate Actions
 1. ✅ Created workers directory and registry
 2. ✅ Created daemon startup script
-3. Start MCP server: `cd v3 && npm run mcp`
+3. Start MCP server: `npm run mcp`
 4. Run dream cycle: `qe/learning/dream { action: "dream" }`
 
 ### Init Integration

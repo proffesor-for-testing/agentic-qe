@@ -67,7 +67,7 @@ Writes:
 - aqe/fleet/status/* - Fleet status updates
 - aqe/fleet/scaling/* - Scaling decisions
 - aqe/fleet/alerts/* - Fleet alerts
-- aqe/v3/fleet/outcomes/* - V3 learning outcomes
+- aqe/fleet/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/*/coordinator/* - All domain coordinators

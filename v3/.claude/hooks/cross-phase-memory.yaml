@@ -1,0 +1,253 @@
+# Cross-Phase Memory Hooks Configuration
+#
+# Defines automatic triggers for storing and querying cross-phase signals.
+# These hooks enable the 4 QCSD feedback loops to operate automatically.
+#
+# Version: 1.0.0
+# Last Updated: 2026-01-25
+
+version: "1.0"
+enabled: true
+
+# =============================================================================
+# Hook Definitions
+# =============================================================================
+
+hooks:
+  # ---------------------------------------------------------------------------
+  # Loop 1: Production → Ideation (Strategic)
+  # ---------------------------------------------------------------------------
+
+  post-defect-analysis:
+    description: "Store risk weights after production defect analysis"
+    trigger:
+      event: "agent-complete"
+      agent: "qe-defect-predictor"
+      conditions:
+        - "result.defects.length > 0"
+    actions:
+      - type: "store-signal"
+        loop: "strategic"
+        namespace: "qcsd-memory/production-patterns/defect-weights"
+        extract:
+          riskWeights: "result.riskWeights"
+          recommendations: "result.recommendations"
+      - type: "notify-agent"
+        target: "qe-learning-coordinator"
+        message: "New risk weights available from production"
+
+  pre-ideation:
+    description: "Query production signals before ideation phase"
+    trigger:
+      event: "phase-start"
+      phase: "ideation"
+    actions:
+      - type: "query-signals"
+        namespace: "qcsd-memory/production-patterns/defect-weights"
+        maxAge: "90d"
+        injectInto:
+          - "qe-risk-assessor"
+          - "qe-quality-criteria-recommender"
+
+  # ---------------------------------------------------------------------------
+  # Loop 2: Production → Grooming (Tactical)
+  # ---------------------------------------------------------------------------
+
+  post-pattern-analysis:
+    description: "Store SFDIPOT weights after pattern learning"
+    trigger:
+      event: "agent-complete"
+      agent: "qe-pattern-learner"
+      conditions:
+        - "result.patterns.length > 0"
+    actions:
+      - type: "store-signal"
+        loop: "tactical"
+        namespace: "qcsd-memory/production-patterns/failure-modes"
+        extract:
+          factorWeights: "result.factorWeights"
+          featureContext: "result.featureContext"
+          recommendations: "result.recommendations"
+
+  pre-grooming-tactical:
+    description: "Query SFDIPOT weights before grooming"
+    trigger:
+      event: "phase-start"
+      phase: "grooming"
+    actions:
+      - type: "query-signals"
+        namespace: "qcsd-memory/production-patterns/failure-modes"
+        maxAge: "90d"
+        filterBy: "featureContext"
+        injectInto:
+          - "qe-product-factors-assessor"
+
+  # ---------------------------------------------------------------------------
+  # Loop 3: CI/CD → Development (Operational)
+  # ---------------------------------------------------------------------------
+
+  post-quality-gate:
+    description: "Store test health signals after quality gate"
+    trigger:
+      event: "agent-complete"
+      agent: "qe-quality-gate"
+    actions:
+      - type: "store-signal"
+        loop: "operational"
+        namespace: "qcsd-memory/cicd-patterns/flaky-tests"
+        extract:
+          flakyPatterns: "result.flakyTests"
+          gateFailures: "result.failures"
+          recommendations: "result.testRecommendations"
+      - type: "conditional"
+        condition: "result.flakyTests.length > 5"
+        action:
+          type: "notify-agent"
+          target: "qe-flaky-hunter"
+          priority: "high"
+          message: "High flaky test count detected"
+
+  post-flaky-analysis:
+    description: "Update test health with flaky analysis results"
+    trigger:
+      event: "agent-complete"
+      agent: "qe-flaky-hunter"
+    actions:
+      - type: "update-signal"
+        namespace: "qcsd-memory/cicd-patterns/flaky-tests"
+        merge:
+          flakyPatterns: "result.patterns"
+          recommendations.antiPatterns: "result.antiPatterns"
+
+  pre-development:
+    description: "Query CI/CD signals before development"
+    trigger:
+      event: "phase-start"
+      phase: "development"
+    actions:
+      - type: "query-signals"
+        namespace: "qcsd-memory/cicd-patterns/flaky-tests"
+        maxAge: "30d"
+        injectInto:
+          - "qe-test-architect"
+          - "qe-tdd-specialist"
+
+  # ---------------------------------------------------------------------------
+  # Loop 4: Development → Grooming (Quality Criteria)
+  # ---------------------------------------------------------------------------
+
+  post-coverage-analysis:
+    description: "Store AC quality signals after coverage analysis"
+    trigger:
+      event: "agent-complete"
+      agent: "qe-coverage-specialist"
+      conditions:
+        - "result.coveragePercentage < 80"
+    actions:
+      - type: "invoke-agent"
+        agent: "qe-gap-detector"
+        input:
+          coverageData: "result"
+          findACProblems: true
+
+  post-gap-detection:
+    description: "Store untestable patterns after gap detection"
+    trigger:
+      event: "agent-complete"
+      agent: "qe-gap-detector"
+    actions:
+      - type: "store-signal"
+        loop: "quality-criteria"
+        namespace: "qcsd-memory/development-patterns/ac-problems"
+        extract:
+          untestablePatterns: "result.untestablePatterns"
+          coverageGaps: "result.gaps"
+          recommendations: "result.acRecommendations"
+
+  pre-grooming-quality:
+    description: "Query AC quality signals before grooming"
+    trigger:
+      event: "phase-start"
+      phase: "grooming"
+    actions:
+      - type: "query-signals"
+        namespace: "qcsd-memory/development-patterns/ac-problems"
+        maxAge: "60d"
+        injectInto:
+          - "qe-requirements-validator"
+          - "qe-bdd-generator"
+
+# =============================================================================
+# Cleanup Schedule
+# =============================================================================
+
+cleanup:
+  enabled: true
+  schedule: "0 3 * * 0"  # Every Sunday at 3 AM
+  actions:
+    - type: "delete-expired"
+      namespaces: "all"
+    - type: "report"
+      destination: ".agentic-qe/logs/memory-cleanup.log"
+
+# =============================================================================
+# Monitoring
+# =============================================================================
+
+monitoring:
+  enabled: true
+  metrics:
+    - name: "signals_stored"
+      type: "counter"
+      labels: ["loop", "namespace"]
+    - name: "signals_queried"
+      type: "counter"
+      labels: ["loop", "namespace", "phase"]
+    - name: "signal_age_seconds"
+      type: "histogram"
+      labels: ["loop"]
+    - name: "cleanup_deleted"
+      type: "counter"
+      labels: ["namespace"]
+
+# =============================================================================
+# Signal Routing
+# =============================================================================
+
+routing:
+  # Which agents can receive injected signals
+  authorized_receivers:
+    strategic:
+      - "qe-risk-assessor"
+      - "qe-quality-criteria-recommender"
+    tactical:
+      - "qe-product-factors-assessor"
+      - "qe-bdd-generator"
+    operational:
+      - "qe-test-architect"
+      - "qe-tdd-specialist"
+      - "qe-parallel-executor"
+    quality-criteria:
+      - "qe-requirements-validator"
+      - "qe-bdd-generator"
+      - "qe-gap-detector"
+
+  # Signal injection format
+  injection_format: |
+    ## CROSS-PHASE LEARNING SIGNALS
+
+    The following signals have been automatically injected from previous phases.
+    Apply these learnings to your analysis.
+
+    {{#each signals}}
+    ### Signal: {{this.id}}
+    - **From:** {{this.source}} phase
+    - **Loop:** {{this.loopType}}
+    - **Timestamp:** {{this.timestamp}}
+
+    **Recommendations:**
+    {{#each this.recommendations}}
+    - {{this}}
+    {{/each}}
+
+    {{/each}}

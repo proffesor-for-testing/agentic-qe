@@ -1,0 +1,11 @@
+{
+  "total": 10,
+  "passed": 9,
+  "failed": 1,
+  "skipped": 0,
+  "duration": 500,
+  "coverage": 82.5,
+  "failedTests": [
+    "example.test.ts:42"
+  ]
+}
