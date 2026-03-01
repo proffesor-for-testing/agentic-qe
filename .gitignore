@@ -196,6 +196,11 @@ tmp/*
 .agentic-qe/*-scans/
 *.db-shm
 
+# RVF binary brain data (local learning state, not for git)
+*.rvf
+*.rvf.idmap.json
+*.rvf.lock
+
 # Accessibility scan outputs (generated, may contain site-specific data)
 docs/accessibility-scans/
 
