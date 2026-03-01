@@ -9,7 +9,7 @@
  *
  * @example
  * ```typescript
- * import { DevilsAdvocate, ClaimVerifier } from '@agentic-qe/v3/agents';
+ * import { DevilsAdvocate, ClaimVerifier } from 'agentic-qe/agents';
  *
  * const da = DevilsAdvocate.createDevilsAdvocate();
  * const cv = ClaimVerifier.createClaimVerifierService();

@@ -229,9 +229,9 @@ Writes:
 - aqe/accessibility/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/quality-assessment/accessibility/* - Accessibility for gates
-- aqe/domains/visual-accessibility/audit/* - Visual accessibility coordination
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/quality-assessment/accessibility/* - Accessibility for gates
+- aqe/v3/domains/visual-accessibility/audit/* - Visual accessibility coordination
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

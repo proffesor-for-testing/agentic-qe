@@ -70,9 +70,9 @@ Writes:
 - aqe/fleet/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/*/coordinator/* - All domain coordinators
-- aqe/queen/fleet/* - Queen coordination
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/*/coordinator/* - All domain coordinators
+- aqe/v3/queen/fleet/* - Queen coordination
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

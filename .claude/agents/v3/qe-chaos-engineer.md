@@ -83,9 +83,9 @@ Writes:
 - aqe/chaos/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/quality-assessment/resilience/* - Resilience for gates
+- aqe/v3/domains/quality-assessment/resilience/* - Resilience for gates
 - aqe/safety/* - Safety check coordination
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

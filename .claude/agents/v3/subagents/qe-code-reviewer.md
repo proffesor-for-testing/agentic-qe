@@ -69,9 +69,9 @@ Writes:
 - aqe/review/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/quality-assessment/review/* - Review coordination
-- aqe/domains/security-compliance/* - Security review integration
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/quality-assessment/review/* - Review coordination
+- aqe/v3/domains/security-compliance/* - Security review integration
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

@@ -5,7 +5,7 @@
  * Demonstrates the full pipeline using NoOpCommandRunner:
  *   test stderr → classify → vulnerabilities → Strange Loop cycle → recovery
  *
- * Run: cd v3 && npx tsx scripts/demo-infra-healing.ts
+ * Run: npx tsx scripts/demo-infra-healing.ts
  */
 
 import { createInMemoryStrangeLoopWithInfraHealing } from '../src/strange-loop/strange-loop.js';

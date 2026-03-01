@@ -71,9 +71,9 @@ Writes:
 - aqe/code-intelligence/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/test-generation/targets/* - Test targeting data
-- aqe/domains/coverage-analysis/code/* - Code analysis for coverage
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/test-generation/targets/* - Test targeting data
+- aqe/v3/domains/coverage-analysis/code/* - Code analysis for coverage
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

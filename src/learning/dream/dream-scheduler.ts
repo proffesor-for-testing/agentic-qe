@@ -10,7 +10,7 @@
  * It coordinates with the DreamEngine to run actual dream cycles and
  * can automatically apply high-confidence insights.
  *
- * @module v3/learning/dream/dream-scheduler
+ * @module learning/dream/dream-scheduler
  */
 
 import { v4 as uuidv4 } from 'uuid';

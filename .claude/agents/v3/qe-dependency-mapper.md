@@ -70,9 +70,9 @@ Writes:
 - aqe/dependencies/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/code-intelligence/deps/* - Dependency coordination
-- aqe/domains/code-intelligence/impact/* - Impact analysis
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/code-intelligence/deps/* - Dependency coordination
+- aqe/v3/domains/code-intelligence/impact/* - Impact analysis
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

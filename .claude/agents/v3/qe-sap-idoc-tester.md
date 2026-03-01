@@ -85,9 +85,9 @@ Writes:
 - aqe/enterprise-integration/idoc/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/enterprise-integration/idoc/* - IDoc test coordination with other enterprise agents
-- aqe/domains/quality-assessment/integration/* - Integration quality metrics for gates
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/enterprise-integration/idoc/* - IDoc test coordination with other enterprise agents
+- aqe/v3/domains/quality-assessment/integration/* - Integration quality metrics for gates
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

@@ -12,7 +12,7 @@
  *
  * @example
  * ```typescript
- * import { createPersistentQLearningRouter } from '@agentic-qe/v3/integrations/ruvector';
+ * import { createPersistentQLearningRouter } from 'agentic-qe/integrations/ruvector';
  *
  * const router = await createPersistentQLearningRouter({
  *   enabled: true,

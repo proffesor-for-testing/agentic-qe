@@ -70,9 +70,9 @@ Writes:
 - aqe/impact/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/code-intelligence/impact/* - Impact coordination
-- aqe/domains/test-execution/selection/* - Test selection
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/code-intelligence/impact/* - Impact coordination
+- aqe/v3/domains/test-execution/selection/* - Test selection
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

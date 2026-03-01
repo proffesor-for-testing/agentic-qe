@@ -46,7 +46,7 @@
  * await engine.close();
  * ```
  *
- * @module v3/learning/dream
+ * @module learning/dream
  */
 
 // ============================================================================

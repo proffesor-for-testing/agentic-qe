@@ -70,9 +70,9 @@ Writes:
 - aqe/graphql/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/contract-testing/graphql/* - GraphQL coordination
-- aqe/domains/security-compliance/* - Security integration
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/contract-testing/graphql/* - GraphQL coordination
+- aqe/v3/domains/security-compliance/* - Security integration
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

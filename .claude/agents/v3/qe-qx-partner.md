@@ -159,9 +159,9 @@ Writes:
 - aqe/qx/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/*/quality/* - All domain quality data
-- aqe/queen/experience/* - Queen experience coordination
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/*/quality/* - All domain quality data
+- aqe/v3/queen/experience/* - Queen experience coordination
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

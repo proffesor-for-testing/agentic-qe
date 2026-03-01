@@ -71,9 +71,9 @@ Writes:
 - aqe/integration/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/contract-testing/integration/* - Contract coordination
-- aqe/domains/test-generation/integration/* - Test generation coordination
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/contract-testing/integration/* - Contract coordination
+- aqe/v3/domains/test-generation/integration/* - Test generation coordination
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

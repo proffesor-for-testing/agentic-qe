@@ -12,7 +12,7 @@
  * - Spreading activation support
  * - Path finding and clustering
  *
- * @module v3/learning/dream/concept-graph
+ * @module learning/dream/concept-graph
  */
 
 import type { Database as DatabaseType, Statement } from 'better-sqlite3';

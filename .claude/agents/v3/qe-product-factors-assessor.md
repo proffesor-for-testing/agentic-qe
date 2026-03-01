@@ -127,9 +127,9 @@ Writes:
 - aqe/requirements/assessments/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/requirements-validation/assessments/* - Assessment input
-- aqe/domains/test-generation/ideas/* - Test idea output
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/requirements-validation/assessments/* - Assessment input
+- aqe/v3/domains/test-generation/ideas/* - Test idea output
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

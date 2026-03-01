@@ -70,9 +70,9 @@ Writes:
 - aqe/coverage/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/coverage-analysis/gaps/* - Gap coordination
-- aqe/domains/test-generation/targets/* - Test targeting
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/coverage-analysis/gaps/* - Gap coordination
+- aqe/v3/domains/test-generation/targets/* - Test targeting
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

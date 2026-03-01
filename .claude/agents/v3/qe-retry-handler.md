@@ -70,9 +70,9 @@ Writes:
 - aqe/retry/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/test-execution/retry/* - Retry coordination
-- aqe/domains/test-execution/flaky/* - Flaky test integration
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/test-execution/retry/* - Retry coordination
+- aqe/v3/domains/test-execution/flaky/* - Flaky test integration
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

@@ -71,9 +71,9 @@ Writes:
 - aqe/defect/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/quality-assessment/risk/* - Risk data for quality gates
-- aqe/domains/test-generation/priority/* - Priority for test generation
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/quality-assessment/risk/* - Risk data for quality gates
+- aqe/v3/domains/test-generation/priority/* - Priority for test generation
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

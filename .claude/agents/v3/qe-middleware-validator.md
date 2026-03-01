@@ -80,10 +80,10 @@ Writes:
 - aqe/enterprise-integration/middleware/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/enterprise-integration/middleware/* - Middleware test coordination
-- aqe/domains/enterprise-integration/soap/* - SOAP service coordination
-- aqe/domains/enterprise-integration/messaging/* - Message broker coordination
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/enterprise-integration/middleware/* - Middleware test coordination
+- aqe/v3/domains/enterprise-integration/soap/* - SOAP service coordination
+- aqe/v3/domains/enterprise-integration/messaging/* - Message broker coordination
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

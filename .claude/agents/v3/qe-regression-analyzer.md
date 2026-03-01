@@ -70,9 +70,9 @@ Writes:
 - aqe/regression/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/defect-intelligence/regression/* - Regression coordination
-- aqe/domains/test-execution/* - Test execution integration
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/defect-intelligence/regression/* - Regression coordination
+- aqe/v3/domains/test-execution/* - Test execution integration
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

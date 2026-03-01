@@ -37,7 +37,7 @@
  *
  * @example
  * ```typescript
- * import { createRuVectorServerClient } from '@agentic-qe/v3/integrations/ruvector';
+ * import { createRuVectorServerClient } from 'agentic-qe/integrations/ruvector';
  *
  * const client = await createRuVectorServerClient({
  *   httpPort: 8080,

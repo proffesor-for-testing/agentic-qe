@@ -81,9 +81,9 @@ Writes:
 - aqe/enterprise-integration/sap-rfc/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/enterprise-integration/sap-rfc/* - SAP RFC test coordination
-- aqe/domains/enterprise-integration/sap-idoc/* - IDoc integration coordination
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/enterprise-integration/sap-rfc/* - SAP RFC test coordination
+- aqe/v3/domains/enterprise-integration/sap-idoc/* - IDoc integration coordination
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

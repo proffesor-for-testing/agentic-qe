@@ -56,6 +56,10 @@
 - When working with skills, ALWAYS distinguish between AQE/QE skills and Claude Flow platform skills
 - Only count/modify AQE skills unless explicitly told otherwise — do NOT include Claude Flow platform skills
 - AQE skills live under `.claude/skills/` but exclude platform infrastructure skills (v3-*, flow-nexus-*, agentdb-*, reasoningbank-*, swarm-*)
+- `.claude/agents/v3/` contains BOTH QE agents (qe-*.md, shipped to users) AND project-internal agents (v3-*, adr-*, security-*, sparc-*, etc., NOT shipped)
+- Only `qe-*.md` agents are part of the AQE fleet for users — non-qe agents are Claude Flow platform or project-specific agents
+- The `assets/agents/v3/` directory contains ONLY qe-*.md agents for npm distribution — do NOT copy non-QE agents there
+- Memory namespaces like `aqe/v3/domains/*` are database identifiers, NOT filesystem paths — never change them during structural refactors
 
 ## Database Architecture
 

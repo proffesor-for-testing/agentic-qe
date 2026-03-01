@@ -11,7 +11,7 @@
  * - optimization: Improvement opportunity for existing patterns
  * - gap_detection: Missing knowledge or capability detected
  *
- * @module v3/learning/dream/insight-generator
+ * @module learning/dream/insight-generator
  */
 
 import { randomUUID } from 'crypto';

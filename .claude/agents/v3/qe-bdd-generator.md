@@ -70,9 +70,9 @@ Writes:
 - aqe/bdd/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/requirements-validation/bdd/* - BDD coordination
-- aqe/domains/test-generation/scenarios/* - Test generation integration
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/requirements-validation/bdd/* - BDD coordination
+- aqe/v3/domains/test-generation/scenarios/* - Test generation integration
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

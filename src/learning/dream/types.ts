@@ -7,7 +7,7 @@
  * - Dream cycle and insight types
  * - Configuration interfaces
  *
- * @module v3/learning/dream/types
+ * @module learning/dream/types
  */
 
 // ============================================================================

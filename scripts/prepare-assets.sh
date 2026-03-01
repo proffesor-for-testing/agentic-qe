@@ -1,20 +1,19 @@
 #!/bin/bash
 # Prepare assets for npm publish
-# Copies skills and agents from the main repo to the v3 package
+# Copies skills and agents from the repo to the package assets directory
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-V3_DIR="$(dirname "$SCRIPT_DIR")"
-REPO_ROOT="$(dirname "$V3_DIR")"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "📦 Preparing assets for npm publish..."
 
-# Create asset directories in v3 package
-mkdir -p "$V3_DIR/assets/skills"
-mkdir -p "$V3_DIR/assets/agents/v3"
+# Create asset directories
+mkdir -p "$REPO_ROOT/assets/skills"
+mkdir -p "$REPO_ROOT/assets/agents/v3"
 
-# Copy skills (QE-related skills: v2 testing skills + v3 qe-* skills)
+# Copy skills (QE-related skills: v2 methodology and v3 domain skills)
 echo "📋 Copying skills..."
 if [ -d "$REPO_ROOT/.claude/skills" ]; then
   # V2 QE skills (testing-related with generic names)
@@ -23,41 +22,41 @@ if [ -d "$REPO_ROOT/.claude/skills" ]; then
   for skill_dir in "$REPO_ROOT/.claude/skills"/*; do
     if [ -d "$skill_dir" ]; then
       skill_name=$(basename "$skill_dir")
-      # Include: qe-* skills (v3), agentic-quality-engineering (core), aqe-v2-v3-migration, and v2 QE skills
+      # Include: qe-* skills, agentic-quality-engineering (core), aqe-v2-v3-migration, and v2 QE skills
       if [[ "$skill_name" =~ ^qe- ]] || \
          [[ "$skill_name" == "agentic-quality-engineering" ]] || \
          [[ "$skill_name" == "aqe-v2-v3-migration" ]] || \
          [[ " $V2_QE_SKILLS " =~ " $skill_name " ]]; then
-        cp -r "$skill_dir" "$V3_DIR/assets/skills/"
+        cp -r "$skill_dir" "$REPO_ROOT/assets/skills/"
       fi
     fi
   done
-  echo "  ✅ Copied $(ls -1 "$V3_DIR/assets/skills" | wc -l | tr -d ' ') skills"
+  echo "  ✅ Copied $(ls -1 "$REPO_ROOT/assets/skills" | wc -l | tr -d ' ') skills"
 else
   echo "  ⚠️  Skills directory not found at $REPO_ROOT/.claude/skills"
 fi
 
-# Copy v3 agents (qe-* agents - ADR-045 version-agnostic naming)
+# Copy agents (qe-* agents - ADR-045 version-agnostic naming)
 echo "🤖 Copying agents..."
 if [ -d "$REPO_ROOT/.claude/agents/v3" ]; then
   # Copy qe-* agents (version-agnostic naming per ADR-045)
   for agent_file in "$REPO_ROOT/.claude/agents/v3"/qe-*.md; do
     if [ -f "$agent_file" ]; then
-      cp "$agent_file" "$V3_DIR/assets/agents/v3/"
+      cp "$agent_file" "$REPO_ROOT/assets/agents/v3/"
     fi
   done
 
   # Copy subagents directory if it exists
   if [ -d "$REPO_ROOT/.claude/agents/v3/subagents" ]; then
-    mkdir -p "$V3_DIR/assets/agents/v3/subagents"
+    mkdir -p "$REPO_ROOT/assets/agents/v3/subagents"
     for agent_file in "$REPO_ROOT/.claude/agents/v3/subagents"/qe-*.md; do
       if [ -f "$agent_file" ]; then
-        cp "$agent_file" "$V3_DIR/assets/agents/v3/subagents/"
+        cp "$agent_file" "$REPO_ROOT/assets/agents/v3/subagents/"
       fi
     done
   fi
 
-  agent_count=$(find "$V3_DIR/assets/agents/v3" -name "*.md" | wc -l | tr -d ' ')
+  agent_count=$(find "$REPO_ROOT/assets/agents/v3" -name "*.md" | wc -l | tr -d ' ')
   echo "  ✅ Copied $agent_count agents"
 else
   echo "  ⚠️  Agents directory not found at $REPO_ROOT/.claude/agents/v3"
@@ -66,12 +65,12 @@ fi
 # Copy validation infrastructure (ADR-056)
 echo "🔍 Copying validation infrastructure..."
 if [ -d "$REPO_ROOT/.claude/skills/.validation" ]; then
-  mkdir -p "$V3_DIR/assets/skills/.validation"
-  cp -r "$REPO_ROOT/.claude/skills/.validation/"* "$V3_DIR/assets/skills/.validation/"
+  mkdir -p "$REPO_ROOT/assets/skills/.validation"
+  cp -r "$REPO_ROOT/.claude/skills/.validation/"* "$REPO_ROOT/assets/skills/.validation/"
   echo "  ✅ Copied validation infrastructure"
-  echo "    - schemas: $(ls -1 "$V3_DIR/assets/skills/.validation/schemas" 2>/dev/null | wc -l | tr -d ' ') files"
-  echo "    - templates: $(ls -1 "$V3_DIR/assets/skills/.validation/templates" 2>/dev/null | wc -l | tr -d ' ') files"
-  echo "    - examples: $(ls -1 "$V3_DIR/assets/skills/.validation/examples" 2>/dev/null | wc -l | tr -d ' ') files"
+  echo "    - schemas: $(ls -1 "$REPO_ROOT/assets/skills/.validation/schemas" 2>/dev/null | wc -l | tr -d ' ') files"
+  echo "    - templates: $(ls -1 "$REPO_ROOT/assets/skills/.validation/templates" 2>/dev/null | wc -l | tr -d ' ') files"
+  echo "    - examples: $(ls -1 "$REPO_ROOT/assets/skills/.validation/examples" 2>/dev/null | wc -l | tr -d ' ') files"
 else
   echo "  ⚠️  Validation directory not found at $REPO_ROOT/.claude/skills/.validation"
 fi

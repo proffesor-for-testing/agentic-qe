@@ -70,9 +70,9 @@ Writes:
 - aqe/kg/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/code-intelligence/kg/* - KG coordination
-- aqe/domains/code-intelligence/search/* - Semantic search
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/code-intelligence/kg/* - KG coordination
+- aqe/v3/domains/code-intelligence/search/* - Semantic search
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

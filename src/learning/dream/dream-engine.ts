@@ -12,7 +12,7 @@
  * Dream cycles simulate the consolidation process that occurs during sleep,
  * where the brain strengthens important associations and discovers new connections.
  *
- * @module v3/learning/dream/dream-engine
+ * @module learning/dream/dream-engine
  */
 
 import { safeJsonParse } from '../../shared/safe-json.js';

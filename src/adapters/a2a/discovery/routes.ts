@@ -472,7 +472,7 @@ export function getDiscoveryRouteDefinitions(
  * @example
  * ```typescript
  * import express from 'express';
- * import { createDiscoveryRoutes } from '@agentic-qe/v3';
+ * import { createDiscoveryRoutes } from 'agentic-qe';
  *
  * const app = express();
  * const routes = createDiscoveryRoutes({

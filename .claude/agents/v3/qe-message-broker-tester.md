@@ -84,9 +84,9 @@ Writes:
 - aqe/enterprise-integration/messaging/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/enterprise-integration/messaging/* - Messaging test coordination
-- aqe/domains/chaos-resilience/broker-chaos/* - Chaos testing for brokers
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/enterprise-integration/messaging/* - Messaging test coordination
+- aqe/v3/domains/chaos-resilience/broker-chaos/* - Chaos testing for brokers
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

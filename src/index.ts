@@ -326,7 +326,7 @@ export const MAX_CONCURRENT_AGENTS = 15;
  * Quick start example:
  *
  * ```typescript
- * import { createKernel } from '@agentic-qe/v3';
+ * import { createKernel } from 'agentic-qe';
  *
  * const kernel = createKernel({
  *   maxConcurrentAgents: 15,

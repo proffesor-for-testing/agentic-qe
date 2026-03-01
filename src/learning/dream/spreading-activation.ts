@@ -11,7 +11,7 @@
  * - Novel association detection from co-activated nodes
  * - Dream mode with random activation injection
  *
- * @module v3/learning/dream/spreading-activation
+ * @module learning/dream/spreading-activation
  */
 
 import type {

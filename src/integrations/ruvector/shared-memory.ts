@@ -14,7 +14,7 @@
  * ## Usage with Fleet Initialization
  *
  * ```typescript
- * import { initializeSharedMemory, isSharedMemoryAvailable } from '@agentic-qe/v3/integrations/ruvector';
+ * import { initializeSharedMemory, isSharedMemoryAvailable } from 'agentic-qe/integrations/ruvector';
  *
  * // Initialize shared memory (optional - system works without it)
  * const sharedMemory = await initializeSharedMemory({

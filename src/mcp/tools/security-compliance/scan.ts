@@ -5,7 +5,7 @@
  *
  * Fix #287: Replaced hardcoded fake findings with real file scanning.
  * Now actually reads target files and applies security patterns from
- * v3/src/domains/security-compliance/services/scanners/security-patterns.ts
+ * src/domains/security-compliance/services/scanners/security-patterns.ts
  */
 
 import * as fs from 'fs';

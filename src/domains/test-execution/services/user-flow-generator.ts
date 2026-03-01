@@ -1321,8 +1321,8 @@ export class UserFlowGeneratorService implements IUserFlowGeneratorService {
  *
  * @example
  * ```typescript
- * import { createVibiumClient } from '@agentic-qe/v3/integrations/vibium';
- * import { createUserFlowGenerator } from '@agentic-qe/v3/domains/test-execution';
+ * import { createVibiumClient } from 'agentic-qe/integrations/vibium';
+ * import { createUserFlowGenerator } from 'agentic-qe/domains/test-execution';
  *
  * const vibiumClient = await createVibiumClient({ enabled: true });
  * const generator = createUserFlowGenerator(vibiumClient);

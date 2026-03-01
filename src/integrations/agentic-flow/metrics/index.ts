@@ -8,7 +8,7 @@
  *
  * @example Basic Usage
  * ```typescript
- * import { getMetricsTracker } from '@agentic-qe/v3/integrations/agentic-flow/metrics';
+ * import { getMetricsTracker } from 'agentic-qe/integrations/agentic-flow/metrics';
  *
  * const tracker = await getMetricsTracker();
  *
@@ -25,7 +25,7 @@
  *
  * @example Update Patterns
  * ```typescript
- * import { updatePatternsWithRealMetrics } from '@agentic-qe/v3/integrations/agentic-flow/metrics';
+ * import { updatePatternsWithRealMetrics } from 'agentic-qe/integrations/agentic-flow/metrics';
  *
  * // At end of session, update pattern JSON files with real metrics
  * const summary = await updatePatternsWithRealMetrics();

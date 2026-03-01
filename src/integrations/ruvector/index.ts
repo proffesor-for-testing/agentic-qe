@@ -15,7 +15,7 @@
  *
  * @example
  * ```typescript
- * import { createRuVectorClient, RuVectorConfig } from '@agentic-qe/v3/integrations/ruvector';
+ * import { createRuVectorClient, RuVectorConfig } from 'agentic-qe/integrations/ruvector';
  *
  * // Create client with optional RuVector
  * const client = await createRuVectorClient({

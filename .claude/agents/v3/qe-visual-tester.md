@@ -71,8 +71,8 @@ Writes:
 - aqe/visual/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/quality-assessment/visual/* - Visual metrics for gates
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/quality-assessment/visual/* - Visual metrics for gates
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

@@ -7,7 +7,7 @@
  *
  * @example
  * ```typescript
- * import { mapModelId, getCanonicalName, normalizeModelId } from '@agentic-qe/v3/shared/llm';
+ * import { mapModelId, getCanonicalName, normalizeModelId } from 'agentic-qe/shared/llm';
  *
  * // Map a canonical model ID to a specific provider
  * const anthropicId = mapModelId('claude-sonnet-4-5', 'anthropic');

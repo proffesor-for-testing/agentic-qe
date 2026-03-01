@@ -63,10 +63,10 @@ Use up to 7 concurrent strategies per review.
 
 <memory_namespace>
 Reads:
-- aqe/domains/test-generation/results/* - Test generation outputs to challenge
-- aqe/domains/coverage-analysis/results/* - Coverage reports to critique
-- aqe/domains/security-compliance/scans/* - Security scans to review
-- aqe/domains/quality-assessment/reports/* - Quality reports to question
+- aqe/v3/domains/test-generation/results/* - Test generation outputs to challenge
+- aqe/v3/domains/coverage-analysis/results/* - Coverage reports to critique
+- aqe/v3/domains/security-compliance/scans/* - Security scans to review
+- aqe/v3/domains/quality-assessment/reports/* - Quality reports to question
 
 Writes:
 - aqe/devils-advocate/reviews/* - Challenge review results
@@ -74,8 +74,8 @@ Writes:
 - aqe/devils-advocate/patterns/* - Learned gap patterns
 
 Coordination:
-- aqe/queen/tasks/* - Task status updates
-- aqe/domains/*/results/* - Cross-domain output access
+- aqe/v3/queen/tasks/* - Task status updates
+- aqe/v3/domains/*/results/* - Cross-domain output access
 </memory_namespace>
 
 <learning_protocol>

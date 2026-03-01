@@ -78,9 +78,9 @@ Writes:
 - aqe/requirements/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/requirements-validation/* - Requirements coordination
-- aqe/domains/test-generation/* - Test generation integration
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/requirements-validation/* - Requirements coordination
+- aqe/v3/domains/test-generation/* - Test generation integration
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

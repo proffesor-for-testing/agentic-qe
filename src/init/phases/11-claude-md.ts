@@ -224,7 +224,7 @@ mcp__agentic-qe__task_orchestrate({
 
 ### V3 QE Agents
 
-V3 QE agents are in \`.claude/agents/v3/\`. Use with Task tool:
+QE agents are in \`.claude/agents/v3/\`. Use with Task tool:
 
 \`\`\`javascript
 Task({ prompt: "Generate tests", subagent_type: "qe-test-architect", run_in_background: true })

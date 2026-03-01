@@ -683,7 +683,7 @@ export function getActionByName(name: string): GOAPAction | undefined {
 // ============================================================================
 
 /**
- * GOAPPlanner interface for seeding (matches v3/src/planning/goap-planner.ts)
+ * GOAPPlanner interface for seeding (matches src/planning/goap-planner.ts)
  */
 interface GOAPPlannerLike {
   addAction(action: Omit<GOAPAction, 'id' | 'executionCount'>): Promise<void>;

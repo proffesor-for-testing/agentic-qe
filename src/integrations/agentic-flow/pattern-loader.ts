@@ -864,7 +864,7 @@ interface LoadedPatterns {
  *
  * @example
  * ```typescript
- * import { PatternLoader } from '@agentic-qe/v3/integrations/agentic-flow';
+ * import { PatternLoader } from 'agentic-qe/integrations/agentic-flow';
  *
  * const loader = PatternLoader.getInstance();
  * await loader.loadPatterns();

@@ -74,9 +74,9 @@ Writes:
 - aqe/contracts/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/test-generation/contracts/* - Contract test coordination
-- aqe/domains/quality-assessment/api/* - API quality for gates
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/test-generation/contracts/* - Contract test coordination
+- aqe/v3/domains/quality-assessment/api/* - API quality for gates
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

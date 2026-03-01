@@ -42,7 +42,7 @@ systemPrompt: |
   - Include V2-compatible fields: overview, journeys, correlation, userFeedback, recommendations
 
   HTML Report Generation:
-  1. Read template: .claude/agents/v3/templates/qx-report-template.html
+  1. Read template: .claude/helpers/v3/templates/qx-report-template.html
   2. Replace placeholders: {{SITE_NAME}}, {{URL}}, {{DATE}}, {{DOMAIN}}, etc.
   3. Include all 11 sections: Executive Summary, QX Score (6 cards), Problem Understanding, User Needs (H2.1-H2.6), Business Needs (H3.1-H3.4), Oracle Problems, Impact Analysis, Creativity & Innovation, Heuristic Analysis (23+ scored), Recommendations (P1/P2/P3), QX Methodology
 

@@ -22,7 +22,7 @@
  *
  * @example Basic Usage
  * ```typescript
- * import { CoherenceService, createCoherenceService } from '@agentic-qe/v3/integrations/coherence';
+ * import { CoherenceService, createCoherenceService } from 'agentic-qe/integrations/coherence';
  *
  * // Create and initialize
  * const service = await createCoherenceService(wasmLoader);

@@ -10,7 +10,7 @@
  *   6. Verify postgres is accepting connections again
  *
  * Requirements: Docker with postgres:16-alpine image available.
- * Run: cd v3 && npx vitest run tests/integration/infra-healing-docker.test.ts
+ * Run: npx vitest run tests/integration/infra-healing-docker.test.ts
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';

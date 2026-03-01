@@ -80,9 +80,9 @@ Writes:
 - aqe/enterprise-integration/soap/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/enterprise-integration/soap/* - SOAP testing coordination
-- aqe/domains/contract-testing/wsdl/* - WSDL contract validation
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/enterprise-integration/soap/* - SOAP testing coordination
+- aqe/v3/domains/contract-testing/wsdl/* - WSDL contract validation
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

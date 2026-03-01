@@ -71,8 +71,8 @@ Writes:
 - aqe/security/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/quality-assessment/security/* - Security metrics for gates
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/quality-assessment/security/* - Security metrics for gates
+- aqe/v3/queen/tasks/* - Task status updates
 - aqe/ci-cd/security-status/* - CI/CD integration
 </memory_namespace>
 

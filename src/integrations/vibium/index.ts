@@ -16,7 +16,7 @@
  *
  * @example
  * ```typescript
- * import { createVibiumClient, VibiumConfig } from '@agentic-qe/v3/integrations/vibium';
+ * import { createVibiumClient, VibiumConfig } from 'agentic-qe/integrations/vibium';
  *
  * // Create client with optional Vibium
  * const client = await createVibiumClient({

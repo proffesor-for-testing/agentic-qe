@@ -226,7 +226,7 @@ export async function runV2Migration(projectRoot: string, v2Detection: V2Detecti
 
 /**
  * Remove v2 QE agents from .claude/agents/ root folder.
- * V2 QE agents are replaced by v3 agents in .claude/agents/v3/.
+ * V2 QE agents are replaced by current agents in .claude/agents/v3/.
  */
 export async function removeV2QEAgents(projectRoot: string): Promise<void> {
   const agentsDir = join(projectRoot, '.claude', 'agents');
@@ -284,7 +284,7 @@ export async function removeV2QEAgents(projectRoot: string): Promise<void> {
     }
 
     console.log(`  ✓ Moved ${v2QEAgents.length} v2 agents to .agentic-qe/backup/v2-agents/`);
-    console.log('    V3 agents will be installed to .claude/agents/v3/');
+    console.log('    Agents will be installed to .claude/agents/v3/');
   } catch (error) {
     console.warn(`  ⚠ Could not remove v2 agents: ${toErrorMessage(error)}`);
   }

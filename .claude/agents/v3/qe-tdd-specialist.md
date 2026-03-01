@@ -72,8 +72,8 @@ Writes:
 - aqe/tdd/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/test-generation/tdd/* - TDD coordination
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/test-generation/tdd/* - TDD coordination
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

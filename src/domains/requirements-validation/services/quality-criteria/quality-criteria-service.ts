@@ -66,7 +66,7 @@ export class QualityCriteriaService implements IQualityCriteriaService {
       // Relative to v3 package
       join(process.cwd(), '.claude/helpers/v3/quality-criteria/quality-criteria-reference-template.html'),
       // In node_modules
-      join(process.cwd(), 'node_modules/@agentic-qe/v3/assets/agents/v3/helpers/quality-criteria/quality-criteria-reference-template.html'),
+      join(process.cwd(), 'node_modules/agentic-qe/assets/agents/v3/helpers/quality-criteria/quality-criteria-reference-template.html'),
       // Development path
       join(__dirname, '../../../../../assets/agents/v3/helpers/quality-criteria/quality-criteria-reference-template.html'),
     ];

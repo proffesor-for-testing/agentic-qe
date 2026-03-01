@@ -70,9 +70,9 @@ Writes:
 - aqe/mutation/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/coverage-analysis/mutation/* - Mutation coordination
-- aqe/domains/test-generation/* - Test generation integration
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/coverage-analysis/mutation/* - Mutation coordination
+- aqe/v3/domains/test-generation/* - Test generation integration
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

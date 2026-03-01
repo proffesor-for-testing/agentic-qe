@@ -16,7 +16,7 @@
  *
  * @example
  * ```typescript
- * import { createProviderManager, createQEProviderManager } from '@agentic-qe/v3/shared/llm';
+ * import { createProviderManager, createQEProviderManager } from 'agentic-qe/shared/llm';
  *
  * // Create a provider manager
  * const manager = createQEProviderManager();

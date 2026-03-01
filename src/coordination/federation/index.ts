@@ -12,7 +12,7 @@
  * import {
  *   createFederationMailbox,
  *   FederationMailbox,
- * } from '@agentic-qe/v3/coordination/federation';
+ * } from 'agentic-qe/coordination/federation';
  *
  * const mailbox = createFederationMailbox({ localFleetId: 'fleet-a' });
  *

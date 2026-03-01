@@ -12,7 +12,7 @@
  *   EarlyExitController,
  *   DEFAULT_EXIT_CONFIG,
  *   createEarlyExitController,
- * } from '@agentic-qe/v3/early-exit';
+ * } from 'agentic-qe/early-exit';
  *
  * const controller = createEarlyExitController(4);
  *

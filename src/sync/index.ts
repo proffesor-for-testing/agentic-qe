@@ -5,7 +5,7 @@
  *
  * @example
  * ```typescript
- * import { syncToCloud, createSyncAgent } from '@agentic-qe/v3/sync';
+ * import { syncToCloud, createSyncAgent } from 'agentic-qe/sync';
  *
  * // Quick sync
  * const report = await syncToCloud({ environment: 'devpod' });

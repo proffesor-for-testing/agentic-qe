@@ -4,7 +4,7 @@
  * Lightweight platform adapter that bridges v2 n8n workflow testing agents
  * with v3 DDD domain architecture.
  *
- * @module @agentic-qe/v3/integrations/n8n
+ * @module agentic-qe/integrations/n8n
  *
  * Features:
  * - Domain mapping: Maps 19 n8n agents to 9 v3 domains
@@ -14,7 +14,7 @@
  *
  * Usage:
  * ```typescript
- * import { createN8nAdapter, createDomainRouter } from '@agentic-qe/v3/integrations/n8n';
+ * import { createN8nAdapter, createDomainRouter } from 'agentic-qe/integrations/n8n';
  *
  * // Create adapter
  * const adapter = createN8nAdapter();

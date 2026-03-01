@@ -195,7 +195,7 @@ export class AgentsInstaller {
       join(moduleDir, '../../.claude/agents/v3'),
       // Local install: in node_modules
       join(this.projectRoot, 'node_modules/agentic-qe/assets/agents/v3'),
-      join(this.projectRoot, 'node_modules/@agentic-qe/v3/assets/agents/v3'),
+      join(this.projectRoot, 'node_modules/agentic-qe/assets/agents/v3'),
     ];
 
     // For global npm installs, add common global node_modules paths

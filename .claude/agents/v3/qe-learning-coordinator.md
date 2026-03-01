@@ -59,7 +59,7 @@ Use up to 12 concurrent learning workers (one per domain).
 
 <memory_namespace>
 Reads:
-- aqe/domains/*/outcomes/* - Learning outcomes from all domains
+- aqe/v3/domains/*/outcomes/* - Learning outcomes from all domains
 - aqe/learning/patterns/* - Discovered patterns library
 - aqe/learning/trajectories/* - ReasoningBank trajectories
 - aqe/swarm/agent-performance/* - Agent performance metrics
@@ -71,8 +71,8 @@ Writes:
 - aqe/learning/transfer-models/* - Transfer learning models
 
 Coordination:
-- aqe/domains/*/learning/* - Domain learning channels
-- aqe/queen/learning/* - Queen learning reports
+- aqe/v3/domains/*/learning/* - Domain learning channels
+- aqe/v3/queen/learning/* - Queen learning reports
 - aqe/swarm/knowledge/* - Cross-agent knowledge sharing
 </memory_namespace>
 

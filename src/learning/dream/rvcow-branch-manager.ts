@@ -13,7 +13,7 @@
  *   - mergeBranch   -> RELEASE SAVEPOINT
  *   - discardBranch -> ROLLBACK TO SAVEPOINT
  *
- * @module v3/learning/dream/rvcow-branch-manager
+ * @module learning/dream/rvcow-branch-manager
  */
 
 import type { Database as DatabaseType } from 'better-sqlite3';

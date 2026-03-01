@@ -84,9 +84,9 @@ Writes:
 - aqe/flaky/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/test-execution/flaky/* - Flaky coordination
-- aqe/domains/learning-optimization/patterns/* - Pattern sharing
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/test-execution/flaky/* - Flaky coordination
+- aqe/v3/domains/learning-optimization/patterns/* - Pattern sharing
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

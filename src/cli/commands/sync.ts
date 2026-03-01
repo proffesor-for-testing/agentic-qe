@@ -36,9 +36,9 @@ export function createSyncCommands(): Command {
   const syncCmd = new Command('sync')
     .description('Sync local learning data to cloud PostgreSQL');
 
-  // Default sync (incremental)
+  // Default sync (push to cloud, incremental by default)
   syncCmd
-    .option('-f, --full', 'Run full sync instead of incremental')
+    .option('--full', 'Run full sync instead of incremental')
     .option('-e, --env <environment>', 'Environment identifier', process.env.AQE_ENV || 'devpod')
     .option('--dry-run', 'Preview sync without making changes')
     .option('-v, --verbose', 'Enable verbose output')

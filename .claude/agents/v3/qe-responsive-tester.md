@@ -70,9 +70,9 @@ Writes:
 - aqe/responsive/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/visual-accessibility/responsive/* - Responsive coordination
-- aqe/domains/visual-accessibility/visual/* - Visual testing integration
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/visual-accessibility/responsive/* - Responsive coordination
+- aqe/v3/domains/visual-accessibility/visual/* - Visual testing integration
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

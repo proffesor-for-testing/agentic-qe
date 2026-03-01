@@ -87,10 +87,10 @@ Writes:
 - aqe/enterprise-integration/odata/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/enterprise-integration/odata/* - OData test coordination with other enterprise agents
-- aqe/domains/contract-testing/odata/* - Contract testing integration
-- aqe/domains/quality-assessment/api/* - API quality metrics for gates
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/enterprise-integration/odata/* - OData test coordination with other enterprise agents
+- aqe/v3/domains/contract-testing/odata/* - Contract testing integration
+- aqe/v3/domains/quality-assessment/api/* - API quality metrics for gates
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

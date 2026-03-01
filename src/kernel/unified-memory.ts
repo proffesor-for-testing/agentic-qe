@@ -294,6 +294,36 @@ export class UnifiedMemoryManager {
         fs.mkdirSync(dir, { recursive: true });
       }
 
+      // DATA LOSS PREVENTION: If the DB file already exists, record its size
+      // before opening. better-sqlite3's `new Database(path)` creates a fresh
+      // empty file when the path doesn't exist. If we expected an existing DB
+      // (dir exists, .agentic-qe present) but the file is missing, something
+      // deleted it — warn loudly and look for the most recent backup.
+      const dbExistedBefore = fs.existsSync(this.config.dbPath);
+      let dbSizeBefore = 0;
+      if (dbExistedBefore) {
+        dbSizeBefore = fs.statSync(this.config.dbPath).size;
+      } else if (fs.existsSync(dir)) {
+        // The .agentic-qe directory exists but memory.db is missing — suspect data loss
+        const backups = this.findRecentBackups(dir);
+        if (backups.length > 0) {
+          const newest = backups[0];
+          console.error(
+            `[UnifiedMemory] CRITICAL: Database file missing but directory exists!\n` +
+            `  Expected: ${this.config.dbPath}\n` +
+            `  Found ${backups.length} backup(s), newest: ${newest.path} (${(newest.size / 1024 / 1024).toFixed(1)}MB)\n` +
+            `  Restoring from backup to prevent data loss...`
+          );
+          fs.copyFileSync(newest.path, this.config.dbPath);
+          // Remove stale WAL/SHM that may belong to the old file
+          for (const suffix of ['-wal', '-shm']) {
+            const walPath = this.config.dbPath + suffix;
+            if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
+          }
+          dbSizeBefore = newest.size;
+        }
+      }
+
       this.db = new Database(this.config.dbPath);
 
       if (this.config.walMode) {
@@ -306,6 +336,29 @@ export class UnifiedMemoryManager {
 
       await this.runMigrations();
 
+      // DATA LOSS PREVENTION: After migration, if the DB existed before and was
+      // large (>1MB = has real data), but now qe_patterns is empty, something
+      // went wrong. Refuse to proceed with an empty DB over real data.
+      if (dbExistedBefore && dbSizeBefore > 1_000_000) {
+        try {
+          const row = this.db.prepare('SELECT COUNT(*) as cnt FROM qe_patterns').get() as { cnt: number } | undefined;
+          if (row && row.cnt === 0) {
+            const currentSize = fs.statSync(this.config.dbPath).size;
+            if (currentSize < dbSizeBefore * 0.1) {
+              // DB shrank by >90% and has 0 patterns — this is data loss
+              console.error(
+                `[UnifiedMemory] CRITICAL: Possible data loss detected!\n` +
+                `  DB was ${(dbSizeBefore / 1024 / 1024).toFixed(1)}MB, now ${(currentSize / 1024 / 1024).toFixed(1)}MB with 0 patterns.\n` +
+                `  This looks like the DB was replaced with an empty schema.\n` +
+                `  Check backups in ${dir} and restore manually.`
+              );
+            }
+          }
+        } catch {
+          // qe_patterns table may not exist yet on fresh init — that's fine
+        }
+      }
+
       this.vectorsLoaded = false;
       this.initialized = true;
       console.log(`[UnifiedMemory] Initialized: ${this.config.dbPath}`);
@@ -316,6 +369,44 @@ export class UnifiedMemoryManager {
       throw new Error(
         `Failed to initialize UnifiedMemoryManager: ${toErrorMessage(error)}`
       );
+    }
+  }
+
+  /**
+   * Find recent backup files for the memory database, sorted newest first.
+   */
+  private findRecentBackups(dir: string): Array<{ path: string; size: number; mtime: number }> {
+    try {
+      const files = fs.readdirSync(dir);
+      const backups = files
+        .filter(f => f.startsWith('memory') && f.endsWith('.db') && f !== 'memory.db')
+        .map(f => {
+          const fullPath = path.join(dir, f);
+          const stat = fs.statSync(fullPath);
+          return { path: fullPath, size: stat.size, mtime: stat.mtimeMs };
+        })
+        .filter(b => b.size > 1_000_000) // Only consider backups >1MB (has real data)
+        .sort((a, b) => b.mtime - a.mtime); // Newest first
+
+      // Also check backups/ subdirectory
+      const backupsDir = path.join(dir, 'backups');
+      if (fs.existsSync(backupsDir)) {
+        const backupFiles = fs.readdirSync(backupsDir);
+        for (const f of backupFiles) {
+          if (f.endsWith('.db')) {
+            const fullPath = path.join(backupsDir, f);
+            const stat = fs.statSync(fullPath);
+            if (stat.size > 1_000_000) {
+              backups.push({ path: fullPath, size: stat.size, mtime: stat.mtimeMs });
+            }
+          }
+        }
+        backups.sort((a, b) => b.mtime - a.mtime);
+      }
+
+      return backups;
+    } catch {
+      return [];
     }
   }
 

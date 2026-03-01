@@ -71,9 +71,9 @@ Writes:
 - aqe/quality/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/coverage-analysis/metrics/* - Coverage input
-- aqe/domains/security-compliance/scans/* - Security input
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/coverage-analysis/metrics/* - Coverage input
+- aqe/v3/domains/security-compliance/scans/* - Security input
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

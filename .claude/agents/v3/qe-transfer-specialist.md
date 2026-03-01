@@ -61,7 +61,7 @@ Reads:
 - aqe/transfer/mappings/* - Framework and domain mappings
 - aqe/transfer/history/* - Historical transfer results
 - aqe/learning/patterns/* - Source patterns for transfer
-- aqe/agents/knowledge/* - Agent knowledge bases
+- aqe/v3/agents/knowledge/* - Agent knowledge bases
 
 Writes:
 - aqe/transfer/results/* - Transfer outcomes
@@ -70,9 +70,9 @@ Writes:
 - aqe/transfer/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/learning-optimization/transfer/* - Transfer coordination
-- aqe/domains/learning-optimization/patterns/* - Pattern sharing
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/learning-optimization/transfer/* - Transfer coordination
+- aqe/v3/domains/learning-optimization/patterns/* - Pattern sharing
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

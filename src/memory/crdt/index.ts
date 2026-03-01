@@ -11,7 +11,7 @@
  * import {
  *   createCRDTStore,
  *   createConvergenceTracker,
- * } from '@agentic-qe/v3/memory/crdt';
+ * } from 'agentic-qe/memory/crdt';
  *
  * // Agent A creates store
  * const storeA = createCRDTStore({ nodeId: 'agent-a' });

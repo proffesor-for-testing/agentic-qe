@@ -176,7 +176,7 @@ export class SkillsInstaller {
       join(moduleDir, '../../assets/skills'),
       // Local install: in node_modules
       join(this.projectRoot, 'node_modules/agentic-qe/assets/skills'),
-      join(this.projectRoot, 'node_modules/@agentic-qe/v3/assets/skills'),
+      join(this.projectRoot, 'node_modules/agentic-qe/assets/skills'),
     ];
 
     // For global npm installs, add common global node_modules paths

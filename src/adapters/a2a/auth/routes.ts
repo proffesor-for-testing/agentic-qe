@@ -638,7 +638,7 @@ export function getOAuthRouteDefinitions(config: OAuthRoutesConfig): OAuthRouteD
  * @example
  * ```typescript
  * import express from 'express';
- * import { createOAuthRoutes } from '@agentic-qe/v3';
+ * import { createOAuthRoutes } from 'agentic-qe';
  *
  * const app = express();
  * const oauthRouter = createOAuthRoutes({

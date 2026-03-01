@@ -12,7 +12,7 @@
  *   createAgentTeamsAdapter,
  *   AgentTeamsAdapter,
  *   MailboxService,
- * } from '@agentic-qe/v3/coordination/agent-teams';
+ * } from 'agentic-qe/coordination/agent-teams';
  *
  * // Create adapter
  * const adapter = createAgentTeamsAdapter({ defaultTtlMs: 30000 });

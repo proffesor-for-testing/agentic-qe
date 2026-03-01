@@ -2,7 +2,7 @@
  * QE Wrapper for MinCut Calculator
  *
  * This wrapper provides a QE-specific interface on top of the TypeScript
- * MinCutCalculator (v3/src/coordination/mincut/mincut-calculator.ts).
+ * MinCutCalculator (src/coordination/mincut/mincut-calculator.ts).
  * Follows the same pattern as gnn-wrapper.ts and sona-wrapper.ts.
  *
  * ADR-068: Mincut-Gated Model Routing

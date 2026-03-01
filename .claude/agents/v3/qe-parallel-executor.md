@@ -71,9 +71,9 @@ Writes:
 - aqe/execution/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/coverage-analysis/execution/* - Coverage data handoff
-- aqe/domains/quality-assessment/results/* - Results for quality gates
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/coverage-analysis/execution/* - Coverage data handoff
+- aqe/v3/domains/quality-assessment/results/* - Results for quality gates
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

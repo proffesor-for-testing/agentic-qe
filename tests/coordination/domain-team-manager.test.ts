@@ -294,14 +294,14 @@ describe('DomainTeamManager', () => {
       expect(team!.leadAgentId).toBe('lead-t');
     });
 
-    it('should respect max team size when scaling up', () => {
+    it('should allow explicit scaling beyond defaultTeamSize', () => {
       const mgr = makeManager(adapter, { defaultTeamSize: 3 });
       mgr.createDomainTeam('testing', 'lead-t', []);
 
-      // Request more than max (3), should clamp
+      // defaultTeamSize is for initial creation only, not a hard cap on explicit scaling
       const result = mgr.scaleTeam('testing', 10);
 
-      expect(result.newSize).toBe(3);
+      expect(result.newSize).toBe(10);
       mgr.dispose();
     });
 

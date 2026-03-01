@@ -70,9 +70,9 @@ Writes:
 - aqe/metrics/outcomes/* - V3 learning outcomes
 
 Coordination:
-- aqe/domains/learning-optimization/metrics/* - Metrics coordination
-- aqe/domains/learning-optimization/transfer/* - Transfer optimization
-- aqe/queen/tasks/* - Task status updates
+- aqe/v3/domains/learning-optimization/metrics/* - Metrics coordination
+- aqe/v3/domains/learning-optimization/transfer/* - Transfer optimization
+- aqe/v3/queen/tasks/* - Task status updates
 </memory_namespace>
 
 <learning_protocol>

@@ -348,7 +348,7 @@ function auditHnswImplementations(): HnswAudit {
   console.log('  [5/12] Auditing HNSW implementations...');
 
   // Dynamically detect HNSW implementation classes by scanning source files
-  const sourceRoot = resolve(process.cwd(), 'v3/src');
+  const sourceRoot = resolve(process.cwd(), 'src');
   const implementations: string[] = [];
   const deprecatedImpls: string[] = [];
   let hasUnifiedBackend = false;
@@ -371,7 +371,7 @@ function auditHnswImplementations(): HnswAudit {
         let match: RegExpExecArray | null;
         while ((match = loc.classPattern.exec(content)) !== null) {
           const className = match[1];
-          const label = `${className} — v3/src/${loc.file}`;
+          const label = `${className} — src/${loc.file}`;
           implementations.push(label);
           if (loc.deprecated) {
             deprecatedImpls.push(label);
@@ -494,7 +494,7 @@ async function benchmarkMincut(): Promise<MincutBenchmark> {
 
   // Check TypeScript MinCutCalculator
   try {
-    const { MinCutCalculator } = await import('../v3/src/coordination/mincut/mincut-calculator.js');
+    const { MinCutCalculator } = await import('../src/coordination/mincut/mincut-calculator.js');
     if (MinCutCalculator) {
       tsAvailable = true;
       // Quick benchmark: create a small graph and compute mincut
@@ -563,7 +563,7 @@ async function benchmarkMincutRouting(): Promise<MincutRoutingBenchmark> {
   console.log('  [9/12] Benchmarking mincut routing with topology...');
 
   try {
-    const { QEMinCutService } = await import('../v3/src/integrations/ruvector/mincut-wrapper.js');
+    const { QEMinCutService } = await import('../src/integrations/ruvector/mincut-wrapper.js');
     const service = new QEMinCutService();
     const topology = buildTestTopology(5);
 
@@ -617,7 +617,7 @@ async function benchmarkUnifiedHnswSearch(): Promise<UnifiedHnswSearchBenchmark>
   console.log('  [10/12] Benchmarking unified HNSW search (ProgressiveHnswBackend)...');
 
   try {
-    const { ProgressiveHnswBackend } = await import('../v3/src/kernel/progressive-hnsw-backend.js');
+    const { ProgressiveHnswBackend } = await import('../src/kernel/progressive-hnsw-backend.js');
     const backend = new ProgressiveHnswBackend({ dimensions: 384, M: 16, efConstruction: 200, efSearch: 100, metric: 'cosine' });
 
     const VECTOR_COUNT = 1000;
@@ -680,7 +680,7 @@ async function benchmarkWitnessChain(): Promise<WitnessChainBenchmark> {
   console.log('  [11/12] Benchmarking witness chain append + verify...');
 
   try {
-    const { createWitnessChain } = await import('../v3/src/audit/witness-chain.js');
+    const { createWitnessChain } = await import('../src/audit/witness-chain.js');
     // Use an in-memory SQLite database to avoid touching production data
     const inMemDb = new Database(':memory:');
     const chain = createWitnessChain(inMemDb as any);
@@ -742,7 +742,7 @@ async function benchmarkStructuralHealth(): Promise<StructuralHealthBenchmark> {
   console.log('  [12/12] Benchmarking structural health computation...');
 
   try {
-    const { StructuralHealthMonitor } = await import('../v3/src/monitoring/structural-health.js');
+    const { StructuralHealthMonitor } = await import('../src/monitoring/structural-health.js');
     const monitor = new StructuralHealthMonitor({ enableLogging: false });
     const topology = buildTestTopology(10);
 

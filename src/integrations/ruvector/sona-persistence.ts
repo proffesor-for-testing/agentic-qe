@@ -12,7 +12,7 @@
  *
  * @example
  * ```typescript
- * import { createPersistentSONAEngine } from '@agentic-qe/v3/integrations/ruvector';
+ * import { createPersistentSONAEngine } from 'agentic-qe/integrations/ruvector';
  *
  * const engine = await createPersistentSONAEngine({
  *   domain: 'test-generation',

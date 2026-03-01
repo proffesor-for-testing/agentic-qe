@@ -30,7 +30,7 @@
  * import {
  *   createAgentBoosterAdapter,
  *   AgentBoosterConfig,
- * } from '@agentic-qe/v3/integrations/agentic-flow/agent-booster';
+ * } from 'agentic-qe/integrations/agentic-flow/agent-booster';
  *
  * // Create and initialize adapter
  * const adapter = await createAgentBoosterAdapter({

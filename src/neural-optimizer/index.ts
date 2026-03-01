@@ -17,7 +17,7 @@
  *   createNeuralTopologyOptimizer,
  *   createTopology,
  *   createAgent,
- * } from '@agentic-qe/v3/neural-optimizer';
+ * } from 'agentic-qe/neural-optimizer';
  *
  * // Create topology with agents
  * const topology = createTopology('mesh');

@@ -12,7 +12,7 @@
  * - dependency-scanner.ts: NPM/OSV vulnerability scanning (~160 LOC)
  * - scanner-orchestrator.ts: Main service coordinating all scanners (~220 LOC)
  *
- * @see /v3/docs/reports/quality-analysis/milestone-1.1-complete.md
+ * @see /docs/reports/quality-analysis/milestone-1.1-complete.md
  */
 
 // =============================================================================

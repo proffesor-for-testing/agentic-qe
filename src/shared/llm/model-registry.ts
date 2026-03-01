@@ -7,7 +7,7 @@
  *
  * @example
  * ```typescript
- * import { getModelCapabilities, listModels, findModelsByCapability } from '@agentic-qe/v3/shared/llm';
+ * import { getModelCapabilities, listModels, findModelsByCapability } from 'agentic-qe/shared/llm';
  *
  * // Get capabilities for a model
  * const caps = getModelCapabilities('claude-sonnet-4-5');

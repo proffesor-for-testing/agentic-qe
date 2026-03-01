@@ -55,7 +55,7 @@
     "test:e2e": "vitest run tests/integration/browser --testTimeout=120000",
     "test:safe": "NODE_OPTIONS='--max-old-space-size=768 --expose-gc' vitest run --maxForks=1",
     "test:dev": "npm run test:unit:fast",
-    "test:v3": "npm test -- --run",
+    "test:all": "npm test -- --run",
     "test:mcp": "npm run test:unit:mcp",
     "test:mcp:integration": "npm test -- --run tests/integration/mcp/",
     "mcp:validate": "echo 'MCP validation: All tools registered in MCP server' && exit 0",

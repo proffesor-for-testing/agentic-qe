@@ -10,7 +10,7 @@
  * This implements the "adversarial dream" concept from the Six Thinking
  * Hats analysis, where diverse strategies compete and the best wins.
  *
- * @module v3/learning/dream/speculative-dreamer
+ * @module learning/dream/speculative-dreamer
  */
 
 import type { Database as DatabaseType } from 'better-sqlite3';

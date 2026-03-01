@@ -528,7 +528,7 @@ The AQE v3 MCP server is configured in \`.claude/mcp.json\`. Available tools:
 
 ### V3 QE Agents
 
-V3 QE agents are installed in \`.claude/agents/v3/\`. Use with Claude Code's Task tool:
+QE agents are installed in \`.claude/agents/v3/\`. Use with Claude Code's Task tool:
 
 \`\`\`javascript
 // Example: Generate tests

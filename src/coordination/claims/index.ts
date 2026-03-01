@@ -15,7 +15,7 @@
  *   createInMemoryClaimRepository,
  *   createWorkStealingCoordinator,
  *   createHandoffManager,
- * } from '@agentic-qe/v3/coordination/claims';
+ * } from 'agentic-qe/coordination/claims';
  *
  * // Setup
  * const repository = createInMemoryClaimRepository();

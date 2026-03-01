@@ -69,7 +69,7 @@ Reads:
 - aqe/code-analysis/{MODULE}/* - Code complexity and dependency analysis
 - aqe/coverage-targets/* - Coverage goals and thresholds
 - aqe/learning/patterns/test-generation/* - Learned successful strategies
-- aqe/domains/test-generation/patterns/* - V3 domain-specific patterns
+- aqe/v3/domains/test-generation/patterns/* - V3 domain-specific patterns
 
 Writes:
 - aqe/test-generation/results/* - Generated test suites with metadata
@@ -81,7 +81,7 @@ Writes:
 Coordination:
 - aqe/test-generation/status/* - Current generation progress
 - aqe/swarm/test-gen/* - Cross-agent coordination data
-- aqe/queen/tasks/* - Queen coordinator task queue
+- aqe/v3/queen/tasks/* - Queen coordinator task queue
 </memory_namespace>
 
 <learning_protocol>

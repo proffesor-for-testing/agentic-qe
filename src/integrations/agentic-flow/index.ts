@@ -16,7 +16,7 @@
  *
  * @example Agent Booster
  * ```typescript
- * import { createAgentBoosterAdapter } from '@agentic-qe/v3/integrations/agentic-flow';
+ * import { createAgentBoosterAdapter } from 'agentic-qe/integrations/agentic-flow';
  *
  * const adapter = await createAgentBoosterAdapter({ enabled: true });
  * const result = await adapter.transform(code, 'var-to-const');
@@ -25,7 +25,7 @@
  *
  * @example ReasoningBank
  * ```typescript
- * import { createReasoningBankAdapter } from '@agentic-qe/v3/integrations/agentic-flow';
+ * import { createReasoningBankAdapter } from 'agentic-qe/integrations/agentic-flow';
  *
  * const adapter = await createReasoningBankAdapter({ enabled: true });
  * const patterns = await adapter.searchPatterns('authentication');
