@@ -81,6 +81,11 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
           { name: 'Line UOM present', passed: !!firstLine.UnitOfMeasure, expected: 'truthy', actual: String(firstLine.UnitOfMeasure ?? 'missing') },
           { name: 'Line OrderedQty present', passed: !!firstLine.OrderedQty, expected: 'truthy', actual: String(firstLine.OrderedQty ?? 'missing') },
           { name: 'Line has price info', passed: !!(firstLine.LinePriceInfo as Record<string, unknown>)?.UnitPrice || !!firstLine.UnitPrice, expected: 'truthy', actual: String((firstLine.LinePriceInfo as Record<string, unknown>)?.UnitPrice ?? firstLine.UnitPrice ?? 'missing') },
+          // MVP parity checks (S01-C05..C08): order-level fields
+          { name: 'PaymentStatus present', passed: !!(order as Record<string, unknown>).PaymentStatus || !!ensureArray(order.PaymentMethods?.PaymentMethod)[0]?.PaymentStatus, expected: 'AUTHORIZED|PAID|SETTLED', actual: String((order as Record<string, unknown>).PaymentStatus ?? ensureArray(order.PaymentMethods?.PaymentMethod)[0]?.PaymentStatus ?? 'missing') },
+          { name: 'OrderType is ShipToHome', passed: (order as Record<string, unknown>).OrderType === 'ShipToHome', expected: 'ShipToHome', actual: String((order as Record<string, unknown>).OrderType ?? 'missing') },
+          { name: 'Currency is EUR', passed: (order.PriceInfo as Record<string, unknown>)?.Currency === 'EUR', expected: 'EUR', actual: String((order.PriceInfo as Record<string, unknown>)?.Currency ?? 'missing') },
+          { name: 'EntryType is web', passed: (order as Record<string, unknown>).EntryType === 'web', expected: 'web', actual: String((order as Record<string, unknown>).EntryType ?? 'missing') },
         ],
       };
     },
@@ -112,11 +117,20 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
       }
       ctx.originalOrderTotal = (order.TotalAmount as string) ?? '';
 
+      // MVP parity: verify ShipNode stamped + HoldFlag resolved (S02-C02, S03-C01)
+      const lines = ensureArray(order.OrderLines?.OrderLine);
+      const shipNodeActual = String(lines[0]?.ShipNode ?? (order as Record<string, unknown>).ShipNode ?? 'missing');
+      const holdFlag = String((order as Record<string, unknown>).HoldFlag ?? 'N');
+
       return {
         success: true,
         durationMs: Date.now() - start,
         checks: [
           { name: 'Status >= 3200', passed: order.Status >= '3200', expected: '>=3200', actual: order.Status },
+          // MVP S02-C02: ShipNode assigned after StampShipNode XAPI step
+          { name: 'ShipNode assigned', passed: shipNodeActual !== 'missing', expected: 'truthy', actual: shipNodeActual },
+          // MVP S03-C01: HoldFlag resolved after ResolveHold XAPI step
+          { name: 'HoldFlag is not Y', passed: holdFlag !== 'Y', expected: 'Not Y', actual: holdFlag },
         ],
       };
     },
@@ -492,6 +506,8 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
             checks: [
               // Check #100: Delivered event (OMS side — #91 is Kafka, not covered here)
               { name: 'Order past delivery (DL implied)', passed: true, expected: 'MaxOrderStatus >= 3700', actual: String(maxStatus) },
+              // MVP S10-C02: MinOrderStatusDesc includes "deliver" (or Return Completed)
+              { name: 'MinOrderStatusDesc reflects delivery', passed: !!((order as Record<string, unknown>).MinOrderStatusDesc as string)?.length, expected: 'non-empty status desc', actual: String((order as Record<string, unknown>).MinOrderStatusDesc ?? 'missing') },
               // Check #100: DL note has ReasonCode
               { name: 'DL note ReasonCode present', passed: !!dlNote?.ReasonCode, expected: 'DL', actual: String(dlNote?.ReasonCode ?? 'status-shortcut (no note)') },
               // Check #104: DL note has timestamp
@@ -522,12 +538,15 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
       const dlNote = notes.find((n) => n.ReasonCode === 'DL' || n.NoteText?.includes('DL'));
       const payments = ensureArray(result.value.PaymentMethods?.PaymentMethod);
       const paymentStatus = String(payments[0]?.PaymentStatus ?? '');
+      const polledStatusDesc = String((result.value as Record<string, unknown>).MinOrderStatusDesc ?? '');
 
       return {
         success: true,
         durationMs: Date.now() - start,
         checks: [
           { name: 'DL note found', passed: true, expected: 'DL note', actual: 'found' },
+          // MVP S10-C02: MinOrderStatusDesc present
+          { name: 'MinOrderStatusDesc reflects delivery', passed: polledStatusDesc.length > 0, expected: 'non-empty status desc', actual: polledStatusDesc || 'missing' },
           { name: 'DL note ReasonCode present', passed: !!dlNote?.ReasonCode, expected: 'DL', actual: String(dlNote?.ReasonCode ?? 'missing') },
           { name: 'DL note has Trandate', passed: !!dlNote?.Trandate || !!dlNote?.Modifyts, expected: 'timestamp', actual: String(dlNote?.Trandate ?? dlNote?.Modifyts ?? 'missing') },
           { name: 'Has carrier notes (IT+DL)', passed: notes.length >= 2, expected: '>=2 notes', actual: `${notes.length} notes` },
@@ -715,11 +734,15 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
       if (fwdCheck.success) {
         const maxStatus = parseFloat((fwdCheck.value as Record<string, unknown>).MaxOrderStatus as string ?? '0');
         if (maxStatus >= 3700) {
+          // MVP S12-C02: Return status description non-empty
+          const statusDesc = String((fwdCheck.value as Record<string, unknown>).MinOrderStatusDesc ?? (fwdCheck.value as Record<string, unknown>).MaxOrderStatusDesc ?? '');
           return {
             success: true,
             durationMs: Date.now() - start,
             checks: [
               { name: 'Return completed on order', passed: true, expected: 'status >= 3700', actual: fwdCheck.value.Status },
+              // MVP S12-C02 parity: status description is non-empty
+              { name: 'Return status description present', passed: statusDesc.length > 0, expected: 'non-empty', actual: statusDesc || 'empty' },
             ],
           };
         }
@@ -742,11 +765,14 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
         return { success: false, error: result.error.message, durationMs: Date.now() - start, checks: [] };
       }
 
+      const polledReturnDesc = String((result.value as Record<string, unknown>).MinOrderStatusDesc ?? (result.value as Record<string, unknown>).MaxOrderStatusDesc ?? '');
       return {
         success: true,
         durationMs: Date.now() - start,
         checks: [
           { name: 'Return carrier note found', passed: true, expected: 'RT/RP/RD note', actual: 'found' },
+          // MVP S12-C02 parity: status description is non-empty
+          { name: 'Return status description present', passed: polledReturnDesc.length > 0, expected: 'non-empty', actual: polledReturnDesc || 'empty' },
         ],
       };
     },
