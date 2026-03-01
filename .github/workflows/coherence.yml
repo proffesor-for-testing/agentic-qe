@@ -59,7 +59,7 @@ jobs:
       - name: Run coherence check
         id: coherence
         run: |
-          node scripts/coherence-check.js > coherence-result.json 2>&1 || true
+          node scripts/coherence-check.mjs > coherence-result.json 2>&1 || true
 
           # Extract results
           IS_COHERENT=$(jq -r '.isCoherent // false' coherence-result.json 2>/dev/null || echo "false")

@@ -307,7 +307,7 @@ jobs:
 
       - name: Generate Dashboard
         run: |
-          node scripts/test-dashboard.js
+          node scripts/test-dashboard.cjs
 
       - name: Generate Migration Metrics
         run: |
