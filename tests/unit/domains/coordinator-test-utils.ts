@@ -714,7 +714,7 @@ export function expectMemoryStored(
 ): void {
   const values = memory.getAllValues();
   const pattern = typeof keyPattern === 'string'
-    ? new RegExp(keyPattern.replace(/\*/g, '.*'))
+    ? new RegExp(keyPattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*'))
     : keyPattern;
 
   const matchingKeys = Array.from(values.keys()).filter(k => pattern.test(k));

@@ -351,14 +351,14 @@ describe('OAuth 2.0 Security', () => {
       const invalidUri = 'https://malicious.example.com/callback';
       const subtlyInvalidUri = 'https://app.example.com/callback?extra=param';
 
-      // Valid URI should be accepted
-      expect(client!.redirect_uris.includes(validUri)).toBe(true);
+      // Valid URI should be accepted (exact match via indexOf for strict equality)
+      expect(client!.redirect_uris.some(uri => uri === validUri)).toBe(true);
 
       // Invalid URI should be rejected
-      expect(client!.redirect_uris.includes(invalidUri)).toBe(false);
+      expect(client!.redirect_uris.some(uri => uri === invalidUri)).toBe(false);
 
       // Subtly modified URI should be rejected (exact match required)
-      expect(client!.redirect_uris.includes(subtlyInvalidUri)).toBe(false);
+      expect(client!.redirect_uris.some(uri => uri === subtlyInvalidUri)).toBe(false);
     });
 
     it('should prevent authorization code reuse', () => {

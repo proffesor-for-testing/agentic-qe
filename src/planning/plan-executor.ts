@@ -995,13 +995,7 @@ export class PlanExecutor {
       }
       // Use Object.hasOwn for safe property check
       if (!Object.hasOwn(current, part)) {
-        // Use Object.defineProperty for safe assignment
-        Object.defineProperty(current, part, {
-          value: Object.create(null),
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
+        current[part] = Object.create(null);
       }
       current = current[part] as Record<string, unknown>;
     }
@@ -1012,15 +1006,10 @@ export class PlanExecutor {
       console.warn(`[PlanExecutor] Blocked prototype pollution: ${finalKey}`);
       return;
     }
-    // Use Object.defineProperty for safe final assignment
-    // CodeQL: False positive - finalKey validated against dangerousProps Set above
-    // lgtm[js/prototype-pollution-utility]
-    Object.defineProperty(current, finalKey, {
-      value,
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    });
+    // Safe assignment: finalKey validated against dangerousProps Set above,
+    // and current is always a null-prototype object (Object.create(null))
+    // or a plain V3WorldState value. Direct assignment is safe here.
+    current[finalKey] = value; // lgtm[js/prototype-pollution-utility]
   }
 
   /**
