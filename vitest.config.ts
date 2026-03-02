@@ -27,6 +27,7 @@ export default defineConfig({
     exclude: [
       'node_modules',
       'dist',
+      '**/_archived/**',
       '**/browser/**',
       '**/*.e2e.test.ts',
       '**/vibium/**',
