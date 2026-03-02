@@ -23,6 +23,14 @@ import type {
 import type { E2ETestCase } from '../../types';
 import type { UnifiedBrowserClient, E2ERunnerConfig } from './types';
 import { toErrorMessage } from '@shared/error-utils.js';
+import { AdaptiveLocatorService } from './adaptive-locator-service';
+import type { AdaptiveLocatorConfig, LocatorResolutionResult } from './adaptive-locator-types';
+import {
+  shouldBlockRequest,
+  getResourceBlockingPreset,
+  type ResourceBlockingConfig,
+  type ResourceBlockingPreset,
+} from '@integrations/browser';
 
 // ============================================================================
 // Type Guards
@@ -157,6 +165,7 @@ export class BrowserOrchestrator {
   private readonly useAgentBrowser: boolean;
   private readonly config: E2ERunnerConfig;
   private readonly log: (message: string) => void;
+  private adaptiveLocator: AdaptiveLocatorService | null = null;
 
   constructor(
     client: VibiumClient | IBrowserClient,
@@ -172,6 +181,11 @@ export class BrowserOrchestrator {
 
     // Determine if we're using agent-browser
     this.useAgentBrowser = isAgentBrowserClient(this.unifiedClient);
+
+    // Initialize adaptive locator if configured
+    if (config.adaptiveLocator?.enabled) {
+      this.adaptiveLocator = new AdaptiveLocatorService(config.adaptiveLocator);
+    }
   }
 
   /**
@@ -203,6 +217,12 @@ export class BrowserOrchestrator {
         if (!launchResult.success) {
           return `Failed to launch browser: ${launchResult.error.message}`;
         }
+
+        // Apply resource blocking after launch if configured
+        if (this.config.resourceBlocking) {
+          await this.applyResourceBlocking(this.unifiedClient, this.config.resourceBlocking);
+        }
+
         return null;
       } else if (isVibiumClient(this.client)) {
         const session = await this.client.getSession();
@@ -367,6 +387,110 @@ export class BrowserOrchestrator {
     if (isVibiumClient(this.client)) {
       await this.client.findElement({ selector, visible: true });
     }
+  }
+
+  /**
+   * Resolve an element target with adaptive fallback.
+   * If the primary selector fails and adaptive locator is configured,
+   * attempts fallback matching via text, ARIA, and fingerprint similarity.
+   */
+  async resolveElementTarget(
+    selector: string,
+    pageUrl: string
+  ): Promise<ElementTarget> {
+    const primaryTarget = toElementTarget(selector);
+
+    if (!this.adaptiveLocator || isVibiumClient(this.unifiedClient)) {
+      return primaryTarget;
+    }
+
+    const browserClient = this.unifiedClient as IBrowserClient;
+
+    // Try primary selector first via a quick visibility check
+    try {
+      const result = await browserClient.isVisible(primaryTarget);
+      if (result.success && result.value) {
+        // Primary worked — capture fingerprint for future fallback
+        await this.adaptiveLocator.captureFingerprint(selector, browserClient, pageUrl);
+        return primaryTarget;
+      }
+    } catch {
+      // primary failed — continue to fallback
+    }
+
+    // Try adaptive fallback
+    const resolution = await this.adaptiveLocator.resolveWithFallback(
+      selector,
+      browserClient,
+      pageUrl
+    );
+
+    if (resolution) {
+      this.log(
+        `Adaptive locator: resolved "${selector}" via ${resolution.method} ` +
+        `(score: ${resolution.similarityScore.toFixed(2)})`
+      );
+      return toElementTarget(resolution.resolvedSelector);
+    }
+
+    // Fallback failed — return primary and let the caller handle the error
+    return primaryTarget;
+  }
+
+  /**
+   * Apply resource blocking to a browser client's page via evaluate-based interception.
+   * Injects a PerformanceObserver that aborts blocked resource loads.
+   * For full route-level blocking, use StealthBrowserClient which has native page.route().
+   */
+  async applyResourceBlocking(
+    client: IBrowserClient,
+    config: ResourceBlockingConfig | string
+  ): Promise<void> {
+    const blockingConfig: ResourceBlockingConfig =
+      typeof config === 'string'
+        ? getResourceBlockingPreset(config as ResourceBlockingPreset)
+        : config;
+
+    if (!blockingConfig.enabled) return;
+
+    this.log(`Resource blocking enabled: ${blockingConfig.blockedCategories.join(', ')}`);
+
+    // For agent-browser clients that support mockRoute/abortRoute, use route interception
+    if (isAgentBrowserClient(this.unifiedClient)) {
+      const agentClient = this.unifiedClient;
+      // Build URL patterns from blocked categories
+      const patterns: string[] = [];
+
+      if (blockingConfig.blockedCategories.includes('tracking')) {
+        patterns.push(
+          '*google-analytics.com*', '*googletagmanager.com*', '*hotjar.com*',
+          '*segment.com*', '*mixpanel.com*', '*amplitude.com*', '*fullstory.com*',
+          '*clarity.ms*', '*facebook.net*',
+        );
+      }
+      if (blockingConfig.blockedCategories.includes('advertising')) {
+        patterns.push(
+          '*doubleclick.net*', '*googlesyndication.com*', '*googleadservices.com*',
+          '*adnxs.com*', '*criteo.com*', '*taboola.com*', '*outbrain.com*',
+        );
+      }
+
+      // Add explicit block patterns
+      if (blockingConfig.blockPatterns) {
+        patterns.push(...blockingConfig.blockPatterns);
+      }
+
+      for (const pattern of patterns) {
+        await agentClient.abortRoute(pattern);
+      }
+    }
+  }
+
+  /**
+   * Get the adaptive locator service (for external fingerprint capture)
+   */
+  getAdaptiveLocator(): AdaptiveLocatorService | null {
+    return this.adaptiveLocator;
   }
 
   /**

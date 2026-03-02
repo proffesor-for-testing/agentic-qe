@@ -5,6 +5,26 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.7] - 2026-03-02
+
+### Added
+
+- **Resource blocking for E2E tests** — Block non-essential resources (images, fonts, tracking, ads) during test execution with three presets: `functional` (fastest, blocks all non-essential), `visual` (blocks nothing), and `performance` (blocks heavy resources). Includes domain-based tracker/ad detection for 30+ known domains.
+- **Adaptive locator for resilient selectors** — When a CSS/XPath selector fails, falls back to text, ARIA, and similarity-based fingerprint matching to find the intended element. Reduces E2E flakiness when UI changes break selectors. Weighted scoring across tag name, ARIA role, classes, text content, attributes, and DOM position.
+- **Browser page pool** — Manages concurrent browser page lifecycle with async acquire/release, health-based pruning, and pool statistics. Async waiters are notified when pages become available.
+- **Stealth browser client via Patchright** — Optional `IBrowserClient` implementation using Patchright (drop-in Playwright replacement) for bot-protected test environments. Supports persistent contexts, Cloudflare challenge detection, proxy configuration, and integrated resource blocking. Lazy-loaded so it doesn't affect builds when not installed.
+- **`stealth-testing` browser use case** — New use case in the browser client factory for intelligent tool selection when testing against bot-protected sites.
+
+### Changed
+
+- **Step executors use adaptive locator** — Click and type steps now resolve element targets through the adaptive fallback chain when configured, using the actual page URL (not just base URL) for fingerprint keying.
+- **Resource blocking wired into browser orchestrator** — `applyResourceBlocking()` calls `abortRoute()` on agent-browser clients for tracker/ad domains during test launch.
+- **`getBrowserToolAvailability()` includes stealth** — Return type now includes `stealth: boolean` alongside vibium and agent-browser.
+
+### Security
+
+- **Fix JS injection in adaptive locator** — Text fallback now uses `JSON.stringify()` instead of manual escaping to safely interpolate stored text content into browser-evaluated scripts.
+
 ## [3.7.6] - 2026-03-02
 
 ### Security

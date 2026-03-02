@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.7.7](v3.7.7.md) | 2026-03-02 | Scrapling-inspired browser: adaptive locators, resource blocking, stealth client, page pool |
 | [v3.7.6](v3.7.6.md) | 2026-03-02 | 30 MCP tools wired, 9 security fixes, dependency cleanup, dead code removal |
 | [v3.7.5](v3.7.5.md) | 2026-03-01 | Flat project structure, RVF binary brain export, native module crash fix |
 | [v3.7.4](v3.7.4.md) | 2026-02-28 | 8 new platform integrations (Copilot, Cursor, Cline, Kilo, Roo, Codex, Windsurf, Continue.dev), 202 new tests |

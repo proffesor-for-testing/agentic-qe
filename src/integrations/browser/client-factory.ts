@@ -32,6 +32,7 @@ import type {
 } from './types';
 import { BrowserUnavailableError } from './types';
 import { AgentBrowserClient } from './agent-browser/client';
+import { StealthBrowserClient } from './stealth/stealth-client';
 
 // ============================================================================
 // Factory Options
@@ -96,6 +97,13 @@ const AGENT_BROWSER_REQUIRED_USE_CASES: BrowserUseCase[] = [
   'api-mocking',       // Only agent-browser supports network interception
   'responsive-testing', // Requires device emulation
   'auth-testing',      // Requires state persistence
+];
+
+/**
+ * Use cases that prefer the stealth browser client
+ */
+const STEALTH_PREFERRED_USE_CASES: BrowserUseCase[] = [
+  'stealth-testing',   // Bot-protected environments
 ];
 
 /**
@@ -254,6 +262,13 @@ export async function createBrowserClient(
 ): Promise<IBrowserClient> {
   const { preference = 'auto', useCase } = options;
 
+  // If use case prefers stealth, try it first
+  if (useCase && STEALTH_PREFERRED_USE_CASES.includes(useCase)) {
+    if (await isStealthAvailable()) {
+      return new StealthBrowserClient();
+    }
+  }
+
   // If use case requires agent-browser, use it directly
   if (useCase && requiresAgentBrowser(useCase)) {
     return createAgentBrowserClient();
@@ -262,6 +277,13 @@ export async function createBrowserClient(
   // Handle explicit preferences
   if (preference === 'agent-browser') {
     return createAgentBrowserClient();
+  }
+
+  if (preference === 'stealth') {
+    if (await isStealthAvailable()) {
+      return new StealthBrowserClient();
+    }
+    throw new BrowserUnavailableError('stealth', 'Patchright is not installed');
   }
 
   if (preference === 'vibium') {
@@ -359,13 +381,15 @@ export async function getBrowserClientForUseCase(
 export async function getBrowserToolAvailability(): Promise<{
   vibium: boolean;
   agentBrowser: boolean;
+  stealth: boolean;
 }> {
-  const [vibium, agentBrowser] = await Promise.all([
+  const [vibium, agentBrowser, stealth] = await Promise.all([
     isVibiumAvailable(),
     isAgentBrowserAvailable(),
+    isStealthAvailable(),
   ]);
 
-  return { vibium, agentBrowser };
+  return { vibium, agentBrowser, stealth };
 }
 
 /**
@@ -376,7 +400,10 @@ export async function getBrowserToolAvailability(): Promise<{
  */
 export function getRecommendedToolForUseCase(
   useCase: BrowserUseCase
-): 'agent-browser' | 'vibium' | 'either' {
+): 'agent-browser' | 'vibium' | 'stealth' | 'either' {
+  if (STEALTH_PREFERRED_USE_CASES.includes(useCase)) {
+    return 'stealth';
+  }
   if (requiresAgentBrowser(useCase)) {
     return 'agent-browser';
   }
@@ -385,4 +412,16 @@ export function getRecommendedToolForUseCase(
   }
   // Default to either for any unknown use cases
   return 'either';
+}
+
+/**
+ * Check if stealth browser (Patchright) is available
+ */
+export async function isStealthAvailable(): Promise<boolean> {
+  try {
+    const client = new StealthBrowserClient();
+    return await client.isAvailable();
+  } catch {
+    return false;
+  }
 }
