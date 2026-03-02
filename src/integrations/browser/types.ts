@@ -15,6 +15,7 @@
  */
 
 import type { Result, Severity } from '../../shared/types';
+import type { ResourceBlockingConfig } from './resource-blocking';
 
 // ============================================================================
 // Element Targeting
@@ -33,7 +34,7 @@ export type ElementTarget =
 /**
  * Browser tool preference for task selection
  */
-export type BrowserToolPreference = 'agent-browser' | 'vibium' | 'auto';
+export type BrowserToolPreference = 'agent-browser' | 'vibium' | 'stealth' | 'auto';
 
 /**
  * Use cases for intelligent tool selection
@@ -45,7 +46,8 @@ export type BrowserUseCase =
   | 'accessibility'        // Either (both can run accessibility checks)
   | 'api-mocking'          // agent-browser only (network interception)
   | 'responsive-testing'   // agent-browser (device emulation)
-  | 'auth-testing';        // agent-browser (state persistence, sessions)
+  | 'auth-testing'         // agent-browser (state persistence, sessions)
+  | 'stealth-testing';     // stealth (Patchright, bot-protected environments)
 
 // ============================================================================
 // Browser Launch and Session
@@ -67,6 +69,8 @@ export interface BrowserLaunchOptions {
   browserType?: 'chromium' | 'firefox' | 'webkit';
   /** Additional browser arguments */
   args?: string[];
+  /** Resource blocking configuration for faster page loads */
+  resourceBlocking?: ResourceBlockingConfig;
 }
 
 /**
@@ -76,8 +80,8 @@ export interface BrowserLaunchOptions {
 export interface BrowserSessionInfo {
   /** Unique session identifier */
   id: string;
-  /** Browser tool used (vibium or agent-browser) */
-  tool: 'vibium' | 'agent-browser';
+  /** Browser tool used */
+  tool: 'vibium' | 'agent-browser' | 'stealth';
   /** Session status */
   status: 'active' | 'idle' | 'closed';
   /** Current URL */
@@ -178,7 +182,7 @@ export class BrowserError extends Error {
   constructor(
     message: string,
     public readonly code: string,
-    public readonly tool: 'vibium' | 'agent-browser',
+    public readonly tool: 'vibium' | 'agent-browser' | 'stealth',
     public readonly cause?: Error
   ) {
     super(message);
@@ -192,7 +196,7 @@ export class BrowserError extends Error {
  * Error thrown when browser is unavailable
  */
 export class BrowserUnavailableError extends BrowserError {
-  constructor(tool: 'vibium' | 'agent-browser', message?: string, cause?: Error) {
+  constructor(tool: 'vibium' | 'agent-browser' | 'stealth', message?: string, cause?: Error) {
     super(message || 'Browser tool is unavailable', 'BROWSER_UNAVAILABLE', tool, cause);
     this.name = 'BrowserUnavailableError';
     Object.setPrototypeOf(this, BrowserUnavailableError.prototype);
@@ -203,7 +207,7 @@ export class BrowserUnavailableError extends BrowserError {
  * Error thrown when operation times out
  */
 export class BrowserTimeoutError extends BrowserError {
-  constructor(tool: 'vibium' | 'agent-browser', operation: string, cause?: Error) {
+  constructor(tool: 'vibium' | 'agent-browser' | 'stealth', operation: string, cause?: Error) {
     super(`${operation} timed out`, 'BROWSER_TIMEOUT', tool, cause);
     this.name = 'BrowserTimeoutError';
     Object.setPrototypeOf(this, BrowserTimeoutError.prototype);
@@ -214,7 +218,7 @@ export class BrowserTimeoutError extends BrowserError {
  * Error thrown when element is not found
  */
 export class BrowserElementNotFoundError extends BrowserError {
-  constructor(tool: 'vibium' | 'agent-browser', target: ElementTarget | string, cause?: Error) {
+  constructor(tool: 'vibium' | 'agent-browser' | 'stealth', target: ElementTarget | string, cause?: Error) {
     const targetStr = typeof target === 'string' ? target : JSON.stringify(target);
     super(`Element not found: ${targetStr}`, 'ELEMENT_NOT_FOUND', tool, cause);
     this.name = 'BrowserElementNotFoundError';
@@ -242,7 +246,7 @@ export class BrowserElementNotFoundError extends BrowserError {
  */
 export interface IBrowserClient {
   /** Identifier for this browser tool */
-  readonly tool: 'vibium' | 'agent-browser';
+  readonly tool: 'vibium' | 'agent-browser' | 'stealth';
 
   // ========================================================================
   // Lifecycle
