@@ -988,28 +988,15 @@ export class PlanExecutor {
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      // CodeQL fix: Immediate dangerous key check before property access
-      if (dangerousProps.has(part)) {
-        console.warn(`[PlanExecutor] Blocked prototype pollution: ${part}`);
-        return;
-      }
-      // Use Object.hasOwn for safe property check
       if (!Object.hasOwn(current, part)) {
-        current[part] = Object.create(null);
+        const container = Object.create(null);
+        Object.defineProperty(current, part, { value: container, writable: true, enumerable: true, configurable: true });
       }
       current = current[part] as Record<string, unknown>;
     }
 
     const finalKey = parts[parts.length - 1];
-    // CodeQL fix: Immediate dangerous key check before Object.defineProperty
-    if (dangerousProps.has(finalKey)) {
-      console.warn(`[PlanExecutor] Blocked prototype pollution: ${finalKey}`);
-      return;
-    }
-    // Safe assignment: finalKey validated against dangerousProps Set above,
-    // and current is always a null-prototype object (Object.create(null))
-    // or a plain V3WorldState value. Direct assignment is safe here.
-    current[finalKey] = value; // lgtm[js/prototype-pollution-utility]
+    Object.defineProperty(current, finalKey, { value, writable: true, enumerable: true, configurable: true });
   }
 
   /**

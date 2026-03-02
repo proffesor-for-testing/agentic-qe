@@ -698,7 +698,7 @@ describe('EnterpriseIntegrationCoordinator', () => {
 
         expectMemoryStored(
           ctx.memory,
-          `enterprise-integration:odata:${encodeURIComponent(serviceUrl)}`
+          new RegExp(`^enterprise-integration:odata:${encodeURIComponent(serviceUrl).replace(/[.+?^${}()|[\]\\]/g, '\\$&')}$`)
         );
       });
 
