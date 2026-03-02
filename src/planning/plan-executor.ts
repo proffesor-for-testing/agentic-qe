@@ -992,7 +992,9 @@ export class PlanExecutor {
         const container = Object.create(null);
         Object.defineProperty(current, part, { value: container, writable: true, enumerable: true, configurable: true });
       }
-      current = current[part] as Record<string, unknown>;
+      const desc = Object.getOwnPropertyDescriptor(current, part);
+      if (!desc) return;
+      current = desc.value as Record<string, unknown>;
     }
 
     const finalKey = parts[parts.length - 1];
