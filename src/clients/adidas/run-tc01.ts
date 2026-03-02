@@ -16,6 +16,11 @@
  */
 
 import { resolve } from 'path';
+import dotenv from 'dotenv';
+
+// Load .env before anything reads process.env
+dotenv.config({ path: resolve(process.cwd(), '.env') });
+
 import { loadAdidasConfig } from './config';
 import { createAdidasTestContext } from './context';
 import { buildTC01Lifecycle } from './tc01-lifecycle';
