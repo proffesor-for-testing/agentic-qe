@@ -445,6 +445,44 @@ export async function handleFleetHealth(
       }));
     }
 
+    // Enrich with structural health (mincut-lambda) if available
+    try {
+      const { StructuralHealthMonitor } = await import('../../monitoring/structural-health.js');
+      const monitor = new StructuralHealthMonitor();
+
+      // Build AgentNode[] from the queen's actual agent list
+      const allAgents: Array<{ id: string; name: string; domain: string }> = [];
+      for (const [domain] of health.domainHealth) {
+        const domainAgents = state.queen!.getAgentsByDomain(domain as DomainName);
+        for (const a of domainAgents) {
+          allAgents.push({ id: a.id, name: a.name, domain: a.domain });
+        }
+      }
+
+      // Map to AgentNode shape required by StructuralHealthMonitor
+      const agentNodes = allAgents.map(a => ({
+        id: a.id,
+        name: a.name,
+        domain: a.domain,
+        capabilities: [a.domain],
+        dependsOn: [] as string[],
+        weight: 1.0,
+      }));
+
+      const structuralHealth = monitor.computeFleetHealth(agentNodes);
+      result.structuralHealth = {
+        lambda: structuralHealth.lambda,
+        healthy: structuralHealth.healthy,
+        normalizedLambda: structuralHealth.normalizedLambda,
+        riskScore: structuralHealth.riskScore,
+        status: structuralHealth.status,
+        weakPoints: structuralHealth.weakPoints,
+        suggestions: structuralHealth.suggestions,
+      };
+    } catch {
+      // Mincut native dependency not available — skip structural health enrichment
+    }
+
     return {
       success: true,
       data: result,

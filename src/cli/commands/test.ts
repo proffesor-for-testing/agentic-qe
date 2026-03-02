@@ -16,13 +16,20 @@ export function createTestCommand(
   ensureInitialized: () => Promise<boolean>
 ): Command {
   const testCmd = new Command('test')
-    .description('Test generation shortcut')
-    .argument('<action>', 'Action (generate|execute)')
+    .description('Test generation, execution, scheduling, and load testing')
+    .argument('<action>', 'Action (generate|execute|schedule|load)')
     .argument('[target]', 'Target file or directory')
     .option('-f, --framework <framework>', 'Test framework', 'vitest')
     .option('-t, --type <type>', 'Test type (unit|integration|e2e)', 'unit')
     .option('-F, --format <format>', 'Output format (text|json|junit|markdown)', 'text')
     .option('-o, --output <path>', 'Write output to file')
+    .option('--git-ref <ref>', 'Git ref for schedule action (e.g., main, HEAD~3)')
+    .option('--no-git-aware', 'Disable git-aware test selection (schedule action)')
+    .option('--no-flaky', 'Disable flaky test tracking (schedule action)')
+    .option('--agents <count>', 'Target agent count for load action', '10')
+    .option('--profile <profile>', 'Workload profile for load action (light|medium|heavy)', 'medium')
+    .option('--duration <ms>', 'Duration in ms for load action', '30000')
+    .option('--real', 'Use real agents instead of mock (load action, requires fleet_init)')
     .action(async (action: string, target: string, options) => {
       if (!await ensureInitialized()) return;
 
@@ -168,8 +175,86 @@ export function createTestCommand(
           } else {
             console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));
           }
+        } else if (action === 'schedule') {
+          const format = options.format as OutputFormat;
+          if (format === 'text') {
+            console.log(chalk.blue(`\n Running test schedule pipeline...\n`));
+          }
+
+          const { TestScheduleTool } = await import('../../mcp/tools/test-execution/schedule.js');
+          const tool = new TestScheduleTool();
+          const result = await tool.invoke({
+            cwd: target || process.cwd(),
+            gitRef: options.gitRef,
+            useGitAware: options.gitAware !== false,
+            trackFlaky: options.flaky !== false,
+          });
+
+          if (result.success && result.data) {
+            const data = result.data;
+            if (format === 'json') {
+              writeOutput(toJSON(data), options.output);
+            } else {
+              console.log(chalk.green(` Schedule complete\n`));
+              console.log(`  Phases: ${chalk.white(data.phases.length)}`);
+              for (const phase of data.phases) {
+                const passColor = phase.failed === 0 ? chalk.green : chalk.red;
+                console.log(`    ${chalk.cyan(phase.phaseName)}: ${passColor(`${phase.passed}/${phase.totalTests} passed`)} (${phase.durationMs}ms)`);
+              }
+              console.log(`\n  Git-aware: ${data.gitAware.enabled ? chalk.green(`yes (${data.gitAware.selectedTests} selected)`) : chalk.gray('disabled')}`);
+              console.log(`  Duration: ${chalk.cyan(data.totalDuration + 'ms')}`);
+              console.log(`\n  ${data.summary}`);
+            }
+          } else {
+            console.log(chalk.red(`Failed: ${result.error || 'Unknown error'}`));
+          }
+
+        } else if (action === 'load') {
+          const format = options.format as OutputFormat;
+          const agents = parseInt(options.agents, 10) || 10;
+          const duration = parseInt(options.duration, 10) || 30000;
+          const profile = options.profile as 'light' | 'medium' | 'heavy';
+          const mockMode = !options.real;
+
+          if (format === 'text') {
+            console.log(chalk.blue(`\n Running load test: ${agents} agents, ${profile} profile, ${duration}ms${mockMode ? ' (mock)' : ' (real)'}...\n`));
+          }
+
+          const { LoadTestTool } = await import('../../mcp/tools/test-execution/load-test.js');
+          const tool = new LoadTestTool();
+          const result = await tool.invoke({
+            targetAgents: agents,
+            profile,
+            durationMs: duration,
+            mockMode,
+          });
+
+          if (result.success && result.data) {
+            const data = result.data;
+            if (format === 'json') {
+              writeOutput(toJSON(data), options.output);
+            } else {
+              const statusColor = data.passed ? chalk.green : chalk.red;
+              console.log(statusColor(` Load test ${data.passed ? 'PASSED' : 'FAILED'}\n`));
+              console.log(`  Profile: ${chalk.cyan(data.profile)} (${data.mockMode ? 'mock' : 'real'})`);
+              console.log(`  Agents: ${chalk.white(data.targetAgents)}`);
+              console.log(`  Duration: ${chalk.cyan(data.duration + 'ms')}`);
+              console.log(`  Bottlenecks: ${data.bottleneckCount > 0 ? chalk.red(data.bottleneckCount) : chalk.green('none')}`);
+              if (data.report.hasCritical) {
+                console.log(chalk.red(`  CRITICAL bottlenecks detected!`));
+              }
+              console.log(`\n  ${data.summary}`);
+            }
+
+            if (!data.passed) {
+              await cleanupAndExit(1);
+            }
+          } else {
+            console.log(chalk.red(`Failed: ${result.error || 'Unknown error'}`));
+          }
+
         } else {
-          console.log(chalk.red(`\nUnknown action: ${action}\n`));
+          console.log(chalk.red(`\nUnknown action: ${action}. Use: generate, execute, schedule, or load\n`));
           await cleanupAndExit(1);
         }
 

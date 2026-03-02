@@ -5,6 +5,24 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.6] - 2026-03-02
+
+### Security
+
+- **Resolve all 9 GitHub code scanning alerts** — Fix DOM XSS in sorter (innerHTML → createElement), weak password hash in test fixture (SHA-512 → scrypt), incomplete URL sanitization in OAuth tests, prototype pollution flags, and incomplete hostname regex escaping
+
+### Added
+
+- **26 MCP tools wired via QE tool bridge** — Register previously unwired QE tools (GOAP planning, embeddings, coherence, mincut, learning, coverage gaps, QX partner, and more) through new `qe-tool-bridge.ts`
+- **4 new MCP tools with CLI support** — Test scheduling with git-aware selection (`qe/tests/schedule`), agent fleet load testing (`qe/tests/load`), URL threat detection with PII scanning (`qe/security/url-validate`), and YAML browser workflow loading (`qe/workflows/browser-load`)
+- **Fleet health enriched with structural metrics** — `fleet_health` now includes mincut-lambda from real agent connectivity analysis
+
+### Changed
+
+- **Remove 7 dead devDependencies** — Drop rimraf, tinybench, ts-node, typedoc, stack-utils, graceful-fs, eslint-plugin-security; move @faker-js/faker to runtime dependencies where it's actually used
+- **Archive neural-optimizer module** — Move RL-based topology optimizer to `src/_archived/` (overkill for typical 6-15 agent fleets; restorable when 100+ agent fleets become common)
+- **Delete dead code** — Remove unused `qe-tools.ts` (935 lines), obsolete `publish-v3-alpha.yml` workflow, 9 Istanbul static assets from `src/coverage/`
+
 ## [3.7.5] - 2026-03-01
 
 ### Changed

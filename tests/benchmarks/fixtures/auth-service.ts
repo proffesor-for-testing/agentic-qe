@@ -10,7 +10,7 @@
  * - Refresh token rotation
  */
 
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, scryptSync } from 'crypto';
 
 // ============================================================================
 // Types and Interfaces
@@ -376,7 +376,7 @@ export class AuthenticationService {
   // --------------------------------------------------------------------------
 
   private hashPassword(password: string, salt: string): string {
-    return createHash('sha512').update(password + salt).digest('hex');
+    return scryptSync(password, salt, 64).toString('hex');
   }
 
   private verifyPassword(password: string, hash: string, salt: string): boolean {

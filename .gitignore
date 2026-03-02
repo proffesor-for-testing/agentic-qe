@@ -98,6 +98,12 @@ tests/__mocks__/
 !src/core/coordination/
 !src/core/memory/
 !src/coverage/
+# But block Istanbul HTML report files generated inside src/coverage/
+src/coverage/*.css
+src/coverage/*.js
+src/coverage/*.html
+src/coverage/*.png
+src/coverage/*.json
 !src/memory/
 !tests/memory/
 

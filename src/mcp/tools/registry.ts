@@ -34,6 +34,10 @@ import {
 } from './embeddings';
 import { COHERENCE_TOOLS, COHERENCE_TOOL_NAMES } from './coherence';
 import { QXAnalyzeTool } from './qx-analysis/analyze';
+import { TestScheduleTool } from './test-execution/schedule';
+import { LoadTestTool } from './test-execution/load-test';
+import { VisualSecurityTool } from './security-compliance/visual-security';
+import { BrowserWorkflowTool } from './test-execution/browser-workflow';
 
 // ============================================================================
 // Tool Names (ADR-010 Naming Convention)
@@ -103,6 +107,18 @@ export const QE_TOOL_NAMES = {
 
   // QX Analysis (Quality Experience)
   QX_ANALYZE: 'qe/qx/analyze',
+
+  // Test Scheduling (pipeline, git-aware, flaky tracking)
+  TEST_SCHEDULE: 'qe/tests/schedule',
+
+  // Load Testing (agent fleet scalability)
+  LOAD_TEST: 'qe/tests/load',
+
+  // URL Security Validation (threat detection, PII exposure scanning)
+  URL_VALIDATE: 'qe/security/url-validate',
+
+  // Browser Workflow Loader (YAML template loading and validation)
+  BROWSER_WORKFLOW: 'qe/workflows/browser-load',
 } as const;
 
 // ============================================================================
@@ -176,6 +192,18 @@ export const QE_TOOLS: MCPToolBase[] = [
 
   // QX Analysis (Quality Experience)
   new QXAnalyzeTool(),
+
+  // Test Scheduling (pipeline, git-aware, flaky tracking)
+  new TestScheduleTool(),
+
+  // Load Testing (agent fleet scalability)
+  new LoadTestTool(),
+
+  // Security-Visual Audit (URL validation, PII detection)
+  new VisualSecurityTool(),
+
+  // Browser Workflows (YAML template execution)
+  new BrowserWorkflowTool(),
 ];
 
 // ============================================================================

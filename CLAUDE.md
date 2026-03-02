@@ -1,4 +1,4 @@
-# Claude Code Configuration - Claude Flow V3
+# Claude Code Configuration - AQE & Claude Flow V3
 
 ## Behavioral Rules (Always Enforced)
 
