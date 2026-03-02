@@ -3,11 +3,13 @@
  *
  * Records every healing attempt in a SQLite table. This serves two purposes:
  *   1. Telemetry: humans can query what failed, what healed, success rates
- *   2. Auto-activation: when outcome count >= HNSW_ACTIVATION_THRESHOLD,
- *      the agentic healer enables HNSW pattern search as a fallback
+ *   2. Confidence adjustment: pattern confidence updated from real outcomes
  *
  * The table is append-only. No data is ever deleted. Confidence updates
  * are computed from real outcome data, not hardcoded values.
+ *
+ * Note: isHNSWActivated() and HNSW_ACTIVATION_THRESHOLD are retained for
+ * future semantic search upgrade. Current search is text-scoring (keyword overlap).
  */
 
 // ============================================================================
@@ -42,6 +44,8 @@ export interface HealingTelemetry {
   getStats(): HealingStats;
   updateConfidenceFromOutcomes(): void;
   isHNSWActivated(): boolean;
+  /** Get all healing outcomes for a specific run (for debug dumps). */
+  getRunOutcomes(runId: string): HealingOutcome[];
 }
 
 // ============================================================================
@@ -49,7 +53,7 @@ export interface HealingTelemetry {
 // ============================================================================
 
 /** HNSW pattern search activates as fallback after this many recorded outcomes. */
-const HNSW_ACTIVATION_THRESHOLD = 50;
+export const HNSW_ACTIVATION_THRESHOLD = 20;
 
 // ============================================================================
 // Implementation
@@ -58,12 +62,21 @@ const HNSW_ACTIVATION_THRESHOLD = 50;
 /**
  * Initialize healing telemetry backed by SQLite.
  * Creates the healing_outcomes table if it doesn't exist.
- * Returns null if SQLite is not available (graceful degradation).
+ *
+ * Accepts either a Database instance (shared connection) or a string path (legacy).
+ * Prefer passing a Database instance to avoid duplicate connections.
  */
-export async function initHealingTelemetry(dbPath: string): Promise<HealingTelemetry | null> {
+export async function initHealingTelemetry(
+  dbOrPath: import('better-sqlite3').Database | string,
+): Promise<HealingTelemetry | null> {
   try {
-    const Database = (await import('better-sqlite3')).default;
-    const db = new Database(dbPath);
+    let db: import('better-sqlite3').Database;
+    if (typeof dbOrPath === 'string') {
+      const Database = (await import('better-sqlite3')).default;
+      db = new Database(dbOrPath);
+    } else {
+      db = dbOrPath;
+    }
 
     // Create outcomes table (append-only telemetry)
     db.exec(`
@@ -121,6 +134,15 @@ export async function initHealingTelemetry(dbPath: string): Promise<HealingTelem
         WHERE pattern_matched IS NOT NULL
         AND created_at > datetime('now', '-90 days')
       )
+    `);
+
+    const runOutcomesStmt = db.prepare(`
+      SELECT run_id, stage_id, playbook_name, pattern_matched, decision,
+             success, probe_status, probe_shipments, probe_invoices,
+             duration_ms, polls_needed, api_used, error_summary
+      FROM healing_outcomes
+      WHERE run_id = ?
+      ORDER BY id ASC
     `);
 
     // Cache stats per run (one query at startup, not per healing attempt)
@@ -188,6 +210,36 @@ export async function initHealingTelemetry(dbPath: string): Promise<HealingTelem
 
       isHNSWActivated(): boolean {
         return getStats().hnswActivated;
+      },
+
+      getRunOutcomes(runId: string): HealingOutcome[] {
+        try {
+          const rows = runOutcomesStmt.all(runId) as Array<{
+            run_id: string; stage_id: string; playbook_name: string | null;
+            pattern_matched: string | null; decision: string; success: number;
+            probe_status: number | null; probe_shipments: number | null;
+            probe_invoices: number | null; duration_ms: number | null;
+            polls_needed: number | null; api_used: string | null;
+            error_summary: string | null;
+          }>;
+          return rows.map((r) => ({
+            runId: r.run_id,
+            stageId: r.stage_id,
+            playbookName: r.playbook_name ?? undefined,
+            patternMatched: r.pattern_matched ?? undefined,
+            decision: r.decision as HealingOutcome['decision'],
+            success: r.success === 1,
+            probeStatus: r.probe_status ?? undefined,
+            probeShipments: r.probe_shipments ?? undefined,
+            probeInvoices: r.probe_invoices ?? undefined,
+            durationMs: r.duration_ms ?? undefined,
+            pollsNeeded: r.polls_needed ?? undefined,
+            apiUsed: r.api_used ?? undefined,
+            errorSummary: r.error_summary ?? undefined,
+          }));
+        } catch {
+          return [];
+        }
       },
     };
   } catch {

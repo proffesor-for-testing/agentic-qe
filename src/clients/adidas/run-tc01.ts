@@ -21,11 +21,12 @@ import { createAdidasTestContext } from './context';
 import { buildTC01Lifecycle } from './tc01-lifecycle';
 import { tc01Steps } from './tc01-steps';
 import { createActionOrchestrator } from '../../integrations/orchestration/action-orchestrator';
-import { generateTC01Report } from './report-generator';
+import { generateTC01Report, generateDebugDump } from './report-generator';
 import { runOrdersInParallel } from './parallel-order-runner';
 import { createHealingHandler } from './healing-handler';
 import { loadSterlingPatterns } from './sterling-patterns';
 import { initHealingTelemetry } from './healing-telemetry';
+import { initRunHistory } from './run-history';
 import type { PatternLookup } from '../../shared/types/pattern-lookup';
 import type { RunResult, StageResult } from '../../integrations/orchestration/action-types';
 
@@ -77,151 +78,141 @@ function parseArgs(): CliArgs {
 // ============================================================================
 
 /**
- * Create a PatternLookup adapter backed by memory.db (SQLite).
- * Uses the same database as the AQE learning system.
- * Returns null if the database is not available (e.g., first run, CI).
+ * Open the shared memory.db database. All consumers (pattern lookup,
+ * pattern store, healing telemetry, run history) share this single instance.
+ * Returns null if SQLite is not available.
  */
-async function createPatternLookup(): Promise<PatternLookup | undefined> {
+async function openDatabase() {
   try {
-    // Dynamic import to avoid hard dependency on better-sqlite3
     const Database = (await import('better-sqlite3')).default;
     const dbPath = resolve(process.cwd(), '.agentic-qe', 'memory.db');
-    const db = new Database(dbPath);
-
-    // Ensure the patterns table exists
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS sterling_patterns (
-        name TEXT PRIMARY KEY,
-        description TEXT NOT NULL,
-        tags TEXT NOT NULL,
-        content TEXT NOT NULL,
-        confidence REAL NOT NULL DEFAULT 0.8,
-        metadata TEXT,
-        usage_count INTEGER DEFAULT 0,
-        success_count INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
-        updated_at TEXT DEFAULT (datetime('now'))
-      )
-    `);
-
-    // Fetch all patterns (small dataset ~18 rows) and score in-memory.
-    // Uses keyword overlap + tag filtering + confidence weighting.
-    // More effective than LIKE '%keyword%' for relevance ranking.
-    const allStmt = db.prepare(
-      `SELECT name, description, content, confidence, tags, rowid as id FROM sterling_patterns`
-    );
-
-    const usageStmt = db.prepare(`
-      UPDATE sterling_patterns
-      SET usage_count = usage_count + 1,
-          success_count = success_count + CASE WHEN ? = 1 THEN 1 ELSE 0 END,
-          updated_at = datetime('now')
-      WHERE rowid = ?
-    `);
-
-    const patternLookup: PatternLookup = {
-      async search(query, options) {
-        const limit = options?.limit ?? 5;
-        const allPatterns = allStmt.all() as Array<{
-          name: string; description: string; content: string;
-          confidence: number; tags: string; id: number;
-        }>;
-
-        // Filter by tags if specified (exact match on each required tag)
-        let filtered = allPatterns;
-        if (options?.tags?.length) {
-          filtered = filtered.filter((p) => {
-            try {
-              const patternTags = JSON.parse(p.tags) as string[];
-              return options.tags!.every((t) => patternTags.includes(t));
-            } catch {
-              return false;
-            }
-          });
-        }
-
-        // Score by keyword overlap: each query word checked against name+description+content
-        const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-        if (queryWords.length === 0) return [];
-
-        const scored = filtered.map((p) => {
-          const text = `${p.name} ${p.description} ${p.content}`.toLowerCase();
-          const hits = queryWords.filter((w) => text.includes(w)).length;
-          const relevance = hits / queryWords.length;
-          return { name: p.name, content: p.content, confidence: p.confidence, id: String(p.id), relevance };
-        });
-
-        return scored
-          .filter((p) => p.relevance > 0)
-          .sort((a, b) => (b.relevance * b.confidence) - (a.relevance * a.confidence))
-          .slice(0, limit)
-          .map(({ name, content, confidence, id }) => ({ name, content, confidence, id }));
-      },
-      async recordUsage(patternId, outcome) {
-        usageStmt.run(outcome.success ? 1 : 0, patternId);
-      },
-    };
-
-    return patternLookup;
+    return new Database(dbPath);
   } catch {
-    // Database not available — cross-session learning disabled
-    return undefined;
+    return null;
   }
 }
 
 /**
- * Create a PatternStoreAdapter for loadSterlingPatterns().
- * Backed by the same sterling_patterns table in memory.db.
+ * Create a PatternLookup adapter backed by a shared DB instance.
+ * Uses keyword overlap + tag filtering + confidence weighting (text-scoring).
+ * Works from run 1 — no HNSW prerequisite.
  */
-async function createPatternStoreAdapter() {
-  try {
-    const Database = (await import('better-sqlite3')).default;
-    const dbPath = resolve(process.cwd(), '.agentic-qe', 'memory.db');
-    const db = new Database(dbPath);
+function createPatternLookup(db: import('better-sqlite3').Database): PatternLookup {
+  // Ensure the patterns table exists
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sterling_patterns (
+      name TEXT PRIMARY KEY,
+      description TEXT NOT NULL,
+      tags TEXT NOT NULL,
+      content TEXT NOT NULL,
+      confidence REAL NOT NULL DEFAULT 0.8,
+      metadata TEXT,
+      usage_count INTEGER DEFAULT 0,
+      success_count INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
 
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS sterling_patterns (
-        name TEXT PRIMARY KEY,
-        description TEXT NOT NULL,
-        tags TEXT NOT NULL,
-        content TEXT NOT NULL,
-        confidence REAL NOT NULL DEFAULT 0.8,
-        metadata TEXT,
-        usage_count INTEGER DEFAULT 0,
-        success_count INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
-        updated_at TEXT DEFAULT (datetime('now'))
-      )
-    `);
+  const allStmt = db.prepare(
+    `SELECT name, description, content, confidence, tags, rowid as id FROM sterling_patterns`
+  );
 
-    const insertStmt = db.prepare(`
-      INSERT OR REPLACE INTO sterling_patterns (name, description, tags, content, confidence, metadata)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
+  const usageStmt = db.prepare(`
+    UPDATE sterling_patterns
+    SET usage_count = usage_count + 1,
+        success_count = success_count + CASE WHEN ? = 1 THEN 1 ELSE 0 END,
+        updated_at = datetime('now')
+    WHERE rowid = ?
+  `);
 
-    const getStmt = db.prepare('SELECT name FROM sterling_patterns WHERE name = ?');
+  return {
+    async search(query, options) {
+      const limit = options?.limit ?? 5;
+      const allPatterns = allStmt.all() as Array<{
+        name: string; description: string; content: string;
+        confidence: number; tags: string; id: number;
+      }>;
 
-    return {
-      async storePattern(pattern: {
-        name: string; description: string; tags: string[]; content: string;
-        confidence: number; metadata: Record<string, string>;
-      }) {
-        insertStmt.run(
-          pattern.name,
-          pattern.description,
-          JSON.stringify(pattern.tags),
-          pattern.content,
-          pattern.confidence,
-          JSON.stringify(pattern.metadata),
-        );
-      },
-      async getPattern(name: string) {
-        return getStmt.get(name) ?? null;
-      },
-    };
-  } catch {
-    return null;
-  }
+      let filtered = allPatterns;
+      if (options?.tags?.length) {
+        filtered = filtered.filter((p) => {
+          try {
+            const patternTags = JSON.parse(p.tags) as string[];
+            return options.tags!.every((t) => patternTags.includes(t));
+          } catch {
+            return false;
+          }
+        });
+      }
+
+      const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+      if (queryWords.length === 0) return [];
+
+      const scored = filtered.map((p) => {
+        const text = `${p.name} ${p.description} ${p.content}`.toLowerCase();
+        const hits = queryWords.filter((w) => text.includes(w)).length;
+        const relevance = hits / queryWords.length;
+        return { name: p.name, content: p.content, confidence: p.confidence, id: String(p.id), relevance };
+      });
+
+      return scored
+        .filter((p) => p.relevance > 0)
+        .sort((a, b) => (b.relevance * b.confidence) - (a.relevance * a.confidence))
+        .slice(0, limit)
+        .map(({ name, content, confidence, id }) => ({ name, content, confidence, id }));
+    },
+    async recordUsage(patternId, outcome) {
+      usageStmt.run(outcome.success ? 1 : 0, patternId);
+    },
+  };
+}
+
+/**
+ * Create a PatternStoreAdapter for loadSterlingPatterns().
+ * Backed by the same shared DB instance.
+ */
+function createPatternStoreAdapter(db: import('better-sqlite3').Database) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sterling_patterns (
+      name TEXT PRIMARY KEY,
+      description TEXT NOT NULL,
+      tags TEXT NOT NULL,
+      content TEXT NOT NULL,
+      confidence REAL NOT NULL DEFAULT 0.8,
+      metadata TEXT,
+      usage_count INTEGER DEFAULT 0,
+      success_count INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  const insertStmt = db.prepare(`
+    INSERT OR REPLACE INTO sterling_patterns (name, description, tags, content, confidence, metadata)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
+  const getStmt = db.prepare('SELECT name FROM sterling_patterns WHERE name = ?');
+
+  return {
+    async storePattern(pattern: {
+      name: string; description: string; tags: string[]; content: string;
+      confidence: number; metadata: Record<string, string>;
+    }) {
+      insertStmt.run(
+        pattern.name,
+        pattern.description,
+        JSON.stringify(pattern.tags),
+        pattern.content,
+        pattern.confidence,
+        JSON.stringify(pattern.metadata),
+      );
+    },
+    async getPattern(name: string) {
+      return getStmt.get(name) ?? null;
+    },
+  };
 }
 
 // ============================================================================
@@ -283,9 +274,12 @@ export async function main(): Promise<void> {
 
   const orderId = args.orderId ?? process.env.ADIDAS_ORDER_NO;
 
+  // --- Open shared database (single connection for all consumers) ---
+  const db = await openDatabase();
+
   // --- Load Sterling patterns into memory.db (idempotent) ---
-  const patternStoreAdapter = await createPatternStoreAdapter();
-  if (patternStoreAdapter) {
+  if (db) {
+    const patternStoreAdapter = createPatternStoreAdapter(db);
     const count = await loadSterlingPatterns(patternStoreAdapter);
     if (count > 0) {
       console.log(`Loaded ${count} Sterling patterns into memory.db`);
@@ -293,11 +287,28 @@ export async function main(): Promise<void> {
   }
 
   // --- Initialize healing telemetry (structured outcome recording) ---
-  const dbPath = resolve(process.cwd(), '.agentic-qe', 'memory.db');
-  const telemetry = await initHealingTelemetry(dbPath);
+  const telemetry = db ? await initHealingTelemetry(db) : null;
 
-  // --- Create cross-session pattern lookup (HNSW fallback — dormant until 50+ outcomes) ---
-  const patternLookup = await createPatternLookup();
+  // --- Initialize run history (cross-run persistence + recurring failure analysis) ---
+  const runHistory = db ? initRunHistory(db) : null;
+
+  // --- Create cross-session pattern lookup (text-scoring works from run 1) ---
+  const patternLookup = db ? createPatternLookup(db) : undefined;
+
+  // --- Startup config warning: compare against last successful config ---
+  if (runHistory) {
+    const lastGood = runHistory.getLastSuccessfulConfig();
+    if (lastGood) {
+      const envKeys = ['ADIDAS_OMNI_HOST', 'ADIDAS_STERLING_USERNAME', 'ADIDAS_STERLING_PASSWORD',
+        'ADIDAS_XAPI_URL', 'ADIDAS_XAPI_USERNAME', 'ADIDAS_XAPI_PASSWORD'];
+      const currentPresent = envKeys.filter(k => !!process.env[k]);
+      const lastPresent = lastGood.envVarsPresent;
+      const missing = lastPresent.filter(k => !currentPresent.includes(k));
+      if (missing.length > 0) {
+        console.log(`  Warning: Last successful run had env vars not present now: ${missing.join(', ')}`);
+      }
+    }
+  }
 
   // --- Parallel mode ---
   if (args.parallel && args.parallel > 1) {
@@ -362,7 +373,7 @@ export async function main(): Promise<void> {
   console.log(`  Self-healing: enabled (invoice recovery playbook)`);
   if (telemetry) {
     const stats = telemetry.getStats();
-    console.log(`  Telemetry: ${stats.totalOutcomes} outcomes recorded, HNSW fallback: ${stats.hnswActivated ? 'active' : `dormant (${50 - stats.totalOutcomes} more to activate)`}`);
+    console.log(`  Telemetry: ${stats.totalOutcomes} outcomes recorded`);
   } else {
     console.log(`  Telemetry: disabled (memory.db not available)`);
   }
@@ -409,8 +420,45 @@ export async function main(): Promise<void> {
 
   // ctx.orderId is set by the create-order stage when creating new orders
   const finalOrderId = ctx.orderId || orderId || 'unknown';
+
+  // --- Persist run result + config for cross-run analysis ---
+  if (runHistory) {
+    runHistory.persistRun(runId, finalOrderId, result, process.argv.slice(2).join(' '));
+    runHistory.persistRunConfig(runId, {
+      nodeVersion: process.version,
+      envVarsPresent: ['ADIDAS_OMNI_HOST', 'ADIDAS_STERLING_USERNAME', 'ADIDAS_STERLING_PASSWORD',
+        'ADIDAS_XAPI_URL', 'ADIDAS_XAPI_USERNAME', 'ADIDAS_XAPI_PASSWORD'].filter(k => !!process.env[k]),
+      cliArgs: process.argv.slice(2).join(' '),
+      xapiEnabled: config.xapi.enabled,
+      layersUsed: `L1${args.skipLayer2 ? '' : '+L2'}${args.skipLayer3 ? '' : '+L3'}`,
+      success: result.overallSuccess,
+    });
+  }
+
+  // --- Cross-run recurring failure analysis ---
+  const recurring = runHistory?.analyzeRecurringFailures() ?? [];
+  if (recurring.length > 0) {
+    const runCount = runHistory?.getRunCount() ?? 0;
+    console.log(`\nRecurring failures (across ${runCount} runs):`);
+    for (const f of recurring) {
+      const field = f.sterlingField ? ` → Sterling: ${f.sterlingField}` : ' (no Sterling field mapping)';
+      console.log(`  "${f.checkName}" failing ${(f.failRate * 100).toFixed(0)}% of runs${field}`);
+    }
+  }
+
+  // --- Generate reports ---
   const reportPath = await generateTC01Report(result, finalOrderId);
+
+  // Debug dump with healing outcomes + recurring failures
+  const outcomes = telemetry ? telemetry.getRunOutcomes(runId) : [];
+  const debugPath = await generateDebugDump(
+    result, finalOrderId,
+    { enterpriseCode: config.enterpriseCode, host: config.sterling.baseUrl, layers: `L1${args.skipLayer2 ? '' : '+L2'}${args.skipLayer3 ? '' : '+L3'}` },
+    outcomes, recurring,
+  );
+
   printSummary(result, finalOrderId, reportPath);
+  console.log(`  Debug: ${debugPath}`);
 
   process.exit(result.overallSuccess ? 0 : 1);
 }

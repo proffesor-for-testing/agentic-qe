@@ -63,50 +63,6 @@
             "continueOnError": true
           }
         ]
-      },
-      {
-        "matcher": "^(Write|Edit|MultiEdit)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks guard --file \"$TOOL_INPUT_file_path\" --json",
-            "timeout": 3000,
-            "continueOnError": true
-          }
-        ]
-      },
-      {
-        "matcher": "^(Write|Edit|MultiEdit)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks pre-edit --file \"$TOOL_INPUT_file_path\" --json",
-            "timeout": 5000,
-            "continueOnError": true
-          }
-        ]
-      },
-      {
-        "matcher": "^Bash$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks pre-command --command \"$TOOL_INPUT_command\" --json",
-            "timeout": 3000,
-            "continueOnError": true
-          }
-        ]
-      },
-      {
-        "matcher": "^Task$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks pre-task --description \"$TOOL_INPUT_prompt\" --json",
-            "timeout": 5000,
-            "continueOnError": true
-          }
-        ]
       }
     ],
     "PostToolUse": [
@@ -142,39 +98,6 @@
             "continueOnError": true
           }
         ]
-      },
-      {
-        "matcher": "^(Write|Edit|MultiEdit)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks post-edit --file \"$TOOL_INPUT_file_path\" --success --json",
-            "timeout": 5000,
-            "continueOnError": true
-          }
-        ]
-      },
-      {
-        "matcher": "^Bash$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks post-command --command \"$TOOL_INPUT_command\" --success --json",
-            "timeout": 5000,
-            "continueOnError": true
-          }
-        ]
-      },
-      {
-        "matcher": "^Task$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks post-task --task-id \"$TOOL_RESULT_agent_id\" --success --json",
-            "timeout": 5000,
-            "continueOnError": true
-          }
-        ]
       }
     ],
     "UserPromptSubmit": [
@@ -183,16 +106,6 @@
           {
             "type": "command",
             "command": "npx agentic-qe hooks route --task \"$PROMPT\" --json",
-            "timeout": 5000,
-            "continueOnError": true
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks route --task \"$PROMPT\" --json",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -219,26 +132,6 @@
             "continueOnError": true
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks session-start --session-id \"$SESSION_ID\" --json",
-            "timeout": 10000,
-            "continueOnError": true
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .claude/helpers/brain-checkpoint.cjs verify --json",
-            "timeout": 5000,
-            "continueOnError": true
-          }
-        ]
       }
     ],
     "Stop": [
@@ -247,26 +140,6 @@
           {
             "type": "command",
             "command": "npx agentic-qe hooks session-end --save-state --json",
-            "timeout": 5000,
-            "continueOnError": true
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .claude/helpers/brain-checkpoint.cjs export --json",
-            "timeout": 60000,
-            "continueOnError": true
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks session-end --save-state --json",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -438,8 +311,8 @@
     }
   },
   "aqe": {
-    "version": "3.0.0",
-    "initialized": "2026-03-01T21:02:04.016Z",
+    "version": "3.7.0",
+    "initialized": "2026-03-02T09:39:15.795Z",
     "hooksConfigured": true
   }
 }

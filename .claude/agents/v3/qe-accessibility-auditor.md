@@ -226,7 +226,7 @@ Writes:
 - aqe/accessibility/audits/* - Audit results
 - aqe/accessibility/violations/* - Detected violations
 - aqe/accessibility/remediations/* - Remediation suggestions
-- aqe/accessibility/outcomes/* - V3 learning outcomes
+- aqe/v3/accessibility/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/quality-assessment/accessibility/* - Accessibility for gates

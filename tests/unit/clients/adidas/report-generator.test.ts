@@ -109,7 +109,7 @@ describe('generateTC01Report', () => {
   it('generates an HTML file for a passing result', async () => {
     const path = await generateTC01Report(PASS_RESULT, 'APT12345678', outputDir);
 
-    expect(path).toContain('tc01-APT12345678');
+    expect(path).toContain('o2c-APT12345678');
     expect(path).toMatch(/\.html$/);
 
     const info = await stat(path);

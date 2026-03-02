@@ -25,6 +25,16 @@ export interface OrderContext {
   releaseNo: string;
   /** Today's date in ISO format */
   todayISO: string;
+
+  // Dynamic fields — populated from AutoPOC enrichment, with hardcoded fallbacks
+  scac?: string;
+  carrierServiceCode?: string;
+  itemId?: string;
+  quantity?: string;
+  primeLineNo?: string;
+  shipmentLineNo?: string;
+  shipAdviceNo?: string;
+  sellerOrgCode?: string;
 }
 
 // ============================================================================
@@ -183,6 +193,38 @@ export function step5_ScheduleOrder(ctx: OrderContext): { api: string; isFlow: f
 }
 
 // ============================================================================
+// Step 5.0 — Inventory Check (UAT pre-scheduling)
+// ============================================================================
+
+export function step5_0_GetATP(ctx: OrderContext, itemId: string, uom: string): { api: string; xml: string } {
+  return {
+    api: 'getAvailableToPromiseSummary',
+    xml: `<AvailableToPromise DistributionRuleId="adidas_WE_ATP" DemandType="FORECAST" OrganizationCode="${ctx.enterpriseCode}">
+  <AvailableToPromiseLines>
+    <AvailableToPromiseLine ItemID="${itemId}" UnitOfMeasure="${uom}" ShipNode="${ctx.shipNode}"/>
+  </AvailableToPromiseLines>
+</AvailableToPromise>`,
+  };
+}
+
+/**
+ * UAT-only: Inject inventory when ATP is zero.
+ * @param quantity - Amount to inject (default: 100). This is test data injection, not a production pattern.
+ */
+export function step5_0_AdjustInventory(
+  ctx: OrderContext, itemId: string, uom: string, quantity: number = 100,
+): { api: string; xml: string } {
+  return {
+    api: 'adjustInventory',
+    xml: `<AdjustInventory ShipNode="${ctx.shipNode}">
+  <Inventory ItemID="${itemId}" UnitOfMeasure="${uom}" ProductClass="NEW" SupplyType="ONHAND">
+    <InventoryItem Quantity="${quantity}"/>
+  </Inventory>
+</AdjustInventory>`,
+  };
+}
+
+// ============================================================================
 // Step 6 — Release Order
 // ============================================================================
 
@@ -199,6 +241,14 @@ export function step6_ReleaseOrder(ctx: OrderContext): { api: string; isFlow: fa
 // ============================================================================
 
 export function step7_Ship(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
+  const scac = ctx.scac ?? 'COR';
+  const carrierService = ctx.carrierServiceCode ?? 'STRD_INLINE';
+  const itemId = ctx.itemId ?? 'EE6464_530';
+  const qty = ctx.quantity ?? '1';
+  const primeLineNo = ctx.primeLineNo ?? '1';
+  const shipmentLineNo = ctx.shipmentLineNo ?? '1';
+  const shipAdvNo = ctx.shipAdviceNo ?? '320614239';
+  const sellerOrg = ctx.sellerOrgCode ?? ctx.enterpriseCode;
   const shipmentNo = `${ctx.orderNo}-${ctx.releaseNo}`;
   const trackingNo = `${ctx.orderNo}TR${ctx.releaseNo}`;
   const containerNo = `${ctx.orderNo}C01`;
@@ -206,21 +256,21 @@ export function step7_Ship(ctx: OrderContext): { service: string; isFlow: true; 
   return {
     service: 'adidasWE_ProcessSHPConfirmation',
     isFlow: true,
-    xml: `<Shipment SCAC="COR" CarrierServiceCode="STRD_INLINE" ConfirmShip="Y" EnterpriseCode="${ctx.enterpriseCode}" OrderNo="${ctx.orderNo}" ReleaseNo="${ctx.releaseNo}" ShipNode="${ctx.shipNode}" ShipmentNo="${shipmentNo}" DocumentType="${ctx.documentType}" SellerOrganizationCode="${ctx.enterpriseCode}" ProNo="" ManifestNo="">
+    xml: `<Shipment SCAC="${scac}" CarrierServiceCode="${carrierService}" ConfirmShip="Y" EnterpriseCode="${ctx.enterpriseCode}" OrderNo="${ctx.orderNo}" ReleaseNo="${ctx.releaseNo}" ShipNode="${ctx.shipNode}" ShipmentNo="${shipmentNo}" DocumentType="${ctx.documentType}" SellerOrganizationCode="${sellerOrg}" ProNo="" ManifestNo="">
   <Containers>
     <Container ContainerNo="${containerNo}" TrackingNo="${trackingNo}" AppliedWeight="0" ContainerLength="0" ContainerHeight="0" ContainerWidth="0">
       <ContainerDetails>
         <ContainerDetail>
-          <ShipmentLine ProductClass="NEW" SubLineNo="1" UnitOfMeasure="PIECE" ItemID="EE6464_530" Quantity="1" ReleaseNo="${ctx.releaseNo}" PrimeLineNo="1" OrderNo="${ctx.orderNo}"/>
+          <ShipmentLine ProductClass="NEW" SubLineNo="1" UnitOfMeasure="PIECE" ItemID="${itemId}" Quantity="${qty}" ReleaseNo="${ctx.releaseNo}" PrimeLineNo="${primeLineNo}" OrderNo="${ctx.orderNo}"/>
         </ContainerDetail>
       </ContainerDetails>
     </Container>
   </Containers>
   <ShipmentLines>
-    <ShipmentLine ItemID="EE6464_530" ProductClass="NEW" ShipmentLineNo="1" Quantity="1" ReleaseNo="${ctx.releaseNo}" PrimeLineNo="1" SubLineNo="1" UnitOfMeasure="PIECE"/>
+    <ShipmentLine ItemID="${itemId}" ProductClass="NEW" ShipmentLineNo="${shipmentLineNo}" Quantity="${qty}" ReleaseNo="${ctx.releaseNo}" PrimeLineNo="${primeLineNo}" SubLineNo="1" UnitOfMeasure="PIECE"/>
   </ShipmentLines>
   <Instructions>
-    <Instruction InstructionText="320614239" InstructionType="ShipAdvNo"/>
+    <Instruction InstructionText="${shipAdvNo}" InstructionType="ShipAdvNo"/>
   </Instructions>
 </Shipment>`,
   };
@@ -233,15 +283,19 @@ export function step7_Ship(ctx: OrderContext): { service: string; isFlow: true; 
 export function step8_ShipConfirm(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
   const shipmentNo = `${ctx.orderNo}-${ctx.releaseNo}`;
   const trackingNo = `${ctx.orderNo}TR${ctx.releaseNo}`;
+  const itemId = ctx.itemId ?? 'EE6464_530';
+  const qty = ctx.quantity ?? '1';
+  const shipAdvNo = ctx.shipAdviceNo ?? '320614239';
+  const sellerOrg = ctx.sellerOrgCode ?? ctx.enterpriseCode;
 
   return {
     service: 'adidas_UpdateSOAcknowledgmentSvc',
     isFlow: true,
     xml: `<?xml version="1.0" encoding="UTF-8"?>
-<Shipment ActualShipmentDate="${ctx.todayISO}" Country="PT" Currency="EUR" CustomerPONo="" DepartmentCode="" DocumentType="${ctx.documentType}" EntryType="web" OrderNo="${ctx.orderNo}" SellerOrganizationCode="${ctx.enterpriseCode}" ShipAdviceNo="320614239" ShipNode="${ctx.shipNode}" ShipmentNo="${shipmentNo}">
+<Shipment ActualShipmentDate="${ctx.todayISO}" Country="PT" Currency="EUR" CustomerPONo="" DepartmentCode="" DocumentType="${ctx.documentType}" EntryType="web" OrderNo="${ctx.orderNo}" SellerOrganizationCode="${sellerOrg}" ShipAdviceNo="${shipAdvNo}" ShipNode="${ctx.shipNode}" ShipmentNo="${shipmentNo}">
   <ShipmentLines>
-    <ShipmentLine ItemID="EE6464_530" Quantity="1">
-      <OrderLine ClrDiscount="0.00" OrderedQty="1">
+    <ShipmentLine ItemID="${itemId}" Quantity="${qty}">
+      <OrderLine ClrDiscount="0.00" OrderedQty="${qty}">
         <LinePriceInfo UnitPrice="120.0"/>
         <Extn ExtnDivision="01"/>
       </OrderLine>
@@ -363,5 +417,41 @@ export function step15_ReturnComplete(ctx: OrderContext): { service: string; isF
     <ReceiptLine PrimeLineNo="1" Quantity="1" OrderNo="EE6464_530"/>
   </ReceiptLines>
 </Receipt>`,
+  };
+}
+
+// ============================================================================
+// AutoPOC Custom Assertion Services (developer-created for POC validation)
+// ============================================================================
+
+export function autoPOC_OrderStatus(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
+  return {
+    service: 'OrderStatus_AutoPOC',
+    isFlow: true,
+    xml: `<Order DocumentType="${ctx.documentType}" EnterpriseCode="${ctx.enterpriseCode}" OrderNo="${ctx.orderNo}" />`,
+  };
+}
+
+export function autoPOC_ReleaseStatus(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
+  return {
+    service: 'ReleaseStatus_AutoPOC',
+    isFlow: true,
+    xml: `<Order DocumentType="${ctx.documentType}" EnterpriseCode="${ctx.enterpriseCode}" OrderNo="${ctx.orderNo}" />`,
+  };
+}
+
+export function autoPOC_ShipmentStatus(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
+  return {
+    service: 'ShipmentStatus_AutoPOC',
+    isFlow: true,
+    xml: `<Order DocumentType="${ctx.documentType}" EnterpriseCode="${ctx.enterpriseCode}" OrderNo="${ctx.orderNo}" />`,
+  };
+}
+
+export function autoPOC_InvoiceStatus(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
+  return {
+    service: 'InvoiceStatus_AutoPOC',
+    isFlow: true,
+    xml: `<OrderInvoice DocumentType="${ctx.documentType}" EnterpriseCode="${ctx.enterpriseCode}" OrderNo="${ctx.orderNo}" />`,
   };
 }

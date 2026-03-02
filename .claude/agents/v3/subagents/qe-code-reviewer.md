@@ -66,7 +66,7 @@ Reads:
 Writes:
 - aqe/review/results/* - Review findings
 - aqe/review/comments/* - Generated PR comments
-- aqe/review/outcomes/* - V3 learning outcomes
+- aqe/v3/review/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/quality-assessment/review/* - Review coordination

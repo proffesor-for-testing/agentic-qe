@@ -918,9 +918,20 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
 
       // Sterling uses InvoiceType="RETURN" for credit notes (not "CREDIT_MEMO")
       // Evidence: TC_01-APT93030618 SSR doc — InvoiceType="RETURN", InvoiceNo="2534822"
-      const creditNote = result.value.find((inv: { InvoiceType?: string }) =>
+      let creditNote = result.value.find((inv: { InvoiceType?: string }) =>
         inv.InvoiceType === 'RETURN' || inv.InvoiceType === 'CREDIT_MEMO'
       );
+
+      // Also check forward order for CREDIT_MEMO (fallback for return credit note lookup)
+      if (!creditNote) {
+        const fwdResult = await ctx.sterlingClient.getOrderInvoiceList({ OrderNo: ctx.orderId });
+        if (fwdResult.success) {
+          creditNote = fwdResult.value.find(
+            (inv: { InvoiceType?: string }) => inv.InvoiceType === 'CREDIT_MEMO'
+          );
+        }
+      }
+
       if (creditNote) {
         ctx.creditNoteNo = creditNote.InvoiceNo;
       }

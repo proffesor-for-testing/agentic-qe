@@ -147,6 +147,24 @@ export interface OrderListParams {
   [key: string]: string | undefined;
 }
 
+export interface GetATPParams {
+  ItemID: string;
+  UnitOfMeasure: string;
+  OrganizationCode: string;
+  ShipNode?: string;
+  DistributionRuleId?: string;
+  DemandType?: string;
+}
+
+export interface AdjustInventoryParams {
+  ItemID: string;
+  UnitOfMeasure: string;
+  ShipNode: string;
+  ProductClass: string;
+  SupplyType: string;
+  Quantity: string;
+}
+
 // ============================================================================
 // API Response Types
 // PROVISIONAL: update after Phase 0 captures real responses from first client.
@@ -158,6 +176,7 @@ export interface Order {
   OrderNo: string;
   DocumentType: string;
   Status: string;
+  OrderHeaderKey?: string;               // Sterling PK
   SCAC?: string;
   CarrierServiceCode?: string;
   ShipNode?: string;
@@ -173,6 +192,8 @@ export interface Order {
 export interface OrderLine {
   ItemID: string;
   OrderedQty: string;
+  OrderLineKey?: string;                 // Sterling PK
+  UnitOfMeasure?: string;                // e.g. 'EACH' — needed for ATP inventory check
   SCAC: string;
   CarrierServiceCode: string;
   ShipNode: string;
@@ -266,6 +287,10 @@ export interface SterlingClient {
   // Order actions
   scheduleOrder(params: OrderDetailsParams): Promise<Result<Order, SterlingApiError>>;
   releaseOrder(params: OrderDetailsParams): Promise<Result<Order, SterlingApiError>>;
+
+  // Inventory (UAT pre-scheduling)
+  getATP(params: GetATPParams): Promise<Result<unknown, SterlingApiError>>;
+  adjustInventory(params: AdjustInventoryParams): Promise<Result<unknown, SterlingApiError>>;
 
   // Task queue (self-healing recovery)
   manageTaskQueue(params: ManageTaskQueueParams): Promise<Result<unknown, SterlingApiError>>;

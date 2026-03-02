@@ -47,6 +47,8 @@ export interface AdidasTestContext extends BaseTestContext {
   // Lifecycle state — populated during stage execution for XML templates
   shipNode?: string;
   releaseNo?: string;
+  itemId?: string;
+  unitOfMeasure?: string;
 
   // Config pass-through for XAPI templates and recovery
   enterpriseCode: string;

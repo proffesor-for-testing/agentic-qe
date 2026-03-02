@@ -7,8 +7,8 @@
  * Architecture:
  *   - Hardcoded playbooks are ALWAYS primary (fast, reliable, proven)
  *   - Diagnostic probe runs on unknown failures (state-aware decision)
- *   - HNSW pattern search auto-activates as FALLBACK when 50+ outcomes recorded
- *   - Telemetry records every healing attempt for analytics + HNSW activation
+ *   - Pattern store (text-scoring: keyword overlap + confidence) always available from run 1
+ *   - Telemetry records every healing attempt for analytics + confidence adjustment
  *
  * IMPORTANT: All recovery calls go through the XAPI client (Playwright JSP),
  * NOT through the REST SterlingClient. The REST path returns HTTP 400
@@ -62,7 +62,7 @@ export interface HealingOptions {
   runId?: string;
   /** Structured outcome recording + HNSW activation tracking. */
   telemetry?: HealingTelemetry;
-  /** Optional pattern store — only used when HNSW auto-activates (50+ outcomes). */
+  /** Pattern store for text-scoring search (keyword overlap + confidence weighting). */
   patternStore?: PatternLookup;
 }
 
@@ -83,11 +83,9 @@ export function createHealingHandler(options: HealingOptions) {
     patternStore,
   } = options;
 
-  // Check HNSW activation at handler creation (once per run, not per stage)
-  const hnswActive = telemetry?.isHNSWActivated() ?? false;
   if (verbose && telemetry) {
     const stats = telemetry.getStats();
-    console.log(`  Healing telemetry: ${stats.totalOutcomes} outcomes recorded, HNSW fallback: ${hnswActive ? 'active' : `dormant (need ${50 - stats.totalOutcomes} more)`}`);
+    console.log(`  Healing telemetry: ${stats.totalOutcomes} outcomes recorded`);
   }
 
   return async (
@@ -162,19 +160,15 @@ export function createHealingHandler(options: HealingOptions) {
       return 'continue';
     }
 
-    // --- Unknown failure: probe + hardcoded state rules + HNSW fallback ---
-    // HNSW pattern search is only passed when auto-activated (50+ outcomes)
-    const activePatternStore = hnswActive ? patternStore : undefined;
-    const attempt = await attemptAgenticHealing(stageId, result, ctx, activePatternStore);
+    // --- Unknown failure: probe + hardcoded state rules + pattern search ---
+    // Text-scoring works from run 1. HNSW upgrades to semantic search later.
+    const attempt = await attemptAgenticHealing(stageId, result, ctx, patternStore);
 
     if (verbose) {
       console.log(`  [AGENTIC] ${stageId}: ${attempt.diagnosis}`);
-      console.log(`  [AGENTIC] Probe: status=${attempt.snapshot.maxStatus}, shipments=${attempt.snapshot.shipmentCount}, invoices=${attempt.snapshot.invoiceCount}, creditMemo=${attempt.snapshot.hasCreditMemo}, notes=[${attempt.snapshot.noteReasonCodes.join(',')}]`);
+      console.log(`  [AGENTIC] Probe: status=${attempt.snapshot.maxStatus}, shipments=${attempt.snapshot.shipmentCount}, invoices=${attempt.snapshot.invoiceCount}, returnCreditNote=${attempt.snapshot.hasReturnCreditNote}, notes=[${attempt.snapshot.noteReasonCodes.join(',')}]`);
       if (attempt.matchedPatternId) {
         console.log(`  [AGENTIC] Matched pattern: ${attempt.recoveryAction} (id=${attempt.matchedPatternId})`);
-      }
-      if (hnswActive) {
-        console.log(`  [AGENTIC] HNSW fallback: active`);
       }
       console.log(`  [AGENTIC] Decision: ${attempt.decision} (${attempt.durationMs}ms)`);
     }

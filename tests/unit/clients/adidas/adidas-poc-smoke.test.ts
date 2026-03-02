@@ -146,9 +146,9 @@ describe('buildAdidasQueueMappings', () => {
 // ---------------------------------------------------------------------------
 
 describe('tc01Steps', () => {
-  it('exports 30 step definitions (18 core + 3 PDF + 7 email + 2 browser)', async () => {
+  it('exports 31 step definitions (19 core + 3 PDF + 7 email + 2 browser)', async () => {
     const { tc01Steps } = await import('../../../../src/clients/adidas/tc01-steps');
-    expect(tc01Steps).toHaveLength(30);
+    expect(tc01Steps).toHaveLength(31);
   });
 
   it('every step has required fields', async () => {
@@ -324,7 +324,38 @@ describe('createStepRunner (Layer-1 skip mode)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. Error Signatures
+// 5. Sterling Patterns
+// ---------------------------------------------------------------------------
+
+describe('STERLING_PATTERNS', () => {
+  it('exports 21 patterns', async () => {
+    const { STERLING_PATTERNS } = await import('../../../../src/clients/adidas/sterling-patterns');
+    expect(STERLING_PATTERNS).toHaveLength(21);
+  });
+
+  it('every pattern has required fields', async () => {
+    const { STERLING_PATTERNS } = await import('../../../../src/clients/adidas/sterling-patterns');
+    for (const p of STERLING_PATTERNS) {
+      expect(p.name).toBeTruthy();
+      expect(p.description).toBeTruthy();
+      expect(p.patternType).toBeTruthy();
+      expect(p.tags).toBeInstanceOf(Array);
+      expect(typeof p.confidence).toBe('number');
+      expect(p.confidence).toBeGreaterThan(0);
+      expect(p.confidence).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('includes output-template-missing-field and getOrderList-field-coverage patterns', async () => {
+    const { STERLING_PATTERNS } = await import('../../../../src/clients/adidas/sterling-patterns');
+    const names = STERLING_PATTERNS.map(p => p.name);
+    expect(names).toContain('output-template-missing-field');
+    expect(names).toContain('getOrderList-field-coverage');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. Error Signatures
 // ---------------------------------------------------------------------------
 
 describe('ADIDAS_ERROR_SIGNATURES', () => {

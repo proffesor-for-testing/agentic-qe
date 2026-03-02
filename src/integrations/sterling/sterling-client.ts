@@ -29,6 +29,8 @@ import type {
   OrderAuditListParams,
   OrderListParams,
   ManageTaskQueueParams,
+  GetATPParams,
+  AdjustInventoryParams,
   PollOptions,
   Order,
   OrderLine,
@@ -145,11 +147,24 @@ class SterlingClientImpl implements SterlingClient {
   // Order CRUD
   // --------------------------------------------------------------------------
 
+  /**
+   * Fetch a single order by OrderNo.
+   * Internally uses getOrderList (with MaximumRecords=1) instead of the native
+   * getOrderDetails API because the latter takes a DB row lock on the order —
+   * confirmed by Adidas Sterling dev team.
+   */
   async getOrderDetails(params: OrderDetailsParams): Promise<Result<Order, SterlingApiError>> {
-    return this.invoke<Order>('getOrderDetails', {
+    const listResult = await this.getOrderList({
       OrderNo: params.OrderNo,
       ...(params.DocumentType ? { DocumentType: params.DocumentType } : {}),
+      MaximumRecords: '1',
     });
+    if (!listResult.success) return listResult;
+    const orders = listResult.value;
+    if (orders.length === 0) {
+      return { success: false, error: { message: `Order ${params.OrderNo} not found`, apiName: 'getOrderList' } };
+    }
+    return { success: true, value: orders[0] };
   }
 
   async createOrder(payload: CreateOrderInput): Promise<Result<Order, SterlingApiError>> {
@@ -262,6 +277,18 @@ class SterlingClientImpl implements SterlingClient {
       OrderNo: params.OrderNo,
       ...(params.DocumentType ? { DocumentType: params.DocumentType } : {}),
     });
+  }
+
+  // --------------------------------------------------------------------------
+  // Inventory (UAT pre-scheduling)
+  // --------------------------------------------------------------------------
+
+  async getATP(params: GetATPParams): Promise<Result<unknown, SterlingApiError>> {
+    return this.invoke('getAvailableToPromiseSummary', params as unknown as Record<string, unknown>);
+  }
+
+  async adjustInventory(params: AdjustInventoryParams): Promise<Result<unknown, SterlingApiError>> {
+    return this.invoke('adjustInventory', params as unknown as Record<string, unknown>);
   }
 
   // --------------------------------------------------------------------------

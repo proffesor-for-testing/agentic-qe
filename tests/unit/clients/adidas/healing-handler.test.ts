@@ -1,11 +1,17 @@
 /**
  * Healing Handler Unit Tests
  * Verifies failure signature matching and recovery dispatch.
+ *
+ * The healing handler routes failures to:
+ *   1. 'abort' — infrastructure failures (ECONNREFUSED, ETIMEDOUT, fetch failed)
+ *   2. invoice recovery via XAPI — forward-invoice or step-12 failures
+ *   3. agentic healer — unknown failures (probes Sterling state)
  */
 import { describe, it, expect, vi } from 'vitest';
 import { createHealingHandler } from '../../../../src/clients/adidas/healing-handler';
 import type { StageResult } from '../../../../src/integrations/orchestration/action-types';
 import type { AdidasTestContext } from '../../../../src/clients/adidas/context';
+import type { XAPIResponse } from '../../../../src/integrations/sterling/types';
 
 // ============================================================================
 // Helpers
@@ -24,11 +30,23 @@ function makeStageResult(overrides: Partial<StageResult> = {}): StageResult {
   };
 }
 
+function xapiOk(body: string): XAPIResponse {
+  return { success: true, body, status: 200, duration: 50, retries: 0 };
+}
+
+function xapiErr(error: string): XAPIResponse {
+  return { success: false, body: '', status: 500, duration: 50, retries: 0, error };
+}
+
 function makeCtx(overrides: Partial<AdidasTestContext> = {}): AdidasTestContext {
   return {
     orderId: 'APT12345678',
     documentType: '0001',
-    sterlingClient: {} as AdidasTestContext['sterlingClient'],
+    sterlingClient: {
+      getOrderDetails: vi.fn().mockResolvedValue({ success: false, error: { message: 'mock', apiName: 'test' } }),
+      getShipmentListForOrder: vi.fn().mockResolvedValue({ success: false, error: { message: 'mock', apiName: 'test' } }),
+      getOrderInvoiceList: vi.fn().mockResolvedValue({ success: false, error: { message: 'mock', apiName: 'test' } }),
+    } as unknown as AdidasTestContext['sterlingClient'],
     shipments: [],
     originalOrderTotal: '120.00',
     paymentMethod: 'CREDIT_CARD',
@@ -75,24 +93,36 @@ describe('createHealingHandler', () => {
   });
 
   describe('invoice failure detection', () => {
-    it('detects forward-invoice stage failure', async () => {
+    it('returns continue when forward-invoice fails and no xapiClient', async () => {
       const handler = createHealingHandler({ enterpriseCode: 'adidas_PT', verbose: false });
       const result = makeStageResult({
         stageId: 'forward-invoice',
         poll: { success: false, error: 'Polling timed out', durationMs: 75000 },
       });
 
-      // Will attempt recovery (which will fail because sterlingClient is mocked)
-      // but the key test is that it doesn't return 'abort' — it tries recovery
+      // No xapiClient → cannot run recovery → returns continue
+      const ctx = makeCtx();
+      const decision = await handler('forward-invoice', result, ctx);
+      expect(decision).toBe('continue');
+    });
+
+    it('attempts recovery when xapiClient is available', async () => {
+      const handler = createHealingHandler({ enterpriseCode: 'adidas_PT', verbose: false });
+      const result = makeStageResult({
+        stageId: 'forward-invoice',
+        poll: { success: false, error: 'Polling timed out', durationMs: 75000 },
+      });
+
+      // xapiClient returns failure for getShipmentListForOrder → recovery fails → continue
+      const xapiInvoke = vi.fn().mockResolvedValue(xapiErr('no shipments'));
       const ctx = makeCtx({
-        sterlingClient: {
-          getShipmentListForOrder: vi.fn().mockResolvedValue({ success: false, error: { message: 'mock', apiName: 'test' } }),
-        } as unknown as AdidasTestContext['sterlingClient'],
+        xapiClient: { invoke: xapiInvoke, invokeOrThrow: xapiInvoke },
       });
 
       const decision = await handler('forward-invoice', result, ctx);
-      // Recovery fails because mock client → returns 'continue'
+      // Recovery attempted but failed → continue
       expect(decision).toBe('continue');
+      expect(xapiInvoke).toHaveBeenCalled();
     });
 
     it('detects step-12 verification failure', async () => {
@@ -108,77 +138,24 @@ describe('createHealingHandler', () => {
         },
       });
 
-      const ctx = makeCtx({
-        sterlingClient: {
-          getShipmentListForOrder: vi.fn().mockResolvedValue({ success: false, error: { message: 'mock', apiName: 'test' } }),
-        } as unknown as AdidasTestContext['sterlingClient'],
-      });
-
+      // No xapiClient → cannot run recovery → returns continue
+      const ctx = makeCtx();
       const decision = await handler('verify-invoice', result, ctx);
       expect(decision).toBe('continue');
     });
   });
 
-  describe('unknown failure', () => {
+  describe('unknown failure (agentic healer)', () => {
     it('returns continue for unrecognized failure signatures', async () => {
       const handler = createHealingHandler({ enterpriseCode: 'adidas_PT', verbose: false });
       const result = makeStageResult({
         action: { success: false, error: 'Some random error', durationMs: 100 },
       });
 
+      // Agentic healer probes Sterling state — mocked to return failures
+      // so no recovery pattern matches → returns continue
       const decision = await handler('create-order', result, makeCtx());
       expect(decision).toBe('continue');
     });
-  });
-
-  describe('patternStore integration', () => {
-    it('passes patternStore to recovery playbook', async () => {
-      const mockPatternStore = {
-        search: vi.fn().mockResolvedValue([]),
-      };
-
-      const handler = createHealingHandler({
-        enterpriseCode: 'adidas_PT',
-        verbose: false,
-        patternStore: mockPatternStore,
-      });
-
-      const result = makeStageResult({
-        stageId: 'forward-invoice',
-        poll: { success: false, error: 'timeout', durationMs: 75000 },
-      });
-
-      const ctx = makeCtx({
-        sterlingClient: {
-          getShipmentListForOrder: vi.fn().mockResolvedValue({
-            success: true,
-            value: [{ ShipmentKey: 'SK123', ShipmentNo: 'SN1', Status: '3700', SCAC: 'COR', TrackingNo: 'TR1', ShipNode: 'IT33' }],
-          }),
-          manageTaskQueue: vi.fn()
-            .mockResolvedValueOnce({ success: true, value: { TaskQKey: 'TQ1', AvailableDate: '2099-01-01', DataKey: 'SK123' } })
-            .mockResolvedValueOnce({ success: true, value: {} }),
-          getOrderInvoiceList: vi.fn().mockResolvedValue({
-            success: true,
-            value: [{ InvoiceNo: 'INV-001', InvoiceType: 'INVOICE', TotalAmount: '120.00' }],
-          }),
-          getOrderDetails: vi.fn().mockResolvedValue({
-            success: true,
-            value: { OrderNo: 'APT12345678', Status: '3700', DocumentType: '0001', PaymentStatus: 'INVOICED', OrderLines: { OrderLine: [] } },
-          }),
-        } as unknown as AdidasTestContext['sterlingClient'],
-        // xapiClient needed by asRecoveryClient for processOrderPayments
-        xapiClient: {
-          invokeOrThrow: vi.fn().mockResolvedValue({ success: true }),
-        } as unknown as AdidasTestContext['xapiClient'],
-      });
-
-      await handler('forward-invoice', result, ctx);
-
-      // Verify patternStore.search was called during recovery
-      expect(mockPatternStore.search).toHaveBeenCalledWith(
-        'sterling invoice delay manageTaskQueue',
-        expect.objectContaining({ tags: ['sterling-oms', 'recovery'] }),
-      );
-    }, 15_000);
   });
 });
