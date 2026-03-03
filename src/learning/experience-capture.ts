@@ -547,36 +547,40 @@ export class ExperienceCaptureService {
   }
 
   /**
-   * Cleanup old experiences
+   * Cleanup old experiences using soft-delete (archival) instead of destruction.
+   * Returns backward-compatible { removed } field (always 0 since nothing is destroyed)
+   * plus new { consolidated, archived } fields.
    */
-  async cleanup(): Promise<{ removed: number }> {
-    let removed = 0;
+  async cleanup(): Promise<{ removed: number; consolidated: number; archived: number }> {
+    let consolidated = 0;
+    let archived = 0;
 
     for (const domain of this.stats.byDomain.keys()) {
       const count = this.stats.byDomain.get(domain) || 0;
 
       if (count > this.config.maxExperiencesPerDomain) {
-        // Get oldest experiences for this domain
+        // Soft-archive excess instead of deleting
         const experiences = await this.searchExperiences({
           domain,
           limit: count,
         });
 
-        // Sort by timestamp (oldest first)
-        experiences.sort((a, b) => a.startedAt - b.startedAt);
+        // Sort by quality ASC then timestamp ASC (lowest quality, oldest first)
+        experiences.sort((a, b) => a.quality - b.quality || a.startedAt - b.startedAt);
 
-        // Remove excess (keeping most recent)
-        const toRemove = count - this.config.maxExperiencesPerDomain;
-        for (let i = 0; i < Math.min(toRemove, experiences.length); i++) {
+        const toArchive = count - this.config.maxExperiencesPerDomain;
+        for (let i = 0; i < Math.min(toArchive, experiences.length); i++) {
           const exp = experiences[i];
-          await this.deleteExperience(exp.id);
-          removed++;
+          await this.softDeleteExperience(exp.id);
+          archived++;
         }
       }
     }
 
-    console.log(`[ExperienceCapture] Cleanup: removed ${removed} experiences`);
-    return { removed };
+    console.log(
+      `[ExperienceCapture] Cleanup: ${archived} archived (0 destroyed)`
+    );
+    return { removed: 0, consolidated, archived };
   }
 
   /**
@@ -620,38 +624,28 @@ export class ExperienceCaptureService {
   }
 
   /**
-   * Delete experience
+   * Delete experience (legacy - kept for backward compatibility but now delegates to soft-delete)
    */
   private async deleteExperience(experienceId: string): Promise<void> {
+    await this.softDeleteExperience(experienceId);
+  }
+
+  /**
+   * Soft-delete experience by marking as archived.
+   * The record stays in the database (counted in Exp) but excluded from active queries.
+   * Stats are NOT decremented since the experience still exists logically.
+   */
+  private async softDeleteExperience(experienceId: string): Promise<void> {
     const experience = await this.getExperience(experienceId);
     if (!experience) return;
 
-    // Delete main record
+    // Mark as archived in memory backend
     const key = `${this.config.namespace}:experience:${experienceId}`;
-    await this.memory.delete(key);
+    const archived = { ...experience, _archived: true };
+    await this.memory.set(key, archived, { persist: true });
 
-    // Delete indices
-    if (experience.domain) {
-      const indexKey = `${this.config.namespace}:index:domain:${experience.domain}:${experienceId}`;
-      await this.memory.delete(indexKey);
-    }
-
-    if (experience.agent) {
-      const agentKey = `${this.config.namespace}:index:agent:${experience.agent}:${experienceId}`;
-      await this.memory.delete(agentKey);
-    }
-
-    // Update stats
-    if (experience.domain) {
-      const current = this.stats.byDomain.get(experience.domain) || 0;
-      if (current > 0) {
-        this.stats.byDomain.set(experience.domain, current - 1);
-      }
-    }
-    this.stats.totalCaptured = Math.max(0, this.stats.totalCaptured - 1);
-    if (experience.success) {
-      this.stats.successfulCaptures = Math.max(0, this.stats.successfulCaptures - 1);
-    }
+    // Note: we do NOT delete indices or decrement stats
+    // The experience still exists and is counted in the Exp total
   }
 
   /**
