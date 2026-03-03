@@ -585,16 +585,14 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     let current = obj;
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      if (dangerousKeys.has(part)) throw new Error(`Invalid path segment: '${part}' is a dangerous prototype key`);
       if (!Object.hasOwn(current, part)) {
-        Object.defineProperty(current, part, { value: Object.create(null), writable: true, enumerable: true, configurable: true });
+        const container = Object.create(null);
+        Object.defineProperty(current, part, { value: container, writable: true, enumerable: true, configurable: true });
       }
       current = current[part] as Record<string, unknown>;
     }
 
     const finalKey = parts[parts.length - 1];
-    if (dangerousKeys.has(finalKey)) throw new Error(`Invalid final key: '${finalKey}' is a dangerous prototype key`);
-    // lgtm[js/prototype-pollution-utility]
     Object.defineProperty(current, finalKey, { value, writable: true, enumerable: true, configurable: true });
   }
 

@@ -81,6 +81,7 @@ export {
   // Availability checks
   isVibiumAvailable,
   isAgentBrowserAvailable,
+  isStealthAvailable,
   // Utility functions
   getBrowserToolAvailability,
   getRecommendedToolForUseCase,
@@ -88,6 +89,36 @@ export {
 
 // Re-export AgentBrowserClient for direct instantiation if needed
 export { AgentBrowserClient } from './agent-browser/client';
+
+// Resource Blocking
+export {
+  type ResourceCategory,
+  type ResourceBlockingConfig,
+  type ResourceBlockingPreset,
+  shouldBlockRequest,
+  getResourceBlockingPreset,
+} from './resource-blocking';
+
+// Page Pool
+export {
+  BrowserPagePool,
+  createBrowserPagePool,
+} from './page-pool';
+
+export {
+  type PageState,
+  type PooledPage,
+  type BrowserPagePoolConfig,
+  type PagePoolStats,
+  DEFAULT_PAGE_POOL_CONFIG,
+} from './page-pool-types';
+
+// Stealth Browser
+export {
+  StealthBrowserClient,
+  type StealthBrowserConfig,
+  DEFAULT_STEALTH_CONFIG,
+} from './stealth';
 
 // Web Content Fetcher - 5-tier browser cascade
 export {

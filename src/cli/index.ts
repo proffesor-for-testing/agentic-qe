@@ -823,6 +823,130 @@ workflowCmd
     }
   });
 
+workflowCmd
+  .command('browser-list')
+  .description('List available browser workflow templates')
+  .action(async () => {
+    try {
+      const { BrowserWorkflowTool } = await import('../mcp/tools/test-execution/browser-workflow.js');
+      const tool = new BrowserWorkflowTool();
+      const result = await tool.invoke({});
+
+      if (result.success && result.data) {
+        console.log(chalk.blue('\n Browser Workflow Templates:\n'));
+        for (const t of result.data.availableTemplates) {
+          console.log(`  ${chalk.cyan(t)}`);
+        }
+        console.log('');
+      } else {
+        console.log(chalk.red(`Failed: ${result.error || 'Unknown error'}`));
+      }
+      await cleanupAndExit(0);
+    } catch (error) {
+      console.error(chalk.red('\nFailed:'), error);
+      await cleanupAndExit(1);
+    }
+  });
+
+workflowCmd
+  .command('browser-load [template]')
+  .description('Load and validate a browser workflow template or inline YAML')
+  .option('--yaml <yaml>', 'Inline YAML workflow definition')
+  .option('-v, --var <key=value>', 'Variable override (repeatable)', collectWorkflowVars, {})
+  .option('-F, --format <format>', 'Output format (text|json)', 'text')
+  .option('-o, --output <path>', 'Write output to file')
+  .action(async (template: string | undefined, options) => {
+    try {
+      const { BrowserWorkflowTool } = await import('../mcp/tools/test-execution/browser-workflow.js');
+      const { writeOutput, toJSON } = await import('./utils/ci-output.js');
+      const tool = new BrowserWorkflowTool();
+
+      const params: Record<string, unknown> = {
+        variables: options.var || {},
+      };
+
+      if (options.yaml) {
+        params.workflowYaml = options.yaml;
+      } else if (template) {
+        if (template.endsWith('.yaml') || template.endsWith('.yml')) {
+          const fs = await import('fs');
+          const pathModule = await import('path');
+          const filePath = pathModule.resolve(template);
+          if (!fs.existsSync(filePath)) {
+            console.log(chalk.red(`\nFile not found: ${filePath}\n`));
+            await cleanupAndExit(1);
+          }
+          params.workflowYaml = fs.readFileSync(filePath, 'utf-8');
+        } else {
+          params.templateName = template;
+        }
+      } else {
+        console.log(chalk.red('\nProvide a template name or --yaml. Use "workflow browser-list" to see templates.\n'));
+        await cleanupAndExit(1);
+      }
+
+      console.log(chalk.blue(`\n Loading browser workflow${template ? ': ' + template : ''}...\n`));
+
+      const result = await tool.invoke(params);
+
+      if (result.success && result.data) {
+        const data = result.data;
+        if (options.format === 'json') {
+          writeOutput(toJSON(data), options.output);
+        } else {
+          console.log(chalk.green(` Workflow: ${data.workflowName}`));
+          if (data.description) {
+            console.log(chalk.gray(`  ${data.description}`));
+          }
+          console.log(`  Source: ${chalk.cyan(data.source)}`);
+          console.log(`  Steps: ${chalk.white(data.steps.length)}`);
+
+          if (data.steps.length > 0) {
+            console.log(chalk.cyan('\n  Steps:'));
+            for (const step of data.steps) {
+              const optTag = step.optional ? chalk.gray(' (optional)') : '';
+              const assertTag = step.assertionCount > 0 ? chalk.gray(` [${step.assertionCount} assertions]`) : '';
+              console.log(`    ${chalk.white(step.name)} — ${step.action}${optTag}${assertTag}`);
+            }
+          }
+
+          if (data.variables.defined.length > 0) {
+            console.log(chalk.cyan('\n  Variables:'));
+            for (const v of data.variables.defined) {
+              const req = v.required ? chalk.red('*') : '';
+              const def = v.hasDefault ? chalk.gray(' (has default)') : '';
+              console.log(`    ${req}${chalk.white(v.name)}: ${v.type}${def}`);
+            }
+          }
+
+          if (!data.validation.valid) {
+            console.log(chalk.red('\n  Validation errors:'));
+            for (const err of data.validation.errors) {
+              console.log(chalk.red(`    - ${err}`));
+            }
+          }
+          console.log('');
+        }
+
+        await cleanupAndExit(data.validation.valid ? 0 : 1);
+      } else {
+        console.log(chalk.red(`Failed: ${result.error || 'Unknown error'}`));
+        await cleanupAndExit(1);
+      }
+    } catch (error) {
+      console.error(chalk.red('\nFailed:'), error);
+      await cleanupAndExit(1);
+    }
+  });
+
+function collectWorkflowVars(val: string, acc: Record<string, string>): Record<string, string> {
+  const idx = val.indexOf('=');
+  if (idx > 0) {
+    acc[val.substring(0, idx)] = val.substring(idx + 1);
+  }
+  return acc;
+}
+
 // ============================================================================
 // Shortcut Commands (test, coverage, quality, security, code)
 // ============================================================================

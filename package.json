@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.7.5",
+  "version": "3.7.7",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 13 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 60 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -147,7 +147,8 @@
     "typescript": "^5.9.3",
     "uuid": "^9.0.0",
     "vibium": "^0.1.2",
-    "yaml": "^2.8.2"
+    "yaml": "^2.8.2",
+    "@faker-js/faker": "^10.2.0"
   },
   "optionalDependencies": {
     "@claude-flow/browser": "^3.0.0-alpha.1",
@@ -176,7 +177,6 @@
     "markdown-it": ">=14.1.1"
   },
   "devDependencies": {
-    "@faker-js/faker": "^10.2.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cli-progress": "^3.11.6",
     "@types/node": "^20.19.17",
@@ -189,16 +189,9 @@
     "dotenv": "^17.2.3",
     "esbuild": "^0.27.2",
     "eslint": "^8.55.0",
-    "eslint-plugin-security": "^3.0.1",
     "glob": "^13.0.0",
-    "graceful-fs": "^4.2.11",
     "msw": "^2.12.7",
-    "rimraf": "^6.0.1",
-    "stack-utils": "^2.0.6",
-    "tinybench": "^2.9.0",
-    "ts-node": "^10.9.1",
     "tsx": "^4.21.0",
-    "typedoc": "^0.28.13",
     "vitest": "^4.0.16"
   },
   "engines": {

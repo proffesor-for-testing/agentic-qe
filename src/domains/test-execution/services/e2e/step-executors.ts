@@ -173,7 +173,10 @@ export class StepExecutors {
   ): Promise<StepExecutionData> {
     if (!isVibiumClient(client)) {
       const browserClient = client as IBrowserClient;
-      const target = toElementTarget(step.target);
+      const target = await this.orchestrator.resolveElementTarget(
+        step.target,
+        this.getCurrentPageUrl(context)
+      );
 
       if (context.useAgentBrowser && isAgentBrowserClient(browserClient)) {
         const waitResult = await browserClient.waitForElement(target, step.timeout);
@@ -255,7 +258,10 @@ export class StepExecutors {
   ): Promise<StepExecutionData> {
     if (!isVibiumClient(client)) {
       const browserClient = client as IBrowserClient;
-      const target = toElementTarget(step.target);
+      const target = await this.orchestrator.resolveElementTarget(
+        step.target,
+        this.getCurrentPageUrl(context)
+      );
 
       if (context.useAgentBrowser && isAgentBrowserClient(browserClient)) {
         const waitResult = await browserClient.waitForElement(target, step.timeout);
@@ -585,6 +591,22 @@ export class StepExecutors {
   // ==========================================================================
   // Utility Methods
   // ==========================================================================
+
+  /**
+   * Get the current page URL from context, falling back to baseUrl.
+   * Uses the last navigate step's URL if available, so adaptive locator
+   * fingerprints are keyed to the actual page, not just the base URL.
+   */
+  private getCurrentPageUrl(context: StepExecutionContext): string {
+    // Look for the most recent navigate result with a URL
+    for (let i = context.previousResults.length - 1; i >= 0; i--) {
+      const result = context.previousResults[i];
+      if (result.data?.url && typeof result.data.url === 'string') {
+        return result.data.url;
+      }
+    }
+    return context.baseUrl;
+  }
 
   private resolveUrl(url: string, baseUrl: string): string {
     if (url.startsWith('http://') || url.startsWith('https://')) {

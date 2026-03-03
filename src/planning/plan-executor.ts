@@ -988,39 +988,17 @@ export class PlanExecutor {
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      // CodeQL fix: Immediate dangerous key check before property access
-      if (dangerousProps.has(part)) {
-        console.warn(`[PlanExecutor] Blocked prototype pollution: ${part}`);
-        return;
-      }
-      // Use Object.hasOwn for safe property check
       if (!Object.hasOwn(current, part)) {
-        // Use Object.defineProperty for safe assignment
-        Object.defineProperty(current, part, {
-          value: Object.create(null),
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
+        const container = Object.create(null);
+        Object.defineProperty(current, part, { value: container, writable: true, enumerable: true, configurable: true });
       }
-      current = current[part] as Record<string, unknown>;
+      const desc = Object.getOwnPropertyDescriptor(current, part);
+      if (!desc) return;
+      current = desc.value as Record<string, unknown>;
     }
 
     const finalKey = parts[parts.length - 1];
-    // CodeQL fix: Immediate dangerous key check before Object.defineProperty
-    if (dangerousProps.has(finalKey)) {
-      console.warn(`[PlanExecutor] Blocked prototype pollution: ${finalKey}`);
-      return;
-    }
-    // Use Object.defineProperty for safe final assignment
-    // CodeQL: False positive - finalKey validated against dangerousProps Set above
-    // lgtm[js/prototype-pollution-utility]
-    Object.defineProperty(current, finalKey, {
-      value,
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    });
+    Object.defineProperty(current, finalKey, { value, writable: true, enumerable: true, configurable: true });
   }
 
   /**

@@ -696,10 +696,9 @@ describe('EnterpriseIntegrationCoordinator', () => {
         const serviceUrl = 'https://api.example.com/odata/v4';
         await coordinator.validateODataMetadata(serviceUrl);
 
-        expectMemoryStored(
-          ctx.memory,
-          `enterprise-integration:odata:${encodeURIComponent(serviceUrl)}`
-        );
+        const expectedKey = `enterprise-integration:odata:${encodeURIComponent(serviceUrl)}`;
+        const allKeys = Array.from(ctx.memory.getAllValues().keys());
+        expect(allKeys.some(k => k === expectedKey)).toBe(true);
       });
 
       it('should return error when agent spawn fails', async () => {

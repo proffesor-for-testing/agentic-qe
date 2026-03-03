@@ -16,15 +16,85 @@ export function createSecurityCommand(
   ensureInitialized: () => Promise<boolean>
 ): Command {
   const securityCmd = new Command('security')
-    .description('Security scanning shortcut')
+    .description('Security scanning and URL validation')
     .option('--sast', 'Run SAST scan')
     .option('--dast', 'Run DAST scan')
     .option('--compliance <frameworks>', 'Check compliance (gdpr,hipaa,soc2)', '')
+    .option('--url-validate <url>', 'Validate a URL for security threats and PII exposure')
+    .option('--no-pii', 'Disable PII scanning when using --url-validate')
     .option('-t, --target <path>', 'Target directory to scan', '.')
     .option('-F, --format <format>', 'Output format (text|json|sarif|markdown)', 'text')
     .option('-o, --output <path>', 'Write output to file')
     .action(async (options) => {
       if (!await ensureInitialized()) return;
+
+      // Handle --url-validate as a separate path
+      if (options.urlValidate) {
+        try {
+          const format = options.format as OutputFormat;
+          const url = options.urlValidate as string;
+
+          if (format === 'text') {
+            console.log(chalk.blue(`\n Validating URL: ${url}\n`));
+          }
+
+          const { VisualSecurityTool } = await import('../../mcp/tools/security-compliance/visual-security.js');
+          const tool = new VisualSecurityTool();
+          const result = await tool.invoke({
+            url,
+            enablePII: options.pii !== false,
+          });
+
+          if (result.success && result.data) {
+            const data = result.data;
+            if (format === 'json') {
+              writeOutput(toJSON(data), options.output);
+            } else {
+              // URL security
+              if (data.urlSecurity.valid) {
+                console.log(chalk.green(`  URL Security: CLEAN`));
+              } else {
+                console.log(chalk.red(`  URL Security: ${data.urlSecurity.issues.length} issue(s) (risk: ${data.urlSecurity.riskLevel})`));
+                for (const issue of data.urlSecurity.issues) {
+                  const color = issue.severity === 'critical' ? chalk.red : issue.severity === 'high' ? chalk.yellow : chalk.gray;
+                  console.log(color(`    [${issue.severity}] ${issue.type}: ${issue.description}`));
+                }
+              }
+
+              // PII exposure
+              if (data.piiExposure.scanned) {
+                if (data.piiExposure.found) {
+                  console.log(chalk.red(`\n  PII Exposure: ${data.piiExposure.types.length} type(s) found in URL`));
+                  for (const detail of data.piiExposure.details) {
+                    console.log(chalk.yellow(`    [${detail.type}] in ${detail.location}: ${detail.masked}`));
+                  }
+                } else {
+                  console.log(chalk.green(`\n  PII Exposure: none detected`));
+                }
+              }
+
+              console.log(`\n  ${data.summary}\n`);
+            }
+
+            // Exit code 1 if critical/high security issues or PII found
+            const hasCritical = data.urlSecurity.issues.some(
+              (i: { severity: string }) => i.severity === 'critical' || i.severity === 'high'
+            );
+            if (hasCritical || data.piiExposure.found) {
+              await cleanupAndExit(1);
+            }
+          } else {
+            console.log(chalk.red(`Failed: ${result.error || 'Unknown error'}`));
+            await cleanupAndExit(1);
+          }
+
+          await cleanupAndExit(0);
+        } catch (err) {
+          console.error(chalk.red('\nFailed:'), err);
+          await cleanupAndExit(1);
+        }
+        return; // Don't fall through to SAST/DAST path
+      }
 
       try {
         const format = options.format as OutputFormat;

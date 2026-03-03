@@ -72,6 +72,7 @@ import {
 } from './handlers';
 
 // ADR-039: Performance optimization imports
+import { registerMissingQETools } from './qe-tool-bridge.js';
 import {
   getConnectionPool,
   initializeConnectionPool,
@@ -1053,7 +1054,9 @@ export class MCPProtocolServer {
       handler: () => handleAQEHealth(),
     });
 
-    console.error(`[MCP] Registered ${this.tools.size} tools`);
+    // Register QE domain tools not already covered by hardcoded handlers above
+    const bridgedCount = registerMissingQETools((entry) => this.registerTool(entry));
+    console.error(`[MCP] Registered ${this.tools.size} tools (${bridgedCount} via QE bridge)`);
   }
 
   private registerTool(entry: ToolEntry): void {

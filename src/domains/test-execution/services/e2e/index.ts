@@ -56,6 +56,24 @@ export {
 } from './browser-orchestrator';
 
 // ============================================================================
+// Adaptive Locator
+// ============================================================================
+
+export {
+  AdaptiveLocatorService,
+  computeSimilarity,
+  FingerprintStore,
+} from './adaptive-locator-service';
+
+export {
+  type ElementFingerprint,
+  type AdaptiveLocatorConfig,
+  type LocatorResolutionResult,
+  type LocatorResolutionMethod,
+  DEFAULT_ADAPTIVE_LOCATOR_CONFIG,
+} from './adaptive-locator-types';
+
+// ============================================================================
 // Step Executors
 // ============================================================================
 

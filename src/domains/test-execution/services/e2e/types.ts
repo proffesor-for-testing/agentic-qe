@@ -12,7 +12,10 @@ import type {
   IBrowserClient,
   IAgentBrowserClient,
   ParsedSnapshot,
+  ResourceBlockingConfig,
 } from '@integrations/browser';
+import type { AdaptiveLocatorConfig } from './adaptive-locator-types';
+import type { BrowserPagePool } from '@integrations/browser';
 import type { E2EStepResult, E2ETestCase } from '../../types';
 import { E2E_CONSTANTS } from '../../../constants.js';
 
@@ -74,6 +77,21 @@ export interface E2ERunnerConfig {
    * Useful for sharing browser instances across test suites
    */
   browserClient?: IBrowserClient;
+  /**
+   * Adaptive locator configuration for resilient element matching
+   * When enabled, falls back to similarity-based matching on selector failure
+   */
+  adaptiveLocator?: AdaptiveLocatorConfig;
+  /**
+   * Resource blocking configuration or preset name
+   * Blocks non-essential resources (images, fonts, tracking) for faster tests
+   */
+  resourceBlocking?: ResourceBlockingConfig | string;
+  /**
+   * Browser page pool for parallel test execution
+   * If provided, tests acquire pages from the pool instead of launching new browsers
+   */
+  pagePool?: BrowserPagePool;
 }
 
 /**
