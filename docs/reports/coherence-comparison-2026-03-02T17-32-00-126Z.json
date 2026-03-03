@@ -1,0 +1,343 @@
+{
+  "timestamp": "2026-03-02T17:32:00.126Z",
+  "versions": {
+    "baseline": "3.2.3",
+    "comparison": "3.3.0"
+  },
+  "results": [
+    {
+      "testCase": "CR-001",
+      "category": "contradiction-detection",
+      "v323Behavior": {
+        "passed": true,
+        "detected": true,
+        "latencyMs": 0.016833000000019638,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "details": "Simple keyword matching (no coherence)"
+      },
+      "v330Behavior": {
+        "passed": true,
+        "detected": true,
+        "latencyMs": 6.889583000000016,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "coherenceEnergy": 1,
+        "coherenceLane": "human",
+        "details": "Incoherent state detected"
+      },
+      "improvement": {
+        "detectionImproved": false,
+        "latencyReduced": false,
+        "accuracyGain": 0,
+        "notes": "Both versions had same result"
+      }
+    },
+    {
+      "testCase": "CR-002",
+      "category": "contradiction-detection",
+      "v323Behavior": {
+        "passed": false,
+        "detected": false,
+        "latencyMs": 0.003457999999909589,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "details": "Simple keyword matching (no coherence)"
+      },
+      "v330Behavior": {
+        "passed": true,
+        "detected": true,
+        "latencyMs": 3.940083999999956,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "coherenceEnergy": 1,
+        "coherenceLane": "human",
+        "details": "Incoherent state detected"
+      },
+      "improvement": {
+        "detectionImproved": true,
+        "latencyReduced": false,
+        "accuracyGain": 1,
+        "notes": "v3.3.0 correctly detected contradiction"
+      }
+    },
+    {
+      "testCase": "CR-003",
+      "category": "contradiction-detection",
+      "v323Behavior": {
+        "passed": false,
+        "detected": false,
+        "latencyMs": 0.003083000000060565,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "details": "Simple keyword matching (no coherence)"
+      },
+      "v330Behavior": {
+        "passed": false,
+        "detected": false,
+        "latencyMs": 3.3768340000000308,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "coherenceEnergy": 0,
+        "coherenceLane": "reflex",
+        "details": "No contradictions found"
+      },
+      "improvement": {
+        "detectionImproved": false,
+        "latencyReduced": false,
+        "accuracyGain": 0,
+        "notes": "Both versions had same result"
+      }
+    },
+    {
+      "testCase": "CR-004",
+      "category": "contradiction-detection",
+      "v323Behavior": {
+        "passed": false,
+        "detected": true,
+        "latencyMs": 0.004458999999997104,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "details": "Simple keyword matching (no coherence)"
+      },
+      "v330Behavior": {
+        "passed": false,
+        "detected": true,
+        "latencyMs": 4.274416999999971,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "coherenceEnergy": 1,
+        "coherenceLane": "human",
+        "details": "Incoherent state detected"
+      },
+      "improvement": {
+        "detectionImproved": false,
+        "latencyReduced": false,
+        "accuracyGain": 0,
+        "notes": "Both versions had same result"
+      }
+    },
+    {
+      "testCase": "CR-005",
+      "category": "contradiction-detection",
+      "v323Behavior": {
+        "passed": false,
+        "detected": false,
+        "latencyMs": 0.004667000000040389,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "details": "Simple keyword matching (no coherence)"
+      },
+      "v330Behavior": {
+        "passed": true,
+        "detected": true,
+        "latencyMs": 50.025082999999995,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "coherenceEnergy": 1,
+        "coherenceLane": "human",
+        "details": "Incoherent state detected"
+      },
+      "improvement": {
+        "detectionImproved": true,
+        "latencyReduced": false,
+        "accuracyGain": 1,
+        "notes": "v3.3.0 correctly detected contradiction"
+      }
+    },
+    {
+      "testCase": "CS-001",
+      "category": "consensus-quality",
+      "v323Behavior": {
+        "passed": true,
+        "detected": true,
+        "latencyMs": 0.01541599999995924,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "details": "Simple majority: 3/3"
+      },
+      "v330Behavior": {
+        "passed": false,
+        "detected": false,
+        "latencyMs": 0.5015419999999722,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "coherenceEnergy": 0,
+        "details": "False consensus detected (Fiedler: 0.000)"
+      },
+      "improvement": {
+        "detectionImproved": false,
+        "latencyReduced": false,
+        "accuracyGain": -1,
+        "notes": "Consensus verification working as expected"
+      }
+    },
+    {
+      "testCase": "CS-002",
+      "category": "consensus-quality",
+      "v323Behavior": {
+        "passed": false,
+        "detected": true,
+        "latencyMs": 0.0026670000000876826,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "details": "Simple majority: 2/3"
+      },
+      "v330Behavior": {
+        "passed": false,
+        "detected": false,
+        "latencyMs": 0.028208999999947082,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "coherenceEnergy": 0,
+        "details": "False consensus detected (Fiedler: 0.000)"
+      },
+      "improvement": {
+        "detectionImproved": false,
+        "latencyReduced": false,
+        "accuracyGain": 0,
+        "notes": "Consensus verification working as expected"
+      }
+    },
+    {
+      "testCase": "CS-003",
+      "category": "consensus-quality",
+      "v323Behavior": {
+        "passed": true,
+        "detected": true,
+        "latencyMs": 0.0017080000000078144,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "details": "Simple majority: 3/3"
+      },
+      "v330Behavior": {
+        "passed": true,
+        "detected": true,
+        "latencyMs": 0.046167000000082226,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "coherenceEnergy": 0,
+        "details": "False consensus detected (Fiedler: 0.000)"
+      },
+      "improvement": {
+        "detectionImproved": false,
+        "latencyReduced": false,
+        "accuracyGain": 0,
+        "notes": "v3.3.0 correctly detected false consensus (groupthink)"
+      }
+    },
+    {
+      "testCase": "MP-001",
+      "category": "memory-coherence",
+      "v323Behavior": {
+        "passed": false,
+        "detected": false,
+        "latencyMs": 0.0002919999999448919,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "details": "No memory coherence auditing in v3.2.3"
+      },
+      "v330Behavior": {
+        "passed": true,
+        "detected": true,
+        "latencyMs": 0.6632919999999558,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "details": "undefined: energy=1"
+      },
+      "improvement": {
+        "detectionImproved": true,
+        "latencyReduced": false,
+        "accuracyGain": 1,
+        "notes": "New capability in v3.3.0"
+      }
+    },
+    {
+      "testCase": "MP-002",
+      "category": "memory-coherence",
+      "v323Behavior": {
+        "passed": true,
+        "detected": false,
+        "latencyMs": 0.0002500000000509317,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "details": "No memory coherence auditing in v3.2.3"
+      },
+      "v330Behavior": {
+        "passed": false,
+        "detected": true,
+        "latencyMs": 0.16237499999999727,
+        "falsePositives": 1,
+        "falseNegatives": 0,
+        "details": "undefined: energy=1"
+      },
+      "improvement": {
+        "detectionImproved": false,
+        "latencyReduced": false,
+        "accuracyGain": 0,
+        "notes": "New capability in v3.3.0"
+      }
+    },
+    {
+      "testCase": "TG-001",
+      "category": "test-generation",
+      "v323Behavior": {
+        "passed": false,
+        "detected": false,
+        "latencyMs": 0.00024999999993724487,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "details": "v3.2.3 allows test generation from contradictory specs"
+      },
+      "v330Behavior": {
+        "passed": true,
+        "detected": true,
+        "latencyMs": 0.19104199999992488,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "coherenceEnergy": 1,
+        "details": "Blocked: Incoherent specs (energy: 1.000)"
+      },
+      "improvement": {
+        "detectionImproved": true,
+        "latencyReduced": false,
+        "accuracyGain": 1,
+        "notes": "v3.3.0 correctly blocks test generation from incoherent requirements"
+      }
+    },
+    {
+      "testCase": "CP-001",
+      "category": "collapse-prediction",
+      "v323Behavior": {
+        "passed": false,
+        "detected": false,
+        "latencyMs": 0.00024999999993724487,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "details": "No collapse prediction in v3.2.3"
+      },
+      "v330Behavior": {
+        "passed": false,
+        "detected": false,
+        "latencyMs": 0.49299999999993815,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "details": "Stable: NaN% risk"
+      },
+      "improvement": {
+        "detectionImproved": false,
+        "latencyReduced": false,
+        "accuracyGain": 0,
+        "notes": "New capability in v3.3.0 using spectral analysis"
+      }
+    }
+  ],
+  "summary": {
+    "totalTests": 12,
+    "v323PassRate": 0.3333333333333333,
+    "v330PassRate": 0.5,
+    "detectionImprovementRate": 0.3333333333333333,
+    "avgLatencyReduction": -5.878191249999986,
+    "coherenceFeaturesUsed": 9
+  }
+}

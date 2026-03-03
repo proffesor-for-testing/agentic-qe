@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Adidas O2C Lifecycle Report — APT42867576</title>
+<style>
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; line-height: 1.6; }
+.container { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+header { background: #1a1a2e; color: #fff; padding: 1.5rem 2rem; border-radius: 8px 8px 0 0; }
+header h1 { font-size: 1.4rem; margin-bottom: 0.5rem; }
+.meta { display: flex; gap: 1.5rem; align-items: center; font-size: 0.9rem; opacity: 0.9; flex-wrap: wrap; }
+.badge { padding: 2px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
+.badge.pass { background: #22c55e; color: #fff; }
+.badge.fail { background: #ef4444; color: #fff; }
+.badge.skip { background: #a3a3a3; color: #fff; }
+.summary { display: flex; gap: 1rem; padding: 1.5rem 2rem; background: #fff; border-bottom: 1px solid #e5e5e5; flex-wrap: wrap; }
+.stat { text-align: center; min-width: 80px; }
+.stat .num { display: block; font-size: 1.8rem; font-weight: 700; }
+.stat .label { font-size: 0.75rem; text-transform: uppercase; color: #888; }
+.stat.pass .num { color: #22c55e; }
+.stat.fail .num { color: #ef4444; }
+.stat.skip .num { color: #a3a3a3; }
+.stages, .details { background: #fff; padding: 1.5rem 2rem; border-bottom: 1px solid #e5e5e5; }
+.stages h2, .details h2 { font-size: 1.1rem; margin-bottom: 1rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th { text-align: left; padding: 8px 12px; background: #f0f0f0; border-bottom: 2px solid #ddd; }
+td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+tr.pass td:first-child { border-left: 3px solid #22c55e; }
+tr.fail td:first-child { border-left: 3px solid #ef4444; }
+tr.skip td:first-child { border-left: 3px solid #a3a3a3; }
+tr.skip td { color: #888; }
+td.pass { color: #16a34a; }
+td.fail { color: #dc2626; }
+.stage-detail { margin-bottom: 1.5rem; }
+.stage-detail h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+.stage-id { color: #888; font-weight: 400; font-size: 0.85rem; }
+.step { padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; border-radius: 4px; border-left: 3px solid #ddd; }
+.step.pass { border-left-color: #22c55e; background: #f0fdf4; }
+.step.fail { border-left-color: #ef4444; background: #fef2f2; }
+.step.skip { border-left-color: #a3a3a3; background: #f5f5f5; color: #888; }
+.step-header { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.dur { color: #888; font-size: 0.8rem; }
+.err { color: #dc2626; font-size: 0.8rem; }
+.checks { list-style: none; margin-top: 0.4rem; padding-left: 1rem; font-size: 0.85rem; }
+.check-pass::before { content: "✓ "; color: #22c55e; }
+.check-fail::before { content: "✗ "; color: #ef4444; }
+footer { background: #fff; padding: 1rem 2rem; border-radius: 0 0 8px 8px; text-align: center; font-size: 0.8rem; color: #888; }
+
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Adidas O2C Lifecycle Report</h1>
+    <div class="meta">
+      <span><strong>Order:</strong> APT42867576</span>
+      <span><strong>Date:</strong> 2026-03-03T14:24:00.859Z</span>
+      <span class="badge fail">FAIL</span>
+    </div>
+  </header>
+
+  <section class="summary">
+    <div class="stat"><span class="num">9</span><span class="label">Stages</span></div>
+    <div class="stat pass"><span class="num">2</span><span class="label">Passed</span></div>
+    <div class="stat fail"><span class="num">5</span><span class="label">Failed</span></div>
+    <div class="stat skip"><span class="num">2</span><span class="label">Skipped</span></div>
+    <div class="stat"><span class="num">2</span><span class="label">Checks</span></div>
+    <div class="stat"><span class="num">1019.9s</span><span class="label">Duration</span></div>
+  </section>
+
+  <section class="stages">
+    <h2>Stage Results</h2>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Stage</th><th>Action</th><th>Poll</th><th>Verify</th><th>Duration</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr class="pass">
+          <td>1</td>
+          <td>Create Sales Order</td>
+          <td class="pass">OK</td>
+          <td class="pass">OK</td>
+          <td>1/1</td>
+          <td>35.5s</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="pass">
+          <td>2</td>
+          <td>Wait for Order Release</td>
+          <td class="pass">OK</td>
+          <td class="pass">OK</td>
+          <td>1/1</td>
+          <td>180.8s</td>
+          <td><span class="badge pass">PASS</span></td>
+        </tr>
+        <tr class="fail">
+          <td>3</td>
+          <td>Confirm Shipment</td>
+          <td class="fail">FAIL</td>
+          <td class="pass">OK</td>
+          <td>0/0</td>
+          <td>57.1s</td>
+          <td><span class="badge fail">FAIL</span></td>
+        </tr>
+        <tr class="fail">
+          <td>4</td>
+          <td>Delivery & POD Events</td>
+          <td class="pass">OK</td>
+          <td class="fail">FAIL</td>
+          <td>0/0</td>
+          <td>321.3s</td>
+          <td><span class="badge fail">FAIL</span></td>
+        </tr>
+        <tr class="fail">
+          <td>5</td>
+          <td>Forward Invoice & Reconciliation</td>
+          <td class="pass">OK</td>
+          <td class="fail">FAIL</td>
+          <td>0/0</td>
+          <td>78.5s</td>
+          <td><span class="badge fail">FAIL</span></td>
+        </tr>
+        <tr class="skip">
+          <td>6</td>
+          <td>Forward Flow Email & PDF Verification</td>
+          <td class="pass">OK</td>
+          <td class="pass">OK</td>
+          <td>0/4 skipped</td>
+          <td>0.0s</td>
+          <td><span class="badge skip">SKIP</span></td>
+        </tr>
+        <tr class="fail">
+          <td>7</td>
+          <td>Create Return Order</td>
+          <td class="fail">FAIL</td>
+          <td class="pass">OK</td>
+          <td>0/0</td>
+          <td>8.2s</td>
+          <td><span class="badge fail">FAIL</span></td>
+        </tr>
+        <tr class="fail">
+          <td>8</td>
+          <td>Return Delivery & Credit Note</td>
+          <td class="pass">OK</td>
+          <td class="fail">FAIL</td>
+          <td>0/0</td>
+          <td>331.3s</td>
+          <td><span class="badge fail">FAIL</span></td>
+        </tr>
+        <tr class="skip">
+          <td>9</td>
+          <td>Return Email, PDF & Browser Verification</td>
+          <td class="pass">OK</td>
+          <td class="pass">OK</td>
+          <td>0/7 skipped</td>
+          <td>0.0s</td>
+          <td><span class="badge skip">SKIP</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="details">
+    <h2>Step Details</h2>
+    <div class="stage-detail">
+      <h3>Create Sales Order <span class="stage-id">(create-order)</span></h3>
+      <div class="step pass">
+        <div class="step-header">
+          <span class="badge pass">PASS</span>
+          <strong>step-01</strong>
+          <span class="dur">175ms</span>
+          
+        </div>
+        <ul class="checks"><li class="check-pass">OrderNo present: expected truthy, got APT42867576</li><li class="check-pass">Status defined: expected truthy, got Created</li><li class="check-pass">EnterpriseCode matches: expected adidas_PT, got adidas_PT</li><li class="check-pass">DocumentType is 0001: expected 0001, got 0001</li><li class="check-pass">SellerOrganizationCode present: expected truthy, got adidas_PT</li><li class="check-pass">ShipTo FirstName present: expected truthy, got sunil</li><li class="check-pass">ShipTo LastName present: expected truthy, got kumar</li><li class="check-pass">ShipTo City present: expected truthy, got Lisboa</li><li class="check-pass">ShipTo Country present: expected truthy, got PT</li><li class="check-pass">Has order lines: expected >0, got 1 (AutoPOC)</li><li class="check-pass">Line ItemID present: expected truthy, got EE6464_530</li><li class="check-pass">Line UOM present: expected truthy, got PIECE</li><li class="check-pass">Line OrderedQty present: expected truthy, got 1</li><li class="check-pass">Line has price info: expected truthy, got 120.00</li><li class="check-pass">PaymentStatus present: expected AUTHORIZED|PAID|SETTLED, got AUTHORIZED</li><li class="check-pass">OrderType is ShipToHome: expected ShipToHome, got ShipToHome</li><li class="check-pass">Currency is EUR: expected EUR, got EUR</li><li class="check-pass">EntryType is web: expected web, got web</li></ul>
+      </div>
+    </div>
+    <div class="stage-detail">
+      <h3>Wait for Order Release <span class="stage-id">(wait-for-release)</span></h3>
+      <div class="step pass">
+        <div class="step-header">
+          <span class="badge pass">PASS</span>
+          <strong>step-02</strong>
+          <span class="dur">295ms</span>
+          
+        </div>
+        <ul class="checks"><li class="check-pass">Status >= 3200: expected >=3200, got Acknowledged</li><li class="check-pass">ShipNode assigned: expected truthy, got 0625</li><li class="check-pass">HoldFlag is not Y: expected Not Y, got N</li></ul>
+      </div>
+    </div>
+    <div class="stage-detail">
+      <h3>Confirm Shipment <span class="stage-id">(confirm-shipment)</span></h3>
+      <div class="step fail">
+        <div class="step-header">
+          <span class="badge fail">FAIL</span>
+          <strong>Action</strong>
+          <span class="dur">57064ms</span>
+          <span class="err">XAPI ship confirm failed: XAPI adidasWE_ProcessSHPConfirmation returned error: ShipNode does not exist in the system.
+Response: This XML file does not appear to have any style information associated with it. The document tree is shown below.
+
+&lt;Errors&gt;
+&lt;Error ErrorCode=&quot;YDM00085&quot; ErrorDescription=&quot;ShipNode does not exist in the system.&quot; ErrorRelatedMoreInfo=&quot;&quot;&gt;
+&lt;Attribute Name=&quot;ErrorCode&quot; Value=&quot;YDM00085&quot;/&gt;
+&lt;Attribute Name=&quot;ErrorDescription&quot; Value=&quot;ShipNode does not exist in the system.&quot;/&gt;
+&lt;Attribute Name=&quot; Found value &quot; Value=&quot;0625&quot;/&gt;
+&lt;Attribute Name=&quot; Expected Value &quot; Value=&quot;IT33&quot;/&gt;
+&lt;Stack&gt;com.yantra.yfc.util.YFCExcepti</span>
+        </div>
+      </div>
+
+    </div>
+    <div class="stage-detail">
+      <h3>Delivery & POD Events <span class="stage-id">(delivery)</span></h3>
+      <div class="step fail">
+        <div class="step-header">
+          <span class="badge fail">FAIL</span>
+          <strong>Poll</strong>
+          <span class="dur">308357ms</span>
+          <span class="err">Polling timed out after 30 attempts</span>
+        </div>
+      </div>
+
+    </div>
+    <div class="stage-detail">
+      <h3>Forward Invoice & Reconciliation <span class="stage-id">(forward-invoice)</span></h3>
+      <div class="step fail">
+        <div class="step-header">
+          <span class="badge fail">FAIL</span>
+          <strong>Poll</strong>
+          <span class="dur">78515ms</span>
+          <span class="err">Polling timed out after 15 attempts</span>
+        </div>
+      </div>
+
+    </div>
+    <div class="stage-detail">
+      <h3>Forward Flow Email & PDF Verification <span class="stage-id">(forward-comms)</span></h3>
+      <div class="step skip">
+        <div class="step-header">
+          <span class="badge skip">SKIP</span>
+          <strong>step-03a</strong>
+          <span class="dur">skipped</span>
+          
+        </div>
+        
+      </div>
+      <div class="step skip">
+        <div class="step-header">
+          <span class="badge skip">SKIP</span>
+          <strong>step-07a</strong>
+          <span class="dur">skipped</span>
+          
+        </div>
+        
+      </div>
+      <div class="step skip">
+        <div class="step-header">
+          <span class="badge skip">SKIP</span>
+          <strong>step-14a</strong>
+          <span class="dur">skipped</span>
+          
+        </div>
+        
+      </div>
+      <div class="step skip">
+        <div class="step-header">
+          <span class="badge skip">SKIP</span>
+          <strong>step-16a</strong>
+          <span class="dur">skipped</span>
+          
+        </div>
+        
+      </div>
+    </div>
+    <div class="stage-detail">
+      <h3>Create Return Order <span class="stage-id">(create-return)</span></h3>
+      <div class="step fail">
+        <div class="step-header">
+          <span class="badge fail">FAIL</span>
+          <strong>Action</strong>
+          <span class="dur">8204ms</span>
+          <span class="err">XAPI create return failed: XAPI adidasWE_CreateReturnFromSSRSvc returned error: Error description not available
+Response: This XML file does not appear to have any style information associated with it. The document tree is shown below.
+
+&lt;Errors&gt;
+&lt;Error ErrorCode=&quot;java.lang.IllegalArgumentException&quot; ErrorDescription=&quot;Error description not available&quot; ErrorRelatedMoreInfo=&quot;&quot;&gt;
+&lt;Attribute Name=&quot;ErrorCode&quot; Value=&quot;java.lang.IllegalArgumentException&quot;/&gt;
+&lt;Attribute Name=&quot;ErrorDescription&quot; Value=&quot;Error description not available&quot;/&gt;
+&lt;Error ErrorCode=&quot;java.lang.IllegalArgumentException&quot; ErrorDescription=&quot;&quot; ErrorRelatedMoreInfo=&quot;</span>
+        </div>
+      </div>
+
+    </div>
+    <div class="stage-detail">
+      <h3>Return Delivery & Credit Note <span class="stage-id">(return-delivery)</span></h3>
+      <div class="step fail">
+        <div class="step-header">
+          <span class="badge fail">FAIL</span>
+          <strong>Poll</strong>
+          <span class="dur">307692ms</span>
+          <span class="err">Order APT42867576 not found</span>
+        </div>
+      </div>
+
+    </div>
+    <div class="stage-detail">
+      <h3>Return Email, PDF & Browser Verification <span class="stage-id">(return-comms)</span></h3>
+      <div class="step skip">
+        <div class="step-header">
+          <span class="badge skip">SKIP</span>
+          <strong>step-21a</strong>
+          <span class="dur">skipped</span>
+          
+        </div>
+        
+      </div>
+      <div class="step skip">
+        <div class="step-header">
+          <span class="badge skip">SKIP</span>
+          <strong>step-26a</strong>
+          <span class="dur">skipped</span>
+          
+        </div>
+        
+      </div>
+      <div class="step skip">
+        <div class="step-header">
+          <span class="badge skip">SKIP</span>
+          <strong>step-31a</strong>
+          <span class="dur">skipped</span>
+          
+        </div>
+        
+      </div>
+      <div class="step skip">
+        <div class="step-header">
+          <span class="badge skip">SKIP</span>
+          <strong>step-20a</strong>
+          <span class="dur">skipped</span>
+          
+        </div>
+        
+      </div>
+      <div class="step skip">
+        <div class="step-header">
+          <span class="badge skip">SKIP</span>
+          <strong>step-32</strong>
+          <span class="dur">skipped</span>
+          
+        </div>
+        
+      </div>
+      <div class="step skip">
+        <div class="step-header">
+          <span class="badge skip">SKIP</span>
+          <strong>step-17a</strong>
+          <span class="dur">skipped</span>
+          
+        </div>
+        
+      </div>
+      <div class="step skip">
+        <div class="step-header">
+          <span class="badge skip">SKIP</span>
+          <strong>step-18a</strong>
+          <span class="dur">skipped</span>
+          
+        </div>
+        
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Generated by <strong>Agentic QE v3</strong> — Action Orchestrator</p>
+  </footer>
+</div>
+</body>
+</html>
