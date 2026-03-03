@@ -8,7 +8,7 @@
  *
  * Read routing:
  *   REST JSON → POST /invoke/{apiName}
- *   Used for: getOrderDetails, getShipmentListForOrder, getOrderInvoiceList, etc.
+ *   Used for: getOrder, getShipmentListForOrder, getOrderInvoiceList, etc.
  *
  * When XAPI is not available, write stages fall back to REST JSON with a warning.
  * REST writes may not work for Adidas custom flows (adidasWE_*) — see sterling-patterns.ts.
@@ -28,8 +28,10 @@ import {
   step2_StampShipNode,
   step3_ResolveHold,
   step4_ProcessPayment,
-  step5_0_GetATP,
-  step5_0_AdjustInventory,
+  step5_1_GetATP,
+  step5_2_AdjustInventory,
+  step5_3_GetInventoryNodeControlList,
+  step5_4_ManageInventoryNodeControl,
   step5_ScheduleOrder,
   step6_ReleaseOrder,
   step7_Ship,
@@ -92,6 +94,19 @@ const DEFAULT_TEST_DATA: TC01TestData = {
 // Helpers
 // ============================================================================
 
+/**
+ * Delay before AutoPOC service calls to avoid locking the previous XAPI execution step.
+ * The XAPI JSP page needs time to finish rendering the previous response before
+ * a new service can be selected from the dropdown.
+ * Set to 0 in tests via setAutoPOCDelay(0).
+ */
+let AUTOPOC_DELAY_MS = 3000;
+export function setAutoPOCDelay(ms: number): void { AUTOPOC_DELAY_MS = ms; }
+function delayForAutoPOC(): Promise<void> {
+  if (AUTOPOC_DELAY_MS <= 0) return Promise.resolve();
+  return new Promise(r => setTimeout(r, AUTOPOC_DELAY_MS));
+}
+
 /** Build an OrderContext for XML templates from the current test context. */
 function buildOrderCtx(ctx: AdidasTestContext): OrderContext {
   return {
@@ -99,7 +114,7 @@ function buildOrderCtx(ctx: AdidasTestContext): OrderContext {
     enterpriseCode: ctx.enterpriseCode,
     documentType: ctx.documentType || '0001',
     shipNode: ctx.shipNode || 'IT33',
-    releaseNo: ctx.releaseNo || '0001',
+    releaseNo: ctx.releaseNo || '1',
     todayISO: new Date().toISOString(),
   };
 }
@@ -216,7 +231,7 @@ export function buildTC01Lifecycle(
       poll: async (ctx) => {
         const start = Date.now();
         const result = await ctx.sterlingClient.pollUntil(
-          () => ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId }),
+          () => ctx.sterlingClient.getOrder({ OrderNo: ctx.orderId }),
           (order) => !!order.OrderNo && !!order.Status,
           { maxAttempts: 10, intervalMs: 3000 }
         );
@@ -225,14 +240,35 @@ export function buildTC01Lifecycle(
           return { success: false, error: result.error.message, durationMs: Date.now() - start };
         }
 
-        // Enrich context with shipNode, itemId, unitOfMeasure from order lines
+        // Enrich context from order data
         const order = result.value;
         const lines = ensureArray(order.OrderLines?.OrderLine);
         const data: Record<string, unknown> = {};
         if (lines.length > 0) {
           if (lines[0].ShipNode) data.shipNode = lines[0].ShipNode;
           if (lines[0].ItemID) data.itemId = lines[0].ItemID;
-          data.unitOfMeasure = lines[0].UnitOfMeasure ?? 'EACH';
+          data.unitOfMeasure = lines[0].UnitOfMeasure ?? 'PIECE';
+        }
+
+        // PersonInfoShipTo: read from /OrderList/Order/PersonInfoShipTo level (not line level)
+        // per Sunil's v3.1 instructions — order-level address is the canonical source
+        if (order.PersonInfoShipTo) {
+          data.personInfoShipTo = order.PersonInfoShipTo;
+        }
+
+        // AutoPOC enrichment: OrderStatus_AutoPOC returns full field set via output template
+        // v3.1 doc: "Use custom services instead of calling getOrderList API"
+        if (ctx.xapiClient) {
+          try {
+            await delayForAutoPOC();
+            const orderCtx = buildOrderCtx(ctx);
+            const pocTmpl = autoPOC_OrderStatus(orderCtx);
+            const pocResp = await ctx.xapiClient.invokeOrThrow(pocTmpl.service, pocTmpl.xml);
+            data.autoPocOrderXml = pocResp.body;
+            console.log(`  [AutoPOC] OrderStatus_AutoPOC (create-order enrichment): OK (${pocResp.duration}ms)`);
+          } catch (pocErr) {
+            console.warn(`  [WARN] AutoPOC create-order enrichment failed: ${pocErr instanceof Error ? pocErr.message : pocErr}`);
+          }
         }
 
         return { success: true, data, durationMs: Date.now() - start };
@@ -261,42 +297,110 @@ export function buildTC01Lifecycle(
           try {
             const orderCtx = buildOrderCtx(ctx);
 
-            // Step 5.0: Inventory check (getATP → adjustInventory if needed)
-            // UAT test data injection — only runs when itemId known from poll enrichment
-            if (ctx.itemId) {
-              try {
-                const atpTmpl = step5_0_GetATP(orderCtx, ctx.itemId, ctx.unitOfMeasure ?? 'EACH');
-                const atpResp = await ctx.xapiClient.invoke(atpTmpl.api, atpTmpl.xml);
+            // Step 5.1: Check inventory at node via getATP (dev: Sunil, v3.1 Step 5)
+            // Uses itemId from order enrichment or defaults to EE6464_530
+            const invItemId = ctx.itemId ?? 'EE6464_530';
+            const invUom = ctx.unitOfMeasure ?? 'PIECE';
+            try {
+              const atpTmpl = step5_1_GetATP(orderCtx, invItemId, invUom);
+              const atpResp = await ctx.xapiClient.invoke(atpTmpl.api, atpTmpl.xml);
 
-                // Parse ATP response — check numeric availability
-                let hasStock = false;
-                if (atpResp.success) {
-                  const qtyMatch = atpResp.body.match(/AvailableQuantity="([\d.]+)"/);
-                  hasStock = qtyMatch ? parseFloat(qtyMatch[1]) > 0 : false;
-                }
-
-                if (!hasStock) {
-                  // UAT guard: only inject inventory for test enterprise codes
-                  if (ctx.enterpriseCode.endsWith('_PT') || ctx.enterpriseCode.endsWith('_DE')) {
-                    const adjTmpl = step5_0_AdjustInventory(orderCtx, ctx.itemId, ctx.unitOfMeasure ?? 'EACH');
-                    await ctx.xapiClient.invokeOrThrow(adjTmpl.api, adjTmpl.xml);
-                  } else {
-                    console.warn(`[TC01] ATP is zero but adjustInventory skipped — non-UAT enterprise: ${ctx.enterpriseCode}`);
-                  }
-                }
-              } catch (e) {
-                // Inventory check is best-effort — log warning but don't block schedule
-                console.warn(`[TC01] Inventory check failed: ${e instanceof Error ? e.message : e}`);
+              // Parse ATP response — XPath: //InventoryInformation/Item/AvailableToPromiseInventory/Availability/Available/@Quantity
+              let hasStock = false;
+              if (atpResp.success) {
+                const qtyMatch = atpResp.body.match(/Available[^>]*Quantity="([\d.]+)"/);
+                hasStock = qtyMatch ? parseFloat(qtyMatch[1]) > 0 : false;
               }
+
+              // Step 5.2: If supply is zero or negative, call adjustInventory (UAT guard)
+              if (!hasStock) {
+                if (ctx.enterpriseCode.endsWith('_PT') || ctx.enterpriseCode.endsWith('_DE')) {
+                  const adjQty = 50;
+                  const adjTmpl = step5_2_AdjustInventory(orderCtx, invItemId, invUom, adjQty);
+                  await ctx.xapiClient.invokeOrThrow(adjTmpl.api, adjTmpl.xml);
+                  console.log(`  [TC01] Step 5.2: Inventory adjusted — ${invItemId} at ${orderCtx.shipNode} → ${adjQty} ${invUom}`);
+                } else {
+                  console.warn(`[TC01] ATP is zero but adjustInventory skipped — non-UAT enterprise: ${ctx.enterpriseCode}`);
+                }
+              } else {
+                console.log(`  [TC01] Step 5.1: ATP check passed — ${invItemId} has stock at ${orderCtx.shipNode}`);
+              }
+            } catch (e) {
+              // Inventory check is best-effort — log warning but don't block schedule
+              console.warn(`[TC01] Inventory check failed: ${e instanceof Error ? e.message : e}`);
             }
 
-            // Step 5: Schedule Order
+            // Step 5.3: Check inventory node control for dirty node / inventory lock
+            // If InvPictureIncorrectTillDate is in the future, clear it before scheduling
+            try {
+              const incTmpl = step5_3_GetInventoryNodeControlList(orderCtx, invItemId, invUom);
+              const incResp = await ctx.xapiClient.invoke(incTmpl.api, incTmpl.xml);
+
+              if (incResp.success) {
+                const tillDateMatch = incResp.body.match(/InvPictureIncorrectTillDate="([^"]*)"/);
+                if (tillDateMatch && tillDateMatch[1]) {
+                  const tillDate = new Date(tillDateMatch[1]);
+                  if (tillDate > new Date()) {
+                    // Step 5.4: Clear dirty node — future lock date found
+                    console.log(`  [TC01] Step 5.3: Inventory lock detected — InvPictureIncorrectTillDate=${tillDateMatch[1]}`);
+                    const mncTmpl = step5_4_ManageInventoryNodeControl(orderCtx, invItemId, invUom);
+                    await ctx.xapiClient.invokeOrThrow(mncTmpl.api, mncTmpl.xml);
+                    console.log(`  [TC01] Step 5.4: Dirty node cleared — InventoryPictureCorrect=Y`);
+                  } else {
+                    console.log(`  [TC01] Step 5.3: No active inventory lock (date in past)`);
+                  }
+                } else {
+                  console.log(`  [TC01] Step 5.3: No inventory node control record — OK`);
+                }
+              }
+            } catch (e) {
+              // Inventory node control is best-effort — don't block schedule
+              console.warn(`[TC01] Step 5.3/5.4: Inventory node control check failed: ${e instanceof Error ? e.message : e}`);
+            }
+
+            // Step 5.5: Schedule Order
             const tmpl5 = step5_ScheduleOrder(orderCtx);
             await ctx.xapiClient.invokeOrThrow(tmpl5.api, tmpl5.xml);
+
+            // Step 5.6: Post-schedule backorder check via OrderStatus_AutoPOC
+            // v3.1 doc: "If the Order status is in Backorder then don't proceed to Step 6.
+            //            Flag it for developer review."
+            try {
+              await delayForAutoPOC();
+              const schedPoc = autoPOC_OrderStatus(orderCtx);
+              const schedPocResp = await ctx.xapiClient.invokeOrThrow(schedPoc.service, schedPoc.xml);
+              const statusMatch = schedPocResp.body.match(/Status="([^"]*)"/);
+              const failCodeMatch = schedPocResp.body.match(/SchedFailureReasonCode="([^"]*)"/);
+
+              if (failCodeMatch && failCodeMatch[1]) {
+                const msg = `Step 5.6: ORDER IN BACKORDER — SchedFailureReasonCode="${failCodeMatch[1]}". Blocked per v3.1 instructions. Developer review required.`;
+                console.error(`  [TC01] ${msg}`);
+                return { success: false, error: msg, durationMs: Date.now() - start };
+              }
+              console.log(`  [TC01] Step 5.6: Post-schedule status OK — Status=${statusMatch?.[1] ?? 'unknown'} (${schedPocResp.duration}ms)`);
+            } catch (schedPocErr) {
+              console.warn(`  [WARN] Step 5.6 post-schedule check failed: ${schedPocErr instanceof Error ? schedPocErr.message : schedPocErr}`);
+            }
 
             // Step 6: Release Order
             const tmpl6 = step6_ReleaseOrder(orderCtx);
             await ctx.xapiClient.invokeOrThrow(tmpl6.api, tmpl6.xml);
+
+            // Step 6.1: Verify order status after release via OrderStatus_AutoPOC
+            try {
+              await delayForAutoPOC();
+              const orderPoc = autoPOC_OrderStatus(orderCtx);
+              const orderPocResp = await ctx.xapiClient.invokeOrThrow(orderPoc.service, orderPoc.xml);
+              console.log(`  [AutoPOC] Step 6.1: OrderStatus_AutoPOC (post-release): OK (${orderPocResp.duration}ms)`);
+
+              // Step 6.2: Fetch release details via ReleaseStatus_AutoPOC
+              await delayForAutoPOC();
+              const relPoc = autoPOC_ReleaseStatus(orderCtx);
+              const relPocResp = await ctx.xapiClient.invokeOrThrow(relPoc.service, relPoc.xml);
+              console.log(`  [AutoPOC] Step 6.2: ReleaseStatus_AutoPOC (post-release): OK (${relPocResp.duration}ms)`);
+            } catch (pocErr) {
+              console.warn(`  [WARN] AutoPOC post-release validation failed: ${pocErr instanceof Error ? pocErr.message : pocErr}`);
+            }
 
             return { success: true, durationMs: Date.now() - start };
           } catch (e) {
@@ -315,7 +419,7 @@ export function buildTC01Lifecycle(
       poll: async (ctx) => {
         const start = Date.now();
         const result = await ctx.sterlingClient.pollUntil(
-          () => ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId }),
+          () => ctx.sterlingClient.getOrder({ OrderNo: ctx.orderId }),
           (order) => order.Status >= '3200',
           { maxAttempts: 20, intervalMs: 5000 }
         );
@@ -346,6 +450,26 @@ export function buildTC01Lifecycle(
           data.releaseNo = relResult.value[0].ReleaseNo;
         }
 
+        // AutoPOC enrichment: OrderStatus + ReleaseStatus return full field sets
+        if (ctx.xapiClient) {
+          try {
+            await delayForAutoPOC();
+            const orderCtx = buildOrderCtx(ctx);
+            const orderPoc = autoPOC_OrderStatus(orderCtx);
+            const orderPocResp = await ctx.xapiClient.invokeOrThrow(orderPoc.service, orderPoc.xml);
+            data.autoPocOrderXml = orderPocResp.body;
+            console.log(`  [AutoPOC] OrderStatus_AutoPOC (release enrichment): OK (${orderPocResp.duration}ms)`);
+
+            await delayForAutoPOC();
+            const relPoc = autoPOC_ReleaseStatus(orderCtx);
+            const relPocResp = await ctx.xapiClient.invokeOrThrow(relPoc.service, relPoc.xml);
+            data.autoPocReleaseXml = relPocResp.body;
+            console.log(`  [AutoPOC] ReleaseStatus_AutoPOC (release enrichment): OK (${relPocResp.duration}ms)`);
+          } catch (pocErr) {
+            console.warn(`  [WARN] AutoPOC release enrichment failed: ${pocErr instanceof Error ? pocErr.message : pocErr}`);
+          }
+        }
+
         return { success: true, data, durationMs: Date.now() - start };
       },
       verifyStepIds: ['step-02'],
@@ -363,7 +487,7 @@ export function buildTC01Lifecycle(
         const start = Date.now();
 
         // Check if order is already shipped (--order mode on progressed orders)
-        const orderCheck = await ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId });
+        const orderCheck = await ctx.sterlingClient.getOrder({ OrderNo: ctx.orderId });
         if (orderCheck.success) {
           const maxStatus = parseFloat((orderCheck.value as Record<string, unknown>).MaxOrderStatus as string ?? '0');
           if (maxStatus >= 3350) {
@@ -378,17 +502,23 @@ export function buildTC01Lifecycle(
 
             // Enrich orderCtx from AutoPOC services (dynamic step 7 payload)
             try {
+              await delayForAutoPOC();
               const releaseTmpl = autoPOC_ReleaseStatus(orderCtx);
               const releaseResp = await ctx.xapiClient.invokeOrThrow(releaseTmpl.service, releaseTmpl.xml);
               const scacMatch = releaseResp.body.match(/SCAC="([^"]*)"/);
               const csMatch = releaseResp.body.match(/CarrierServiceCode="([^"]*)"/);
               const relNoMatch = releaseResp.body.match(/ReleaseNo="([^"]*)"/);
-              const shipNodeMatch = releaseResp.body.match(/ShipNode="([^"]*)"/);
               if (scacMatch) orderCtx.scac = scacMatch[1];
               if (csMatch) orderCtx.carrierServiceCode = csMatch[1];
               if (relNoMatch) orderCtx.releaseNo = relNoMatch[1];
-              if (shipNodeMatch) orderCtx.shipNode = shipNodeMatch[1];
+              // NOTE: Do NOT extract ShipNode from ReleaseStatus_AutoPOC — the regex
+              // grabs the first ShipNode= attribute which is on the <OrderRelease> element
+              // (e.g. "0625" — a distribution/sourcing node). The actual fulfillment node
+              // is on the <OrderLine> element (e.g. "IT33"). Using the release-level node
+              // causes YDM00085 "ShipNode does not exist in the system".
+              // ShipNode is already set correctly from buildOrderCtx() (Step 2 value or IT33 default).
 
+              await delayForAutoPOC();
               const orderTmpl = autoPOC_OrderStatus(orderCtx);
               const orderResp = await ctx.xapiClient.invokeOrThrow(orderTmpl.service, orderTmpl.xml);
               const itemMatch = orderResp.body.match(/ItemID="([^"]*)"/);
@@ -407,6 +537,7 @@ export function buildTC01Lifecycle(
 
             // Step 7.4: Enrich from ShipmentStatus_AutoPOC (ShipAdviceNo for step 8)
             try {
+              await delayForAutoPOC();
               const shipTmpl = autoPOC_ShipmentStatus(orderCtx);
               const shipResp = await ctx.xapiClient.invokeOrThrow(shipTmpl.service, shipTmpl.xml);
               const shipAdvMatch = shipResp.body.match(/ShipAdviceNo="([^"]*)"/);
@@ -418,6 +549,16 @@ export function buildTC01Lifecycle(
             // Step 8: Ship Confirmed (SO Acknowledgment flow)
             const tmpl8 = step8_ShipConfirm(orderCtx);
             await ctx.xapiClient.invokeOrThrow(tmpl8.service, tmpl8.xml);
+
+            // Step 8 AutoPOC validation: verify shipment status after ship confirm
+            try {
+              await delayForAutoPOC();
+              const shipPoc = autoPOC_ShipmentStatus(orderCtx);
+              const shipPocResp = await ctx.xapiClient.invokeOrThrow(shipPoc.service, shipPoc.xml);
+              console.log(`  [AutoPOC] ShipmentStatus_AutoPOC (post-ship-confirm): OK (${shipPocResp.duration}ms)`);
+            } catch (pocErr) {
+              console.warn(`  [WARN] AutoPOC post-ship-confirm validation failed: ${pocErr instanceof Error ? pocErr.message : pocErr}`);
+            }
 
             return { success: true, durationMs: Date.now() - start };
           } catch (e) {
@@ -445,11 +586,25 @@ export function buildTC01Lifecycle(
         const start = Date.now();
 
         // Status-based check: if already shipped, skip polling for shipment list
-        const orderCheck = await ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId });
+        const orderCheck = await ctx.sterlingClient.getOrder({ OrderNo: ctx.orderId });
         if (orderCheck.success) {
           const maxStatus = parseFloat((orderCheck.value as Record<string, unknown>).MaxOrderStatus as string ?? '0');
           if (maxStatus >= 3350) {
-            return { success: true, durationMs: Date.now() - start };
+            // AutoPOC enrichment even on shortcut — verification steps need the full field set
+            const shortcutData: Record<string, unknown> = {};
+            if (ctx.xapiClient) {
+              try {
+                await delayForAutoPOC();
+                const orderCtx = buildOrderCtx(ctx);
+                const shipPoc = autoPOC_ShipmentStatus(orderCtx);
+                const shipPocResp = await ctx.xapiClient.invokeOrThrow(shipPoc.service, shipPoc.xml);
+                shortcutData.autoPocShipmentXml = shipPocResp.body;
+                console.log(`  [AutoPOC] ShipmentStatus_AutoPOC (shipment enrichment, status shortcut): OK (${shipPocResp.duration}ms)`);
+              } catch (pocErr) {
+                console.warn(`  [WARN] AutoPOC shipment enrichment failed (status shortcut): ${pocErr instanceof Error ? pocErr.message : pocErr}`);
+              }
+            }
+            return { success: true, data: shortcutData, durationMs: Date.now() - start };
           }
         }
 
@@ -463,7 +618,22 @@ export function buildTC01Lifecycle(
           return { success: false, error: result.error.message, durationMs: Date.now() - start };
         }
 
-        return { success: true, durationMs: Date.now() - start };
+        // AutoPOC enrichment: ShipmentStatus returns TrackingNo, SCAC, ShipmentNo with output template
+        const shipPollData: Record<string, unknown> = {};
+        if (ctx.xapiClient) {
+          try {
+            await delayForAutoPOC();
+            const orderCtx = buildOrderCtx(ctx);
+            const shipPoc = autoPOC_ShipmentStatus(orderCtx);
+            const shipPocResp = await ctx.xapiClient.invokeOrThrow(shipPoc.service, shipPoc.xml);
+            shipPollData.autoPocShipmentXml = shipPocResp.body;
+            console.log(`  [AutoPOC] ShipmentStatus_AutoPOC (shipment enrichment): OK (${shipPocResp.duration}ms)`);
+          } catch (pocErr) {
+            console.warn(`  [WARN] AutoPOC shipment enrichment failed: ${pocErr instanceof Error ? pocErr.message : pocErr}`);
+          }
+        }
+
+        return { success: true, data: shipPollData, durationMs: Date.now() - start };
       },
       verifyStepIds: ['step-03', 'step-04', 'step-05', 'step-06', 'step-07', 'step-08', 'step-09'],
       fallback: 'manual',
@@ -480,7 +650,7 @@ export function buildTC01Lifecycle(
         const start = Date.now();
 
         // Check if delivery already happened (--order mode on progressed orders)
-        const orderCheck = await ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId });
+        const orderCheck = await ctx.sterlingClient.getOrder({ OrderNo: ctx.orderId });
         if (orderCheck.success) {
           const maxStatus = parseFloat((orderCheck.value as Record<string, unknown>).MaxOrderStatus as string ?? '0');
           if (maxStatus >= 3700) {
@@ -493,6 +663,17 @@ export function buildTC01Lifecycle(
             const orderCtx = buildOrderCtx(ctx);
             const tmpl = step10_Deliver(orderCtx);
             await ctx.xapiClient.invokeOrThrow(tmpl.service, tmpl.xml);
+
+            // Step 10 AutoPOC validation: verify order status after delivery
+            try {
+              await delayForAutoPOC();
+              const orderPoc = autoPOC_OrderStatus(orderCtx);
+              const orderPocResp = await ctx.xapiClient.invokeOrThrow(orderPoc.service, orderPoc.xml);
+              console.log(`  [AutoPOC] OrderStatus_AutoPOC (post-delivery): OK (${orderPocResp.duration}ms)`);
+            } catch (pocErr) {
+              console.warn(`  [WARN] AutoPOC post-delivery validation failed: ${pocErr instanceof Error ? pocErr.message : pocErr}`);
+            }
+
             return { success: true, durationMs: Date.now() - start };
           } catch (e) {
             // POD may already exist (--order mode) — treat as non-fatal
@@ -506,7 +687,7 @@ export function buildTC01Lifecycle(
       poll: async (ctx) => {
         const start = Date.now();
         const result = await ctx.sterlingClient.pollUntil(
-          () => ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId }),
+          () => ctx.sterlingClient.getOrder({ OrderNo: ctx.orderId }),
           (order) => {
             // Status-based check: MaxOrderStatus >= 3700 means delivery happened
             const maxStatus = parseFloat((order as Record<string, unknown>).MaxOrderStatus as string ?? '0');
@@ -523,9 +704,24 @@ export function buildTC01Lifecycle(
           return { success: false, error: result.error.message, durationMs: Date.now() - start };
         }
 
-        return { success: true, durationMs: Date.now() - start };
+        // AutoPOC enrichment: OrderStatus returns full notes/status after delivery
+        const deliveryData: Record<string, unknown> = {};
+        if (ctx.xapiClient) {
+          try {
+            await delayForAutoPOC();
+            const orderCtx = buildOrderCtx(ctx);
+            const orderPoc = autoPOC_OrderStatus(orderCtx);
+            const orderPocResp = await ctx.xapiClient.invokeOrThrow(orderPoc.service, orderPoc.xml);
+            deliveryData.autoPocOrderXml = orderPocResp.body;
+            console.log(`  [AutoPOC] OrderStatus_AutoPOC (delivery enrichment): OK (${orderPocResp.duration}ms)`);
+          } catch (pocErr) {
+            console.warn(`  [WARN] AutoPOC delivery enrichment failed: ${pocErr instanceof Error ? pocErr.message : pocErr}`);
+          }
+        }
+
+        return { success: true, data: deliveryData, durationMs: Date.now() - start };
       },
-      verifyStepIds: ['step-10', 'step-11'],
+      verifyStepIds: ['step-10', 'step-10a', 'step-11'],
       fallback: 'skip',
     },
 
@@ -548,19 +744,28 @@ export function buildTC01Lifecycle(
           return { success: false, error: result.error.message, durationMs: Date.now() - start };
         }
 
-        // AutoPOC assertion: verify invoice status via custom service
+        // AutoPOC enrichment: InvoiceStatus returns DateInvoiced, AmountCollected via output template
+        const invoiceData: Record<string, unknown> = {};
         if (ctx.xapiClient) {
           try {
+            await delayForAutoPOC();
             const orderCtx = buildOrderCtx(ctx);
             const invTmpl = autoPOC_InvoiceStatus(orderCtx);
             const invResp = await ctx.xapiClient.invokeOrThrow(invTmpl.service, invTmpl.xml);
-            console.log(`  [AutoPOC] InvoiceStatus_AutoPOC: OK (${invResp.duration}ms)`);
+            invoiceData.autoPocForwardInvoiceXml = invResp.body;
+            // Dev doc: check for Status="01" (invoice created)
+            const statusMatch = invResp.body.match(/OrderInvoice[^>]*Status="([^"]*)"/);
+            if (statusMatch && statusMatch[1] !== '01') {
+              console.warn(`  [AutoPOC] InvoiceStatus_AutoPOC: Status="${statusMatch[1]}" (expected "01")`);
+            } else {
+              console.log(`  [AutoPOC] InvoiceStatus_AutoPOC: OK — Status=${statusMatch?.[1] ?? 'unknown'} (${invResp.duration}ms)`);
+            }
           } catch (invErr) {
             console.warn(`  [WARN] InvoiceStatus_AutoPOC failed: ${invErr instanceof Error ? invErr.message : invErr}`);
           }
         }
 
-        return { success: true, durationMs: Date.now() - start };
+        return { success: true, data: invoiceData, durationMs: Date.now() - start };
       },
       verifyStepIds: ['step-12', 'step-12a'],
       fallback: 'skip',
@@ -593,7 +798,7 @@ export function buildTC01Lifecycle(
         const start = Date.now();
 
         // Check if return already exists (--order mode on completed orders)
-        const orderCheck = await ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId });
+        const orderCheck = await ctx.sterlingClient.getOrder({ OrderNo: ctx.orderId });
         if (orderCheck.success) {
           const maxStatus = parseFloat((orderCheck.value as Record<string, unknown>).MaxOrderStatus as string ?? '0');
           if (maxStatus >= 3700) {
@@ -646,7 +851,7 @@ export function buildTC01Lifecycle(
         const returnOrderNo = ctx.returnOrderNo ?? ctx.orderId;
 
         // First check if forward order already shows return status (--order mode)
-        const fwdCheck = await ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId });
+        const fwdCheck = await ctx.sterlingClient.getOrder({ OrderNo: ctx.orderId });
         if (fwdCheck.success) {
           const maxStatus = parseFloat((fwdCheck.value as Record<string, unknown>).MaxOrderStatus as string ?? '0');
           if (maxStatus >= 3700) {
@@ -656,7 +861,7 @@ export function buildTC01Lifecycle(
 
         // Try polling return document type (XAPI-created returns)
         const result = await ctx.sterlingClient.pollUntil(
-          () => ctx.sterlingClient.getOrderDetails({ OrderNo: returnOrderNo, DocumentType: '0003' }),
+          () => ctx.sterlingClient.getOrder({ OrderNo: returnOrderNo, DocumentType: '0003' }),
           (order) => !!order.OrderNo && order.DocumentType === '0003',
           { maxAttempts: 15, intervalMs: 5000 }
         );
@@ -715,17 +920,31 @@ export function buildTC01Lifecycle(
         const returnOrderNo = ctx.returnOrderNo ?? ctx.orderId;
 
         // First check if forward order already shows return completion (--order mode)
-        const fwdCheck = await ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId });
+        const fwdCheck = await ctx.sterlingClient.getOrder({ OrderNo: ctx.orderId });
         if (fwdCheck.success) {
           const maxStatus = parseFloat((fwdCheck.value as Record<string, unknown>).MaxOrderStatus as string ?? '0');
           if (maxStatus >= 3700) {
-            return { success: true, durationMs: Date.now() - start, data: { returnDelivered: true } };
+            // AutoPOC enrichment even on shortcut — step-25 credit note verification needs the full field set
+            const shortcutData: Record<string, unknown> = { returnDelivered: true };
+            if (ctx.xapiClient) {
+              try {
+                await delayForAutoPOC();
+                const orderCtx = buildOrderCtx(ctx);
+                const invPoc = autoPOC_InvoiceStatus(orderCtx);
+                const invPocResp = await ctx.xapiClient.invokeOrThrow(invPoc.service, invPoc.xml);
+                shortcutData.autoPocCreditNoteInvoiceXml = invPocResp.body;
+                console.log(`  [AutoPOC] InvoiceStatus_AutoPOC (credit note enrichment, status shortcut): OK (${invPocResp.duration}ms)`);
+              } catch (pocErr) {
+                console.warn(`  [WARN] AutoPOC credit note enrichment failed (status shortcut): ${pocErr instanceof Error ? pocErr.message : pocErr}`);
+              }
+            }
+            return { success: true, durationMs: Date.now() - start, data: shortcutData };
           }
         }
 
         // Poll return document type for carrier events (XAPI-created returns)
         const trackingResult = await ctx.sterlingClient.pollUntil(
-          () => ctx.sterlingClient.getOrderDetails({ OrderNo: returnOrderNo, DocumentType: '0003' }),
+          () => ctx.sterlingClient.getOrder({ OrderNo: returnOrderNo, DocumentType: '0003' }),
           (order) => {
             // Status-based check
             const maxStatus = parseFloat((order as Record<string, unknown>).MaxOrderStatus as string ?? '0');
@@ -744,7 +963,22 @@ export function buildTC01Lifecycle(
           return { success: false, error: trackingResult.error.message, durationMs: Date.now() - start };
         }
 
-        return { success: true, durationMs: Date.now() - start };
+        // AutoPOC enrichment: InvoiceStatus returns credit note details after return completion
+        const returnData: Record<string, unknown> = {};
+        if (ctx.xapiClient) {
+          try {
+            await delayForAutoPOC();
+            const orderCtx = buildOrderCtx(ctx);
+            const invPoc = autoPOC_InvoiceStatus(orderCtx);
+            const invPocResp = await ctx.xapiClient.invokeOrThrow(invPoc.service, invPoc.xml);
+            returnData.autoPocCreditNoteInvoiceXml = invPocResp.body;
+            console.log(`  [AutoPOC] InvoiceStatus_AutoPOC (credit note enrichment): OK (${invPocResp.duration}ms)`);
+          } catch (pocErr) {
+            console.warn(`  [WARN] AutoPOC return-delivery enrichment failed: ${pocErr instanceof Error ? pocErr.message : pocErr}`);
+          }
+        }
+
+        return { success: true, data: returnData, durationMs: Date.now() - start };
       },
       verifyStepIds: ['step-24', 'step-25', 'step-26'],
       fallback: 'skip',

@@ -14,7 +14,7 @@ describe('Rule 1.5: output-template-missing-field', () => {
   it('diagnoses output template gap when status satisfied but field checks fail', async () => {
     // Mock sterlingClient for the probe — status 3700 (past create-order target 1100)
     const mockSterlingClient = {
-      getOrderDetails: async () => ({
+      getOrder: async () => ({
         success: true as const,
         value: { MaxOrderStatus: '3700', Status: 'Shipped', Notes: {} },
       }),
@@ -83,7 +83,7 @@ describe('Rule 1.5: output-template-missing-field', () => {
 
   it('falls back to status-already-satisfied when no field checks fail', async () => {
     const mockSterlingClient = {
-      getOrderDetails: async () => ({
+      getOrder: async () => ({
         success: true as const,
         value: { MaxOrderStatus: '3700', Status: 'Shipped', Notes: {} },
       }),
@@ -144,7 +144,7 @@ describe('Rule 1.5: output-template-missing-field', () => {
 
   it('does not trigger Rule 1.5 for non-field-presence check failures', async () => {
     const mockSterlingClient = {
-      getOrderDetails: async () => ({
+      getOrder: async () => ({
         success: true as const,
         value: { MaxOrderStatus: '3700', Status: 'Shipped', Notes: {} },
       }),

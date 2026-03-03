@@ -79,7 +79,7 @@ async function probeOrderState(ctx: AdidasTestContext): Promise<OrderSnapshot> {
 
   try {
     const [orderResult, shipmentResult] = await Promise.allSettled([
-      ctx.sterlingClient.getOrderDetails({ OrderNo: ctx.orderId }),
+      ctx.sterlingClient.getOrder({ OrderNo: ctx.orderId }),
       ctx.sterlingClient.getShipmentListForOrder({ OrderNo: ctx.orderId }),
     ]);
 
@@ -171,7 +171,7 @@ async function findRecovery(
           patternId: best.id,
           patternName: best.name,
           diagnosis: `Pattern "${best.name}" matched (confidence ${best.confidence.toFixed(2)})`,
-          action: resolvePatternAction(best.name, snapshot),
+          action: resolvePatternAction(best.name, snapshot, stageId),
         };
       }
     } catch {
@@ -247,13 +247,30 @@ async function findRecovery(
 
 /**
  * Resolve a named pattern to an action based on current state.
+ * State-aware: patterns like "status-already-satisfied" are only valid when the
+ * snapshot actually confirms the condition. This prevents PatternStore text-scoring
+ * false positives (keyword overlap without semantic validation).
  */
-function resolvePatternAction(patternName: string, _snapshot: OrderSnapshot): 'retry' | 'continue' | 'abort' {
+function resolvePatternAction(
+  patternName: string,
+  snapshot: OrderSnapshot,
+  stageId?: string,
+): 'retry' | 'continue' | 'abort' {
   switch (patternName) {
     case 'invoice-delay-recovery':
     case 'credit-note-task-queue-recovery':
       return 'retry';
-    case 'status-already-satisfied':
+    case 'status-already-satisfied': {
+      // Guard: only "continue" if status actually satisfies the stage target.
+      // Without this, PatternStore text-scoring can match on keyword overlap
+      // (e.g. pattern content mentions "confirm-shipment" and "status") even when
+      // the order hasn't reached the required status yet.
+      const target = stageId ? STAGE_STATUS_TARGET[stageId] : undefined;
+      if (target && snapshot.maxStatus < target) {
+        return 'retry'; // Status NOT satisfied — don't skip, let orchestrator retry
+      }
+      return 'continue';
+    }
     case 'document-type-0003-not-found':
     case 'credit-note-not-available':
     case 'output-template-missing-field':

@@ -43,7 +43,7 @@ function makeCtx(overrides: Partial<AdidasTestContext> = {}): AdidasTestContext 
     orderId: 'APT12345678',
     documentType: '0001',
     sterlingClient: {
-      getOrderDetails: vi.fn().mockResolvedValue({ success: false, error: { message: 'mock', apiName: 'test' } }),
+      getOrder: vi.fn().mockResolvedValue({ success: false, error: { message: 'mock', apiName: 'test' } }),
       getShipmentListForOrder: vi.fn().mockResolvedValue({ success: false, error: { message: 'mock', apiName: 'test' } }),
       getOrderInvoiceList: vi.fn().mockResolvedValue({ success: false, error: { message: 'mock', apiName: 'test' } }),
     } as unknown as AdidasTestContext['sterlingClient'],

@@ -267,7 +267,8 @@ export interface SterlingApiError {
 
 export interface SterlingClient {
   // Order CRUD
-  getOrderDetails(params: OrderDetailsParams): Promise<Result<Order, SterlingApiError>>;
+  /** Fetches a single order via getOrderList (NOT getOrderDetails which takes a DB row lock). */
+  getOrder(params: OrderDetailsParams): Promise<Result<Order, SterlingApiError>>;
   createOrder(payload: CreateOrderInput): Promise<Result<Order, SterlingApiError>>;
   changeOrder(payload: ChangeOrderInput): Promise<Result<Order, SterlingApiError>>;
 

@@ -48,8 +48,16 @@ export interface RecoveryError {
 // Constants
 // ============================================================================
 
-const POLL_MAX_ATTEMPTS = 18;
-const POLL_INTERVAL_MS = 10_000;
+/** Total time budget for invoice poll (10 minutes). */
+export const INVOICE_POLL_BUDGET_MS = 600_000;
+/** Shortened poll budget when executeTask kicks the task directly. */
+export const INVOICE_POLL_KICKED_BUDGET_MS = 60_000;
+/** Initial poll interval — catches already-generated invoices fast. */
+export const INVOICE_POLL_INITIAL_MS = 5_000;
+/** Maximum poll interval — no longer than 30s between checks. */
+export const INVOICE_POLL_MAX_MS = 30_000;
+/** Backoff multiplier per poll iteration. */
+export const INVOICE_POLL_BACKOFF = 1.5;
 const ONE_DAY_MS = 86_400_000;
 
 // ============================================================================
@@ -58,6 +66,98 @@ const ONE_DAY_MS = 86_400_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Compute next poll interval using exponential backoff with cap.
+ * Sequence: 5s → 7.5s → 11.25s → 16.9s → 25.3s → 30s → 30s → ...
+ * Total budget ~600s spans two batch agent cycles.
+ */
+export function nextPollInterval(attempt: number): number {
+  const raw = INVOICE_POLL_INITIAL_MS * Math.pow(INVOICE_POLL_BACKOFF, attempt);
+  return Math.min(raw, INVOICE_POLL_MAX_MS);
+}
+
+// ============================================================================
+// Shared: Verify backdate + Probe executeTask (Fix #3: no duplication)
+// ============================================================================
+
+interface VerifyAndKickResult {
+  backdatePersisted: boolean;
+  taskKicked: boolean;
+}
+
+/**
+ * After backdating AvailableDate, verify it persisted and try to kick the task.
+ *
+ * 1. Read back the task record — if AvailableDate is still in the future,
+ *    retry the backdate once. If still future after retry, return false
+ *    so the caller can abort instead of burning 10min polling.
+ * 2. Probe executeTask API — if it exists, kick the task directly.
+ *
+ * Appends diagnostic steps to the steps array.
+ */
+async function verifyBackdateAndKick(
+  xapiClient: XAPIClient,
+  shipmentKey: string,
+  taskQKey: string,
+  steps: string[],
+): Promise<VerifyAndKickResult> {
+  // ---- Verify backdate persisted (read-back) ----------------------------
+  let backdatePersisted = true;
+
+  const verifyResp = await xapiClient.invoke('manageTaskQueue',
+    `<TaskQueue DataKey="${shipmentKey}" DataType="ShipmentKey"/>`);
+  const newAvailDate = verifyResp.body.match(/AvailableDate="([^"]+)"/)?.[1];
+
+  if (newAvailDate) {
+    const parsedDate = new Date(newAvailDate.replace(' ', 'T') + 'Z');
+    if (parsedDate.getTime() > Date.now()) {
+      // First attempt failed — retry backdate once
+      steps.push(`Backdate read-back: AvailableDate=${newAvailDate} still in future — retrying`);
+      const retryDate = new Date(Date.now() - ONE_DAY_MS)
+        .toISOString().replace('T', ' ').replace(/\.\d+Z$/, '.000');
+      await xapiClient.invoke('manageTaskQueue',
+        `<TaskQueue AvailableDate="${retryDate}" DataKey="${shipmentKey}" DataType="ShipmentKey" TaskQKey="${taskQKey}"/>`);
+
+      // Second read-back
+      const retryVerify = await xapiClient.invoke('manageTaskQueue',
+        `<TaskQueue DataKey="${shipmentKey}" DataType="ShipmentKey"/>`);
+      const retryAvailDate = retryVerify.body.match(/AvailableDate="([^"]+)"/)?.[1];
+      if (retryAvailDate) {
+        const retryParsed = new Date(retryAvailDate.replace(' ', 'T') + 'Z');
+        if (retryParsed.getTime() > Date.now()) {
+          steps.push(`BACKDATE NOT PERSISTED after retry: AvailableDate=${retryAvailDate} still in future`);
+          backdatePersisted = false;
+        } else {
+          steps.push(`Backdate verified on retry: AvailableDate=${retryAvailDate} is in the past`);
+        }
+      } else {
+        steps.push('Backdate verification: task consumed between retry and read-back (likely succeeded)');
+      }
+    } else {
+      steps.push(`Backdate verified: AvailableDate=${newAvailDate} is in the past`);
+    }
+  } else {
+    steps.push('Backdate verification: task already consumed (backdate likely succeeded)');
+  }
+
+  // ---- Probe executeTask API (force immediate execution) ----------------
+  let taskKicked = false;
+  try {
+    const execResp = await xapiClient.invoke('executeTask',
+      `<TaskQueue TaskQKey="${taskQKey}"/>`);
+    if (execResp.success) {
+      steps.push('executeTask succeeded — task kicked directly');
+      taskKicked = true;
+    } else {
+      steps.push(`executeTask not available: ${execResp.error ?? 'unknown error'}`);
+    }
+  } catch (e) {
+    steps.push(`executeTask probe failed: ${e instanceof Error ? e.message : 'page error'}`);
+  }
+
+  return { backdatePersisted, taskKicked };
 }
 
 // ============================================================================
@@ -156,10 +256,31 @@ export async function recoverInvoiceGeneration(
 
     steps.push(`AvailableDate moved to: ${pastDate}`);
 
-    // ---- Step 4: Poll for invoice (up to 3 minutes) -----------------------
+    // ---- Step 3b+3c: Verify backdate + probe executeTask ------------------
+    const { backdatePersisted, taskKicked } = await verifyBackdateAndKick(
+      xapiClient, shipmentKey, taskQKey, steps,
+    );
+
+    // If backdate definitively failed, abort — don't burn 10min on a doomed poll
+    if (!backdatePersisted && !taskKicked) {
+      return ok({
+        recovered: false,
+        strategy: 'fix-invoice-generation',
+        duration: Date.now() - start,
+        details: [...steps, 'Aborting: backdate not persisted and executeTask unavailable. Sterling will not pick up this task.'].join('\n'),
+      });
+    }
+
+    // ---- Step 4: Poll for invoice (adaptive backoff, wall-clock budget) ---
+    const pollBudget = taskKicked ? INVOICE_POLL_KICKED_BUDGET_MS : INVOICE_POLL_BUDGET_MS;
     let invoiceFound = false;
-    for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
-      await sleep(POLL_INTERVAL_MS);
+    const pollStart = Date.now();
+    let pollCount = 0;
+
+    while ((Date.now() - pollStart) < pollBudget) {
+      const interval = nextPollInterval(pollCount);
+      await sleep(interval);
+      pollCount++;
 
       const invoiceResponse = await xapiClient.invoke('getOrderInvoiceList',
         `<OrderInvoice OrderNo="${orderNo}" EnterpriseCode="${enterpriseCode}" DocumentType="0001"/>`);
@@ -168,17 +289,19 @@ export async function recoverInvoiceGeneration(
           invoiceResponse.body.includes('InvoiceNo') &&
           !invoiceResponse.body.includes('TotalNumberOfRecords="0"')) {
         invoiceFound = true;
-        steps.push(`Invoice found after ${i + 1} poll(s)`);
+        const wallElapsed = Math.round((Date.now() - pollStart) / 1000);
+        steps.push(`Invoice found after ${pollCount} poll(s), ${wallElapsed}s`);
         break;
       }
     }
 
     if (!invoiceFound) {
+      const wallElapsed = Math.round((Date.now() - pollStart) / 1000);
       return ok({
         recovered: false,
         strategy: 'fix-invoice-generation',
         duration: Date.now() - start,
-        details: [...steps, `Invoice not generated after ${POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS / 1000}s. Sterling job may not have run.`].join('\n'),
+        details: [...steps, `Invoice not generated after ${pollCount} polls (${wallElapsed}s). Sterling batch agent may not have run.`].join('\n'),
       });
     }
 
@@ -349,9 +472,27 @@ export async function recoverCreditNote(
     }
     steps.push(`TaskQKey=${taskQKey}, AvailableDate ${availDate} → ${pastDate}`);
 
-    // Step 4: Poll for return invoice (InvoiceType="RETURN")
-    for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
-      await sleep(POLL_INTERVAL_MS);
+    // Step 3b+3c: Verify backdate + probe executeTask
+    const { backdatePersisted, taskKicked } = await verifyBackdateAndKick(
+      xapiClient, shipmentKey!, taskQKey, steps,
+    );
+
+    if (!backdatePersisted && !taskKicked) {
+      return ok({
+        recovered: false, strategy: 'fix-credit-note', duration: Date.now() - start,
+        details: [...steps, 'Aborting: backdate not persisted and executeTask unavailable'].join('. '),
+      });
+    }
+
+    // Step 4: Poll for return invoice (adaptive backoff, wall-clock budget)
+    const pollBudget = taskKicked ? INVOICE_POLL_KICKED_BUDGET_MS : INVOICE_POLL_BUDGET_MS;
+    const pollStart = Date.now();
+    let pollCount = 0;
+
+    while ((Date.now() - pollStart) < pollBudget) {
+      const interval = nextPollInterval(pollCount);
+      await sleep(interval);
+      pollCount++;
 
       for (const [oNo, docType] of [[returnOrderNo, '0003'], [salesOrderNo, '0001']] as const) {
         const invoiceResp = await xapiClient.invoke('getOrderInvoiceList',
@@ -360,17 +501,19 @@ export async function recoverCreditNote(
             (invoiceResp.body.includes('InvoiceType="RETURN"') ||
              invoiceResp.body.includes('InvoiceType="CREDIT_MEMO"'))) {
           const invoiceNo = invoiceResp.body.match(/InvoiceNo="([^"]+)"/)?.[1] ?? 'unknown';
+          const wallElapsed = Math.round((Date.now() - pollStart) / 1000);
           return ok({
             recovered: true, strategy: 'fix-credit-note', duration: Date.now() - start,
-            details: [...steps, `Return invoice found after ${i + 1} poll(s): InvoiceNo=${invoiceNo} on order ${oNo}`].join('. '),
+            details: [...steps, `Return invoice found after ${pollCount} poll(s) (${wallElapsed}s): InvoiceNo=${invoiceNo} on order ${oNo}`].join('. '),
           });
         }
       }
     }
 
+    const wallElapsed = Math.round((Date.now() - pollStart) / 1000);
     return ok({
       recovered: false, strategy: 'fix-credit-note', duration: Date.now() - start,
-      details: [...steps, `No return invoice after ${POLL_MAX_ATTEMPTS} polls. Return invoice is generated by WMS ReturnConfirmation flow — may not have been triggered in UAT`].join('. '),
+      details: [...steps, `No return invoice after ${pollCount} polls (${wallElapsed}s). Return invoice is generated by WMS ReturnConfirmation flow — may not have been triggered in UAT`].join('. '),
     });
   } catch (e) {
     return ok({

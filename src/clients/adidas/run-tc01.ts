@@ -394,7 +394,19 @@ export async function main(): Promise<void> {
     console.error('Pre-flight FAILED: Sterling is unreachable. Check VPN and ADIDAS_OMNI_HOST.');
     process.exit(1);
   }
-  console.log('Pre-flight: Sterling is reachable\n');
+  console.log('Pre-flight: Sterling is reachable');
+
+  // EPOCH GraphQL health check (L2 provider)
+  if (!args.skipLayer2 && ctx.iibProvider) {
+    const iibOk = await ctx.iibProvider.healthCheck();
+    console.log(`Pre-flight: EPOCH GraphQL ${iibOk ? 'is reachable' : 'UNREACHABLE — L2 checks will return graceful warnings'}`);
+    if (!iibOk) {
+      console.log('  Set ADIDAS_EPOCH_GRAPHQL_URL to a UAT endpoint to enable L2 IIB checks');
+    }
+  } else if (!args.skipLayer2) {
+    console.log('Pre-flight: No IIB provider configured — L2 steps will be skipped');
+  }
+  console.log('');
 
   const stages = buildTC01Lifecycle();
   const runId = `o2c-${Date.now()}`;

@@ -328,9 +328,9 @@ describe('createStepRunner (Layer-1 skip mode)', () => {
 // ---------------------------------------------------------------------------
 
 describe('STERLING_PATTERNS', () => {
-  it('exports 21 patterns', async () => {
+  it('exports 27 patterns', async () => {
     const { STERLING_PATTERNS } = await import('../../../../src/clients/adidas/sterling-patterns');
-    expect(STERLING_PATTERNS).toHaveLength(21);
+    expect(STERLING_PATTERNS).toHaveLength(27);
   });
 
   it('every pattern has required fields', async () => {
@@ -346,11 +346,14 @@ describe('STERLING_PATTERNS', () => {
     }
   });
 
-  it('includes output-template-missing-field and getOrderList-field-coverage patterns', async () => {
+  it('includes output-template, getOrderList-only-policy, and dev-answer patterns', async () => {
     const { STERLING_PATTERNS } = await import('../../../../src/clients/adidas/sterling-patterns');
     const names = STERLING_PATTERNS.map(p => p.name);
     expect(names).toContain('output-template-missing-field');
-    expect(names).toContain('getOrderList-field-coverage');
+    expect(names).toContain('getOrderList-only-policy');
+    expect(names).toContain('return-invoice-task-queue');
+    expect(names).toContain('epoch-query-all-transactions');
+    expect(names).toContain('credit-note-trigger-wms');
   });
 });
 

@@ -39,6 +39,14 @@ const KNOWN_SERVICE_FLOWS = new Set([
   'adidasWE_CreateReturnFromSSRSvc',
   'adidasWE_ProcessReturnPODUpdates',
   'adidasWE_ProcessReturnCompletionUpdateSvc',
+  // AutoPOC custom services — v3.1 doc line 14:
+  // "Custom services are referred as service and it wont be available in
+  //  yantrahttpapitester.jsp JSP dropdown"
+  // Must use IsFlow=Y + ServiceName field, NOT the API dropdown.
+  'OrderStatus_AutoPOC',
+  'ReleaseStatus_AutoPOC',
+  'ShipmentStatus_AutoPOC',
+  'InvoiceStatus_AutoPOC',
 ]);
 
 function isServiceFlow(serviceName: string): boolean {
@@ -303,7 +311,7 @@ class PlaywrightXAPIClient implements XAPIClient {
  *   password: 'secret',
  * });
  * if (!result.success) throw new Error(result.error);
- * const response = await result.value.invoke('getOrderDetails', orderXml);
+ * const response = await result.value.invoke('getOrderList', orderXml);
  * await result.value.close?.();
  * ```
  */

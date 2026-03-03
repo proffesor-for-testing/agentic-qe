@@ -81,7 +81,7 @@ describe('healing-handler pattern store ungating', () => {
       orderId: 'TEST-001',
       documentType: '0001',
       sterlingClient: {
-        getOrderDetails: async () => ({ success: false, error: 'test' }),
+        getOrder: async () => ({ success: false, error: 'test' }),
         getShipmentListForOrder: async () => ({ success: false, error: 'test' }),
       },
       enterpriseCode: 'adidas_PT',

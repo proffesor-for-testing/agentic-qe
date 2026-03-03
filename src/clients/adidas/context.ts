@@ -61,6 +61,17 @@ export interface AdidasTestContext extends BaseTestContext {
   pdfExtractor?: PdfExtractor;
   browserProvider?: BrowserProvider;
 
+  // AutoPOC enrichment — raw XML responses stored for verification fallback
+  // These contain the full field set from Sterling output templates, unlike raw REST APIs
+  autoPocOrderXml?: string;
+  autoPocReleaseXml?: string;
+  autoPocShipmentXml?: string;
+  // Invoice enrichment split: forward invoice (step-12) vs credit note (step-25) are
+  // separate documents in Sterling. Keeping them distinct avoids clobbering when stages
+  // run sequentially (forward-invoice poll writes one, return-delivery poll writes the other).
+  autoPocForwardInvoiceXml?: string;
+  autoPocCreditNoteInvoiceXml?: string;
+
   // PDF buffers — populated during test execution when PDFs are retrieved
   forwardLabelPdf?: Buffer;
   returnLabelPdf?: Buffer;

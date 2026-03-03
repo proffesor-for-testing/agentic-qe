@@ -4,7 +4,7 @@
  * Each step uses the MINIMUM fields Sterling needs.
  * Dynamic values (OrderNo, ReleaseNo, etc.) are injected at runtime.
  *
- * Reference: APT order life cycle payloads_v1.xml
+ * Reference: APT order life cycle payloads_v3 1.xml (v3.1)
  * Enterprise: adidas_PT (Portugal, UAT)
  */
 
@@ -46,6 +46,12 @@ export function generateOrderNo(): string {
   return `APT${suffix}`;
 }
 
+/** Strip leading zeros from releaseNo — v3.1 doc uses "1" not "0001" in TrackingNo/ShipmentNo */
+function normalizeReleaseNo(releaseNo: string): string {
+  const stripped = releaseNo.replace(/^0+/, '');
+  return stripped || '1'; // fallback to "1" if all zeros
+}
+
 function today(): string {
   return new Date().toISOString();
 }
@@ -55,6 +61,19 @@ function today(): string {
 // ============================================================================
 
 export function step1_CreateOrder(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
+  // Compute dynamic date windows for collection/delivery periods (v3.1 alignment)
+  const now = new Date();
+  const collectionDate = new Date(now.getTime() + 2 * 86400000); // +2 days
+  const deliveryStart = new Date(now.getTime() + 5 * 86400000);  // +5 days
+  const deliveryEnd = new Date(now.getTime() + 5 * 86400000);
+  const collectionISO = `${collectionDate.toISOString().split('.')[0]}.000Z`;
+  const deliveryStartISO = `${deliveryStart.toISOString().split('T')[0]}T07:00:00.000Z`;
+  const deliveryEndISO = `${deliveryEnd.toISOString().split('T')[0]}T17:00:00.000Z`;
+  const collectionPeriod = `${collectionISO},${collectionISO}`;
+  const deliveryPeriod = `${deliveryStartISO},${deliveryEndISO}`;
+  const leadTime = now.toISOString().replace(/[-:T.Z]/g, '').slice(0, 23);
+  const shipmentUUID = crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
   return {
     service: 'adidasWE_CreateOrderSync',
     isFlow: true,
@@ -65,30 +84,39 @@ export function step1_CreateOrder(ctx: OrderContext): { service: string; isFlow:
       <ADSHeaderDetails CustomAttributeValue="true" CustomAttributeKey="billingAddressSanity" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="READY_FOR_EXPORT" CustomAttributeKey="carrierStatus" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="true" CustomAttributeKey="shippingAddressSanity" CustomAttributeHeader="custom-attributes"/>
+      <ADSHeaderDetails CustomAttributeValue="null" CustomAttributeKey="TierID" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="${ctx.orderNo}a" CustomAttributeKey="subOrderNo" CustomAttributeHeader="shipment"/>
       <ADSHeaderDetails CustomAttributeValue="COR" CustomAttributeKey="carrierName" CustomAttributeHeader="shipment"/>
       <ADSHeaderDetails CustomAttributeValue="STRD" CustomAttributeKey="carrierCode" CustomAttributeHeader="shipping-lineitem"/>
       <ADSHeaderDetails CustomAttributeValue="COR000PT10407851" CustomAttributeKey="carrierServiceCode" CustomAttributeHeader="shipping-lineitem"/>
       <ADSHeaderDetails CustomAttributeValue="Standard-CS-2" CustomAttributeKey="shippingMethod" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="inline" CustomAttributeKey="deliveryMessage" CustomAttributeHeader="shipment"/>
+      <ADSHeaderDetails CustomAttributeValue="${collectionPeriod}" CustomAttributeKey="collectionPeriod" CustomAttributeHeader="shipping-lineitem"/>
       <ADSHeaderDetails CustomAttributeValue="inline" CustomAttributeKey="type" CustomAttributeHeader="shipping-lineitem"/>
       <ADSHeaderDetails CustomAttributeValue="Lisboa" CustomAttributeKey="city" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="IT33" CustomAttributeKey="node" CustomAttributeHeader="shipping-lineitem"/>
+      <ADSHeaderDetails CustomAttributeValue="${leadTime}" CustomAttributeKey="leadTime" CustomAttributeHeader="shipping-lineitem"/>
+      <ADSHeaderDetails CustomAttributeValue="${leadTime}" CustomAttributeKey="leadTime" CustomAttributeHeader="shipment"/>
       <ADSHeaderDetails CustomAttributeValue="FullTax" CustomAttributeKey="taxClassID" CustomAttributeHeader="shipping-lineitem"/>
       <ADSHeaderDetails CustomAttributeValue="inline" CustomAttributeKey="type" CustomAttributeHeader="shipment"/>
+      <ADSHeaderDetails CustomAttributeValue="${deliveryPeriod}" CustomAttributeKey="deliveryPeriod" CustomAttributeHeader="shipping-lineitem"/>
+      <ADSHeaderDetails CustomAttributeValue="" CustomAttributeKey="orderTrackData" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="adidas-PT" CustomAttributeKey="siteId" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="false" CustomAttributeKey="isCCOrder" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="${ctx.orderNo.replace('APT', '')}" CustomAttributeKey="invoiceNumber" CustomAttributeHeader="custom-attributes"/>
+      <ADSHeaderDetails CustomAttributeValue="${crypto?.randomUUID?.() ?? `${Date.now()}-cart`}" CustomAttributeKey="CartId" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="Web" CustomAttributeKey="orderSource" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="false" CustomAttributeKey="taxCalculationMissing" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="${ctx.orderNo}" CustomAttributeKey="customerEUCI" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="web" CustomAttributeKey="ChannelNo" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="CREDIT_CARD" CustomAttributeKey="paymentMethod" CustomAttributeHeader="custom-attributes"/>
+      <ADSHeaderDetails CustomAttributeValue="Cart\u00e3o de cr\u00e9dito/d\u00e9bito" CustomAttributeKey="paymentMethodName" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="adidas" CustomAttributeKey="brand" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="false" CustomAttributeKey="isPostamatDelivery" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="false" CustomAttributeKey="isHypeOrder" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="Y" CustomAttributeKey="isTransactionHub" CustomAttributeHeader="custom-attributes"/>
       <ADSHeaderDetails CustomAttributeValue="false" CustomAttributeKey="SettlementComplete" CustomAttributeHeader="shipment"/>
+      <ADSHeaderDetails CustomAttributeValue="PT999999990" CustomAttributeKey="codiceFiscale" CustomAttributeHeader="billing-address"/>
       <ADSHeaderDetails CustomAttributeValue="${today()}" CustomAttributeKey="ThubOrderDate" CustomAttributeHeader="custom-attributes"/>
     </ADSHeaderDetailsList>
   </Extn>
@@ -96,19 +124,42 @@ export function step1_CreateOrder(ctx: OrderContext): { service: string; isFlow:
     <OrderLine LineType="inline" GiftFlag="N" OrderedQty="1" PrimeLineNo="1" CarrierServiceCode="COR000PT10407851" SCAC="COR">
       <Item ItemDesc="Sapatos OZWEEGO" ItemID="EE6464_530" ItemShortDesc="Sapatos OZWEEGO" ProductClass="NEW" UnitOfMeasure="PIECE"/>
       <LinePriceInfo UnitPrice="120.0" ListPrice="120.0" IsPriceLocked="Y" TaxableFlag="Y" PricingUOM="PIECE"/>
+      <Instructions/>
+      <LineCharges/>
       <LineTaxes>
         <LineTax ChargeCategory="LineTax" ChargeName="OrderLineTax" TaxName="OrderLineTax" TaxPercentage="23.0" Tax="22.44" Reference1="FullTax"/>
       </LineTaxes>
-      <PersonInfoShipTo AddressLine1="Rua Marques de Fronteira" City="Lisboa" Country="PT" EMailID="meenuga.sunil.kumar@accenture.com" FirstName="sunil" LastName="kumar" ZipCode="1050-999" IsAddressVerified="Y">
+      <References>
+        <Reference Name="image" Value="https://assets.adidas.com/images/w_600,f_auto,q_auto/1a970dae8a564defbb64aa7600ffadcf_9366/Sapatos_OZWEEGO_EE6464_00_plp_standard.jpg"/>
+        <Reference Name="modelNumber" Value="EE6464"/>
+        <Reference Name="ivsReservationID" Value="${crypto?.randomUUID?.() ?? `${Date.now()}-ivs`}+${ctx.shipNode}"/>
+        <Reference Name="flashProduct" Value="false"/>
+        <Reference Name="saleChannels" Value="Web"/>
+        <Reference Name="literalSize" Value="36"/>
+        <Reference Name="size" Value="530"/>
+        <Reference Name="articleNumber" Value="EE6464"/>
+        <Reference Name="color" Value="Cloud White / Cloud White / Core Black"/>
+        <Reference Name="type" Value="inline"/>
+        <Reference Name="collectionPeriod" Value="${collectionPeriod}"/>
+        <Reference Name="deliveryPeriod" Value="${deliveryPeriod}"/>
+        <Reference Name="taxClassID" Value="FullTax"/>
+        <Reference Name="deliveryMessage" Value="inline"/>
+        <Reference Name="node" Value="IT33"/>
+        <Reference Name="leadTime" Value="${leadTime}"/>
+        <Reference Name="carrierServiceCode" Value="COR000PT10407851"/>
+        <Reference Name="originalOffset" Value="+01:00"/>
+        <Reference Name="carrierCode" Value="STRD"/>
+      </References>
+      <PersonInfoShipTo AddressLine1="Rua Marqu\u00eas de Fronteira" City="Lisboa" Country="PT" EMailID="meenuga.sunil.kumar@accenture.com" FirstName="sunil" LastName="kumar" ZipCode="1050-999" IsAddressVerified="Y">
         <Extn ExtnCustomerEUCI="${ctx.orderNo}"/>
       </PersonInfoShipTo>
-      <Extn ExtnArticleNumber="EE6464" ExtnColor="Cloud White / Cloud White / Core Black" ExtnModelNo="EE6464" ExtnSizeCode="530" ExtnSubOrderNo="${ctx.orderNo}a" ExtnLineType="inline" ExtnLocalSizeCode="36"/>
+      <Extn ExtnArticleNumber="EE6464" ExtnColor="Cloud White / Cloud White / Core Black" ExtnModelNo="EE6464" ExtnSizeCode="530" ExtnShipmentId="${shipmentUUID}" ExtnSubOrderNo="${ctx.orderNo}a" ExtnLineType="inline" ExtnLocalSizeCode="36" ExtnFirstPromisedDate="${deliveryEndISO}"/>
     </OrderLine>
   </OrderLines>
-  <PersonInfoBillTo AddressLine1="Rua Marques de Fronteira" City="Lisboa" Country="PT" EMailID="meenuga.sunil.kumar@accenture.com" FirstName="sunil" LastName="kumar" ZipCode="1050-999">
+  <PersonInfoBillTo AddressLine1="Rua Marqu\u00eas de Fronteira" City="Lisboa" Country="PT" EMailID="meenuga.sunil.kumar@accenture.com" FirstName="sunil" LastName="kumar" ZipCode="1050-999">
     <Extn ExtnCustomerEUCI="${ctx.orderNo}"/>
   </PersonInfoBillTo>
-  <PersonInfoShipTo AddressLine1="Rua Marques de Fronteira" City="Lisboa" Country="PT" EMailID="meenuga.sunil.kumar@accenture.com" FirstName="sunil" LastName="kumar" ZipCode="1050-999" IsAddressVerified="Y">
+  <PersonInfoShipTo AddressLine1="Rua Marqu\u00eas de Fronteira" City="Lisboa" Country="PT" EMailID="meenuga.sunil.kumar@accenture.com" FirstName="sunil" LastName="kumar" ZipCode="1050-999" IsAddressVerified="Y">
     <Extn ExtnCustomerEUCI="${ctx.orderNo}"/>
   </PersonInfoShipTo>
   <PriceInfo Currency="EUR" EnterpriseCurrency="EUR"/>
@@ -116,8 +167,9 @@ export function step1_CreateOrder(ctx: OrderContext): { service: string; isFlow:
     <Reference Name="taxation" Value="gross"/>
   </References>
   <HeaderCharges>
-    <HeaderCharge ChargeCategory="ShippingCharge" ChargeName="Shipping_Inline" ChargeAmount="0.0"/>
+    <HeaderCharge ChargeCategory="ShippingCharge" ChargeName="Shipping_Inline" ChargeAmount="0.0" Reference="${shipmentUUID}"/>
   </HeaderCharges>
+  <HeaderTaxes/>
   <PaymentMethods>
     <PaymentMethod CreditCardExpDate="03/30" CreditCardNo="1111" CreditCardType="VISA" PaymentReference2="ACI" PaymentReference3="${ctx.orderNo}" PaymentReference4="Adidas_PT" PaymentType="CREDIT_CARD" UnlimitedCharges="N" PaymentReference9="8ac7a4a19c9931ec019c99d4202c6ce7" PaymentReference1="${ctx.orderNo}">
       <PaymentDetails RequestAmount="120.0" AuthCode="000.100.112" AuthorizationExpirationDate="2500-01-01" ProcessedAmount="120.0" ChargeType="AUTHORIZATION" AuthAvs="8ac7a4a19c9931ec019c99d4202c6ce7" RequestId="8ac7a4a19c9931ec019c99d4202c6ce7"/>
@@ -193,34 +245,71 @@ export function step5_ScheduleOrder(ctx: OrderContext): { api: string; isFlow: f
 }
 
 // ============================================================================
-// Step 5.0 — Inventory Check (UAT pre-scheduling)
+// Steps 5.1/5.2 — Inventory Check (UAT pre-scheduling)
 // ============================================================================
 
-export function step5_0_GetATP(ctx: OrderContext, itemId: string, uom: string): { api: string; xml: string } {
+/**
+ * Step 5.1 — Check inventory at node via getATP.
+ * XML and API name from Adidas dev (Sunil) — NOT getAvailableToPromiseSummary.
+ * OrganizationCode is always adidas_WE (supply org), NOT enterpriseCode (adidas_PT).
+ * Response XPath: //InventoryInformation/Item/AvailableToPromiseInventory/Availability/Available/@Quantity
+ */
+export function step5_1_GetATP(ctx: OrderContext, itemId: string, uom: string): { api: string; xml: string } {
   return {
-    api: 'getAvailableToPromiseSummary',
-    xml: `<AvailableToPromise DistributionRuleId="adidas_WE_ATP" DemandType="FORECAST" OrganizationCode="${ctx.enterpriseCode}">
-  <AvailableToPromiseLines>
-    <AvailableToPromiseLine ItemID="${itemId}" UnitOfMeasure="${uom}" ShipNode="${ctx.shipNode}"/>
-  </AvailableToPromiseLines>
-</AvailableToPromise>`,
+    api: 'getATP',
+    xml: `<GetATP ItemID="${itemId}" OrganizationCode="adidas_WE" ProductClass="NEW" ShipNode="${ctx.shipNode}" UnitOfMeasure="${uom}" ConsiderUnassignedDemand="N"/>`,
   };
 }
 
 /**
- * UAT-only: Inject inventory when ATP is zero.
- * @param quantity - Amount to inject (default: 100). This is test data injection, not a production pattern.
+ * Step 5.2 — Inject inventory when ATP is zero (UAT-only).
+ * XML from Adidas dev (Sunil): <Items><Item .../> format with AdjustmentType=ABSOLUTE.
+ * Note: "Availabilty" is the spelling in Sterling's API (missing 'i') — matches dev payload.
+ * OrganizationCode is always adidas_WE (supply org).
+ * @param quantity - Amount to inject (default: 50 per dev instructions)
  */
-export function step5_0_AdjustInventory(
-  ctx: OrderContext, itemId: string, uom: string, quantity: number = 100,
+export function step5_2_AdjustInventory(
+  ctx: OrderContext, itemId: string, uom: string, quantity: number = 50,
 ): { api: string; xml: string } {
   return {
     api: 'adjustInventory',
-    xml: `<AdjustInventory ShipNode="${ctx.shipNode}">
-  <Inventory ItemID="${itemId}" UnitOfMeasure="${uom}" ProductClass="NEW" SupplyType="ONHAND">
-    <InventoryItem Quantity="${quantity}"/>
-  </Inventory>
-</AdjustInventory>`,
+    xml: `<Items><Item AdjustmentType="ABSOLUTE" Availabilty="TRACK" ItemID="${itemId}" OrganizationCode="adidas_WE" ProductClass="NEW" Quantity="${quantity}" ShipNode="${ctx.shipNode}" SupplyType="ONHAND" UnitOfMeasure="${uom}"/></Items>`,
+  };
+}
+
+// ============================================================================
+// Step 5.3 — Check Inventory Node Control (dirty node / inventory lock)
+// ============================================================================
+
+/**
+ * Step 5.3 — Check getInventoryNodeControlList for Node+ItemID combination.
+ * If InvPictureIncorrectTillDate is in the future, node has a lock → must clear it.
+ * Dev instructions (Sunil, v3.1): call BEFORE scheduleOrder to avoid Backorder.
+ */
+export function step5_3_GetInventoryNodeControlList(
+  ctx: OrderContext, itemId: string, uom: string,
+): { api: string; xml: string } {
+  return {
+    api: 'getInventoryNodeControlList',
+    xml: `<InventoryNodeControl ItemID="${itemId}" Node="${ctx.shipNode}" OrganizationCode="adidas_WE" ProductClass="NEW" UnitOfMeasure="${uom}"/>`,
+  };
+}
+
+// ============================================================================
+// Step 5.4 — Clear Dirty Node (manageInventoryNodeControl)
+// ============================================================================
+
+/**
+ * Step 5.4 — Remove dirty node flag at Node+ItemID combination.
+ * Sets InventoryPictureCorrect="Y" to clear InvPictureIncorrectTillDate lock.
+ * Dev instructions (Sunil, v3.1): call if step 5.3 returns a future lock date.
+ */
+export function step5_4_ManageInventoryNodeControl(
+  ctx: OrderContext, itemId: string, uom: string,
+): { api: string; xml: string } {
+  return {
+    api: 'manageInventoryNodeControl',
+    xml: `<InventoryNodeControl ItemID="${itemId}" Node="${ctx.shipNode}" ProductClass="NEW" InventoryPictureCorrect="Y" OrganizationCode="adidas_WE" UnitOfMeasure="${uom}"/>`,
   };
 }
 
@@ -249,8 +338,9 @@ export function step7_Ship(ctx: OrderContext): { service: string; isFlow: true; 
   const shipmentLineNo = ctx.shipmentLineNo ?? '1';
   const shipAdvNo = ctx.shipAdviceNo ?? '320614239';
   const sellerOrg = ctx.sellerOrgCode ?? ctx.enterpriseCode;
-  const shipmentNo = `${ctx.orderNo}-${ctx.releaseNo}`;
-  const trackingNo = `${ctx.orderNo}TR${ctx.releaseNo}`;
+  const relNo = normalizeReleaseNo(ctx.releaseNo);
+  const shipmentNo = `${ctx.orderNo}-${relNo}`;
+  const trackingNo = `${ctx.orderNo}TR${relNo}`;
   const containerNo = `${ctx.orderNo}C01`;
 
   return {
@@ -281,8 +371,9 @@ export function step7_Ship(ctx: OrderContext): { service: string; isFlow: true; 
 // ============================================================================
 
 export function step8_ShipConfirm(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
-  const shipmentNo = `${ctx.orderNo}-${ctx.releaseNo}`;
-  const trackingNo = `${ctx.orderNo}TR${ctx.releaseNo}`;
+  const relNo = normalizeReleaseNo(ctx.releaseNo);
+  const shipmentNo = `${ctx.orderNo}-${relNo}`;
+  const trackingNo = `${ctx.orderNo}TR${relNo}`;
   const itemId = ctx.itemId ?? 'EE6464_530';
   const qty = ctx.quantity ?? '1';
   const shipAdvNo = ctx.shipAdviceNo ?? '320614239';
@@ -320,7 +411,7 @@ export function step8_ShipConfirm(ctx: OrderContext): { service: string; isFlow:
 // ============================================================================
 
 export function step10_Deliver(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
-  const trackingNo = `${ctx.orderNo}TR${ctx.releaseNo}`;
+  const trackingNo = `${ctx.orderNo}TR${normalizeReleaseNo(ctx.releaseNo)}`;
 
   return {
     service: 'adidasWE_ProcessPODUpdate',
@@ -339,13 +430,15 @@ export function step10_Deliver(ctx: OrderContext): { service: string; isFlow: tr
 // ============================================================================
 
 export function step11_CreateReturn(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
+  const itemId = ctx.itemId ?? 'EE6464_530';
+
   return {
     service: 'adidasWE_CreateReturnFromSSRSvc',
     isFlow: true,
     xml: `<Order OrderNo="${ctx.orderNo}">
   <OrderLines>
     <OrderLine Quantity="1" PrimeLineNo="1" ReturnReasonCode="115" ReturnReasonText="Item Arrived Late">
-      <Item ItemID="EE6464_530"/>
+      <Item ItemID="${itemId}"/>
     </OrderLine>
   </OrderLines>
 </Order>`,
@@ -433,18 +526,20 @@ export function autoPOC_OrderStatus(ctx: OrderContext): { service: string; isFlo
 }
 
 export function autoPOC_ReleaseStatus(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
+  // v3.1 doc header: Input Payload: <OrderRelease DocumentType="0001" .../>
   return {
     service: 'ReleaseStatus_AutoPOC',
     isFlow: true,
-    xml: `<Order DocumentType="${ctx.documentType}" EnterpriseCode="${ctx.enterpriseCode}" OrderNo="${ctx.orderNo}" />`,
+    xml: `<OrderRelease DocumentType="${ctx.documentType}" EnterpriseCode="${ctx.enterpriseCode}" OrderNo="${ctx.orderNo}" />`,
   };
 }
 
 export function autoPOC_ShipmentStatus(ctx: OrderContext): { service: string; isFlow: true; xml: string } {
+  // v3.1 doc header: Input Payload: <Shipment DocumentType="0001" .../>
   return {
     service: 'ShipmentStatus_AutoPOC',
     isFlow: true,
-    xml: `<Order DocumentType="${ctx.documentType}" EnterpriseCode="${ctx.enterpriseCode}" OrderNo="${ctx.orderNo}" />`,
+    xml: `<Shipment DocumentType="${ctx.documentType}" EnterpriseCode="${ctx.enterpriseCode}" OrderNo="${ctx.orderNo}" />`,
   };
 }
 

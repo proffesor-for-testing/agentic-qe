@@ -148,12 +148,11 @@ class SterlingClientImpl implements SterlingClient {
   // --------------------------------------------------------------------------
 
   /**
-   * Fetch a single order by OrderNo.
-   * Internally uses getOrderList (with MaximumRecords=1) instead of the native
-   * getOrderDetails API because the latter takes a DB row lock on the order —
-   * confirmed by Adidas Sterling dev team.
+   * Fetch a single order by OrderNo via getOrderList (MaximumRecords=1).
+   * We NEVER call the native getOrderDetails API — it takes a DB row lock.
+   * Confirmed by Adidas Sterling dev team (Sunil).
    */
-  async getOrderDetails(params: OrderDetailsParams): Promise<Result<Order, SterlingApiError>> {
+  async getOrder(params: OrderDetailsParams): Promise<Result<Order, SterlingApiError>> {
     const listResult = await this.getOrderList({
       OrderNo: params.OrderNo,
       ...(params.DocumentType ? { DocumentType: params.DocumentType } : {}),
@@ -284,7 +283,7 @@ class SterlingClientImpl implements SterlingClient {
   // --------------------------------------------------------------------------
 
   async getATP(params: GetATPParams): Promise<Result<unknown, SterlingApiError>> {
-    return this.invoke('getAvailableToPromiseSummary', params as unknown as Record<string, unknown>);
+    return this.invoke('getATP', params as unknown as Record<string, unknown>);
   }
 
   async adjustInventory(params: AdjustInventoryParams): Promise<Result<unknown, SterlingApiError>> {

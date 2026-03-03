@@ -7,9 +7,11 @@
  * silent skip bugs at the integration seam.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { createActionOrchestrator } from '../../../../src/integrations/orchestration/action-orchestrator';
-import { buildTC01Lifecycle } from '../../../../src/clients/adidas/tc01-lifecycle';
+import { buildTC01Lifecycle, setAutoPOCDelay } from '../../../../src/clients/adidas/tc01-lifecycle';
+
+beforeAll(() => { setAutoPOCDelay(0); });
 import { tc01Steps } from '../../../../src/clients/adidas/tc01-steps';
 import type { AdidasTestContext } from '../../../../src/clients/adidas/context';
 import type { SterlingClient, Order, Shipment, OrderInvoice, OrderAudit } from '../../../../src/integrations/sterling/types';
@@ -73,7 +75,7 @@ function mockSterlingClient(): SterlingClient {
   const ok = <T>(value: T): Result<T, SterlingApiError> => ({ success: true, value });
 
   return {
-    getOrderDetails: vi.fn(async (params) => {
+    getOrder: vi.fn(async (params) => {
       if (params.DocumentType === '0003') return ok(returnOrder);
       return ok(baseOrder);
     }),
