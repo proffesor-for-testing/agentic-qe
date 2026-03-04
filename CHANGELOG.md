@@ -5,6 +5,25 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.8] - 2026-03-04
+
+### Added
+
+- **Loki-Mode adversarial quality gates (ADR-074)** — 7 new features to catch sycophantic AI outputs, hollow tests, and routing drift. All enabled by default (opt-out via config flags):
+  - **Anti-sycophancy scorer**: Detects rubber-stamp consensus via Jaccard similarity, confidence uniformity, and reasoning overlap across model votes
+  - **Test quality gates**: Catches tautological assertions (`expect(true).toBe(true)`), empty test bodies, and missing source imports in generated tests
+  - **Blind review orchestrator**: Runs N parallel test generators with varied temperatures, deduplicates results via Jaccard similarity
+  - **EMA calibration**: Exponential moving average tracks per-agent accuracy and derives dynamic voting weights, with SQLite state persistence
+  - **Edge-case injection**: Queries historical patterns from the learning store and injects proven edge cases into test generation prompts
+  - **Complexity-driven team composition**: Maps 8-dimension complexity analysis (AST + security + concurrency + API surface) to agent team composition
+  - **Auto-escalation tracker**: Consecutive failures auto-promote agent tier; consecutive successes auto-demote for cost optimization
+- **Smart experience consolidation** — Replace destructive pruning with intelligent consolidation that preserves high-value learning patterns while managing memory growth
+- **Multi-language test generation plan** — Architecture decision records (ADR-075 through ADR-079) for unified test framework type system, Tree-sitter WASM parser, compilation validation loop, backward-compatible API, and language-specific path resolution
+
+### Changed
+
+- **Loki-mode features enabled by default** — All 6 config flags (`enableSycophancyCheck`, `enableTestQualityGate`, `enableEdgeCaseInjection`, `enableEMACalibration`, `enableAutoEscalation`, `enableComplexityComposition`) default to `true` for immediate quality improvement
+
 ## [3.7.7] - 2026-03-02
 
 ### Added
