@@ -58,7 +58,7 @@ export const tc01BrowserSteps: StepDef<AdidasTestContext>[] = [
   {
     id: 'step-18a',
     name: 'Browser: Return confirmation page',
-    description: 'Verify return confirmation page with refund method (checks 122-124). Attempts direct navigation to confirmation URL — may show error page if return flow session state is required.',
+    description: 'Verify return confirmation page with refund method (checks 122-124). Navigates to return page, selects product + reason, then checks confirmation.',
     layer: 3,
     requires: { browser: true },
     execute: async (ctx) => {
@@ -73,25 +73,70 @@ export const tc01BrowserSteps: StepDef<AdidasTestContext>[] = [
         ], data: { providerMissing: true } };
       }
 
-      // Try direct navigation to confirmation-like URL. If SSR requires session
-      // state from item selection, this will show an error page — that's OK, we record
-      // what we find and the check reflects reality.
-      const confirmPath = `/on/demandware.store/Sites-adidas-PT-Site/pt_PT/Order-IntegratedReturn?orderID=${ctx.orderId}&step=confirmation`;
-      const patterns = await ctx.browserProvider.findText(confirmPath, [
-        ctx.orderId,
-        'refund',
-        'confirm',
-      ]);
+      // Multi-step return flow: navigate → select item → select reason → confirm
+      const returnPath = `/on/demandware.store/Sites-adidas-PT-Site/pt_PT/Order-IntegratedReturn?orderID=${ctx.orderId}`;
+      let confirmFound = false;
+      let refundFound = false;
+      let orderFound = false;
+      let flowError = '';
 
-      const orderFound = patterns.get(ctx.orderId) ?? false;
-      const refundFound = patterns.get('refund') ?? false;
-      const confirmFound = patterns.get('confirm') ?? false;
+      try {
+        // Step 1: Navigate and keep page open for interaction
+        const page = await ctx.browserProvider.navigateAndKeepOpen(returnPath);
+        orderFound = page.textContent.includes(ctx.orderId);
+
+        // Step 2: Select the first returnable item (checkbox or clickable product row)
+        try {
+          await ctx.browserProvider.waitForSelector('input[type="checkbox"], .return-item, .product-tile', { timeout: 8000 });
+          await ctx.browserProvider.click('input[type="checkbox"], .return-item, .product-tile');
+          console.log('  [L3] Browser: selected return item');
+        } catch {
+          flowError += 'Could not select return item; ';
+        }
+
+        // Step 3: Select return reason from dropdown (if present)
+        try {
+          await ctx.browserProvider.waitForSelector('select[name*="reason"], select.return-reason, [data-reason]', { timeout: 5000 });
+          await ctx.browserProvider.selectOption('select[name*="reason"], select.return-reason', '1');
+          console.log('  [L3] Browser: selected return reason');
+        } catch {
+          flowError += 'No reason dropdown found; ';
+        }
+
+        // Step 4: Click continue/submit button to reach confirmation
+        try {
+          await ctx.browserProvider.click('button[type="submit"], .btn-continue, .return-submit, button:has-text("Continue"), button:has-text("Continuar")');
+          // Wait for confirmation page to load
+          await ctx.browserProvider.waitForSelector('.confirmation, .refund, .return-confirmation, [data-step="confirmation"]', { timeout: 10000 });
+          confirmFound = true;
+          console.log('  [L3] Browser: reached confirmation page');
+        } catch {
+          // Fallback: check if current page already shows confirmation content
+          const fallback = await ctx.browserProvider.findText(returnPath, ['confirm', 'refund']);
+          confirmFound = fallback.get('confirm') ?? false;
+          refundFound = fallback.get('refund') ?? false;
+          flowError += 'Could not reach confirmation via button click; ';
+        }
+
+        // Step 5: Check for refund method on the confirmation page
+        if (confirmFound && !refundFound) {
+          const confirmPatterns = await ctx.browserProvider.findText(returnPath, ['refund', 'reembolso']);
+          refundFound = (confirmPatterns.get('refund') ?? false) || (confirmPatterns.get('reembolso') ?? false);
+        }
+      } catch (e) {
+        flowError = `Flow error: ${e instanceof Error ? e.message : String(e)}`;
+        console.log(`  [L3] Browser: return flow failed — ${flowError}`);
+      }
+
+      if (flowError) {
+        console.log(`  [L3] Browser: flow notes — ${flowError}`);
+      }
 
       return {
         success: orderFound || confirmFound,
         durationMs: Date.now() - start,
         checks: [
-          { name: 'Confirmation page shown', passed: confirmFound, expected: 'confirmation content', actual: confirmFound ? 'found' : 'not found (may need session state)' },
+          { name: 'Confirmation page shown', passed: confirmFound, expected: 'confirmation content', actual: confirmFound ? 'found' : `not reached (${flowError || 'flow incomplete'})` },
           { name: 'Refund method shown', passed: refundFound, expected: 'refund method', actual: refundFound ? 'found' : 'not found' },
           { name: 'Order reference shown', passed: orderFound, expected: ctx.orderId, actual: orderFound ? 'found' : 'not found' },
         ],

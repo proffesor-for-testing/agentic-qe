@@ -259,6 +259,16 @@ export interface PageCheckResult {
 export interface BrowserProvider {
   navigateAndCapture(path: string): Promise<PageCheckResult>;
   findText(path: string, patterns: string[]): Promise<Map<string, boolean>>;
+  /** Click an element on the current page by CSS selector */
+  click(selector: string): Promise<void>;
+  /** Fill a text input by CSS selector */
+  fill(selector: string, value: string): Promise<void>;
+  /** Select an option from a <select> dropdown by CSS selector */
+  selectOption(selector: string, value: string): Promise<void>;
+  /** Wait for a selector to appear on the current page */
+  waitForSelector(selector: string, options?: { timeout?: number }): Promise<void>;
+  /** Navigate to a path and keep the page open (returns the page for chained interactions) */
+  navigateAndKeepOpen(path: string): Promise<PageCheckResult & { pageRef: string }>;
   healthCheck(): Promise<boolean>;
   close(): Promise<void>;
 }

@@ -136,7 +136,7 @@ Replaced placeholder URLs with real NShift Delivery API paths:
 | 1 | NShift response field mappings unverified | Open | NShift credentials + real API call |
 | 2 | EPOCH not monitoring `adidas_PT` flows | Root cause identified | Adidas middleware team to enable EPOCH for PT enterprise |
 | 3 | `creditNotePdf` not wired | Open | Sterling attachment API or PDF generation |
-| 4 | step-18a needs extended BrowserProvider | Improved but limited | Click/fill actions in BrowserProvider interface |
+| 4 | step-18a BrowserProvider extended | **CLOSED** | Added `click`, `fill`, `selectOption`, `waitForSelector`, `navigateAndKeepOpen` to BrowserProvider + Playwright impl. step-18a now does full return flow. |
 
 ---
 

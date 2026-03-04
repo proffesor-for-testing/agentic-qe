@@ -27,6 +27,9 @@ class PlaywrightBrowserProvider implements BrowserProvider {
   private browser: any = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private context: any = null;
+  // Active page for multi-step interactions (navigateAndKeepOpen → click/fill/select)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private activePage: any = null;
 
   constructor(config: BrowserConfig) {
     this.config = config;
@@ -80,6 +83,44 @@ class PlaywrightBrowserProvider implements BrowserProvider {
     }
   }
 
+  async click(selector: string): Promise<void> {
+    if (!this.activePage) throw new Error('No active page — call navigateAndKeepOpen first');
+    await this.activePage.click(selector);
+  }
+
+  async fill(selector: string, value: string): Promise<void> {
+    if (!this.activePage) throw new Error('No active page — call navigateAndKeepOpen first');
+    await this.activePage.fill(selector, value);
+  }
+
+  async selectOption(selector: string, value: string): Promise<void> {
+    if (!this.activePage) throw new Error('No active page — call navigateAndKeepOpen first');
+    await this.activePage.selectOption(selector, value);
+  }
+
+  async waitForSelector(selector: string, options?: { timeout?: number }): Promise<void> {
+    if (!this.activePage) throw new Error('No active page — call navigateAndKeepOpen first');
+    await this.activePage.waitForSelector(selector, { timeout: options?.timeout ?? 10000 });
+  }
+
+  async navigateAndKeepOpen(path: string): Promise<PageCheckResult & { pageRef: string }> {
+    await this.ensureBrowser();
+    // Close previous active page if any
+    if (this.activePage) {
+      await this.activePage.close().catch(() => {});
+    }
+    this.activePage = await this.context.newPage();
+    const url = `${this.config.baseUrl}${path}`;
+    await this.activePage.goto(url, { waitUntil: 'networkidle' });
+    const textContent = await this.activePage.textContent('body') ?? '';
+    return {
+      url: this.activePage.url(),
+      title: await this.activePage.title(),
+      textContent,
+      pageRef: 'active',
+    };
+  }
+
   async healthCheck(): Promise<boolean> {
     try {
       await this.ensureBrowser();
@@ -93,6 +134,10 @@ class PlaywrightBrowserProvider implements BrowserProvider {
   }
 
   async close(): Promise<void> {
+    if (this.activePage) {
+      await this.activePage.close().catch(() => {});
+      this.activePage = null;
+    }
     if (this.browser) {
       await this.browser.close();
       this.browser = null;
