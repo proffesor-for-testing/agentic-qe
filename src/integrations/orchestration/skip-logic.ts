@@ -38,9 +38,9 @@ export function skipReason<TContext extends BaseTestContext>(
   step: StepDef<TContext>,
   config: SkipConfig
 ): string {
-  if (step.layer === 2 && config.skipLayer2) return 'Layer 2 skipped — EPOCH GraphQL bug (data in DB, not returned via API)';
+  if (step.layer === 2 && config.skipLayer2) return 'Layer 2 skipped — EPOCH GraphQL returns empty in UAT (works in SIT)';
   if (step.layer === 3 && config.skipLayer3) return 'Layer 3 steps skipped (no Layer 3 credentials)';
-  if (step.requires.iib && config.skipLayer2) return 'Requires IIB provider — EPOCH GraphQL bug (waiting on fix)';
+  if (step.requires.iib && config.skipLayer2) return 'Requires IIB/EPOCH — GraphQL returns empty in UAT (works in SIT)';
   if (step.requires.nshift && config.skipLayer3) return 'Requires NShift client (not available)';
   if (step.requires.email && config.skipLayer3) return 'Requires email provider (not available)';
   if (step.requires.pdf && config.skipLayer3) return 'Requires PDF extractor (not available)';

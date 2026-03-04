@@ -491,12 +491,12 @@ export async function main(): Promise<void> {
     }
   }
 
-  // EPOCH GraphQL has a known bug — data exists in DB but not returned via API.
-  // Auto-skip L2 until Prem fixes the GraphQL layer (expected after March 6).
-  // Remove this block once EPOCH GraphQL is confirmed working.
+  // EPOCH GraphQL returns empty results in UAT (confirmed working in SIT).
+  // Auto-skip L2 in UAT until the UAT GraphQL layer is fixed.
+  // Remove this block once EPOCH GraphQL is confirmed working in UAT.
   if (config.xapi.enabled && !args.skipLayer2) {
     args.skipLayer2 = true;
-    console.log('  L2 auto-skipped: EPOCH GraphQL bug — data exists in DB but not returned via API (waiting on fix)');
+    console.log('  L2 auto-skipped: EPOCH GraphQL returns empty in UAT (works in SIT, pending UAT fix)');
   }
 
   console.log(`  Layers: Sterling${args.skipLayer2 ? '' : ' + IIB'}${args.skipLayer3 ? '' : ' + NShift/Email/PDF/Browser'}`);
