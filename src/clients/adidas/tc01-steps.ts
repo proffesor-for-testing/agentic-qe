@@ -247,11 +247,11 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
 
       const txns = result.value;
       if (txns.length === 0) {
-        console.log('  [L2] ShipmentRequest_WMS: 0 transactions — EPOCH monitoring may not be enabled for adidas_PT flows');
+        console.log('  [L2] ShipmentRequest_WMS: 0 transactions — 0 IIB transactions found for this order');
         return {
           success: true,
           durationMs: Date.now() - start,
-          checks: [{ name: 'Has transactions', passed: false, expected: '>0', actual: '0 (EPOCH not monitoring adidas_PT flows)', severity: 'low' }],
+          checks: [{ name: 'Has transactions', passed: false, expected: '>0', actual: '0 (no IIB messages for this order yet)', severity: 'low' }],
           data: { epochEmpty: true },
         };
       }
@@ -296,11 +296,11 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
 
       const txns = result.value;
       if (txns.length === 0) {
-        console.log('  [L2] WMS_ShipmentConfirm: 0 transactions — EPOCH monitoring may not be enabled for adidas_PT flows');
+        console.log('  [L2] WMS_ShipmentConfirm: 0 transactions — 0 IIB transactions found for this order');
         return {
           success: true,
           durationMs: Date.now() - start,
-          checks: [{ name: 'Has ShipConfirm txns', passed: false, expected: '>0', actual: '0 (EPOCH not monitoring adidas_PT flows)', severity: 'low' }],
+          checks: [{ name: 'Has ShipConfirm txns', passed: false, expected: '>0', actual: '0 (no IIB messages for this order yet)', severity: 'low' }],
           data: { epochEmpty: true },
         };
       }
@@ -347,11 +347,11 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
 
       const txns = result.value;
       if (txns.length === 0) {
-        console.log('  [L2] AFS_SalesOrderCreation: 0 transactions — EPOCH monitoring may not be enabled for adidas_PT flows');
+        console.log('  [L2] AFS_SalesOrderCreation: 0 transactions — 0 IIB transactions found for this order');
         return {
           success: true,
           durationMs: Date.now() - start,
-          checks: [{ name: 'Has AFS SO Creation txns', passed: false, expected: '>0', actual: '0 (EPOCH not monitoring adidas_PT flows)', severity: 'low' }],
+          checks: [{ name: 'Has AFS SO Creation txns', passed: false, expected: '>0', actual: '0 (no IIB messages for this order yet)', severity: 'low' }],
           data: { epochEmpty: true },
         };
       }
@@ -404,11 +404,11 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
 
       const txns = result.value;
       if (txns.length === 0) {
-        console.log('  [L2] NShift_ShippingAndReturnLabel: 0 transactions — EPOCH monitoring may not be enabled for adidas_PT flows');
+        console.log('  [L2] NShift_ShippingAndReturnLabel: 0 transactions — 0 IIB transactions found for this order');
         return {
           success: true,
           durationMs: Date.now() - start,
-          checks: [{ name: 'Has NShift label txns', passed: false, expected: '>0', actual: '0 (EPOCH not monitoring adidas_PT flows)', severity: 'low' }],
+          checks: [{ name: 'Has NShift label txns', passed: false, expected: '>0', actual: '0 (no IIB messages for this order yet)', severity: 'low' }],
           data: { epochEmpty: true },
         };
       }
@@ -453,11 +453,11 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
 
       const txns = result.value;
       if (txns.length === 0) {
-        console.log('  [L2] AFS_PPSalesOrderAck: 0 transactions — EPOCH monitoring may not be enabled for adidas_PT flows');
+        console.log('  [L2] AFS_PPSalesOrderAck: 0 transactions — 0 IIB transactions found for this order');
         return {
           success: true,
           durationMs: Date.now() - start,
-          checks: [{ name: 'Has AFS SO Ack txns', passed: false, expected: '>0', actual: '0 (EPOCH not monitoring adidas_PT flows)', severity: 'low' }],
+          checks: [{ name: 'Has AFS SO Ack txns', passed: false, expected: '>0', actual: '0 (no IIB messages for this order yet)', severity: 'low' }],
           data: { epochEmpty: true },
         };
       }
@@ -602,11 +602,11 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
 
       const txns = result.value;
       if (txns.length === 0) {
-        console.log('  [L2] CARRIER_KAFKA_OMS_PODUpdate: 0 transactions — EPOCH monitoring may not be enabled for adidas_PT flows');
+        console.log('  [L2] CARRIER_KAFKA_OMS_PODUpdate: 0 transactions — 0 IIB transactions found for this order');
         return {
           success: true,
           durationMs: Date.now() - start,
-          checks: [{ name: 'Has POD Kafka txns', passed: false, expected: '>0', actual: '0 (EPOCH not monitoring adidas_PT flows)', severity: 'low' }],
+          checks: [{ name: 'Has POD Kafka txns', passed: false, expected: '>0', actual: '0 (no IIB messages for this order yet)', severity: 'low' }],
           data: { epochEmpty: true },
         };
       }
@@ -953,11 +953,11 @@ const tc01CoreSteps: StepDef<AdidasTestContext>[] = [
 
       const txns = result.value;
       if (txns.length === 0) {
-        console.log('  [L2] EPOCH_ReturnAuthorization: 0 transactions — EPOCH monitoring may not be enabled for adidas_PT flows');
+        console.log('  [L2] EPOCH_ReturnAuthorization: 0 transactions — 0 IIB transactions found for this order');
         return {
           success: true,
           durationMs: Date.now() - start,
-          checks: [{ name: 'Has return auth txns', passed: false, expected: '>0', actual: '0 (EPOCH not monitoring adidas_PT flows)', severity: 'low' }],
+          checks: [{ name: 'Has return auth txns', passed: false, expected: '>0', actual: '0 (no IIB messages for this order yet)', severity: 'low' }],
           data: { epochEmpty: true },
         };
       }

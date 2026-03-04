@@ -87,23 +87,24 @@ Replaced placeholder URLs with real NShift Delivery API paths:
 - `getLabelUrl()` continues to use `/eai/nshift/shippingandreturn/label` (correct)
 - Health check now tests connectivity by checking for any HTTP response (even 400) — only network errors mean unreachable
 
-### 8. EPOCH GraphQL Investigation (GAP 5 → ROOT CAUSE IDENTIFIED)
+### 8. EPOCH GraphQL Investigation (GAP 5 → ENDPOINT WORKS, ORDERS HAVE 0 MESSAGES)
 
-**Verified via VPN:**
-- EPOCH GraphQL at `http://10.146.28.234:8082/graphqlmdsit` is **reachable** and serves **both SIT and UAT** (same URL)
-- Schema confirmed: `getMessageList(OrderNo, LocalTransactionID, MsgFlowName, EventName)` + `getMessageDetail(WMB_MSGKEY)`
-- Tested dev's sample order `AZA00032215` → **35 messages, 9 unique flows** (EnterpriseCode: `EZA1`, South Africa)
-- Tested all our `APT*` orders → **0 messages** (EnterpriseCode: `adidas_PT`, Portugal)
+**Verified via VPN + dev confirmation (Anita):**
+- EPOCH GraphQL at `http://10.146.28.234:8082/graphqlmdsit` serves **both SIT and UAT** (same URL, confirmed by Anita multiple times)
+- PT orders ARE indexed — Anita tested `APT93034096` and got results (2 of expected 33 flows so far)
+- Flows are **NOT country-specific** — common code for all markets
+- Our orders (`APT51237150`, `APT39408720`, etc.) return 0 messages — IIB flows haven't been captured for these orders
 
-**Root cause:** EPOCH monitoring is **not enabled for `adidas_PT` enterprise flows**. The endpoint works — it's `adidas_PT` that has no IIB message capture configured.
+**Why our orders have 0 messages:** Unknown. Anita's order has data, ours don't. Possible causes:
+- Our orders haven't progressed through IIB-monitored flows
+- Different order creation path (XAPI vs manual) may bypass IIB capture
+- Timing — IIB indexing may be delayed
 
-**Flow name mismatch:** Our provisional names in `queue-mapping.ts` have **ZERO overlap** with real EPOCH flows:
-- Our names: `MF_ADS_OMS_ShipmentRequest_WMS_SYNC`, `MF_ADS_WMS_ShipmentConfirm_SYNC`, etc.
-- Real flows (EZA1): `MF_ADS_OMS_KAFKA_OrderStatusUpdate`, `MF_ADS_EAI_OrderStatus_TIBCO_ASYNC`, etc.
+**Queue-mapping flow names:** Provisional names in `queue-mapping.ts` have zero overlap with real EPOCH flows. Need to update from Anita's `APT93034096` data.
 
-**L2 steps updated:** All 7 L2 steps now log "EPOCH monitoring may not be enabled for adidas_PT flows" and mark checks as `0 (EPOCH not monitoring adidas_PT flows)`. Graceful skip ensures stages PASS.
+**L2 steps:** All 7 graceful-skip with "0 IIB transactions found for this order". Stages PASS.
 
-**Next step:** Ask Adidas middleware team whether EPOCH monitoring can be enabled for `adidas_PT`, or get a fully-processed PT order number that has IIB data.
+**Next:** Test our L2 code against `APT93034096` to validate it works when data exists. Then investigate why our orders have 0 messages.
 
 ### 9. VPN Live Test
 
@@ -134,7 +135,7 @@ Replaced placeholder URLs with real NShift Delivery API paths:
 | # | Gap | Status | Needs |
 |---|-----|--------|-------|
 | 1 | NShift response field mappings unverified | Open | NShift credentials + real API call |
-| 2 | EPOCH not monitoring `adidas_PT` flows | Root cause identified | Adidas middleware team to enable EPOCH for PT enterprise |
+| 2 | Our orders have 0 EPOCH messages | Investigating | Endpoint works (Anita's `APT93034096` has data). Need to find why our orders aren't indexed. |
 | 3 | `creditNotePdf` not wired | Open | Sterling attachment API or PDF generation |
 | 4 | step-18a BrowserProvider extended | **CLOSED** | Added `click`, `fill`, `selectOption`, `waitForSelector`, `navigateAndKeepOpen` to BrowserProvider + Playwright impl. step-18a now does full return flow. |
 

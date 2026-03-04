@@ -422,8 +422,6 @@ export async function main(): Promise<void> {
     console.log(`Pre-flight: EPOCH GraphQL ${iibOk ? 'is reachable' : 'UNREACHABLE — L2 checks will skip gracefully'}`);
     if (!iibOk) {
       console.log('  EPOCH endpoint unreachable — check VPN or ADIDAS_EPOCH_GRAPHQL_URL');
-    } else {
-      console.log('  Note: adidas_PT flows may not be monitored in EPOCH — L2 checks will graceful-skip with 0 transactions');
     }
   } else if (!args.skipLayer2) {
     console.log('Pre-flight: No IIB provider configured — L2 steps will skip gracefully');
