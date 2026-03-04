@@ -87,18 +87,24 @@ Replaced placeholder URLs with real NShift Delivery API paths:
 - `getLabelUrl()` continues to use `/eai/nshift/shippingandreturn/label` (correct)
 - Health check now tests connectivity by checking for any HTTP response (even 400) — only network errors mean unreachable
 
-### 8. EPOCH GraphQL Investigation (GAP 5 → ROOT CAUSE FOUND)
+### 8. EPOCH GraphQL Investigation (GAP 5 → GRAPHQL BUG, WAITING ON PREM)
 
-**Root cause (confirmed by dev):** Our XAPI-created orders bypass IIB entirely. We call Sterling APIs directly → Sterling processes internally → IIB message bus is never involved → EPOCH has nothing to log.
+**Timeline of investigation:**
+1. Our orders returned 0 from EPOCH GraphQL
+2. Initially suspected: SIT-only endpoint, then enterprise-specific monitoring, then XAPI bypass
+3. **Anita confirmed (2026-03-04):** Order `APT39408720` HAS complete transaction data in the EPOCH database — but the GraphQL API is not returning it
+4. **Root cause:** Bug in the GraphQL serving layer — data exists in EPOCH DB, not exposed via GraphQL
+5. **Prem** (GraphQL setup owner) is out until **March 6th** — Anita dropped him a note
 
-- Real production flow: `External System → IIB → Sterling` (EPOCH captures the IIB leg)
-- Our test flow: `XAPI → Sterling directly` (IIB never sees it)
+**What this means:**
+- Our orders DO flow through IIB — EPOCH captures them correctly
+- The GraphQL API has a data serving bug — it returns 0 even when data exists in the DB
+- Once Prem fixes the GraphQL layer, our L2 checks should work immediately
+- All code fixes are in place: blank `MsgFlowName` query, proper error handling
 
-**Endpoint works:** `http://10.146.28.234:8082/graphqlmdsit` serves both SIT and UAT. Anita's `APT93034096` has data because it came through IIB (payment notification flow). Our orders have 0 because they never touched IIB.
+**Code bug also fixed:** Our EPOCH provider was passing provisional flow names (e.g., `MF_ADS_OMS_ShipmentRequest_WMS_SYNC`) that don't exist in EPOCH. Fixed to query with blank `MsgFlowName` (like Anita's Postman) and return all messages.
 
-**Code bug also fixed:** Our EPOCH provider was passing provisional flow names (e.g., `MF_ADS_OMS_ShipmentRequest_WMS_SYNC`) to EPOCH — names that don't exist. Fixed to query with blank `MsgFlowName` (like Anita's Postman) and return all messages, so L2 works when data exists.
-
-**L2 status for demo:** XAPI-created orders will always have 0 IIB transactions. L2 checks graceful-skip honestly. To demo L2 with real data, use Anita's `APT93034096` or any order that flowed through IIB.
+**L2 status for Thursday demo:** Auto-skipped with reason. Once GraphQL is fixed (post March 6th), remove the XAPI auto-skip in `run-tc01.ts` and L2 lights up.
 
 ### 9. VPN Live Test
 
@@ -129,7 +135,7 @@ Replaced placeholder URLs with real NShift Delivery API paths:
 | # | Gap | Status | Needs |
 |---|-----|--------|-------|
 | 1 | NShift response field mappings unverified | Open | NShift credentials + real API call |
-| 2 | XAPI orders bypass IIB → 0 EPOCH data | **CLOSED** | L2 auto-skipped when XAPI enabled. Shows as SKIP with reason in output, not FAIL. Step definitions preserved for future MQ Browse / real IIB orders. |
+| 2 | EPOCH GraphQL not returning data | **BLOCKED on Prem (back March 6)** | Data exists in EPOCH DB but GraphQL layer has a bug. L2 auto-skipped for demo. Once fixed, remove XAPI auto-skip in `run-tc01.ts`. |
 | 3 | `creditNotePdf` not wired | Open | Sterling attachment API or PDF generation |
 | 4 | step-18a BrowserProvider extended | **CLOSED** | Added `click`, `fill`, `selectOption`, `waitForSelector`, `navigateAndKeepOpen` to BrowserProvider + Playwright impl. step-18a now does full return flow. |
 

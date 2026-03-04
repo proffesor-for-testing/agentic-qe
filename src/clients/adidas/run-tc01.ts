@@ -393,11 +393,12 @@ export async function main(): Promise<void> {
     }
   }
 
-  // XAPI-created orders bypass IIB entirely — EPOCH will never have data.
-  // Auto-skip L2 so these show as SKIP (not FAIL) in demo output.
+  // EPOCH GraphQL has a known bug — data exists in DB but not returned via API.
+  // Auto-skip L2 until Prem fixes the GraphQL layer (expected after March 6).
+  // Remove this block once EPOCH GraphQL is confirmed working.
   if (config.xapi.enabled && !args.skipLayer2) {
     args.skipLayer2 = true;
-    console.log('  L2 auto-skipped: XAPI orders bypass IIB — EPOCH has no data for direct Sterling API calls');
+    console.log('  L2 auto-skipped: EPOCH GraphQL bug — data exists in DB but not returned via API (waiting on fix)');
   }
 
   console.log(`  Layers: Sterling${args.skipLayer2 ? '' : ' + IIB'}${args.skipLayer3 ? '' : ' + NShift/Email/PDF/Browser'}`);
