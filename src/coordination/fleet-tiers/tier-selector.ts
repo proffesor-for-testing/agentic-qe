@@ -17,6 +17,7 @@ import type {
   TierSelectionStats,
 } from './types';
 import { FLEET_TIER_ORDER } from './types';
+import { TeamComposer, type TeamComposition, type ComplexityInput } from '../complexity-composition/index.js';
 import {
   DEFAULT_TIER_CONFIGS,
   DEFAULT_DOMAIN_AGENT_MAP,
@@ -271,6 +272,47 @@ export class TierSelector {
       deescalationCount: this.deescalationCount,
       recentSelections: [...this.history].slice(-20),
     };
+  }
+
+  // --------------------------------------------------------------------------
+  // Complexity-Composition Integration
+  // --------------------------------------------------------------------------
+
+  /** Optional team composer for complexity-driven agent composition */
+  private _teamComposer?: TeamComposer;
+
+  /**
+   * Set the team composer for complexity-driven composition.
+   */
+  setTeamComposer(composer: TeamComposer): void {
+    this._teamComposer = composer;
+  }
+
+  /**
+   * Select tier and optionally enrich the result with a complexity-driven
+   * team composition. This does NOT change existing selectTier() behavior --
+   * it calls selectTier() internally and then appends composition data.
+   *
+   * @param context - The tier selection context
+   * @param complexityMetrics - Optional complexity metrics for composition
+   * @param sourceCode - Optional source code for extended dimension analysis
+   * @returns Tier selection result with optional team composition
+   */
+  selectTierWithComposition(
+    context: TierSelectionContext,
+    complexityMetrics?: ComplexityInput,
+    sourceCode?: string,
+  ): TierSelectionResult & { composition?: TeamComposition } {
+    const result = this.selectTier(context);
+
+    if (!complexityMetrics || !sourceCode) {
+      return { ...result, composition: undefined };
+    }
+
+    const composer = this._teamComposer ?? new TeamComposer();
+    const composition = composer.compose(complexityMetrics, result.selectedTier, sourceCode);
+
+    return { ...result, composition };
   }
 
   // --------------------------------------------------------------------------

@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 15 — RVF Integration (ADR-065 through ADR-073)
+**Status:** Phase 16 — Loki-Mode Adversarial Quality Gates (ADR-074); Multi-Language Test Generation (ADR-075 through ADR-079)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-02-22 (ADR-001-064: 58 Implemented, ADR-065-073: 9 Proposed for RVF integration)
+**Last Verified:** 2026-03-04 (ADR-001-064: 58 Implemented, ADR-065-073: 9 Proposed, ADR-074: Implemented)
 
 ---
 
@@ -85,6 +85,12 @@
 | [ADR-071](./ADR-071-hnsw-implementation-unification.md) | HNSW Implementation Unification | **Proposed** | 2026-02-22 | Consolidate 3 HNSW implementations behind single HnswIndexProvider + RVF INDEX_SEG |
 | [ADR-072](./ADR-072-rvf-primary-persistence-migration.md) | RVF Primary Persistence Migration | **Proposed** | 2026-02-22 | 4-stage migration from SQLite hybrid to RVF primary with go/no-go gates |
 | [ADR-073](./ADR-073-portable-intelligence-containers.md) | Portable Intelligence Containers | **Proposed** | 2026-02-22 | Export/import/version QE intelligence as distributable .rvf files |
+| [ADR-074](./ADR-074-loki-mode-adversarial-quality-gates.md) | Loki-Mode Adversarial Quality Gates | **Implemented** | 2026-03-04 | ✅ 7 features: sycophancy scorer, test quality gates, blind review, EMA calibration, edge-case injection, complexity composition, auto-escalation. 178 tests, 14 new files, 6 config flags (enabled by default). |
+| [ADR-075](./ADR-075-unified-test-framework-type-system.md) | Unified TestFramework Type System | **Proposed** | 2026-03-04 | Single source-of-truth `TestFramework` + `SupportedLanguage` types at `src/shared/types/test-frameworks.ts`, replacing two divergent definitions |
+| [ADR-076](./ADR-076-tree-sitter-wasm-multi-language-parser.md) | tree-sitter WASM Multi-Language Parser Integration | **Proposed** | 2026-03-04 | `web-tree-sitter` (WASM) as universal parser for Java, C#, Go, Rust, Swift, Kotlin, Dart, Python behind `ILanguageParser` abstraction |
+| [ADR-077](./ADR-077-compilation-validation-loop.md) | Compilation Validation Loop for Generated Tests | **Proposed** | 2026-03-04 | Optional compile-validate-repair loop (up to 3 retries) for type-strict languages; opt-in, graceful degradation |
+| [ADR-078](./ADR-078-backward-compatible-multi-language-api.md) | Backward-Compatible Multi-Language API Extension | **Proposed** | 2026-03-04 | Optional `language`, `projectRoot`, `compileValidation` fields on `IGenerateTestsRequest`; auto-detection from file extensions |
+| [ADR-079](./ADR-079-language-specific-test-file-path-resolution.md) | Language-Specific Test File Path Resolution | **Proposed** | 2026-03-04 | `TestFileResolver` with per-language `TestFileConvention` for correct test output paths (Maven mirror, `*_test.go`, Rust inline, etc.) |
 
 ---
 

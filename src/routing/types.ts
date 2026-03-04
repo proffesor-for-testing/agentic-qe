@@ -350,6 +350,9 @@ export interface AgentPerformanceMetrics {
   /** Performance trend (improving, stable, declining) */
   readonly trend: 'improving' | 'stable' | 'declining';
 
+  /** EMA-calibrated voting weight (from EMACalibrator, 0.2-2.0) */
+  readonly calibratedWeight?: number;
+
   /** Last updated */
   readonly updatedAt: Date;
 }

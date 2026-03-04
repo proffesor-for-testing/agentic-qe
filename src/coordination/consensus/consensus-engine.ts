@@ -36,6 +36,7 @@ import {
   UnanimousStrategy,
   createStrategy,
 } from './strategies';
+import { SycophancyScorer, createSycophancyScorer } from './sycophancy-scorer.js';
 
 // ============================================================================
 // ConsensusEngine Implementation
@@ -81,6 +82,8 @@ export class ConsensusEngineImpl implements ConsensusEngine {
       errors: number;
     }>;
   };
+  private readonly sycophancyScorer: SycophancyScorer | null;
+  private _onSevereSycophancy?: (finding: SecurityFinding, votes: ModelVote[]) => void;
   private disposed: boolean = false;
 
   /**
@@ -98,7 +101,20 @@ export class ConsensusEngineImpl implements ConsensusEngine {
     this.registry = registry;
     this.config = { ...DEFAULT_CONSENSUS_CONFIG, ...config };
     this.strategy = this.createStrategyFromConfig(strategyType);
+    this.sycophancyScorer = this.config.enableSycophancyCheck
+      ? createSycophancyScorer()
+      : null;
     this.stats = this.initializeStats();
+  }
+
+  /**
+   * Register a callback for severe sycophancy detection.
+   * Use this to trigger Devil's Advocate reviews when rubber-stamping is detected.
+   *
+   * @param handler - Callback receiving the finding and votes that triggered detection
+   */
+  onSevereSycophancy(handler: (finding: SecurityFinding, votes: ModelVote[]) => void): void {
+    this._onSevereSycophancy = handler;
   }
 
   /**
@@ -141,6 +157,22 @@ export class ConsensusEngineImpl implements ConsensusEngine {
       // Apply consensus strategy
       const strategyResult = this.strategy.apply(votes);
 
+      // Run sycophancy detection on collected votes (only when enabled)
+      const sycophancyCheck = this.sycophancyScorer?.evaluate(votes);
+
+      // If severe sycophancy detected, flag for human review and notify
+      const isSevereSycophancy = sycophancyCheck?.level === 'severe';
+      const requiresHumanReview = strategyResult.requiresHumanReview || isSevereSycophancy;
+
+      // Trigger Devil's Advocate callback on severe sycophancy
+      if (isSevereSycophancy && this._onSevereSycophancy) {
+        try {
+          this._onSevereSycophancy(finding, votes);
+        } catch (callbackError) {
+          console.warn('[ConsensusEngine] Sycophancy callback failed:', toErrorMessage(callbackError));
+        }
+      }
+
       // Build final result
       const result: ConsensusResult = {
         verdict: strategyResult.verdict,
@@ -148,8 +180,9 @@ export class ConsensusEngineImpl implements ConsensusEngine {
         confidence: strategyResult.confidence,
         votes,
         agreementRatio: strategyResult.agreementRatio,
-        requiresHumanReview: strategyResult.requiresHumanReview,
+        requiresHumanReview,
         reasoning: strategyResult.reasoning,
+        sycophancyCheck,
         adjustedSeverity: this.determineAdjustedSeverity(votes, finding.severity),
         combinedSuggestions: this.combineSuggestions(votes),
         totalExecutionTime: Date.now() - startTime,

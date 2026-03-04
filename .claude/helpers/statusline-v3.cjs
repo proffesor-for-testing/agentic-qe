@@ -308,7 +308,19 @@ function getLearningMetrics(projectDir) {
   // V3 trajectories (new V3 trajectory tracking)
   const trajectories = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM qe_trajectories')) || 0;
   // Captured experiences (task execution captures)
-  const capturedExp = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM captured_experiences')) || 0;
+  // Use SUM(consolidation_count) for monotonically non-decreasing counter:
+  // - New experience → +1
+  // - Merge A into B → A excluded (consolidated_into set), B's count += A's count → net 0
+  // - Archive → row stays, still counted → net 0
+  // Falls back to COUNT(*) if consolidation columns not yet added
+  let capturedExp = 0;
+  const consolidatedQuery = sqlite3Query(dbPath,
+    "SELECT COALESCE(SUM(consolidation_count), COUNT(*)) FROM captured_experiences WHERE consolidated_into IS NULL OR consolidated_into = 'archived'", '__FAIL__');
+  if (consolidatedQuery !== '__FAIL__') {
+    capturedExp = parseInt(consolidatedQuery) || 0;
+  } else {
+    capturedExp = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM captured_experiences')) || 0;
+  }
   // Memory entries with learning data (MCP-stored experiences)
   const memoryLearning = parseInt(sqlite3Query(dbPath, "SELECT COUNT(*) FROM memory_entries WHERE key LIKE 'learning%' OR key LIKE 'phase2/learning%'")) || 0;
   // QE pattern usage (hook-recorded outcomes from aqe hooks post-task/post-edit)
