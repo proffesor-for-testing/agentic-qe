@@ -272,22 +272,30 @@ export class TestQualityGate {
     //   it('desc', () => { /* comment */ })
     //   it('desc', function() {})
     //   test('desc', () => {})
-    const emptyBodyRegex = /(?:it|test)\s*\(\s*(?:'[^']*'|"[^"]*"|`[^`]*`)\s*,\s*(?:async\s+)?(?:\(\)\s*=>|function\s*\(\))\s*\{(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*)*\}\s*\)/;
-
+    //
+    // Two-phase approach to avoid ReDoS: first match the block structure,
+    // then check if the body contains only whitespace and comments.
+    const testBlockRegex = /(?:it|test)\s*\(\s*(?:'[^']*'|"[^"]*"|`[^`]*`)\s*,\s*(?:async\s+)?(?:\(\)\s*=>|function\s*\(\))\s*\{([^}]*)\}\s*\)/;
+    const isEmptyOrCommentOnly = (body: string): boolean => {
+      // Strip block comments, then line comments, then check if only whitespace remains
+      const stripped = body.replace(/\/\*[^*]*\*\//g, '').replace(/\/\/[^\n]*/g, '');
+      return stripped.trim().length === 0;
+    };
     for (let i = 0; i < lines.length; i++) {
+      // Only check lines that start a test block
+      if (!/(?:it|test)\s*\(/.test(lines[i])) continue;
+
       // Build a multi-line window to catch bodies that span 1-3 lines
       const window = lines.slice(i, i + 4).join(' ');
-      if (emptyBodyRegex.test(window)) {
-        // Only report once per match (at the it/test line)
-        if (/(?:it|test)\s*\(/.test(lines[i])) {
-          issues.push({
-            type: 'empty-test-body',
-            severity: 'error',
-            line: i + 1,
-            description: 'Empty test body: this test has no assertions or meaningful code.',
-            suggestion: 'Add assertions that verify the expected behavior of the code under test.',
-          });
-        }
+      const match = testBlockRegex.exec(window);
+      if (match && isEmptyOrCommentOnly(match[1])) {
+        issues.push({
+          type: 'empty-test-body',
+          severity: 'error',
+          line: i + 1,
+          description: 'Empty test body: this test has no assertions or meaningful code.',
+          suggestion: 'Add assertions that verify the expected behavior of the code under test.',
+        });
       }
     }
 
