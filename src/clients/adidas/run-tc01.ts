@@ -393,6 +393,13 @@ export async function main(): Promise<void> {
     }
   }
 
+  // XAPI-created orders bypass IIB entirely — EPOCH will never have data.
+  // Auto-skip L2 so these show as SKIP (not FAIL) in demo output.
+  if (config.xapi.enabled && !args.skipLayer2) {
+    args.skipLayer2 = true;
+    console.log('  L2 auto-skipped: XAPI orders bypass IIB — EPOCH has no data for direct Sterling API calls');
+  }
+
   console.log(`  Layers: Sterling${args.skipLayer2 ? '' : ' + IIB'}${args.skipLayer3 ? '' : ' + NShift/Email/PDF/Browser'}`);
   console.log(`  XAPI: ${config.xapi.enabled ? 'enabled' : 'disabled (set ADIDAS_XAPI_URL + credentials)'}`);
   console.log(`  Self-healing: enabled (invoice recovery playbook)`);

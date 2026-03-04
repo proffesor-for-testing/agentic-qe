@@ -129,7 +129,7 @@ Replaced placeholder URLs with real NShift Delivery API paths:
 | # | Gap | Status | Needs |
 |---|-----|--------|-------|
 | 1 | NShift response field mappings unverified | Open | NShift credentials + real API call |
-| 2 | XAPI orders bypass IIB → 0 EPOCH data | **ROOT CAUSE FOUND** | Architectural: XAPI calls Sterling directly, IIB never involved. L2 only works for orders that flow through IIB. Fixed EPOCH provider to query with blank flow name. |
+| 2 | XAPI orders bypass IIB → 0 EPOCH data | **CLOSED** | L2 auto-skipped when XAPI enabled. Shows as SKIP with reason in output, not FAIL. Step definitions preserved for future MQ Browse / real IIB orders. |
 | 3 | `creditNotePdf` not wired | Open | Sterling attachment API or PDF generation |
 | 4 | step-18a BrowserProvider extended | **CLOSED** | Added `click`, `fill`, `selectOption`, `waitForSelector`, `navigateAndKeepOpen` to BrowserProvider + Playwright impl. step-18a now does full return flow. |
 

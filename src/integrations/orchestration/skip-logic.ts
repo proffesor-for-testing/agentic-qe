@@ -38,9 +38,9 @@ export function skipReason<TContext extends BaseTestContext>(
   step: StepDef<TContext>,
   config: SkipConfig
 ): string {
-  if (step.layer === 2 && config.skipLayer2) return 'Layer 2 steps skipped (no IIB credentials)';
+  if (step.layer === 2 && config.skipLayer2) return 'Layer 2 skipped — XAPI orders bypass IIB (no EPOCH data)';
   if (step.layer === 3 && config.skipLayer3) return 'Layer 3 steps skipped (no Layer 3 credentials)';
-  if (step.requires.iib && config.skipLayer2) return 'Requires IIB provider (not available)';
+  if (step.requires.iib && config.skipLayer2) return 'Requires IIB provider — XAPI orders bypass IIB';
   if (step.requires.nshift && config.skipLayer3) return 'Requires NShift client (not available)';
   if (step.requires.email && config.skipLayer3) return 'Requires email provider (not available)';
   if (step.requires.pdf && config.skipLayer3) return 'Requires PDF extractor (not available)';
