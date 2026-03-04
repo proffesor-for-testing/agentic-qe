@@ -91,6 +91,10 @@ export interface RoutingConfig {
   fallback: FallbackConfig;
   /** Enable verbose logging (default: false) */
   verbose: boolean;
+  /** Enable EMA-based agent calibration for voting weights (default: true) */
+  enableEMACalibration: boolean;
+  /** Enable automatic tier escalation/de-escalation on consecutive outcomes (default: true) */
+  enableAutoEscalation: boolean;
 }
 
 // ============================================================================
@@ -175,6 +179,8 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   costOptimization: DEFAULT_COST_OPTIMIZATION,
   fallback: DEFAULT_FALLBACK_CONFIG,
   verbose: false,
+  enableEMACalibration: true,
+  enableAutoEscalation: true,
 };
 
 // ============================================================================

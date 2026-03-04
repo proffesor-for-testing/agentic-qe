@@ -18,6 +18,9 @@ import type { QETaskRouter } from './qe-task-router.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { EMACalibrator, type EMAConfig } from './calibration/index.js';
+import { AutoEscalationTracker, type EscalationConfig, type EscalationState } from './escalation/index.js';
+import type { RoutingConfig } from './routing-config.js';
 
 // ============================================================================
 // Database Row Types
@@ -98,13 +101,23 @@ export class RoutingFeedbackCollector {
   private outcomeStore: OutcomeStore;
   private router: QETaskRouter | null = null;
   private db: UnifiedMemoryManager | null = null;
+  private calibrator: EMACalibrator | null = null;
+  private escalationTracker: AutoEscalationTracker | null = null;
   private persistCount = 0;
   private readonly maxOutcomes: number;
   private static readonly RETENTION_CLEANUP_INTERVAL = 100;
 
-  constructor(maxOutcomes = 10000) {
+  constructor(maxOutcomes = 10000, routingConfig?: Partial<RoutingConfig>) {
     this.maxOutcomes = maxOutcomes;
     this.outcomeStore = new OutcomeStore(maxOutcomes);
+
+    // Auto-enable from declarative config flags
+    if (routingConfig?.enableEMACalibration) {
+      this.enableCalibration();
+    }
+    if (routingConfig?.enableAutoEscalation) {
+      this.enableAutoEscalation();
+    }
   }
 
   /**
@@ -118,6 +131,7 @@ export class RoutingFeedbackCollector {
         await this.db.initialize();
       }
       await this.loadFromDb();
+      this.loadCalibratorState();
     } catch (error) {
       console.warn('[RoutingFeedbackCollector] DB init failed, using memory-only:', toErrorMessage(error));
       this.db = null;
@@ -206,10 +220,80 @@ export class RoutingFeedbackCollector {
   }
 
   /**
+   * Load persisted EMA calibrator state from the database
+   */
+  private loadCalibratorState(): void {
+    if (!this.db || !this.calibrator) return;
+    try {
+      const database = this.db.getDatabase();
+      const row = database.prepare(
+        `SELECT value FROM kv_store WHERE key = 'routing:ema_calibrator_state'`
+      ).get() as { value: string } | undefined;
+      if (row) {
+        const data = safeJsonParse(row.value);
+        if (data && typeof data === 'object') {
+          this.calibrator.deserialize(data);
+          console.log('[RoutingFeedbackCollector] Loaded EMA calibrator state from DB');
+        }
+      }
+    } catch (error) {
+      console.warn('[RoutingFeedbackCollector] Failed to load calibrator state:', toErrorMessage(error));
+    }
+  }
+
+  /**
+   * Persist EMA calibrator state to the database
+   */
+  private persistCalibratorState(): void {
+    if (!this.db || !this.calibrator) return;
+    try {
+      const database = this.db.getDatabase();
+      const serialized = JSON.stringify(this.calibrator.serialize());
+      database.prepare(
+        `INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, datetime('now'))`
+      ).run('routing:ema_calibrator_state', serialized);
+    } catch (error) {
+      console.warn('[RoutingFeedbackCollector] Failed to persist calibrator state:', toErrorMessage(error));
+    }
+  }
+
+  /**
    * Connect to router for automatic performance updates
    */
   connectRouter(router: QETaskRouter): void {
     this.router = router;
+  }
+
+  /**
+   * Enable EMA-based agent calibration for deriving voting weights.
+   * Once enabled, every recorded outcome updates the agent's EMA calibration.
+   */
+  enableCalibration(config?: Partial<EMAConfig>): void {
+    this.calibrator = new EMACalibrator(config);
+  }
+
+  /**
+   * Get the EMA-calibrated voting weight for an agent.
+   * Returns 1.0 (neutral) if calibration is not enabled or agent has insufficient data.
+   */
+  getCalibratedWeight(agentId: string): number {
+    return this.calibrator?.getCalibratedWeight(agentId) ?? 1.0;
+  }
+
+  /**
+   * Enable auto-escalation tracking for tier promotion/demotion.
+   * Once enabled, every recorded outcome updates the agent's escalation state.
+   */
+  enableAutoEscalation(config?: Partial<EscalationConfig>): void {
+    this.escalationTracker = new AutoEscalationTracker(config);
+  }
+
+  /**
+   * Get the current escalation state for an agent.
+   * Returns null if auto-escalation is not enabled or agent has no state.
+   */
+  getEscalationState(agentId: string): EscalationState | null {
+    return this.escalationTracker?.getState(agentId) ?? null;
   }
 
   /**
@@ -248,6 +332,29 @@ export class RoutingFeedbackCollector {
         outcome.qualityScore,
         outcome.durationMs
       );
+    }
+
+    // Update EMA calibration if enabled
+    if (this.calibrator) {
+      this.calibrator.recordOutcome(usedAgent, outcome.success, outcome.qualityScore);
+      // Persist every 10 outcomes to avoid excessive writes
+      if (this.persistCount % 10 === 0) {
+        this.persistCalibratorState();
+      }
+    }
+
+    // Update auto-escalation tracking if enabled
+    if (this.escalationTracker) {
+      const baseTier = decision.recommended === usedAgent ? 'sonnet' : 'haiku';
+      const escalationAction = this.escalationTracker.recordOutcome(usedAgent, outcome.success, baseTier);
+
+      // Apply escalation/de-escalation recommendation
+      if (escalationAction.action !== 'none') {
+        console.log(
+          `[RoutingFeedbackCollector] Agent "${usedAgent}" ${escalationAction.action}d: ` +
+          `${escalationAction.previousTier} → ${escalationAction.newTier}`
+        );
+      }
     }
 
     return routingOutcome;
@@ -486,6 +593,9 @@ export class RoutingFeedbackCollector {
 /**
  * Create a new routing feedback collector
  */
-export function createRoutingFeedbackCollector(maxOutcomes = 10000): RoutingFeedbackCollector {
-  return new RoutingFeedbackCollector(maxOutcomes);
+export function createRoutingFeedbackCollector(
+  maxOutcomes = 10000,
+  routingConfig?: Partial<RoutingConfig>
+): RoutingFeedbackCollector {
+  return new RoutingFeedbackCollector(maxOutcomes, routingConfig);
 }

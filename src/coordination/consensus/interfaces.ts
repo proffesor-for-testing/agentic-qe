@@ -11,6 +11,9 @@
 
 import { Severity, Priority, Result } from '../../shared/types';
 
+// Re-export sycophancy types for convenience
+export type { SycophancyResult, SycophancyLevel, SycophancySignal } from './sycophancy-scorer.js';
+
 // ============================================================================
 // Security Finding Types
 // ============================================================================
@@ -250,6 +253,9 @@ export interface ConsensusResult {
 
   /** Correlation ID for tracing */
   readonly correlationId?: string;
+
+  /** Sycophancy check result (rubber-stamping detection) */
+  readonly sycophancyCheck?: import('./sycophancy-scorer.js').SycophancyResult;
 }
 
 // ============================================================================
@@ -372,6 +378,9 @@ export interface ConsensusEngineConfig {
 
   /** Human review threshold (confidence below this triggers review) */
   readonly humanReviewThreshold: number;
+
+  /** Enable sycophancy detection on consensus votes (default: true) */
+  readonly enableSycophancyCheck: boolean;
 }
 
 /**
@@ -697,4 +706,5 @@ export const DEFAULT_CONSENSUS_CONFIG: ConsensusEngineConfig = {
   enableCostTracking: true,
   maxCostPerVerification: 0.50, // 50 cents max per verification
   humanReviewThreshold: 0.6,
+  enableSycophancyCheck: true,
 };

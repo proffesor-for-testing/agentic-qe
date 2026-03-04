@@ -212,6 +212,18 @@ export {
 } from './consensus-engine';
 
 // ============================================================================
+// Sycophancy Detection (Loki-Mode Integration)
+// ============================================================================
+
+export {
+  SycophancyScorer,
+  createSycophancyScorer,
+  type SycophancyResult,
+  type SycophancyLevel,
+  type SycophancySignal,
+} from './sycophancy-scorer';
+
+// ============================================================================
 // Factory Functions (MM-010)
 // ============================================================================
 
