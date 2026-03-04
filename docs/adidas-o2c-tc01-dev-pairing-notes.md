@@ -87,24 +87,18 @@ Replaced placeholder URLs with real NShift Delivery API paths:
 - `getLabelUrl()` continues to use `/eai/nshift/shippingandreturn/label` (correct)
 - Health check now tests connectivity by checking for any HTTP response (even 400) — only network errors mean unreachable
 
-### 8. EPOCH GraphQL Investigation (GAP 5 → ENDPOINT WORKS, ORDERS HAVE 0 MESSAGES)
+### 8. EPOCH GraphQL Investigation (GAP 5 → ROOT CAUSE FOUND)
 
-**Verified via VPN + dev confirmation (Anita):**
-- EPOCH GraphQL at `http://10.146.28.234:8082/graphqlmdsit` serves **both SIT and UAT** (same URL, confirmed by Anita multiple times)
-- PT orders ARE indexed — Anita tested `APT93034096` and got results (2 of expected 33 flows so far)
-- Flows are **NOT country-specific** — common code for all markets
-- Our orders (`APT51237150`, `APT39408720`, etc.) return 0 messages — IIB flows haven't been captured for these orders
+**Root cause (confirmed by dev):** Our XAPI-created orders bypass IIB entirely. We call Sterling APIs directly → Sterling processes internally → IIB message bus is never involved → EPOCH has nothing to log.
 
-**Why our orders have 0 messages:** Unknown. Anita's order has data, ours don't. Possible causes:
-- Our orders haven't progressed through IIB-monitored flows
-- Different order creation path (XAPI vs manual) may bypass IIB capture
-- Timing — IIB indexing may be delayed
+- Real production flow: `External System → IIB → Sterling` (EPOCH captures the IIB leg)
+- Our test flow: `XAPI → Sterling directly` (IIB never sees it)
 
-**Queue-mapping flow names:** Provisional names in `queue-mapping.ts` have zero overlap with real EPOCH flows. Need to update from Anita's `APT93034096` data.
+**Endpoint works:** `http://10.146.28.234:8082/graphqlmdsit` serves both SIT and UAT. Anita's `APT93034096` has data because it came through IIB (payment notification flow). Our orders have 0 because they never touched IIB.
 
-**L2 steps:** All 7 graceful-skip with "0 IIB transactions found for this order". Stages PASS.
+**Code bug also fixed:** Our EPOCH provider was passing provisional flow names (e.g., `MF_ADS_OMS_ShipmentRequest_WMS_SYNC`) to EPOCH — names that don't exist. Fixed to query with blank `MsgFlowName` (like Anita's Postman) and return all messages, so L2 works when data exists.
 
-**Next:** Test our L2 code against `APT93034096` to validate it works when data exists. Then investigate why our orders have 0 messages.
+**L2 status for demo:** XAPI-created orders will always have 0 IIB transactions. L2 checks graceful-skip honestly. To demo L2 with real data, use Anita's `APT93034096` or any order that flowed through IIB.
 
 ### 9. VPN Live Test
 
@@ -135,7 +129,7 @@ Replaced placeholder URLs with real NShift Delivery API paths:
 | # | Gap | Status | Needs |
 |---|-----|--------|-------|
 | 1 | NShift response field mappings unverified | Open | NShift credentials + real API call |
-| 2 | Our orders have 0 EPOCH messages | Investigating | Endpoint works (Anita's `APT93034096` has data). Need to find why our orders aren't indexed. |
+| 2 | XAPI orders bypass IIB → 0 EPOCH data | **ROOT CAUSE FOUND** | Architectural: XAPI calls Sterling directly, IIB never involved. L2 only works for orders that flow through IIB. Fixed EPOCH provider to query with blank flow name. |
 | 3 | `creditNotePdf` not wired | Open | Sterling attachment API or PDF generation |
 | 4 | step-18a BrowserProvider extended | **CLOSED** | Added `click`, `fill`, `selectOption`, `waitForSelector`, `navigateAndKeepOpen` to BrowserProvider + Playwright impl. step-18a now does full return flow. |
 
@@ -145,7 +139,8 @@ Replaced placeholder URLs with real NShift Delivery API paths:
 
 | File | Change |
 |------|--------|
-| `src/clients/adidas/tc01-steps.ts` | step-09 graceful skip + L2 graceful skip messages updated (enterprise-specific) |
+| `src/clients/adidas/tc01-steps.ts` | step-09 graceful skip + L2 messages: "XAPI-created orders bypass IIB" |
+| `src/integrations/iib/providers/epoch-graphql.ts` | Fixed: query with blank MsgFlowName (provisional names don't match EPOCH) |
 | `src/clients/adidas/tc01-email-checks.ts` | 7 email steps graceful skip |
 | `src/clients/adidas/tc01-pdf-checks.ts` | 3 PDF steps graceful skip |
 | `src/clients/adidas/tc01-browser-checks.ts` | 2 browser steps: graceful skip + step-18a now tries navigation |

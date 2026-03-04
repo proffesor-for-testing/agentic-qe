@@ -167,9 +167,12 @@ class EpochGraphQLProvider implements IIBPayloadProvider {
   // GraphQL Query
   // ============================================================================
 
-  private async queryEpoch(orderNo: string, flowName: string): Promise<EpochMessage[]> {
+  private async queryEpoch(orderNo: string, _flowName: string): Promise<EpochMessage[]> {
+    // IMPORTANT: Always query with blank MsgFlowName to get ALL messages for this order.
+    // Our provisional flow names (queue-mapping.ts) don't match real EPOCH flow names.
+    // Filtering by wrong flow name returns 0 results. Blank = return all, filter client-side.
     const query = `{
-      getMessageList(OrderNo: "${this.sanitize(orderNo)}", MsgFlowName: "${this.sanitize(flowName)}", LocalTransactionID: "", EventName: "") {
+      getMessageList(OrderNo: "${this.sanitize(orderNo)}", MsgFlowName: "", LocalTransactionID: "", EventName: "") {
         MSGFLOW_NAME
         EVENT_NAME
         LOCAL_TRANSACTION_ID
