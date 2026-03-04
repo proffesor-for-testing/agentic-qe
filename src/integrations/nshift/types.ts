@@ -17,6 +17,7 @@ import type { Result } from '../../shared/types';
 export interface NShiftClient {
   getShipmentDetails(trackingNo: string): Promise<Result<NShiftShipment, NShiftError>>;
   getLabelUrl(trackingNo: string): Promise<Result<string, NShiftError>>;
+  getLabelPdf(trackingNo: string): Promise<Result<Buffer, NShiftError>>;
   healthCheck(): Promise<boolean>;
 }
 
@@ -55,9 +56,13 @@ export interface NShiftError {
 // ============================================================================
 
 export interface NShiftClientConfig {
-  apiHost?: string;                    // Direct NShift API
-  apiKey?: string;
-  eaiHubHost?: string;                 // Via EAI hub (some clients route NShift through EAI)
+  // Direct NShift Delivery API (api.unifaun.com/rs-extapi/v1)
+  // Auth: HTTP Basic with base64(apiKeyId:apiKeySecret)
+  apiHost?: string;                    // e.g., 'https://api.unifaun.com'
+  apiKey?: string;                     // Format: 'apiKeyId:apiKeySecret' (colon-separated)
+
+  // EAI hub routing (some clients route NShift through their EAI layer)
+  eaiHubHost?: string;                 // e.g., 'https://apieai.omni-hub.adidas-group.com'
   eaiAuth?: {
     method: 'basic' | 'bearer' | 'apikey';
     username?: string;

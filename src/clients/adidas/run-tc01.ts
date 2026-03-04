@@ -254,13 +254,33 @@ function printStageResult(stageId: string, result: StageResult): void {
   }
 }
 
-function printSummary(result: RunResult, orderId: string, reportPath: string): void {
+function printSummary(result: RunResult, orderId: string, reportPath: string, skipL2: boolean, skipL3: boolean): void {
+  // Count individual check objects (not step count — those are different units)
+  let gracefulSkipChecks = 0;
+  let realChecks = 0;
+  for (const stage of result.stages) {
+    for (const step of stage.verification.steps) {
+      for (const c of step.result.checks ?? []) {
+        if (c.severity === 'low') {
+          gracefulSkipChecks++;
+        } else {
+          realChecks++;
+        }
+      }
+    }
+  }
+  const totalCheckObjects = realChecks + gracefulSkipChecks;
+
   console.log('\n' + '='.repeat(60));
   console.log(`  Order: ${orderId}`);
   const parts = [`${result.passed} passed`, `${result.failed} failed`];
   if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
   console.log(`  Stages: ${parts.join(', ')}`);
-  console.log(`  Checks: ${result.totalChecks}`);
+  const checkLine = gracefulSkipChecks > 0
+    ? `${totalCheckObjects} (${realChecks} verified, ${gracefulSkipChecks} graceful skips)`
+    : `${totalCheckObjects}`;
+  console.log(`  Checks: ${checkLine}`);
+  console.log(`  Layers: L1${skipL2 ? '' : ' + L2'}${skipL3 ? '' : ' + L3'}`);
   console.log(`  Duration: ${(result.totalDurationMs / 1000).toFixed(1)}s`);
   console.log(`  Result: ${result.overallSuccess ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m'}`);
   console.log(`  Report: ${reportPath}`);
@@ -399,12 +419,47 @@ export async function main(): Promise<void> {
   // EPOCH GraphQL health check (L2 provider)
   if (!args.skipLayer2 && ctx.iibProvider) {
     const iibOk = await ctx.iibProvider.healthCheck();
-    console.log(`Pre-flight: EPOCH GraphQL ${iibOk ? 'is reachable' : 'UNREACHABLE — L2 checks will return graceful warnings'}`);
+    console.log(`Pre-flight: EPOCH GraphQL ${iibOk ? 'is reachable' : 'UNREACHABLE — L2 checks will skip gracefully'}`);
     if (!iibOk) {
-      console.log('  Set ADIDAS_EPOCH_GRAPHQL_URL to a UAT endpoint to enable L2 IIB checks');
+      console.log('  EPOCH endpoint unreachable — check VPN or ADIDAS_EPOCH_GRAPHQL_URL');
+    } else {
+      console.log('  Note: adidas_PT flows may not be monitored in EPOCH — L2 checks will graceful-skip with 0 transactions');
     }
   } else if (!args.skipLayer2) {
-    console.log('Pre-flight: No IIB provider configured — L2 steps will be skipped');
+    console.log('Pre-flight: No IIB provider configured — L2 steps will skip gracefully');
+  }
+
+  // L3 provider health checks — real connectivity pings, not just config presence
+  if (!args.skipLayer3) {
+    const l3Status: string[] = [];
+    if (ctx.nshiftClient) {
+      const nshiftOk = await ctx.nshiftClient.healthCheck().catch(() => false);
+      l3Status.push(`NShift: ${nshiftOk ? 'reachable' : 'configured but UNREACHABLE'}`);
+    } else {
+      l3Status.push('NShift: not configured (set ADIDAS_NSHIFT_API_HOST or ADIDAS_NSHIFT_EAI_HOST)');
+    }
+    if (ctx.emailProvider) {
+      const emailOk = await ctx.emailProvider.healthCheck().catch(() => false);
+      l3Status.push(`Email: ${emailOk ? 'reachable' : 'configured but UNREACHABLE'}`);
+    } else {
+      l3Status.push('Email: not configured (set ADIDAS_EMAIL_HOST + credentials)');
+    }
+    if (ctx.browserProvider) {
+      const browserOk = await ctx.browserProvider.healthCheck().catch(() => false);
+      l3Status.push(`Browser: ${browserOk ? 'reachable' : 'configured but UNREACHABLE'}`);
+    } else {
+      l3Status.push('Browser: not configured (set ADIDAS_BROWSER_BASE_URL + install playwright)');
+    }
+    l3Status.push('PDF: extractor ready (pdf-parse loaded lazily)');
+
+    console.log('Pre-flight: L3 providers:');
+    for (const s of l3Status) {
+      console.log(`  ${s}`);
+    }
+    const l3Missing = [!ctx.nshiftClient && 'NShift', !ctx.emailProvider && 'Email', !ctx.browserProvider && 'Browser'].filter(Boolean);
+    if (l3Missing.length > 0) {
+      console.log(`  Note: ${l3Missing.join(', ')} steps will skip gracefully (recorded as low-severity gaps)`);
+    }
   }
   console.log('');
 
@@ -474,7 +529,7 @@ export async function main(): Promise<void> {
     outcomes, recurring,
   );
 
-  printSummary(result, finalOrderId, reportPath);
+  printSummary(result, finalOrderId, reportPath, args.skipLayer2, args.skipLayer3);
   console.log(`  Debug: ${debugPath}`);
 
   process.exit(result.overallSuccess ? 0 : 1);

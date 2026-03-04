@@ -633,6 +633,21 @@ export function buildTC01Lifecycle(
           }
         }
 
+        // Fetch forward label PDF from NShift (if configured + shipment has tracking)
+        if (ctx.nshiftClient && ctx.shipments.length > 0 && ctx.shipments[0].trackingNo) {
+          try {
+            const pdfResult = await ctx.nshiftClient.getLabelPdf(ctx.shipments[0].trackingNo);
+            if (pdfResult.success) {
+              shipPollData.forwardLabelPdf = pdfResult.value;
+              console.log(`  [L3] Forward label PDF fetched (${pdfResult.value.length} bytes)`);
+            } else {
+              console.log(`  [L3] Forward label PDF not available: ${pdfResult.error.message}`);
+            }
+          } catch (e) {
+            console.log(`  [L3] Forward label PDF fetch error: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+
         return { success: true, data: shipPollData, durationMs: Date.now() - start };
       },
       verifyStepIds: ['step-03', 'step-04', 'step-05', 'step-06', 'step-07', 'step-08', 'step-09'],
@@ -782,6 +797,7 @@ export function buildTC01Lifecycle(
         'step-03a',    // Email: Order confirmation
         'step-07a',    // PDF: Forward shipping label
         'step-14a',    // Email: Out for delivery
+        'step-15a',    // Email: Delivery attempt ("Can't reach you")
         'step-16a',    // Email: Order delivered
       ],
       fallback: 'skip',
@@ -975,6 +991,21 @@ export function buildTC01Lifecycle(
             console.log(`  [AutoPOC] InvoiceStatus_AutoPOC (credit note enrichment): OK (${invPocResp.duration}ms)`);
           } catch (pocErr) {
             console.warn(`  [WARN] AutoPOC return-delivery enrichment failed: ${pocErr instanceof Error ? pocErr.message : pocErr}`);
+          }
+        }
+
+        // Fetch return label PDF from NShift (if configured + return has tracking)
+        if (ctx.nshiftClient && ctx.returnTracking) {
+          try {
+            const pdfResult = await ctx.nshiftClient.getLabelPdf(ctx.returnTracking);
+            if (pdfResult.success) {
+              returnData.returnLabelPdf = pdfResult.value;
+              console.log(`  [L3] Return label PDF fetched (${pdfResult.value.length} bytes)`);
+            } else {
+              console.log(`  [L3] Return label PDF not available: ${pdfResult.error.message}`);
+            }
+          } catch (e) {
+            console.log(`  [L3] Return label PDF fetch error: ${e instanceof Error ? e.message : String(e)}`);
           }
         }
 

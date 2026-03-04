@@ -46,6 +46,8 @@ export interface StepCheck {
   passed: boolean;
   expected: string;
   actual: string;
+  /** 'low' = graceful skip (provider missing / env gap), not a real test failure */
+  severity?: 'low' | 'medium' | 'high';
 }
 
 // ============================================================================
