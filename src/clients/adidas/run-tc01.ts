@@ -26,7 +26,7 @@ import { createAdidasTestContext } from './context';
 import { buildTC01Lifecycle } from './tc01-lifecycle';
 import { tc01Steps } from './tc01-steps';
 import { createActionOrchestrator } from '../../integrations/orchestration/action-orchestrator';
-import { generateTC01Report, generateDebugDump } from './report-generator';
+import { generateTC01Report, generateDebugDump, generateFullBreakdown } from './report-generator';
 import { runOrdersInParallel } from './parallel-order-runner';
 import { createHealingHandler } from './healing-handler';
 import { loadSterlingPatterns } from './sterling-patterns';
@@ -640,8 +640,22 @@ export async function main(): Promise<void> {
     outcomes, recurring,
   );
 
+  // Full narrative breakdown (auto-generated equivalent of tc01-full-breakdown-*.md)
+  const breakdownPath = await generateFullBreakdown(
+    result, finalOrderId,
+    {
+      enterpriseCode: config.enterpriseCode,
+      host: config.sterling.baseUrl,
+      layers: `L1${args.skipLayer2 ? '' : '+L2'}${args.skipLayer3 ? '' : '+L3'}`,
+      xapiEnabled: config.xapi.enabled,
+      mode: mode as 'create' | 'validate',
+    },
+    outcomes, recurring,
+  );
+
   printSummary(result, finalOrderId, reportPath, args.skipLayer2, args.skipLayer3);
   console.log(`  Debug: ${debugPath}`);
+  console.log(`  Breakdown: ${breakdownPath}`);
 
   process.exit(result.overallSuccess ? 0 : 1);
 }
