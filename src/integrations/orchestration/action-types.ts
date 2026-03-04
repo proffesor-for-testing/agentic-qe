@@ -76,6 +76,9 @@ export interface ActionOrchestratorConfig<TContext extends BaseTestContext = Bas
   /** Skip Layer 3 verification steps */
   skipLayer3?: boolean;
 
+  /** Called before each stage starts (for narration/progress display) */
+  onStageStart?: (stageId: string, stageName: string, stageDescription: string, index: number, total: number) => void;
+
   /** Called after each stage completes */
   onStageComplete?: (stageId: string, result: StageResult) => void;
 

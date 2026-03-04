@@ -27,7 +27,7 @@ import type {
   RunResult,
   StageResult,
 } from './action-types';
-import { shouldSkipStep } from './skip-logic';
+import { shouldSkipStep, skipReason } from './skip-logic';
 
 // ============================================================================
 // Helpers: ActionResult builders
@@ -54,6 +54,7 @@ class ActionOrchestratorImpl<TContext extends BaseTestContext> implements Action
   private verificationSteps: StepDef<TContext>[];
   private skipLayer2: boolean;
   private skipLayer3: boolean;
+  private onStageStart?: (stageId: string, stageName: string, stageDescription: string, index: number, total: number) => void;
   private onStageComplete?: (stageId: string, result: StageResult) => void;
   private onStageFailed?: (stageId: string, result: StageResult, ctx: TContext) => Promise<'retry' | 'continue' | 'abort'>;
   private onManualAction?: (stage: LifecycleStage<TContext>) => Promise<void>;
@@ -66,6 +67,7 @@ class ActionOrchestratorImpl<TContext extends BaseTestContext> implements Action
     this.verificationSteps = config.verificationSteps;
     this.skipLayer2 = config.skipLayer2 ?? false;
     this.skipLayer3 = config.skipLayer3 ?? false;
+    this.onStageStart = config.onStageStart;
     this.onStageComplete = config.onStageComplete;
     this.onStageFailed = config.onStageFailed;
     this.onManualAction = config.onManualAction;
@@ -113,7 +115,11 @@ class ActionOrchestratorImpl<TContext extends BaseTestContext> implements Action
   private async runStages(ctx: TContext, stages: LifecycleStage<TContext>[]): Promise<RunResult> {
     const runStart = Date.now();
 
+    const totalStages = this.stages.length;
     for (const stage of stages) {
+      const stageIndex = this.stages.indexOf(stage);
+      this.onStageStart?.(stage.id, stage.name, stage.description, stageIndex, totalStages);
+
       let stageResult = await this.executeStage(ctx, stage);
       let retries = 0;
 
@@ -282,10 +288,11 @@ class ActionOrchestratorImpl<TContext extends BaseTestContext> implements Action
         continue;
       }
 
-      if (shouldSkipStep(step, { skipLayer2: this.skipLayer2, skipLayer3: this.skipLayer3 })) {
+      const skipConfig = { skipLayer2: this.skipLayer2, skipLayer3: this.skipLayer3 };
+      if (shouldSkipStep(step, skipConfig)) {
         result.steps.push({
           stepId,
-          result: { success: true, durationMs: 0, checks: [], data: { skipped: true } },
+          result: { success: true, durationMs: 0, checks: [], data: { skipped: true, skipReason: skipReason(step, skipConfig) } },
         });
         result.skipped++;
         continue;

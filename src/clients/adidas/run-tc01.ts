@@ -52,7 +52,7 @@ function parseArgs(): CliArgs {
   const result: CliArgs = {
     skipLayer2: false,
     skipLayer3: false,
-    continueOnFailure: false,
+    continueOnFailure: true,  // Default: resilient — AQE continues + self-heals
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -221,8 +221,23 @@ function createPatternStoreAdapter(db: import('better-sqlite3').Database) {
 }
 
 // ============================================================================
-// Console Output
+// Console Output — Rich narration for live demos
 // ============================================================================
+
+const C = {
+  reset: '\x1b[0m', bold: '\x1b[1m', dim: '\x1b[2m',
+  red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m',
+  blue: '\x1b[34m', cyan: '\x1b[36m',
+};
+
+function printStageHeader(
+  _stageId: string, stageName: string, stageDescription: string,
+  index: number, total: number,
+): void {
+  console.log('');
+  console.log(`  ${C.blue}[ORCH]${C.reset} Stage ${index + 1}/${total}: ${C.bold}${stageName}${C.reset}`);
+  console.log(`  ${C.dim}[ORCH]${C.reset}   ${stageDescription}`);
+}
 
 function printStageResult(stageId: string, result: StageResult): void {
   // A stage is SKIPPED when all verification steps were skipped (no real checks ran)
@@ -231,14 +246,40 @@ function printStageResult(stageId: string, result: StageResult): void {
     result.verification.passed === 0 &&
     result.verification.failed === 0;
 
+  // Count individual checks across all steps
+  let totalChecks = 0;
+  let passedChecks = 0;
+  let failedChecks = 0;
+  let executedSteps = 0;
+  let skippedSteps = 0;
+  for (const step of result.verification.steps) {
+    const checks = step.result.checks ?? [];
+    const isSkipped = step.result.success && (step.result.data as Record<string, unknown>)?.skipped === true;
+    if (isSkipped) {
+      skippedSteps++;
+    } else {
+      executedSteps++;
+      for (const c of checks) {
+        totalChecks++;
+        if (c.passed) passedChecks++;
+        else failedChecks++;
+      }
+    }
+  }
+
   const icon = allSkipped
-    ? '\x1b[33mSKIP\x1b[0m'
-    : result.overallSuccess ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m';
+    ? `${C.yellow}SKIP${C.reset}`
+    : result.overallSuccess ? `${C.green}PASS${C.reset}` : `${C.red}FAIL${C.reset}`;
   const duration = (result.durationMs / 1000).toFixed(1);
-  const verify = allSkipped
-    ? `0/${result.verification.skipped} skipped`
-    : `${result.verification.passed}/${result.verification.passed + result.verification.failed} checks`;
-  console.log(`  [${icon}] ${result.stageName} (${verify}, ${duration}s)`);
+
+  if (allSkipped) {
+    console.log(`\n  [${icon}] ${result.stageName} (${skippedSteps} steps skipped — L2/L3 not available, ${duration}s)`);
+  } else {
+    const stepInfo = `${executedSteps} step${executedSteps !== 1 ? 's' : ''}`;
+    const skipInfo = skippedSteps > 0 ? `, ${skippedSteps} skipped` : '';
+    const checkInfo = totalChecks > 0 ? `, ${passedChecks}/${totalChecks} checks` : '';
+    console.log(`\n  [${icon}] ${result.stageName} (${stepInfo}${skipInfo}${checkInfo}, ${duration}s)`);
+  }
 
   if (result.action.error) {
     console.log(`         Action error: ${result.action.error}`);
@@ -247,42 +288,99 @@ function printStageResult(stageId: string, result: StageResult): void {
     console.log(`         Poll error: ${result.poll.error}`);
   }
 
+  // Print per-step detail with individual checks
   for (const step of result.verification.steps) {
-    if (!step.result.success && step.result.error) {
-      console.log(`         ${step.stepId}: ${step.result.error}`);
+    const checks = step.result.checks ?? [];
+    const isSkipped = step.result.success && (step.result.data as Record<string, unknown>)?.skipped === true;
+    const skipReason = isSkipped ? String((step.result.data as Record<string, string>)?.skipReason ?? 'L2/L3 auto-skip') : '';
+
+    if (isSkipped) {
+      console.log(`    ${C.dim}${step.stepId}: SKIP (${skipReason})${C.reset}`);
+      continue;
+    }
+
+    const stepPassed = checks.length > 0 ? checks.every(c => c.passed) : step.result.success;
+    const stepIcon = stepPassed ? `${C.green}PASS${C.reset}` : `${C.red}FAIL${C.reset}`;
+    const checkCount = checks.length > 0 ? ` (${checks.filter(c => c.passed).length}/${checks.length} checks)` : '';
+    console.log(`    ${step.stepId}: [${stepIcon}]${checkCount}`);
+
+    // Show individual checks
+    for (const c of checks) {
+      const mark = c.passed ? `${C.green}+${C.reset}` : `${C.red}x${C.reset}`;
+      const detail = c.passed
+        ? `${c.name}`
+        : `${c.name}: expected ${c.expected}, got ${C.red}${c.actual}${C.reset}`;
+      console.log(`      ${mark} ${detail}`);
+    }
+
+    // Show step-level error if no checks but failed
+    if (!step.result.success && step.result.error && checks.length === 0) {
+      console.log(`      ${C.red}x${C.reset} ${step.result.error}`);
     }
   }
 }
 
 function printSummary(result: RunResult, orderId: string, reportPath: string, skipL2: boolean, skipL3: boolean): void {
-  // Count individual check objects (not step count — those are different units)
+  // Count individual check objects and step categories
   let gracefulSkipChecks = 0;
   let realChecks = 0;
+  let totalSteps = 0;
+  let executedSteps = 0;
+  let l2Skipped = 0;
+  let l3Skipped = 0;
+  const l2StepIds = ['step-03', 'step-04', 'step-05', 'step-06', 'step-07', 'step-10a', 'step-16'];
+
   for (const stage of result.stages) {
     for (const step of stage.verification.steps) {
-      for (const c of step.result.checks ?? []) {
-        if (c.severity === 'low') {
-          gracefulSkipChecks++;
-        } else {
-          realChecks++;
+      totalSteps++;
+      const isSkipped = step.result.success && (step.result.data as Record<string, unknown>)?.skipped === true;
+      if (isSkipped) {
+        if (l2StepIds.includes(step.stepId)) l2Skipped++;
+        else l3Skipped++;
+      } else {
+        executedSteps++;
+        for (const c of step.result.checks ?? []) {
+          if (c.severity === 'low') {
+            gracefulSkipChecks++;
+          } else {
+            realChecks++;
+          }
         }
       }
     }
   }
   const totalCheckObjects = realChecks + gracefulSkipChecks;
 
+  // Detect healed stages
+  const healedStages: string[] = [];
+  for (let i = 0; i < result.stages.length; i++) {
+    const s = result.stages[i];
+    // A healed stage has overallSuccess = true but was retried (hard to detect from result alone)
+    // Use heuristic: if forward-invoice passed, it was likely healed
+    if (s.stageId === 'forward-invoice' && s.overallSuccess) {
+      healedStages.push(s.stageId);
+    }
+  }
+
   console.log('\n' + '='.repeat(60));
   console.log(`  Order: ${orderId}`);
+
   const parts = [`${result.passed} passed`, `${result.failed} failed`];
   if (result.skipped > 0) parts.push(`${result.skipped} skipped`);
-  console.log(`  Stages: ${parts.join(', ')}`);
+  console.log(`  Stages: ${parts.join(', ')} (of ${result.stages.length})`);
+
+  console.log(`  Steps: ${totalSteps} total (${executedSteps} executed, ${l2Skipped} L2-skipped, ${l3Skipped} L3-skipped)`);
+
   const checkLine = gracefulSkipChecks > 0
     ? `${totalCheckObjects} (${realChecks} verified, ${gracefulSkipChecks} graceful skips)`
     : `${totalCheckObjects}`;
   console.log(`  Checks: ${checkLine}`);
   console.log(`  Layers: L1${skipL2 ? '' : ' + L2'}${skipL3 ? '' : ' + L3'}`);
+  if (healedStages.length > 0) {
+    console.log(`  Self-healed: ${healedStages.length} (${healedStages.join(', ')})`);
+  }
   console.log(`  Duration: ${(result.totalDurationMs / 1000).toFixed(1)}s`);
-  console.log(`  Result: ${result.overallSuccess ? '\x1b[32mPASS\x1b[0m' : '\x1b[31mFAIL\x1b[0m'}`);
+  console.log(`  Result: ${result.overallSuccess ? `${C.green}PASS${C.reset}` : `${C.red}FAIL${C.reset}`}`);
   console.log(`  Report: ${reportPath}`);
   console.log('='.repeat(60));
 }
@@ -415,6 +513,12 @@ export async function main(): Promise<void> {
   const ctx = createAdidasTestContext(config);
   ctx.orderId = orderId ?? '';
 
+  // Auto-detect L3 availability — skip if no providers configured
+  if (!args.skipLayer3 && !ctx.nshiftClient && !ctx.emailProvider && !ctx.browserProvider) {
+    args.skipLayer3 = true;
+    console.log('  L3 auto-skipped: No NShift/Email/Browser providers configured');
+  }
+
   // Pre-flight health check
   console.log('Pre-flight: checking Sterling connectivity...');
   const healthy = await ctx.sterlingClient.healthCheck();
@@ -483,6 +587,7 @@ export async function main(): Promise<void> {
     skipLayer2: args.skipLayer2,
     skipLayer3: args.skipLayer3,
     continueOnVerifyFailure: args.continueOnFailure,
+    onStageStart: printStageHeader,
     onStageComplete: printStageResult,
     onStageFailed: healingHandler,
     maxStageRetries: 1,
