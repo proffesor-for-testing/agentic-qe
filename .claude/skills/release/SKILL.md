@@ -1,7 +1,7 @@
 ---
 name: release
 description: End-to-end npm release workflow with verification gates and hardcoded-version protection
-trust_tier: 3
+trust_tier: 0
 domain: release-management
 ---
 
