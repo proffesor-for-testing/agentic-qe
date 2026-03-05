@@ -353,7 +353,7 @@ class PythonParser implements ILanguageParser {
       if (fromMatch) {
         const names = fromMatch[2]
           .split(',')
-          .map((n) => n.trim().split(/ +as +/)[0]);
+          .map((n) => n.trim().split(' as ')[0]);
         imports.push({
           module: fromMatch[1],
           namedImports: names,
@@ -499,7 +499,7 @@ class JavaParser implements ILanguageParser {
     const imports: UniversalImportInfo[] = [];
     const lines = content.split('\n');
     for (const line of lines) {
-      const match = line.match(/^\s*import\s+(static +)?([^;]+);/);
+      const match = line.match(/^\s*import +(static +)?(\S[^;]*);/);
       if (match) {
         const module = match[2].trim();
         const parts = module.split('.');
@@ -630,7 +630,7 @@ class CSharpParser implements ILanguageParser {
     const imports: UniversalImportInfo[] = [];
     const lines = content.split('\n');
     for (const line of lines) {
-      const match = line.match(/^\s*using\s+(static +)?([^;]+);/);
+      const match = line.match(/^\s*using +(static +)?(\S[^;]*);/);
       if (match) {
         imports.push({
           module: match[2].trim(),
@@ -888,7 +888,7 @@ class RustParser implements ILanguageParser {
     const imports: UniversalImportInfo[] = [];
     const lines = content.split('\n');
     for (const line of lines) {
-      const match = line.match(/^\s*use +([^;]+);/);
+      const match = line.match(/^\s*use +(\S[^;]*);/);
       if (match) {
         imports.push({
           module: match[1].trim(),
