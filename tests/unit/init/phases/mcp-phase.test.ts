@@ -13,13 +13,12 @@ vi.mock('fs', async () => {
   return {
     ...actual,
     existsSync: vi.fn().mockReturnValue(false),
-    mkdirSync: vi.fn(),
     readFileSync: vi.fn().mockReturnValue('{}'),
     writeFileSync: vi.fn(),
   };
 });
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 
 function createMockContext(overrides: Partial<InitContext> = {}): InitContext {
   return {
@@ -43,7 +42,6 @@ describe('MCPPhase', () => {
   beforeEach(() => {
     phase = new MCPPhase();
     vi.mocked(existsSync).mockReturnValue(false);
-    vi.mocked(mkdirSync).mockReturnValue(undefined as any);
     vi.mocked(readFileSync).mockReturnValue('{}');
     vi.mocked(writeFileSync).mockReturnValue(undefined);
   });
@@ -93,26 +91,14 @@ describe('MCPPhase', () => {
       expect(parsed.mcpServers['agentic-qe'].command).toBe('aqe-mcp');
     });
 
-    it('should write MCP config to .claude/mcp.json as alternative', async () => {
+    it('should NOT write to .claude/mcp.json (single location, #321)', async () => {
       const context = createMockContext();
       await phase.execute(context);
 
-      expect(writeFileSync).toHaveBeenCalledWith(
-        '/tmp/test-mcp/.claude/mcp.json',
-        expect.any(String),
-        'utf-8'
+      const claudeWrite = vi.mocked(writeFileSync).mock.calls.find(
+        (call: any[]) => (call[0] as string).includes('.claude/mcp.json')
       );
-    });
-
-    it('should create .claude directory if it does not exist', async () => {
-      vi.mocked(existsSync).mockReturnValue(false);
-      const context = createMockContext();
-      await phase.execute(context);
-
-      expect(mkdirSync).toHaveBeenCalledWith(
-        '/tmp/test-mcp/.claude',
-        expect.objectContaining({ recursive: true })
-      );
+      expect(claudeWrite).toBeUndefined();
     });
 
     it('should merge with existing .mcp.json content', async () => {
@@ -165,10 +151,9 @@ describe('MCPPhase', () => {
       expect(result.data!.configured).toBe(true);
       expect(result.data!.serverName).toBe('agentic-qe');
       expect(result.data!.mcpPath).toContain('.mcp.json');
-      expect(result.data!.alternativePath).toContain('.claude/mcp.json');
     });
 
-    it('should include correct environment variables in server config', async () => {
+    it('should NOT include AQE_PROJECT_ROOT in env (portable config, #321)', async () => {
       const context = createMockContext({ projectRoot: '/my/project' });
       await phase.execute(context);
 
@@ -178,7 +163,7 @@ describe('MCPPhase', () => {
       const parsed = JSON.parse(rootCall![1] as string);
       const env = parsed.mcpServers['agentic-qe'].env;
 
-      expect(env.AQE_PROJECT_ROOT).toBe('/my/project');
+      expect(env.AQE_PROJECT_ROOT).toBeUndefined();
       expect(env.AQE_LEARNING_ENABLED).toBe('true');
       expect(env.AQE_WORKERS_ENABLED).toBe('true');
       expect(env.NODE_ENV).toBe('production');

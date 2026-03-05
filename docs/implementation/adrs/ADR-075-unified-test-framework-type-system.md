@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-075 |
-| **Status** | Proposed |
+| **Status** | Accepted & Implemented |
 | **Date** | 2026-03-04 |
 | **Author** | AQE Architecture Team |
 | **Review Cadence** | 6 months |

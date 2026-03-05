@@ -1,7 +1,7 @@
 # AQE Multi-Language Test Generation -- GOAP Implementation Plan
 
 **Date**: 2026-03-04
-**Status**: Ready for execution
+**Status**: Phases 1-4 Complete (2026-03-05). Phase 5 pending.
 **Prerequisite**: Read `docs/multi-language-test-generation-plan.md` for full context
 **GitHub Issue**: [#319](https://github.com/proffesor-for-testing/agentic-qe/issues/319)
 
@@ -39,7 +39,75 @@ GOAL STATE:
   language_auto_detection: true
   compilation_validation: true  (opt-in)
   python_ast_parsing: true
+
+ACTUAL STATE (2026-03-05):
+  languages_with_full_generation: [typescript, javascript, python, java, csharp, go, rust, swift, kotlin, dart]  ✅
+  test_framework_types_divergent: false  ✅  (unified in src/shared/types/test-frameworks.ts)
+  parser_abstraction: true  ✅  (ILanguageParser interface + 8 implementations)
+  tree_sitter_integrated: AMENDED  ⚠️  (enhanced regex, not WASM — see ADR-076 amendment)
+  language_auto_detection: true  ✅  (src/shared/language-detector.ts)
+  compilation_validation: true  ✅  (opt-in, src/.../compilation-validator.ts)
+  python_ast_parsing: true  ✅  (via regex parser, not TS compiler)
 ```
+
+---
+
+## Execution Status (2026-03-05)
+
+| Milestone | Status | Tests | Notes |
+|-----------|--------|-------|-------|
+| M1.1 | ✅ Complete | 24 pass | `test-frameworks.ts` — 18 frameworks, 10 languages |
+| M1.2 | ✅ Complete | — | Interfaces updated, framework optional |
+| M1.3 | ✅ Complete | 47 pass | Factory with alias resolution, 18 frameworks |
+| M1.4 | ✅ Complete | 7 pass | `ILanguageParser` + `TypeScriptLanguageParser` adapter |
+| M1.5 | ✅ Complete (amended) | 24 pass | Enhanced regex, NOT tree-sitter WASM (see ADR-076) |
+| M1.5-PY | ✅ Complete | — | Python routes to regex parser |
+| M1.6 | ✅ Complete | 25 pass | Language auto-detection |
+| M1.7 | ✅ Complete | 7 pass | Compilation validation loop |
+| M1.8 | ✅ Complete | 13 pass | Test file path resolver |
+| M1.9 | ✅ Complete | 131 pass | Wired into TestGeneratorService |
+| M1.10 | ✅ Complete | — | Language-aware prompts for all 10 languages |
+| M1.11 | ✅ Complete | — | Code metrics tree-sitter dispatch |
+| **GATE 1** | ✅ PASSED | 211 | Build clean |
+| M2.1 | ✅ Complete | 18 pass | JUnit 5 + Mockito + AssertJ + Spring |
+| M2.2 | ✅ Complete | 27 pass | xUnit + Moq + FluentAssertions |
+| M2.3 | ✅ Complete | 13 pass | Go table-driven + t.Run |
+| M2.REGISTRY | ✅ Complete | — | All Phase 2 generators wired |
+| **GATE 2** | ✅ PASSED | 146 | Build clean |
+| M3.1 | ✅ Complete | 28 pass | Rust + ownership analysis + tokio |
+| M4.1 | ✅ Complete | 26 pass | Swift Testing (@Suite/@Test/#expect) |
+| M4.2 | ✅ Complete | 22 pass | Kotlin JUnit + MockK + coroutines |
+| M4.3 | ✅ Complete | 27 pass | Flutter test + Mockito + widgets |
+| M4.4 | ✅ Complete | 28 pass | React Native Jest + RNTL |
+| M4.5 | ✅ Complete | 19 pass | Mobile detectors (SwiftUI/Compose/Flutter/RN) |
+| M4.REGISTRY | ✅ Complete | — | All generators wired, factory complete |
+| **GATE 3** | ✅ PASSED | 18,244 | Full suite, 0 failures |
+
+### Post-Implementation Fixes (Brutal Honesty Review, 2026-03-05)
+
+| Fix | Description |
+|-----|-------------|
+| Rename `tree-sitter-parser.ts` → `multi-language-parser.ts` | Honest naming for regex-based implementation |
+| Add `convertParsedFile` to `RustTestGenerator` | Missing ParsedFile→CodeAnalysis bridge |
+| Update `services/index.ts` barrel | Export all 12 generators (was only 4) |
+| Create M4.5 mobile-detector.ts | Was silently skipped — now implemented with 19 tests |
+| Document TestNG/NUnit aliasing | Inline comments on factory alias limitations |
+| Enhanced regex utilities | `joinMultiLineSignatures`, `matchBalancedBrackets`, brace-depth tracking |
+
+### Decision Amendments
+
+| ADR | Original Decision | Amended Decision | Reason |
+|-----|-------------------|------------------|--------|
+| ADR-076 | tree-sitter WASM (Option 1) | Enhanced regex (Option 3b) | Zero deps, sufficient accuracy (~97-98%), tree-sitter deferred as future enhancement |
+
+### Remaining Work
+
+| Item | Priority | Description |
+|------|----------|-------------|
+| tree-sitter WASM | Low | Optional upgrade for 100% parsing accuracy (GitHub issue created) |
+| TestNG generator | Low | Dedicated generator instead of JUnit5 alias |
+| NUnit generator | Low | Dedicated generator instead of xUnit alias |
+| Phase 5: KG + Quality | Future | Multi-language KG indexing, coverage report parsing |
 
 ---
 
@@ -59,7 +127,7 @@ This is CRITICAL for swarm execution. Two agents must NEVER edit the same file s
 | `src/shared/parsers/interfaces.ts` | M1.4 |
 | `src/shared/parsers/typescript-parser.ts` | M1.4 |
 | `src/shared/parsers/index.ts` | M1.4 |
-| `src/shared/parsers/tree-sitter-parser.ts` | M1.5 |
+| `src/shared/parsers/multi-language-parser.ts` | M1.5 |
 | `src/shared/language-detector.ts` | M1.6 |
 | `src/domains/test-generation/services/compilation-validator.ts` | M1.7 |
 | `src/domains/test-generation/services/test-file-resolver.ts` | M1.8 |
@@ -93,7 +161,7 @@ This is CRITICAL for swarm execution. Two agents must NEVER edit the same file s
 |------|----------------|
 | `tests/shared/types/test-frameworks.test.ts` | M1.1 |
 | `tests/shared/parsers/interfaces.test.ts` | M1.4 |
-| `tests/shared/parsers/tree-sitter-parser.test.ts` | M1.5 |
+| `tests/shared/parsers/multi-language-parser.test.ts` | M1.5 |
 | `tests/shared/language-detector.test.ts` | M1.6 |
 | `tests/domains/test-generation/services/compilation-validator.test.ts` | M1.7 |
 | `tests/domains/test-generation/services/test-file-resolver.test.ts` | M1.8 |
