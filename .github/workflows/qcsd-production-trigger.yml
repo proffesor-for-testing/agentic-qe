@@ -123,20 +123,20 @@ jobs:
         run: |
           RELEASE_ID="${{ steps.resolve.outputs.release_id }}"
           TRIGGER="${{ steps.trigger.outputs.type }}"
-          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-## QCSD Production Telemetry Collected
-
-| Field | Value |
-|-------|-------|
-| Release | \`${RELEASE_ID}\` |
-| Trigger | ${TRIGGER} |
-| DORA | ${{ steps.collect.outputs.dora_summary }} |
-
-### Invoke Production Swarm
-\`\`\`
-/qcsd-production-swarm TELEMETRY_DATA=docs/telemetry/production/latest.json RELEASE_ID=${RELEASE_ID}
-\`\`\`
-EOF
+          {
+            echo "## QCSD Production Telemetry Collected"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Release | \`${RELEASE_ID}\` |"
+            echo "| Trigger | ${TRIGGER} |"
+            echo "| DORA | ${{ steps.collect.outputs.dora_summary }} |"
+            echo ""
+            echo "### Invoke Production Swarm"
+            echo "\`\`\`"
+            echo "/qcsd-production-swarm TELEMETRY_DATA=docs/telemetry/production/latest.json RELEASE_ID=${RELEASE_ID}"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   signal-readiness:
     name: Signal Production Swarm Readiness
