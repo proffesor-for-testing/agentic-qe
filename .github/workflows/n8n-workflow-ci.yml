@@ -37,7 +37,7 @@ on:
 env:
   N8N_BASE_URL: ${{ secrets.N8N_BASE_URL }}
   N8N_WORKFLOW_ID: ${{ github.event.inputs.workflow_id || 'XZh6fRWwt0KdHz2Q' }}
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
 
 # Permissions
 permissions:

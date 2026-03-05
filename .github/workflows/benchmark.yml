@@ -32,7 +32,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: ['20']
+        node-version: ['24']
       fail-fast: false
 
     steps:
