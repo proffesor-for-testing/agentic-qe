@@ -26,6 +26,7 @@ import { CircularBuffer } from '../../../shared/utils/circular-buffer.js';
 import { HNSWEmbeddingIndex } from '../../embeddings/index/HNSWIndex.js';
 import type { IEmbedding } from '../../embeddings/base/types.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { ExperienceConsolidator } from '../../../learning/experience-consolidation.js';
 
 // ============================================================================
 // Types
@@ -309,6 +310,12 @@ export class ExperienceReplay {
       ['embedding_dimension', 'INTEGER'],
       ['tags', 'TEXT'],
       ['last_applied_at', 'TEXT'],
+      // Consolidation columns (experience-consolidation system)
+      ['consolidated_into', 'TEXT DEFAULT NULL'],
+      ['consolidation_count', 'INTEGER DEFAULT 1'],
+      ['quality_updated_at', 'TEXT DEFAULT NULL'],
+      ['reuse_success_count', 'INTEGER DEFAULT 0'],
+      ['reuse_failure_count', 'INTEGER DEFAULT 0'],
     ];
     for (const [col, def] of additions) {
       if (!colNames.has(col)) {
@@ -330,6 +337,20 @@ export class ExperienceReplay {
       );
       CREATE INDEX IF NOT EXISTS idx_exp_apps_experience ON experience_applications(experience_id);
     `);
+
+    // Create consolidation audit log
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS experience_consolidation_log (
+        id TEXT PRIMARY KEY,
+        domain TEXT NOT NULL,
+        action TEXT NOT NULL,
+        source_ids TEXT NOT NULL,
+        target_id TEXT,
+        details TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_consolidation_log_domain ON experience_consolidation_log(domain);
+    `);
   }
 
   /**
@@ -350,15 +371,15 @@ export class ExperienceReplay {
     `));
 
     this.prepared.set('getExperiencesByDomain', this.db.prepare(`
-      SELECT * FROM captured_experiences WHERE domain = ? ORDER BY quality DESC LIMIT ?
+      SELECT * FROM captured_experiences WHERE domain = ? AND consolidated_into IS NULL ORDER BY quality DESC LIMIT ?
     `));
 
     this.prepared.set('getAllExperiences', this.db.prepare(`
-      SELECT * FROM captured_experiences ORDER BY quality DESC LIMIT ?
+      SELECT * FROM captured_experiences WHERE consolidated_into IS NULL ORDER BY quality DESC LIMIT ?
     `));
 
     this.prepared.set('getAllEmbeddings', this.db.prepare(`
-      SELECT id, embedding, embedding_dimension FROM captured_experiences WHERE embedding IS NOT NULL
+      SELECT id, embedding, embedding_dimension FROM captured_experiences WHERE embedding IS NOT NULL AND consolidated_into IS NULL
     `));
 
     this.prepared.set('updateApplication', this.db.prepare(`
@@ -374,16 +395,8 @@ export class ExperienceReplay {
       VALUES (?, ?, ?, ?, ?, ?)
     `));
 
-    this.prepared.set('deleteExperience', this.db.prepare(`
-      DELETE FROM captured_experiences WHERE id = ?
-    `));
-
-    this.prepared.set('getLowQualityExperiences', this.db.prepare(`
-      SELECT id FROM captured_experiences WHERE quality < ? AND application_count < 3
-    `));
-
     this.prepared.set('countByDomain', this.db.prepare(`
-      SELECT domain, COUNT(*) as count FROM captured_experiences GROUP BY domain
+      SELECT domain, COUNT(*) as count FROM captured_experiences WHERE consolidated_into IS NULL GROUP BY domain
     `));
   }
 
@@ -527,9 +540,9 @@ export class ExperienceReplay {
 
     this.stats.experiencesStored++;
 
-    // Auto-prune if enabled
+    // Auto-consolidate if enabled (replaces destructive auto-prune)
     if (this.config.autoPrune) {
-      await this.autoPrune(domain);
+      await this.autoConsolidate(domain);
     }
 
     return experience;
@@ -753,47 +766,61 @@ export class ExperienceReplay {
   }
 
   /**
-   * Auto-prune low-quality experiences
+   * Auto-consolidate experiences (replaces destructive auto-prune).
+   * Merges similar experiences and archives valueless ones instead of deleting.
    */
-  private async autoPrune(domain: QEDomain): Promise<number> {
+  private async autoConsolidate(domain: QEDomain): Promise<number> {
     if (!this.db) return 0;
 
-    // Count experiences in domain
+    // Count active experiences in domain
     const countStmt = this.prepared.get('countByDomain');
     if (!countStmt) return 0;
 
     const counts = countStmt.all() as Array<{ domain: string; count: number }>;
     const domainCount = counts.find(c => c.domain === domain)?.count ?? 0;
 
-    // If over limit, remove low-quality experiences
-    if (domainCount > this.config.maxExperiencesPerDomain) {
-      const lowQualityStmt = this.prepared.get('getLowQualityExperiences');
-      if (lowQualityStmt) {
-        const toRemove = lowQualityStmt.all(this.config.pruneThreshold) as Array<{ id: string }>;
-        const deleteStmt = this.prepared.get('deleteExperience');
+    // Only consolidate when over soft threshold (400)
+    if (domainCount > 400) {
+      try {
+        const consolidator = new ExperienceConsolidator();
+        await consolidator.initialize(this.db);
+        const result = await consolidator.consolidateDomain(domain, domainCount);
 
-        let removed = 0;
-        for (const { id } of toRemove) {
-          if (deleteStmt) {
-            deleteStmt.run(id);
-            // Note: HNSW doesn't support deletion, but we remove from ID mappings
-            // The orphaned entry will be ignored during search
-            const hnswId = this.experienceIdToHnswId.get(id);
-            if (hnswId !== undefined) {
-              this.idToExperienceId.delete(hnswId);
-              this.experienceIdToHnswId.delete(id);
-            }
-            removed++;
-          }
-          if (domainCount - removed <= this.config.maxExperiencesPerDomain) break;
+        // Remove HNSW mappings for absorbed experiences
+        if (result.merged > 0) {
+          // Reload HNSW index to reflect consolidated state
+          await this.loadEmbeddingIndex();
         }
 
-        console.log(`[ExperienceReplay] Auto-pruned ${removed} low-quality experiences`);
-        return removed;
+        console.log(
+          `[ExperienceReplay] Auto-consolidated ${domain}: ` +
+          `${result.merged} merged, ${result.archived} archived`
+        );
+        return result.merged + result.archived;
+      } catch (error) {
+        console.warn('[ExperienceReplay] Auto-consolidation failed, skipping:', error);
       }
     }
 
     return 0;
+  }
+
+  /**
+   * Record reuse of an experience (success or failure).
+   * Updates direct tracking counters for quality reinforcement.
+   */
+  async recordReuse(experienceId: string, success: boolean): Promise<void> {
+    this.ensureInitialized();
+    if (!this.db) return;
+
+    const column = success ? 'reuse_success_count' : 'reuse_failure_count';
+    try {
+      this.db.prepare(
+        `UPDATE captured_experiences SET ${column} = ${column} + 1 WHERE id = ?`
+      ).run(experienceId);
+    } catch {
+      // Best effort
+    }
   }
 
   /**

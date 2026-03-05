@@ -94,6 +94,7 @@ For client-specific setup examples, see [Platform Setup Guide](docs/platform-set
 - ✅ **OpenCode Support** (v3.7.1): 59 agent configs, 86 skill configs (78 QE + 8 general dev), 5 tool wrappers, SSE/WS/HTTP transport, output compaction, graceful degradation, `aqe init --with-opencode` auto-provisioning
 - ✅ **AWS Kiro Support** (v3.7.2): 87 agent configs, 86 skill configs, 5 event-driven hooks, 2 steering files, MCP config, `aqe init --with-kiro` auto-provisioning
 - ✅ **Multi-Platform Support** (v3.7.4): 8 new platform integrations — GitHub Copilot, Cursor, Cline, Kilo Code, Roo Code, OpenAI Codex CLI, Windsurf, Continue.dev — with JSON/TOML/YAML config generation, behavioral rules, and `aqe platform list/setup/verify` CLI
+- ✅ **Loki-Mode Quality Gates** (v3.7.7): Anti-sycophancy scoring, test quality gates, blind review, EMA calibration, edge-case injection, complexity-driven composition, auto-escalation — enabled by default (opt-out)
 - ✅ **V2 Backward Compatibility**: All V2 agents map to V3 equivalents
 - ✅ **78 QE Skills**: 46 Tier 3 verified + 32 additional QE skills (QCSD swarms, n8n testing, enterprise integration, qe-* domains)
 
@@ -296,6 +297,41 @@ aqe hooks search --query "test patterns"
 # View learning statistics
 aqe learning stats
 ```
+
+---
+
+### 🛡️ Loki-Mode Quality Gates (v3.7.7)
+
+V3.7.7 adds **7 adversarial quality features** inspired by loki-mode — designed to catch sycophantic AI outputs, hollow tests, and routing drift. All features are **enabled by default** (opt-out via config flags).
+
+| Feature | Config Flag | Description |
+|---------|------------|-------------|
+| **Anti-Sycophancy Scorer** | `enableSycophancyCheck` | Detects rubber-stamp consensus via Jaccard similarity, confidence uniformity, and reasoning overlap |
+| **Test Quality Gates** | `enableTestQualityGate` | Catches tautological assertions (`expect(true).toBe(true)`), empty test bodies, and missing source imports |
+| **Blind Review** | N/A (API option) | Runs N parallel test generators with varied temperatures, deduplicates via Jaccard |
+| **EMA Calibration** | `enableEMACalibration` | Exponential moving average tracks per-agent accuracy, derives dynamic voting weights |
+| **Edge-Case Injection** | `enableEdgeCaseInjection` | Queries historical patterns and injects proven edge cases into test generation prompts |
+| **Complexity Composition** | `enableComplexityComposition` | Maps 8-dimension complexity (AST + security + concurrency) to agent team composition |
+| **Auto-Escalation** | `enableAutoEscalation` | Consecutive failures auto-promote agent tier; consecutive successes auto-demote |
+
+```typescript
+// All features are ON by default. To disable specific features:
+const config: Partial<RoutingConfig> = {
+  enableEMACalibration: false,    // Disable EMA voting weights
+  enableAutoEscalation: false,    // Disable auto tier promotion
+};
+
+const consensusConfig: Partial<ConsensusEngineConfig> = {
+  enableSycophancyCheck: false,   // Disable rubber-stamp detection
+};
+
+const testConfig: Partial<TestGeneratorConfig> = {
+  enableTestQualityGate: false,   // Disable tautology detection
+  enableEdgeCaseInjection: false, // Disable pattern injection
+};
+```
+
+> See [docs/loki-mode-features.md](docs/loki-mode-features.md) for detailed usage examples and configuration reference.
 
 ---
 

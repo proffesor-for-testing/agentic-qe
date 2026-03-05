@@ -97,6 +97,9 @@ export interface TierConfig {
 
   /** Events that may activate this tier */
   readonly triggers: readonly TierTrigger[];
+
+  /** Enable complexity-driven agent team composition (default: true) */
+  readonly enableComplexityComposition?: boolean;
 }
 
 // ============================================================================

@@ -32,6 +32,7 @@ import {
 } from '../../learning/pattern-lifecycle.js';
 import { getUnifiedMemory } from '../../kernel/unified-memory.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { ExperienceConsolidator } from '../../learning/experience-consolidation.js';
 
 const CONFIG: WorkerConfig = {
   id: 'learning-consolidation',
@@ -73,6 +74,9 @@ interface ConsolidationResult {
   patternsPromoted: number;
   patternsDeprecated: number;
   confidenceDecayApplied: number;
+  /** Experience consolidation metrics */
+  experiencesMerged: number;
+  experiencesArchived: number;
 }
 
 export class LearningConsolidationWorker extends BaseWorker {
@@ -320,6 +324,36 @@ export class LearningConsolidationWorker extends BaseWorker {
           estimatedImpact: 'low',
           effort: 'low',
           autoFixable: false,
+        });
+      }
+
+      // Step 4.5: Consolidate experiences (merge similar, reinforce quality, archive valueless)
+      try {
+        const unifiedMemory = getUnifiedMemory();
+        const db = unifiedMemory.getDatabase();
+        const consolidator = new ExperienceConsolidator();
+        await consolidator.initialize(db);
+
+        const consolidationResult = await consolidator.consolidateAll();
+
+        if (consolidationResult.merged > 0 || consolidationResult.archived > 0) {
+          findings.push({
+            type: 'experience-consolidation',
+            severity: 'info',
+            domain: 'learning-optimization',
+            title: 'Experiences Consolidated',
+            description: `${consolidationResult.merged} merged, ${consolidationResult.archived} archived across ${consolidationResult.domainsProcessed.length} domains`,
+            context: {
+              merged: consolidationResult.merged,
+              archived: consolidationResult.archived,
+              activeRemaining: consolidationResult.activeRemaining,
+              domains: consolidationResult.domainsProcessed,
+            },
+          });
+        }
+      } catch (consolidationError) {
+        context.logger.warn('Experience consolidation failed', {
+          error: toErrorMessage(consolidationError),
         });
       }
 
@@ -622,6 +656,9 @@ export class LearningConsolidationWorker extends BaseWorker {
       patternsPromoted: 0,
       patternsDeprecated: 0,
       confidenceDecayApplied: 0,
+      // Experience consolidation metrics
+      experiencesMerged: 0,
+      experiencesArchived: 0,
     };
   }
 

@@ -92,6 +92,7 @@ describe('Consensus Engine Integration', () => {
       defaultThreshold: 2 / 3,
       enableCostTracking: true,
       humanReviewThreshold: 0.7,
+      enableSycophancyCheck: false, // Disable for base consensus tests (mock providers give identical votes)
     });
   });
 

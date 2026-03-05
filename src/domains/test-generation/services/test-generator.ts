@@ -48,6 +48,9 @@ import { TestDataGeneratorService, type ITestDataGeneratorService } from './test
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { TestQualityGate } from '../gates/index.js';
+import type { TestQualityGateResult } from '../gates/index.js';
+import { EdgeCaseInjector } from '../pattern-injection/index.js';
 
 /**
  * Interface for the test generation service
@@ -78,6 +81,10 @@ export interface TestGeneratorConfig {
   llmModelTier: number;
   /** ADR-051: Max tokens for LLM responses */
   llmMaxTokens: number;
+  /** Enable test quality gate validation on generated tests */
+  enableTestQualityGate: boolean;
+  /** Enable edge case injection from historical patterns (loki-mode Item 5) */
+  enableEdgeCaseInjection: boolean;
 }
 
 const DEFAULT_CONFIG: TestGeneratorConfig = {
@@ -88,6 +95,8 @@ const DEFAULT_CONFIG: TestGeneratorConfig = {
   enableLLMEnhancement: true, // On by default - opt-out
   llmModelTier: 2, // Sonnet by default
   llmMaxTokens: 2048,
+  enableTestQualityGate: true,
+  enableEdgeCaseInjection: true,
 };
 
 /**
@@ -120,6 +129,8 @@ export class TestGeneratorService implements ITestGenerationService {
   private readonly propertyTestGenerator: IPropertyTestGeneratorService;
   private readonly testDataGenerator: ITestDataGeneratorService;
   private readonly llmRouter?: HybridRouter;
+  private readonly qualityGate: TestQualityGate | null;
+  private readonly edgeCaseInjector: EdgeCaseInjector | null;
 
   constructor(
     dependencies: TestGeneratorDependencies,
@@ -132,6 +143,12 @@ export class TestGeneratorService implements ITestGenerationService {
     this.propertyTestGenerator = dependencies.propertyTestGenerator || new PropertyTestGeneratorService();
     this.testDataGenerator = dependencies.testDataGenerator || new TestDataGeneratorService();
     this.llmRouter = dependencies.llmRouter;
+    this.qualityGate = this.config.enableTestQualityGate
+      ? new TestQualityGate()
+      : null;
+    this.edgeCaseInjector = this.config.enableEdgeCaseInjection
+      ? new EdgeCaseInjector(this.memory)
+      : null;
   }
 
   // ============================================================================
@@ -172,6 +189,19 @@ export class TestGeneratorService implements ITestGenerationService {
 
     try {
       let prompt = this.buildTestEnhancementPrompt(testCode, sourceCode, analysis);
+
+      // Prepend historical edge case patterns if injector is available (loki-mode Item 5)
+      if (this.edgeCaseInjector) {
+        try {
+          const domain = context?.dependencies ? 'test-generation' : undefined;
+          const injection = await this.edgeCaseInjector.getInjectionContext(sourceCode, domain);
+          if (injection.promptContext) {
+            prompt = injection.promptContext + '\n\n' + prompt;
+          }
+        } catch (injectionError) {
+          console.warn('[TestGenerator] Edge case injection failed, continuing without it:', injectionError);
+        }
+      }
 
       // Append KG context if available
       if (context?.dependencies) {
@@ -513,6 +543,15 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       // ADR-051: Mark if LLM-enhanced
       llmEnhanced: this.isLLMEnhancementAvailable(),
     };
+
+    // Run test quality gate if enabled (loki-mode Gates 8 & 9)
+    if (this.qualityGate) {
+      test.qualityGateResult = this.qualityGate.validate(
+        testCode,
+        sourceFile,
+        sourceContent || undefined
+      );
+    }
 
     return ok({ tests: [test], patternsUsed });
   }

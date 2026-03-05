@@ -4,6 +4,7 @@
  */
 
 import { Result } from '../../shared/types';
+import type { TestQualityGateResult } from './gates/index.js';
 
 // ============================================================================
 // Domain API
@@ -54,6 +55,8 @@ export interface IGeneratedTest {
   assertions: number;
   /** ADR-051: Whether test was enhanced by LLM */
   llmEnhanced?: boolean;
+  /** Test quality gate validation result (loki-mode Gates 8 & 9) */
+  qualityGateResult?: TestQualityGateResult;
 }
 
 export interface ITDDRequest {

@@ -109,6 +109,29 @@ export type {
   RoutingConfig,
 } from './routing-config.js';
 
+// EMA Calibration (loki-mode inspired)
+export {
+  EMACalibrator,
+  DEFAULT_EMA_CONFIG,
+} from './calibration/index.js';
+
+export type {
+  CalibrationRecord,
+  EMAConfig,
+} from './calibration/index.js';
+
+// Auto-Escalation Tracker (loki-mode inspired)
+export {
+  AutoEscalationTracker,
+  DEFAULT_ESCALATION_CONFIG,
+} from './escalation/index.js';
+
+export type {
+  EscalationConfig,
+  EscalationState,
+  EscalationAction,
+} from './escalation/index.js';
+
 // Queen Integration (TD-005)
 export {
   QueenRouterAdapter,
