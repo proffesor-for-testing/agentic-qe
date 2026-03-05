@@ -84,7 +84,7 @@ Writes:
 - aqe/enterprise-integration/odata/validation-results/* - OData contract validation outcomes
 - aqe/enterprise-integration/odata/diffs/* - $metadata diff results between versions
 - aqe/enterprise-integration/odata/error-patterns/* - Detected OData error patterns
-- aqe/v3/enterprise-integration/odata/outcomes/* - V3 learning outcomes
+- aqe/enterprise-integration/odata/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/enterprise-integration/odata/* - OData test coordination with other enterprise agents

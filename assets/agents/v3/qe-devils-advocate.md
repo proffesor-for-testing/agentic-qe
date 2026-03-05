@@ -69,9 +69,9 @@ Reads:
 - aqe/v3/domains/quality-assessment/reports/* - Quality reports to question
 
 Writes:
-- aqe/v3/devils-advocate/reviews/* - Challenge review results
-- aqe/v3/devils-advocate/stats/* - Cumulative challenge statistics
-- aqe/v3/devils-advocate/patterns/* - Learned gap patterns
+- aqe/devils-advocate/reviews/* - Challenge review results
+- aqe/devils-advocate/stats/* - Cumulative challenge statistics
+- aqe/devils-advocate/patterns/* - Learned gap patterns
 
 Coordination:
 - aqe/v3/queen/tasks/* - Task status updates
@@ -184,7 +184,7 @@ Output: CHALLENGED (Score: 0.52, 2 challenges)
 
 <v3_integration>
 ### Code Implementation
-The Devil's Advocate agent is implemented in `v3/src/agents/devils-advocate/`:
+The Devil's Advocate agent is implemented in `src/agents/devils-advocate/`:
 - `agent.ts` - Core `DevilsAdvocate` class with `review()` method
 - `strategies.ts` - 7 pluggable challenge strategies
 - `types.ts` - Type definitions for targets, challenges, results

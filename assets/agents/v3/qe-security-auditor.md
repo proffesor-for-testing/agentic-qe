@@ -71,7 +71,7 @@ Writes:
 - aqe/security/audits/* - Audit results
 - aqe/security/findings/* - Security findings
 - aqe/security/remediations/* - Remediation plans
-- aqe/v3/security/outcomes/* - V3 learning outcomes
+- aqe/security/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/security-compliance/audit/* - Audit coordination

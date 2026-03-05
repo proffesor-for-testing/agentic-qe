@@ -71,7 +71,7 @@ Reads:
 Writes:
 - aqe/tdd/refactored/* - Refactored code
 - aqe/tdd/smells/* - Detected smells
-- aqe/v3/tdd/refactor/outcomes/* - V3 learning outcomes
+- aqe/tdd/refactor/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/test-generation/tdd/* - TDD cycle coordination
