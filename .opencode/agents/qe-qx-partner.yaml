@@ -15,7 +15,7 @@ systemPrompt: |
   - UX Testing Heuristics (25+): problem analysis, user needs, business needs, balance, impact, creativity
   - Journey Analysis, Impact Assessment, Quality-UX Correlation, Feedback Integration
   - Testability Integration with 10 Principles scoring
-  - Vibium Browser Automation for real-time UX validation
+  - Patchright Stealth Browser for bot-protected site validation (Akamai, Cloudflare, DataDome)
   - Competitor QX Benchmarking and Visual Evidence Capture
 
   Operating Principles:
@@ -25,7 +25,7 @@ systemPrompt: |
   - Generate QX recommendations for all significant quality events
   - ALWAYS generate HTML report for website evaluations → docs/qx-reports/{domain}-qx-evaluation.html
   - ALWAYS persist patterns → .agentic-qe/qx-patterns/ for cross-session learning
-  - ALWAYS use fetch-content.js cascade for URL analysis
+  - ALWAYS use fetch-content.cjs cascade for URL analysis
 
   Memory Integration:
   - Query past patterns: mcp:agentic-qe:memory_query
@@ -55,8 +55,8 @@ systemPrompt: |
   - Reports to qe-queen-coordinator
   - Shares oracle insights with qe-requirements-validator
 
-  Content Fetching: Use scripts/fetch-content.js (4-tier cascade). Fallback: WebFetch tool.
-  Vibium MCP tools: browser_launch, browser_navigate, browser_find, browser_click, browser_screenshot, browser_quit
+  Content Fetching: Use scripts/fetch-content.cjs (3-tier cascade: Patchright → HTTP → WebSearch). Fallback: WebFetch tool.
+  Bot protection: Use --stealth-wait 10 for Akamai/Cloudflare/DataDome sites.
 tools:
   - "read"
   - "edit"

@@ -1,7 +1,7 @@
 ---
 inclusion: auto
 name: qe-a11y-ally
-description: "Comprehensive WCAG accessibility auditing with multi-tool testing (axe-core + pa11y + Lighthouse), TRUE PARALLEL execution with Promise.allSettled, graceful degradation, retry with backoff, context-aware remediation, learning integration, and video accessibility. Uses 3-tier browser cascade: Vibium → agent-browser → Playwright+Stealth."
+description: "Comprehensive WCAG accessibility auditing with multi-tool testing (axe-core + pa11y + Lighthouse), TRUE PARALLEL execution with Promise.allSettled, graceful degradation, retry with backoff, context-aware remediation, learning integration, and video accessibility. Uses Patchright (CDP-stealth) for bot-protected sites."
 tags: [accessibility, wcag, a11y, video, captions, audiodesc, vtt, eu-compliance, context-aware, remediation, axe-core, pa11y, lighthouse, parallel, resilient, graceful-degradation, retry]
 ---
 
@@ -78,7 +78,7 @@ mcp__claude-flow_alpha__browser_open({ url: "TARGET_URL", waitUntil: "networkidl
 ```bash
 mkdir -p /tmp/a11y-work && cd /tmp/a11y-work
 npm init -y 2>/dev/null
-npm install playwright-extra puppeteer-extra-plugin-stealth @axe-core/playwright pa11y lighthouse chrome-launcher 2>/dev/null
+npm install patchright @axe-core/playwright pa11y lighthouse chrome-launcher 2>/dev/null
 ```
 
 Create and run scan script - see STEP 2 for full multi-tool scan code.
@@ -89,11 +89,10 @@ For auditing multiple URLs simultaneously, use parallel execution:
 
 ```javascript
 // /tmp/a11y-work/parallel-audit.js
-const { chromium } = require('playwright-extra');
-const stealth = require('puppeteer-extra-plugin-stealth')();
+const { chromium } = require('patchright');
 const { AxeBuilder } = require('@axe-core/playwright');
 
-chromium.use(stealth);
+// Patchright has built-in stealth — no plugin needed
 
 const MAX_CONCURRENT = 6;  // Maximum parallel auditors
 
@@ -246,15 +245,14 @@ Combined detection rate is ~15% higher than any single tool.
 ### 2.1: Run Multi-Tool Analysis (PARALLEL + RESILIENT)
 Create and run `/tmp/a11y-work/multi-tool-scan.js`:
 ```javascript
-const { chromium } = require('playwright-extra');
-const stealth = require('puppeteer-extra-plugin-stealth')();
+const { chromium } = require('patchright');
 const { AxeBuilder } = require('@axe-core/playwright');
 const pa11y = require('pa11y');
 const lighthouse = require('lighthouse').default || require('lighthouse');
 const { launch: launchChrome } = require('chrome-launcher');
 const fs = require('fs');
 
-chromium.use(stealth);
+// Patchright has built-in stealth — no plugin needed
 
 const TARGET_URL = process.argv[2] || 'TARGET_URL';
 const OUTPUT_FILE = '/tmp/a11y-work/scan-results.json';

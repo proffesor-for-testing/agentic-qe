@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 /**
- * Fetch Content CLI - 5-Tier Browser Cascade with Per-Tier Timeouts
+ * Fetch Content CLI - 3-Tier Browser Cascade with Per-Tier Timeouts
  *
  * Single entry point for all browser content fetching operations.
- * Automatically cascades through tiers with 30s timeout each.
+ * Uses Patchright (CDP-level stealth) as the primary browser tier.
  *
  * Usage:
- *   node scripts/fetch-content.js <URL> <OUTPUT_DIR> [OPTIONS]
+ *   node scripts/fetch-content.cjs <URL> <OUTPUT_DIR> [OPTIONS]
  *
  * Options:
- *   --timeout <ms>      Per-tier timeout (default: 30000)
- *   --skip-tiers <list> Comma-separated tiers to skip
- *   --locale <locale>   Browser locale (default: en-US)
+ *   --timeout <ms>           Per-tier timeout (default: 30000)
+ *   --skip-tiers <list>      Comma-separated tiers to skip
+ *   --locale <locale>        Browser locale (default: en-US)
+ *   --stealth-wait <seconds> Wait for bot protection challenge (Akamai/Cloudflare/DataDome)
+ *   --resource-blocking <preset>  functional|visual|performance|none (default: none)
  *
  * Output:
  *   - <OUTPUT_DIR>/content.html       Fetched HTML content
@@ -23,16 +25,12 @@
  *   1 - All tiers failed
  *   2 - Invalid arguments
  *
- * @version 1.0.0
+ * @version 2.0.0
  * @since v3
  */
 
-const { exec, execSync, spawn } = require('child_process');
-const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
-
-const execAsync = promisify(exec);
 
 // ============================================================================
 // Configuration
@@ -42,10 +40,44 @@ const DEFAULT_TIER_TIMEOUT = 30000; // 30 seconds per tier
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36';
 
 const TIERS = [
-  'vibium',
-  'playwright-stealth',
+  'patchright',
   'http-fetch',
   'websearch-fallback'
+];
+
+// Bot protection challenge page patterns
+const BOT_CHALLENGE_PATTERNS = [
+  // Cloudflare
+  'Just a moment',
+  'Checking your browser',
+  'Attention Required',
+  // Akamai
+  'Access Denied',
+  'Before we continue',
+  'Please verify you are a human',
+  'Request unsuccessful',
+  // DataDome
+  'Pardon Our Interruption',
+  'Human Verification',
+];
+
+// Resource categories to block per preset
+const RESOURCE_BLOCKING_PRESETS = {
+  functional: ['image', 'font', 'media', 'stylesheet'],
+  performance: ['image', 'font', 'media'],
+  visual: [],
+  none: []
+};
+
+// Known tracker/ad domains to block (functional + performance presets)
+const BLOCKED_DOMAINS = [
+  'google-analytics.com', 'googletagmanager.com', 'analytics.google.com',
+  'hotjar.com', 'fullstory.com', 'segment.io', 'segment.com',
+  'mixpanel.com', 'amplitude.com', 'mouseflow.com', 'clarity.ms',
+  'facebook.net', 'connect.facebook.net', 'doubleclick.net',
+  'googlesyndication.com', 'googleadservices.com', 'criteo.com',
+  'taboola.com', 'outbrain.com', 'adnxs.com', 'amazon-adsystem.com',
+  'sentry.io', 'bugsnag.com', 'logrocket.com', 'newrelic.com', 'nr-data.net'
 ];
 
 // ============================================================================
@@ -56,12 +88,16 @@ function parseArgs() {
   const args = process.argv.slice(2);
 
   if (args.length < 2) {
-    console.error('Usage: node fetch-content.js <URL> <OUTPUT_DIR> [OPTIONS]');
+    console.error('Usage: node fetch-content.cjs <URL> <OUTPUT_DIR> [OPTIONS]');
     console.error('');
     console.error('Options:');
-    console.error('  --timeout <ms>      Per-tier timeout (default: 30000)');
-    console.error('  --skip-tiers <list> Comma-separated tiers to skip');
-    console.error('  --locale <locale>   Browser locale (default: en-US)');
+    console.error('  --timeout <ms>           Per-tier timeout (default: 30000)');
+    console.error('  --skip-tiers <list>      Comma-separated tiers to skip');
+    console.error('  --locale <locale>        Browser locale (default: en-US)');
+    console.error('  --stealth-wait <seconds> Wait for bot protection challenge (default: 0)');
+    console.error('  --resource-blocking <p>  functional|visual|performance|none (default: none)');
+    console.error('');
+    console.error('Tiers: patchright, http-fetch, websearch-fallback');
     process.exit(2);
   }
 
@@ -71,7 +107,9 @@ function parseArgs() {
     timeout: DEFAULT_TIER_TIMEOUT,
     skipTiers: [],
     locale: 'en-US',
-    userAgent: DEFAULT_USER_AGENT
+    userAgent: DEFAULT_USER_AGENT,
+    stealthWaitSeconds: 0,
+    resourceBlocking: 'none'
   };
 
   for (let i = 2; i < args.length; i++) {
@@ -84,6 +122,12 @@ function parseArgs() {
         break;
       case '--locale':
         options.locale = args[++i];
+        break;
+      case '--stealth-wait':
+        options.stealthWaitSeconds = parseInt(args[++i], 10);
+        break;
+      case '--resource-blocking':
+        options.resourceBlocking = args[++i];
         break;
     }
   }
@@ -124,141 +168,183 @@ function withTimeout(promise, ms, tierName) {
   });
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Check if a URL's hostname matches any blocked domain
+ */
+function isDomainBlocked(url) {
+  try {
+    const hostname = new URL(url).hostname;
+    return BLOCKED_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d));
+  } catch {
+    return false;
+  }
+}
+
 // ============================================================================
 // Tier Implementations
 // ============================================================================
 
 /**
- * Tier 1: Vibium MCP Browser
- * Note: Vibium requires MCP context - skip in CLI mode
+ * Tier 1: Patchright (CDP-level stealth, PRIMARY)
+ *
+ * Uses Patchright — a Playwright fork that patches Chromium at the CDP level
+ * to avoid bot detection (Akamai, Cloudflare, DataDome).
  */
-async function fetchWithVibium(options) {
-  log('vibium', 'Skipping - requires MCP context');
-  throw new Error('Vibium requires MCP context, not available in CLI');
-}
+async function fetchWithPatchright(options) {
+  log('patchright', 'Starting fetch', { url: options.url });
 
-/**
- * Tier 2: Playwright + Stealth (PRIMARY for CLI)
- */
-async function fetchWithPlaywrightStealth(options) {
-  log('playwright-stealth', 'Starting fetch', { url: options.url });
-
-  const workDir = path.join(options.outputDir, '.playwright-work');
-  fs.mkdirSync(workDir, { recursive: true });
-
-  // Check if playwright is installed globally or locally
-  const packageJsonPath = path.join(workDir, 'package.json');
-  if (!fs.existsSync(path.join(workDir, 'node_modules', 'playwright-extra'))) {
-    fs.writeFileSync(packageJsonPath, JSON.stringify({ name: 'pw-fetch', type: 'commonjs' }));
-
-    log('playwright-stealth', 'Installing dependencies...');
-    try {
-      execSync('npm install playwright-extra puppeteer-extra-plugin-stealth playwright 2>/dev/null', {
-        cwd: workDir,
-        stdio: 'pipe',
-        timeout: 60000
-      });
-    } catch (e) {
-      log('playwright-stealth', 'Install warning', { error: e.message });
-    }
-  }
-
-  const scriptPath = path.join(workDir, 'fetch.js');
+  const { chromium } = require('patchright');
   const contentPath = path.join(options.outputDir, 'content.html');
   const screenshotPath = path.join(options.outputDir, 'screenshot.png');
 
-  const script = `
-const { chromium } = require('playwright-extra');
-const stealth = require('puppeteer-extra-plugin-stealth')();
-chromium.use(stealth);
-
-(async () => {
   const browser = await chromium.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
   });
 
-  const context = await browser.newContext({
-    userAgent: ${JSON.stringify(options.userAgent)},
-    viewport: { width: 1920, height: 1080 },
-    locale: ${JSON.stringify(options.locale)}
-  });
-
-  const page = await context.newPage();
-
   try {
-    await page.goto(${JSON.stringify(options.url)}, {
-      waitUntil: 'domcontentloaded',
-      timeout: ${options.timeout - 5000}
+    const context = await browser.newContext({
+      userAgent: options.userAgent,
+      viewport: { width: 1920, height: 1080 },
+      locale: options.locale
     });
 
-    await page.waitForTimeout(2000);
+    const page = await context.newPage();
 
-    // Dismiss cookie banners
-    const cookieSelectors = [
-      '[data-testid="consent-accept-all"]',
-      '#onetrust-accept-btn-handler',
-      'button[id*="accept"]',
-      '[class*="cookie"] button',
-      'button:has-text("Accept")',
-      'button:has-text("Acceptă")'
-    ];
+    // Apply resource blocking if configured
+    const blockedTypes = RESOURCE_BLOCKING_PRESETS[options.resourceBlocking] || [];
+    const shouldBlockResources = blockedTypes.length > 0 || options.resourceBlocking !== 'none';
 
-    for (const sel of cookieSelectors) {
-      try {
-        const btn = await page.$(sel);
-        if (btn) {
-          await btn.click();
-          await page.waitForTimeout(1000);
-          break;
+    if (shouldBlockResources) {
+      await page.route('**/*', (route) => {
+        const request = route.request();
+        const resourceType = request.resourceType();
+        const requestUrl = request.url();
+
+        // Block by resource type
+        if (blockedTypes.includes(resourceType)) {
+          return route.abort().catch(() => {});
         }
-      } catch (e) {}
+
+        // Block known tracker/ad domains (for functional and performance presets)
+        if (options.resourceBlocking !== 'visual' && options.resourceBlocking !== 'none') {
+          if (isDomainBlocked(requestUrl)) {
+            return route.abort().catch(() => {});
+          }
+        }
+
+        return route.continue().catch(() => {});
+      });
     }
 
+    // Navigate
+    log('patchright', 'Navigating', { url: options.url });
+    await page.goto(options.url, {
+      waitUntil: 'domcontentloaded',
+      timeout: options.timeout - 5000
+    });
+
+    // Wait for bot protection challenge if configured
+    if (options.stealthWaitSeconds > 0) {
+      await waitForBotProtection(page, options.stealthWaitSeconds);
+    } else {
+      await sleep(2000);
+    }
+
+    // Dismiss cookie banners
+    await dismissCookieBanners(page);
+
+    // Get content
     const content = await page.content();
-    require('fs').writeFileSync(${JSON.stringify(contentPath)}, content);
-    await page.screenshot({ path: ${JSON.stringify(screenshotPath)} });
+    fs.writeFileSync(contentPath, content);
 
-    console.log(JSON.stringify({
-      success: true,
-      size: content.length,
-      title: await page.title(),
-      url: page.url()
-    }));
-  } finally {
+    // Screenshot
+    await page.screenshot({ path: screenshotPath }).catch(() => {
+      log('patchright', 'Screenshot failed (non-fatal)');
+    });
+
+    const title = await page.title();
+    const finalUrl = page.url();
+
     await browser.close();
+
+    return {
+      success: true,
+      content,
+      contentSize: content.length,
+      screenshotPath,
+      metadata: { title, finalUrl }
+    };
+  } catch (error) {
+    await browser.close().catch(() => {});
+    throw error;
   }
-})().catch(e => {
-  console.log(JSON.stringify({ success: false, error: e.message }));
-  process.exit(1);
-});
-`;
-
-  fs.writeFileSync(scriptPath, script);
-
-  const { stdout } = await execAsync(`node "${scriptPath}"`, {
-    cwd: workDir,
-    timeout: options.timeout
-  });
-
-  const result = JSON.parse(stdout.trim());
-  if (!result.success) {
-    throw new Error(result.error);
-  }
-
-  const content = fs.readFileSync(contentPath, 'utf8');
-
-  return {
-    success: true,
-    content,
-    contentSize: content.length,
-    screenshotPath,
-    metadata: { title: result.title, finalUrl: result.url }
-  };
 }
 
 /**
- * Tier 3: HTTP Fetch (for simple/static sites)
+ * Wait for bot protection challenge to resolve.
+ * Detects Cloudflare, Akamai, and DataDome challenge pages by title.
+ */
+async function waitForBotProtection(page, maxWaitSeconds) {
+  const startMs = Date.now();
+  const maxMs = maxWaitSeconds * 1000;
+
+  while (Date.now() - startMs < maxMs) {
+    try {
+      const title = await page.title();
+      const isChallenged = BOT_CHALLENGE_PATTERNS.some(
+        pattern => title.includes(pattern)
+      );
+
+      if (!isChallenged) {
+        const elapsed = ((Date.now() - startMs) / 1000).toFixed(1);
+        log('patchright', `Page ready (${elapsed}s)`);
+        return;
+      }
+    } catch {
+      // Page might be navigating
+    }
+    await sleep(500);
+  }
+
+  log('patchright', `Bot protection wait expired after ${maxWaitSeconds}s — proceeding anyway`);
+}
+
+/**
+ * Try to dismiss cookie consent banners
+ */
+async function dismissCookieBanners(page) {
+  const selectors = [
+    '[data-testid="consent-accept-all"]',
+    '#onetrust-accept-btn-handler',
+    'button[id*="accept"]',
+    '[class*="cookie"] button',
+    'button:has-text("Accept")',
+    'button:has-text("Accept All")',
+    'button:has-text("Accept Cookies")',
+    'button:has-text("I agree")',
+  ];
+
+  for (const sel of selectors) {
+    try {
+      const btn = await page.$(sel);
+      if (btn) {
+        await btn.click();
+        await sleep(1000);
+        break;
+      }
+    } catch {
+      // Ignore — banner might not exist
+    }
+  }
+}
+
+/**
+ * Tier 2: HTTP Fetch (for simple/static sites)
  */
 async function fetchWithHttp(options) {
   log('http-fetch', 'Starting fetch', { url: options.url });
@@ -294,12 +380,11 @@ async function fetchWithHttp(options) {
 }
 
 /**
- * Tier 4: WebSearch Fallback (research-based, degraded mode)
+ * Tier 3: WebSearch Fallback (research-based, degraded mode)
  */
 async function fetchWithWebSearch(options) {
   log('websearch-fallback', 'Creating research-based content', { url: options.url });
 
-  // This tier creates a placeholder indicating manual research is needed
   const urlObj = new URL(options.url);
   const domain = urlObj.hostname;
 
@@ -349,8 +434,7 @@ async function fetchWithWebSearch(options) {
 // ============================================================================
 
 const TIER_HANDLERS = {
-  'vibium': fetchWithVibium,
-  'playwright-stealth': fetchWithPlaywrightStealth,
+  'patchright': fetchWithPatchright,
   'http-fetch': fetchWithHttp,
   'websearch-fallback': fetchWithWebSearch
 };
@@ -426,11 +510,13 @@ async function main() {
 
   console.error('');
   console.error('╔════════════════════════════════════════════════════════════════╗');
-  console.error('║              FETCH CONTENT - 5-TIER CASCADE                    ║');
+  console.error('║              FETCH CONTENT - 3-TIER CASCADE                   ║');
   console.error('╠════════════════════════════════════════════════════════════════╣');
   console.error(`║  URL: ${options.url.substring(0, 54).padEnd(54)} ║`);
   console.error(`║  Output: ${options.outputDir.substring(0, 51).padEnd(51)} ║`);
-  console.error(`║  Timeout per tier: ${options.timeout}ms                                  ║`);
+  console.error(`║  Timeout: ${String(options.timeout).padEnd(6)}ms  Stealth wait: ${String(options.stealthWaitSeconds).padEnd(3)}s              ║`);
+  console.error(`║  Resource blocking: ${options.resourceBlocking.padEnd(40)} ║`);
+  console.error('║  Tiers: Patchright → HTTP Fetch → WebSearch                  ║');
   console.error('╚════════════════════════════════════════════════════════════════╝');
   console.error('');
 

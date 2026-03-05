@@ -120,7 +120,13 @@ export {
   DEFAULT_STEALTH_CONFIG,
 } from './stealth';
 
-// Web Content Fetcher - 5-tier browser cascade
+// Bot Protection Detection
+export { BOT_CHALLENGE_PATTERNS, isBotChallenge } from './bot-protection';
+
+// Cookie Banner Dismissal
+export { COOKIE_BANNER_SELECTORS } from './cookie-dismissal';
+
+// Web Content Fetcher - 3-tier browser cascade (Patchright → HTTP → WebSearch)
 export {
   // Main class
   WebContentFetcher,

@@ -55,7 +55,7 @@ Working:
 - UX testing heuristics (25+ across 6 categories)
 - Balance finder between user experience and business objectives
 - Testability scoring integration (10 Principles)
-- **Vibium browser automation** for live UX validation via MCP
+- **Patchright stealth browser** for live UX validation on bot-protected sites (Akamai, Cloudflare, DataDome)
 
 Partial:
 - User segment-specific analysis
@@ -70,18 +70,23 @@ Planned:
 <content_fetch_cascade>
 ### MANDATORY: Use Automated Browser Cascade for URL Analysis
 
-**NEVER manually retry Vibium if it fails. Use the automated cascade script:**
+**Use the automated cascade script with Patchright (CDP-level stealth):**
 
 ```bash
-# SINGLE COMMAND - handles all tiers automatically with 30s timeout per tier:
-node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+# Standard fetch:
+node ./scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+
+# For bot-protected sites (Akamai/Cloudflare) — wait for challenge resolution:
+node ./scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 45000 --stealth-wait 10
+
+# With resource blocking (faster page loads for functional analysis):
+node ./scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 30000 --resource-blocking functional
 ```
 
 **The script automatically cascades through these tiers:**
-1. **Vibium MCP** (skipped in CLI) - Real browser automation
-2. **Playwright + Stealth** - Headless with anti-bot evasion
-3. **HTTP Fetch** - Simple HTTP request
-4. **WebSearch Fallback** - Research-based degraded mode
+1. **Patchright** (CDP-level stealth) - Handles Akamai, Cloudflare, DataDome bot protection
+2. **HTTP Fetch** - Simple HTTP request for static/unprotected sites
+3. **WebSearch Fallback** - Research-based degraded mode
 
 **Output files created:**
 - `${OUTPUT_FOLDER}/content.html` - Fetched page content
@@ -93,7 +98,7 @@ node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}"
 ┌─────────────────────────────────────────────────────────────┐
 │                    CONTENT FETCH RESULT                     │
 ├─────────────────────────────────────────────────────────────┤
-│  Method Used: [vibium/playwright/http/websearch-fallback]   │
+│  Method Used: [patchright/http-fetch/websearch-fallback]    │
 │  Content Size: [X KB]                                       │
 │  Status: [SUCCESS/DEGRADED]                                 │
 │                                                             │
@@ -102,7 +107,7 @@ node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}"
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**If fetch-content.js is not available, use WebFetch tool as fallback:**
+**If fetch-content.cjs is not available, use WebFetch tool as fallback:**
 ```typescript
 WebFetch({ url: "${URL}", prompt: "Extract all text content, navigation structure, forms, and interactive elements" })
 ```
@@ -116,7 +121,7 @@ Apply feedback integration automatically from configured sources.
 Generate QX recommendations by default for all significant quality events.
 **ALWAYS generate HTML report for website evaluations** - save to docs/qx-reports/{domain}-qx-evaluation.html
 **ALWAYS persist patterns** - save JSON to .agentic-qe/qx-patterns/ for cross-session learning.
-**ALWAYS use fetch-content.js cascade for URL analysis** - never manually retry failed browser operations.
+**ALWAYS use fetch-content.cjs cascade for URL analysis** - never manually retry failed browser operations.
 </default_to_action>
 
 <parallel_execution>
@@ -140,7 +145,7 @@ Use up to 6 concurrent QX analysts.
 - **Feedback Integration**: Aggregate and prioritize user feedback from multiple sources
 - **Segment Analysis**: Compare quality experience across user segments
 - **Testability Integration**: Combine with testability scoring (10 Principles) for holistic quality insights
-- **Vibium Browser Automation**: Live browser control via MCP for real-time UX validation
+- **Patchright Stealth Browser**: CDP-level stealth browser for bot-protected site validation
 - **Competitor QX Benchmarking**: Automated analysis across competitor sites for comparative insights
 - **Visual Evidence Capture**: Automated screenshot capture for UX issue documentation
 </capabilities>
@@ -633,12 +638,10 @@ When multiple stakeholders matter simultaneously, QX bridges QA and UX to:
 - Shares oracle problem insights with qe-requirements-validator
 
 **Content Fetching** (see `<content_fetch_cascade>` section):
-- **Primary**: Use `scripts/fetch-content.js` for automated 4-tier cascade
+- **Primary**: Use `scripts/fetch-content.cjs` for automated 3-tier cascade (Patchright → HTTP → WebSearch)
 - **Fallback**: WebFetch tool if script not available
-- **Never**: Manually retry Vibium - use the cascade instead
-
-**Vibium MCP** (used internally by fetch-content.js when available):
-Tools: browser_launch, browser_navigate, browser_find, browser_click, browser_screenshot, browser_quit
+- **Bot protection**: Use `--stealth-wait 10` for Akamai/Cloudflare/DataDome sites
+- **Resource blocking**: Use `--resource-blocking functional` for faster page loads
 
 **V2 Compatibility**: This agent maps to qx-partner. V2 MCP calls are automatically routed.
 </coordination_notes>

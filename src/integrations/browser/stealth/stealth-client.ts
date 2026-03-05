@@ -28,6 +28,7 @@ import {
   getResourceBlockingPreset,
   type ResourceBlockingConfig,
 } from '../resource-blocking';
+import { isBotChallenge } from '../bot-protection';
 
 // ============================================================================
 // Lazy Patchright Import
@@ -229,9 +230,13 @@ export class StealthBrowserClient implements IBrowserClient {
       const response = await this.page.goto(url, { waitUntil: 'domcontentloaded' });
       const statusCode = response?.status() ?? undefined;
 
-      // Optional Cloudflare challenge wait
-      if (this.stealthConfig.cloudflareWaitSeconds > 0) {
-        await this.waitForCloudflare();
+      // Optional bot protection challenge wait (Cloudflare or Akamai)
+      const botWaitSeconds = Math.max(
+        this.stealthConfig.cloudflareWaitSeconds,
+        this.stealthConfig.akamaiWaitSeconds
+      );
+      if (botWaitSeconds > 0) {
+        await this.waitForBotProtection(botWaitSeconds);
       }
 
       const title = await this.page.title();
@@ -422,17 +427,16 @@ export class StealthBrowserClient implements IBrowserClient {
     });
   }
 
-  private async waitForCloudflare(): Promise<void> {
-    if (!this.page || this.stealthConfig.cloudflareWaitSeconds <= 0) return;
+  private async waitForBotProtection(maxWaitSeconds: number): Promise<void> {
+    if (!this.page || maxWaitSeconds <= 0) return;
 
-    const ms = this.stealthConfig.cloudflareWaitSeconds * 1000;
+    const ms = maxWaitSeconds * 1000;
     const start = Date.now();
 
     while (Date.now() - start < ms) {
       try {
         const title = await this.page.title();
-        // Cloudflare challenge pages typically have these in the title
-        if (!title.includes('Just a moment') && !title.includes('Checking your browser')) {
+        if (!isBotChallenge(title)) {
           return;
         }
       } catch {

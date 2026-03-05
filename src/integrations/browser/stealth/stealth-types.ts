@@ -25,6 +25,8 @@ export interface StealthBrowserConfig {
   resourceBlocking?: ResourceBlockingConfig | ResourceBlockingPreset;
   /** Wait seconds for Cloudflare challenge resolution (0 = disabled) */
   cloudflareWaitSeconds: number;
+  /** Wait seconds for Akamai challenge resolution (0 = disabled) */
+  akamaiWaitSeconds: number;
   /** Custom user agent string */
   userAgent?: string;
   /** Proxy configuration */
@@ -41,5 +43,6 @@ export interface StealthBrowserConfig {
 export const DEFAULT_STEALTH_CONFIG: StealthBrowserConfig = {
   persistentContext: true,
   cloudflareWaitSeconds: 0,
+  akamaiWaitSeconds: 0,
   resourceBlocking: 'functional',
 };

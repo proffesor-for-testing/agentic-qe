@@ -1,9 +1,9 @@
 ---
 name: qcsd-ideation-swarm
-description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins. Uses 5-tier browser cascade: Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch-fallback."
+description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins. Uses 3-tier browser cascade: Patchright (CDP-stealth) → HTTP Fetch → WebSearch-fallback."
 category: qcsd-phases
 priority: critical
-version: 7.5.1
+version: 8.0.0
 tokenEstimate: 3500
 # DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
 domains:
@@ -73,31 +73,35 @@ When analyzing a live website URL, use this specialized execution pattern.
 
 ### PHASE URL-1: Setup and Content Fetch (AUTOMATED CASCADE)
 
-**The browser cascade is now FULLY AUTOMATED via `scripts/fetch-content.js`.**
+**The browser cascade is FULLY AUTOMATED via `scripts/fetch-content.cjs`.**
+**Uses Patchright (CDP-level stealth) — handles Akamai, Cloudflare, DataDome bot protection.**
 
 **Single command - automatic tier fallback with 30s timeout per tier:**
 
 ```bash
-# SINGLE COMMAND - handles all tiers automatically:
-# Use npx for installed package, or node with relative path for local development
-npx aqe fetch-content "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
-# OR if running from project root:
-node ./scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+# Standard fetch:
+node ./scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+
+# For bot-protected sites (Akamai/Cloudflare) — wait for challenge resolution:
+node ./scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 45000 --stealth-wait 10
+
+# With resource blocking (faster page loads for functional analysis):
+node ./scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 30000 --resource-blocking functional
 ```
 
 **What the script does automatically:**
 1. Creates output folder
-2. Tries Playwright+Stealth (30s timeout)
-3. Falls back to HTTP Fetch (30s timeout)
-4. Falls back to WebSearch placeholder (30s timeout)
+2. Tries Patchright with CDP-level stealth (30s timeout) — handles bot protection
+3. Falls back to HTTP Fetch (30s timeout) — for simple/static sites
+4. Falls back to WebSearch placeholder (30s timeout) — degraded mode
 5. Saves `content.html`, `screenshot.png`, and `fetch-result.json`
 
 **Execution:**
 
 ```javascript
-// 1. Run the automated fetch cascade (use relative path from project root)
+// 1. Run the automated fetch cascade
 const fetchResult = Bash({
-  command: `node ./scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000`,
+  command: `node ./scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 30000`,
   timeout: 120000  // 2 min total max
 })
 
@@ -110,28 +114,12 @@ const fetchMethod = result.tier
 const contentSize = result.contentSize
 ```
 
-**If script is not available, fall back to inline Playwright:**
-
-```javascript
-// FALLBACK: Only if scripts/fetch-content.js doesn't exist
-Bash({ command: `mkdir -p "${OUTPUT_FOLDER}"` })
-
-// Quick Playwright fetch (single tier, no cascade)
-Bash({
-  command: `cd /tmp && rm -rf qcsd-fetch && mkdir qcsd-fetch && cd qcsd-fetch && npm init -y && npm install playwright-extra puppeteer-extra-plugin-stealth playwright 2>/dev/null`,
-  timeout: 60000
-})
-
-// ... minimal inline script as last resort
-```
-
 **MANDATORY: Output fetch method used:**
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    CONTENT FETCH RESULT                     │
 ├─────────────────────────────────────────────────────────────┤
-│  Method Used: [vibium/agent-browser/playwright/webfetch/    │
-│               websearch-fallback]                           │
+│  Method Used: [patchright/http-fetch/websearch-fallback]    │
 │  Content Size: [X KB]                                       │
 │  Status: [SUCCESS/DEGRADED]                                 │
 │                                                             │
