@@ -296,7 +296,7 @@ describe('HnswAdapter', () => {
     expect(patterns.getName()).toBe('patterns');
     expect(coverage.getName()).toBe('coverage');
     expect(patterns.dimensions()).toBe(384);
-    expect(coverage.dimensions()).toBe(768);
+    expect(coverage.dimensions()).toBe(384);
   });
 
   it('should return same instance for same name', () => {

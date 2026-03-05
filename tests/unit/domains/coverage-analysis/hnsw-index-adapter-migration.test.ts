@@ -413,7 +413,7 @@ describe('HNSWIndex -> HnswAdapter Migration (ADR-071)', () => {
 
   describe('DEFAULT_HNSW_CONFIG', () => {
     it('should have sensible default values', () => {
-      expect(DEFAULT_HNSW_CONFIG.dimensions).toBe(768);
+      expect(DEFAULT_HNSW_CONFIG.dimensions).toBe(384);
       expect(DEFAULT_HNSW_CONFIG.M).toBe(16);
       expect(DEFAULT_HNSW_CONFIG.efConstruction).toBe(200);
       expect(DEFAULT_HNSW_CONFIG.efSearch).toBe(100);
@@ -422,38 +422,38 @@ describe('HNSWIndex -> HnswAdapter Migration (ADR-071)', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 768-dim (production default) verification
+  // 384-dim (production default) verification
   // --------------------------------------------------------------------------
 
-  describe('768-dim production vectors', () => {
+  describe('384-dim production vectors', () => {
     let prodIndex: HNSWIndex;
 
     beforeEach(() => {
       prodIndex = createHNSWIndex(memory, { namespace: `prod-${Date.now()}` });
-      // Uses default 768 dimensions
+      // Uses default 384 dimensions (all-MiniLM-L6-v2)
     });
 
     afterEach(async () => {
       await prodIndex.clear();
     });
 
-    it('should handle 768-dim vectors (production default)', async () => {
-      const vector = createTestVector(768);
+    it('should handle 384-dim vectors (production default)', async () => {
+      const vector = createTestVector(384);
       await prodIndex.insert('prod-file', vector, createTestMetadata());
 
       const stats = await prodIndex.getStats();
       expect(stats.vectorCount).toBe(1);
 
-      const results = await prodIndex.search(createTestVector(768), 1);
+      const results = await prodIndex.search(createTestVector(384), 1);
       expect(results.length).toBe(1);
       expect(results[0].key).toBe('prod-file');
       expect(results[0].score).toBeGreaterThan(0);
     });
 
-    it('should auto-resize 384-dim vectors to 768-dim', async () => {
-      // Insert 384-dim vector (common from MiniLM embeddings)
-      const vector384 = createTestVector(384);
-      await prodIndex.insert('miniml-file', vector384);
+    it('should auto-resize 768-dim vectors to 384-dim', async () => {
+      // Insert 768-dim vector (should be resized down to 384)
+      const vector768 = createTestVector(768);
+      await prodIndex.insert('large-file', vector768);
 
       const stats = await prodIndex.getStats();
       expect(stats.vectorCount).toBe(1);

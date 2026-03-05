@@ -468,7 +468,7 @@ describe('OllamaProvider', () => {
 
   describe('embed', () => {
     it('should generate embeddings', async () => {
-      const mockEmbedding = new Array(768).fill(0).map((_, i) => i / 768);
+      const mockEmbedding = new Array(384).fill(0).map((_, i) => i / 384);
 
       mockFetch.mockResolvedValueOnce({
         ok: true,

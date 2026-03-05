@@ -163,13 +163,13 @@ describe('ProviderManager', () => {
 
   describe('embed', () => {
     beforeEach(async () => {
-      const mockEmbedding = new Array(768).fill(0).map((_, i) => i / 768);
+      const mockEmbedding = new Array(384).fill(0).map((_, i) => i / 384);
 
       mockFetch.mockImplementation((url: string) => {
         if (url.includes('/api/tags')) {
           return Promise.resolve({
             ok: true,
-            json: () => Promise.resolve({ models: [{ name: 'nomic-embed-text' }] }),
+            json: () => Promise.resolve({ models: [{ name: 'all-MiniLM-L6-v2' }] }),
           });
         }
         if (url.includes('/api/embeddings')) {
@@ -196,7 +196,7 @@ describe('ProviderManager', () => {
     it('should generate embeddings', async () => {
       const response = await manager.embed('Test text');
 
-      expect(response.embedding.length).toBe(768);
+      expect(response.embedding.length).toBe(384);
       expect(response.provider).toBe('ollama');
     });
 

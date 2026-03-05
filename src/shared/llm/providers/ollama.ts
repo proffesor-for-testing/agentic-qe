@@ -330,7 +330,7 @@ export class OllamaProvider implements LLMProvider {
    * Generate embedding for text
    */
   async embed(text: string, options?: EmbedOptions): Promise<EmbeddingResponse> {
-    const model = options?.model ?? 'nomic-embed-text';
+    const model = options?.model ?? 'all-MiniLM-L6-v2';
     const start = Date.now();
 
     try {

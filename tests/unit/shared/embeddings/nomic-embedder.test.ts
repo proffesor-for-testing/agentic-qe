@@ -32,8 +32,8 @@ describe('NomicEmbedder', () => {
   describe('constructor', () => {
     it('should create embedder with default config', () => {
       const config = embedder.getConfig();
-      expect(config.model).toBe('nomic-embed-text');
-      expect(config.dimensions).toBe(768);
+      expect(config.model).toBe(EMBEDDING_CONFIG.MODEL);
+      expect(config.dimensions).toBe(384);
       expect(config.enableFallback).toBe(true);
     });
 
@@ -102,7 +102,7 @@ describe('NomicEmbedder', () => {
   });
 
   describe('embed (with Ollama)', () => {
-    const mockEmbedding = new Array(768).fill(0).map((_, i) => i / 1000);
+    const mockEmbedding = new Array(384).fill(0).map((_, i) => i / 1000);
 
     beforeEach(() => {
       // Mock successful Ollama responses
@@ -112,7 +112,7 @@ describe('NomicEmbedder', () => {
             ok: true,
             json: () =>
               Promise.resolve({
-                models: [{ name: 'nomic-embed-text:latest', model: 'nomic-embed-text' }],
+                models: [{ name: 'all-MiniLM-L6-v2:latest', model: 'all-MiniLM-L6-v2' }],
               }),
           });
         }
@@ -330,7 +330,7 @@ describe('NomicEmbedder', () => {
         ok: true,
         json: () =>
           Promise.resolve({
-            models: [{ name: 'nomic-embed-text:latest' }],
+            models: [{ name: 'all-MiniLM-L6-v2:latest' }],
           }),
       });
 

@@ -1,6 +1,6 @@
 /**
  * Agentic QE v3 - Nomic Embedder
- * Local, zero-cost embeddings via Ollama with nomic-embed-text model
+ * Local, zero-cost embeddings via Ollama with all-MiniLM-L6-v2 model (384-dim)
  *
  * Features:
  * - 384-dimensional embeddings (all-MiniLM-L6-v2)
