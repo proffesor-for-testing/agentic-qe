@@ -1,0 +1,162 @@
+skill: qcsd-development-swarm
+version: 1.0.0
+description: >
+  Evaluation suite for QCSD development phase swarm orchestration.
+  Tests TDD adherence, code complexity analysis, coverage gap detection,
+  defect prediction, and in-sprint quality signals.
+
+models_to_test:
+  - claude-3.5-sonnet
+  - claude-3-haiku
+
+mcp_integration:
+  enabled: true
+  namespace: skill-validation
+  query_patterns: true
+  track_outcomes: true
+  store_patterns: true
+  target_agents:
+    - qe-learning-coordinator
+    - qe-queen-coordinator
+
+learning:
+  store_success_patterns: true
+  pattern_ttl_days: 90
+
+result_format:
+  json_output: true
+  include_timing: true
+  include_token_usage: true
+
+setup:
+  required_tools:
+    - jq
+
+test_cases:
+
+  - id: tc001_tdd_adherence_check
+    description: "Assess TDD adherence from commit history and test patterns"
+    category: tdd
+    priority: critical
+
+    input:
+      commit_history: "feat: add auth → test: add auth tests → fix: auth edge case"
+      test_first_ratio: 0.3
+
+    expected_output:
+      must_contain:
+        - "TDD"
+        - "adherence"
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+
+  - id: tc002_code_complexity_analysis
+    description: "Analyze code complexity metrics for quality signals"
+    category: complexity
+    priority: critical
+
+    input:
+      code: |
+        function processOrder(order, user, config, flags) {
+          if (order.type === 'premium' && user.tier >= 3) {
+            if (config.discountEnabled && flags.holiday) {
+              return calculateDiscount(order, user, config);
+            } else if (config.loyaltyEnabled) {
+              return calculateLoyalty(order, user);
+            }
+          }
+          return order.total;
+        }
+      language: javascript
+
+    expected_output:
+      must_contain:
+        - "complexity"
+        - "cyclomatic"
+
+    validation:
+      schema_check: true
+
+  - id: tc003_coverage_gap_detection
+    description: "Detect coverage gaps in test suite"
+    category: coverage
+    priority: high
+
+    input:
+      coverage_report:
+        total: 72
+        branches: 58
+        functions: 80
+        lines: 75
+      uncovered_files:
+        - "src/auth/oauth2.ts"
+        - "src/payment/processor.ts"
+
+    expected_output:
+      must_contain:
+        - "gap"
+        - "coverage"
+        - "branch"
+
+    validation:
+      schema_check: true
+
+  - id: tc004_defect_prediction
+    description: "Predict defect-prone areas from code metrics"
+    category: defect-prediction
+    priority: high
+
+    input:
+      file_metrics:
+        - file: "src/auth/oauth2.ts"
+          churn: 15
+          complexity: 28
+          contributors: 4
+        - file: "src/core/router.ts"
+          churn: 2
+          complexity: 5
+          contributors: 1
+
+    expected_output:
+      must_contain:
+        - "defect"
+        - "risk"
+        - "oauth2"
+
+    validation:
+      schema_check: true
+
+  - id: tc005_quality_signal_synthesis
+    description: "Synthesize quality signals from development phase data"
+    category: synthesis
+    priority: medium
+
+    input:
+      tdd_score: 0.6
+      complexity_score: 0.55
+      coverage: 72
+      defect_density: 3.2
+
+    expected_output:
+      must_contain:
+        - "quality"
+        - "signal"
+
+    validation:
+      schema_check: true
+
+success_criteria:
+  pass_rate: 0.9
+  critical_pass_rate: 1.0
+  avg_reasoning_quality: 0.75
+  max_execution_time_ms: 300000
+
+metadata:
+  author: "qe-qcsd-orchestrator"
+  created: "2026-03-05"
+  coverage_target: >
+    QCSD development swarm with 5 test cases covering TDD adherence,
+    code complexity analysis, coverage gap detection, defect prediction,
+    and quality signal synthesis.

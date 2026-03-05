@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-qe.dev/schemas/qcsd-cicd-swarm-output.json",
+  "title": "QCSD CI/CD Verification Swarm Output Schema",
+  "description": "Schema for QCSD CI/CD verification swarm output. Includes regression analysis, flaky detection, quality gates, and deployment readiness.",
+  "type": "object",
+  "required": ["skillName", "version", "timestamp", "status", "trustTier", "output"],
+  "properties": {
+    "skillName": {
+      "type": "string",
+      "const": "qcsd-cicd-swarm"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial", "failed", "skipped"]
+    },
+    "trustTier": {
+      "type": "integer",
+      "const": 3
+    },
+    "output": {
+      "type": "object",
+      "required": ["summary", "decision", "regressionAnalysis", "qualityGates"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 100
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["SHIP", "CONDITIONAL", "HOLD"]
+        },
+        "regressionAnalysis": {
+          "type": "object",
+          "properties": {
+            "totalTests": { "type": "integer", "minimum": 0 },
+            "regressions": { "type": "integer", "minimum": 0 },
+            "newFailures": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "flakyTests": {
+          "type": "object",
+          "properties": {
+            "detected": { "type": "integer", "minimum": 0 },
+            "tests": { "type": "array", "items": { "type": "string" } },
+            "quarantined": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "qualityGates": {
+          "type": "object",
+          "properties": {
+            "passed": { "type": "boolean" },
+            "gates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "status": { "type": "string", "enum": ["pass", "fail", "warn"] },
+                  "actual": { "type": "number" },
+                  "threshold": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "deploymentReadiness": {
+          "type": "object",
+          "properties": {
+            "ready": { "type": "boolean" },
+            "blockers": { "type": "array", "items": { "type": "string" } },
+            "warnings": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  }
+}

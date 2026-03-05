@@ -1,0 +1,505 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-qe.dev/schemas/qcsd-production-swarm-output.json",
+  "title": "QCSD Production Swarm Output Schema",
+  "description": "Schema for QCSD production telemetry swarm output. Includes DORA metrics, root cause analysis, defect prediction, feedback loop synthesis, and multi-agent reports.",
+  "type": "object",
+  "required": ["skillName", "version", "timestamp", "status", "trustTier", "output"],
+  "properties": {
+    "skillName": {
+      "type": "string",
+      "const": "qcsd-production-swarm",
+      "description": "Must be 'qcsd-production-swarm'"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial", "failed", "skipped"]
+    },
+    "trustTier": {
+      "type": "integer",
+      "const": 3
+    },
+    "output": {
+      "type": "object",
+      "required": ["summary", "doraMetrics", "rootCauseAnalysis", "defectPrediction", "feedbackLoops"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 100,
+          "maxLength": 3000
+        },
+        "recommendation": {
+          "type": "string",
+          "enum": ["HEALTHY", "DEGRADED", "CRITICAL"],
+          "description": "Overall production health recommendation"
+        },
+        "doraMetrics": {
+          "$ref": "#/$defs/doraAnalysis"
+        },
+        "rootCauseAnalysis": {
+          "$ref": "#/$defs/rcaCollection"
+        },
+        "defectPrediction": {
+          "$ref": "#/$defs/defectPredictionResult"
+        },
+        "feedbackLoops": {
+          "$ref": "#/$defs/feedbackLoopCollection"
+        },
+        "agentReports": {
+          "$ref": "#/$defs/agentReports"
+        },
+        "flagDetection": {
+          "$ref": "#/$defs/flagDetection"
+        },
+        "conditionalAnalysis": {
+          "$ref": "#/$defs/conditionalAnalysis"
+        },
+        "executiveSummary": {
+          "$ref": "#/$defs/executiveSummary"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxItems": 20
+        }
+      }
+    },
+    "metadata": {
+      "$ref": "#/$defs/metadata"
+    },
+    "validation": {
+      "$ref": "#/$defs/validationResult"
+    },
+    "learning": {
+      "$ref": "#/$defs/learningData"
+    }
+  },
+  "$defs": {
+    "doraAnalysis": {
+      "type": "object",
+      "required": ["metrics"],
+      "properties": {
+        "metrics": {
+          "type": "object",
+          "required": ["deploymentFrequency", "leadTime", "mttr", "changeFailureRate"],
+          "properties": {
+            "deploymentFrequency": {
+              "type": "object",
+              "properties": {
+                "value": { "type": "number", "minimum": 0 },
+                "unit": { "type": "string", "enum": ["per_day", "per_week", "per_month"] },
+                "trend": { "type": "string", "enum": ["improving", "stable", "declining"] }
+              }
+            },
+            "leadTime": {
+              "type": "object",
+              "properties": {
+                "value": { "type": "number", "minimum": 0 },
+                "unit": { "type": "string", "enum": ["hours", "days", "weeks"] },
+                "trend": { "type": "string", "enum": ["improving", "stable", "declining"] }
+              }
+            },
+            "mttr": {
+              "type": "object",
+              "properties": {
+                "value": { "type": "number", "minimum": 0 },
+                "unit": { "type": "string", "enum": ["minutes", "hours", "days"] },
+                "trend": { "type": "string", "enum": ["improving", "stable", "declining"] }
+              }
+            },
+            "changeFailureRate": {
+              "type": "object",
+              "properties": {
+                "value": { "type": "number", "minimum": 0, "maximum": 100 },
+                "trend": { "type": "string", "enum": ["improving", "stable", "declining"] }
+              }
+            }
+          }
+        },
+        "compositeScore": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Normalized DORA composite score (0-1)"
+        },
+        "slaCompliance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "SLA compliance percentage"
+        },
+        "classification": {
+          "type": "string",
+          "enum": ["elite", "high", "medium", "low"],
+          "description": "DORA performance classification"
+        }
+      }
+    },
+    "rcaCollection": {
+      "type": "object",
+      "required": ["incidents"],
+      "properties": {
+        "totalIncidents": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "incidents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rcaIncident"
+          },
+          "maxItems": 50
+        },
+        "maxOpenSeverity": {
+          "type": "string",
+          "enum": ["P0", "P1", "P2", "P3", "P4", "NONE"]
+        },
+        "rcaCompleteness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Percentage of incidents with completed RCA"
+        }
+      }
+    },
+    "rcaIncident": {
+      "type": "object",
+      "required": ["id", "severity", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "severity": { "type": "string", "enum": ["P0", "P1", "P2", "P3", "P4"] },
+        "status": { "type": "string", "enum": ["open", "investigating", "resolved", "closed"] },
+        "rootCause": { "type": "string" },
+        "resolution": { "type": "string" },
+        "preventionStrategy": { "type": "string" },
+        "timeToDetect": { "type": "string" },
+        "timeToResolve": { "type": "string" },
+        "escapePhase": {
+          "type": "string",
+          "enum": ["ideation", "refinement", "development", "cicd", "production"],
+          "description": "Which QCSD phase should have caught this"
+        }
+      }
+    },
+    "defectPredictionResult": {
+      "type": "object",
+      "required": ["trendDirection"],
+      "properties": {
+        "trendDirection": {
+          "type": "string",
+          "enum": ["declining", "stable", "increasing"]
+        },
+        "predictedDensity": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Predicted defect density for current release"
+        },
+        "hotspots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "module": { "type": "string" },
+              "probability": { "type": "number", "minimum": 0, "maximum": 1 },
+              "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+            }
+          }
+        },
+        "patterns": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "feedbackLoopCollection": {
+      "type": "object",
+      "properties": {
+        "toIdeation": {
+          "type": "object",
+          "properties": {
+            "riskCalibration": { "type": "array", "items": { "type": "string" } },
+            "doraTrends": { "type": "array", "items": { "type": "string" } },
+            "qualityCriteriaUpdates": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "toRefinement": {
+          "type": "object",
+          "properties": {
+            "rcaPatterns": { "type": "array", "items": { "type": "string" } },
+            "escapeAnalysis": { "type": "array", "items": { "type": "string" } },
+            "testStrategyImprovements": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "transferCompleted": {
+          "type": "boolean",
+          "description": "Whether knowledge transfer was executed"
+        }
+      }
+    },
+    "agentReports": {
+      "type": "object",
+      "required": ["coreAgents"],
+      "properties": {
+        "coreAgents": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/agentReport" },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Must have exactly 3 core agents"
+        },
+        "conditionalAgents": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/agentReport" },
+          "maxItems": 7
+        },
+        "feedbackAgents": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/agentReport" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Must have exactly 2 feedback agents"
+        },
+        "totalAgents": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 12
+        }
+      }
+    },
+    "agentReport": {
+      "type": "object",
+      "required": ["agentId", "domain", "status"],
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "pattern": "^qe-[a-z][a-z0-9-]*$"
+        },
+        "domain": {
+          "type": "string",
+          "enum": [
+            "learning-optimization", "defect-intelligence", "chaos-resilience", "enterprise-integration"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["completed", "partial", "failed", "skipped"]
+        },
+        "reportPath": { "type": "string" },
+        "executionTimeMs": { "type": "integer", "minimum": 0 },
+        "findingsCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "flagDetection": {
+      "type": "object",
+      "required": ["HAS_INFRASTRUCTURE_CHANGE", "HAS_PERFORMANCE_SLA", "HAS_REGRESSION_RISK", "HAS_RECURRING_INCIDENTS", "HAS_MIDDLEWARE", "HAS_SAP_INTEGRATION", "HAS_AUTHORIZATION"],
+      "properties": {
+        "HAS_INFRASTRUCTURE_CHANGE": { "type": "boolean" },
+        "HAS_PERFORMANCE_SLA": { "type": "boolean" },
+        "HAS_REGRESSION_RISK": { "type": "boolean" },
+        "HAS_RECURRING_INCIDENTS": { "type": "boolean" },
+        "HAS_MIDDLEWARE": { "type": "boolean" },
+        "HAS_SAP_INTEGRATION": { "type": "boolean" },
+        "HAS_AUTHORIZATION": { "type": "boolean" },
+        "evidence": {
+          "type": "object",
+          "properties": {
+            "infrastructureChange": { "type": "array", "items": { "type": "string" } },
+            "performanceSla": { "type": "array", "items": { "type": "string" } },
+            "regressionRisk": { "type": "array", "items": { "type": "string" } },
+            "recurringIncidents": { "type": "array", "items": { "type": "string" } },
+            "middleware": { "type": "array", "items": { "type": "string" } },
+            "sapIntegration": { "type": "array", "items": { "type": "string" } },
+            "authorization": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "conditionalAnalysis": {
+      "type": "object",
+      "properties": {
+        "chaos": { "$ref": "#/$defs/chaosAnalysis" },
+        "performance": { "$ref": "#/$defs/performanceAnalysis" },
+        "regression": { "$ref": "#/$defs/regressionAnalysis" },
+        "patterns": { "$ref": "#/$defs/patternAnalysis" },
+        "middleware": { "$ref": "#/$defs/middlewareAnalysis" },
+        "sapHealth": { "$ref": "#/$defs/sapAnalysis" },
+        "sodCompliance": { "$ref": "#/$defs/sodAnalysis" }
+      }
+    },
+    "middlewareAnalysis": {
+      "type": "object",
+      "properties": {
+        "healthScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "componentsHealthy": { "type": "integer", "minimum": 0 },
+        "componentsDegraded": { "type": "integer", "minimum": 0 },
+        "messageFlowErrors": { "type": "integer", "minimum": 0 },
+        "deadLetterCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "sapAnalysis": {
+      "type": "object",
+      "properties": {
+        "healthScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "rfcSuccessRate": { "type": "number", "minimum": 0, "maximum": 100 },
+        "connectorStatus": { "type": "string", "enum": ["healthy", "degraded", "failed"] },
+        "dataIntegrityIssues": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "sodAnalysis": {
+      "type": "object",
+      "properties": {
+        "complianceScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "violationsFound": { "type": "integer", "minimum": 0 },
+        "criticalViolations": { "type": "integer", "minimum": 0 },
+        "policiesEvaluated": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "chaosAnalysis": {
+      "type": "object",
+      "properties": {
+        "resilienceScore": { "type": "number", "minimum": 0, "maximum": 100, "description": "Chaos resilience score on 0-100 scale (4 dimensions x 25 each)" },
+        "experimentsRun": { "type": "integer", "minimum": 0 },
+        "failuresDetected": { "type": "integer", "minimum": 0 },
+        "recoveryTimeAvg": { "type": "string" }
+      }
+    },
+    "performanceAnalysis": {
+      "type": "object",
+      "properties": {
+        "slaCompliance": { "type": "number", "minimum": 0, "maximum": 100 },
+        "latencyP95": { "type": "string" },
+        "throughput": { "type": "string" },
+        "errorRate": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "regressionAnalysis": {
+      "type": "object",
+      "properties": {
+        "regressionCount": { "type": "integer", "minimum": 0 },
+        "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "none"] },
+        "affectedModules": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "patternAnalysis": {
+      "type": "object",
+      "properties": {
+        "patternsDiscovered": { "type": "integer", "minimum": 0 },
+        "highRiskPatterns": { "type": "integer", "minimum": 0 },
+        "patterns": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "executiveSummary": {
+      "type": "object",
+      "required": ["recommendation"],
+      "properties": {
+        "recommendation": {
+          "type": "string",
+          "enum": ["HEALTHY", "DEGRADED", "CRITICAL"]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 50
+        },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "doraScore": { "type": "number", "minimum": 0, "maximum": 1 },
+            "slaCompliance": { "type": "number", "minimum": 0, "maximum": 100 },
+            "incidentSeverity": { "type": "string" },
+            "defectTrend": { "type": "string" },
+            "rcaCompleteness": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "immediateActions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "feedbackActions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "followUpRecommendations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "action": { "type": "string" },
+              "skill": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["type", "path"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["report", "dora-analysis", "rca-report", "defect-prediction", "feedback-loops", "executive-summary"]
+        },
+        "path": { "type": "string", "maxLength": 500 },
+        "format": { "type": "string", "enum": ["html", "md", "json"] },
+        "description": { "type": "string" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "executionTimeMs": { "type": "integer", "minimum": 0 },
+        "agentId": { "type": "string", "pattern": "^qe-[a-z][a-z0-9-]*$" },
+        "releaseId": { "type": "string" },
+        "releaseName": { "type": "string" },
+        "sourcePhase": {
+          "type": "string",
+          "enum": ["post-release", "production-monitoring", "incident-response"],
+          "description": "The context that triggered this production assessment"
+        }
+      }
+    },
+    "validationResult": {
+      "type": "object",
+      "properties": {
+        "schemaValid": { "type": "boolean" },
+        "contentValid": { "type": "boolean" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "errors": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "learningData": {
+      "type": "object",
+      "properties": {
+        "patternsDetected": { "type": "array", "items": { "type": "string" } },
+        "reward": { "type": "number", "minimum": 0, "maximum": 1 },
+        "productionPatterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pattern": { "type": "string" },
+              "recommendation": { "type": "string" },
+              "outcome": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

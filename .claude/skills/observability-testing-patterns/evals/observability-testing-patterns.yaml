@@ -1,0 +1,157 @@
+skill: observability-testing-patterns
+version: 1.0.0
+description: >
+  Evaluation suite for observability and monitoring validation patterns.
+  Tests dashboard accuracy, alerting rules, log aggregation, APM traces,
+  and SLA/SLO verification.
+
+models_to_test:
+  - claude-3.5-sonnet
+  - claude-3-haiku
+
+mcp_integration:
+  enabled: true
+  namespace: skill-validation
+  query_patterns: true
+  track_outcomes: true
+  store_patterns: true
+  target_agents:
+    - qe-learning-coordinator
+    - qe-queen-coordinator
+
+learning:
+  store_success_patterns: true
+  pattern_ttl_days: 90
+
+result_format:
+  json_output: true
+  include_timing: true
+  include_token_usage: true
+
+setup:
+  required_tools:
+    - jq
+
+test_cases:
+
+  - id: tc001_dashboard_validation
+    description: "Validate monitoring dashboard accuracy and completeness"
+    category: dashboard
+    priority: critical
+
+    input:
+      prompt: |
+        Generate test strategy for validating a Grafana dashboard that monitors
+        API response times, error rates, and throughput for a microservices architecture.
+      context:
+        framework: grafana
+
+    expected_output:
+      must_contain:
+        - "dashboard"
+        - "metric"
+        - "validation"
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+
+  - id: tc002_alert_rule_testing
+    description: "Test alerting rules fire correctly under conditions"
+    category: alerting
+    priority: critical
+
+    input:
+      prompt: |
+        Create tests for PagerDuty alert rules:
+        - P1: error_rate > 5% for 2 minutes
+        - P2: p99_latency > 2000ms for 5 minutes
+        - P3: disk_usage > 85%
+      context:
+        framework: pagerduty
+
+    expected_output:
+      must_contain:
+        - "alert"
+        - "threshold"
+        - "trigger"
+
+    validation:
+      schema_check: true
+
+  - id: tc003_log_aggregation_testing
+    description: "Validate log aggregation pipeline correctness"
+    category: logging
+    priority: high
+
+    input:
+      prompt: |
+        Generate tests for ELK stack log pipeline ensuring structured logs
+        from 15 microservices are correctly parsed, indexed, and searchable
+        with correlation IDs.
+      context:
+        framework: elasticsearch
+
+    expected_output:
+      must_contain:
+        - "log"
+        - "aggregation"
+        - "correlation"
+
+    validation:
+      schema_check: true
+
+  - id: tc004_apm_trace_validation
+    description: "Validate distributed tracing across services"
+    category: tracing
+    priority: high
+
+    input:
+      prompt: |
+        Create test strategy for validating OpenTelemetry distributed traces
+        across API gateway → auth service → order service → payment service.
+
+    expected_output:
+      must_contain:
+        - "trace"
+        - "span"
+        - "distributed"
+
+    validation:
+      schema_check: true
+
+  - id: tc005_slo_verification
+    description: "Verify SLO/SLA compliance measurement accuracy"
+    category: slo
+    priority: critical
+
+    input:
+      prompt: |
+        Generate tests to verify SLO measurement accuracy:
+        - Availability SLO: 99.95% (error budget: 21.9 min/month)
+        - Latency SLO: p99 < 500ms
+        - Throughput SLO: > 10,000 RPS
+      context:
+        framework: prometheus
+
+    expected_output:
+      must_contain:
+        - "SLO"
+        - "error budget"
+        - "compliance"
+
+    validation:
+      schema_check: true
+
+success_criteria:
+  pass_rate: 0.9
+  critical_pass_rate: 1.0
+  avg_reasoning_quality: 0.75
+  max_execution_time_ms: 300000
+
+metadata:
+  author: "qe-observability-orchestrator"
+  created: "2026-03-05"
+  coverage_target: >
+    Observability testing patterns with 5 test cases covering dashboard validation,
+    alert rule testing, log aggregation, APM trace validation, and SLO verification.

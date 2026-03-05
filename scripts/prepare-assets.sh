@@ -19,14 +19,20 @@ if [ -d "$REPO_ROOT/.claude/skills" ]; then
   # V2 QE skills (testing-related with generic names)
   V2_QE_SKILLS="accessibility-testing api-testing-patterns bug-reporting-excellence chaos-engineering-resilience code-review-quality compatibility-testing compliance-testing consultancy-practices context-driven-testing contract-testing database-testing exploratory-testing-advanced holistic-testing-pact localization-testing mobile-testing mutation-testing pair-programming performance-testing quality-metrics refactoring-patterns regression-testing risk-based-testing security-testing shift-left-testing shift-right-testing six-thinking-hats tdd-london-chicago technical-writing test-automation-strategy test-data-management test-design-techniques test-environment-management test-reporting-analytics verification-quality visual-testing-advanced xp-practices"
 
+  # Additional QE skills not matching qe-* prefix or V2 list
+  EXTRA_QE_SKILLS="a11y-ally brutal-honesty-review cicd-pipeline-qe-orchestrator debug-loop enterprise-integration-testing middleware-testing-patterns observability-testing-patterns pentest-validation pr-review security-visual-testing sfdipot-product-factors sherlock-review testability-scoring test-idea-rewriting wms-testing-patterns"
+
   for skill_dir in "$REPO_ROOT/.claude/skills"/*; do
     if [ -d "$skill_dir" ]; then
       skill_name=$(basename "$skill_dir")
-      # Include: qe-* skills, agentic-quality-engineering (core), aqe-v2-v3-migration, and v2 QE skills
+      # Include: qe-* skills, qcsd-* swarms, n8n-* testing, core skills, and QE methodology skills
       if [[ "$skill_name" =~ ^qe- ]] || \
+         [[ "$skill_name" =~ ^qcsd- ]] || \
+         [[ "$skill_name" =~ ^n8n- ]] || \
          [[ "$skill_name" == "agentic-quality-engineering" ]] || \
          [[ "$skill_name" == "aqe-v2-v3-migration" ]] || \
-         [[ " $V2_QE_SKILLS " =~ " $skill_name " ]]; then
+         [[ " $V2_QE_SKILLS " =~ " $skill_name " ]] || \
+         [[ " $EXTRA_QE_SKILLS " =~ " $skill_name " ]]; then
         cp -r "$skill_dir" "$REPO_ROOT/assets/skills/"
       fi
     fi

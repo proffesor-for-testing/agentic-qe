@@ -280,7 +280,7 @@ See main SKILL.md [Troubleshooting section](SKILL.md#troubleshooting) for:
 - [Microservice Pipeline Workflow](resources/workflows/microservice-pipeline.md)
 - [Monolith Pipeline Workflow](resources/workflows/monolith-pipeline.md)
 - [Mobile Pipeline Workflow](resources/workflows/mobile-pipeline.md)
-- [All 60 QE Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)
+- [All 61 QE Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)
 - [All 50 QE Agents Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md)
 
 ## Contributing

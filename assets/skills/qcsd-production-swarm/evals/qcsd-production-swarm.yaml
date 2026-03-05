@@ -1,0 +1,246 @@
+skill: qcsd-production-swarm
+version: 1.0.0
+description: >
+  Evaluation suite for QCSD production telemetry swarm orchestration.
+  Tests DORA metrics analysis, root cause analysis, defect prediction, agent coordination, and feedback loop synthesis.
+
+models_to_test:
+  - claude-3.5-sonnet
+  - claude-3-haiku
+
+mcp_integration:
+  enabled: true
+  namespace: skill-validation
+  query_patterns: true
+  track_outcomes: true
+  store_patterns: true
+  target_agents:
+    - qe-learning-coordinator
+    - qe-queen-coordinator
+
+learning:
+  store_success_patterns: true
+  pattern_ttl_days: 90
+
+result_format:
+  json_output: true
+  include_timing: true
+  include_token_usage: true
+
+setup:
+  required_tools:
+    - jq
+
+test_cases:
+
+  - id: tc001_dora_metrics_analysis
+    description: "Perform DORA metrics analysis from production telemetry"
+    category: dora
+    priority: critical
+
+    input:
+      telemetry_data: "Production metrics for v3.6.9 release"
+      project_type: "web_application"
+
+    expected_output:
+      must_contain:
+        - "deployment frequency"
+        - "lead time"
+        - "MTTR"
+        - "change failure"
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+
+  - id: tc002_root_cause_analysis
+    description: "Systematic root cause analysis of production incidents"
+    category: rca
+    priority: critical
+
+    input:
+      incidents: "P1 incident: API timeout spike after v3.6.9 deploy"
+      has_infrastructure_change: true
+      has_performance_sla: true
+
+    expected_output:
+      must_contain:
+        - "root cause"
+        - "severity"
+        - "resolution"
+
+    validation:
+      schema_check: true
+
+  - id: tc003_domain_flag_detection
+    description: "Detect HAS_INFRASTRUCTURE_CHANGE, HAS_PERFORMANCE_SLA, HAS_RECURRING_INCIDENTS flags"
+    category: flags
+    priority: high
+
+    input:
+      content: "Recent Kubernetes scaling policy change causing SLA breaches with recurring pod eviction incidents"
+      analyze_flags: true
+
+    expected_output:
+      must_contain:
+        - "HAS_INFRASTRUCTURE_CHANGE"
+        - "HAS_PERFORMANCE_SLA"
+        - "HAS_RECURRING_INCIDENTS"
+
+    validation:
+      schema_check: true
+
+  - id: tc004_agent_coordination
+    description: "Coordinate multi-agent production telemetry swarm execution"
+    category: orchestration
+    priority: high
+
+    input:
+      domain_flags:
+        HAS_INFRASTRUCTURE_CHANGE: true
+        HAS_PERFORMANCE_SLA: true
+        HAS_RECURRING_INCIDENTS: false
+
+    expected_output:
+      must_contain:
+        - "agent"
+        - "coordinate"
+
+    validation:
+      schema_check: true
+
+  - id: tc005_feedback_loop_synthesis
+    description: "Execute feedback loop synthesis to Ideation and Refinement phases"
+    category: feedback
+    priority: medium
+
+    input:
+      production_data: "Post-release monitoring for authentication service upgrade"
+      include_feedback_loops: true
+
+    expected_output:
+      must_contain:
+        - "feedback"
+        - "ideation"
+        - "refinement"
+
+    validation:
+      schema_check: true
+
+  - id: tc006_decision_logic_critical
+    description: "Decision logic must produce CRITICAL when any core metric breaches critical threshold"
+    category: decision_logic
+    priority: critical
+
+    input:
+      metrics:
+        doraScore: 0.35
+        slaCompliance: 93.0
+        incidentSeverity: "P1"
+        rcaCompleteness: 40
+        defectTrend: "increasing"
+        defectDensity: 6.2
+        resilienceScore: 45
+        middlewareHealth: 12
+        sapHealth: null
+        sodCompliance: null
+      domain_flags:
+        HAS_INFRASTRUCTURE_CHANGE: true
+        HAS_PERFORMANCE_SLA: true
+        HAS_RECURRING_INCIDENTS: true
+        HAS_MIDDLEWARE: true
+
+    expected_output:
+      must_contain:
+        - "CRITICAL"
+      must_not_contain:
+        - "HEALTHY"
+
+    validation:
+      schema_check: true
+      decision_deterministic: true
+
+  - id: tc007_decision_logic_healthy
+    description: "Decision logic must produce HEALTHY when all metrics exceed healthy thresholds"
+    category: decision_logic
+    priority: critical
+
+    input:
+      metrics:
+        doraScore: 0.85
+        slaCompliance: 99.5
+        incidentSeverity: "NONE"
+        rcaCompleteness: 95
+        defectTrend: "declining"
+        defectDensity: 0.8
+        resilienceScore: 92
+        middlewareHealth: 88
+        sapHealth: null
+        sodCompliance: 95
+      domain_flags:
+        HAS_INFRASTRUCTURE_CHANGE: true
+        HAS_PERFORMANCE_SLA: true
+        HAS_RECURRING_INCIDENTS: false
+        HAS_MIDDLEWARE: true
+        HAS_AUTHORIZATION: true
+
+    expected_output:
+      must_contain:
+        - "HEALTHY"
+      must_not_contain:
+        - "CRITICAL"
+
+    validation:
+      schema_check: true
+      decision_deterministic: true
+
+  - id: tc008_decision_logic_degraded
+    description: "Decision logic must produce DEGRADED when metrics fall between CRITICAL and HEALTHY thresholds"
+    category: decision_logic
+    priority: critical
+
+    input:
+      metrics:
+        doraScore: 0.55
+        slaCompliance: 97.0
+        incidentSeverity: "P3"
+        rcaCompleteness: 60
+        defectTrend: "stable"
+        defectDensity: 3.1
+        resilienceScore: 65
+        middlewareHealth: 55
+        sapHealth: 40
+        sodCompliance: null
+      domain_flags:
+        HAS_INFRASTRUCTURE_CHANGE: true
+        HAS_PERFORMANCE_SLA: true
+        HAS_RECURRING_INCIDENTS: false
+        HAS_MIDDLEWARE: true
+        HAS_SAP_INTEGRATION: true
+
+    expected_output:
+      must_contain:
+        - "DEGRADED"
+      must_not_contain:
+        - "CRITICAL"
+        - "HEALTHY"
+
+    validation:
+      schema_check: true
+      decision_deterministic: true
+
+success_criteria:
+  pass_rate: 0.875
+  critical_pass_rate: 1.0
+  avg_reasoning_quality: 0.75
+  max_execution_time_ms: 300000
+  decision_logic_pass_rate: 1.0
+
+metadata:
+  author: "qe-qcsd-orchestrator"
+  created: "2026-02-17"
+  updated: "2026-02-17"
+  coverage_target: >
+    QCSD production swarm with 8 test cases covering DORA metrics analysis,
+    root cause analysis, domain flag detection, agent coordination, feedback loop synthesis,
+    and 3 decision logic determinism tests (CRITICAL, HEALTHY, DEGRADED paths).
