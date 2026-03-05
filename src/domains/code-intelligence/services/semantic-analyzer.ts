@@ -75,7 +75,7 @@ export interface HalsteadMetrics {
  * Configuration for the semantic analyzer
  */
 export interface SemanticAnalyzerConfig {
-  /** Embedding vector dimension (768 for Nomic, 384 for fallback) */
+  /** Embedding vector dimension (384 for all-MiniLM-L6-v2) */
   embeddingDimension: number;
   /** Minimum similarity score threshold */
   minScore: number;
@@ -96,7 +96,7 @@ export interface SemanticAnalyzerConfig {
 }
 
 const DEFAULT_CONFIG: SemanticAnalyzerConfig = {
-  embeddingDimension: EMBEDDING_CONFIG.DIMENSIONS, // 768 for Nomic
+  embeddingDimension: EMBEDDING_CONFIG.DIMENSIONS, // 384 for all-MiniLM-L6-v2
   minScore: 0.5,
   maxResults: 100,
   namespace: 'code-intelligence:semantic',

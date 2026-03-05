@@ -4,7 +4,7 @@
  * Provides local, zero-cost embeddings via Ollama and nomic-embed-text model
  *
  * Features:
- * - 768-dimensional embeddings optimized for code
+ * - 384-dimensional embeddings (all-MiniLM-L6-v2)
  * - Batch processing with progress tracking
  * - Semantic context formatting
  * - Content-hash based caching

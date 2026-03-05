@@ -116,7 +116,7 @@ const DEFAULT_CONFIG: GapDetectorConfig = {
 
 export class GapDetectorService implements IGapDetectionService {
   private static readonly DEFAULT_MIN_COVERAGE = 80;
-  private static readonly VECTOR_DIMENSION = 768;
+  private static readonly VECTOR_DIMENSION = 384;
 
   private readonly memory: MemoryBackend;
   private readonly config: GapDetectorConfig;

@@ -1014,7 +1014,7 @@ export class CoverageAnalysisCoordinator
   }
 
   private createGapEmbedding(gap: CoverageGap): number[] {
-    const VECTOR_DIMENSION = 768;
+    const VECTOR_DIMENSION = 384;
     const embedding = new Array(VECTOR_DIMENSION).fill(0);
 
     // Encode gap characteristics

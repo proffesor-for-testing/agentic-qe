@@ -31,7 +31,7 @@ import { secureRandom } from '../../../shared/utils/crypto-random.js';
  * HNSW index configuration options
  */
 export interface HNSWIndexConfig {
-  /** Number of dimensions for vectors (default: 768) */
+  /** Number of dimensions for vectors (default: 384) */
   dimensions: number;
   /** Number of neighbors per node (default: 16) */
   M: number;
@@ -51,7 +51,7 @@ export interface HNSWIndexConfig {
  * Default HNSW configuration optimized for coverage analysis
  */
 export const DEFAULT_HNSW_CONFIG: HNSWIndexConfig = {
-  dimensions: 768,
+  dimensions: 384,
   M: 16,
   efConstruction: 200,
   efSearch: 100,
@@ -450,7 +450,7 @@ export class HNSWIndex implements IHNSWIndex {
 
   /**
    * Validate and auto-resize vectors to match HNSW configured dimensions.
-   * Fix #279: Prevents Rust WASM panic when RealEmbeddings (768-dim) are
+   * Fix #279: Prevents Rust WASM panic when mismatched-dim embeddings are
    * passed to a mismatched-dim HNSW index.
    *
    * Note: ProgressiveHnswBackend also handles dimension auto-resize internally,
@@ -596,7 +596,7 @@ export async function benchmarkHNSW(
   isNative: boolean;
   backendType: HNSWBackendType;
 }> {
-  const dimensions = 768;
+  const dimensions = 384;
   const startInsert = performance.now();
 
   // Insert vectors

@@ -881,8 +881,8 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
   private async hasKGVectors(): Promise<boolean> {
     try {
       // Probe with a simple unit vector to see if any vectors exist
-      // Use 768 dimensions to match the standard MiniLM embedding size
-      const probe = new Array(768).fill(0);
+      // Use 384 dimensions to match all-MiniLM-L6-v2 embedding size
+      const probe = new Array(384).fill(0);
       probe[0] = 1.0; // Unit vector in first dimension
       const results = await this.memory.vectorSearch(probe, 1);
       return results.length > 0;
@@ -993,7 +993,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
    * Uses token-based feature extraction similar to semantic-analyzer.
    */
   private generatePseudoEmbedding(code: string): number[] {
-    const dimension = 768; // Match MiniLM embedding size used by code-intelligence indexer
+    const dimension = 384; // Match all-MiniLM-L6-v2 embedding size
     const embedding = new Array(dimension).fill(0);
 
     // Tokenize by splitting on non-alphanumeric chars

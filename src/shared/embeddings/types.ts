@@ -116,9 +116,9 @@ export type ProgressCallback = (progress: BatchProgress) => void;
  */
 export const EMBEDDING_CONFIG = {
   /** Default model for embeddings */
-  MODEL: 'nomic-embed-text',
+  MODEL: 'all-MiniLM-L6-v2',
   /** Embedding vector dimensions */
-  DIMENSIONS: 768,
+  DIMENSIONS: 384,
   /** Maximum context window in tokens */
   CONTEXT_WINDOW: 8192,
   /** Default batch size for processing */
