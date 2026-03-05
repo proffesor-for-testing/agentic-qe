@@ -22,6 +22,10 @@ import type {
 // Shared Parsing Utilities
 // ============================================================================
 
+// Maximum line length for regex matching. Joined multi-line signatures can be long;
+// lines beyond this limit are skipped to prevent polynomial-time regex backtracking (CWE-1333).
+const MAX_REGEX_LINE_LEN = 1000;
+
 /**
  * Join multi-line signatures into single logical lines.
  * Handles: function params spanning lines, class declarations with long implements lists,
@@ -244,9 +248,10 @@ class PythonParser implements ILanguageParser {
     // Match: def function_name(params) -> return_type:
     //    or: async def function_name(params) -> return_type:
     const funcRegex =
-      /^(\s*)(async\s+)?def\s+(\w+)\s*\(([^)]*)\)(?:\s*->\s*([^:]+))?\s*:/;
+      /^(\s*)(async\s+)?def\s+(\w+)\s*\(([^)]*)\)(?:\s*->\s*([^:]*\S))?\s*:/;
 
     for (let i = 0; i < logicalLines.length; i++) {
+      if (logicalLines[i].length > MAX_REGEX_LINE_LEN) continue;
       const match = logicalLines[i].match(funcRegex);
       if (match) {
         const indent = match[1].length;
@@ -348,12 +353,13 @@ class PythonParser implements ILanguageParser {
     const lines = content.split('\n');
 
     for (const line of lines) {
+      if (line.length > MAX_REGEX_LINE_LEN) continue;
       // from module import name1, name2
       const fromMatch = line.match(/^\s*from\s+(\S+)\s+import\s+(.+)/);
       if (fromMatch) {
         const names = fromMatch[2]
           .split(',')
-          .map((n) => n.trim().split(/\s+as\s+/)[0]);
+          .map((n) => n.trim().split(' as ')[0]);
         imports.push({
           module: fromMatch[1],
           namedImports: names,
@@ -416,11 +422,12 @@ class JavaParser implements ILanguageParser {
     const { logicalLines, lineMap } = joinMultiLineSignatures(content);
     // Match method declarations — use a simpler regex without <[^>]+> so generics don't break
     const methodRegex =
-      /^\s*(public|private|protected)?\s*(static)?\s*(async)?\s*(?:<\S+>\s+)?([\w<>,.\s[\]?]+)\s+(\w+)\s*\(([^)]*)\)/;
+      /^\s*(public|private|protected)?\s*(static)?\s*(async)?\s*(?:<\S+>\s+)?([\w<>,.[\]?]+(?:\s+[\w<>,.[\]?]+)*)\s+(\w+)\s*\(([^)]*)\)/;
 
     for (let i = 0; i < logicalLines.length; i++) {
       const line = logicalLines[i];
       if (line.includes(' class ') || line.includes(' interface ')) continue;
+      if (line.length > MAX_REGEX_LINE_LEN) continue;
 
       const match = line.match(methodRegex);
       if (match) {
@@ -465,9 +472,10 @@ class JavaParser implements ILanguageParser {
     const rawLines = content.split('\n');
     const { logicalLines, lineMap } = joinMultiLineSignatures(content);
     const classRegex =
-      /^\s*(public|private|protected)?\s*(abstract)?\s*class\s+(\w+)(?:<[^{]*>)?(?:\s+extends\s+(\w+))?(?:\s+implements\s+([^{]+))?\s*\{?/;
+      /^\s*(public|private|protected)?\s*(abstract)?\s*class\s+(\w+)(?:<[^{]*>)?(?:\s+extends\s+(\w+))?(?:\s+implements\s+([^{\s]+(?:\s+[^{\s]+)*))?\s*\{?/;
 
     for (let i = 0; i < logicalLines.length; i++) {
+      if (logicalLines[i].length > MAX_REGEX_LINE_LEN) continue;
       const match = logicalLines[i].match(classRegex);
       if (match) {
         const name = match[3];
@@ -499,7 +507,8 @@ class JavaParser implements ILanguageParser {
     const imports: UniversalImportInfo[] = [];
     const lines = content.split('\n');
     for (const line of lines) {
-      const match = line.match(/^\s*import\s+(static\s+)?([^;]+);/);
+      if (line.length > MAX_REGEX_LINE_LEN) continue;
+      const match = line.match(/^\s*import +(static +)?(\S[^;]*);/);
       if (match) {
         const module = match[2].trim();
         const parts = module.split('.');
@@ -548,11 +557,12 @@ class CSharpParser implements ILanguageParser {
     const rawLines = content.split('\n');
     const { logicalLines, lineMap } = joinMultiLineSignatures(content);
     const methodRegex =
-      /^\s*(public|private|protected|internal)?\s*(static)?\s*(async)?\s*([\w<>,.\s[\]?]+)\s+(\w+)\s*\(([^)]*)\)/;
+      /^\s*(public|private|protected|internal)?\s*(static)?\s*(async)?\s*([\w<>,.[\]?]+(?:\s+[\w<>,.[\]?]+)*)\s+(\w+)\s*\(([^)]*)\)/;
 
     for (let i = 0; i < logicalLines.length; i++) {
       const line = logicalLines[i];
       if (line.includes(' class ') || line.includes(' interface ') || line.includes(' namespace ')) continue;
+      if (line.length > MAX_REGEX_LINE_LEN) continue;
 
       const match = line.match(methodRegex);
       if (match) {
@@ -597,9 +607,10 @@ class CSharpParser implements ILanguageParser {
     const rawLines = content.split('\n');
     const { logicalLines, lineMap } = joinMultiLineSignatures(content);
     const classRegex =
-      /^\s*(public|private|protected|internal)?\s*(abstract|sealed|static|partial)?\s*class\s+(\w+)(?:<[^{]*>)?(?:\s*:\s*([^{]+))?\s*\{?/;
+      /^\s*(public|private|protected|internal)?\s*(abstract|sealed|static|partial)?\s*class\s+(\w+)(?:<[^{]*>)?(?:\s*:\s*([^{\s]+(?:\s+[^{\s]+)*))?\s*\{?/;
 
     for (let i = 0; i < logicalLines.length; i++) {
+      if (logicalLines[i].length > MAX_REGEX_LINE_LEN) continue;
       const match = logicalLines[i].match(classRegex);
       if (match) {
         const name = match[3];
@@ -630,7 +641,8 @@ class CSharpParser implements ILanguageParser {
     const imports: UniversalImportInfo[] = [];
     const lines = content.split('\n');
     for (const line of lines) {
-      const match = line.match(/^\s*using\s+(static\s+)?([^;]+);/);
+      if (line.length > MAX_REGEX_LINE_LEN) continue;
+      const match = line.match(/^\s*using +(static +)?(\S[^;]*);/);
       if (match) {
         imports.push({
           module: match[2].trim(),
@@ -689,6 +701,7 @@ class GoParser implements ILanguageParser {
 
     for (let i = 0; i < logicalLines.length; i++) {
       const line = logicalLines[i];
+      if (line.length > MAX_REGEX_LINE_LEN) { braceDepth += (line.match(/\{/g)?.length ?? 0) - (line.match(/\}/g)?.length ?? 0); continue; }
 
       const match = line.match(funcRegex);
       if (match && braceDepth === 0) {
@@ -813,7 +826,7 @@ class RustParser implements ILanguageParser {
     const { logicalLines, lineMap } = joinMultiLineSignatures(content);
     // Updated regex: use [^{]* instead of [^>]+ for generics to handle lifetimes
     const fnRegex =
-      /^\s*(pub(?:\(crate\))?\s+)?(async\s+)?fn\s+(\w+)(?:<[^{]*>)?\s*\(([^)]*)\)(?:\s*->\s*([^{]+))?\s*(?:where\s+[^{]*)?\s*\{?/;
+      /^\s*(pub(?:\(crate\))? +)?(async +)?fn\s+(\w+)(?:<[^{]*>)?\s*\(([^)]*)\)(?:\s*->\s*([^{\s]+(?:\s+[^{\s]+)*))?\s*(?:where\s+[^{\s]+(?:\s+[^{\s]+)*)?\s*\{?/;
 
     // Track brace depth to filter nested closures.
     // Rust functions at depth 0 (top-level) and depth 1 (inside impl/mod blocks) are valid.
@@ -888,7 +901,8 @@ class RustParser implements ILanguageParser {
     const imports: UniversalImportInfo[] = [];
     const lines = content.split('\n');
     for (const line of lines) {
-      const match = line.match(/^\s*use\s+([^;]+);/);
+      if (line.length > MAX_REGEX_LINE_LEN) continue;
+      const match = line.match(/^\s*use +(\S[^;]*);/);
       if (match) {
         imports.push({
           module: match[1].trim(),
@@ -943,9 +957,10 @@ class SwiftParser implements ILanguageParser {
     const functions: UniversalFunctionInfo[] = [];
     const { logicalLines, lineMap } = joinMultiLineSignatures(content);
     const funcRegex =
-      /^\s*(public|private|internal|open)?\s*(static)?\s*func\s+(\w+)(?:<[^{]*>)?\s*\(([^)]*)\)(?:\s*(async))?\s*(?:throws\s+)?(?:->\s*([^{]+))?\s*\{?/;
+      /^\s*(public|private|internal|open)?\s*(static)?\s*func\s+(\w+)(?:<[^{]*>)?\s*\(([^)]*)\)(?:\s*(async))?\s*(?:throws +)?(?:->\s*([^{\s]+(?:\s+[^{\s]+)*))?\s*\{?/;
 
     for (let i = 0; i < logicalLines.length; i++) {
+      if (logicalLines[i].length > MAX_REGEX_LINE_LEN) continue;
       const match = logicalLines[i].match(funcRegex);
       if (match) {
         const visibility = match[1] || 'internal';
@@ -975,9 +990,10 @@ class SwiftParser implements ILanguageParser {
     const classes: UniversalClassInfo[] = [];
     const { logicalLines, lineMap } = joinMultiLineSignatures(content);
     const classRegex =
-      /^\s*(public|private|internal|open)?\s*(class|struct|protocol)\s+(\w+)(?:<[^{]*>)?(?:\s*:\s*([^{]+))?\s*\{?/;
+      /^\s*(public|private|internal|open)?\s*(class|struct|protocol)\s+(\w+)(?:<[^{]*>)?(?:\s*:\s*([^{\s]+(?:\s+[^{\s]+)*))?\s*\{?/;
 
     for (let i = 0; i < logicalLines.length; i++) {
+      if (logicalLines[i].length > MAX_REGEX_LINE_LEN) continue;
       const match = logicalLines[i].match(classRegex);
       if (match) {
         const name = match[3];
@@ -1055,7 +1071,7 @@ class KotlinParser implements ILanguageParser {
     const rawLines = content.split('\n');
     const { logicalLines, lineMap } = joinMultiLineSignatures(content);
     const funcRegex =
-      /^\s*(public|private|protected|internal)?\s*(suspend)?\s*fun\s+(?:<[^{]*>\s+)?(\w+)\s*\(([^)]*)\)(?:\s*:\s*([^{=]+))?\s*/;
+      /^\s*(public|private|protected|internal)?\s*(suspend)?\s*fun\s+(?:<[^{]*> +)?(\w+)\s*\(([^)]*)\)(?:\s*:\s*([^{=\s]+(?:\s+[^{=\s]+)*))?\s*/;
 
     // Track brace depth to filter nested lambdas that look like functions.
     // Kotlin functions at depth 0 (top-level) and depth 1 (inside class bodies) are valid.
@@ -1063,6 +1079,7 @@ class KotlinParser implements ILanguageParser {
 
     for (let i = 0; i < logicalLines.length; i++) {
       const line = logicalLines[i];
+      if (line.length > MAX_REGEX_LINE_LEN) { braceDepth += (line.match(/\{/g)?.length ?? 0) - (line.match(/\}/g)?.length ?? 0); continue; }
 
       const match = line.match(funcRegex);
       if (match && braceDepth <= 1) {
@@ -1110,9 +1127,10 @@ class KotlinParser implements ILanguageParser {
     const rawLines = content.split('\n');
     const { logicalLines, lineMap } = joinMultiLineSignatures(content);
     const classRegex =
-      /^\s*(public|private|protected|internal)?\s*(data|sealed|abstract|open)?\s*class\s+(\w+)(?:<[^{]*>)?(?:\s*(?:\([^)]*\))?\s*:\s*([^{]+))?\s*\{?/;
+      /^\s*(public|private|protected|internal)?\s*(data|sealed|abstract|open)?\s*class\s+(\w+)(?:<[^{]*>)?(?:\s*(?:\([^)]*\))?\s*:\s*([^{\s]+(?:\s+[^{\s]+)*))?\s*\{?/;
 
     for (let i = 0; i < logicalLines.length; i++) {
+      if (logicalLines[i].length > MAX_REGEX_LINE_LEN) continue;
       const match = logicalLines[i].match(classRegex);
       if (match) {
         const name = match[3];
@@ -1203,11 +1221,12 @@ class DartParser implements ILanguageParser {
     const functions: UniversalFunctionInfo[] = [];
     const { logicalLines, lineMap } = joinMultiLineSignatures(content);
     const funcRegex =
-      /^\s*([\w<>,.\s?]+)\s+(\w+)\s*\(([^)]*)\)(?:\s*(async))?\s*\{/;
+      /^\s*([\w<>,.?]+(?:\s+[\w<>,.?]+)*)\s+(\w+)\s*\(([^)]*)\)(?:\s*(async))?\s*\{/;
 
     for (let i = 0; i < logicalLines.length; i++) {
       const line = logicalLines[i];
       if (line.includes(' class ')) continue;
+      if (line.length > MAX_REGEX_LINE_LEN) continue;
 
       const match = line.match(funcRegex);
       if (match) {
@@ -1246,9 +1265,10 @@ class DartParser implements ILanguageParser {
     const classes: UniversalClassInfo[] = [];
     const { logicalLines, lineMap } = joinMultiLineSignatures(content);
     const classRegex =
-      /^\s*(abstract\s+)?class\s+(\w+)(?:<[^{]*>)?(?:\s+extends\s+(\w+))?(?:\s+(?:with|implements)\s+([^{]+))?\s*\{/;
+      /^\s*(abstract +)?class\s+(\w+)(?:<[^{]*>)?(?:\s+extends\s+(\w+))?(?:\s+(?:with|implements)\s+([^{\s]+(?:\s+[^{\s]+)*))?\s*\{/;
 
     for (let i = 0; i < logicalLines.length; i++) {
+      if (logicalLines[i].length > MAX_REGEX_LINE_LEN) continue;
       const match = logicalLines[i].match(classRegex);
       if (match) {
         const name = match[2];

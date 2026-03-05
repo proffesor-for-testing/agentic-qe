@@ -81,4 +81,12 @@ else
   echo "  ⚠️  Validation directory not found at $REPO_ROOT/.claude/skills/.validation"
 fi
 
+# Strip CRLF line endings from all text files (safety net)
+echo "🔧 Normalizing line endings..."
+find "$REPO_ROOT/assets" -type f \( -name "*.md" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.js" \) -exec sed -i 's/\r$//' {} +
+echo "  ✅ All text files normalized to LF"
+
+# Remove .DS_Store files
+find "$REPO_ROOT/assets" -name ".DS_Store" -delete
+
 echo "✨ Asset preparation complete!"

@@ -84,16 +84,18 @@ function findMcpEntry(): string | null {
   const __dirname = dirname(__filename);
 
   // Paths to check, in order of preference:
+  // CLI bundle is at dist/cli/bundle.js, so __dirname = dist/cli/
+  // MCP bundle is at dist/mcp/bundle.js — one level up (sibling dir)
   const candidates = [
-    // 1. Bundled dist (production)
-    join(__dirname, '..', '..', 'mcp', 'bundle.js'),
-    // 2. Compiled dist
-    join(__dirname, '..', '..', 'mcp', 'entry.js'),
-    // 3. Source (development with tsx)
-    join(__dirname, '..', '..', 'mcp', 'entry.ts'),
-    // 4. From node_modules (when used as dependency)
-    join(process.cwd(), 'node_modules', 'agentic-qe', 'v3', 'dist', 'mcp', 'bundle.js'),
-    join(process.cwd(), 'node_modules', 'agentic-qe', 'v3', 'dist', 'mcp', 'entry.js'),
+    // 1. Sibling bundle in dist/ (production: dist/cli/ -> dist/mcp/)
+    join(__dirname, '..', 'mcp', 'bundle.js'),
+    // 2. Sibling compiled in dist/
+    join(__dirname, '..', 'mcp', 'entry.js'),
+    // 3. Source (development with tsx: src/cli/ -> src/mcp/)
+    join(__dirname, '..', 'mcp', 'entry.ts'),
+    // 4. From node_modules (when used as dependency — flat structure since v3.7.5)
+    join(process.cwd(), 'node_modules', 'agentic-qe', 'dist', 'mcp', 'bundle.js'),
+    join(process.cwd(), 'node_modules', 'agentic-qe', 'dist', 'mcp', 'entry.js'),
   ];
 
   for (const candidate of candidates) {

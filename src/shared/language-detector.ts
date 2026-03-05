@@ -157,7 +157,7 @@ function detectFrameworkFromProject(language: SupportedLanguage, projectRoot: st
  */
 function findFiles(dir: string, pattern: string): string[] {
   try {
-    const ext = pattern.replace('*', '');
+    const ext = pattern.replace(/\*/g, '');
     return fs.readdirSync(dir)
       .filter(f => f.endsWith(ext))
       .map(f => path.join(dir, f));

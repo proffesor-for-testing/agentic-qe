@@ -5,6 +5,20 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.10] - 2026-03-05
+
+### Fixed
+
+- **MCP server entry path resolution** — `aqe mcp` command failed with "Could not find MCP server entry point" because `findMcpEntry()` traversed 2 directory levels instead of 1 from `dist/cli/` to find `dist/mcp/bundle.js`
+- **Stale v3/ directory references** — Worker daemon and MCP command lookup referenced `node_modules/agentic-qe/v3/dist/` which no longer exists after the v3.7.5 flatten; updated to `node_modules/agentic-qe/dist/`
+- **CRLF line endings breaking skill frontmatter** — 170+ skill files had Windows-style `\r\n` line endings causing `skill-lint` YAML parsers to fail on `---\r` delimiters; all converted to LF
+- **CI Node.js version** — Upgraded all 8 CI workflow files from Node.js 20 to Node.js 24
+
+### Changed
+
+- **README rewritten for clarity** — Reduced from 1,097 to ~280 lines; restructured around user outcomes instead of internal architecture details
+- **Asset build safety** — `prepare-assets.sh` now strips CRLF line endings and removes `.DS_Store` files as a safety net during asset preparation
+
 ## [3.7.9] - 2026-03-05
 
 ### Added

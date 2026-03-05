@@ -161,7 +161,7 @@ appendFileSync(logFile, '[' + ts + '] Starting AQE v3 Worker Daemon...\\n');
 // Find the best way to run aqe-mcp
 const candidates = [
   join(projectRoot, 'node_modules', '.bin', 'aqe-mcp'),
-  join(projectRoot, 'node_modules', 'agentic-qe', 'v3', 'dist', 'mcp', 'bundle.js'),
+  join(projectRoot, 'node_modules', 'agentic-qe', 'dist', 'mcp', 'bundle.js'),
 ];
 
 let mcpCmd, mcpArgs;
@@ -398,7 +398,7 @@ try {
     }
 
     // Try local node_modules bundle (alternative path)
-    const localBundle = join(projectRoot, 'node_modules', 'agentic-qe', 'v3', 'dist', 'mcp', 'bundle.js');
+    const localBundle = join(projectRoot, 'node_modules', 'agentic-qe', 'dist', 'mcp', 'bundle.js');
     if (existsSync(localBundle)) {
       return { command: 'node', args: [localBundle] };
     }

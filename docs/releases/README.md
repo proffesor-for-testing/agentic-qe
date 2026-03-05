@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.7.10](v3.7.10.md) | 2026-03-05 | Fix MCP path resolution, CRLF skill parsing, stale v3/ refs; README rewrite |
 | [v3.7.9](v3.7.9.md) | 2026-03-05 | Multi-language test gen (8 langs), 384-dim embedding standardization, trust tier evals |
 | [v3.7.8](v3.7.8.md) | 2026-03-04 | Loki-Mode: 7 adversarial quality gates (anti-sycophancy, test gates, EMA, auto-escalation) |
 | [v3.7.7](v3.7.7.md) | 2026-03-02 | Scrapling-inspired browser: adaptive locators, resource blocking, stealth client, page pool |
