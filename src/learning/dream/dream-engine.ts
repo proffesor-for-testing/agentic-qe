@@ -286,7 +286,7 @@ class ConceptGraphAdapter implements SpreadingConceptGraph, InsightConceptGraph 
  *
  * @example
  * ```typescript
- * const engine = new DreamEngine('.aqe/dream.db');
+ * const engine = new DreamEngine('.agentic-qe/dream.db');
  * await engine.initialize();
  *
  * // Load patterns for dreaming

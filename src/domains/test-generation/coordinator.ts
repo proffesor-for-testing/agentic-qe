@@ -515,7 +515,7 @@ export class TestGenerationCoordinator
           await this.publishTestSuiteCreated(result.value, request);
 
           for (const test of result.value.tests) {
-            await this.publishTestGenerated(test, request.framework);
+            await this.publishTestGenerated(test, request.framework ?? 'vitest');
           }
         }
 
@@ -689,7 +689,7 @@ export class TestGenerationCoordinator
       name: `test-generator-${workflowId.slice(0, 8)}`,
       domain: 'test-generation',
       type: 'generator',
-      capabilities: ['test-generation', request.testType, request.framework],
+      capabilities: ['test-generation', request.testType, request.framework ?? 'vitest'],
       config: {
         workflowId,
         sourceFiles: request.sourceFiles,

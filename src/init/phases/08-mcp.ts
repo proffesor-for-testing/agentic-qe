@@ -2,12 +2,17 @@
  * Phase 08: MCP
  * Configures MCP server for Claude Code integration
  *
- * Creates MCP configuration in both locations for compatibility:
- * - .mcp.json (project root) - Claude Code primary location
- * - .claude/mcp.json - Alternative location
+ * Writes MCP configuration to .mcp.json (project root) — the only
+ * location Claude Code reads. Does NOT write to .claude/mcp.json
+ * to avoid confusing duplication (#321).
+ *
+ * AQE_PROJECT_ROOT is intentionally omitted from env — the MCP server
+ * discovers the project root at runtime via findProjectRoot() which
+ * walks up looking for .agentic-qe/, .git/, or package.json. This
+ * makes the config portable across machines, devcontainers, and CI.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { safeJsonParse } from '../../shared/safe-json.js';
 
@@ -20,7 +25,6 @@ export interface MCPResult {
   configured: boolean;
   mcpPath: string;
   serverName: string;
-  alternativePath: string;
 }
 
 /**
@@ -37,18 +41,19 @@ export class MCPPhase extends BasePhase<MCPResult> {
     const { projectRoot } = context;
 
     // AQE MCP server configuration
+    // AQE_PROJECT_ROOT omitted — runtime discovery via findProjectRoot() is
+    // portable across machines, devcontainers, and CI (#321)
     const aqeServerConfig = {
       command: 'aqe-mcp',
       args: [],
       env: {
-        AQE_PROJECT_ROOT: projectRoot,
         AQE_LEARNING_ENABLED: 'true',
         AQE_WORKERS_ENABLED: 'true',
         NODE_ENV: 'production',
       },
     };
 
-    // 1. Write to .mcp.json at project root (Claude Code primary location)
+    // Write to .mcp.json at project root (the only location Claude Code reads)
     const rootMcpPath = join(projectRoot, '.mcp.json');
     let rootMcpConfig: Record<string, unknown> = {};
 
@@ -70,35 +75,7 @@ export class MCPPhase extends BasePhase<MCPResult> {
 
     writeFileSync(rootMcpPath, JSON.stringify(rootMcpConfig, null, 2), 'utf-8');
 
-    // 2. Also write to .claude/mcp.json for alternative location
-    const claudeDir = join(projectRoot, '.claude');
-    if (!existsSync(claudeDir)) {
-      mkdirSync(claudeDir, { recursive: true });
-    }
-
-    const claudeMcpPath = join(claudeDir, 'mcp.json');
-    let claudeMcpConfig: Record<string, unknown> = {};
-
-    if (existsSync(claudeMcpPath)) {
-      try {
-        const content = readFileSync(claudeMcpPath, 'utf-8');
-        claudeMcpConfig = safeJsonParse<Record<string, unknown>>(content);
-      } catch {
-        claudeMcpConfig = {};
-      }
-    }
-
-    if (!claudeMcpConfig.mcpServers) {
-      claudeMcpConfig.mcpServers = {};
-    }
-
-    const claudeServers = claudeMcpConfig.mcpServers as Record<string, unknown>;
-    claudeServers['agentic-qe'] = aqeServerConfig;
-
-    writeFileSync(claudeMcpPath, JSON.stringify(claudeMcpConfig, null, 2), 'utf-8');
-
-    context.services.log(`  MCP config (primary): ${rootMcpPath}`);
-    context.services.log(`  MCP config (alt): ${claudeMcpPath}`);
+    context.services.log(`  MCP config: ${rootMcpPath}`);
     context.services.log(`  Server: agentic-qe`);
     context.services.log(`  Learning: enabled`);
     context.services.log(`  Workers: enabled`);
@@ -107,7 +84,6 @@ export class MCPPhase extends BasePhase<MCPResult> {
       configured: true,
       mcpPath: rootMcpPath,
       serverName: 'agentic-qe',
-      alternativePath: claudeMcpPath,
     };
   }
 }

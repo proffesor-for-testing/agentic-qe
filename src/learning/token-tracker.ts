@@ -195,7 +195,7 @@ export interface TokenPersistenceConfig {
 }
 
 const DEFAULT_PERSISTENCE_CONFIG: TokenPersistenceConfig = {
-  filePath: '.aqe/token-metrics.json',
+  filePath: '.agentic-qe/token-metrics.json',
   autoSaveIntervalMs: 60000, // Auto-save every minute
   maxMetricsInMemory: 10000,
 };

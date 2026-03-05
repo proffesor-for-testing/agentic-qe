@@ -52,6 +52,15 @@ export {
   type CodeTransformResult,
 } from './code-transform-integration';
 
+// Compilation Validation Loop (ADR-077)
+export {
+  CompilationValidator,
+  compilationValidator,
+  type ICompilationValidator,
+  type CompilationError,
+  type ValidationResult,
+} from './compilation-validator';
+
 // Coherence Gate Service (ADR-052)
 export {
   TestGenerationCoherenceGate,
@@ -91,6 +100,15 @@ export {
   JestVitestGenerator,
   MochaGenerator,
   PytestGenerator,
+  NodeTestGenerator,
+  JUnit5Generator,
+  XUnitGenerator,
+  GoTestGenerator,
+  RustTestGenerator,
+  SwiftTestingGenerator,
+  KotlinJUnitGenerator,
+  FlutterTestGenerator,
+  JestRNGenerator,
 } from '../generators';
 
 // Factory

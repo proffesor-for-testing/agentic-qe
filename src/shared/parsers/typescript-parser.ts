@@ -4,6 +4,8 @@
  */
 
 import * as ts from 'typescript';
+import type { ILanguageParser, ParsedFile, UniversalFunctionInfo, UniversalClassInfo, UniversalImportInfo, UniversalPropertyInfo } from './interfaces.js';
+import type { SupportedLanguage } from '../types/test-frameworks.js';
 
 // ============================================================================
 // Type Definitions
@@ -839,3 +841,97 @@ export class TypeScriptParser {
 
 // Export a default instance for convenience
 export const typescriptParser = new TypeScriptParser();
+
+/**
+ * TypeScript Language Parser adapter — wraps TypeScriptParser to implement ILanguageParser
+ */
+export class TypeScriptLanguageParser implements ILanguageParser {
+  readonly language: SupportedLanguage = 'typescript';
+  readonly supportedExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+
+  private parser = new TypeScriptParser();
+
+  async parseFile(content: string, filePath: string): Promise<ParsedFile> {
+    const ast = this.parser.parseFile(filePath, content);
+    const functions = this.parser.extractFunctions(ast);
+    const classes = this.parser.extractClasses(ast);
+    const imports = this.parser.extractImports(ast);
+
+    return {
+      functions: functions.map(f => this.mapFunction(f)),
+      classes: classes.map(c => this.mapClass(c)),
+      imports: imports.map(i => this.mapImport(i)),
+      language: filePath.endsWith('.js') || filePath.endsWith('.jsx') || filePath.endsWith('.mjs') || filePath.endsWith('.cjs') ? 'javascript' : 'typescript',
+      filePath,
+    };
+  }
+
+  private mapFunction(f: FunctionInfo): UniversalFunctionInfo {
+    return {
+      name: f.name,
+      parameters: f.parameters.map(p => ({
+        name: p.name,
+        type: p.type,
+        isOptional: p.isOptional,
+        defaultValue: p.defaultValue,
+      })),
+      returnType: f.returnType,
+      isAsync: f.isAsync,
+      isPublic: f.isExported,
+      complexity: 1,
+      decorators: [],
+      genericParams: f.typeParameters,
+      startLine: f.startLine,
+      endLine: f.endLine,
+    };
+  }
+
+  private mapClass(c: ClassInfo): UniversalClassInfo {
+    return {
+      name: c.name,
+      methods: c.methods.map(m => ({
+        name: m.name,
+        parameters: m.parameters.map(p => ({
+          name: p.name,
+          type: p.type,
+          isOptional: p.isOptional,
+          defaultValue: p.defaultValue,
+        })),
+        returnType: m.returnType,
+        isAsync: m.isAsync,
+        isPublic: m.visibility === 'public',
+        complexity: 1,
+        decorators: [],
+        genericParams: [],
+        startLine: m.startLine,
+        endLine: m.endLine,
+      })),
+      properties: c.properties.map(p => this.mapProperty(p)),
+      isPublic: c.isExported,
+      implements: c.implements,
+      extends: c.extends,
+      decorators: [],
+      startLine: c.startLine,
+      endLine: c.endLine,
+    };
+  }
+
+  private mapProperty(p: PropertyInfo): UniversalPropertyInfo {
+    return {
+      name: p.name,
+      type: p.type,
+      isPublic: p.visibility === 'public',
+      isReadonly: p.isReadonly,
+    };
+  }
+
+  private mapImport(i: ImportInfo): UniversalImportInfo {
+    return {
+      module: i.module,
+      namedImports: i.namedImports.map(n => n.alias || n.name),
+      isTypeOnly: i.isTypeOnly,
+    };
+  }
+}
+
+export const typescriptLanguageParser = new TypeScriptLanguageParser();

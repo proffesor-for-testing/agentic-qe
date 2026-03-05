@@ -20,8 +20,10 @@ import type {
   ClassInfo,
   ParameterInfo,
   TestGenerationContext,
+  CodeAnalysis,
   Pattern,
 } from '../interfaces';
+import type { ParsedFile } from '../../../shared/parsers/interfaces.js';
 
 /**
  * PytestGenerator - Test generator for Python's pytest framework
@@ -45,6 +47,64 @@ import type {
  */
 export class PytestGenerator extends BaseTestGenerator {
   readonly framework: TestFramework = 'pytest';
+
+  /**
+   * Convert ParsedFile from multi-language parser to CodeAnalysis.
+   * Maps universal parser types to the legacy IFunctionInfo/IClassInfo shape
+   * used by generateTests(). Works for any language, not just Python.
+   */
+  static convertParsedFile(parsed: ParsedFile): CodeAnalysis {
+    return {
+      functions: parsed.functions.map(f => ({
+        name: f.name,
+        parameters: f.parameters.map(p => ({
+          name: p.name,
+          type: p.type,
+          optional: p.isOptional,
+          defaultValue: p.defaultValue,
+        })),
+        returnType: f.returnType,
+        isAsync: f.isAsync,
+        isExported: f.isPublic,
+        complexity: f.complexity,
+        startLine: f.startLine,
+        endLine: f.endLine,
+        body: f.body,
+      })),
+      classes: parsed.classes.map(c => ({
+        name: c.name,
+        methods: c.methods.map(m => ({
+          name: m.name,
+          parameters: m.parameters.map(p => ({
+            name: p.name,
+            type: p.type,
+            optional: p.isOptional,
+            defaultValue: p.defaultValue,
+          })),
+          returnType: m.returnType,
+          isAsync: m.isAsync,
+          isExported: m.isPublic,
+          complexity: m.complexity,
+          startLine: m.startLine,
+          endLine: m.endLine,
+        })),
+        properties: c.properties.map(p => ({
+          name: p.name,
+          type: p.type,
+          isPrivate: !p.isPublic,
+          isReadonly: p.isReadonly,
+        })),
+        isExported: c.isPublic,
+        hasConstructor: c.methods.some(m => m.name === '__init__' || m.name === 'constructor'),
+        constructorParams: c.methods.find(m => m.name === '__init__' || m.name === 'constructor')?.parameters.map(p => ({
+          name: p.name,
+          type: p.type,
+          optional: p.isOptional,
+          defaultValue: p.defaultValue,
+        })),
+      })),
+    };
+  }
 
   /**
    * Generate complete test file from analysis

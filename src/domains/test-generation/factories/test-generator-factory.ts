@@ -11,25 +11,28 @@
 import type {
   ITestGenerator,
   ITestGeneratorFactory,
-  TestFramework,
 } from '../interfaces';
+import type { TestFramework } from '../../../shared/types/test-frameworks.js';
+import { FRAMEWORK_ALIASES, ALL_TEST_FRAMEWORKS, resolveFrameworkAlias } from '../../../shared/types/test-frameworks.js';
 import {
   JestVitestGenerator,
   MochaGenerator,
   PytestGenerator,
   NodeTestGenerator,
+  JUnit5Generator,
+  XUnitGenerator,
+  GoTestGenerator,
+  RustTestGenerator,
+  SwiftTestingGenerator,
+  KotlinJUnitGenerator,
+  FlutterTestGenerator,
+  JestRNGenerator,
 } from '../generators';
 
 /**
  * Supported test frameworks
  */
-const SUPPORTED_FRAMEWORKS: readonly TestFramework[] = [
-  'jest',
-  'vitest',
-  'mocha',
-  'pytest',
-  'node-test',
-] as const;
+const SUPPORTED_FRAMEWORKS: readonly TestFramework[] = ALL_TEST_FRAMEWORKS;
 
 /**
  * Default framework when none is specified
@@ -72,15 +75,18 @@ export class TestGeneratorFactory implements ITestGeneratorFactory {
    * @throws Error if framework is not supported
    */
   create(framework: TestFramework): ITestGenerator {
+    // Resolve aliases (e.g., 'junit' -> 'junit5')
+    const resolved = resolveFrameworkAlias(framework) ?? framework as TestFramework;
+
     // Check cache first
-    const cached = this.cache.get(framework);
+    const cached = this.cache.get(resolved);
     if (cached) {
       return cached;
     }
 
     // Create new generator
-    const generator = this.createGenerator(framework);
-    this.cache.set(framework, generator);
+    const generator = this.createGenerator(resolved);
+    this.cache.set(resolved, generator);
     return generator;
   }
 
@@ -91,7 +97,8 @@ export class TestGeneratorFactory implements ITestGeneratorFactory {
    * @returns True if supported, with type narrowing
    */
   supports(framework: string): framework is TestFramework {
-    return SUPPORTED_FRAMEWORKS.includes(framework as TestFramework);
+    const resolved = resolveFrameworkAlias(framework);
+    return resolved !== undefined;
   }
 
   /**
@@ -127,6 +134,28 @@ export class TestGeneratorFactory implements ITestGeneratorFactory {
         return new PytestGenerator();
       case 'node-test':
         return new NodeTestGenerator();
+      case 'junit5':
+      case 'testng': // Aliased to JUnit5 — TestNG-specific annotations (@DataProvider) not yet supported
+        return new JUnit5Generator();
+      case 'xunit':
+      case 'nunit': // Aliased to xUnit — NUnit-specific attributes ([TestCase]) not yet supported
+        return new XUnitGenerator();
+      case 'go-test':
+        return new GoTestGenerator();
+      case 'rust-test':
+        return new RustTestGenerator();
+      case 'swift-testing':
+      case 'xctest':
+        return new SwiftTestingGenerator();
+      case 'kotlin-junit':
+        return new KotlinJUnitGenerator();
+      case 'flutter-test':
+        return new FlutterTestGenerator();
+      case 'jest-rn':
+        return new JestRNGenerator();
+      case 'playwright':
+      case 'cypress':
+        throw new Error(`Generator for '${framework}' not yet implemented`);
       default:
         // This should never happen due to type constraints,
         // but provides a fallback for runtime safety
@@ -180,5 +209,5 @@ export function createTestGenerator(framework?: TestFramework): ITestGenerator {
  * ```
  */
 export function isValidTestFramework(framework: string): framework is TestFramework {
-  return testGeneratorFactory.supports(framework);
+  return resolveFrameworkAlias(framework) !== undefined;
 }

@@ -4,3 +4,5 @@
  */
 
 export * from './typescript-parser';
+export * from './interfaces';
+export * from './multi-language-parser';

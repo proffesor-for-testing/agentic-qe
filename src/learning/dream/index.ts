@@ -19,7 +19,7 @@
  * import { DreamEngine, createDreamEngine } from './dream';
  *
  * // Create and initialize
- * const engine = createDreamEngine('.aqe/dream.db');
+ * const engine = createDreamEngine('.agentic-qe/dream.db');
  * await engine.initialize();
  *
  * // Load patterns for dreaming
