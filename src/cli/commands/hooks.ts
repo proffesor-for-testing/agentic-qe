@@ -454,6 +454,116 @@ async function persistCommandExperience(opts: {
   }
 }
 
+/**
+ * Lightweight experience-to-pattern consolidation.
+ * Aggregates captured_experiences by domain+agent, and for clusters that meet
+ * quality thresholds, creates new qe_patterns entries.
+ * Called at session-end so patterns grow with each session.
+ */
+async function consolidateExperiencesToPatterns(): Promise<number> {
+  const { getUnifiedMemory } = await import('../../kernel/unified-memory.js');
+  const um = getUnifiedMemory();
+  if (!um.isInitialized()) {
+    await um.initialize();
+  }
+  const db = um.getDatabase();
+
+  // Aggregate unprocessed experiences by domain+agent with quality thresholds
+  const aggregates = db.prepare(`
+    SELECT
+      domain,
+      agent,
+      COUNT(*) as cnt,
+      AVG(quality) as avg_quality,
+      SUM(success) as successes,
+      CAST(SUM(success) AS REAL) / COUNT(*) as success_rate,
+      AVG(duration_ms) as avg_duration,
+      GROUP_CONCAT(DISTINCT source) as sources
+    FROM captured_experiences
+    WHERE application_count = 0
+    GROUP BY domain, agent
+    HAVING cnt >= 3 AND avg_quality >= 0.5 AND success_rate >= 0.6
+    ORDER BY avg_quality DESC
+    LIMIT 50
+  `).all() as Array<{
+    domain: string;
+    agent: string;
+    cnt: number;
+    avg_quality: number;
+    successes: number;
+    success_rate: number;
+    avg_duration: number;
+    sources: string | null;
+  }>;
+
+  if (aggregates.length === 0) return 0;
+
+  const { v4: uuidv4 } = await import('uuid');
+  let created = 0;
+
+  for (const agg of aggregates) {
+    try {
+      // Check for existing pattern with same domain+agent to avoid duplicates
+      const existing = db.prepare(`
+        SELECT id FROM qe_patterns
+        WHERE qe_domain = ? AND name = ?
+        LIMIT 1
+      `).get(agg.domain, `${agg.agent}-session-pattern`) as { id: string } | undefined;
+
+      if (existing) {
+        // Reinforce existing pattern instead of creating duplicate
+        db.prepare(`
+          UPDATE qe_patterns
+          SET usage_count = usage_count + ?,
+              successful_uses = successful_uses + ?,
+              confidence = MIN(0.99, confidence + 0.01),
+              quality_score = MIN(0.99, quality_score + 0.005)
+          WHERE id = ?
+        `).run(agg.cnt, agg.successes, existing.id);
+      } else {
+        const patternId = uuidv4();
+        const confidence = Math.min(0.95, agg.avg_quality * 0.8 + agg.success_rate * 0.2);
+        const qualityScore = confidence * 0.3 + (Math.min(agg.cnt, 100) / 100) * 0.2 + agg.success_rate * 0.5;
+
+        db.prepare(`
+          INSERT INTO qe_patterns (
+            id, pattern_type, qe_domain, domain, name, description,
+            confidence, usage_count, success_rate, quality_score, tier,
+            template_json, context_json, created_at, successful_uses
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+        `).run(
+          patternId,
+          'workflow',
+          agg.domain,
+          agg.domain,
+          `${agg.agent}-session-pattern`,
+          `Auto-consolidated from ${agg.cnt} experiences. Agent: ${agg.agent}, success rate: ${(agg.success_rate * 100).toFixed(0)}%`,
+          confidence,
+          agg.cnt,
+          agg.success_rate,
+          qualityScore,
+          'short-term',
+          JSON.stringify({ type: 'workflow', content: `${agg.agent} pattern for ${agg.domain}`, variables: [] }),
+          JSON.stringify({ tags: (agg.sources || '').split(','), sourceType: 'session-consolidation', extractedAt: new Date().toISOString() }),
+          agg.successes
+        );
+        created++;
+      }
+
+      // Mark experiences as processed
+      db.prepare(`
+        UPDATE captured_experiences
+        SET application_count = application_count + 1
+        WHERE domain = ? AND agent = ? AND application_count = 0
+      `).run(agg.domain, agg.agent);
+    } catch {
+      // Skip on error (e.g. constraint violations)
+    }
+  }
+
+  return created;
+}
+
 function printGuidance(guidance: string[]): void {
   if (guidance.length === 0) {
     console.log(chalk.dim('  No specific guidance'));
@@ -1140,6 +1250,14 @@ Examples:
           }
         }
 
+        // Run lightweight experience-to-pattern consolidation
+        let patternsCreated = 0;
+        try {
+          patternsCreated = await consolidateExperiencesToPatterns();
+        } catch {
+          // Non-critical — don't block session end
+        }
+
         if (options.json) {
           const summary = stats
             ? `Session complete: ${stats.totalPatterns} patterns, ${stats.routingRequests} routings, ${(stats.patternSuccessRate * 100).toFixed(0)}% success rate`
@@ -1151,6 +1269,7 @@ Examples:
             sessionId,
             stateSaved: options.saveState || false,
             metricsExported: options.exportMetrics || false,
+            patternsConsolidated: patternsCreated,
             finalStats: stats ? {
               patternsLearned: stats.totalPatterns,
               routingRequests: stats.routingRequests,
@@ -1162,6 +1281,9 @@ Examples:
           if (stats) {
             console.log(chalk.dim(`  Patterns: ${stats.totalPatterns}`));
             console.log(chalk.dim(`  Routing requests: ${stats.routingRequests}`));
+          }
+          if (patternsCreated > 0) {
+            console.log(chalk.dim(`  Patterns consolidated: ${patternsCreated}`));
           }
         }
 

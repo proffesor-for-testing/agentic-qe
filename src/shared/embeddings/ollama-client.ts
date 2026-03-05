@@ -33,7 +33,7 @@ export class OllamaClient {
   }
 
   /**
-   * Check if Ollama is running and nomic-embed-text model is available
+   * Check if Ollama is running and the configured embedding model is available
    */
   async healthCheck(): Promise<boolean> {
     try {
@@ -52,7 +52,7 @@ export class OllamaClient {
 
       const data = await response.json() as OllamaHealthResponse;
 
-      // Check if nomic-embed-text model is available
+      // Check if configured embedding model is available
       // Model names may include tags like ":latest", so use startsWith for matching
       if (data.models) {
         return data.models.some(

@@ -1,7 +1,7 @@
 ---
 name: pr-review
 description: Scope-aware GitHub PR review with user-friendly tone and trust tier validation
-trust_tier: 3
+trust_tier: 0
 domain: code-review
 ---
 

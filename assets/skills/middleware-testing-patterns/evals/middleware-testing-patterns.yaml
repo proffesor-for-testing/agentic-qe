@@ -1,0 +1,153 @@
+skill: middleware-testing-patterns
+version: 1.0.0
+description: >
+  Evaluation suite for enterprise middleware testing patterns.
+  Tests message routing, transformation, DLQ handling, protocol mediation,
+  ESB error handling, and Enterprise Integration Patterns.
+
+models_to_test:
+  - claude-3.5-sonnet
+  - claude-3-haiku
+
+mcp_integration:
+  enabled: true
+  namespace: skill-validation
+  query_patterns: true
+  track_outcomes: true
+  store_patterns: true
+  target_agents:
+    - qe-learning-coordinator
+    - qe-queen-coordinator
+
+learning:
+  store_success_patterns: true
+  pattern_ttl_days: 90
+
+result_format:
+  json_output: true
+  include_timing: true
+  include_token_usage: true
+
+setup:
+  required_tools:
+    - jq
+
+test_cases:
+
+  - id: tc001_message_routing_test
+    description: "Generate tests for content-based message routing"
+    category: routing
+    priority: critical
+
+    input:
+      prompt: |
+        Generate test strategy for content-based router that routes
+        order messages to fulfillment (type=physical), digital delivery
+        (type=digital), or subscription service (type=recurring).
+      context:
+        framework: rabbitmq
+
+    expected_output:
+      must_contain:
+        - "routing"
+        - "message"
+        - "test"
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+
+  - id: tc002_message_transformation
+    description: "Test message transformation and mapping correctness"
+    category: transformation
+    priority: critical
+
+    input:
+      prompt: |
+        Create tests for XML-to-JSON transformation pipeline that converts
+        SAP IDoc XML into REST API JSON payloads, validating field mapping,
+        data type conversion, and null handling.
+
+    expected_output:
+      must_contain:
+        - "transform"
+        - "mapping"
+        - "validation"
+
+    validation:
+      schema_check: true
+
+  - id: tc003_dlq_handling
+    description: "Test dead letter queue processing and retry logic"
+    category: dlq
+    priority: critical
+
+    input:
+      prompt: |
+        Generate tests for DLQ handling: messages that fail 3 retries
+        with exponential backoff should land in DLQ, be parseable for
+        root cause, and support manual replay.
+      context:
+        framework: kafka
+
+    expected_output:
+      must_contain:
+        - "dead letter"
+        - "retry"
+        - "backoff"
+
+    validation:
+      schema_check: true
+
+  - id: tc004_protocol_mediation
+    description: "Test protocol mediation between different transports"
+    category: mediation
+    priority: high
+
+    input:
+      prompt: |
+        Create tests for protocol mediation layer that bridges
+        SOAP/XML services to REST/JSON APIs, including WSDL validation,
+        header mapping, and fault translation.
+
+    expected_output:
+      must_contain:
+        - "protocol"
+        - "mediation"
+        - "SOAP"
+
+    validation:
+      schema_check: true
+
+  - id: tc005_eip_patterns
+    description: "Test Enterprise Integration Patterns implementation"
+    category: eip
+    priority: high
+
+    input:
+      prompt: |
+        Generate tests for EIP patterns: Aggregator (collect 10 messages
+        within 30s window), Splitter (break batch into individual items),
+        and Scatter-Gather (fan-out to 3 services, merge responses).
+
+    expected_output:
+      must_contain:
+        - "aggregator"
+        - "splitter"
+        - "pattern"
+
+    validation:
+      schema_check: true
+
+success_criteria:
+  pass_rate: 0.9
+  critical_pass_rate: 1.0
+  avg_reasoning_quality: 0.75
+  max_execution_time_ms: 300000
+
+metadata:
+  author: "qe-middleware-orchestrator"
+  created: "2026-03-05"
+  coverage_target: >
+    Middleware testing patterns with 5 test cases covering message routing,
+    transformation, DLQ handling, protocol mediation, and EIP patterns.

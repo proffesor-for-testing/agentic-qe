@@ -11,7 +11,7 @@
  * - Search: uses @ruvector/gnn differentiableSearch for ranking, then
  *   computes exact cosine similarity for scores
  *
- * Handles dimension mismatch by auto-resizing vectors (384<->768).
+ * Handles dimension mismatch by auto-resizing vectors to 384 (all-MiniLM-L6-v2).
  *
  * @see ADR-071: HNSW Implementation Unification
  * @module kernel/progressive-hnsw-backend
@@ -147,7 +147,7 @@ interface VectorEntry {
  * Provides a unified vector search implementation that:
  * - Uses @ruvector/gnn for fast native search when available
  * - Falls back to brute-force cosine similarity when unavailable
- * - Auto-resizes dimension mismatches (384 <-> 768)
+ * - Auto-resizes dimension mismatches to configured 384-dim
  * - Returns 1.0 recall for brute-force, estimated recall for HNSW
  */
 export class ProgressiveHnswBackend implements IHnswIndexProvider {

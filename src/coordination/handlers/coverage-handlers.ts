@@ -20,7 +20,7 @@ import { loadCoverageData } from './handler-utils';
  */
 function buildHeuristicCoverage(targetPath: string): { files: Array<{ path: string; lines: { covered: number; total: number }; branches: { covered: number; total: number }; functions: { covered: number; total: number }; statements: { covered: number; total: number }; uncoveredLines: number[]; uncoveredBranches: number[] }>; summary: { line: number; branch: number; function: number; statement: number; files: number } } | null {
   const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.go', '.rs', '.java', '.rb']);
-  const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage', '.git', '.claude', '.agentic-qe', '.aqe', '__pycache__', '.venv']);
+  const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage', '.git', '.claude', '.agentic-qe', '__pycache__', '.venv']);
   const TEST_PATTERNS = ['.test.', '.spec.', '_test.', '_spec.'];
 
   if (!fsSync.existsSync(targetPath) || !fsSync.statSync(targetPath).isDirectory()) return null;

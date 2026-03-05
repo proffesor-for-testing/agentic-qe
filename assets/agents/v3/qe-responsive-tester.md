@@ -67,7 +67,7 @@ Writes:
 - aqe/responsive/results/* - Test results
 - aqe/responsive/screenshots/* - Captured screenshots
 - aqe/responsive/issues/* - Responsive issues found
-- aqe/v3/responsive/outcomes/* - V3 learning outcomes
+- aqe/responsive/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/visual-accessibility/responsive/* - Responsive coordination

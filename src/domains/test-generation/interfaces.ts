@@ -34,9 +34,13 @@ export interface ITestGenerationAPI {
 export interface IGenerateTestsRequest {
   sourceFiles: string[];
   testType: 'unit' | 'integration' | 'e2e';
-  framework: 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test';
+  framework?: TestFramework;
+  language?: SupportedLanguage;
   coverageTarget?: number;
   patterns?: string[];
+  projectRoot?: string;
+  compileValidation?: boolean;
+  maxCompileRetries?: number;
 }
 
 export interface IGeneratedTests {
@@ -53,6 +57,10 @@ export interface IGeneratedTest {
   testCode: string;
   type: 'unit' | 'integration' | 'e2e';
   assertions: number;
+  language?: SupportedLanguage;
+  framework?: TestFramework;
+  compilationValidated?: boolean;
+  compilationErrors?: string[];
   /** ADR-051: Whether test was enhanced by LLM */
   llmEnhanced?: boolean;
   /** Test quality gate validation result (loki-mode Gates 8 & 9) */
@@ -129,7 +137,8 @@ export interface IPattern {
 /**
  * Supported test frameworks
  */
-export type TestFramework = 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test';
+export type { TestFramework, SupportedLanguage } from '../../shared/types/test-frameworks.js';
+import type { TestFramework, SupportedLanguage } from '../../shared/types/test-frameworks.js';
 
 /**
  * Types of tests that can be generated

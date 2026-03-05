@@ -274,7 +274,7 @@ export async function benchmarkHNSWIndex(): Promise<BenchmarkResult[]> {
       '../domains/coverage-analysis/services/hnsw-index.js'
     );
 
-    const dimensions = 768;
+    const dimensions = 384;
     const config = {
       ...DEFAULT_HNSW_CONFIG,
       dimensions,

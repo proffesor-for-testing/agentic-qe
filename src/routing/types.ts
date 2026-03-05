@@ -9,45 +9,18 @@
  */
 
 import type { QEDomain } from '../learning/qe-patterns.js';
+import type { RecognizedLanguage, TestFramework as TF } from '../shared/types/test-frameworks.js';
+
+export type { RecognizedLanguage as ProgrammingLanguage } from '../shared/types/test-frameworks.js';
+export type { TestFramework } from '../shared/types/test-frameworks.js';
+
+// Local aliases for use within this file
+type ProgrammingLanguage = RecognizedLanguage;
+type TestFramework = TF;
 
 // ============================================================================
 // Agent Profile Types
 // ============================================================================
-
-/**
- * Programming languages supported by agents
- */
-export type ProgrammingLanguage =
-  | 'typescript'
-  | 'javascript'
-  | 'python'
-  | 'java'
-  | 'go'
-  | 'rust'
-  | 'csharp'
-  | 'kotlin'
-  | 'swift'
-  | 'ruby'
-  | 'php';
-
-/**
- * Test frameworks supported by agents
- */
-export type TestFramework =
-  | 'jest'
-  | 'vitest'
-  | 'mocha'
-  | 'pytest'
-  | 'junit'
-  | 'testng'
-  | 'go-test'
-  | 'rust-test'
-  | 'xunit'
-  | 'rspec'
-  | 'phpunit'
-  | 'playwright'
-  | 'cypress'
-  | 'selenium';
 
 /**
  * Task complexity levels

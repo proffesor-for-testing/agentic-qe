@@ -44,7 +44,7 @@ import { toErrorMessage } from '../../shared/error-utils.js';
  *
  * @example
  * ```typescript
- * const graph = new ConceptGraph({ dbPath: '.aqe/dream.db' });
+ * const graph = new ConceptGraph({ dbPath: '.agentic-qe/dream.db' });
  * await graph.initialize();
  *
  * // Add a concept

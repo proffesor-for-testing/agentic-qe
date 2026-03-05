@@ -5,6 +5,26 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.9] - 2026-03-05
+
+### Added
+
+- **Multi-language test generation** — 8 new generators: Go (`go test`), Rust (`#[cfg(test)]`), Kotlin (JUnit5), Java (JUnit5), Swift (Swift Testing), Flutter (`flutter_test`), React Native (Jest), and C# (xUnit). Each generator produces idiomatic tests with language-specific patterns (e.g., Rust ownership analysis, Go table-driven tests)
+- **Compilation validation loop** — Validates generated tests compile before output, with framework-specific fix strategies
+- **Language detection** — Automatic source language detection to route to the correct test generator
+- **Trust tier eval infrastructure** — Full eval configs (YAML test cases, JSON schemas, validator scripts) for 5 skills: qcsd-cicd-swarm, qcsd-development-swarm, enterprise-integration-testing, observability-testing-patterns, middleware-testing-patterns
+
+### Fixed
+
+- **Embedding dimension standardization** — All vector dimensions unified to 384 (all-MiniLM-L6-v2), fixing mixed 384/768 dimensions across providers, tests, and config defaults
+- **Agent memory namespace paths** — Normalized namespace references in agent definitions to prevent orphaned records
+- **Asset sync coverage** — `prepare-assets.sh` now includes all 78 QE skills (previously missed 24 skills including qcsd-*, n8n-*, and other non-prefixed skills)
+
+### Changed
+
+- **Default embedding model** — Switched from `nomic-embed-text` to `all-MiniLM-L6-v2` for consistent 384-dim vectors across all providers
+- **Trust tier adjustments** — debug-loop and pr-review set to tier 0 (advisory-only, no eval infrastructure needed)
+
 ## [3.7.8] - 2026-03-04
 
 ### Added

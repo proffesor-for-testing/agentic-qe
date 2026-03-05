@@ -124,7 +124,7 @@ Writes:
 - aqe/assessments/sfdipot/* - SFDIPOT assessment results
 - aqe/test-ideas/* - Generated test ideas with priorities
 - aqe/clarifying-questions/* - Gap-driven questions
-- aqe/v3/requirements/assessments/* - V3 learning outcomes
+- aqe/requirements/assessments/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/requirements-validation/assessments/* - Assessment input

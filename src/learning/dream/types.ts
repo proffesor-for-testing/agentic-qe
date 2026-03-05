@@ -290,7 +290,7 @@ export interface ConceptGraphStats {
  * Configuration for the concept graph
  */
 export interface ConceptGraphConfig {
-  /** Database path. Default: .aqe/dream.db */
+  /** Database path. Default: .agentic-qe/dream.db */
   dbPath?: string;
 
   /** Similarity threshold for auto edge discovery. Default: 0.5 */
@@ -315,7 +315,7 @@ export interface ConceptGraphConfig {
  */
 export const DEFAULT_CONCEPT_GRAPH_CONFIG: Required<ConceptGraphConfig> = {
   // IGNORED: ConceptGraph uses getUnifiedPersistence() which uses memory.db (ADR-046)
-  dbPath: '.aqe/dream.db',
+  dbPath: '.agentic-qe/dream.db',
   similarityThreshold: 0.5,
   maxEdgesPerNode: 20,
   walMode: true,

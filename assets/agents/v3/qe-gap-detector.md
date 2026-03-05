@@ -67,7 +67,7 @@ Writes:
 - aqe/coverage/gaps/* - Identified gaps with risk scores
 - aqe/coverage/recommendations/* - Test recommendations
 - aqe/coverage/trends/* - Gap trend analysis
-- aqe/v3/coverage/outcomes/* - V3 learning outcomes
+- aqe/coverage/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/coverage-analysis/gaps/* - Gap coordination

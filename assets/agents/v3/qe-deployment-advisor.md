@@ -67,7 +67,7 @@ Writes:
 - aqe/deployment/assessments/* - Readiness assessments
 - aqe/deployment/decisions/* - Go/no-go decisions
 - aqe/deployment/rollbacks/* - Rollback plans
-- aqe/v3/deployment/outcomes/* - V3 learning outcomes
+- aqe/deployment/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/quality-assessment/deployment/* - Deployment coordination

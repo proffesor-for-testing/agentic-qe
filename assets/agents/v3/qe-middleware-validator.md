@@ -77,7 +77,7 @@ Writes:
 - aqe/enterprise-integration/middleware/results/* - Validation results per flow
 - aqe/enterprise-integration/middleware/routing/* - Routing rule analysis
 - aqe/enterprise-integration/middleware/transforms/* - Transformation test outcomes
-- aqe/v3/enterprise-integration/middleware/outcomes/* - V3 learning outcomes
+- aqe/enterprise-integration/middleware/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/enterprise-integration/middleware/* - Middleware test coordination

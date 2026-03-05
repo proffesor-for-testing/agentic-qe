@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-qe.dev/schemas/enterprise-integration-testing-output.json",
+  "title": "Enterprise Integration Testing Output Schema",
+  "description": "Schema for enterprise integration testing output. Covers SAP, middleware, WMS, and cross-system validation.",
+  "type": "object",
+  "required": ["skillName", "version", "timestamp", "status", "trustTier", "output"],
+  "properties": {
+    "skillName": {
+      "type": "string",
+      "const": "enterprise-integration-testing"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial", "failed", "skipped"]
+    },
+    "trustTier": {
+      "type": "integer",
+      "const": 3
+    },
+    "output": {
+      "type": "object",
+      "required": ["summary", "testStrategy", "systemsCovered"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 100
+        },
+        "testStrategy": {
+          "type": "object",
+          "properties": {
+            "approach": { "type": "string" },
+            "testLayers": { "type": "array", "items": { "type": "string" } },
+            "integrationPoints": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "systemsCovered": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "sapTesting": {
+          "type": "object",
+          "properties": {
+            "rfcTests": { "type": "array", "items": { "type": "object" } },
+            "idocTests": { "type": "array", "items": { "type": "object" } },
+            "odataTests": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "crossSystemValidation": {
+          "type": "object",
+          "properties": {
+            "consistencyChecks": { "type": "array", "items": { "type": "string" } },
+            "dataFlowTests": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "qualityGates": {
+          "type": "object",
+          "properties": {
+            "passed": { "type": "boolean" },
+            "gates": { "type": "array", "items": { "type": "object" } }
+          }
+        }
+      }
+    }
+  }
+}

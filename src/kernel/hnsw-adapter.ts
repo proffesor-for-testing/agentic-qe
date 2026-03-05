@@ -53,7 +53,7 @@ const INDEX_DEFAULTS: Record<HnswIndexName, Partial<HnswConfig>> = {
     metric: 'cosine',
   },
   'coverage': {
-    dimensions: 768,
+    dimensions: 384,
     M: 16,
     efConstruction: 200,
     efSearch: 100,

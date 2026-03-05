@@ -104,7 +104,11 @@ describe('TestGeneratorFactory', () => {
       expect(frameworks).toContain('mocha');
       expect(frameworks).toContain('pytest');
       expect(frameworks).toContain('node-test');
-      expect(frameworks).toHaveLength(5);
+      expect(frameworks).toContain('junit5');
+      expect(frameworks).toContain('xunit');
+      expect(frameworks).toContain('go-test');
+      expect(frameworks).toContain('rust-test');
+      expect(frameworks).toHaveLength(18);
     });
   });
 

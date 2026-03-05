@@ -127,8 +127,8 @@ export class EmbeddingCache {
    * Get memory usage estimate in bytes
    */
   getMemoryUsageEstimate(): number {
-    // Each embedding is 768 floats (8 bytes each) + overhead
-    const embeddingSize = 768 * 8;
+    // Each embedding is 384 floats (8 bytes each) + overhead
+    const embeddingSize = 384 * 8;
     const entryOverhead = 100; // Rough estimate for metadata
     return this.cache.size * (embeddingSize + entryOverhead);
   }

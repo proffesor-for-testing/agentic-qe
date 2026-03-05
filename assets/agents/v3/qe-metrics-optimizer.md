@@ -67,7 +67,7 @@ Writes:
 - aqe/metrics/analysis/* - Analysis results
 - aqe/metrics/tuning/* - Hyperparameter tuning results
 - aqe/metrics/experiments/* - A/B test results
-- aqe/v3/metrics/outcomes/* - V3 learning outcomes
+- aqe/metrics/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/learning-optimization/metrics/* - Metrics coordination

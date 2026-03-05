@@ -94,8 +94,6 @@ export function generateAqeEnvVars(config: AQEInitConfig): Record<string, string
     AQE_V3_SUBLINEAR_ENABLED: 'true',
     AQE_V3_HNSW_ENABLED: config.learning?.hnswConfig ? 'true' : 'false',
     AQE_V3_HOOKS_ENABLED: 'true',
-    AQE_V3_HOOK_BRIDGE: '.claude/hooks/v3-qe-bridge.sh',
-    AQE_V3_DOMAIN_WORKERS: '.claude/hooks/v3-domain-workers.json',
     AQE_V3_AISP_ENABLED: 'true',
     AQE_V3_REASONING_BANK: '.agentic-qe/memory.db',
     AQE_V3_PATTERN_PROMOTION_THRESHOLD: String(config.learning?.promotionThreshold ?? 3),

@@ -1,0 +1,211 @@
+skill: qcsd-cicd-swarm
+version: 1.0.0
+description: >
+  Evaluation suite for QCSD CI/CD verification swarm orchestration.
+  Tests regression analysis, flaky test detection, quality gate enforcement,
+  deployment readiness assessment, and SHIP/CONDITIONAL/HOLD decisions.
+
+models_to_test:
+  - claude-3.5-sonnet
+  - claude-3-haiku
+
+mcp_integration:
+  enabled: true
+  namespace: skill-validation
+  query_patterns: true
+  track_outcomes: true
+  store_patterns: true
+  target_agents:
+    - qe-learning-coordinator
+    - qe-queen-coordinator
+
+learning:
+  store_success_patterns: true
+  pattern_ttl_days: 90
+
+result_format:
+  json_output: true
+  include_timing: true
+  include_token_usage: true
+
+setup:
+  required_tools:
+    - jq
+
+test_cases:
+
+  - id: tc001_regression_analysis
+    description: "Perform regression analysis on test suite results"
+    category: regression
+    priority: critical
+
+    input:
+      test_results: "Unit tests: 450 pass, 2 fail. Integration: 30 pass, 1 fail."
+      previous_baseline: "Unit: 450 pass, 0 fail. Integration: 31 pass, 0 fail."
+
+    expected_output:
+      must_contain:
+        - "regression"
+        - "fail"
+      must_not_contain:
+        - "no regressions detected"
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+
+  - id: tc002_flaky_test_detection
+    description: "Detect flaky tests from historical execution data"
+    category: flaky
+    priority: critical
+
+    input:
+      test_history: "test_auth_login: PASS,FAIL,PASS,FAIL,PASS (5 runs, 40% failure rate)"
+      threshold: 0.2
+
+    expected_output:
+      must_contain:
+        - "flaky"
+        - "test_auth_login"
+
+    validation:
+      schema_check: true
+
+  - id: tc003_quality_gate_enforcement
+    description: "Enforce quality gates against configured thresholds"
+    category: quality-gate
+    priority: critical
+
+    input:
+      metrics:
+        coverage: 72
+        mutation_score: 45
+        regression_count: 3
+        flaky_count: 5
+      thresholds:
+        coverage_min: 80
+        mutation_min: 60
+        regression_max: 0
+        flaky_max: 2
+
+    expected_output:
+      must_contain:
+        - "HOLD"
+        - "coverage"
+        - "threshold"
+      must_not_contain:
+        - "SHIP"
+
+    validation:
+      schema_check: true
+      decision_deterministic: true
+
+  - id: tc004_deployment_readiness
+    description: "Assess deployment readiness from pipeline signals"
+    category: deployment
+    priority: high
+
+    input:
+      pipeline:
+        build: "success"
+        unit_tests: "success"
+        integration_tests: "success"
+        security_scan: "success"
+        performance_test: "success"
+        coverage: 85
+
+    expected_output:
+      must_contain:
+        - "ready"
+        - "deploy"
+
+    validation:
+      schema_check: true
+
+  - id: tc005_decision_ship
+    description: "Decision logic produces SHIP when all gates pass"
+    category: decision_logic
+    priority: critical
+
+    input:
+      metrics:
+        coverage: 92
+        mutation_score: 78
+        regression_count: 0
+        flaky_count: 0
+        security_vulnerabilities: 0
+        performance_degradation: false
+
+    expected_output:
+      must_contain:
+        - "SHIP"
+      must_not_contain:
+        - "HOLD"
+        - "CONDITIONAL"
+
+    validation:
+      schema_check: true
+      decision_deterministic: true
+
+  - id: tc006_decision_hold
+    description: "Decision logic produces HOLD when critical gates fail"
+    category: decision_logic
+    priority: critical
+
+    input:
+      metrics:
+        coverage: 55
+        mutation_score: 30
+        regression_count: 8
+        flaky_count: 12
+        security_vulnerabilities: 3
+        performance_degradation: true
+
+    expected_output:
+      must_contain:
+        - "HOLD"
+      must_not_contain:
+        - "SHIP"
+
+    validation:
+      schema_check: true
+      decision_deterministic: true
+
+  - id: tc007_decision_conditional
+    description: "Decision logic produces CONDITIONAL when non-critical gates fail"
+    category: decision_logic
+    priority: critical
+
+    input:
+      metrics:
+        coverage: 78
+        mutation_score: 55
+        regression_count: 0
+        flaky_count: 3
+        security_vulnerabilities: 0
+        performance_degradation: false
+
+    expected_output:
+      must_contain:
+        - "CONDITIONAL"
+      must_not_contain:
+        - "HOLD"
+
+    validation:
+      schema_check: true
+      decision_deterministic: true
+
+success_criteria:
+  pass_rate: 0.875
+  critical_pass_rate: 1.0
+  avg_reasoning_quality: 0.75
+  max_execution_time_ms: 300000
+  decision_logic_pass_rate: 1.0
+
+metadata:
+  author: "qe-qcsd-orchestrator"
+  created: "2026-03-05"
+  coverage_target: >
+    QCSD CI/CD verification swarm with 7 test cases covering regression analysis,
+    flaky test detection, quality gate enforcement, deployment readiness,
+    and 3 decision logic determinism tests (SHIP, HOLD, CONDITIONAL paths).

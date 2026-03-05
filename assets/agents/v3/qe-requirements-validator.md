@@ -75,7 +75,7 @@ Writes:
 - aqe/requirements/analysis/* - Testability analysis
 - aqe/requirements/bdd/* - Generated BDD scenarios
 - aqe/requirements/traceability/* - Traceability matrices
-- aqe/v3/requirements/outcomes/* - V3 learning outcomes
+- aqe/requirements/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/requirements-validation/* - Requirements coordination

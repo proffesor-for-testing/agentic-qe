@@ -1,0 +1,158 @@
+skill: enterprise-integration-testing
+version: 1.0.0
+description: >
+  Evaluation suite for enterprise integration testing orchestration.
+  Tests SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), cross-system
+  data validation, middleware testing, and enterprise quality gates.
+
+models_to_test:
+  - claude-3.5-sonnet
+  - claude-3-haiku
+
+mcp_integration:
+  enabled: true
+  namespace: skill-validation
+  query_patterns: true
+  track_outcomes: true
+  store_patterns: true
+  target_agents:
+    - qe-learning-coordinator
+    - qe-queen-coordinator
+
+learning:
+  store_success_patterns: true
+  pattern_ttl_days: 90
+
+result_format:
+  json_output: true
+  include_timing: true
+  include_token_usage: true
+
+setup:
+  required_tools:
+    - jq
+
+test_cases:
+
+  - id: tc001_sap_rfc_testing
+    description: "Generate SAP RFC/BAPI integration test strategy"
+    category: sap
+    priority: critical
+
+    input:
+      prompt: |
+        Generate test strategy for SAP RFC integration that processes
+        purchase orders via BAPI_PO_CREATE1 and validates material
+        availability through BAPI_MATERIAL_AVAILABILITY.
+      context:
+        language: typescript
+        framework: sap-integration
+
+    expected_output:
+      must_contain:
+        - "RFC"
+        - "BAPI"
+        - "purchase order"
+        - "test"
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+
+  - id: tc002_idoc_message_testing
+    description: "Generate IDoc message flow test strategy"
+    category: sap
+    priority: critical
+
+    input:
+      prompt: |
+        Create test strategy for IDoc-based order-to-cash flow:
+        ORDERS05 IDoc from e-commerce to SAP, DESADV IDoc for shipping,
+        INVOIC02 IDoc for billing.
+      context:
+        language: typescript
+
+    expected_output:
+      must_contain:
+        - "IDoc"
+        - "message"
+        - "validation"
+
+    validation:
+      schema_check: true
+
+  - id: tc003_odata_contract_testing
+    description: "Generate OData service contract tests"
+    category: odata
+    priority: high
+
+    input:
+      prompt: |
+        Create contract tests for SAP OData service /sap/opu/odata/sap/API_SALES_ORDER_SRV
+        that validates entity sets, navigation properties, and filter operations.
+      context:
+        language: typescript
+
+    expected_output:
+      must_contain:
+        - "OData"
+        - "contract"
+        - "entity"
+
+    validation:
+      schema_check: true
+
+  - id: tc004_cross_system_validation
+    description: "Generate cross-system data consistency tests"
+    category: cross-system
+    priority: high
+
+    input:
+      prompt: |
+        Generate tests to validate data consistency between SAP ERP,
+        Salesforce CRM, and PostgreSQL data warehouse for customer master data.
+      context:
+        framework: enterprise
+
+    expected_output:
+      must_contain:
+        - "consistency"
+        - "validation"
+        - "data"
+
+    validation:
+      schema_check: true
+
+  - id: tc005_enterprise_quality_gate
+    description: "Enforce enterprise integration quality gates"
+    category: quality-gate
+    priority: high
+
+    input:
+      metrics:
+        idoc_success_rate: 98.5
+        rfc_latency_p99_ms: 2500
+        data_consistency: 99.2
+        error_handling_coverage: 85
+
+    expected_output:
+      must_contain:
+        - "quality"
+        - "gate"
+
+    validation:
+      schema_check: true
+
+success_criteria:
+  pass_rate: 0.9
+  critical_pass_rate: 1.0
+  avg_reasoning_quality: 0.75
+  max_execution_time_ms: 300000
+
+metadata:
+  author: "qe-enterprise-orchestrator"
+  created: "2026-03-05"
+  coverage_target: >
+    Enterprise integration testing with 5 test cases covering SAP RFC/BAPI,
+    IDoc message flows, OData contract testing, cross-system validation,
+    and enterprise quality gates.

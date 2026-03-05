@@ -518,7 +518,7 @@ describe('SemanticAnalyzerService', () => {
       const embedding = await service.getEmbedding('test code');
 
       expect(Array.isArray(embedding)).toBe(true);
-      expect(embedding.length).toBe(EMBEDDING_CONFIG.DIMENSIONS); // 768 for Nomic
+      expect(embedding.length).toBe(EMBEDDING_CONFIG.DIMENSIONS); // 384 for all-MiniLM-L6-v2
     });
 
     it('should generate normalized embeddings', async () => {

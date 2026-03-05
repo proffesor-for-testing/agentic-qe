@@ -51,6 +51,15 @@ import { safeJsonParse } from '../../../shared/safe-json.js';
 import { TestQualityGate } from '../gates/index.js';
 import type { TestQualityGateResult } from '../gates/index.js';
 import { EdgeCaseInjector } from '../pattern-injection/index.js';
+import { treeSitterRegistry } from '../../../shared/parsers/multi-language-parser.js';
+import { getLanguageFromExtension, DEFAULT_FRAMEWORKS } from '../../../shared/types/test-frameworks.js';
+import type { SupportedLanguage, TestFramework as SharedTestFramework } from '../../../shared/types/test-frameworks.js';
+import type { ParsedFile } from '../../../shared/parsers/interfaces.js';
+import { PytestGenerator } from '../generators/pytest-generator.js';
+import { resolveRequest, detectLanguage } from '../../../shared/language-detector.js';
+import { compilationValidator } from './compilation-validator.js';
+import { resolveTestFilePath } from './test-file-resolver.js';
+import { getPromptConfig } from '../prompts/language-prompts.js';
 
 /**
  * Interface for the test generation service
@@ -330,7 +339,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
           },
           {
             role: 'user',
-            content: `Analyze this ${framework} code and suggest test cases:\n\`\`\`typescript\n${sourceCode}\n\`\`\``,
+            content: `Analyze this ${framework} code and suggest test cases:\n\`\`\`${this.getCodeFenceLanguage(framework)}\n${sourceCode}\n\`\`\``,
           },
         ],
         model: modelId,
@@ -363,10 +372,19 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
    */
   async generateTests(request: GenerateTestsRequest): Promise<Result<GeneratedTests, Error>> {
     try {
+      // Auto-detect language and framework if not provided (ADR-078)
+      const resolved = resolveRequest({
+        sourceFiles: request.sourceFiles,
+        language: request.language as SupportedLanguage | undefined,
+        framework: request.framework as SharedTestFramework | undefined,
+        projectRoot: request.projectRoot,
+      });
+      const effectiveFramework = (request.framework || resolved?.framework || 'vitest') as TestFramework;
+      const effectiveLanguage = request.language || resolved?.language;
+
       const {
         sourceFiles,
         testType,
-        framework,
         coverageTarget = this.config.coverageTargetDefault,
         patterns = [],
       } = request;
@@ -382,8 +400,10 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         const fileTests = await this.generateTestsForFile(
           sourceFile,
           testType,
-          framework as TestFramework,
-          patterns
+          effectiveFramework,
+          patterns,
+          effectiveLanguage as SupportedLanguage | undefined,
+          request,
         );
 
         if (fileTests.success) {
@@ -481,7 +501,9 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     sourceFile: string,
     testType: TestType,
     framework: TestFramework,
-    patterns: string[]
+    patterns: string[],
+    effectiveLanguage?: SupportedLanguage,
+    originalRequest?: GenerateTestsRequest,
   ): Promise<Result<{ tests: GeneratedTest[]; patternsUsed: string[] }, Error>> {
     const testFile = this.getTestFilePath(sourceFile, framework);
     const patternsUsed: string[] = [];
@@ -493,7 +515,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     let sourceContent = '';
     try {
       sourceContent = fs.readFileSync(sourceFile, 'utf-8');
-      codeAnalysis = this.analyzeSourceCode(sourceContent, sourceFile);
+      codeAnalysis = await this.analyzeSourceCode(sourceContent, sourceFile);
     } catch {
       // File doesn't exist or can't be read - use stub generation
     }
@@ -540,9 +562,29 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       testCode,
       type: testType,
       assertions: this.countAssertions(testCode),
+      // ADR-078: Include detected language and framework
+      language: effectiveLanguage as SupportedLanguage | undefined,
+      framework: framework,
       // ADR-051: Mark if LLM-enhanced
       llmEnhanced: this.isLLMEnhancementAvailable(),
     };
+
+    // ADR-077: Compilation validation if requested
+    if (originalRequest?.compileValidation && effectiveLanguage) {
+      try {
+        const validation = await compilationValidator.validate(
+          testCode,
+          effectiveLanguage as SupportedLanguage,
+          originalRequest.projectRoot,
+        );
+        test.compilationValidated = validation.compiles;
+        if (!validation.compiles) {
+          test.compilationErrors = validation.errors.map(e => e.message);
+        }
+      } catch {
+        // Compilation validation is optional -- never blocks generation
+      }
+    }
 
     // Run test quality gate if enabled (loki-mode Gates 8 & 9)
     if (this.qualityGate) {
@@ -586,7 +628,17 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
   // Private Helper Methods - AST Analysis
   // ============================================================================
 
-  private analyzeSourceCode(content: string, fileName: string): CodeAnalysis {
+  private async analyzeSourceCode(content: string, fileName: string): Promise<CodeAnalysis> {
+    // Route non-TS/JS files to multi-language parser (ADR-076)
+    const ext = path.extname(fileName);
+    const detectedLang = getLanguageFromExtension(ext);
+    if (detectedLang && detectedLang !== 'typescript' && detectedLang !== 'javascript') {
+      const parsed = await treeSitterRegistry.parseFile(content, fileName, detectedLang);
+      if (parsed) {
+        return PytestGenerator.convertParsedFile(parsed);
+      }
+    }
+
     const sourceFile = ts.createSourceFile(
       path.basename(fileName),
       content,
@@ -829,8 +881,8 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
   private async hasKGVectors(): Promise<boolean> {
     try {
       // Probe with a simple unit vector to see if any vectors exist
-      // Use 768 dimensions to match the standard MiniLM embedding size
-      const probe = new Array(768).fill(0);
+      // Use 384 dimensions to match all-MiniLM-L6-v2 embedding size
+      const probe = new Array(384).fill(0);
       probe[0] = 1.0; // Unit vector in first dimension
       const results = await this.memory.vectorSearch(probe, 1);
       return results.length > 0;
@@ -941,7 +993,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
    * Uses token-based feature extraction similar to semantic-analyzer.
    */
   private generatePseudoEmbedding(code: string): number[] {
-    const dimension = 768; // Match MiniLM embedding size used by code-intelligence indexer
+    const dimension = 384; // Match all-MiniLM-L6-v2 embedding size
     const embedding = new Array(dimension).fill(0);
 
     // Tokenize by splitting on non-alphanumeric chars
@@ -963,6 +1015,37 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     }
 
     return embedding;
+  }
+
+  // ============================================================================
+  // Private Helper Methods - Multi-Language Support (ADR-078)
+  // ============================================================================
+
+  /**
+   * Get the code fence language identifier for a framework.
+   * Falls back to 'typescript' for TS/JS frameworks.
+   */
+  private getCodeFenceLanguage(framework: TestFramework): string {
+    try {
+      // Try to resolve framework to a language, then get prompt config
+      const { FRAMEWORK_TO_LANGUAGE } = require('../../../shared/types/test-frameworks.js');
+      const lang = FRAMEWORK_TO_LANGUAGE?.[framework];
+      if (lang) {
+        const config = getPromptConfig(lang as SupportedLanguage);
+        if (config) return config.codeFenceLanguage;
+      }
+    } catch {
+      // Fall back to typescript
+    }
+    return 'typescript';
+  }
+
+  /**
+   * Convert a ParsedFile from multi-language parser to the legacy CodeAnalysis format.
+   * Delegates to PytestGenerator.convertParsedFile for the actual mapping.
+   */
+  private convertParsedToCodeAnalysis(parsed: ParsedFile): CodeAnalysis {
+    return PytestGenerator.convertParsedFile(parsed);
   }
 
   // ============================================================================
@@ -1047,6 +1130,13 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
   }
 
   private getTestFilePath(sourceFile: string, framework: TestFramework): string {
+    // Use language-aware resolver for non-TS/JS files (ADR-079)
+    const fileExt = path.extname(sourceFile);
+    const lang = getLanguageFromExtension(fileExt);
+    if (lang && lang !== 'typescript' && lang !== 'javascript') {
+      return resolveTestFilePath(sourceFile, lang);
+    }
+
     const ext = sourceFile.split('.').pop() || 'ts';
     const base = sourceFile.replace(`.${ext}`, '');
 
@@ -1059,7 +1149,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
 
   private extractModuleName(sourceFile: string): string {
     const filename = sourceFile.split('/').pop() || sourceFile;
-    return filename.replace(/\.(ts|js|tsx|jsx|py)$/, '');
+    return filename.replace(/\.(ts|tsx|js|jsx|py|java|cs|go|rs|swift|kt|kts|dart)$/, '');
   }
 
   private getImportPath(sourceFile: string): string {

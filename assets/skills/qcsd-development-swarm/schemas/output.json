@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-qe.dev/schemas/qcsd-development-swarm-output.json",
+  "title": "QCSD Development Swarm Output Schema",
+  "description": "Schema for QCSD development phase swarm output. Includes TDD adherence, complexity analysis, coverage gaps, and defect prediction.",
+  "type": "object",
+  "required": ["skillName", "version", "timestamp", "status", "trustTier", "output"],
+  "properties": {
+    "skillName": {
+      "type": "string",
+      "const": "qcsd-development-swarm"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial", "failed", "skipped"]
+    },
+    "trustTier": {
+      "type": "integer",
+      "const": 3
+    },
+    "output": {
+      "type": "object",
+      "required": ["summary", "tddAdherence", "complexityAnalysis", "coverageGaps"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 100
+        },
+        "tddAdherence": {
+          "type": "object",
+          "properties": {
+            "score": { "type": "number", "minimum": 0, "maximum": 1 },
+            "testFirstRatio": { "type": "number", "minimum": 0, "maximum": 1 },
+            "recommendations": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "complexityAnalysis": {
+          "type": "object",
+          "properties": {
+            "averageCyclomaticComplexity": { "type": "number", "minimum": 0 },
+            "hotspots": { "type": "array", "items": { "type": "string" } },
+            "refactoringTargets": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "coverageGaps": {
+          "type": "object",
+          "properties": {
+            "totalCoverage": { "type": "number", "minimum": 0, "maximum": 100 },
+            "branchCoverage": { "type": "number", "minimum": 0, "maximum": 100 },
+            "uncoveredAreas": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "defectPrediction": {
+          "type": "object",
+          "properties": {
+            "highRiskFiles": { "type": "array", "items": { "type": "string" } },
+            "defectDensity": { "type": "number", "minimum": 0 },
+            "trendDirection": { "type": "string", "enum": ["increasing", "stable", "declining"] }
+          }
+        }
+      }
+    }
+  }
+}

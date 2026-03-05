@@ -1,7 +1,7 @@
 ---
 name: debug-loop
 description: Hypothesis-driven autonomous debugging with real command validation
-trust_tier: 3
+trust_tier: 0
 domain: debugging
 ---
 

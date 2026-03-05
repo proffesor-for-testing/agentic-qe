@@ -202,7 +202,7 @@ export const LEARNING_CONSTANTS = {
   /**
    * Embedding dimension for feature vectors.
    */
-  EMBEDDING_DIM: 768,
+  EMBEDDING_DIM: 384,
 } as const;
 
 // ============================================================================

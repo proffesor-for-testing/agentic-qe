@@ -309,7 +309,6 @@ export async function configureMCP(projectRoot: string): Promise<boolean> {
       'start'
     ],
     env: {
-      AQE_PROJECT_ROOT: projectRoot,
       AQE_LEARNING_ENABLED: 'true',
       AQE_VERBOSE: 'false',
     },

@@ -67,7 +67,7 @@ Writes:
 - aqe/impact/analyses/* - Impact analysis results
 - aqe/impact/tests/* - Test selection recommendations
 - aqe/impact/risks/* - Risk assessments
-- aqe/v3/impact/outcomes/* - V3 learning outcomes
+- aqe/impact/outcomes/* - V3 learning outcomes
 
 Coordination:
 - aqe/v3/domains/code-intelligence/impact/* - Impact coordination

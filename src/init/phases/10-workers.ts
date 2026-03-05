@@ -180,7 +180,7 @@ if (binCandidate && binCandidate.endsWith('bundle.js')) {
 
 appendFileSync(logFile, '[' + ts + '] Using: ' + mcpCmd + ' ' + mcpArgs.join(' ') + '\\n');
 
-const env = { ...process.env, AQE_PROJECT_ROOT: projectRoot, AQE_LEARNING_ENABLED: 'true', AQE_WORKERS_ENABLED: 'true', AQE_HTTP_PORT: '0' };
+const env = { ...process.env, AQE_STORAGE_PATH: '.agentic-qe', AQE_LEARNING_ENABLED: 'true', AQE_WORKERS_ENABLED: 'true', AQE_HTTP_PORT: '0' };
 const child = spawn(mcpCmd, mcpArgs, { cwd: projectRoot, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
 child.stdout.on('data', d => appendFileSync(logFile, d));
 child.stderr.on('data', d => appendFileSync(logFile, d));
@@ -299,7 +299,7 @@ try {
         // Set up environment
         const env = {
           ...process.env,
-          AQE_PROJECT_ROOT: projectRoot,
+          AQE_STORAGE_PATH: '.agentic-qe',
           AQE_LEARNING_ENABLED: 'true',
           AQE_WORKERS_ENABLED: 'true',
           AQE_HTTP_PORT: '0',

@@ -39,7 +39,7 @@ export interface TokenBootstrapConfig {
 const DEFAULT_CONFIG: TokenBootstrapConfig = {
   enableOptimization: true,
   enablePersistence: true,
-  storagePath: process.env.AQE_STORAGE_PATH ?? '.aqe',
+  storagePath: process.env.AQE_STORAGE_PATH ?? '.agentic-qe',
   autoSaveIntervalMs: 60000,
   verbose: process.env.AQE_VERBOSE === 'true',
 };

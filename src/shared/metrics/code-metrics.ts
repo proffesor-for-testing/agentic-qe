@@ -5,6 +5,8 @@
 
 import { TypeScriptParser, FunctionInfo, MethodInfo } from '../parsers';
 import { FileReader } from '../io';
+import { treeSitterRegistry } from '../parsers/multi-language-parser.js';
+import { getLanguageFromExtension } from '../types/test-frameworks.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -125,9 +127,29 @@ export class CodeMetricsAnalyzer {
         cognitiveComplexity = this.estimateCognitiveComplexity(content);
       }
     } else {
-      // For non-TS/JS files, use heuristic analysis
+      // For non-TS/JS files, use heuristic analysis for complexity
       cyclomaticComplexity = this.estimateCyclomaticComplexity(content);
       cognitiveComplexity = this.estimateCognitiveComplexity(content);
+
+      // Try tree-sitter registry for accurate function/class counts
+      const detectedLang = getLanguageFromExtension(ext);
+      if (detectedLang && detectedLang !== 'typescript' && detectedLang !== 'javascript' && treeSitterRegistry.supportsLanguage(detectedLang)) {
+        try {
+          const parsed = await treeSitterRegistry.parseFile(content, filePath, detectedLang);
+          if (parsed) {
+            functionCount = parsed.functions.length;
+            classCount = parsed.classes.length;
+          }
+        } catch {
+          // Fall back to regex heuristics for counts
+          functionCount = (content.match(/function\s|def\s|func\s|fn\s/g) || []).length;
+          classCount = (content.match(/class\s|struct\s|interface\s/g) || []).length;
+        }
+      } else {
+        // Regex fallback for unsupported languages
+        functionCount = (content.match(/function\s|def\s|func\s|fn\s/g) || []).length;
+        classCount = (content.match(/class\s|struct\s|interface\s/g) || []).length;
+      }
     }
 
     // Calculate Halstead metrics

@@ -171,8 +171,6 @@ export class HooksPhase extends BasePhase<HooksResult> {
       'Files:',
       '  settings.json  — Hook definitions (in parent .claude/ directory)',
       '  helpers/brain-checkpoint.cjs — Auto-exports brain to aqe.rvf on session end',
-      '  v3-qe-bridge.sh — Bridge script connecting Claude Code events to QE learning',
-      '  v3-domain-workers.json — Domain worker configuration',
       '  cross-phase-memory.yaml — QCSD feedback loop configuration',
       '',
       'Manual testing:',
