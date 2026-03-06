@@ -288,7 +288,7 @@ export class MCPProtocolServer {
     return {
       name: this.config.name,
       version: this.config.version,
-      protocolVersion: '2024-11-05', // MCP protocol version
+      protocolVersion: '2025-11-25', // MCP protocol version
     };
   }
 
@@ -394,7 +394,7 @@ export class MCPProtocolServer {
     this.initialized = true;
 
     return {
-      protocolVersion: '2024-11-05',
+      protocolVersion: '2025-11-25',
       capabilities: this.getCapabilities(),
       serverInfo: this.getServerInfo(),
     };

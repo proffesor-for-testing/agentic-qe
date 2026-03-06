@@ -29,6 +29,13 @@ import {
 } from './feature-flags.js';
 
 /**
+ * Lazily loaded ProofChain from @claude-flow/guidance.
+ * Provides hash-chained HMAC-signed audit trails for RunEvents.
+ * AQE extends this with Merkle trees, tamper detection, and import/export.
+ */
+type GuidanceProofChainType = import('@claude-flow/guidance/proof').ProofChain;
+
+/**
  * Proof envelope structure
  */
 export interface ProofEnvelope {
@@ -138,6 +145,7 @@ export class ProofEnvelopeIntegration {
   private kernel: WasmKernelIntegration;
   private chain: ProofEnvelope[] = [];
   private signingKey: string = '';
+  private guidanceProofChain: GuidanceProofChainType | null = null;
   private initialized = false;
   private envelopeIndex: Map<string, number> = new Map();
 
@@ -160,6 +168,21 @@ export class ProofEnvelopeIntegration {
 
     await this.kernel.initialize();
     this.signingKey = signingKey;
+
+    // Try loading guidance ProofChain for parallel audit trail
+    try {
+      const modulePath = '@claude-flow/guidance/proof';
+      const mod = await import(/* @vite-ignore */ modulePath) as {
+        createProofChain?: (config: { signingKey: string }) => GuidanceProofChainType;
+      };
+      if (mod && typeof mod.createProofChain === 'function') {
+        this.guidanceProofChain = mod.createProofChain({ signingKey });
+        console.log('[ProofEnvelopeIntegration] Guidance ProofChain loaded');
+      }
+    } catch {
+      this.guidanceProofChain = null;
+    }
+
     this.initialized = true;
   }
 
@@ -300,6 +323,33 @@ export class ProofEnvelopeIntegration {
     const index = this.chain.length;
     this.chain.push(envelope);
     this.envelopeIndex.set(envelope.id, index);
+
+    // Mirror to guidance ProofChain for parallel audit trail
+    if (this.guidanceProofChain) {
+      try {
+        // Adapt AQE ProofEnvelope to guidance RunEvent format
+        const runEvent = {
+          eventId: envelope.id,
+          taskId: envelope.metadata?.taskId ? String(envelope.metadata.taskId) : envelope.id,
+          guidanceHash: envelope.contentHash,
+          retrievedRuleIds: [] as string[],
+          toolsUsed: envelope.action ? [envelope.action] : [],
+          filesTouched: [] as string[],
+          diffSummary: { linesAdded: 0, linesRemoved: 0, filesChanged: 0 },
+          testResults: { passed: 0, failed: 0, skipped: 0 },
+          metrics: {},
+          timestamp: new Date(envelope.timestamp).toISOString(),
+        };
+        this.guidanceProofChain.append(
+          runEvent as unknown as Parameters<GuidanceProofChainType['append']>[0],
+          [], // toolCalls
+          [], // memoryOps
+          { agentId: envelope.agentId, sessionId: envelope.metadata?.sessionId ? String(envelope.metadata.sessionId) : 'aqe' },
+        );
+      } catch {
+        // Guidance append failed — local chain is authoritative
+      }
+    }
   }
 
   /**

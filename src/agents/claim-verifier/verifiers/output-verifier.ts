@@ -10,7 +10,7 @@
  * @module agents/claim-verifier/verifiers
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type {
   Claim,
@@ -20,7 +20,25 @@ import type {
 } from '../interfaces';
 import { generateContentHash } from '../index';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+/**
+ * Allowlist of commands that may be executed for output verification.
+ * Only npm scripts are permitted — arbitrary shell commands are blocked (CWE-78).
+ */
+interface AllowedCommand {
+  readonly bin: string;
+  readonly args: readonly string[];
+}
+
+const ALLOWED_COMMANDS: ReadonlyMap<string, AllowedCommand> = new Map<string, AllowedCommand>([
+  ['npm run build', { bin: 'npm', args: ['run', 'build'] }],
+  ['npm run lint', { bin: 'npm', args: ['run', 'lint'] }],
+  ['npm test', { bin: 'npm', args: ['test'] }],
+  ['npm run typecheck', { bin: 'npm', args: ['run', 'typecheck'] }],
+  ['npm run test:unit', { bin: 'npm', args: ['run', 'test:unit'] }],
+  ['npm run test:ci', { bin: 'npm', args: ['run', 'test:ci'] }],
+]);
 
 /**
  * Configuration for output-based verification.
@@ -237,12 +255,19 @@ export class OutputBasedVerifier {
 
   /**
    * Execute a command and capture output.
+   * Uses execFile with an allowlist to prevent command injection (CWE-78).
    */
   private async executeCommand(command: string): Promise<CommandResult> {
     const startTime = Date.now();
+    const allowed = ALLOWED_COMMANDS.get(command);
+    if (!allowed) {
+      throw new Error(
+        `Command not in allowlist: "${command}". Allowed: ${[...ALLOWED_COMMANDS.keys()].join(', ')}`
+      );
+    }
 
     try {
-      const { stdout, stderr } = await execAsync(command, {
+      const { stdout, stderr } = await execFileAsync(allowed.bin, [...allowed.args], {
         cwd: this.config.rootDir,
         timeout: this.config.timeout,
         maxBuffer: this.config.maxOutputSize,

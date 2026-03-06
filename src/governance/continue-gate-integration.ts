@@ -13,6 +13,15 @@ import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-m
 import { toErrorMessage } from '../shared/error-utils.js';
 
 /**
+ * Lazily loaded ContinueGate from @claude-flow/guidance.
+ * Provides budget acceleration detection, coherence/uncertainty thresholds,
+ * and checkpoint interval enforcement on top of our local loop detection.
+ */
+type GuidanceContinueGateType = import('@claude-flow/guidance/continue-gate').ContinueGate;
+type GuidanceStepContext = import('@claude-flow/guidance/continue-gate').StepContext;
+type GuidanceContinueDecision = import('@claude-flow/guidance/continue-gate').ContinueDecision;
+
+/**
  * Agent action record for loop detection
  */
 export interface AgentAction {
@@ -41,7 +50,7 @@ export interface ContinueGateDecision {
 export class ContinueGateIntegration {
   private actionHistory: Map<string, AgentAction[]> = new Map();
   private throttledAgents: Map<string, number> = new Map();
-  private guidanceContinueGate: any = null;
+  private guidanceContinueGate: GuidanceContinueGateType | null = null;
   private initialized = false;
   private db: UnifiedMemoryManager | null = null;
   private persistCount = 0;
@@ -53,13 +62,34 @@ export class ContinueGateIntegration {
   /**
    * Initialize the ContinueGate integration
    *
-   * Note: The @claude-flow/guidance ContinueGate has a different API
-   * designed for step-level evaluation with coherence/uncertainty scores.
-   * Our local implementation is better suited for AQE agent coordination
-   * which tracks action-level loop detection and rework ratios.
+   * Attempts to load @claude-flow/guidance ContinueGate for step-level
+   * evaluation with coherence/uncertainty scoring. Falls back to local
+   * loop detection if the guidance package is unavailable.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
+
+    // Try loading guidance ContinueGate
+    try {
+      const modulePath = '@claude-flow/guidance/continue-gate';
+      const mod = await import(/* @vite-ignore */ modulePath) as {
+        createContinueGate?: (config?: Record<string, unknown>) => GuidanceContinueGateType;
+      };
+      if (mod && typeof mod.createContinueGate === 'function') {
+        const flags = governanceFlags.getFlags().continueGate;
+        this.guidanceContinueGate = mod.createContinueGate({
+          maxConsecutiveSteps: flags.maxConsecutiveRetries * 10,
+          maxReworkRatio: flags.reworkRatioThreshold,
+          checkpointIntervalSteps: 25,
+        });
+        console.log('[ContinueGateIntegration] Guidance ContinueGate loaded');
+      }
+    } catch {
+      // Guidance package unavailable — use local implementation
+      this.guidanceContinueGate = null;
+    }
+
+    // Initialize KV persistence
     try {
       this.db = getUnifiedMemory();
       if (!this.db.isInitialized()) await this.db.initialize();
@@ -156,8 +186,40 @@ export class ContinueGateIntegration {
       };
     }
 
-    // Local loop detection optimized for AQE agent coordination
-    return this.localEvaluation(agentId, history, flags);
+    // Run local loop detection first (authoritative for AQE agent coordination)
+    const localDecision = this.localEvaluation(agentId, history, flags);
+
+    // Augment with guidance ContinueGate step-level evaluation if available
+    // Only consult guidance when local detected no issues (no reason set)
+    if (this.guidanceContinueGate && localDecision.shouldContinue && !localDecision.reason) {
+      try {
+        const reworkRatio = this.calculateReworkRatio(history.slice(-10));
+        const stepContext: GuidanceStepContext = {
+          stepNumber: history.length,
+          totalToolCalls: history.length,
+          reworkCount: history.filter(a => !a.success).length,
+          coherenceScore: 1 - reworkRatio,
+          uncertaintyScore: reworkRatio,
+          elapsedMs: history.length > 0 ? Date.now() - history[0].timestamp : 0,
+          lastCheckpointStep: 0,
+          totalTokensUsed: history.length * 500, // Estimate ~500 tokens per action
+          budgetRemaining: {
+            tokens: Math.max(0, (flags.maxConsecutiveRetries * 10 * 500) - (history.length * 500)),
+            toolCalls: Math.max(0, (flags.maxConsecutiveRetries * 10) - history.length),
+            timeMs: Math.max(0, flags.idleTimeoutMs - (history.length > 0 ? Date.now() - history[0].timestamp : 0)),
+          },
+          recentDecisions: [],
+        };
+        const decision: GuidanceContinueDecision = this.guidanceContinueGate.evaluateWithHistory(stepContext);
+        if (decision.decision !== 'continue') {
+          return this.mapGuidanceDecision(decision, agentId);
+        }
+      } catch {
+        // Guidance evaluation failed — local decision stands
+      }
+    }
+
+    return localDecision;
   }
 
   /**
@@ -262,23 +324,31 @@ export class ContinueGateIntegration {
   }
 
   /**
-   * Map guidance package decision to our format
+   * Map guidance ContinueDecision to our ContinueGateDecision format.
+   *
+   * ContinueDecision has: { decision, reasons, metrics, recommendedAction }
+   * We map to: { shouldContinue, reason, throttleMs, escalate, reworkRatio }
    */
-  private mapGuidanceDecision(decision: any, agentId: string): ContinueGateDecision {
+  private mapGuidanceDecision(decision: GuidanceContinueDecision, agentId: string): ContinueGateDecision {
     const flags = governanceFlags.getFlags().continueGate;
+    const shouldContinue = decision.decision === 'continue' || decision.decision === 'checkpoint';
+    const reason = decision.reasons.length > 0 ? decision.reasons.join('; ') : undefined;
 
-    if (!decision.shouldContinue && flags.throttleOnExceed) {
-      const throttleMs = decision.throttleMs || 5000;
+    // Throttle on 'throttle', 'pause', or 'stop'
+    if (!shouldContinue && flags.throttleOnExceed) {
+      const throttleMs = decision.decision === 'stop' ? 30000 :
+                         decision.decision === 'pause' ? 15000 : 5000;
       this.throttledAgents.set(agentId, Date.now() + throttleMs);
     }
 
     return {
-      shouldContinue: decision.shouldContinue ?? true,
-      reason: decision.reason,
-      throttleMs: decision.throttleMs,
-      escalate: decision.escalate,
-      reworkRatio: decision.reworkRatio,
-      consecutiveCount: decision.consecutiveCount,
+      shouldContinue,
+      reason,
+      throttleMs: decision.decision === 'throttle' ? 5000 :
+                  decision.decision === 'pause' ? 15000 :
+                  decision.decision === 'stop' ? 30000 : undefined,
+      escalate: decision.decision === 'stop' || decision.decision === 'pause',
+      reworkRatio: decision.metrics.reworkRatio,
     };
   }
 

@@ -272,6 +272,7 @@ export class ToolRegistry {
     // Initialize category sets
     const categories: ToolCategory[] = [
       'core', 'task', 'agent', 'domain', 'coordination', 'memory', 'learning',
+      'routing', 'cross-phase', 'infra-healing',
     ];
     for (const category of categories) {
       this.categoryTools.set(category, new Set());

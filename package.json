@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.7.10",
+  "version": "3.7.11",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 13 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 60 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -28,6 +28,10 @@
     "./sync": {
       "import": "./dist/sync/index.js",
       "types": "./dist/sync/index.d.ts"
+    },
+    "./governance": {
+      "import": "./dist/governance/index.js",
+      "types": "./dist/governance/index.d.ts"
     }
   },
   "bin": {
@@ -142,7 +146,6 @@
     "pg": "^8.17.2",
     "prime-radiant-advanced-wasm": "^0.1.3",
     "secure-json-parse": "^4.1.0",
-    "typescript": "^5.9.3",
     "uuid": "^9.0.0",
     "vibium": "^0.1.2",
     "yaml": "^2.8.2",
@@ -190,6 +193,7 @@
     "glob": "^13.0.0",
     "msw": "^2.12.7",
     "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   },
   "engines": {

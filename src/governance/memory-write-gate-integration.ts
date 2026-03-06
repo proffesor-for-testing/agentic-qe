@@ -9,6 +9,15 @@
  */
 
 import { governanceFlags, isMemoryWriteGateEnabled, isStrictMode } from './feature-flags.js';
+import { toErrorMessage } from '../shared/error-utils.js';
+
+/**
+ * Lazily loaded MemoryWriteGate from @claude-flow/guidance.
+ * Provides authority-scoped writes, rate limiting, TTL, contradiction detection.
+ */
+type GuidanceMemoryWriteGateType = import('@claude-flow/guidance/memory-gate').MemoryWriteGate;
+type GuidanceMemoryAuthority = import('@claude-flow/guidance/memory-gate').MemoryAuthority;
+type GuidanceWriteDecision = import('@claude-flow/guidance/memory-gate').WriteDecision;
 
 /**
  * Pattern to be stored in memory
@@ -41,20 +50,36 @@ export interface MemoryWriteGateDecision {
 export class MemoryWriteGateIntegration {
   private patternIndex: Map<string, MemoryPattern> = new Map();
   private domainPatterns: Map<string, Set<string>> = new Map();
-  private guidanceMemoryGate: any = null;
+  private guidanceMemoryGate: GuidanceMemoryWriteGateType | null = null;
   private initialized = false;
 
   /**
    * Initialize the MemoryWriteGate integration
    *
-   * Note: The @claude-flow/guidance MemoryWriteGate has a different API.
-   * Our local implementation provides contradiction detection and temporal decay
+   * Attempts to load @claude-flow/guidance MemoryWriteGate for authority-scoped
+   * writes and rate limiting. Falls back to local contradiction detection
    * optimized for AQE's ReasoningBank pattern storage.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Use local implementation optimized for AQE ReasoningBank
+    // Try loading guidance MemoryWriteGate
+    try {
+      const modulePath = '@claude-flow/guidance/memory-gate';
+      const mod = await import(/* @vite-ignore */ modulePath) as {
+        createMemoryWriteGate?: (config?: Record<string, unknown>) => GuidanceMemoryWriteGateType;
+      };
+      if (mod && typeof mod.createMemoryWriteGate === 'function') {
+        this.guidanceMemoryGate = mod.createMemoryWriteGate({
+          enableContradictionTracking: true,
+        });
+        console.log('[MemoryWriteGateIntegration] Guidance MemoryWriteGate loaded');
+      }
+    } catch {
+      // Guidance package unavailable — use local implementation
+      this.guidanceMemoryGate = null;
+    }
+
     this.initialized = true;
   }
 
@@ -74,8 +99,36 @@ export class MemoryWriteGateIntegration {
     pattern.timestamp = pattern.timestamp || Date.now();
     pattern.useCount = pattern.useCount || 0;
 
-    // Local contradiction detection optimized for AQE ReasoningBank
-    return this.localEvaluation(pattern, flags);
+    // Local contradiction detection runs first (authoritative for AQE)
+    const localDecision = this.localEvaluation(pattern, flags);
+
+    // Only consult guidance when local detected no issues
+    if (this.guidanceMemoryGate && localDecision.allowed && !localDecision.reason) {
+      try {
+        const authority: GuidanceMemoryAuthority = {
+          agentId: pattern.agentId || 'unknown',
+          role: 'worker',
+          namespaces: [pattern.domain],
+          maxWritesPerMinute: 60,
+          canDelete: false,
+          canOverwrite: true,
+          trustLevel: 0.7,
+        };
+        const decision: GuidanceWriteDecision = this.guidanceMemoryGate.evaluateWrite(
+          authority,
+          pattern.key,
+          pattern.domain,
+          pattern.value,
+        );
+        if (!decision.allowed) {
+          return this.mapGuidanceDecision(decision);
+        }
+      } catch {
+        // Guidance evaluation failed — local decision stands
+      }
+    }
+
+    return localDecision;
   }
 
   /**
@@ -264,15 +317,17 @@ export class MemoryWriteGateIntegration {
   }
 
   /**
-   * Map guidance package decision to our format
+   * Map guidance WriteDecision to our MemoryWriteGateDecision format.
+   *
+   * WriteDecision has: { allowed, reason, contradictions, authorityCheck, rateCheck, overwriteCheck }
+   * We map to: { allowed, reason, conflictingPatterns, suggestedResolution, requiresManualReview }
    */
-  private mapGuidanceDecision(decision: any): MemoryWriteGateDecision {
+  private mapGuidanceDecision(decision: GuidanceWriteDecision): MemoryWriteGateDecision {
     return {
-      allowed: decision.allowed ?? true,
+      allowed: decision.allowed,
       reason: decision.reason,
-      conflictingPatterns: decision.conflictingPatterns,
-      suggestedResolution: decision.suggestedResolution,
-      requiresManualReview: decision.requiresManualReview,
+      requiresManualReview: !decision.authorityCheck.passed || decision.contradictions.length > 0,
+      suggestedResolution: decision.contradictions.length > 0 ? 'reject' : undefined,
     };
   }
 

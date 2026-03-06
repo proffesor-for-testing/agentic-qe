@@ -5,7 +5,8 @@
 [![npm version](https://img.shields.io/npm/v/agentic-qe.svg)](https://www.npmjs.com/package/agentic-qe)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
-<img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
+[![Monthly Downloads](https://img.shields.io/npm/dm/agentic-qe)](https://www.npmjs.com/package/agentic-qe)
+[![Total Downloads](https://img.shields.io/npm/dt/agentic-qe?label=total%20downloads)](https://www.npmjs.com/package/agentic-qe)
 
 [Release Notes](docs/releases/README.md) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 

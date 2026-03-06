@@ -21,6 +21,12 @@ import { governanceFlags } from './feature-flags.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 
 /**
+ * Lazily loaded ShardRetriever from @claude-flow/guidance.
+ * Provides semantic shard matching with embedding-based retrieval.
+ */
+type GuidanceShardRetrieverType = import('@claude-flow/guidance/retriever').ShardRetriever;
+
+/**
  * Agent constraints from a shard
  */
 export interface AgentConstraints {
@@ -335,6 +341,7 @@ export class ShardRetrieverIntegration {
   private cacheMisses = 0;
   private lastCacheCleanup: number | null = null;
   private parseErrors: string[] = [];
+  private guidanceRetriever: GuidanceShardRetrieverType | null = null;
   private initialized = false;
   private basePath: string;
 
@@ -344,6 +351,10 @@ export class ShardRetrieverIntegration {
 
   /**
    * Initialize the ShardRetrieverIntegration
+   *
+   * Attempts to load @claude-flow/guidance ShardRetriever for
+   * embedding-based semantic shard matching. Falls back to local
+   * filesystem-based loading with keyword matching.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -351,6 +362,21 @@ export class ShardRetrieverIntegration {
     if (!isShardRetrieverEnabled()) {
       this.initialized = true;
       return;
+    }
+
+    // Try loading guidance ShardRetriever for embedding-based retrieval
+    try {
+      const modulePath = '@claude-flow/guidance/retriever';
+      const mod = await import(/* @vite-ignore */ modulePath) as {
+        createRetriever?: (...args: unknown[]) => GuidanceShardRetrieverType;
+      };
+      if (mod && typeof mod.createRetriever === 'function') {
+        this.guidanceRetriever = mod.createRetriever();
+        console.log('[ShardRetrieverIntegration] Guidance ShardRetriever loaded');
+      }
+    } catch {
+      // Guidance package unavailable — use local filesystem-based retrieval
+      this.guidanceRetriever = null;
     }
 
     // Pre-load all shards into cache
@@ -433,6 +459,11 @@ export class ShardRetrieverIntegration {
 
   /**
    * Retrieve shards relevant to a task
+   *
+   * Local filesystem-based retrieval is authoritative. When guidance
+   * ShardRetriever is available, its embedding-based results supplement
+   * the local results by boosting relevance scores for shards that
+   * guidance also considers relevant.
    */
   async retrieveForTask(taskType: string, context: TaskContext): Promise<ShardContent[]> {
     if (!isShardRetrieverEnabled()) {
@@ -444,11 +475,39 @@ export class ShardRetrieverIntegration {
     const flags = getShardRetrieverFlags();
     const allShards = await this.getAllCachedOrLoadedShards();
 
+    // Collect guidance-recommended domains for score boosting
+    const guidanceRelevantDomains = new Set<string>();
+    if (this.guidanceRetriever) {
+      try {
+        const result = await this.guidanceRetriever.retrieve({
+          taskDescription: `${taskType}: ${context.intent || ''} ${(context.keywords || []).join(' ')}`,
+          maxShards: flags.maxShardsPerQuery,
+        });
+        if (result && result.shards) {
+          for (const s of result.shards) {
+            if (s.shard?.rule?.domains) {
+              for (const d of s.shard.rule.domains) {
+                guidanceRelevantDomains.add(d);
+              }
+            }
+          }
+        }
+      } catch {
+        // Guidance retrieval failed — local scoring stands
+      }
+    }
+
     // Score each shard by relevance to the task
     const scoredShards: Array<{ shard: ShardContent; score: number }> = [];
 
     for (const shard of allShards.values()) {
-      const score = this.calculateRelevance(shard, { ...context, taskType });
+      let score = this.calculateRelevance(shard, { ...context, taskType });
+
+      // Boost score if guidance also considers this domain relevant
+      if (guidanceRelevantDomains.has(shard.domain)) {
+        score = Math.min(1, score + 0.1);
+      }
+
       if (score >= flags.relevanceThreshold) {
         scoredShards.push({ shard, score });
       }
