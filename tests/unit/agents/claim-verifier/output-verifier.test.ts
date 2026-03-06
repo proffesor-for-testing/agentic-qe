@@ -14,7 +14,7 @@ const { mockExecAsync } = vi.hoisted(() => ({
 }));
 
 vi.mock('node:child_process', () => ({
-  exec: vi.fn(),
+  execFile: vi.fn(),
 }));
 
 vi.mock('node:util', () => ({
@@ -112,14 +112,36 @@ describe('OutputBasedVerifier', () => {
       expect(mockExecAsync).toHaveBeenCalled();
     });
 
-    it('should extract command from evidence with type command-output', async () => {
-      // Arrange
+    it('should reject non-allowlisted command from evidence', async () => {
+      // Arrange - arbitrary commands are blocked by allowlist (CWE-78 fix)
       const claim = makeClaim({
         statement: 'Custom check ran fine',
         evidence: [
           {
             type: 'command-output',
             location: 'npx custom-tool check',
+            content: 'All good',
+          },
+        ],
+      });
+
+      // Act
+      const result = await verifier.verify(claim);
+
+      // Assert - non-allowlisted commands are rejected, not executed
+      expect(result.verified).toBe(false);
+      expect(result.reasoning).toContain('not in allowlist');
+      expect(mockExecAsync).not.toHaveBeenCalled();
+    });
+
+    it('should extract allowlisted command from evidence with type command-output', async () => {
+      // Arrange - allowlisted npm commands are permitted
+      const claim = makeClaim({
+        statement: 'Custom check ran fine',
+        evidence: [
+          {
+            type: 'command-output',
+            location: 'npm run build',
             content: 'All good',
           },
         ],

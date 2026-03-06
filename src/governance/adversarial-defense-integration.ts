@@ -23,6 +23,13 @@ import { governanceFlags, isAdversarialDefenseEnabled, isStrictMode } from './fe
 import { trustAccumulatorIntegration } from './trust-accumulator-integration.js';
 
 /**
+ * Lazily loaded adversarial defense from @claude-flow/guidance.
+ * Provides ThreatDetector, CollusionDetector, and MemoryQuorum.
+ */
+type GuidanceThreatDetectorType = import('@claude-flow/guidance/adversarial').ThreatDetector;
+type GuidanceCollusionDetectorType = import('@claude-flow/guidance/adversarial').CollusionDetector;
+
+/**
  * Threat context for assessment
  */
 export interface ThreatContext {
@@ -342,20 +349,47 @@ export class AdversarialDefenseIntegration {
   private blocklist: Map<string, BlocklistEntry> = new Map();
   private stats: DefenseStats = this.createEmptyStats();
   private assessmentHistory: ThreatAssessment[] = [];
+  private guidanceThreatDetector: GuidanceThreatDetectorType | null = null;
+  private guidanceCollusionDetector: GuidanceCollusionDetectorType | null = null;
   private initialized = false;
 
   /**
    * Initialize the AdversarialDefense integration
+   *
+   * Attempts to load @claude-flow/guidance adversarial defense for
+   * ThreatDetector and CollusionDetector. Falls back to local
+   * pattern-based detection.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Load default patterns
+    // Load default patterns synchronously first (callers may not await)
     for (const pattern of DEFAULT_PATTERNS) {
       this.patterns.set(pattern.name, pattern);
     }
 
     this.initialized = true;
+
+    // Try loading guidance adversarial module asynchronously (supplementary)
+    try {
+      const modulePath = '@claude-flow/guidance/adversarial';
+      const mod = await import(/* @vite-ignore */ modulePath) as {
+        createThreatDetector?: (...args: unknown[]) => GuidanceThreatDetectorType;
+        createCollusionDetector?: (...args: unknown[]) => GuidanceCollusionDetectorType;
+      };
+      if (mod && typeof mod.createThreatDetector === 'function') {
+        this.guidanceThreatDetector = mod.createThreatDetector();
+        console.log('[AdversarialDefense] Guidance ThreatDetector loaded');
+      }
+      if (mod && typeof mod.createCollusionDetector === 'function') {
+        this.guidanceCollusionDetector = mod.createCollusionDetector();
+        console.log('[AdversarialDefense] Guidance CollusionDetector loaded');
+      }
+    } catch {
+      // Guidance package unavailable — use local implementation
+      this.guidanceThreatDetector = null;
+      this.guidanceCollusionDetector = null;
+    }
   }
 
   /**
@@ -369,6 +403,29 @@ export class AdversarialDefenseIntegration {
     const flags = governanceFlags.getFlags().adversarialDefense;
     const detectedPatterns = this.detectInjectionPatterns(input);
     const blocklistMatches = this.checkBlocklist(input);
+
+    // Augment with guidance ThreatDetector if available (supplementary, not authoritative)
+    if (this.guidanceThreatDetector && detectedPatterns.length === 0) {
+      try {
+        const guidanceContext = { agentId: context?.agentId || '', toolName: context?.taskType || '' };
+        const signals = this.guidanceThreatDetector.analyzeInput(input, guidanceContext);
+        if (signals && Array.isArray(signals) && signals.length > 0) {
+          // Add guidance-detected threats as supplementary patterns
+          for (const signal of signals) {
+            detectedPatterns.push({
+              name: `guidance:${signal.category || 'unknown'}`,
+              category: (signal.category as ThreatCategory) || 'custom',
+              matched: signal.description || '',
+              position: 0,
+              severity: signal.severity || 0.5,
+              description: signal.description || 'Detected by guidance ThreatDetector',
+            });
+          }
+        }
+      } catch {
+        // Guidance analysis failed — local detection stands
+      }
+    }
 
     // Calculate threat score from detected patterns
     let threatScore = 0;
@@ -571,6 +628,44 @@ export class AdversarialDefenseIntegration {
     }
 
     return matches;
+  }
+
+  /**
+   * Record an agent interaction for collusion detection
+   *
+   * Forwards to guidance CollusionDetector when available.
+   * Call this whenever two agents interact during task execution.
+   */
+  recordAgentInteraction(fromAgent: string, toAgent: string, contentHash: string): void {
+    if (!isAdversarialDefenseEnabled()) return;
+
+    if (this.guidanceCollusionDetector) {
+      try {
+        this.guidanceCollusionDetector.recordInteraction(fromAgent, toAgent, contentHash);
+      } catch {
+        // Guidance recording failed — no local fallback needed
+      }
+    }
+  }
+
+  /**
+   * Check for collusion patterns among agents
+   *
+   * Delegates to guidance CollusionDetector when available.
+   * Returns null if collusion detection is not available.
+   */
+  detectCollusion(): { detected: boolean; suspiciousPatterns: Array<{ type: string; agents: string[]; evidence: string; confidence: number }>; timestamp: number } | null {
+    if (!isAdversarialDefenseEnabled()) return null;
+
+    if (this.guidanceCollusionDetector) {
+      try {
+        return this.guidanceCollusionDetector.detectCollusion();
+      } catch {
+        // Guidance collusion detection failed
+      }
+    }
+
+    return null;
   }
 
   /**

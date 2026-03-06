@@ -21,6 +21,12 @@ import type { GovernanceFeatureFlags } from './feature-flags.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 
+/**
+ * Lazily loaded EvolutionPipeline from @claude-flow/guidance.
+ * Provides signed change proposals, simulation, staged rollout.
+ */
+type GuidanceEvolutionPipelineType = import('@claude-flow/guidance/evolution').EvolutionPipeline;
+
 // ============================================================================
 // Types and Interfaces
 // ============================================================================
@@ -339,6 +345,7 @@ export class EvolutionPipelineIntegration {
   private rules: Map<string, RuleRecord> = new Map();
   private variantTests: Map<string, VariantTest> = new Map();
   private taskOutcomes: Map<string, TaskOutcome> = new Map();
+  private guidanceEvolution: GuidanceEvolutionPipelineType | null = null;
   private initialized = false;
 
   // KV persistence
@@ -364,6 +371,10 @@ export class EvolutionPipelineIntegration {
 
   /**
    * Initialize the Evolution Pipeline integration
+   *
+   * Attempts to load @claude-flow/guidance EvolutionPipeline for
+   * signed change proposals and staged rollout. Falls back to local
+   * rule effectiveness tracking.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -378,7 +389,21 @@ export class EvolutionPipelineIntegration {
       this.db = null;
     }
 
-    // Initialize with some default rules if needed
+    // Try loading guidance EvolutionPipeline
+    try {
+      const modulePath = '@claude-flow/guidance/evolution';
+      const mod = await import(/* @vite-ignore */ modulePath) as {
+        createEvolutionPipeline?: (config?: Record<string, unknown>) => GuidanceEvolutionPipelineType;
+      };
+      if (mod && typeof mod.createEvolutionPipeline === 'function') {
+        this.guidanceEvolution = mod.createEvolutionPipeline();
+        console.log('[EvolutionPipeline] Guidance EvolutionPipeline loaded');
+      }
+    } catch {
+      // Guidance package unavailable — use local implementation
+      this.guidanceEvolution = null;
+    }
+
     this.initialized = true;
     this.logEvent('initialize', 'Evolution Pipeline initialized');
   }
@@ -525,6 +550,24 @@ export class EvolutionPipelineIntegration {
         reason,
       });
 
+      // Create a signed change proposal via guidance if available
+      if (this.guidanceEvolution) {
+        try {
+          this.guidanceEvolution.propose({
+            kind: 'rule-promote',
+            title: `Promote rule ${ruleId}`,
+            description: reason,
+            author: 'aqe-evolution-pipeline',
+            targetPath: `rules/${ruleId}`,
+            diff: { before: oldStatus, after: newStatus },
+            rationale: reason,
+            riskAssessment: { level: 'low', factors: ['automated-promotion'] },
+          });
+        } catch {
+          // Guidance proposal failed — local promotion still recorded
+        }
+      }
+
       this.logEvent('rule_promotion', `Rule ${ruleId} promoted: ${oldStatus} -> ${newStatus}. Reason: ${reason}`);
     }
   }
@@ -559,6 +602,27 @@ export class EvolutionPipelineIntegration {
         timestamp: Date.now(),
         reason,
       });
+
+      // Create a signed change proposal via guidance if available
+      if (this.guidanceEvolution) {
+        try {
+          this.guidanceEvolution.propose({
+            kind: 'rule-remove',
+            title: `Demote rule ${ruleId}`,
+            description: reason,
+            author: 'aqe-evolution-pipeline',
+            targetPath: `rules/${ruleId}`,
+            diff: { before: oldStatus, after: newStatus },
+            rationale: reason,
+            riskAssessment: {
+              level: newStatus === 'deprecated' ? 'medium' : 'low',
+              factors: ['automated-demotion'],
+            },
+          });
+        } catch {
+          // Guidance proposal failed — local demotion still recorded
+        }
+      }
 
       this.logEvent('rule_demotion', `Rule ${ruleId} demoted: ${oldStatus} -> ${newStatus}. Reason: ${reason}`);
     }

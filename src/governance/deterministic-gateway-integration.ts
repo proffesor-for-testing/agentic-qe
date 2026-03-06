@@ -14,6 +14,12 @@ import type { GovernanceFeatureFlags } from './feature-flags.js';
 import { createSafeRegex } from '../mcp/security/validators/regex-safety-validator.js';
 
 /**
+ * Lazily loaded DeterministicToolGateway from @claude-flow/guidance.
+ * Provides idempotency keys, schema validation, budget metering, enforcement gates.
+ */
+type GuidanceToolGatewayType = import('@claude-flow/guidance/gateway').DeterministicToolGateway;
+
+/**
  * Gateway decision result for tool calls
  */
 export interface GatewayDecision {
@@ -118,17 +124,36 @@ export class DeterministicGatewayIntegration {
   private requestHistory: Map<string, RequestEntry> = new Map();
   private resultCache: Map<string, CacheEntry> = new Map();
   private toolSchemas: Map<string, ToolSchema> = new Map();
+  private guidanceGateway: GuidanceToolGatewayType | null = null;
   private initialized = false;
 
   /**
    * Initialize the DeterministicGateway integration
+   *
+   * Attempts to load @claude-flow/guidance DeterministicToolGateway for
+   * idempotency keys, schema validation, and budget metering. Falls back
+   * to local implementation.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Register default tool schemas for common AQE operations
+    // Register default tool schemas synchronously first
     this.registerDefaultSchemas();
     this.initialized = true;
+
+    // Try loading guidance DeterministicToolGateway asynchronously
+    try {
+      const modulePath = '@claude-flow/guidance/gateway';
+      const mod = await import(/* @vite-ignore */ modulePath) as {
+        createToolGateway?: (config?: Record<string, unknown>) => GuidanceToolGatewayType;
+      };
+      if (mod && typeof mod.createToolGateway === 'function') {
+        this.guidanceGateway = mod.createToolGateway();
+        console.log('[DeterministicGateway] Guidance ToolGateway loaded');
+      }
+    } catch {
+      this.guidanceGateway = null;
+    }
   }
 
   /**
@@ -278,6 +303,26 @@ export class DeterministicGatewayIntegration {
           cachedResult: cached,
           idempotencyKey: key,
         };
+      }
+    }
+
+    // Augment with guidance gateway evaluation if available
+    if (this.guidanceGateway && typeof params === 'object' && params !== null) {
+      try {
+        const guidanceDecision = this.guidanceGateway.evaluate(
+          toolName,
+          params as Record<string, unknown>,
+        );
+        if (!guidanceDecision.allowed) {
+          this.logEvent(toolName, 'guidance_denied', key);
+          return {
+            allowed: !isStrictMode(),
+            reason: `Guidance gateway: ${guidanceDecision.reason}`,
+            idempotencyKey: key,
+          };
+        }
+      } catch {
+        // Guidance evaluation failed — local decision stands
       }
     }
 

@@ -30,9 +30,15 @@ export const ALLOWED_TABLE_NAMES = new Set([
   'test_outcomes', 'routing_outcomes', 'coverage_sessions',
   // Sync tables
   'patterns',
-  // Hypergraph tables
+  // Hypergraph tables (actual table names from migration 20260120)
+  'hypergraph_nodes', 'hypergraph_edges',
+  // Legacy allowlist aliases (hypergraph-schema.ts compat)
   'hypergraph_vertices', 'hypergraph_hyperedges', 'hypergraph_edge_vertices',
   'hypergraph_vertex_properties', 'hypergraph_edge_properties',
+  // Learning experience tables
+  'captured_experiences', 'experience_applications',
+  // Audit trail
+  'witness_chain',
 ]);
 
 /**

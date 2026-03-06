@@ -17,6 +17,13 @@
 import { governanceFlags, isTrustAccumulatorEnabled, isStrictMode } from './feature-flags.js';
 
 /**
+ * Lazily loaded TrustSystem from @claude-flow/guidance.
+ * Provides gate outcome accumulation, exponential decay, and trust-based rate limiting.
+ */
+type GuidanceTrustSystemType = import('@claude-flow/guidance/trust').TrustSystem;
+type GuidanceGateOutcome = import('@claude-flow/guidance/trust').GateOutcome;
+
+/**
  * Trust tier levels
  */
 export type TrustTier = 'low' | 'medium' | 'high' | 'critical';
@@ -96,16 +103,41 @@ export class TrustAccumulatorIntegration {
   private agentMetrics: Map<string, AgentTrustMetrics> = new Map();
   private taskHistory: Map<string, TaskOutcome[]> = new Map();
   private tierThresholds: TierThresholds = { ...DEFAULT_TIER_THRESHOLDS };
+  private guidanceTrustSystem: GuidanceTrustSystemType | null = null;
   private initialized = false;
 
   /**
    * Initialize the TrustAccumulator integration
+   *
+   * Attempts to load @claude-flow/guidance TrustSystem for gate-outcome-based
+   * trust accumulation with exponential decay. Falls back to local
+   * implementation optimized for AQE agent routing.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Use local implementation optimized for AQE agent routing
-    // The guidance TrustAccumulator may have a different API
+    // Try loading guidance TrustSystem
+    try {
+      const modulePath = '@claude-flow/guidance/trust';
+      const mod = await import(/* @vite-ignore */ modulePath) as {
+        createTrustSystem?: (config?: Record<string, unknown>) => GuidanceTrustSystemType;
+      };
+      if (mod && typeof mod.createTrustSystem === 'function') {
+        this.guidanceTrustSystem = mod.createTrustSystem({
+          initialTrust: 0.7,
+          allowDelta: 0.02,
+          denyDelta: 0.05,
+          warnDelta: 0.01,
+          decayRate: 0.05,
+          decayIntervalMs: 300000, // 5 minutes
+        });
+        console.log('[TrustAccumulatorIntegration] Guidance TrustSystem loaded');
+      }
+    } catch {
+      // Guidance package unavailable — use local implementation
+      this.guidanceTrustSystem = null;
+    }
+
     this.initialized = true;
   }
 
@@ -146,6 +178,16 @@ export class TrustAccumulatorIntegration {
 
     // Update agent metrics
     this.updateAgentMetrics(agentId, outcome);
+
+    // Feed guidance TrustSystem if available
+    if (this.guidanceTrustSystem) {
+      try {
+        const gateOutcome: GuidanceGateOutcome = success ? 'allow' : 'deny';
+        this.guidanceTrustSystem.recordOutcome(agentId, gateOutcome, `Task ${taskType}: ${success ? 'success' : 'failure'}`);
+      } catch {
+        // Guidance recording failed — local metrics still updated above
+      }
+    }
 
     // Auto-adjust tier if enabled
     const flags = governanceFlags.getFlags().trustAccumulator;
