@@ -5,6 +5,28 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.11] - 2026-03-06
+
+### Added
+
+- **Full @claude-flow/guidance governance integration** — All 8 governance modules now properly load AND wire their guidance counterparts using a local-first pattern where AQE logic is authoritative and guidance supplements:
+  - `continue-gate`: Maps `ContinueDecision` with full `StepContext` for budget-aware loop control
+  - `memory-write-gate`: Local-first contradiction detection, guidance supplements via `evaluateWrite()`
+  - `adversarial-defense`: `ThreatDetector.analyzeInput()` supplements local pattern detection; new `recordAgentInteraction()` and `detectCollusion()` methods via `CollusionDetector`
+  - `deterministic-gateway`: `gateway.evaluate()` supplements local tool-call allow/deny gating
+  - `proof-envelope`: Parallel audit trail mirroring via `ProofChain.append()`
+  - `shard-retriever`: Embedding-based relevance boosting via `ShardRetriever.retrieve()`
+  - `evolution-pipeline`: Signed change proposals via `EvolutionPipeline.propose()` on rule promote/demote
+  - `trust-accumulator`: Guidance trust scoring integration
+- **Governance subpath export** — Users can now `import {} from 'agentic-qe/governance'`
+
+### Fixed
+
+- **ContinueGate `mapGuidanceDecision` read wrong property names** — Was reading `decision.shouldContinue` / `.reason` / `.throttleMs` which don't exist on `ContinueDecision`; now correctly reads `decision.decision`, `decision.reasons`, `decision.metrics`
+- **MemoryWriteGate evaluation order** — Guidance was running before local logic; reversed to local-first so AQE's contradiction detection is authoritative
+- **ContinueGate `StepContext` was `Partial`** — Now provides full `StepContext` with realistic budget values derived from actual history
+- **Security: ReDoS guards** — Added line-length guards for all regex matches (CWE-1333)
+
 ## [3.7.10] - 2026-03-05
 
 ### Fixed
