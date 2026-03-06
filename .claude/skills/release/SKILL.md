@@ -195,7 +195,23 @@ node /workspaces/agentic-qe-new/dist/cli/bundle.js health 2>&1 | head -10
 ```
 These should respond (even if empty results) without errors, confirming the subsystems initialize properly.
 
-#### 8e. Cleanup
+#### 8e. Isolated Dependency Check (catches missing externals)
+```bash
+# Pack and install in a clean temp directory to simulate real user install
+CLEAN_DIR=$(mktemp -d)
+npm pack --pack-destination "$CLEAN_DIR" 2>&1 | tail -2
+cd "$CLEAN_DIR"
+npm init -y > /dev/null 2>&1
+npm install ./agentic-qe-<version>.tgz 2>&1 | tail -3
+node node_modules/.bin/aqe --version 2>&1
+EXIT=$?
+echo "Exit code: $EXIT"
+cd /workspaces/agentic-qe-new
+rm -rf "$CLEAN_DIR"
+```
+Must exit 0 and print the correct version. If it crashes with `ERR_MODULE_NOT_FOUND`, a dependency is marked as external in the build scripts but not listed in `dependencies`. Fix by either bundling it, lazy-loading it, or adding it to dependencies.
+
+#### 8f. Cleanup
 ```bash
 rm -rf /tmp/aqe-release-test
 ```
@@ -328,10 +344,36 @@ gh run view <run-id> --log-failed
 ```bash
 npm view agentic-qe@<version> name version
 ```
-Confirm the published version matches. Test install:
+Confirm the published version matches. Test install in local environment:
 ```bash
 npx agentic-qe@<version> --version
 ```
+
+### 15. Isolated Install Verification (CRITICAL)
+
+This step catches missing/external dependency issues that only manifest in clean environments (e.g., `typescript` not being available when installed globally). This MUST pass before declaring the release successful.
+
+```bash
+# Create a completely isolated install — no access to project node_modules
+CLEAN_DIR=$(mktemp -d)
+npm install --prefix "$CLEAN_DIR" agentic-qe@<version> 2>&1 | tail -5
+
+# Test CLI commands using ONLY the isolated install's dependencies
+NODE_PATH="$CLEAN_DIR/node_modules" node "$CLEAN_DIR/node_modules/.bin/aqe" --version
+NODE_PATH="$CLEAN_DIR/node_modules" node "$CLEAN_DIR/node_modules/.bin/aqe" --help 2>&1 | head -5
+
+# Cleanup
+rm -rf "$CLEAN_DIR"
+```
+
+If `--version` crashes (e.g., `ERR_MODULE_NOT_FOUND`), the release has a broken dependency. Diagnose whether the missing package should be:
+- **Bundled** into the CLI (add to build script, remove from externals)
+- **Added to `dependencies`** in package.json (if it's a real runtime dep)
+- **Lazy-loaded** with try/catch (if only needed for optional features)
+
+Fix, rebuild, and re-release if this step fails. Never ship a CLI that crashes on `--version`.
+
+**STOP — confirm isolated install works.**
 
 ## Rules
 

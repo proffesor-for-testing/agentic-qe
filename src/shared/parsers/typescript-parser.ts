@@ -3,7 +3,7 @@
  * Wrapper around TypeScript Compiler API for code analysis
  */
 
-import * as ts from 'typescript';
+import ts from 'typescript';
 import type { ILanguageParser, ParsedFile, UniversalFunctionInfo, UniversalClassInfo, UniversalImportInfo, UniversalPropertyInfo } from './interfaces.js';
 import type { SupportedLanguage } from '../types/test-frameworks.js';
 

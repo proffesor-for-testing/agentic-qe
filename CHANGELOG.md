@@ -5,6 +5,13 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.12] - 2026-03-06
+
+### Fixed
+
+- **CLI crash on global install** — `aqe --version` crashed with `ERR_MODULE_NOT_FOUND: Cannot find package 'typescript'` when installed globally (`npm i -g agentic-qe`). TypeScript was marked as an external ESM dependency in the build but is only a devDependency, so it's absent in clean environments. Now lazy-loaded via `createRequire` Proxy — only loads when AST parsing features are actually used.
+- **Release skill missing isolated install check** — Added pre-release step 8e (isolated dependency check) and post-publish step 15 (clean-environment install verification) to catch missing external dependencies before they reach users.
+
 ## [3.7.11] - 2026-03-06
 
 ### Added
