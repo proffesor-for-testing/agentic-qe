@@ -52,7 +52,6 @@ const nativeModules = [
 
 // Pure JS externals that work fine with ESM import
 const esmExternals = [
-  'typescript',
   'fast-glob',
   'yaml',
   'commander',
@@ -63,19 +62,71 @@ const esmExternals = [
 ];
 
 /**
- * esbuild plugin: Rewrite bare "typescript" import to explicit subpath.
+ * esbuild plugin: Lazy-load typescript via createRequire().
  *
- * TypeScript's package.json has no "exports" field — only "main": "./lib/typescript.js".
- * Node.js 22+ ESM legacyMainResolve fails to resolve the bare specifier in some
- * environments (devcontainers, NVM-managed Node). Rewriting to the explicit subpath
- * bypasses legacyMainResolve entirely (see issue #267).
+ * typescript is a devDependency — it won't be available when users install
+ * agentic-qe globally. A top-level ESM `import` would crash the entire CLI
+ * (even `aqe --version`). This plugin replaces the static import with a
+ * lazy createRequire() call that only executes when the TypeScript parser
+ * is actually used, and throws a helpful error if typescript is missing.
  */
-const typescriptResolvePlugin = {
-  name: 'typescript-resolve',
+/**
+ * esbuild plugin: Lazy-load typescript via createRequire().
+ *
+ * typescript is a devDependency — it won't be available when users install
+ * agentic-qe globally. A top-level ESM `import` would crash the entire CLI
+ * (even `aqe --version`). This plugin replaces the static import with a
+ * lazy createRequire() call that only executes when the TypeScript parser
+ * is actually used, and throws a helpful error if typescript is missing.
+ *
+ * The source code uses `import * as ts from 'typescript'` (namespace import),
+ * so we keep typescript external but rewrite the import sites in the output
+ * bundle to use a lazy-loading wrapper instead of a top-level import.
+ */
+const typescriptLazyPlugin = {
+  name: 'typescript-lazy',
   setup(build) {
+    // Keep typescript external so it's not bundled (~9MB)
     build.onResolve({ filter: /^typescript$/ }, () => ({
-      path: 'typescript/lib/typescript.js',
-      external: true,
+      path: 'typescript',
+      namespace: 'typescript-lazy',
+    }));
+
+    // Generate a virtual module that lazy-loads via createRequire on first use
+    build.onLoad({ filter: /.*/, namespace: 'typescript-lazy' }, () => ({
+      contents: [
+        'import { createRequire } from "module";',
+        'let _ts;',
+        'function _load() {',
+        '  if (!_ts) {',
+        '    const req = createRequire(import.meta.url);',
+        '    try { _ts = req("typescript"); }',
+        '    catch {',
+        '      try { _ts = req("typescript/lib/typescript.js"); }',
+        '      catch {',
+        '        _ts = new Proxy({}, { get(_, p) {',
+        '          if (p === "__esModule" || typeof p === "symbol") return undefined;',
+        '          throw new Error("TypeScript is required for code analysis. Install it: npm install -g typescript");',
+        '        }});',
+        '      }',
+        '    }',
+        '  }',
+        '  return _ts;',
+        '}',
+        // Use a Proxy as the default export so `import * as ts` works.
+        // When esbuild bundles `import * as ts from "typescript"` with this
+        // virtual module, it accesses properties on the default export.
+        'export default new Proxy({}, {',
+        '  get(_, p) { return _load()[p]; },',
+        '  has(_, p) { return p in _load(); },',
+        '  ownKeys() { return Object.keys(_load()); },',
+        '  getOwnPropertyDescriptor(_, p) {',
+        '    const v = _load()[p];',
+        '    if (v !== undefined) return { configurable: true, enumerable: true, value: v };',
+        '  },',
+        '});',
+      ].join('\n'),
+      loader: 'js',
     }));
   },
 };
@@ -134,7 +185,7 @@ try {
     platform: 'node',
     format: 'esm',
     external: esmExternals,
-    plugins: [typescriptResolvePlugin, nativeRequirePlugin],
+    plugins: [typescriptLazyPlugin, nativeRequirePlugin],
     outfile: join(__dirname, '..', 'dist/cli/bundle.js'),
     define: {
       '__CLI_VERSION__': JSON.stringify(version),
