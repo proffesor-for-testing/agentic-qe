@@ -120,11 +120,14 @@ function uniqueTokens(text: string): Set<string> {
 }
 
 export function parseSkillFrontmatter(skillMdContent: string): SkillMetadata | null {
-  const fmMatch = skillMdContent.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (!fmMatch) return null;
+  if (!skillMdContent.startsWith('---')) return null;
+  const endIdx = skillMdContent.indexOf('\n---', 4);
+  if (endIdx === -1) return null;
+  const fmContent = skillMdContent.slice(4, endIdx).trim();
+  if (!fmContent) return null;
 
   try {
-    const parsed = yaml.parse(fmMatch[1]);
+    const parsed = yaml.parse(fmContent);
     if (!parsed || typeof parsed !== 'object' || !parsed.name) return null;
 
     return {
