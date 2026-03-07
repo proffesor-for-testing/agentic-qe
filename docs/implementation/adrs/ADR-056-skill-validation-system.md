@@ -608,6 +608,16 @@ Three Tier 3 skills were tested against the v3 codebase:
 | security-testing | A (92/100) | 0 vulnerabilities, OWASP 10/10 |
 | qe-coverage-analysis | C+ (67.8%) | 274 files without tests identified |
 
+### Phase 6: Blog-Inspired Improvements
+
+Based on analysis of the Claude Blog skill-creator system, three enhancements were added:
+
+1. **Trigger Optimizer** (`src/validation/trigger-optimizer.ts`): Analyzes skill descriptions/tags for false positive/negative activation risks using Jaccard similarity. Generates actionable suggestions to improve trigger precision across the skill fleet.
+
+2. **Version Comparator** (`src/validation/version-comparator.ts`): A/B testing between skill versions using Cohen's d effect size and confidence scoring. Enables bias-free comparison with per-test-case breakdown and Markdown report generation.
+
+3. **Skill Intent Classification** (`skill_intent` in frontmatter schema): Classifies skills as `capability_uplift` (fills model gaps, needs regression testing), `encoded_preference` (encodes workflows, needs fidelity checks), or `hybrid`. Drives different validation strategies per intent type.
+
 ## Dependencies
 
 - JSON Schema validator (ajv)
