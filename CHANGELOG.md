@@ -5,6 +5,19 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.13] - 2026-03-07
+
+### Added
+
+- **Trigger Optimizer** — Analyzes skill descriptions and tags to detect false positive/negative activation risks. Calculates Jaccard similarity across the skill fleet, identifies confusable skills, and generates actionable suggestions to improve trigger precision.
+- **Version Comparator** — A/B testing between skill versions using Cohen's d effect size and confidence scoring. Produces per-test-case comparisons and Markdown reports for data-driven skill improvement decisions.
+- **Skill Intent Classification** — New `skill_intent` frontmatter field classifies skills as `capability_uplift` (fills model gaps), `encoded_preference` (encodes team workflows), or `hybrid`. Drives different validation strategies per intent type.
+
+### Changed
+
+- ADR-056 updated with Phase 6 (Blog-Inspired Improvements) documenting the three new features.
+- Validation module index now exports TriggerOptimizer, VersionComparator, and all associated types.
+
 ## [3.7.12] - 2026-03-06
 
 ### Fixed

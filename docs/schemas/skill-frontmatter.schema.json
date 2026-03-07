@@ -226,6 +226,11 @@
       "default": 0,
       "description": "Trust tier level for validation. 0=Declarative (SKILL.md only), 1=Structured (+ JSON output schema), 2=Validated (+ executable validator), 3=Evaluated (+ evaluation test suite)"
     },
+    "skill_intent": {
+      "type": "string",
+      "enum": ["capability_uplift", "encoded_preference", "hybrid"],
+      "description": "Skill intent classification. 'capability_uplift' = fills gaps in base model abilities, needs regression testing as models improve. 'encoded_preference' = automates established workflows/standards, needs fidelity verification. 'hybrid' = combines both intents."
+    },
     "validation": {
       "type": "object",
       "description": "Validation configuration for Trust But Verify system (required for trust_tier >= 1)",

@@ -87,3 +87,39 @@ export type {
   SkillValidationSummary,
   ValidationIssue,
 } from './validation-result-aggregator.js';
+
+// ============================================================================
+// Trigger Optimizer (ADR-056 Phase 5)
+// ============================================================================
+
+export {
+  TriggerOptimizer,
+  createTriggerOptimizer,
+  parseSkillFrontmatter,
+} from './trigger-optimizer.js';
+
+export type {
+  SkillMetadata,
+  TriggerAnalysisConfig,
+  TriggerAnalysisResult,
+  TriggerSuggestion,
+  TriggerOptimizationReport,
+} from './trigger-optimizer.js';
+
+// ============================================================================
+// Version Comparator (ADR-056: A/B testing between skill versions)
+// ============================================================================
+
+export {
+  VersionComparator,
+  createVersionComparator,
+} from './version-comparator.js';
+
+export type {
+  VersionComparisonConfig,
+  SkillVersion,
+  VersionComparisonResult,
+  VersionResult,
+  ComparisonStats,
+  TestCaseComparison,
+} from './version-comparator.js';

@@ -302,6 +302,14 @@ export {
   // Constants
   P0_SKILLS,
   DEFAULT_VALIDATION_MODELS,
+  // Trigger Optimizer
+  TriggerOptimizer,
+  createTriggerOptimizer,
+  parseSkillFrontmatter,
+
+  // Version Comparator
+  VersionComparator,
+  createVersionComparator,
 } from './validation';
 
 export type {
@@ -315,6 +323,21 @@ export type {
 
   // Function types
   SkillValidatorFn,
+
+  // Trigger Optimizer types
+  SkillMetadata,
+  TriggerAnalysisConfig,
+  TriggerAnalysisResult,
+  TriggerSuggestion,
+  TriggerOptimizationReport,
+
+  // Version Comparator types
+  VersionComparisonConfig,
+  SkillVersion,
+  VersionComparisonResult,
+  VersionResult,
+  ComparisonStats,
+  TestCaseComparison,
 } from './validation';
 
 // Version info - read from package.json

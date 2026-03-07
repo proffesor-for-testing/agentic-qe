@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.7.13](v3.7.13.md) | 2026-03-07 | Trigger optimizer, version comparator, skill intent classification |
 | [v3.7.12](v3.7.12.md) | 2026-03-06 | Fix CLI crash on global install (lazy-load typescript), release verification hardening |
 | [v3.7.11](v3.7.11.md) | 2026-03-06 | Full @claude-flow/guidance governance integration across all 8 modules |
 | [v3.7.10](v3.7.10.md) | 2026-03-05 | Fix MCP path resolution, CRLF skill parsing, stale v3/ refs; README rewrite |
