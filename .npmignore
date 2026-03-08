@@ -43,6 +43,9 @@ Thumbs.db
 .claude/statusline-command.sh
 .claude/agents/v3/.claude-flow/
 
+# Deprecated agents
+.claude/agents/deprecated/
+
 # Environment files
 .env
 .env.local
