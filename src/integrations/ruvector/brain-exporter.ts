@@ -1,32 +1,64 @@
 /**
  * QE Brain Export/Import System
  *
- * Exports learning state (patterns, Q-values, dream insights, witness chain)
- * into a portable directory format that can be imported by another AQE instance.
+ * Exports learning state (25 tables) into a portable directory format
+ * that can be imported by another AQE instance.
  *
  * Export format (.aqe-brain directory):
- *   manifest.json       — BrainExportManifest with checksum
- *   patterns.jsonl      — One QE pattern per line
- *   q-values.jsonl      — Q-learning state-action values
- *   dream-insights.jsonl — Dream cycle discoveries
- *   witness-chain.jsonl — Witness chain entries
+ *   manifest.json            -- BrainExportManifest with checksum
+ *   patterns.jsonl           -- One QE pattern per line
+ *   q-values.jsonl           -- Q-learning state-action values
+ *   dream-cycles.jsonl       -- Dream cycle metadata
+ *   dream-insights.jsonl     -- Dream cycle discoveries
+ *   witness-chain.jsonl      -- Witness chain entries
+ *   pattern-embeddings.jsonl -- Pattern vector embeddings
+ *   captured-experiences.jsonl, sona-patterns.jsonl, trajectories.jsonl, ...
  *
  * Safety: Export uses a READ-ONLY connection (WAL mode, no write lock).
  * Import validates manifest checksum before merging.
  */
 
-import { createHash } from 'crypto';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join, resolve } from 'path';
 import Database from 'better-sqlite3';
 import { safeJsonParse } from '../../shared/safe-json.js';
+
+import {
+  sha256,
+  queryAll,
+  queryIterator,
+  countRows,
+  domainFilterForColumn,
+  writeJsonl,
+  writeJsonlStreaming,
+  readJsonl,
+  ensureTargetTables,
+  serializeRowBlobs,
+  deserializeRowBlobs,
+  mergeGenericRow,
+  mergeAppendOnlyRow,
+  TABLE_CONFIGS,
+  PK_COLUMNS,
+  CONFIDENCE_COLUMNS,
+  TIMESTAMP_COLUMNS,
+  type MergeStrategy,
+  type MergeResult,
+  type TableExportConfig,
+  type PatternRow,
+  type QValueRow,
+  type DreamInsightRow,
+  type WitnessRow,
+} from './brain-shared.js';
+
+// Re-export shared types for external consumers
+export type { MergeStrategy, MergeResult, PatternRow, QValueRow, DreamInsightRow, WitnessRow };
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export interface BrainExportManifest {
-  readonly version: '1.0';
+  readonly version: '1.0' | '3.0';
   readonly exportedAt: string;
   readonly sourceDb: string;
   readonly stats: {
@@ -35,9 +67,11 @@ export interface BrainExportManifest {
     readonly qValueCount: number;
     readonly dreamInsightCount: number;
     readonly witnessChainLength: number;
+    readonly totalRecords: number;
   };
   readonly domains: readonly string[];
   readonly checksum: string;
+  readonly tableRecordCounts?: Record<string, number>;
 }
 
 export interface BrainExportOptions {
@@ -50,7 +84,7 @@ export interface BrainExportOptions {
 }
 
 export interface BrainImportOptions {
-  readonly mergeStrategy: 'latest-wins' | 'highest-confidence' | 'union' | 'skip-conflicts';
+  readonly mergeStrategy: MergeStrategy;
   readonly dryRun?: boolean;
 }
 
@@ -64,72 +98,85 @@ export interface BrainImportResult {
 // Internal helpers
 // ============================================================================
 
-function sha256(data: string): string {
-  return createHash('sha256').update(data, 'utf-8').digest('hex');
+/** Tables that can be disabled via BrainExportOptions flags. */
+const OPTIONAL_TABLE_FLAGS: Record<string, keyof BrainExportOptions> = {
+  rl_q_values: 'includeQValues',
+  dream_insights: 'includeDreamInsights',
+  dream_cycles: 'includeDreamInsights',
+  witness_chain: 'includeWitnessChain',
+  vectors: 'includeVectors',
+};
+
+/** Check if a table should be exported given the options. */
+function shouldExportTable(config: TableExportConfig, options: BrainExportOptions): boolean {
+  const flag = OPTIONAL_TABLE_FLAGS[config.tableName] as keyof BrainExportOptions | undefined;
+  if (flag && options[flag] === false) return false;
+  return true;
+}
+
+/** Row count above which we stream to JSONL instead of buffering all in memory. */
+const STREAMING_THRESHOLD = 10_000;
+
+/**
+ * Export rows for a single table config, handling domain filtering and BLOB serialization.
+ * For tables exceeding STREAMING_THRESHOLD rows, streams directly to disk
+ * to avoid holding 68K+ rows (e.g., concept_edges) in memory.
+ */
+function exportTableRows(
+  db: Database.Database, config: TableExportConfig, options: BrainExportOptions, outDir: string
+): { count: number; rows?: unknown[] } {
+  if (!shouldExportTable(config, options)) {
+    writeJsonl(join(outDir, config.fileName), []);
+    return { count: 0, rows: [] };
+  }
+
+  const [where, params] = config.domainColumn
+    ? domainFilterForColumn(options.domains, config.domainColumn)
+    : [undefined, [] as string[]];
+
+  const rowCount = countRows(db, config.tableName, where, params);
+
+  // For large tables, stream to avoid OOM
+  if (rowCount >= STREAMING_THRESHOLD) {
+    const blobCols = config.blobColumns;
+    const transform = blobCols && blobCols.length > 0
+      ? (r: unknown) => serializeRowBlobs(r as Record<string, unknown>, blobCols)
+      : undefined;
+    const count = writeJsonlStreaming(
+      join(outDir, config.fileName),
+      queryIterator(db, config.tableName, where, params),
+      transform,
+    );
+    return { count };
+  }
+
+  // For smaller tables, buffer in memory (needed for domain collection, etc.)
+  let rows = queryAll(db, config.tableName, where, params);
+
+  // Base64-encode BLOB columns for JSON safety
+  if (config.blobColumns && config.blobColumns.length > 0) {
+    rows = rows.map(r => serializeRowBlobs(r as Record<string, unknown>, config.blobColumns!));
+  }
+
+  writeJsonl(join(outDir, config.fileName), rows);
+  return { count: rows.length, rows };
 }
 
 /**
  * Compute a combined checksum over all JSONL content files in an export.
- * Reads each file that exists, hashes its content, then hashes the
- * concatenation of individual hashes in a deterministic order.
+ * Includes all files from TABLE_CONFIGS in deterministic order.
  */
-function computeChecksum(dir: string): string {
-  const FILES = ['patterns.jsonl', 'q-values.jsonl', 'dream-insights.jsonl', 'witness-chain.jsonl'];
+export function computeChecksum(dir: string): string {
   const hashes: string[] = [];
-  for (const file of FILES) {
-    const filePath = join(dir, file);
+  for (const config of TABLE_CONFIGS) {
+    const filePath = join(dir, config.fileName);
     if (existsSync(filePath)) {
-      const content = readFileSync(filePath, 'utf-8');
-      hashes.push(sha256(content));
+      hashes.push(sha256(readFileSync(filePath, 'utf-8')));
     } else {
       hashes.push(sha256(''));
     }
   }
   return sha256(hashes.join(':'));
-}
-
-function tableExists(db: Database.Database, name: string): boolean {
-  const row = db.prepare(
-    "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name=?"
-  ).get(name) as { cnt: number };
-  return row.cnt > 0;
-}
-
-function countRows(db: Database.Database, table: string, whereClause?: string, params?: unknown[]): number {
-  if (!tableExists(db, table)) return 0;
-  const sql = `SELECT COUNT(*) as cnt FROM ${table}${whereClause ? ` WHERE ${whereClause}` : ''}`;
-  const stmt = db.prepare(sql);
-  const row = (params && params.length > 0 ? stmt.get(...params) : stmt.get()) as { cnt: number };
-  return row.cnt;
-}
-
-function queryAll(db: Database.Database, table: string, whereClause?: string, params?: unknown[]): unknown[] {
-  if (!tableExists(db, table)) return [];
-  const sql = `SELECT * FROM ${table}${whereClause ? ` WHERE ${whereClause}` : ''}`;
-  const stmt = db.prepare(sql);
-  return (params && params.length > 0 ? stmt.all(...params) : stmt.all()) as unknown[];
-}
-
-function writeJsonl(filePath: string, rows: unknown[]): void {
-  const lines = rows.map(r => JSON.stringify(r));
-  writeFileSync(filePath, lines.join('\n') + (lines.length > 0 ? '\n' : ''), 'utf-8');
-}
-
-function readJsonl<T = unknown>(filePath: string): T[] {
-  if (!existsSync(filePath)) return [];
-  const content = readFileSync(filePath, 'utf-8').trim();
-  if (content === '') return [];
-  return content.split('\n').map(line => safeJsonParse<T>(line));
-}
-
-/**
- * Build a domain filter WHERE clause for qe_patterns.
- * Returns [clause, params] or [undefined, []] when no filter is needed.
- */
-function domainFilter(domains?: readonly string[]): [string | undefined, string[]] {
-  if (!domains || domains.length === 0) return [undefined, []];
-  const placeholders = domains.map(() => '?').join(', ');
-  return [`qe_domain IN (${placeholders})`, [...domains]];
 }
 
 // ============================================================================
@@ -138,7 +185,6 @@ function domainFilter(domains?: readonly string[]): [string | undefined, string[
 
 /**
  * Export the QE brain state from a SQLite database into a portable directory.
- *
  * Uses a read-only connection to avoid acquiring write locks.
  */
 export function exportBrain(
@@ -151,73 +197,60 @@ export function exportBrain(
     mkdirSync(outDir, { recursive: true });
   }
 
-  // --- Patterns ---
-  const [domainWhere, domainParams] = domainFilter(options.domains);
-  const patterns = queryAll(db, 'qe_patterns', domainWhere, domainParams);
-  writeJsonl(join(outDir, 'patterns.jsonl'), patterns);
-
-  // Collect distinct domains from exported patterns
+  let totalRecords = 0;
+  const tableRecordCounts: Record<string, number> = {};
   const domainSet = new Set<string>();
-  for (const p of patterns as Array<{ qe_domain?: string }>) {
-    if (p.qe_domain) domainSet.add(p.qe_domain);
+
+  // Export each table using TABLE_CONFIGS
+  for (const config of TABLE_CONFIGS) {
+    const result = exportTableRows(db, config, options, outDir);
+    tableRecordCounts[config.tableName] = result.count;
+    totalRecords += result.count;
+
+    // Collect domains from pattern rows
+    if (config.tableName === 'qe_patterns') {
+      if (result.rows) {
+        // Buffered path — collect from in-memory rows
+        for (const p of result.rows as Array<{ qe_domain?: string }>) {
+          if (p.qe_domain) domainSet.add(p.qe_domain);
+        }
+      } else if (result.count > 0) {
+        // Streamed path — query domains separately
+        const [where, params] = config.domainColumn
+          ? domainFilterForColumn(options.domains, config.domainColumn)
+          : [undefined, [] as string[]];
+        const whereClause = where
+          ? `WHERE ${where} AND qe_domain IS NOT NULL`
+          : 'WHERE qe_domain IS NOT NULL';
+        const domainSql = `SELECT DISTINCT qe_domain FROM qe_patterns ${whereClause}`;
+        try {
+          const domainRows = db.prepare(domainSql).all(...(params || [])) as Array<{ qe_domain: string }>;
+          for (const r of domainRows) domainSet.add(r.qe_domain);
+        } catch { /* best-effort domain collection */ }
+      }
+    }
   }
 
-  // --- Q-Values ---
-  let qValueCount = 0;
-  if (options.includeQValues !== false) {
-    const [qWhere, qParams] = options.domains && options.domains.length > 0
-      ? [`domain IN (${options.domains.map(() => '?').join(', ')})`, [...options.domains]]
-      : [undefined, []];
-    const qValues = queryAll(db, 'rl_q_values', qWhere, qParams);
-    writeJsonl(join(outDir, 'q-values.jsonl'), qValues);
-    qValueCount = qValues.length;
-  } else {
-    writeJsonl(join(outDir, 'q-values.jsonl'), []);
-  }
+  // Special case: vectors count (for backward compat manifest stat)
+  const vectorCount = options.includeVectors !== false ? countRows(db, 'vectors') : 0;
 
-  // --- Dream Insights ---
-  let dreamInsightCount = 0;
-  if (options.includeDreamInsights !== false) {
-    const insights = queryAll(db, 'dream_insights');
-    writeJsonl(join(outDir, 'dream-insights.jsonl'), insights);
-    dreamInsightCount = insights.length;
-  } else {
-    writeJsonl(join(outDir, 'dream-insights.jsonl'), []);
-  }
-
-  // --- Witness Chain ---
-  let witnessChainLength = 0;
-  if (options.includeWitnessChain !== false) {
-    const chain = queryAll(db, 'witness_chain');
-    writeJsonl(join(outDir, 'witness-chain.jsonl'), chain);
-    witnessChainLength = chain.length;
-  } else {
-    writeJsonl(join(outDir, 'witness-chain.jsonl'), []);
-  }
-
-  // --- Vectors ---
-  let vectorCount = 0;
-  if (options.includeVectors !== false) {
-    vectorCount = countRows(db, 'vectors');
-  }
-
-  // --- Checksum ---
   const checksum = computeChecksum(outDir);
 
-  // --- Manifest ---
   const manifest: BrainExportManifest = {
-    version: '1.0',
+    version: '3.0',
     exportedAt: new Date().toISOString(),
     sourceDb: sourceDbLabel,
     stats: {
-      patternCount: patterns.length,
+      patternCount: tableRecordCounts['qe_patterns'] || 0,
       vectorCount,
-      qValueCount,
-      dreamInsightCount,
-      witnessChainLength,
+      qValueCount: tableRecordCounts['rl_q_values'] || 0,
+      dreamInsightCount: tableRecordCounts['dream_insights'] || 0,
+      witnessChainLength: tableRecordCounts['witness_chain'] || 0,
+      totalRecords,
     },
     domains: [...domainSet].sort(),
     checksum,
+    tableRecordCounts,
   };
 
   writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
@@ -229,78 +262,41 @@ export function exportBrain(
 // Import
 // ============================================================================
 
-interface PatternRow {
-  id: string;
-  pattern_type: string;
-  qe_domain: string;
-  domain: string;
-  name: string;
-  description?: string;
-  confidence?: number;
-  usage_count?: number;
-  success_rate?: number;
-  quality_score?: number;
-  tier?: string;
-  template_json?: string;
-  context_json?: string;
-  created_at?: string;
-  updated_at?: string;
-  last_used_at?: string;
-  successful_uses?: number;
-  tokens_used?: number;
-  input_tokens?: number;
-  output_tokens?: number;
-  latency_ms?: number;
-  reusable?: number;
-  reuse_count?: number;
-  average_token_savings?: number;
-  total_tokens_saved?: number;
-}
+/** The 4 original table names included in v1.0 exports. */
+const V1_LEGACY_TABLES = new Set([
+  'qe_patterns',
+  'rl_q_values',
+  'dream_insights',
+  'witness_chain',
+]);
 
-interface QValueRow {
-  id: string;
-  algorithm: string;
-  agent_id: string;
-  state_key: string;
-  action_key: string;
-  q_value: number;
-  visits: number;
-  last_reward?: number;
-  domain?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-interface DreamInsightRow {
-  id: string;
-  cycle_id: string;
-  insight_type: string;
-  source_concepts: string;
-  description: string;
-  novelty_score?: number;
-  confidence_score?: number;
-  actionable?: number;
-  applied?: number;
-  suggested_action?: string;
-  pattern_id?: string;
-  created_at?: string;
-}
-
-interface WitnessRow {
-  id: number;
-  prev_hash: string;
-  action_hash: string;
-  action_type: string;
-  action_data?: string;
-  timestamp: string;
-  actor: string;
+/**
+ * Determine which TABLE_CONFIGS entries to import based on manifest version.
+ *
+ * - v1.0 exports only contain the 4 original JSONL files.
+ * - v3.0 (and any future version) exports contain all TABLE_CONFIGS files.
+ * - Unknown versions attempt a full import with a console warning.
+ */
+function tablesToImport(version: string): readonly TableExportConfig[] {
+  if (version === '1.0') {
+    return TABLE_CONFIGS.filter(c => V1_LEGACY_TABLES.has(c.tableName));
+  }
+  if (version === '3.0') {
+    return TABLE_CONFIGS;
+  }
+  // Unknown version — attempt full import with warning
+  console.warn(
+    `[brain-import] Unknown manifest version '${version}'. ` +
+    'Attempting full import — some files may be missing.'
+  );
+  return TABLE_CONFIGS;
 }
 
 /**
  * Import a brain export directory into a target SQLite database.
+ * Validates the manifest checksum before proceeding.
  *
- * Validates the manifest checksum before proceeding. Applies the chosen
- * merge strategy to resolve conflicts on existing IDs.
+ * Supports both v1.0 (4-table) and v3.0 (all-table) exports.
  */
 export function importBrain(
   db: Database.Database,
@@ -309,7 +305,6 @@ export function importBrain(
 ): BrainImportResult {
   const dir = resolve(containerPath);
 
-  // Validate manifest exists
   const manifestPath = join(dir, 'manifest.json');
   if (!existsSync(manifestPath)) {
     throw new Error(`Manifest not found at ${manifestPath}`);
@@ -317,7 +312,6 @@ export function importBrain(
 
   const manifest: BrainExportManifest = safeJsonParse<BrainExportManifest>(readFileSync(manifestPath, 'utf-8'));
 
-  // Validate checksum
   const actualChecksum = computeChecksum(dir);
   if (actualChecksum !== manifest.checksum) {
     throw new Error(
@@ -326,453 +320,65 @@ export function importBrain(
     );
   }
 
+  const configs = tablesToImport(manifest.version);
+
+  if (options.dryRun) {
+    let total = 0;
+    for (const config of configs) {
+      const rows = readJsonl(join(dir, config.fileName), safeJsonParse);
+      total += rows.length;
+    }
+    return { imported: total, skipped: 0, conflicts: 0 };
+  }
+
+  ensureTargetTables(db);
+
   let imported = 0;
   let skipped = 0;
   let conflicts = 0;
 
-  if (options.dryRun) {
-    // Count what would be imported without actually writing
-    const patterns = readJsonl<PatternRow>(join(dir, 'patterns.jsonl'));
-    const qValues = readJsonl<QValueRow>(join(dir, 'q-values.jsonl'));
-    const insights = readJsonl<DreamInsightRow>(join(dir, 'dream-insights.jsonl'));
-    const chain = readJsonl<WitnessRow>(join(dir, 'witness-chain.jsonl'));
-    return {
-      imported: patterns.length + qValues.length + insights.length + chain.length,
-      skipped: 0,
-      conflicts: 0,
-    };
-  }
+  // Wrap entire import in a transaction for atomicity (Risk #3 from plan)
+  const importAll = db.transaction(() => {
+    for (const config of configs) {
+      const filePath = join(dir, config.fileName);
+      let rows = readJsonl<Record<string, unknown>>(filePath, safeJsonParse);
 
-  // Ensure target tables exist
-  ensureTargetTables(db);
+      // Deserialize BLOBs from Base64
+      if (config.blobColumns && config.blobColumns.length > 0) {
+        rows = rows.map(r => deserializeRowBlobs(r, config.blobColumns!));
+      }
 
-  // --- Import patterns ---
-  const patterns = readJsonl<PatternRow>(join(dir, 'patterns.jsonl'));
-  for (const pattern of patterns) {
-    const result = mergePattern(db, pattern, options.mergeStrategy);
-    imported += result.imported;
-    skipped += result.skipped;
-    conflicts += result.conflicts;
-  }
+      for (const row of rows) {
+        let result: MergeResult;
 
-  // --- Import Q-Values ---
-  const qValues = readJsonl<QValueRow>(join(dir, 'q-values.jsonl'));
-  for (const qv of qValues) {
-    const result = mergeQValue(db, qv, options.mergeStrategy);
-    imported += result.imported;
-    skipped += result.skipped;
-    conflicts += result.conflicts;
-  }
+        if (config.dedupColumns && config.dedupColumns.length > 0) {
+          // Append-only tables (witness_chain, qe_pattern_usage)
+          result = mergeAppendOnlyRow(db, config.tableName, row, config.dedupColumns);
+        } else {
+          // Tables with TEXT PK
+          const idCol = PK_COLUMNS[config.tableName] || 'id';
+          const tsCol = TIMESTAMP_COLUMNS[config.tableName];
+          const confCol = CONFIDENCE_COLUMNS[config.tableName];
+          result = mergeGenericRow(db, config.tableName, row, idCol, options.mergeStrategy, tsCol, confCol);
+        }
 
-  // --- Import Dream Insights ---
-  const insights = readJsonl<DreamInsightRow>(join(dir, 'dream-insights.jsonl'));
-  for (const insight of insights) {
-    const result = mergeDreamInsight(db, insight, options.mergeStrategy);
-    imported += result.imported;
-    skipped += result.skipped;
-    conflicts += result.conflicts;
-  }
+        imported += result.imported;
+        skipped += result.skipped;
+        conflicts += result.conflicts;
+      }
+    }
+  });
 
-  // --- Import Witness Chain ---
-  const chain = readJsonl<WitnessRow>(join(dir, 'witness-chain.jsonl'));
-  for (const entry of chain) {
-    const result = mergeWitnessEntry(db, entry, options.mergeStrategy);
-    imported += result.imported;
-    skipped += result.skipped;
-    conflicts += result.conflicts;
-  }
+  importAll();
 
   return { imported, skipped, conflicts };
-}
-
-// ============================================================================
-// Merge helpers
-// ============================================================================
-
-interface MergeResult {
-  imported: number;
-  skipped: number;
-  conflicts: number;
-}
-
-function mergePattern(
-  db: Database.Database,
-  pattern: PatternRow,
-  strategy: BrainImportOptions['mergeStrategy']
-): MergeResult {
-  const existing = tableExists(db, 'qe_patterns')
-    ? db.prepare('SELECT * FROM qe_patterns WHERE id = ?').get(pattern.id) as PatternRow | undefined
-    : undefined;
-
-  if (!existing) {
-    insertPattern(db, pattern);
-    return { imported: 1, skipped: 0, conflicts: 0 };
-  }
-
-  // Conflict resolution
-  switch (strategy) {
-    case 'skip-conflicts':
-      return { imported: 0, skipped: 1, conflicts: 1 };
-
-    case 'latest-wins': {
-      const existingTime = existing.updated_at || existing.created_at || '';
-      const incomingTime = pattern.updated_at || pattern.created_at || '';
-      if (incomingTime > existingTime) {
-        updatePattern(db, pattern);
-        return { imported: 1, skipped: 0, conflicts: 1 };
-      }
-      return { imported: 0, skipped: 1, conflicts: 1 };
-    }
-
-    case 'highest-confidence': {
-      const existingConf = existing.confidence ?? 0;
-      const incomingConf = pattern.confidence ?? 0;
-      if (incomingConf > existingConf) {
-        updatePattern(db, pattern);
-        return { imported: 1, skipped: 0, conflicts: 1 };
-      }
-      return { imported: 0, skipped: 1, conflicts: 1 };
-    }
-
-    case 'union':
-      // Union: keep existing, skip duplicate IDs
-      return { imported: 0, skipped: 1, conflicts: 1 };
-
-    default:
-      return { imported: 0, skipped: 1, conflicts: 1 };
-  }
-}
-
-function mergeQValue(
-  db: Database.Database,
-  qv: QValueRow,
-  strategy: BrainImportOptions['mergeStrategy']
-): MergeResult {
-  const existing = tableExists(db, 'rl_q_values')
-    ? db.prepare('SELECT * FROM rl_q_values WHERE id = ?').get(qv.id) as QValueRow | undefined
-    : undefined;
-
-  if (!existing) {
-    insertQValue(db, qv);
-    return { imported: 1, skipped: 0, conflicts: 0 };
-  }
-
-  switch (strategy) {
-    case 'skip-conflicts':
-      return { imported: 0, skipped: 1, conflicts: 1 };
-
-    case 'latest-wins': {
-      const existingTime = existing.updated_at || existing.created_at || '';
-      const incomingTime = qv.updated_at || qv.created_at || '';
-      if (incomingTime > existingTime) {
-        updateQValue(db, qv);
-        return { imported: 1, skipped: 0, conflicts: 1 };
-      }
-      return { imported: 0, skipped: 1, conflicts: 1 };
-    }
-
-    case 'highest-confidence': {
-      // For Q-values, use q_value as the confidence proxy
-      if (qv.q_value > existing.q_value) {
-        updateQValue(db, qv);
-        return { imported: 1, skipped: 0, conflicts: 1 };
-      }
-      return { imported: 0, skipped: 1, conflicts: 1 };
-    }
-
-    case 'union':
-      return { imported: 0, skipped: 1, conflicts: 1 };
-
-    default:
-      return { imported: 0, skipped: 1, conflicts: 1 };
-  }
-}
-
-function mergeDreamInsight(
-  db: Database.Database,
-  insight: DreamInsightRow,
-  strategy: BrainImportOptions['mergeStrategy']
-): MergeResult {
-  const existing = tableExists(db, 'dream_insights')
-    ? db.prepare('SELECT * FROM dream_insights WHERE id = ?').get(insight.id) as DreamInsightRow | undefined
-    : undefined;
-
-  if (!existing) {
-    insertDreamInsight(db, insight);
-    return { imported: 1, skipped: 0, conflicts: 0 };
-  }
-
-  switch (strategy) {
-    case 'skip-conflicts':
-      return { imported: 0, skipped: 1, conflicts: 1 };
-
-    case 'latest-wins': {
-      const existingTime = existing.created_at || '';
-      const incomingTime = insight.created_at || '';
-      if (incomingTime > existingTime) {
-        updateDreamInsight(db, insight);
-        return { imported: 1, skipped: 0, conflicts: 1 };
-      }
-      return { imported: 0, skipped: 1, conflicts: 1 };
-    }
-
-    case 'highest-confidence': {
-      const existingConf = existing.confidence_score ?? 0;
-      const incomingConf = insight.confidence_score ?? 0;
-      if (incomingConf > existingConf) {
-        updateDreamInsight(db, insight);
-        return { imported: 1, skipped: 0, conflicts: 1 };
-      }
-      return { imported: 0, skipped: 1, conflicts: 1 };
-    }
-
-    case 'union':
-      return { imported: 0, skipped: 1, conflicts: 1 };
-
-    default:
-      return { imported: 0, skipped: 1, conflicts: 1 };
-  }
-}
-
-function mergeWitnessEntry(
-  db: Database.Database,
-  entry: WitnessRow,
-  strategy: BrainImportOptions['mergeStrategy']
-): MergeResult {
-  // Witness chain uses INTEGER AUTOINCREMENT id — check by action_hash + timestamp for dedup
-  const existing = tableExists(db, 'witness_chain')
-    ? db.prepare(
-        'SELECT * FROM witness_chain WHERE action_hash = ? AND timestamp = ?'
-      ).get(entry.action_hash, entry.timestamp) as WitnessRow | undefined
-    : undefined;
-
-  if (!existing) {
-    insertWitnessEntry(db, entry);
-    return { imported: 1, skipped: 0, conflicts: 0 };
-  }
-
-  // All strategies skip duplicate witness entries (append-only log)
-  return { imported: 0, skipped: 1, conflicts: 1 };
-}
-
-// ============================================================================
-// SQL Insert/Update helpers
-// ============================================================================
-
-function insertPattern(db: Database.Database, p: PatternRow): void {
-  db.prepare(`
-    INSERT INTO qe_patterns (
-      id, pattern_type, qe_domain, domain, name, description,
-      confidence, usage_count, success_rate, quality_score, tier,
-      template_json, context_json, created_at, updated_at, last_used_at,
-      successful_uses, tokens_used, input_tokens, output_tokens,
-      latency_ms, reusable, reuse_count, average_token_savings, total_tokens_saved
-    ) VALUES (
-      ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?,
-      ?, ?, ?, ?,
-      ?, ?, ?, ?, ?
-    )
-  `).run(
-    p.id, p.pattern_type, p.qe_domain, p.domain, p.name, p.description ?? null,
-    p.confidence ?? 0.5, p.usage_count ?? 0, p.success_rate ?? 0, p.quality_score ?? 0, p.tier ?? 'short-term',
-    p.template_json ?? null, p.context_json ?? null, p.created_at ?? null, p.updated_at ?? null, p.last_used_at ?? null,
-    p.successful_uses ?? 0, p.tokens_used ?? null, p.input_tokens ?? null, p.output_tokens ?? null,
-    p.latency_ms ?? null, p.reusable ?? 0, p.reuse_count ?? 0, p.average_token_savings ?? 0, p.total_tokens_saved ?? null
-  );
-}
-
-function updatePattern(db: Database.Database, p: PatternRow): void {
-  db.prepare(`
-    UPDATE qe_patterns SET
-      pattern_type = ?, qe_domain = ?, domain = ?, name = ?, description = ?,
-      confidence = ?, usage_count = ?, success_rate = ?, quality_score = ?, tier = ?,
-      template_json = ?, context_json = ?, updated_at = ?, last_used_at = ?,
-      successful_uses = ?, tokens_used = ?, input_tokens = ?, output_tokens = ?,
-      latency_ms = ?, reusable = ?, reuse_count = ?, average_token_savings = ?, total_tokens_saved = ?
-    WHERE id = ?
-  `).run(
-    p.pattern_type, p.qe_domain, p.domain, p.name, p.description ?? null,
-    p.confidence ?? 0.5, p.usage_count ?? 0, p.success_rate ?? 0, p.quality_score ?? 0, p.tier ?? 'short-term',
-    p.template_json ?? null, p.context_json ?? null, p.updated_at ?? null, p.last_used_at ?? null,
-    p.successful_uses ?? 0, p.tokens_used ?? null, p.input_tokens ?? null, p.output_tokens ?? null,
-    p.latency_ms ?? null, p.reusable ?? 0, p.reuse_count ?? 0, p.average_token_savings ?? 0, p.total_tokens_saved ?? null,
-    p.id
-  );
-}
-
-function insertQValue(db: Database.Database, qv: QValueRow): void {
-  db.prepare(`
-    INSERT INTO rl_q_values (id, algorithm, agent_id, state_key, action_key, q_value, visits, last_reward, domain, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    qv.id, qv.algorithm, qv.agent_id, qv.state_key, qv.action_key,
-    qv.q_value, qv.visits, qv.last_reward ?? null, qv.domain ?? null,
-    qv.created_at ?? null, qv.updated_at ?? null
-  );
-}
-
-function updateQValue(db: Database.Database, qv: QValueRow): void {
-  db.prepare(`
-    UPDATE rl_q_values SET
-      algorithm = ?, agent_id = ?, state_key = ?, action_key = ?,
-      q_value = ?, visits = ?, last_reward = ?, domain = ?, updated_at = ?
-    WHERE id = ?
-  `).run(
-    qv.algorithm, qv.agent_id, qv.state_key, qv.action_key,
-    qv.q_value, qv.visits, qv.last_reward ?? null, qv.domain ?? null,
-    qv.updated_at ?? null, qv.id
-  );
-}
-
-function insertDreamInsight(db: Database.Database, ins: DreamInsightRow): void {
-  db.prepare(`
-    INSERT INTO dream_insights (
-      id, cycle_id, insight_type, source_concepts, description,
-      novelty_score, confidence_score, actionable, applied,
-      suggested_action, pattern_id, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    ins.id, ins.cycle_id, ins.insight_type, ins.source_concepts, ins.description,
-    ins.novelty_score ?? 0.5, ins.confidence_score ?? 0.5,
-    ins.actionable ?? 0, ins.applied ?? 0,
-    ins.suggested_action ?? null, ins.pattern_id ?? null, ins.created_at ?? null
-  );
-}
-
-function updateDreamInsight(db: Database.Database, ins: DreamInsightRow): void {
-  db.prepare(`
-    UPDATE dream_insights SET
-      cycle_id = ?, insight_type = ?, source_concepts = ?, description = ?,
-      novelty_score = ?, confidence_score = ?, actionable = ?, applied = ?,
-      suggested_action = ?, pattern_id = ?, created_at = ?
-    WHERE id = ?
-  `).run(
-    ins.cycle_id, ins.insight_type, ins.source_concepts, ins.description,
-    ins.novelty_score ?? 0.5, ins.confidence_score ?? 0.5,
-    ins.actionable ?? 0, ins.applied ?? 0,
-    ins.suggested_action ?? null, ins.pattern_id ?? null, ins.created_at ?? null,
-    ins.id
-  );
-}
-
-function insertWitnessEntry(db: Database.Database, entry: WitnessRow): void {
-  db.prepare(`
-    INSERT INTO witness_chain (prev_hash, action_hash, action_type, action_data, timestamp, actor)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(
-    entry.prev_hash, entry.action_hash, entry.action_type,
-    entry.action_data ?? null, entry.timestamp, entry.actor
-  );
-}
-
-// ============================================================================
-// Table creation for import targets
-// ============================================================================
-
-function ensureTargetTables(db: Database.Database): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS qe_patterns (
-      id TEXT PRIMARY KEY,
-      pattern_type TEXT NOT NULL,
-      qe_domain TEXT NOT NULL,
-      domain TEXT NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT,
-      confidence REAL DEFAULT 0.5,
-      usage_count INTEGER DEFAULT 0,
-      success_rate REAL DEFAULT 0.0,
-      quality_score REAL DEFAULT 0.0,
-      tier TEXT DEFAULT 'short-term',
-      template_json TEXT,
-      context_json TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
-      last_used_at TEXT,
-      successful_uses INTEGER DEFAULT 0,
-      tokens_used INTEGER,
-      input_tokens INTEGER,
-      output_tokens INTEGER,
-      latency_ms REAL,
-      reusable INTEGER DEFAULT 0,
-      reuse_count INTEGER DEFAULT 0,
-      average_token_savings REAL DEFAULT 0,
-      total_tokens_saved INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS rl_q_values (
-      id TEXT PRIMARY KEY,
-      algorithm TEXT NOT NULL,
-      agent_id TEXT NOT NULL,
-      state_key TEXT NOT NULL,
-      action_key TEXT NOT NULL,
-      q_value REAL NOT NULL DEFAULT 0.0,
-      visits INTEGER NOT NULL DEFAULT 0,
-      last_reward REAL,
-      domain TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(algorithm, agent_id, state_key, action_key)
-    );
-
-    CREATE TABLE IF NOT EXISTS dream_insights (
-      id TEXT PRIMARY KEY,
-      cycle_id TEXT NOT NULL,
-      insight_type TEXT NOT NULL,
-      source_concepts TEXT NOT NULL,
-      description TEXT NOT NULL,
-      novelty_score REAL DEFAULT 0.5,
-      confidence_score REAL DEFAULT 0.5,
-      actionable INTEGER DEFAULT 0,
-      applied INTEGER DEFAULT 0,
-      suggested_action TEXT,
-      pattern_id TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS dream_cycles (
-      id TEXT PRIMARY KEY,
-      start_time TEXT NOT NULL,
-      end_time TEXT,
-      duration_ms INTEGER,
-      concepts_processed INTEGER DEFAULT 0,
-      associations_found INTEGER DEFAULT 0,
-      insights_generated INTEGER DEFAULT 0,
-      status TEXT DEFAULT 'running',
-      error TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS witness_chain (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      prev_hash TEXT NOT NULL,
-      action_hash TEXT NOT NULL,
-      action_type TEXT NOT NULL,
-      action_data TEXT,
-      timestamp TEXT NOT NULL,
-      actor TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS vectors (
-      id TEXT PRIMARY KEY,
-      namespace TEXT NOT NULL DEFAULT 'default',
-      embedding BLOB NOT NULL,
-      dimensions INTEGER NOT NULL,
-      metadata TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
 }
 
 // ============================================================================
 // Brain Info
 // ============================================================================
 
-/**
- * Read and return the manifest from a brain export directory.
- */
+/** Read and return the manifest from a brain export directory. */
 export function brainInfo(containerPath: string): BrainExportManifest {
   const dir = resolve(containerPath);
   const manifestPath = join(dir, 'manifest.json');

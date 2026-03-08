@@ -14,6 +14,7 @@ import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
 import { AsymmetricLearningEngine, type AsymmetricLearningConfig } from './asymmetric-learning.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { LoggerFactory } from '../logging/index.js';
+import type { WitnessChain } from '../audit/witness-chain.js';
 
 const logger = LoggerFactory.create('pattern-lifecycle');
 
@@ -155,6 +156,10 @@ export interface PatternLifecycleStats {
 export class PatternLifecycleManager {
   private readonly config: PatternLifecycleConfig;
   private readonly asymmetricEngine: AsymmetricLearningEngine;
+
+  /** Optional witness chain for audit trail of lifecycle events (ADR-070) */
+  private _witnessChain: WitnessChain | null = null;
+  set witnessChain(wc: WitnessChain | null) { this._witnessChain = wc; }
 
   constructor(
     private readonly db: DatabaseType,
@@ -780,6 +785,11 @@ Pattern extracted from ${exp.count} successful experiences.`;
 
     if (result.changes > 0) {
       console.log(`[PatternLifecycle] Quarantined pattern ${patternId} (asymmetric confidence drop)`);
+      try {
+        this._witnessChain?.append('PATTERN_QUARANTINE', {
+          patternId,
+        }, 'pattern-lifecycle');
+      } catch { /* best-effort witness */ }
       return true;
     }
     return false;

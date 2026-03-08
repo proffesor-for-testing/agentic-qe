@@ -25,6 +25,7 @@ import {
   computeRealEmbedding,
   cosineSimilarity,
 } from '../learning/real-embeddings.js';
+import type { WitnessChain } from '../audit/witness-chain.js';
 
 // ============================================================================
 // Task Keyword Detection
@@ -150,6 +151,10 @@ export class QETaskRouter {
   private initialized = false;
   private embeddingCache: Map<string, number[]> = new Map();
 
+  /** Optional witness chain for audit trail of routing decisions (ADR-070) */
+  private _witnessChain: WitnessChain | null = null;
+  set witnessChain(wc: WitnessChain | null) { this._witnessChain = wc; }
+
   constructor(config: Partial<QERouterConfig> = {}) {
     this.config = { ...DEFAULT_ROUTER_CONFIG, ...config };
   }
@@ -230,6 +235,15 @@ export class QETaskRouter {
     }));
 
     const latencyMs = performance.now() - startTime;
+
+    try {
+      this._witnessChain?.append('ROUTING_DECISION', {
+        taskDescription: task.description?.slice(0, 200),
+        recommended: topScore.agent,
+        confidence: topScore.combinedScore,
+        latencyMs,
+      }, 'qe-task-router');
+    } catch { /* best-effort witness */ }
 
     return {
       recommended: topScore.agent,

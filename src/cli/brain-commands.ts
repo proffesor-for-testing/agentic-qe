@@ -28,6 +28,8 @@ import {
   type RvfBrainManifest,
   type RvfBrainImportResult,
 } from '../integrations/ruvector/brain-rvf-exporter.js';
+import { createWitnessChain } from '../audit/witness-chain.js';
+import { backfillWitnessChain } from '../audit/witness-backfill.js';
 
 /** Unified manifest type covering both formats */
 export type BrainManifest = BrainExportManifest | RvfBrainManifest;
@@ -124,6 +126,32 @@ export async function brainInfo(
   }
 
   return coreBrainInfo(containerPath);
+}
+
+// ============================================================================
+// Witness Backfill
+// ============================================================================
+
+export interface WitnessBackfillResult {
+  created: number;
+  skipped: number;
+}
+
+/**
+ * Retroactively create witness chain entries for existing patterns
+ * that predate the witness chain feature.
+ */
+export async function witnessBackfill(
+  dbPath: string,
+): Promise<WitnessBackfillResult> {
+  const db = new Database(dbPath, { readonly: false });
+  try {
+    const chain = createWitnessChain(db);
+    await chain.initialize();
+    return backfillWitnessChain(db, chain);
+  } finally {
+    db.close();
+  }
 }
 
 // ============================================================================

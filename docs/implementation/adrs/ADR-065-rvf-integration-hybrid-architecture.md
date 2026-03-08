@@ -83,7 +83,19 @@ Adopt Chroma, Qdrant, or similar purpose-built vector database for embedding sto
 | Relates To | ADR-066 | RVF-backed Pattern Store with Progressive HNSW | Implements vector migration portion |
 | Relates To | ADR-067 | Agent Memory Branching via RVF Copy-on-Write | Implements COW branching portion |
 | Relates To | ADR-064 | Agent Teams Integration | Agent teams benefit from COW memory isolation |
+| Relates To | ADR-073 | Portable Intelligence Containers | Brain export implements hybrid SQLite→RVF packaging |
 | Part Of | MADR-001 | V3 Implementation Initiative | RVF integration phase |
+
+---
+
+## Evidence of Hybrid Architecture in Practice
+
+As of 2026-03-08, the `aqe brain export/import` system validates the hybrid approach:
+SQLite remains the source of truth for all 38 tables in `.agentic-qe/memory.db`, while
+RVF serves as the portable distribution format. The brain export reads from SQLite and
+writes to RVF (KERNEL_SEG for data, VEC_SEG + INDEX_SEG for embeddings). Import reads
+from RVF and writes back to SQLite. This confirms the hybrid architecture works for
+real data flows. See `docs/brain-export-improvement-plan.md` for the v3.0 upgrade plan.
 
 ---
 
@@ -92,10 +104,12 @@ Adopt Chroma, Qdrant, or similar purpose-built vector database for embedding sto
 | Ref ID | Title | Type | Location |
 |--------|-------|------|----------|
 | EXT-001 | RVF Specification | Technical Spec | @ruvector/rvf package documentation |
-| INT-001 | PatternStore | Existing Code | `v3/src/learning/pattern-store.ts` |
-| INT-002 | Unified Memory | Existing Code | `v3/src/kernel/unified-memory.ts` |
-| INT-003 | RuVector Feature Flags | Existing Code | `v3/src/learning/ruvector-feature-flags.ts` |
-| INT-004 | Database Module | Existing Code | `v3/src/database/` |
+| INT-001 | PatternStore | Existing Code | `src/learning/pattern-store.ts` |
+| INT-002 | Unified Memory | Existing Code | `src/kernel/unified-memory.ts` |
+| INT-003 | RuVector Feature Flags | Existing Code | `src/learning/ruvector-feature-flags.ts` |
+| INT-004 | Database Module | Existing Code | `src/database/` |
+| INT-005 | Brain Export System | Existing Code | `src/integrations/ruvector/brain-*.ts` |
+| INT-006 | Improvement Plan | Plan | `docs/brain-export-improvement-plan.md` |
 
 ---
 
@@ -112,6 +126,7 @@ Adopt Chroma, Qdrant, or similar purpose-built vector database for embedding sto
 | Status | Date | Notes |
 |--------|------|-------|
 | Proposed | 2026-02-15 | Initial creation. Hybrid architecture for RVF integration alongside existing SQLite persistence. |
+| — | 2026-03-08 | Added cross-reference: brain export system validates hybrid approach with SQLite→RVF data flows. |
 
 ---
 

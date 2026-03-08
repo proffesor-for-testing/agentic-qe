@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-073 |
-| **Status** | Proposed |
+| **Status** | In Progress |
 | **Date** | 2026-02-22 |
 | **Author** | Architecture Team |
 | **Review Cadence** | 6 months |
@@ -251,6 +251,76 @@ interface CompatibilityCheck {
 
 ---
 
+## Implementation Status
+
+### Current State (as of 2026-03-08)
+
+A working `aqe brain export/import` system exists and implements a subset of this ADR's
+vision. The current system exports 5 of 38 database tables via two formats:
+
+- **JSONL** (v1.0): Multi-file directory format (fallback, no native dependency)
+- **RVF** (v2.0): Single `.rvf` file via `@ruvector/rvf-node` native binding
+
+**Implemented:**
+- CLI commands: `aqe brain export`, `aqe brain import`, `aqe brain info`
+- Two export formats with auto-detection on import
+- Four merge strategies: `skip-conflicts`, `latest-wins`, `highest-confidence`, `union`
+- SHA-256 checksum validation (JSONL) and kernel-embedded data (RVF)
+- Domain filtering on export
+- Dry-run import preview
+
+**Not yet implemented (covered by improvement plan):**
+- Full knowledge export (only 5 of 23 learning tables exported)
+- Embedding round-trip fidelity (`embeddingsRestored` always 0 for RVF imports)
+- RVF witness chain verification on import (`verify_witness()`)
+- Ed25519 signed exports
+- Lineage tracking (`file_id`, `parent_id`, `lineage_depth`)
+- Per-vector metadata for filtered brain search
+- Container versioning (semver in manifest)
+- Compatibility checking on import
+
+### Brain Export v3.0 Improvement Plan
+
+A 5-phase plan to close these gaps is documented in
+[`docs/brain-export-improvement-plan.md`](../brain-export-improvement-plan.md):
+
+| Phase | Scope | Effort |
+|-------|-------|--------|
+| 1 | Extract shared code, eliminate ~250-line duplication | 4-6h |
+| 2 | Add 18 missing tables (5 → 23 total) | 8-12h |
+| 3 | Fix embedding restore gap (BLOB round-trip via Base64 in kernel) | 6-8h |
+| 4 | Leverage ruvector: `verify_witness()`, signing, lineage, metadata | 6-8h |
+| 5 | Manifest v3.0, backward compat (v1.0/v2.0 import), CLI polish | 4-6h |
+
+### Architecture Divergence Note
+
+The current implementation uses `KERNEL_SEG` to store all brain data as a single
+JSON blob, rather than distributing data across `VEC_SEG`, `META_SEG`, and `INDEX_SEG`
+as envisioned by this ADR. This is pragmatic: the kernel approach provides full data
+fidelity regardless of which ruvector native methods are available. Embeddings are
+additionally ingested into HNSW (`VEC_SEG` + `INDEX_SEG`) for semantic search within
+the RVF file.
+
+The v3.0 plan maintains this kernel-centric approach because:
+1. It works with both RVF and JSONL formats (JSONL has no segment concept)
+2. It guarantees data round-trip fidelity without depending on HNSW extraction
+3. It avoids requiring consumers to understand RVF segment internals
+
+Migration to segment-native storage (this ADR's full vision) can happen in a later
+phase once the RVF primary persistence migration (ADR-072) is further along.
+
+### Key Implementation Files
+
+| File | Role |
+|------|------|
+| `src/cli/handlers/brain-handler.ts` | CLI wiring (Commander.js) |
+| `src/cli/brain-commands.ts` | Format resolution, DB lifecycle |
+| `src/integrations/ruvector/brain-exporter.ts` | JSONL format core |
+| `src/integrations/ruvector/brain-rvf-exporter.ts` | RVF format core |
+| `src/integrations/ruvector/rvf-native-adapter.ts` | N-API wrapper with ID mapping |
+
+---
+
 ## Dependencies
 
 | Relationship | ADR ID | Title | Notes |
@@ -259,6 +329,7 @@ interface CompatibilityCheck {
 | Depends On | ADR-066 | RVF-backed Pattern Store with Progressive HNSW | Index must be RVF-native for export |
 | Depends On | ADR-070 | Witness Chain Audit Compliance | Provenance chain included in containers |
 | Depends On | ADR-072 | RVF Primary Persistence Migration | Full migration enables complete export |
+| Implemented By | — | Brain Export v3.0 Plan | `docs/brain-export-improvement-plan.md` |
 | Relates To | ADR-067 | Agent Memory Branching | Containers can be derived as COW branches |
 | Relates To | ADR-050 | RuVector Neural Backbone | Containers package ruvector-learned knowledge |
 | Part Of | MADR-001 | V3 Implementation Initiative | RVF integration Phase 3 |
@@ -272,9 +343,13 @@ interface CompatibilityCheck {
 | EXT-001 | RVF Manifest Spec | Technical Spec | @ruvector/rvf package documentation |
 | EXT-002 | RVF CRYPTO_SEG Spec | Technical Spec | @ruvector/rvf package documentation |
 | EXT-003 | Ed25519 (RFC 8032) | Standard | IETF signature standard |
-| INT-001 | PatternStore | Existing Code | `v3/src/learning/pattern-store.ts` |
-| INT-002 | ReasoningBank | Existing Code | `v3/src/learning/reasoning-bank.ts` |
-| INT-003 | CLI Commands | Existing Code | `v3/src/cli/` |
+| INT-001 | PatternStore | Existing Code | `src/learning/pattern-store.ts` |
+| INT-002 | ReasoningBank | Existing Code | `src/learning/reasoning-bank.ts` |
+| INT-003 | CLI Commands | Existing Code | `src/cli/handlers/brain-handler.ts` |
+| INT-004 | Brain Exporter (JSONL) | Existing Code | `src/integrations/ruvector/brain-exporter.ts` |
+| INT-005 | Brain Exporter (RVF) | Existing Code | `src/integrations/ruvector/brain-rvf-exporter.ts` |
+| INT-006 | RVF Native Adapter | Existing Code | `src/integrations/ruvector/rvf-native-adapter.ts` |
+| INT-007 | Improvement Plan | Plan | `docs/brain-export-improvement-plan.md` |
 
 ---
 
@@ -291,6 +366,7 @@ interface CompatibilityCheck {
 | Status | Date | Notes |
 |--------|------|-------|
 | Proposed | 2026-02-22 | Initial creation. Portable intelligence container specification for exporting, sharing, and importing learned QE knowledge. |
+| In Progress | 2026-03-08 | Working `aqe brain export/import` exists (5 tables, JSONL + RVF formats). Brain Export v3.0 improvement plan created covering 23 tables, embedding round-trip, witness verification, and signing. See `docs/brain-export-improvement-plan.md`. |
 
 ---
 

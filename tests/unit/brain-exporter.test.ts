@@ -16,10 +16,12 @@ import {
   exportBrain,
   importBrain,
   brainInfo,
+  computeChecksum,
   type BrainExportManifest,
   type BrainExportOptions,
   type BrainImportOptions,
 } from '../../src/integrations/ruvector/brain-exporter.js';
+import { ensureTargetTables, TABLE_CONFIGS } from '../../src/integrations/ruvector/brain-shared.js';
 
 // ============================================================================
 // Helpers
@@ -28,101 +30,7 @@ import {
 function createTestDb(): Database.Database {
   const db = new Database(':memory:');
   db.pragma('journal_mode = WAL');
-
-  // Create tables matching the unified schema
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS qe_patterns (
-      id TEXT PRIMARY KEY,
-      pattern_type TEXT NOT NULL,
-      qe_domain TEXT NOT NULL,
-      domain TEXT NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT,
-      confidence REAL DEFAULT 0.5,
-      usage_count INTEGER DEFAULT 0,
-      success_rate REAL DEFAULT 0.0,
-      quality_score REAL DEFAULT 0.0,
-      tier TEXT DEFAULT 'short-term',
-      template_json TEXT,
-      context_json TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
-      last_used_at TEXT,
-      successful_uses INTEGER DEFAULT 0,
-      tokens_used INTEGER,
-      input_tokens INTEGER,
-      output_tokens INTEGER,
-      latency_ms REAL,
-      reusable INTEGER DEFAULT 0,
-      reuse_count INTEGER DEFAULT 0,
-      average_token_savings REAL DEFAULT 0,
-      total_tokens_saved INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS rl_q_values (
-      id TEXT PRIMARY KEY,
-      algorithm TEXT NOT NULL,
-      agent_id TEXT NOT NULL,
-      state_key TEXT NOT NULL,
-      action_key TEXT NOT NULL,
-      q_value REAL NOT NULL DEFAULT 0.0,
-      visits INTEGER NOT NULL DEFAULT 0,
-      last_reward REAL,
-      domain TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(algorithm, agent_id, state_key, action_key)
-    );
-
-    CREATE TABLE IF NOT EXISTS dream_cycles (
-      id TEXT PRIMARY KEY,
-      start_time TEXT NOT NULL,
-      end_time TEXT,
-      duration_ms INTEGER,
-      concepts_processed INTEGER DEFAULT 0,
-      associations_found INTEGER DEFAULT 0,
-      insights_generated INTEGER DEFAULT 0,
-      status TEXT DEFAULT 'running',
-      error TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS dream_insights (
-      id TEXT PRIMARY KEY,
-      cycle_id TEXT NOT NULL,
-      insight_type TEXT NOT NULL,
-      source_concepts TEXT NOT NULL,
-      description TEXT NOT NULL,
-      novelty_score REAL DEFAULT 0.5,
-      confidence_score REAL DEFAULT 0.5,
-      actionable INTEGER DEFAULT 0,
-      applied INTEGER DEFAULT 0,
-      suggested_action TEXT,
-      pattern_id TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS witness_chain (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      prev_hash TEXT NOT NULL,
-      action_hash TEXT NOT NULL,
-      action_type TEXT NOT NULL,
-      action_data TEXT,
-      timestamp TEXT NOT NULL,
-      actor TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS vectors (
-      id TEXT PRIMARY KEY,
-      namespace TEXT NOT NULL DEFAULT 'default',
-      embedding BLOB NOT NULL,
-      dimensions INTEGER NOT NULL,
-      metadata TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
-
+  ensureTargetTables(db);
   return db;
 }
 
@@ -236,7 +144,7 @@ describe('Brain Export/Import System', () => {
         includeVectors: true,
       });
 
-      expect(manifest.version).toBe('1.0');
+      expect(manifest.version).toBe('3.0');
       expect(manifest.stats.patternCount).toBe(3);
       expect(manifest.stats.qValueCount).toBe(2);
       expect(manifest.stats.dreamInsightCount).toBe(2);
@@ -321,7 +229,8 @@ describe('Brain Export/Import System', () => {
       const targetDb = createTestDb();
       const result = importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
 
-      expect(result.imported).toBe(3 + 2 + 2 + 2); // 3 patterns + 2 qvalues + 2 insights + 2 witness
+      // 3 patterns + 2 qvalues + 1 dream_cycle + 2 insights + 2 witness + 1 vector = 11
+      expect(result.imported).toBe(11);
       expect(result.skipped).toBe(0);
       expect(result.conflicts).toBe(0);
 
@@ -452,12 +361,10 @@ describe('Brain Export/Import System', () => {
       const result = importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
 
       // All records imported
-      expect(result.imported).toBe(
-        manifest.stats.patternCount +
-        manifest.stats.qValueCount +
-        manifest.stats.dreamInsightCount +
-        manifest.stats.witnessChainLength
-      );
+      expect(result.imported).toBe(manifest.stats.totalRecords ?? (
+        manifest.stats.patternCount + manifest.stats.qValueCount +
+        manifest.stats.dreamInsightCount + manifest.stats.witnessChainLength
+      ));
       expect(result.skipped).toBe(0);
       expect(result.conflicts).toBe(0);
 
@@ -508,7 +415,7 @@ describe('Brain Export/Import System', () => {
 
       const info = brainInfo(outDir);
 
-      expect(info.version).toBe('1.0');
+      expect(info.version).toBe('3.0');
       expect(info.stats.patternCount).toBe(exported.stats.patternCount);
       expect(info.stats.qValueCount).toBe(exported.stats.qValueCount);
       expect(info.checksum).toBe(exported.checksum);
@@ -663,6 +570,196 @@ describe('Brain Export/Import System', () => {
 
       expect(manifest.stats.patternCount).toBe(0);
       expect(manifest.domains).toEqual([]);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Phase 2: New table export/import tests
+  // --------------------------------------------------------------------------
+
+  describe('Phase 2 tables', () => {
+    it('should export and import captured_experiences', () => {
+      sourceDb.prepare(`
+        INSERT INTO captured_experiences (id, task, agent, domain, success, quality, duration_ms, completed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('exp-1', 'test-task', 'agent-1', 'test-generation', 1, 0.85, 500, '2026-02-20T10:00:00Z');
+
+      const outDir = makeTempDir();
+      const manifest = exportBrain(sourceDb, { outputPath: outDir });
+      expect(manifest.tableRecordCounts?.captured_experiences).toBe(1);
+
+      const targetDb = createTestDb();
+      importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
+
+      const row = targetDb.prepare('SELECT * FROM captured_experiences WHERE id = ?').get('exp-1') as Record<string, unknown>;
+      expect(row.task).toBe('test-task');
+      expect(row.quality).toBe(0.85);
+      expect(row.domain).toBe('test-generation');
+
+      targetDb.close();
+    });
+
+    it('should export and import sona_patterns', () => {
+      sourceDb.prepare(`
+        INSERT INTO sona_patterns (id, type, domain, action_type, outcome_reward, outcome_success, outcome_quality, confidence)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('sona-1', 'test', 'test-generation', 'generate', 0.9, 1, 0.8, 0.75);
+
+      const outDir = makeTempDir();
+      const manifest = exportBrain(sourceDb, { outputPath: outDir });
+      expect(manifest.tableRecordCounts?.sona_patterns).toBe(1);
+
+      const targetDb = createTestDb();
+      importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
+
+      const row = targetDb.prepare('SELECT * FROM sona_patterns WHERE id = ?').get('sona-1') as Record<string, unknown>;
+      expect(row.type).toBe('test');
+      expect(row.confidence).toBe(0.75);
+
+      targetDb.close();
+    });
+
+    it('should export and import goap_actions with domain filter', () => {
+      sourceDb.prepare(`
+        INSERT INTO goap_actions (id, name, agent_type, preconditions, effects, category, qe_domain)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run('ga-1', 'RunTests', 'tester', '{}', '{}', 'testing', 'test-generation');
+      sourceDb.prepare(`
+        INSERT INTO goap_actions (id, name, agent_type, preconditions, effects, category, qe_domain)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run('ga-2', 'ScanSecurity', 'auditor', '{}', '{}', 'security', 'security-compliance');
+
+      const outDir = makeTempDir();
+      const manifest = exportBrain(sourceDb, {
+        outputPath: outDir,
+        domains: ['test-generation'],
+      });
+
+      // Only ga-1 should be exported (domain filtered)
+      expect(manifest.tableRecordCounts?.goap_actions).toBe(1);
+
+      const targetDb = createTestDb();
+      importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
+
+      const count = (targetDb.prepare('SELECT COUNT(*) as cnt FROM goap_actions').get() as { cnt: number }).cnt;
+      expect(count).toBe(1);
+
+      targetDb.close();
+    });
+
+    it('should export and import concept_nodes and concept_edges', () => {
+      sourceDb.prepare(`
+        INSERT INTO concept_nodes (id, concept_type, content, activation_level)
+        VALUES (?, ?, ?, ?)
+      `).run('cn-1', 'pattern', 'Test pattern concept', 0.8);
+      sourceDb.prepare(`
+        INSERT INTO concept_nodes (id, concept_type, content, activation_level)
+        VALUES (?, ?, ?, ?)
+      `).run('cn-2', 'domain', 'Coverage domain', 0.6);
+      sourceDb.prepare(`
+        INSERT INTO concept_edges (id, source, target, weight, edge_type, evidence)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run('ce-1', 'cn-1', 'cn-2', 0.9, 'related', 5);
+
+      const outDir = makeTempDir();
+      const manifest = exportBrain(sourceDb, { outputPath: outDir });
+
+      expect(manifest.tableRecordCounts?.concept_nodes).toBe(2);
+      expect(manifest.tableRecordCounts?.concept_edges).toBe(1);
+
+      const targetDb = createTestDb();
+      importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
+
+      const nodeCount = (targetDb.prepare('SELECT COUNT(*) as cnt FROM concept_nodes').get() as { cnt: number }).cnt;
+      expect(nodeCount).toBe(2);
+
+      const edgeCount = (targetDb.prepare('SELECT COUNT(*) as cnt FROM concept_edges').get() as { cnt: number }).cnt;
+      expect(edgeCount).toBe(1);
+
+      targetDb.close();
+    });
+
+    it('should export and import qe_pattern_usage with dedup', () => {
+      sourceDb.prepare(`
+        INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json, created_at)
+        VALUES (?, ?, ?, ?)
+      `).run('p1', 1, '{"tokens":100}', '2026-02-20T10:00:00Z');
+      sourceDb.prepare(`
+        INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json, created_at)
+        VALUES (?, ?, ?, ?)
+      `).run('p1', 0, '{"tokens":200}', '2026-02-20T11:00:00Z');
+
+      const outDir = makeTempDir();
+      const manifest = exportBrain(sourceDb, { outputPath: outDir });
+      expect(manifest.tableRecordCounts?.qe_pattern_usage).toBe(2);
+
+      // First import
+      const targetDb = createTestDb();
+      const result1 = importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
+      const usageCount1 = (targetDb.prepare('SELECT COUNT(*) as cnt FROM qe_pattern_usage').get() as { cnt: number }).cnt;
+      expect(usageCount1).toBe(2);
+
+      // Second import should dedup
+      const result2 = importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
+      const usageCount2 = (targetDb.prepare('SELECT COUNT(*) as cnt FROM qe_pattern_usage').get() as { cnt: number }).cnt;
+      expect(usageCount2).toBe(2); // No duplicates added
+
+      targetDb.close();
+    });
+
+    it('should round-trip captured_experiences with BLOB embedding', () => {
+      // Create a float32 embedding
+      const dims = 8;
+      const float32 = new Float32Array(dims);
+      for (let i = 0; i < dims; i++) float32[i] = (i + 1) * 0.1;
+      const embeddingBuf = Buffer.from(float32.buffer);
+
+      sourceDb.prepare(`
+        INSERT INTO captured_experiences (id, task, agent, domain, success, quality, duration_ms, completed_at, embedding, embedding_dimension)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('exp-blob', 'task', 'agent', 'test', 1, 0.9, 100, '2026-02-20T10:00:00Z', embeddingBuf, dims);
+
+      const outDir = makeTempDir();
+      exportBrain(sourceDb, { outputPath: outDir });
+
+      // Verify JSONL contains Base64 encoded blob
+      const jsonlContent = readFileSync(join(outDir, 'captured-experiences.jsonl'), 'utf-8');
+      const parsed = JSON.parse(jsonlContent.trim());
+      expect(parsed._embedding_b64).toBeDefined();
+      expect(parsed.embedding).toBeUndefined();
+
+      // Import and verify round-trip
+      const targetDb = createTestDb();
+      importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
+
+      const row = targetDb.prepare('SELECT embedding, embedding_dimension FROM captured_experiences WHERE id = ?').get('exp-blob') as { embedding: Buffer; embedding_dimension: number };
+      expect(row.embedding).toBeInstanceOf(Buffer);
+      expect(row.embedding_dimension).toBe(dims);
+
+      const restored = new Float32Array(row.embedding.buffer, row.embedding.byteOffset, dims);
+      for (let i = 0; i < dims; i++) {
+        expect(restored[i]).toBeCloseTo(float32[i], 5);
+      }
+
+      targetDb.close();
+    });
+
+    it('should export all 25 JSONL files', () => {
+      const outDir = makeTempDir();
+      exportBrain(sourceDb, { outputPath: outDir });
+
+      for (const config of TABLE_CONFIGS) {
+        expect(existsSync(join(outDir, config.fileName))).toBe(true);
+      }
+    });
+
+    it('should include totalRecords and tableRecordCounts in manifest', () => {
+      const outDir = makeTempDir();
+      const manifest = exportBrain(sourceDb, { outputPath: outDir });
+
+      expect(manifest.stats.totalRecords).toBeGreaterThan(0);
+      expect(manifest.tableRecordCounts).toBeDefined();
+      expect(manifest.tableRecordCounts!['qe_patterns']).toBe(3);
     });
   });
 });

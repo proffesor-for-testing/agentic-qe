@@ -5,6 +5,31 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.14] - 2026-03-08
+
+### Added
+
+- **Brain Export v3.0 — full 25-table portable intelligence** — Completely rebuilt brain export/import to cover all 25 learning tables (up from 4). Data-driven `TABLE_CONFIGS` pattern replaces hardcoded per-table logic, with FK-aware ordering, Base64 BLOB serialization, and automatic DDL creation on import.
+- **Streaming export for large tables** — Tables exceeding 10K rows (e.g., `concept_edges`) now stream directly to JSONL via `writeJsonlStreaming()` using synchronous fd I/O, avoiding OOM on large databases.
+- **Witness chain v3 with SHAKE-256 + Ed25519 signing** — Dual hash algorithm support (`sha256`/`shake256`), 12 witness action types wired to production mutation sites (dream merge/discard, branch merge, Hebbian penalty, routing decisions, pattern quarantine), and Ed25519 key persistence with PEM files.
+- **Witness backfill CLI** — `aqe brain witness-backfill` command replays existing patterns/Q-values/dream insights into the witness chain for databases created before witness integration.
+- **RVF adapter: freeze, derive, indexStats** — `freeze()` makes RVF files immutable after signing, `derive()` supports COW branching with native fallback, `indexStats()` exposes HNSW index metrics.
+- **RVF manifest sidecar** — Brain RVF exports now write a `{path}.manifest.json` sidecar with full export metadata alongside the binary container.
+- **Brain CLI lineage & signature display** — `aqe brain info` now shows RVF file lineage (fileId, parentId, depth) and signature status (keyId, truncated signature).
+
+### Fixed
+
+- **npm install ENOTEMPTY error** — Reduced npm package from 5,473 to 3,293 files by excluding test fixtures, build artifacts, and development-only directories via `.npmignore`.
+- **ReDoS vulnerability in trigger-optimizer** — Replaced vulnerable regex pattern with safe alternative.
+- **Import atomicity** — Brain import now wraps all table merges in a single `db.transaction()` for atomic rollback on failure.
+- **Domain collection in streaming path** — Fixed SQL syntax error when collecting domains from `qe_patterns` that exceeded the streaming threshold.
+
+### Changed
+
+- Brain export manifest version bumped from `1.0` to `3.0` with `tableRecordCounts` breakdown.
+- Merge engine now supports 4 strategies: `latest-wins`, `highest-confidence`, `union`, `skip-conflicts`.
+- ADRs updated: ADR-065 (RVF integration), ADR-070 (witness chain), ADR-073 (portable intelligence containers).
+
 ## [3.7.13] - 2026-03-07
 
 ### Added

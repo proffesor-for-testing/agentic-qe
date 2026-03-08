@@ -17,6 +17,7 @@
  */
 
 import type { Database as DatabaseType } from 'better-sqlite3';
+import type { WitnessChain } from '../../audit/witness-chain.js';
 
 // ============================================================================
 // Interfaces
@@ -141,6 +142,10 @@ export class RVCOWBranchManager {
 
   /** When true and rvfAdapter is set, createBranch() also forks an RVF snapshot */
   private useRvfFork = false;
+
+  /** Optional witness chain for audit trail of branch operations (ADR-070) */
+  private _witnessChain: WitnessChain | null = null;
+  set witnessChain(wc: WitnessChain | null) { this._witnessChain = wc; }
 
   constructor(
     private readonly db: DatabaseType,
@@ -294,6 +299,11 @@ export class RVCOWBranchManager {
     branch.status = 'merged';
     this.activeBranches.delete(branch.name);
     this.emit('dream:branch_merged', branch);
+    try {
+      this._witnessChain?.append('BRANCH_MERGE', {
+        branchName: branch.name,
+      }, 'rvcow-branch-manager');
+    } catch { /* best-effort witness */ }
   }
 
   /**
