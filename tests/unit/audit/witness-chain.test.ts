@@ -5,24 +5,17 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { createWitnessChain, GENESIS_PREV_HASH } from '../../../src/audit/witness-chain.js';
+import {
+  createWitnessChain,
+  GENESIS_PREV_HASH,
+  shake256,
+  serializeEntry,
+} from '../../../src/audit/witness-chain.js';
 import type { WitnessChain, WitnessEntry } from '../../../src/audit/witness-chain.js';
 import { createHash } from 'crypto';
 
 function sha256(data: string): string {
   return createHash('sha256').update(data, 'utf-8').digest('hex');
-}
-
-function serializeEntry(entry: WitnessEntry): string {
-  return JSON.stringify({
-    id: entry.id,
-    prev_hash: entry.prev_hash,
-    action_hash: entry.action_hash,
-    action_type: entry.action_type,
-    action_data: entry.action_data,
-    timestamp: entry.timestamp,
-    actor: entry.actor,
-  });
 }
 
 describe('WitnessChain', () => {
@@ -47,14 +40,14 @@ describe('WitnessChain', () => {
       expect(entry.prev_hash).toBe(GENESIS_PREV_HASH);
       expect(entry.action_type).toBe('PATTERN_CREATE');
       expect(entry.actor).toBe('reasoning-bank');
-      expect(entry.action_hash).toBe(sha256(JSON.stringify({ patternId: 'p1' })));
+      expect(entry.action_hash).toBe(shake256(JSON.stringify({ patternId: 'p1' })));
     });
 
     it('should chain entries with correct prev_hash', () => {
       const first = chain.append('PATTERN_CREATE', { id: '1' }, 'system');
       const second = chain.append('PATTERN_UPDATE', { id: '1', delta: 0.1 }, 'system');
 
-      expect(second.prev_hash).toBe(sha256(serializeEntry(first)));
+      expect(second.prev_hash).toBe(shake256(serializeEntry(first)));
     });
 
     it('should increment IDs', () => {
@@ -249,7 +242,7 @@ describe('WitnessChain', () => {
       const data = { genesis: true };
       const entry = chain.append('PATTERN_CREATE', data, 'system');
 
-      const expectedHash = sha256(JSON.stringify(data));
+      const expectedHash = shake256(JSON.stringify(data));
       expect(entry.action_hash).toBe(expectedHash);
     });
   });
@@ -270,6 +263,9 @@ describe('WitnessChain', () => {
         'QUALITY_GATE_PASS',
         'QUALITY_GATE_FAIL',
         'ROUTING_DECISION',
+        'BRANCH_MERGE',
+        'HEBBIAN_PENALTY',
+        'KEY_ROTATION',
       ] as const;
 
       for (const type of types) {
@@ -277,7 +273,7 @@ describe('WitnessChain', () => {
         expect(entry.action_type).toBe(type);
       }
 
-      expect(chain.getChainLength()).toBe(types.length);
+      expect(chain.getChainLength()).toBe(12);
 
       // Entire chain should still be valid
       const result = chain.verify();

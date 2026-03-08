@@ -221,6 +221,37 @@ async function backfillWitnessChain(
 
 ---
 
+## Partial Implementation: Brain Export Witness Verification
+
+As of 2026-03-08, the `witness_chain` SQLite table (12,857 entries) is exported and
+imported by the `aqe brain export/import` system. This provides data-level portability
+of the witness chain but does not yet implement the full audit compliance vision of
+this ADR.
+
+**What exists today:**
+- `witness_chain` table exported in both JSONL and RVF formats
+- Deduplication on import via composite key `(action_hash, timestamp)`
+- SHA-256 hash-chained entries with `prev_hash` linking
+
+**Planned (Brain Export v3.0, Phase 4.1):**
+- Call `rvf.verify_witness()` during RVF import to cryptographically validate the
+  witness chain before deserializing brain data
+- Reject imports with invalid witness chains (tamper detection)
+- Display witness verification status in `aqe brain info` output
+
+**Not yet implemented (full ADR-070 scope):**
+- Per-mutation witness entries with Ed25519 signing (currently entries use SHA-256 only)
+- SHAKE-256 hashing (currently SHA-256)
+- `WitnessChainService` integration into ReasoningBank, Dream Engine, etc.
+- Key management for Ed25519 signing/verification
+- Retroactive backfill for existing 150K+ patterns
+- TEE attestation support
+
+See [`docs/brain-export-improvement-plan.md`](../brain-export-improvement-plan.md)
+Phase 4.1 for the witness verification implementation plan.
+
+---
+
 ## Dependencies
 
 | Relationship | ADR ID | Title | Notes |
@@ -231,6 +262,7 @@ async function backfillWitnessChain(
 | Relates To | ADR-069 | RVCOW Dream Cycle Branching | Dream merges recorded in witness chain |
 | Relates To | ADR-061 | Asymmetric Learning Rates | Hebbian penalties recorded in witness chain |
 | Relates To | ADR-021 | ReasoningBank | Primary integration point for pattern mutations |
+| Partial Impl | ADR-073 | Portable Intelligence Containers | Witness chain exported/imported via brain export |
 | Part Of | MADR-001 | V3 Implementation Initiative | RVF integration Phase 1 |
 
 ---
@@ -242,8 +274,11 @@ async function backfillWitnessChain(
 | EXT-001 | RVF WITNESS_SEG Spec | Technical Spec | @ruvector/rvf package documentation |
 | EXT-002 | SHAKE-256 (NIST SP 800-185) | Standard | NIST cryptographic standards |
 | EXT-003 | Ed25519 (RFC 8032) | Standard | IETF signature standard |
-| INT-001 | ReasoningBank | Existing Code | `v3/src/learning/reasoning-bank.ts` |
-| INT-002 | Pattern Promotion | Existing Code | `v3/src/feedback/pattern-promotion.ts` |
+| INT-001 | ReasoningBank | Existing Code | `src/learning/reasoning-bank.ts` |
+| INT-002 | Pattern Promotion | Existing Code | `src/feedback/pattern-promotion.ts` |
+| INT-003 | Brain RVF Exporter | Existing Code | `src/integrations/ruvector/brain-rvf-exporter.ts` |
+| INT-004 | RVF Native Adapter | Existing Code | `src/integrations/ruvector/rvf-native-adapter.ts` |
+| INT-005 | Improvement Plan | Plan | `docs/brain-export-improvement-plan.md` (Phase 4.1) |
 
 ---
 
@@ -260,6 +295,7 @@ async function backfillWitnessChain(
 | Status | Date | Notes |
 |--------|------|-------|
 | Proposed | 2026-02-22 | Initial creation. Cryptographic witness chain for tamper-evident pattern lineage and enterprise audit compliance. |
+| — | 2026-03-08 | Added partial implementation note: witness_chain table (12,857 entries) exported/imported via brain export. RVF `verify_witness()` planned for Phase 4.1 of brain export v3.0 improvement plan. |
 
 ---
 

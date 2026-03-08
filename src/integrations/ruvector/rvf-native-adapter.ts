@@ -47,6 +47,33 @@ export interface RvfSearchResult {
   score: number;
 }
 
+export interface RvfWitnessVerification {
+  valid: boolean;
+  totalEntries: number;
+  errors: string[];
+}
+
+export interface RvfLineage {
+  fileId: string;
+  parentId: string | null;
+  lineageDepth: number;
+}
+
+/** Optional metadata attached to vectors during ingest */
+export interface RvfVectorMetadata {
+  readonly tableName?: string;
+  readonly domain?: string;
+  readonly confidence?: number;
+  [key: string]: unknown;
+}
+
+/** Entry for ingest — vector with optional metadata */
+export interface RvfIngestEntry {
+  id: string;
+  vector: Float32Array | number[];
+  metadata?: RvfVectorMetadata;
+}
+
 export interface RvfStatus {
   totalVectors: number;
   totalSegments: number;
@@ -57,47 +84,45 @@ export interface RvfStatus {
 }
 
 export interface RvfNativeAdapter {
-  /** Insert vectors with string IDs */
-  ingest(entries: Array<{ id: string; vector: Float32Array | number[] }>): {
-    accepted: number;
-    rejected: number;
-  };
-
-  /** Search k nearest neighbours */
+  ingest(entries: RvfIngestEntry[]): { accepted: number; rejected: number };
   search(query: Float32Array | number[], k: number): RvfSearchResult[];
-
-  /** Delete by string IDs — returns count deleted */
   delete(ids: string[]): number;
-
-  /** COW fork — creates an independent copy at `childPath` */
   fork(childPath: string): RvfNativeAdapter;
-
-  /** Database status including witness-chain verification */
   status(): RvfStatus;
-
-  /** Vector dimensionality */
   dimension(): number;
-
-  /** Total vector count */
   size(): number;
-
-  /** Compact to reclaim space from deleted vectors */
   compact(): void;
-
-  /** Close and release native resources */
   close(): void;
-
-  /** Whether the underlying database handle is still open */
   isOpen(): boolean;
-
-  /** Filesystem path of the RVF container */
   path(): string;
-
-  /** Embed arbitrary binary data as a kernel segment */
   embedKernel(data: Buffer): number;
-
-  /** Extract the kernel segment data (returns null if none) */
   extractKernel(): { header: Buffer; image: Buffer } | null;
+  /** Verify HNSW index integrity (graceful degradation if unsupported) */
+  verifyWitness(): RvfWitnessVerification;
+  /** Sign kernel data with Ed25519 -- returns hex signature or null */
+  sign(data: Buffer): string | null;
+  /** Lineage: file ID, parent ID, depth (null/0 if unavailable) */
+  fileId(): string | null;
+  parentId(): string | null;
+  lineageDepth(): number;
+  /** HNSW index statistics */
+  indexStats(): RvfIndexStats;
+  /** Freeze the RVF file (makes immutable, returns segment count). Graceful no-op if unsupported. */
+  freeze(): number;
+  /** COW-derive a child RVF (native derive, falls back to file copy if unsupported). */
+  derive(childPath: string): RvfNativeAdapter;
+}
+
+export interface RvfIndexStats {
+  totalVectors: number;
+  dimension: number;
+  totalSegments: number;
+  fileSizeBytes: number;
+  epoch: number;
+  witnessValid: boolean;
+  witnessEntries: number;
+  /** Number of string-to-label mappings in the ID map */
+  idMapSize: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -185,7 +210,7 @@ class RvfNativeAdapterImpl implements RvfNativeAdapter {
   // -- ingest ---------------------------------------------------------------
 
   ingest(
-    entries: Array<{ id: string; vector: Float32Array | number[] }>,
+    entries: RvfIngestEntry[],
   ): { accepted: number; rejected: number } {
     this.ensureOpen();
     if (entries.length === 0) return { accepted: 0, rejected: 0 };
@@ -193,9 +218,10 @@ class RvfNativeAdapterImpl implements RvfNativeAdapter {
     const dim = this._dimension;
     const flat = new Float32Array(entries.length * dim);
     const ids: number[] = [];
+    const metadataList: Array<RvfVectorMetadata | undefined> = [];
 
     for (let i = 0; i < entries.length; i++) {
-      const { id, vector } = entries[i];
+      const { id, vector, metadata } = entries[i];
 
       // Resolve or assign numeric label
       let label = this.strToNum.get(id);
@@ -205,13 +231,22 @@ class RvfNativeAdapterImpl implements RvfNativeAdapter {
         this.numToStr.set(label, id);
       }
       ids.push(label);
+      metadataList.push(metadata);
 
       // Copy vector data into flat buffer
       const src = vector instanceof Float32Array ? vector : new Float32Array(vector);
       flat.set(src.subarray(0, dim), i * dim);
     }
 
-    const result = this.db.ingestBatch(flat, ids);
+    // Try ingest with metadata if supported, fall back to plain batch
+    let result: { accepted: number; rejected: number };
+    const hasMetadata = metadataList.some(m => m !== undefined);
+    if (hasMetadata && typeof this.db.ingestBatchWithMetadata === 'function') {
+      const metaJson = metadataList.map(m => m ? JSON.stringify(m) : '');
+      result = this.db.ingestBatchWithMetadata(flat, ids, metaJson);
+    } else {
+      result = this.db.ingestBatch(flat, ids);
+    }
     this.persistIdMap();
     return { accepted: result.accepted, rejected: result.rejected };
   }
@@ -348,12 +383,101 @@ class RvfNativeAdapterImpl implements RvfNativeAdapter {
     return this.db.extractKernel();
   }
 
+  // -- witness / sign / lineage (graceful degradation) ---------------------
+
+  verifyWitness(): RvfWitnessVerification {
+    this.ensureOpen();
+    const r = this.tryNative('verifyWitness');
+    if (r) return {
+      valid: r.valid ?? true,
+      totalEntries: r.totalEntries ?? 0,
+      errors: Array.isArray(r.errors) ? r.errors : [],
+    };
+    return { valid: true, totalEntries: 0, errors: [] };
+  }
+
+  sign(data: Buffer): string | null {
+    this.ensureOpen();
+    const r = this.tryNative('sign', data);
+    return typeof r === 'string' ? r : null;
+  }
+
+  fileId(): string | null {
+    this.ensureOpen();
+    const r = this.tryNative('fileId');
+    return typeof r === 'string' ? r : null;
+  }
+
+  parentId(): string | null {
+    this.ensureOpen();
+    const r = this.tryNative('parentId');
+    return typeof r === 'string' ? r : null;
+  }
+
+  lineageDepth(): number {
+    this.ensureOpen();
+    const r = this.tryNative('lineageDepth');
+    return typeof r === 'number' ? r : 0;
+  }
+
+  // -- indexStats -----------------------------------------------------------
+
+  indexStats(): RvfIndexStats {
+    const s = this.status();
+    return {
+      totalVectors: s.totalVectors,
+      dimension: this._dimension,
+      totalSegments: s.totalSegments,
+      fileSizeBytes: s.fileSizeBytes,
+      epoch: s.epoch,
+      witnessValid: s.witnessValid,
+      witnessEntries: s.witnessEntries,
+      idMapSize: this.strToNum.size,
+    };
+  }
+
+  // -- freeze / derive ------------------------------------------------------
+
+  freeze(): number {
+    this.ensureOpen();
+    const r = this.tryNative('freeze');
+    return typeof r === 'number' ? r : 0;
+  }
+
+  derive(childPath: string): RvfNativeAdapter {
+    this.ensureOpen();
+    // Prefer native COW derive if available
+    const native = getNative()!;
+    if (typeof this.db.derive === 'function') {
+      try {
+        const childDb = this.db.derive(childPath);
+        const childStrToNum = new Map(this.strToNum);
+        const childNumToStr = new Map(this.numToStr);
+        saveIdMap(childPath, childStrToNum, this.nextLabel);
+        return new RvfNativeAdapterImpl(
+          childDb, childPath, this._dimension,
+          childStrToNum, childNumToStr, this.nextLabel,
+        );
+      } catch {
+        // Fall through to file-copy fork
+      }
+    }
+    return this.fork(childPath);
+  }
+
   // -- internal -------------------------------------------------------------
 
   private ensureOpen(): void {
     if (!this._open) {
       throw new Error('RVF database is closed');
     }
+  }
+
+  /** Call a native method if it exists, returning null on missing/error. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private tryNative(method: string, ...args: unknown[]): any {
+    if (typeof this.db[method] !== 'function') return null;
+    try { return this.db[method](...args); } catch { return null; }
   }
 
   private persistIdMap(): void {

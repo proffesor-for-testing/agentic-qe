@@ -10,6 +10,8 @@
  * Infrastructure failures (timeouts, ECONNREFUSED, etc.) do NOT penalize.
  */
 
+import type { WitnessChain } from '../audit/witness-chain.js';
+
 /** Configuration for the asymmetric learning engine. */
 export interface AsymmetricLearningConfig {
   /** Confidence increment on success (default: 0.1) */
@@ -96,6 +98,10 @@ export const DEFAULT_ASYMMETRIC_CONFIG: AsymmetricLearningConfig = {
 export class AsymmetricLearningEngine {
   private readonly config: AsymmetricLearningConfig;
 
+  /** Optional witness chain for audit trail of Hebbian penalties (ADR-070) */
+  private _witnessChain: WitnessChain | null = null;
+  set witnessChain(wc: WitnessChain | null) { this._witnessChain = wc; }
+
   constructor(config: Partial<AsymmetricLearningConfig> = {}) {
     this.config = {
       ...DEFAULT_ASYMMETRIC_CONFIG,
@@ -124,6 +130,13 @@ export class AsymmetricLearningEngine {
   ): number {
     const { successRate, failureRate } = this.getConfigForDomain(domain);
     const delta = outcome === 'success' ? successRate : -failureRate;
+    if (outcome === 'failure') {
+      try {
+        this._witnessChain?.append('HEBBIAN_PENALTY', {
+          previousConfidence: currentConfidence, delta, domain,
+        }, 'asymmetric-learning');
+      } catch { /* best-effort witness */ }
+    }
     return clamp(currentConfidence + delta, 0, 1);
   }
 

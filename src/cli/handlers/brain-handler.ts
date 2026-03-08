@@ -13,6 +13,7 @@ import {
   exportBrain,
   importBrain,
   brainInfo,
+  witnessBackfill,
   type BrainManifest,
 } from '../brain-commands.js';
 
@@ -67,6 +68,14 @@ export class BrainHandler implements ICommandHandler {
       .requiredOption('-i, --input <path>', 'Path to brain export directory')
       .action(async (options: InfoOptions) => {
         await this.executeInfo(options);
+      });
+
+    brain
+      .command('witness-backfill')
+      .description('Create witness chain entries for patterns that predate the witness chain')
+      .option('--db <path>', 'Database path', defaultDbPath())
+      .action(async (options: { db: string }) => {
+        await this.executeWitnessBackfill(options);
       });
   }
 
@@ -142,46 +151,134 @@ export class BrainHandler implements ICommandHandler {
       const inputPath = path.resolve(options.input);
       const manifest: BrainManifest = await brainInfo(inputPath);
 
-      console.log(`  Version:    ${chalk.cyan(manifest.version)}`);
-      const format = 'format' in manifest ? (manifest as { format?: string }).format ?? 'jsonl' : 'jsonl';
-      console.log(`  Format:     ${chalk.cyan(format)}`);
-      console.log(`  Exported:   ${chalk.cyan(manifest.exportedAt)}`);
-      console.log(`  Source DB:  ${chalk.cyan(manifest.sourceDb)}`);
-      console.log(`  Patterns:   ${chalk.cyan(manifest.stats.patternCount)}`);
+      const format = 'format' in manifest
+        ? (manifest as { format?: string }).format ?? 'jsonl'
+        : 'jsonl';
 
-      if ('embeddingCount' in manifest.stats) {
-        console.log(`  Embeddings: ${chalk.cyan((manifest.stats as { embeddingCount: number }).embeddingCount)}`);
-      } else if ('vectorCount' in manifest.stats) {
-        console.log(`  Vectors:    ${chalk.cyan((manifest.stats as { vectorCount: number }).vectorCount)}`);
-      }
+      // Header section
+      console.log(`  Version:       ${chalk.cyan(manifest.version)}`);
+      console.log(`  Format:        ${chalk.cyan(format)}`);
+      console.log(`  Exported:      ${chalk.cyan(manifest.exportedAt)}`);
+      console.log(`  Source DB:     ${chalk.cyan(manifest.sourceDb)}`);
+
+      // Learning Data section
+      console.log(chalk.blue('\n  Learning Data:'));
+      console.log(`    Patterns:      ${chalk.cyan(manifest.stats.patternCount)}`);
 
       if ('qValueCount' in manifest.stats) {
-        console.log(`  Q-Values:   ${chalk.cyan((manifest.stats as { qValueCount: number }).qValueCount)}`);
+        console.log(`    Q-Values:      ${chalk.cyan((manifest.stats as { qValueCount: number }).qValueCount)}`);
       }
       if ('dreamInsightCount' in manifest.stats) {
-        console.log(`  Dreams:     ${chalk.cyan((manifest.stats as { dreamInsightCount: number }).dreamInsightCount)}`);
+        const dreamCount = (manifest.stats as { dreamInsightCount: number }).dreamInsightCount;
+        const tableRecordCounts = 'tableRecordCounts' in manifest
+          ? (manifest as { tableRecordCounts?: Record<string, number> }).tableRecordCounts
+          : undefined;
+        const cycleCount = tableRecordCounts?.['dream_cycles'];
+        const cycleInfo = cycleCount !== undefined ? ` (${cycleCount} cycles)` : '';
+        console.log(`    Dream Insights: ${chalk.cyan(dreamCount)}${chalk.gray(cycleInfo)}`);
       }
       if ('witnessChainLength' in manifest.stats) {
-        console.log(`  Witnesses:  ${chalk.cyan((manifest.stats as { witnessChainLength: number }).witnessChainLength)}`);
+        console.log(`    Witness Chain:  ${chalk.cyan((manifest.stats as { witnessChainLength: number }).witnessChainLength)} entries`);
       }
 
-      if ('rvfStatus' in manifest) {
-        const rvf = (manifest as { rvfStatus: { fileSizeBytes: number; totalVectors: number; totalSegments: number } }).rvfStatus;
-        console.log(`  RVF Size:   ${chalk.cyan(formatBytes(rvf.fileSizeBytes))}`);
-        console.log(`  RVF Vectors:${chalk.cyan(rvf.totalVectors)}`);
-        console.log(`  Segments:   ${chalk.cyan(rvf.totalSegments)}`);
+      if ('embeddingCount' in manifest.stats) {
+        console.log(`    Embeddings:    ${chalk.cyan((manifest.stats as { embeddingCount: number }).embeddingCount)}`);
+      } else if ('vectorCount' in manifest.stats) {
+        console.log(`    Vectors:       ${chalk.cyan((manifest.stats as { vectorCount: number }).vectorCount)}`);
       }
 
-      console.log(`  Checksum:   ${chalk.gray(manifest.checksum)}`);
+      // Additional table counts from tableRecordCounts (v3.0 manifests)
+      const tableRecordCounts = 'tableRecordCounts' in manifest
+        ? (manifest as { tableRecordCounts?: Record<string, number> }).tableRecordCounts
+        : undefined;
+      if (tableRecordCounts) {
+        const additionalTables = Object.entries(tableRecordCounts).filter(
+          ([name, count]) =>
+            count > 0 &&
+            !['qe_patterns', 'rl_q_values', 'dream_insights', 'dream_cycles',
+              'witness_chain', 'vectors', 'qe_pattern_embeddings'].includes(name)
+        );
+        if (additionalTables.length > 0) {
+          for (const [name, count] of additionalTables) {
+            const label = name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const paddedLabel = `${label}:`.padEnd(15);
+            console.log(`    ${paddedLabel}${chalk.cyan(count)}`);
+          }
+        }
+      }
+
+      // Summary section
+      const totalRecords = 'totalRecords' in manifest.stats
+        ? (manifest.stats as { totalRecords: number }).totalRecords
+        : undefined;
+      if (totalRecords !== undefined) {
+        console.log(chalk.blue('\n  Summary:'));
+        console.log(`    Total Records: ${chalk.cyan(totalRecords)}`);
+      }
 
       if ('domains' in manifest && Array.isArray(manifest.domains) && manifest.domains.length > 0) {
-        console.log(`  Domains:    ${chalk.cyan(manifest.domains.join(', '))}`);
+        if (!totalRecords) console.log(chalk.blue('\n  Summary:'));
+        console.log(`    Domains:       ${chalk.cyan(manifest.domains.join(', '))}`);
       }
+
+      // RVF-specific details
+      if ('rvfStatus' in manifest) {
+        const rvf = (manifest as { rvfStatus: { fileSizeBytes: number; totalVectors: number; totalSegments: number } }).rvfStatus;
+        console.log(chalk.blue('\n  RVF Details:'));
+        console.log(`    File Size:     ${chalk.cyan(formatBytes(rvf.fileSizeBytes))}`);
+        console.log(`    Vectors:       ${chalk.cyan(rvf.totalVectors)}`);
+        console.log(`    Segments:      ${chalk.cyan(rvf.totalSegments)}`);
+      }
+
+      // Lineage tracking (RVF v3.0)
+      if ('lineage' in manifest) {
+        const lineage = (manifest as { lineage?: { fileId: string; parentId: string | null; lineageDepth: number } }).lineage;
+        if (lineage) {
+          console.log(chalk.blue('\n  Lineage:'));
+          console.log(`    File ID:       ${chalk.cyan(lineage.fileId)}`);
+          console.log(`    Parent ID:     ${chalk.cyan(lineage.parentId ?? 'none (root)')}`);
+          console.log(`    Depth:         ${chalk.cyan(lineage.lineageDepth)}`);
+        }
+      }
+
+      // Signing status (RVF v3.0)
+      if ('signature' in manifest) {
+        const sig = (manifest as { signature?: string; signerKeyId?: string }).signature;
+        const keyId = (manifest as { signerKeyId?: string }).signerKeyId;
+        console.log(chalk.blue('\n  Signature:'));
+        if (sig) {
+          console.log(`    Status:        ${chalk.green('Signed')}`);
+          console.log(`    Key ID:        ${chalk.cyan(keyId ?? 'unknown')}`);
+          console.log(`    Signature:     ${chalk.gray(sig.slice(0, 32) + '...')}`);
+        } else {
+          console.log(`    Status:        ${chalk.yellow('Unsigned')}`);
+        }
+      }
+
+      console.log(`\n  Checksum:      ${chalk.gray(manifest.checksum)}`);
       console.log('');
 
       await this.cleanupAndExit(0);
     } catch (error) {
       console.error(chalk.red('\n  Failed to read brain info:'), error);
+      await this.cleanupAndExit(1);
+    }
+  }
+
+  private async executeWitnessBackfill(options: { db: string }): Promise<void> {
+    try {
+      console.log(chalk.blue('\n  Running witness chain backfill...\n'));
+
+      const result = await witnessBackfill(options.db);
+
+      console.log(chalk.green('  Backfill complete.'));
+      console.log(`  Created: ${chalk.cyan(result.created)} new witness entries`);
+      console.log(`  Skipped: ${chalk.cyan(result.skipped)} (already witnessed)`);
+      console.log('');
+
+      await this.cleanupAndExit(0);
+    } catch (error) {
+      console.error(chalk.red('\n  Witness backfill failed:'), error);
       await this.cleanupAndExit(1);
     }
   }

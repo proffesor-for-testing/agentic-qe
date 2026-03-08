@@ -45,6 +45,7 @@ import {
   type ValidationThresholds,
   DEFAULT_VALIDATION_THRESHOLDS,
 } from './rvcow-branch-manager.js';
+import type { WitnessChain } from '../../audit/witness-chain.js';
 import type {
   DreamCycle,
   DreamCycleStatus,
@@ -320,6 +321,10 @@ export class DreamEngine {
   private cancelled = false;
   private branchEventListeners: Array<(event: string, branch: Branch, detail?: ValidationResult) => void> = [];
 
+  /** Optional witness chain for audit trail of dream decisions (ADR-070) */
+  private _witnessChain: WitnessChain | null = null;
+  set witnessChain(wc: WitnessChain | null) { this._witnessChain = wc; }
+
   constructor(config?: Partial<DreamConfig>) {
     this.config = { ...DEFAULT_DREAM_CONFIG, ...config };
   }
@@ -515,9 +520,20 @@ export class DreamEngine {
         if (validation.passed) {
           this.branchManager.mergeBranch(branch);
           this.emitBranchEvent('dream:branch_merged', branch, validation);
+          try {
+            this._witnessChain?.append('DREAM_MERGE', {
+              cycleId: this.currentCycle!.id, branchName: branch.name,
+            }, 'dream-engine');
+          } catch { /* best-effort witness */ }
         } else {
           this.branchManager.discardBranch(branch);
           this.emitBranchEvent('dream:branch_discarded', branch, validation);
+          try {
+            this._witnessChain?.append('DREAM_DISCARD', {
+              cycleId: this.currentCycle!.id, branchName: branch.name,
+              reason: validation.reason,
+            }, 'dream-engine');
+          } catch { /* best-effort witness */ }
           dreamLogger.warn('Dream branch discarded: quality validation failed', {
             cycleId: this.currentCycle.id,
             reason: validation.reason,

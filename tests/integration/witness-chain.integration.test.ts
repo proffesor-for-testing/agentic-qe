@@ -11,6 +11,8 @@ import Database from 'better-sqlite3';
 import {
   WitnessChain,
   createWitnessChain,
+  shake256,
+  serializeEntry,
   type WitnessActionType,
   type WitnessEntry,
 } from '../../src/audit/witness-chain.js';
@@ -38,18 +40,6 @@ function sha256(data: string): string {
   return createHash('sha256').update(data, 'utf-8').digest('hex');
 }
 
-function serializeEntry(entry: WitnessEntry): string {
-  return JSON.stringify({
-    id: entry.id,
-    prev_hash: entry.prev_hash,
-    action_hash: entry.action_hash,
-    action_type: entry.action_type,
-    action_data: entry.action_data,
-    timestamp: entry.timestamp,
-    actor: entry.actor,
-  });
-}
-
 const ALL_ACTION_TYPES: WitnessActionType[] = [
   'PATTERN_CREATE',
   'PATTERN_UPDATE',
@@ -60,6 +50,9 @@ const ALL_ACTION_TYPES: WitnessActionType[] = [
   'QUALITY_GATE_PASS',
   'QUALITY_GATE_FAIL',
   'ROUTING_DECISION',
+  'BRANCH_MERGE',
+  'HEBBIAN_PENALTY',
+  'KEY_ROTATION',
 ];
 
 const GENESIS_PREV_HASH = '0'.repeat(64);
@@ -79,9 +72,9 @@ describe('WitnessChain Integration', () => {
   });
 
   // =========================================================================
-  // 1. Append all 9 action types and verify chain integrity
+  // 1. Append all 12 action types and verify chain integrity
   // =========================================================================
-  describe('all 9 action types with chain verification', () => {
+  describe('all 12 action types with chain verification', () => {
     it('should append entries for every action type and verify() returns valid', async () => {
       for (const actionType of ALL_ACTION_TYPES) {
         const entry = chain.append(
@@ -97,11 +90,11 @@ describe('WitnessChain Integration', () => {
         expect(entry.prev_hash).toHaveLength(64);
       }
 
-      expect(chain.getChainLength()).toBe(9);
+      expect(chain.getChainLength()).toBe(12);
 
       const result = chain.verify();
       expect(result.valid).toBe(true);
-      expect(result.entriesChecked).toBe(9);
+      expect(result.entriesChecked).toBe(12);
       expect(result.brokenAt).toBeUndefined();
     });
 
@@ -110,10 +103,10 @@ describe('WitnessChain Integration', () => {
       expect(first.prev_hash).toBe(GENESIS_PREV_HASH);
     });
 
-    it('should compute action_hash as SHA-256 of action_data JSON', () => {
+    it('should compute action_hash as SHAKE-256 of action_data JSON', () => {
       const data = { foo: 'bar', num: 42 };
       const entry = chain.append('ROUTING_DECISION', data, 'router');
-      const expected = sha256(JSON.stringify(data));
+      const expected = shake256(JSON.stringify(data));
       expect(entry.action_hash).toBe(expected);
     });
   });
@@ -209,9 +202,9 @@ describe('WitnessChain Integration', () => {
       // Verify first entry has genesis hash
       expect(entries[0].prev_hash).toBe(GENESIS_PREV_HASH);
 
-      // Manually verify a few hash links
+      // Manually verify a few hash links (new entries use shake256)
       for (let i = 1; i < entries.length; i++) {
-        const expectedPrevHash = sha256(serializeEntry(entries[i - 1]));
+        const expectedPrevHash = shake256(serializeEntry(entries[i - 1]));
         expect(entries[i].prev_hash).toBe(expectedPrevHash);
       }
 
