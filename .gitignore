@@ -150,7 +150,6 @@ junit.xml
 docs/qx-reports/*
 
 # Generated reports and client-specific analysis (should not be committed)
-*-qx-analysis-report.md
 *-a11y-audit.md
 *-qe-assessment.md
 *-threat-model.md
