@@ -86,7 +86,7 @@ export class DailyLogger {
       for (const entry of entries) {
         const time = entry.timestamp.toISOString().split('T')[1]?.slice(0, 8) ?? '00:00:00';
         const icon = LOG_ICONS[entry.type] ?? '\u{1F4DD}';
-        const escapedSummary = entry.summary.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+        const escapedSummary = entry.summary.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
         lines.push(`| ${time} | ${icon} ${entry.type} | ${escapedSummary} |`);
       }
 
