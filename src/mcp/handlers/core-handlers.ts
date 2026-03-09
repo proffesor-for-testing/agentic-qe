@@ -549,6 +549,7 @@ export async function handleAQEHealth(): Promise<ToolResult<{
   memory: { connected: boolean; totalEntries: number; namespaces: number };
   hnsw: { enabled: boolean; vectorCount: number };
   rvf?: { mode: string; vectorCount: number; divergences: number; promotionSafe: boolean };
+  ghostPatterns?: { total: number; withoutEmbeddings: number; sampleGhostIds: string[] };
   loadedPatterns: number;
   uptimeMs: number;
   timestamp: string;
@@ -630,6 +631,16 @@ export async function handleAQEHealth(): Promise<ToolResult<{
       }
     } catch { /* RVF status unavailable */ }
 
+    // Ghost pattern check: patterns in DB without embeddings
+    let ghostStats: { total: number; withoutEmbeddings: number; sampleGhostIds: string[] } | null = null;
+    try {
+      const { SQLitePatternStore } = await import('../../learning/sqlite-persistence.js');
+      const store = new SQLitePatternStore();
+      await store.initialize();
+      ghostStats = store.getGhostPatternCount();
+      store.close();
+    } catch { /* Ghost check unavailable */ }
+
     const healthStatus = isInit ? 'healthy' : 'unhealthy';
 
     return {
@@ -641,6 +652,7 @@ export async function handleAQEHealth(): Promise<ToolResult<{
         memory: memoryStats,
         hnsw: hnswStats,
         rvf: rvfStatus ?? undefined,
+        ghostPatterns: ghostStats ?? undefined,
         loadedPatterns: patternCount,
         uptimeMs: uptime,
         timestamp: new Date().toISOString(),

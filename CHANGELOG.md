@@ -5,6 +5,33 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.15] - 2026-03-09
+
+### Added
+
+- **Proof-of-Quality CLI command** — `aqe prove` generates verifiable quality attestations with SHA-256 hashes, proving that tests, coverage, and security checks were actually run.
+- **OPD remediation hints** — Outcome-Pattern-Deviation engine now explains *why* a pattern failed and *how* to fix it ("bad because X, fix by Y").
+- **Per-agent MCP tool scoping** — Agents can now be restricted to specific MCP tool subsets for security isolation and least-privilege enforcement.
+- **Daily Markdown learning log** — Automatic audit trail of all learning activity per day, with session summaries and pattern metrics.
+- **FTS5 hybrid search** — Full-text search virtual table combining vector similarity with text matching for more accurate pattern retrieval.
+- **Binary reward assignment** — Outcome-based learning now uses clean +1/-1/0 rewards for sharper signal.
+- **Temporal decay on search** — Search results now apply a 30-day half-life decay, surfacing recent patterns over stale ones.
+- **Pre-compaction flush hook** — Prevents knowledge loss by flushing pending writes before database compaction.
+- **Embedding backfill script** — `scripts/backfill-embeddings.mjs` fills in missing embeddings for legacy patterns.
+
+### Fixed
+
+- **Promotion threshold inconsistency** — Standardized pattern promotion threshold to 3 across all code paths.
+- **Queen governance test flakiness** — Fixed singleton contamination in domain-handlers, handler-factory, and e2e test suites.
+- **MCP server domain tool failures** — Resolved timeout and invocation failures in domain-scoped MCP tool tests.
+- **Devil's advocate scoring** — Fixed FTS normalization, score capping, decay, and freshness calculations.
+
+### Changed
+
+- Coherence gate enabled by default for all learning sessions.
+- Configurable promotion activity window replaces hardcoded 7-day window.
+- 18,589 tests passing across 610 test files.
+
 ## [3.7.14] - 2026-03-08
 
 ### Added

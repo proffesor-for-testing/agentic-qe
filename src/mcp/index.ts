@@ -67,3 +67,13 @@ export {
   type MCPCapabilities,
   type MCPServerInfo,
 } from './protocol-server';
+
+// Per-Agent Tool Scoping
+export {
+  isToolAllowed,
+  getToolScope,
+  getAllowedTools,
+  validateToolAccess,
+  type AgentRole,
+  type ToolScope,
+} from './tool-scoping';

@@ -19,6 +19,7 @@ import { safeJsonParse } from '../shared/safe-json.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+import { computeBatchEmbeddings, getEmbeddingDimension } from './real-embeddings.js';
 
 /**
  * SQLite persistence configuration
@@ -116,6 +117,36 @@ interface DomainCountRow {
 interface TierCountRow {
   tier: string;
   count: number;
+}
+
+/**
+ * Hash-based embedding generation (no ONNX dependency).
+ * Deterministic: same text always produces the same embedding.
+ * FALLBACK ONLY — real embeddings use all-MiniLM-L6-v2 via computeBatchEmbeddings().
+ * Kept for environments where ONNX/@xenova/transformers is unavailable.
+ */
+export function hashEmbedding(text: string, dimension: number = 384): number[] {
+  const embedding = new Array(dimension).fill(0);
+  const normalized = text.toLowerCase().trim();
+
+  // Multiple hash passes for better distribution
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < normalized.length; i++) {
+      const charCode = normalized.charCodeAt(i);
+      const idx = (charCode * (i + 1) * (pass + 1)) % dimension;
+      embedding[idx] += Math.sin(charCode * (pass + 1)) / (i + 1);
+    }
+  }
+
+  // Normalize to unit vector
+  const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
+  if (magnitude > 0) {
+    for (let i = 0; i < dimension; i++) {
+      embedding[i] /= magnitude;
+    }
+  }
+
+  return embedding;
 }
 
 /**
@@ -260,6 +291,31 @@ export class SQLitePatternStore {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_unique_name_domain_type
         ON qe_patterns(name, qe_domain, pattern_type);
 
+      -- FTS5 full-text search index for hybrid vector/text search
+      CREATE VIRTUAL TABLE IF NOT EXISTS qe_patterns_fts USING fts5(
+        name, description, pattern_type, qe_domain,
+        content='qe_patterns',
+        content_rowid='rowid'
+      );
+
+      -- FTS5 triggers to keep index in sync
+      CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_insert AFTER INSERT ON qe_patterns BEGIN
+        INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
+        VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_delete AFTER DELETE ON qe_patterns BEGIN
+        INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
+        VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_update AFTER UPDATE ON qe_patterns BEGIN
+        INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
+        VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
+        INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
+        VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
+      END;
+
       -- Indexes for performance
       CREATE INDEX IF NOT EXISTS idx_patterns_domain ON qe_patterns(qe_domain);
       CREATE INDEX IF NOT EXISTS idx_patterns_type ON qe_patterns(pattern_type);
@@ -334,11 +390,26 @@ export class SQLitePatternStore {
   private prepareStatements(): void {
     if (!this.db) throw new Error('Database not initialized');
 
+    // Two insert statements to handle both conflict types:
+    // 1. Primary key conflict (same id) — update metadata only, preserve stats
+    // 2. Unique index conflict (same name+domain+type, different id) — update metadata only
     this.prepared.set('insertPattern', this.db.prepare(`
-      INSERT OR REPLACE INTO qe_patterns (
+      INSERT INTO qe_patterns (
         id, pattern_type, qe_domain, domain, name, description,
         confidence, tier, template_json, context_json
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        confidence = excluded.confidence,
+        tier = excluded.tier,
+        template_json = excluded.template_json,
+        context_json = excluded.context_json,
+        updated_at = datetime('now')
+      ON CONFLICT(name, qe_domain, pattern_type) DO UPDATE SET
+        confidence = excluded.confidence,
+        tier = excluded.tier,
+        template_json = excluded.template_json,
+        context_json = excluded.context_json,
+        updated_at = datetime('now')
     `));
 
     this.prepared.set('insertEmbedding', this.db.prepare(`
@@ -473,6 +544,74 @@ export class SQLitePatternStore {
     }
 
     return rows.map(row => this.rowToPattern(row));
+  }
+
+  /**
+   * FTS5 full-text search for patterns.
+   * Returns pattern IDs with BM25 relevance scores.
+   */
+  searchFTS(query: string, limit: number = 20): Array<{ id: string; ftsScore: number }> {
+    if (!this.db) throw new Error('Database not initialized');
+    if (!query.trim()) return [];
+
+    // Sanitize: wrap in double quotes to force literal phrase match,
+    // escaping any internal double quotes to prevent FTS5 syntax injection
+    const sanitized = '"' + query.replace(/"/g, '""') + '"';
+
+    try {
+      const rows = this.db.prepare(`
+        SELECT p.id, rank AS fts_score
+        FROM qe_patterns_fts fts
+        JOIN qe_patterns p ON p.rowid = fts.rowid
+        WHERE qe_patterns_fts MATCH ?
+        ORDER BY rank
+        LIMIT ?
+      `).all(sanitized, limit) as Array<{ id: string; fts_score: number }>;
+
+      // FTS5 rank is negative (lower = better), normalize to 0..1
+      // Use Math.max(maxScore, 1.0) to prevent single-result inflation:
+      // without this, a single FTS5 result always normalizes to 1.0
+      const maxAbsScore = Math.max(...rows.map(r => Math.abs(r.fts_score)), 1.0);
+      return rows.map(r => ({
+        id: r.id,
+        ftsScore: Math.abs(r.fts_score) / maxAbsScore,
+      }));
+    } catch {
+      // FTS5 table may not exist yet (unified DB migrated before schema update)
+      return [];
+    }
+  }
+
+  /**
+   * Ghost pattern check: find patterns in SQLite that have no embeddings.
+   * Used by aqe_health to detect data integrity issues.
+   */
+  getGhostPatternCount(): { total: number; withoutEmbeddings: number; sampleGhostIds: string[] } {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const total = (this.db.prepare(
+      `SELECT COUNT(*) as c FROM qe_patterns WHERE id NOT LIKE 'bench-%'`
+    ).get() as { c: number }).c;
+
+    const ghostCount = (this.db.prepare(`
+      SELECT COUNT(*) as c FROM qe_patterns p
+      WHERE p.id NOT LIKE 'bench-%'
+        AND p.id NOT IN (SELECT pattern_id FROM qe_pattern_embeddings)
+    `).get() as { c: number }).c;
+
+    // Sample up to 10 ghost IDs for diagnostics
+    const sampleGhosts = this.db.prepare(`
+      SELECT p.id FROM qe_patterns p
+      WHERE p.id NOT LIKE 'bench-%'
+        AND p.id NOT IN (SELECT pattern_id FROM qe_pattern_embeddings)
+      LIMIT 10
+    `).all() as Array<{ id: string }>;
+
+    return {
+      total,
+      withoutEmbeddings: ghostCount,
+      sampleGhostIds: sampleGhosts.map(g => g.id),
+    };
   }
 
   /**
@@ -907,6 +1046,130 @@ export class SQLitePatternStore {
         topPatterns: [],
       };
     }
+  }
+
+  /**
+   * Backfill embeddings for patterns that don't have them.
+   * Uses real all-MiniLM-L6-v2 transformer embeddings via @xenova/transformers.
+   * Falls back to hash-based embeddings if ONNX is unavailable.
+   * Skips bench/test patterns (id LIKE 'bench-%').
+   *
+   * @param batchSize - Patterns per inference batch (default: 32, matches model batch size)
+   * @returns Stats about the backfill operation
+   */
+  async backfillEmbeddings(batchSize: number = 32): Promise<{
+    processed: number;
+    skipped: number;
+    errors: number;
+    alreadyHad: number;
+    method: 'transformer' | 'hash-fallback';
+  }> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const dimension = getEmbeddingDimension(); // 384
+
+    // Find patterns without embeddings (skip bench patterns)
+    const patternsWithout = this.db.prepare(`
+      SELECT p.id, p.name, p.description, p.pattern_type, p.qe_domain
+      FROM qe_patterns p
+      WHERE p.id NOT IN (SELECT pattern_id FROM qe_pattern_embeddings)
+        AND p.id NOT LIKE 'bench-%'
+      ORDER BY p.quality_score DESC
+    `).all() as Array<{
+      id: string;
+      name: string;
+      description: string;
+      pattern_type: string;
+      qe_domain: string;
+    }>;
+
+    const alreadyHad = this.db.prepare(`
+      SELECT COUNT(*) as c FROM qe_pattern_embeddings
+    `).get() as { c: number };
+
+    if (patternsWithout.length === 0) {
+      console.log(`[SQLitePatternStore] Backfill: all patterns already have embeddings (${alreadyHad.c} total)`);
+      return { processed: 0, skipped: 0, errors: 0, alreadyHad: alreadyHad.c, method: 'transformer' };
+    }
+
+    console.log(`[SQLitePatternStore] Backfill: ${patternsWithout.length} patterns need embeddings (${alreadyHad.c} already have)`);
+
+    const insertEmbedding = this.prepared.get('insertEmbedding');
+    if (!insertEmbedding) {
+      throw new Error('Prepared statements not ready');
+    }
+
+    let processed = 0;
+    let skipped = 0;
+    let errors = 0;
+    let method: 'transformer' | 'hash-fallback' = 'transformer';
+
+    // Process in batches: compute embeddings async, then insert in sync transaction
+    for (let i = 0; i < patternsWithout.length; i += batchSize) {
+      const batch = patternsWithout.slice(i, i + batchSize);
+
+      // Build text for each pattern in the batch
+      const textsWithIds: Array<{ id: string; text: string }> = [];
+      for (const pattern of batch) {
+        const text = [
+          pattern.name,
+          pattern.description,
+          pattern.pattern_type,
+          pattern.qe_domain,
+        ].filter(Boolean).join(' ');
+
+        if (!text.trim()) {
+          skipped++;
+          continue;
+        }
+        textsWithIds.push({ id: pattern.id, text });
+      }
+
+      if (textsWithIds.length === 0) continue;
+
+      // Compute real embeddings via all-MiniLM-L6-v2 (async ONNX inference)
+      let embeddings: number[][];
+      try {
+        embeddings = await computeBatchEmbeddings(textsWithIds.map(t => t.text));
+      } catch (e) {
+        // Transformer unavailable — fall back to hash embeddings for remaining patterns
+        console.warn(`[SQLitePatternStore] Transformer unavailable, falling back to hash embeddings: ${toErrorMessage(e)}`);
+        method = 'hash-fallback';
+        embeddings = textsWithIds.map(t => hashEmbedding(t.text, dimension));
+      }
+
+      // Insert computed embeddings in a sync transaction
+      const embeddingTag = method === 'transformer' ? 'transformer-backfill' : 'hash-backfill';
+      const insertBatch = this.db!.transaction(() => {
+        for (let j = 0; j < textsWithIds.length; j++) {
+          try {
+            const embedding = embeddings[j];
+            if (!embedding || embedding.length !== dimension) {
+              errors++;
+              continue;
+            }
+            const buffer = Buffer.from(new Float32Array(embedding).buffer);
+            insertEmbedding.run(textsWithIds[j].id, buffer, dimension, embeddingTag);
+            processed++;
+          } catch (e) {
+            errors++;
+            if (errors <= 3) {
+              console.warn(`[SQLitePatternStore] Backfill error for ${textsWithIds[j].id}:`, toErrorMessage(e));
+            }
+          }
+        }
+      });
+
+      insertBatch();
+
+      const progress = Math.min(i + batchSize, patternsWithout.length);
+      if (progress % 100 === 0 || progress >= patternsWithout.length) {
+        console.log(`[SQLitePatternStore] Backfill progress: ${progress}/${patternsWithout.length}`);
+      }
+    }
+
+    console.log(`[SQLitePatternStore] Backfill complete (${method}): ${processed} processed, ${skipped} skipped, ${errors} errors`);
+    return { processed, skipped, errors, alreadyHad: alreadyHad.c, method };
   }
 
   /**

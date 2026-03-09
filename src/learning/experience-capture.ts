@@ -22,6 +22,7 @@ import { LoggerFactory } from '../logging/index.js';
 
 const logger = LoggerFactory.create('experience-capture');
 
+import { PROMOTION_THRESHOLD } from './qe-patterns.js';
 import type {
   QEPattern,
   CreateQEPatternOptions,
@@ -33,6 +34,57 @@ import type { PatternStore, PatternSearchResult } from './pattern-store.js';
 // ============================================================================
 // Types
 // ============================================================================
+
+/**
+ * Test outcome categories for binary reward assignment (GRPO-inspired).
+ * Maps discrete test outcomes to reward signals for pattern learning.
+ */
+export type TestOutcome =
+  | 'catches-bug'      // Test caught a real bug (mutation killed) → +1.0
+  | 'flaky'            // Test is intermittently failing → -1.0
+  | 'false-positive'   // Test fails on correct code → -1.0
+  | 'new-coverage'     // Test covers previously untested code path → +0.3
+  | 'redundant'        // Test adds no new coverage → 0.0
+  | 'code-smell'       // Test has quality issues (magic numbers, no assertions) → -0.5
+  | 'neutral';         // No specific outcome signal → 0.0
+
+/**
+ * Reward values for each test outcome.
+ * Based on GRPO (Group Relative Policy Optimization) binary reward model.
+ */
+export const TEST_OUTCOME_REWARDS: Record<TestOutcome, number> = {
+  'catches-bug': 1.0,
+  'flaky': -1.0,
+  'false-positive': -1.0,
+  'new-coverage': 0.3,
+  'redundant': 0.0,
+  'code-smell': -0.5,
+  'neutral': 0.0,
+};
+
+/**
+ * Valid test outcome values for runtime validation.
+ */
+export const VALID_TEST_OUTCOMES = new Set<string>(Object.keys(TEST_OUTCOME_REWARDS));
+
+/**
+ * Check if a value is a valid TestOutcome.
+ */
+export function isValidTestOutcome(value: unknown): value is TestOutcome {
+  return typeof value === 'string' && VALID_TEST_OUTCOMES.has(value);
+}
+
+/**
+ * Compute binary reward from a test outcome.
+ * Returns a reward signal in [-1.0, +1.0] range.
+ * Returns undefined for invalid outcomes (caller must handle).
+ */
+export function computeBinaryReward(outcome: TestOutcome): number | undefined {
+  if (!isValidTestOutcome(outcome)) {
+    return undefined;
+  }
+  return TEST_OUTCOME_REWARDS[outcome];
+}
 
 /**
  * Task execution experience
@@ -70,6 +122,12 @@ export interface TaskExperience {
 
   /** Quality score (0-1) */
   quality: number;
+
+  /** Binary reward signal from test outcome (-1.0 to +1.0) */
+  reward?: number;
+
+  /** Test outcome category (if applicable) */
+  testOutcome?: TestOutcome;
 
   /** Feedback provided */
   feedback?: string;
@@ -140,7 +198,7 @@ export const DEFAULT_EXPERIENCE_CONFIG: ExperienceCaptureConfig = {
   namespace: 'qe-experiences',
   minQualityForPatternExtraction: 0.7,
   similarityThreshold: 0.85,
-  promotionThreshold: 3,
+  promotionThreshold: PROMOTION_THRESHOLD,
   maxExperiencesPerDomain: 1000,
   enableCrossDomainSharing: true,
   autoCleanup: true,
@@ -204,7 +262,7 @@ export class ExperienceCaptureService {
   // In-memory cache for active experiences
   private activeExperiences: Map<string, TaskExperience> = new Map();
 
-  // Statistics
+  // Statistics (cumulative, loaded from persistence)
   private stats = {
     totalCaptured: 0,
     successfulCaptures: 0,
@@ -212,6 +270,9 @@ export class ExperienceCaptureService {
     patternsPromoted: 0,
     byDomain: new Map<QEDomain, number>(),
   };
+
+  // Session-level counter (not persisted, tracks only this session)
+  private sessionCaptureCount = 0;
 
   constructor(
     private readonly memory: MemoryBackend,
@@ -307,6 +368,7 @@ export class ExperienceCaptureService {
       success: boolean;
       quality?: number;
       feedback?: string;
+      testOutcome?: TestOutcome;
     }
   ): Promise<Result<TaskExperience>> {
     const experience = this.activeExperiences.get(experienceId);
@@ -328,6 +390,13 @@ export class ExperienceCaptureService {
       experience.quality = this.calculateQuality(experience);
     }
 
+    // Compute binary reward from test outcome (GRPO-inspired)
+    const rawOutcome = outcome.testOutcome ?? experience.metadata?.testOutcome;
+    if (rawOutcome && isValidTestOutcome(rawOutcome)) {
+      experience.testOutcome = rawOutcome;
+      experience.reward = computeBinaryReward(rawOutcome);
+    }
+
     // Remove from active
     this.activeExperiences.delete(experienceId);
 
@@ -337,10 +406,13 @@ export class ExperienceCaptureService {
     // Update stats
     this.updateStats(experience);
 
-    // Extract patterns if quality is high enough
+    // Extract patterns: require positive reward (or no reward signal) AND quality threshold
+    // Zero or negative reward blocks extraction — only learn from genuinely positive outcomes
+    const rewardAllowsExtraction = experience.reward === undefined || experience.reward > 0;
     if (
       experience.success &&
-      experience.quality >= this.config.minQualityForPatternExtraction
+      experience.quality >= this.config.minQualityForPatternExtraction &&
+      rewardAllowsExtraction
     ) {
       const extractionResult = await this.extractPattern(experience);
       if (extractionResult.newPattern || extractionResult.reinforced) {
@@ -359,6 +431,45 @@ export class ExperienceCaptureService {
    */
   getActiveExperience(experienceId: string): TaskExperience | undefined {
     return this.activeExperiences.get(experienceId);
+  }
+
+  /**
+   * Get the count of pending (in-flight) experiences not yet persisted.
+   * Used by pre-compaction hook to decide whether a flush is needed.
+   */
+  getPendingCount(): number {
+    return this.activeExperiences.size;
+  }
+
+  /**
+   * Flush all pending (in-flight) experiences to persistence.
+   * Each active experience is completed as a partial success and stored,
+   * preventing knowledge loss during context compaction.
+   * Returns the number of experiences flushed.
+   */
+  async flushPending(): Promise<number> {
+    const pending = Array.from(this.activeExperiences.entries());
+    if (pending.length === 0) return 0;
+
+    let flushed = 0;
+    for (const [id, experience] of pending) {
+      // Complete the experience with what we have so far
+      const now = Date.now();
+      experience.completedAt = now;
+      experience.durationMs = now - experience.startedAt;
+      // Mark as partial — quality reflects incomplete capture
+      experience.quality = experience.quality || this.calculateQuality(experience);
+      experience.metadata = { ...experience.metadata, flushedByCompaction: true };
+
+      // Persist to storage
+      await this.storeExperience(experience);
+      this.updateStats(experience);
+      this.activeExperiences.delete(id);
+      flushed++;
+    }
+
+    logger.info(`Flushed ${flushed} pending experiences before compaction`);
+    return flushed;
   }
 
   /**
@@ -595,6 +706,15 @@ export class ExperienceCaptureService {
     // Save stats
     await this.saveStats();
 
+    // At-least-one learning guarantee: warn if zero experiences captured this session
+    if (this.sessionCaptureCount === 0) {
+      console.warn(
+        '[ExperienceCapture] WARNING: Zero experiences captured this session. ' +
+        'Learning cannot improve without experience data. ' +
+        'Ensure tasks call startCapture()/completeCapture() to feed the learning loop.'
+      );
+    }
+
     this.activeExperiences.clear();
     this.initialized = false;
   }
@@ -674,6 +794,7 @@ export class ExperienceCaptureService {
    */
   private updateStats(experience: TaskExperience): void {
     this.stats.totalCaptured++;
+    this.sessionCaptureCount++;
 
     if (experience.success) {
       this.stats.successfulCaptures++;
@@ -890,6 +1011,8 @@ Duration: ${experience.durationMs}ms`;
       timestamp: new Date(),
       payload: {
         experience, // Full experience for cross-domain learning
+        reward: experience.reward, // Binary reward for RL integration
+        testOutcome: experience.testOutcome,
       },
     });
   }

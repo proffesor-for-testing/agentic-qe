@@ -510,6 +510,39 @@ export class UnifiedMemoryManager {
         if (currentVersion < 6) this.db!.exec(HYPERGRAPH_SCHEMA);
         if (currentVersion < 7) this.db!.exec(SONA_PATTERNS_SCHEMA);
         if (currentVersion < 8) this.db!.exec(FEEDBACK_SCHEMA);
+        if (currentVersion < 9) {
+          // Add FTS5 full-text search for qe_patterns (hybrid vector/text search)
+          this.db!.exec(`
+            CREATE VIRTUAL TABLE IF NOT EXISTS qe_patterns_fts USING fts5(
+              name, description, pattern_type, qe_domain,
+              content='qe_patterns',
+              content_rowid='rowid'
+            );
+
+            CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_insert AFTER INSERT ON qe_patterns BEGIN
+              INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
+              VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_delete AFTER DELETE ON qe_patterns BEGIN
+              INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
+              VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_update AFTER UPDATE ON qe_patterns BEGIN
+              INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
+              VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
+              INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
+              VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
+            END;
+          `);
+
+          // Populate FTS5 index from existing patterns
+          this.db!.exec(`
+            INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
+            SELECT rowid, name, description, pattern_type, qe_domain FROM qe_patterns;
+          `);
+        }
 
         this.db!.prepare(`
           INSERT OR REPLACE INTO schema_version (id, version, migrated_at)

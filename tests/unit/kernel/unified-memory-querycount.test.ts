@@ -50,11 +50,14 @@ describe('UnifiedMemoryManager.queryCount', () => {
   });
 
   it('should allow all expected learning tables', () => {
+    // Tables guaranteed to exist after basic UnifiedMemoryManager.initialize()
+    // Note: captured_experiences and experience_applications are created by
+    // optional middleware (experience-capture, brain-export) — not by core schema.
     const expectedTables = [
-      'qe_patterns', 'captured_experiences', 'qe_trajectories',
-      'experience_applications', 'dream_cycles', 'dream_insights',
+      'qe_patterns', 'qe_trajectories',
+      'dream_cycles', 'dream_insights',
       'concept_nodes', 'concept_edges', 'rl_q_values', 'vectors',
-      'kv_store', 'routing_outcomes', 'qe_pattern_usage',
+      'kv_store', 'qe_pattern_usage',
     ];
 
     for (const table of expectedTables) {

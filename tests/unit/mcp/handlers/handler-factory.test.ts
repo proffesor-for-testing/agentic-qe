@@ -48,6 +48,14 @@ vi.mock('../../../../src/coordination/task-executor', () => ({
   })),
 }));
 
+// Mock the learning engine to prevent cross-suite contamination.
+// Without this, cachedLearningEngine (module-level singleton in handler-factory.ts)
+// can persist from other test files in the same vitest worker, returning real patterns
+// that change patternHints from undefined to an array.
+vi.mock('../../../../src/learning/aqe-learning-engine', () => ({
+  createAQELearningEngine: vi.fn(() => null),
+}));
+
 // ============================================================================
 // Test Utilities
 // ============================================================================

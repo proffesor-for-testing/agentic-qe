@@ -1,0 +1,31 @@
+{
+  "version": "3.0",
+  "format": "rvf",
+  "exportedAt": "2026-03-09T17:42:17.532Z",
+  "sourceDb": "/workspaces/agentic-qe-new/.agentic-qe/memory.db",
+  "stats": {
+    "patternCount": 15634,
+    "embeddingCount": 911,
+    "qValueCount": 8,
+    "dreamInsightCount": 3930,
+    "witnessChainLength": 12857,
+    "totalRecords": 117952
+  },
+  "domains": [
+    "coverage-analysis",
+    "learning-optimization",
+    "security-compliance",
+    "test-generation"
+  ],
+  "checksum": "b5802b3cde1cd1a9e1928fd869641c616216c1b4ef56555f5237581737c3f9af",
+  "rvfStatus": {
+    "totalVectors": 911,
+    "totalSegments": 6,
+    "fileSizeBytes": 49313352
+  },
+  "lineage": {
+    "fileId": "7c58e66124ceb3734d4f9dfd02877721",
+    "parentId": "00000000000000000000000000000000",
+    "lineageDepth": 0
+  }
+}

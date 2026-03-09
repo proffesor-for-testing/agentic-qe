@@ -22,6 +22,7 @@ import {
   shouldPromotePattern,
   validateQEPattern,
   mapQEDomainToAQE,
+  PROMOTION_THRESHOLD,
 } from './qe-patterns.js';
 
 // ============================================================================
@@ -117,7 +118,7 @@ export const DEFAULT_PATTERN_STORE_CONFIG: PatternStoreConfig = {
     efSearch: 100,
     maxElements: 50000,
   },
-  promotionThreshold: 3,
+  promotionThreshold: PROMOTION_THRESHOLD,
   minConfidence: 0.3,
   maxPatternsPerDomain: 5000,
   autoCleanup: true,
@@ -306,6 +307,7 @@ export class PatternStore implements IPatternStore {
 
   // Optional SQLite persistence delegate for delete/promote
   private sqliteStore: import('./sqlite-persistence.js').SQLitePatternStore | null = null;
+  private loadingPromise: Promise<void> | null = null;
 
   // In-memory caches for fast access
   private patternCache: Map<string, QEPattern> = new Map();
@@ -333,12 +335,26 @@ export class PatternStore implements IPatternStore {
   }
 
   /**
-   * Set SQLite persistence delegate for delete/promote operations.
-   * When set, PatternStore will forward these operations to SQLite
-   * in addition to updating the in-memory cache.
+   * Set SQLite persistence delegate and load patterns into memory.
+   *
+   * When set, PatternStore will:
+   * 1. Load existing patterns from SQLite into the in-memory cache
+   * 2. Forward create/delete/promote operations to SQLite for persistence
+   * 3. Persist embeddings alongside patterns on store()
    */
   setSqliteStore(store: import('./sqlite-persistence.js').SQLitePatternStore): void {
     this.sqliteStore = store;
+
+    // Load patterns from SQLite if we're already initialized
+    // (setSqliteStore is called after initialize() in QEReasoningBank)
+    // Store promise so concurrent store/search calls can await it
+    if (this.initialized) {
+      this.loadingPromise = this.loadPatterns().catch((e) =>
+        console.warn('[PatternStore] Failed to load patterns after setSqliteStore:', e)
+      ).finally(() => {
+        this.loadingPromise = null;
+      });
+    }
   }
 
   /**
@@ -440,6 +456,43 @@ export class PatternStore implements IPatternStore {
       await Promise.race([initPromise, timeoutPromise]);
       this.hnswAvailable = this.hnswIndex.isNativeAvailable();
 
+      // Load existing embeddings from SQLite into HNSW index (capped to prevent timeout)
+      if (this.sqliteStore) {
+        try {
+          const embeddings = this.sqliteStore.getAllEmbeddings();
+          const maxBootstrap = this.config.hnsw.maxElements;
+          let loaded = 0;
+          for (const { patternId, embedding } of embeddings) {
+            if (loaded >= maxBootstrap) break;
+            if (!embedding || embedding.length !== this.config.embeddingDimension) continue;
+            const pattern = this.patternCache.get(patternId);
+            if (!pattern) continue;
+            try {
+              await this.hnswIndex.insert(patternId, embedding, {
+                filePath: pattern.patternType,
+                lineCoverage: pattern.confidence * 100,
+                branchCoverage: pattern.qualityScore * 100,
+                functionCoverage: 0,
+                statementCoverage: 0,
+                uncoveredLineCount: 0,
+                uncoveredBranchCount: 0,
+                riskScore: 1 - pattern.confidence,
+                lastUpdated: Date.now(),
+                totalLines: 0,
+              } as import('../domains/coverage-analysis/services/hnsw-index.js').CoverageVectorMetadata);
+              loaded++;
+            } catch {
+              // Duplicate or invalid — skip
+            }
+          }
+          if (loaded > 0) {
+            console.log(`[PatternStore] Loaded ${loaded} embeddings from SQLite into HNSW`);
+          }
+        } catch (error) {
+          console.warn('[PatternStore] Failed to load SQLite embeddings into HNSW:', toErrorMessage(error));
+        }
+      }
+
       console.log(
         `[PatternStore] HNSW lazy-initialized (native: ${this.hnswAvailable})`
       );
@@ -454,13 +507,33 @@ export class PatternStore implements IPatternStore {
   }
 
   /**
-   * Load existing patterns from memory with timeout protection
+   * Load existing patterns from SQLite into in-memory cache.
+   *
+   * Previously this was a no-op after Issue #258 removed kv_store duplication,
+   * but that left 15,634 SQLite patterns invisible to search on every restart.
+   * Now properly loads from SQLitePatternStore when wired.
    */
   private async loadPatterns(): Promise<void> {
-    // Patterns are loaded from qe_patterns table by SQLitePatternStore.
-    // PatternStore's in-memory cache is populated via indexPattern() calls
-    // from the ReasoningBank when it loads from the relational store.
-    // Previously this loaded from kv_store, which duplicated storage (Issue #258).
+    if (!this.sqliteStore) {
+      return; // SQLite not wired yet — will be loaded after setSqliteStore()
+    }
+
+    try {
+      const patterns = this.sqliteStore.getPatterns({ limit: 50000 });
+      for (const pattern of patterns) {
+        this.indexPattern(pattern);
+      }
+      if (patterns.length > 0) {
+        console.log(
+          `[PatternStore] Loaded ${patterns.length} patterns from SQLite into memory cache`
+        );
+      }
+    } catch (error) {
+      console.warn(
+        '[PatternStore] Failed to load patterns from SQLite:',
+        toErrorMessage(error)
+      );
+    }
   }
 
   /**
@@ -481,8 +554,13 @@ export class PatternStore implements IPatternStore {
     }
     this.typeIndex.get(pattern.patternType)!.add(pattern.id);
 
-    // Tier index
-    this.tierIndex.get(pattern.tier)!.add(pattern.id);
+    // Tier index (defensive: coerce unexpected tier values to 'short-term')
+    const tier = (pattern.tier === 'long-term') ? 'long-term' : 'short-term';
+    if (pattern.tier !== tier) {
+      // Pattern has invalid tier from SQLite — store corrected copy in cache
+      (pattern as { tier: string }).tier = tier;
+    }
+    this.tierIndex.get(tier)!.add(pattern.id);
   }
 
   /**
@@ -501,6 +579,9 @@ export class PatternStore implements IPatternStore {
   async store(pattern: QEPattern): Promise<Result<string>> {
     if (!this.initialized) {
       await this.initialize();
+    }
+    if (this.loadingPromise) {
+      await this.loadingPromise;
     }
 
     // Validate pattern
@@ -525,12 +606,17 @@ export class PatternStore implements IPatternStore {
       await this.cleanupDomain(pattern.qeDomain);
     }
 
-    // Patterns are persisted to qe_patterns table by SQLitePatternStore.
-    // PatternStore only maintains in-memory cache + HNSW index for fast search.
-    // Previously this wrote to kv_store, causing 229MB bloat (Issue #258).
-
-    // Index locally
+    // Index in memory cache
     this.indexPattern(pattern);
+
+    // Persist to SQLite (pattern + embedding atomically)
+    if (this.sqliteStore) {
+      try {
+        this.sqliteStore.storePattern(pattern, pattern.embedding);
+      } catch (error) {
+        console.warn(`[PatternStore] SQLite persist failed for ${pattern.id}:`, toErrorMessage(error));
+      }
+    }
 
     // Add to HNSW if embedding is available (lazy-load HNSW only when needed)
     if (pattern.embedding) {
@@ -633,6 +719,9 @@ export class PatternStore implements IPatternStore {
     if (!this.initialized) {
       await this.initialize();
     }
+    if (this.loadingPromise) {
+      await this.loadingPromise;
+    }
 
     return this.patternCache.get(id) ?? null;
   }
@@ -646,6 +735,9 @@ export class PatternStore implements IPatternStore {
   ): Promise<Result<PatternSearchResult[]>> {
     if (!this.initialized) {
       await this.initialize();
+    }
+    if (this.loadingPromise) {
+      await this.loadingPromise;
     }
 
     const startTime = performance.now();
@@ -677,6 +769,46 @@ export class PatternStore implements IPatternStore {
         }
       }
 
+      // FTS5 hybrid search: blend BM25 text relevance with vector similarity
+      // 75% vector score + 25% FTS5 score for patterns found by both
+      if (typeof query === 'string' && query.trim() && this.sqliteStore) {
+        try {
+          const ftsResults = this.sqliteStore.searchFTS(query, limit * 2);
+          if (ftsResults.length > 0) {
+            const ftsScoreMap = new Map(ftsResults.map(r => [r.id, r.ftsScore]));
+            const existingIds = new Set(results.map(r => r.pattern.id));
+
+            // Boost existing vector results that also match FTS5
+            for (const result of results) {
+              const ftsScore = ftsScoreMap.get(result.pattern.id);
+              if (ftsScore !== undefined) {
+                result.score = 0.75 * result.score + 0.25 * ftsScore;
+              }
+            }
+
+            // Add FTS5-only results not already in vector results
+            for (const ftsResult of ftsResults) {
+              if (existingIds.has(ftsResult.id)) continue;
+              const pattern = await this.get(ftsResult.id);
+              if (pattern && this.matchesFilters(pattern, options)) {
+                const reuseInfo = this.calculateReuseInfo(pattern, ftsResult.ftsScore);
+                results.push({
+                  pattern,
+                  score: 0.5 * ftsResult.ftsScore, // FTS-only: exact keyword match is valuable
+                  matchType: 'exact',
+                  similarity: ftsResult.ftsScore,
+                  canReuse: reuseInfo.canReuse,
+                  estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
+                  reuseConfidence: reuseInfo.reuseConfidence,
+                });
+              }
+            }
+          }
+        } catch {
+          // FTS5 unavailable, continue with text fallback
+        }
+      }
+
       // Text search fallback or additional
       if (typeof query === 'string' || results.length < limit) {
         const textResults = await this.searchByText(
@@ -684,7 +816,28 @@ export class PatternStore implements IPatternStore {
           options,
           limit - results.length
         );
-        results.push(...textResults);
+        // Deduplicate: only add text results not already present
+        const existingIds = new Set(results.map(r => r.pattern.id));
+        for (const tr of textResults) {
+          if (!existingIds.has(tr.pattern.id)) {
+            results.push(tr);
+          }
+        }
+      }
+
+      // Apply temporal decay: boost recent patterns, penalize stale ones
+      // Half-life of 30 days — patterns used recently score higher
+      const TEMPORAL_HALF_LIFE_MS = 30 * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      for (const result of results) {
+        const lastUsed = result.pattern.lastUsedAt?.getTime() ?? result.pattern.createdAt.getTime();
+        const ageMs = now - lastUsed;
+        const decayFactor = Math.pow(0.5, ageMs / TEMPORAL_HALF_LIFE_MS);
+        // Only boost patterns that have been used — new untested patterns get neutral score
+        const effectiveDecay = result.pattern.usageCount > 0 ? decayFactor : 0.5;
+        // Multiplicative decay: preserves relative ordering from search scoring
+        // while penalizing stale patterns (decayFactor is 0-1)
+        result.score = result.score * (0.7 + 0.3 * effectiveDecay);
       }
 
       // Sort by score and limit
@@ -922,6 +1075,15 @@ export class PatternStore implements IPatternStore {
       lastUsedAt: now,
     };
 
+    // Persist usage to SQLite
+    if (this.sqliteStore) {
+      try {
+        this.sqliteStore.recordUsage(id, success);
+      } catch (error) {
+        console.warn(`[PatternStore] SQLite recordUsage failed for ${id}:`, toErrorMessage(error));
+      }
+    }
+
     // Check for promotion (ADR-052: shouldPromotePattern returns PromotionCheck object)
     const promotionCheck = shouldPromotePattern(updated);
     const shouldPromote = promotionCheck.meetsUsageCriteria &&
@@ -930,7 +1092,7 @@ export class PatternStore implements IPatternStore {
     if (shouldPromote && updated.tier === 'short-term') {
       await this.promote(id);
     } else {
-      // Update cache only - persistence handled by SQLitePatternStore
+      // Update in-memory cache
       this.patternCache.set(id, updated);
     }
 
@@ -1089,7 +1251,10 @@ export class PatternStore implements IPatternStore {
 
       // Check for removal (short-term, old, low quality)
       if (pattern.tier === 'short-term') {
-        const ageMs = Date.now() - pattern.createdAt.getTime();
+        const createdTime = pattern.createdAt instanceof Date
+          ? pattern.createdAt.getTime()
+          : new Date(pattern.createdAt).getTime();
+        const ageMs = Date.now() - createdTime;
         const isOld = ageMs > 7 * 24 * 60 * 60 * 1000; // 7 days
         const isLowQuality = pattern.qualityScore < 0.2;
         const isUnused = pattern.usageCount === 0 && ageMs > 24 * 60 * 60 * 1000; // 1 day

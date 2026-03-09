@@ -10,8 +10,12 @@ import {
   ExperienceCaptureService,
   createExperienceCaptureService,
   DEFAULT_EXPERIENCE_CONFIG,
+  computeBinaryReward,
+  isValidTestOutcome,
+  TEST_OUTCOME_REWARDS,
   type TaskExperience,
   type ExperienceCaptureConfig,
+  type TestOutcome,
 } from '../../../src/learning/experience-capture.js';
 import type { PatternStore } from '../../../src/learning/pattern-store.js';
 import type { MemoryBackend, EventBus } from '../../../src/kernel/interfaces.js';
@@ -689,6 +693,198 @@ describe('ExperienceCaptureService', () => {
       await noEventService.completeCapture(id, { success: true });
 
       await noEventService.dispose();
+    });
+  });
+
+  describe('Binary Rewards (GRPO)', () => {
+    it('should compute correct rewards for each test outcome', () => {
+      expect(computeBinaryReward('catches-bug')).toBe(1.0);
+      expect(computeBinaryReward('flaky')).toBe(-1.0);
+      expect(computeBinaryReward('false-positive')).toBe(-1.0);
+      expect(computeBinaryReward('new-coverage')).toBe(0.3);
+      expect(computeBinaryReward('redundant')).toBe(0.0);
+      expect(computeBinaryReward('code-smell')).toBe(-0.5);
+      expect(computeBinaryReward('neutral')).toBe(0.0);
+    });
+
+    it('should assign reward when testOutcome provided in completeCapture', async () => {
+      const id = service.startCapture('Bug-catching test', {
+        domain: 'test-generation',
+      });
+      service.recordStep(id, { action: 'generate-test', quality: 0.9 });
+
+      const result = await service.completeCapture(id, {
+        success: true,
+        quality: 0.9,
+        testOutcome: 'catches-bug',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.value?.reward).toBe(1.0);
+      expect(result.value?.testOutcome).toBe('catches-bug');
+    });
+
+    it('should assign negative reward for flaky tests', async () => {
+      const id = service.startCapture('Flaky test');
+
+      const result = await service.completeCapture(id, {
+        success: false,
+        testOutcome: 'flaky',
+      });
+
+      expect(result.value?.reward).toBe(-1.0);
+      expect(result.value?.testOutcome).toBe('flaky');
+    });
+
+    it('should assign reward from metadata.testOutcome if not in outcome', async () => {
+      const id = service.startCapture('Coverage test', {
+        metadata: { testOutcome: 'new-coverage' },
+      });
+
+      const result = await service.completeCapture(id, {
+        success: true,
+        quality: 0.8,
+      });
+
+      expect(result.value?.reward).toBe(0.3);
+      expect(result.value?.testOutcome).toBe('new-coverage');
+    });
+
+    it('should not assign reward when no testOutcome', async () => {
+      const id = service.startCapture('No outcome task');
+
+      const result = await service.completeCapture(id, {
+        success: true,
+        quality: 0.8,
+      });
+
+      expect(result.value?.reward).toBeUndefined();
+      expect(result.value?.testOutcome).toBeUndefined();
+    });
+
+    it('should block pattern extraction for negative reward', async () => {
+      const id = service.startCapture('False positive test', {
+        domain: 'test-generation',
+      });
+      service.recordStep(id, { action: 'generate', quality: 0.95 });
+
+      await service.completeCapture(id, {
+        success: true,
+        quality: 0.95,
+        testOutcome: 'false-positive',
+      });
+
+      // Despite high quality and success, pattern should NOT be extracted
+      expect(patternStore.create).not.toHaveBeenCalled();
+    });
+
+    it('should allow pattern extraction for positive reward', async () => {
+      const id = service.startCapture('Bug catcher', {
+        domain: 'test-generation',
+      });
+      service.recordStep(id, { action: 'test', quality: 0.9 });
+
+      await service.completeCapture(id, {
+        success: true,
+        quality: 0.85,
+        testOutcome: 'catches-bug',
+      });
+
+      expect(patternStore.create).toHaveBeenCalled();
+    });
+
+    it('should block pattern extraction for zero reward (redundant)', async () => {
+      const id = service.startCapture('Redundant test', {
+        domain: 'test-generation',
+      });
+
+      await service.completeCapture(id, {
+        success: true,
+        quality: 0.85,
+        testOutcome: 'redundant',
+      });
+
+      // Zero reward blocks extraction — don't learn from zero-value outcomes
+      expect(patternStore.create).not.toHaveBeenCalled();
+    });
+
+    it('should include reward in emitted event', async () => {
+      const id = service.startCapture('Event reward task');
+
+      await service.completeCapture(id, {
+        success: true,
+        quality: 0.8,
+        testOutcome: 'catches-bug',
+      });
+
+      expect(eventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            reward: 1.0,
+            testOutcome: 'catches-bug',
+          }),
+        })
+      );
+    });
+
+    it('should block extraction for code-smell even with high quality', async () => {
+      const id = service.startCapture('Smelly test', {
+        domain: 'test-generation',
+      });
+
+      await service.completeCapture(id, {
+        success: true,
+        quality: 0.95,
+        testOutcome: 'code-smell',
+      });
+
+      // -0.5 reward blocks extraction
+      expect(patternStore.create).not.toHaveBeenCalled();
+    });
+
+    it('should return undefined for invalid outcome in computeBinaryReward', () => {
+      // M3: Invalid input should not silently become 0
+      expect(computeBinaryReward('invalid-outcome' as TestOutcome)).toBeUndefined();
+      expect(computeBinaryReward('' as TestOutcome)).toBeUndefined();
+    });
+
+    it('should validate test outcomes correctly with isValidTestOutcome', () => {
+      expect(isValidTestOutcome('catches-bug')).toBe(true);
+      expect(isValidTestOutcome('flaky')).toBe(true);
+      expect(isValidTestOutcome('neutral')).toBe(true);
+      expect(isValidTestOutcome('invalid')).toBe(false);
+      expect(isValidTestOutcome(42)).toBe(false);
+      expect(isValidTestOutcome(null)).toBe(false);
+      expect(isValidTestOutcome(undefined)).toBe(false);
+    });
+
+    it('should ignore invalid metadata.testOutcome (L1)', async () => {
+      const id = service.startCapture('Invalid metadata outcome', {
+        metadata: { testOutcome: 'catch-bug' }, // Typo — not a valid outcome
+      });
+
+      const result = await service.completeCapture(id, {
+        success: true,
+        quality: 0.8,
+      });
+
+      // Invalid outcome should be silently ignored, not converted to 0
+      expect(result.value?.reward).toBeUndefined();
+      expect(result.value?.testOutcome).toBeUndefined();
+    });
+
+    it('should ignore non-string metadata.testOutcome', async () => {
+      const id = service.startCapture('Number metadata outcome', {
+        metadata: { testOutcome: 42 },
+      });
+
+      const result = await service.completeCapture(id, {
+        success: true,
+        quality: 0.8,
+      });
+
+      expect(result.value?.reward).toBeUndefined();
+      expect(result.value?.testOutcome).toBeUndefined();
     });
   });
 

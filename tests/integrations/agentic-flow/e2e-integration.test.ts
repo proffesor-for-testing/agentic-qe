@@ -13,7 +13,8 @@
  * @module tests/integrations/agentic-flow/e2e-integration
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence';
 
 // Import all adapters
 import {
@@ -122,6 +123,12 @@ async function teardownTestContext(context: TestContext | undefined): Promise<vo
 // ============================================================================
 
 describe('ADR-051 End-to-End Integration', () => {
+  // Reset shared singletons to prevent cross-suite contamination
+  // when vitest reuses worker threads from other test files.
+  beforeAll(() => {
+    resetUnifiedPersistence();
+  });
+
   describe('Full Pipeline', () => {
     let context: TestContext;
 
