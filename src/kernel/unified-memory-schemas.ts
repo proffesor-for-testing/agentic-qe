@@ -14,7 +14,7 @@ export { HYPERGRAPH_SCHEMA };
 // Schema Version for Migrations
 // ============================================================================
 
-export const SCHEMA_VERSION = 8; // v8: adds feedback loop persistence tables (ADR-023, ADR-022)
+export const SCHEMA_VERSION = 9; // v9: adds FTS5 full-text search for qe_patterns (hybrid vector/text search)
 
 export const SCHEMA_VERSION_TABLE = `
   CREATE TABLE IF NOT EXISTS schema_version (
@@ -330,6 +330,31 @@ export const QE_PATTERNS_SCHEMA = `
     error_message TEXT,
     FOREIGN KEY (execution_id) REFERENCES execution_results(id)
   );
+
+  -- FTS5 full-text search index for hybrid vector/text search
+  CREATE VIRTUAL TABLE IF NOT EXISTS qe_patterns_fts USING fts5(
+    name, description, pattern_type, qe_domain,
+    content='qe_patterns',
+    content_rowid='rowid'
+  );
+
+  -- FTS5 triggers to keep index in sync
+  CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_insert AFTER INSERT ON qe_patterns BEGIN
+    INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
+    VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_delete AFTER DELETE ON qe_patterns BEGIN
+    INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
+    VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_update AFTER UPDATE ON qe_patterns BEGIN
+    INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
+    VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
+    INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
+    VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
+  END;
 
   -- QE Patterns indexes
   CREATE INDEX IF NOT EXISTS idx_qe_patterns_domain ON qe_patterns(qe_domain);

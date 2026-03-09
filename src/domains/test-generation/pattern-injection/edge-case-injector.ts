@@ -11,6 +11,8 @@
  */
 
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
+import { generateRemediationHints } from '../../../learning/opd-remediation.js';
+import type { RemediationHint } from '../../../learning/opd-remediation.js';
 
 // ============================================================================
 // Types
@@ -249,6 +251,7 @@ export class EdgeCaseInjector {
 
   /**
    * Format selected patterns into a prompt context string.
+   * Appends OPD remediation hints for patterns with low success rates.
    */
   private formatPromptContext(patterns: RetrievedPattern[]): string {
     const lines: string[] = ['## Historical Edge Cases (from patterns that caught real bugs):'];
@@ -260,7 +263,39 @@ export class EdgeCaseInjector {
       lines.push(`${i + 1}. [${tag}] ${desc}`);
     }
 
+    // OPD: Append remediation hints for weak patterns (successRate < 0.5)
+    const weakPatterns = patterns.filter(p => p.successRate < 0.5);
+    const allHints: RemediationHint[] = [];
+    for (const wp of weakPatterns) {
+      const hints = generateRemediationHints(
+        { id: wp.key, name: wp.name, description: wp.description, successRate: wp.successRate, usageCount: wp.usageCount, confidence: wp.confidence, tags: wp.tags },
+        this.buildSyntheticHistory(wp),
+      );
+      allHints.push(...hints);
+    }
+
+    if (allHints.length > 0) {
+      lines.push('');
+      lines.push('## Remediation Notes (patterns with known issues):');
+      for (const hint of allHints.slice(0, 3)) {
+        lines.push(`- [${hint.category}] ${hint.suggestion}`);
+      }
+    }
+
     return lines.join('\n');
+  }
+
+  /**
+   * Build a synthetic execution history from pattern metadata.
+   * Used to feed into OPD remediation when full history is unavailable.
+   */
+  private buildSyntheticHistory(pattern: RetrievedPattern): Array<{ success: boolean }> {
+    const total = Math.max(pattern.usageCount, 1);
+    const successes = Math.round(total * pattern.successRate);
+    const history: Array<{ success: boolean }> = [];
+    for (let i = 0; i < successes; i++) history.push({ success: true });
+    for (let i = 0; i < total - successes; i++) history.push({ success: false });
+    return history;
   }
 
   /**

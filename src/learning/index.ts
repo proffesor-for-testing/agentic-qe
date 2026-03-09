@@ -447,6 +447,23 @@ export type {
 } from './pattern-lifecycle.js';
 
 // ============================================================================
+// OPD Remediation Hints
+// ============================================================================
+
+export {
+  generateRemediationHints,
+  findCommonKeywords,
+} from './opd-remediation.js';
+
+export type {
+  RemediationHint,
+  RemediationCategory,
+  RemediationConfig,
+  PatternInput,
+  ExecutionRecord,
+} from './opd-remediation.js';
+
+// ============================================================================
 // Learning Metrics Tracker (Phase 6: Learning Improvement Plan)
 // ============================================================================
 
@@ -459,3 +476,14 @@ export type {
   LearningMetricsSnapshot,
   DashboardData,
 } from './metrics-tracker.js';
+
+// ============================================================================
+// Daily Log Tier (OpenClaw Daily Log Pattern)
+// ============================================================================
+
+export { DailyLogger } from './daily-log.js';
+
+export type {
+  DailyLogEntry,
+  DailyLogConfig,
+} from './daily-log.js';

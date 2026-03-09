@@ -989,6 +989,7 @@ import { createHooksCommand } from './commands/hooks.js';
 import { createLearningCommand } from './commands/learning.js';
 import { createMcpCommand } from './commands/mcp.js';
 import { createPlatformCommand } from './commands/platform.js';
+import { createProveCommand } from './commands/prove.js';
 
 program.addCommand(createTokenUsageCommand());
 program.addCommand(createLLMRouterCommand());
@@ -997,6 +998,7 @@ program.addCommand(createHooksCommand());
 program.addCommand(createLearningCommand());
 program.addCommand(createMcpCommand());
 program.addCommand(createPlatformCommand());
+program.addCommand(createProveCommand(context, cleanupAndExit, ensureInitialized));
 
 // ============================================================================
 // Shutdown Handlers

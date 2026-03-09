@@ -337,6 +337,13 @@ export function calculateQualityScore(pattern: {
 /**
  * Pattern promotion check result
  */
+/**
+ * Shared promotion threshold: minimum successful uses before a short-term
+ * pattern can be promoted to long-term. Used by pattern-store, pattern-lifecycle,
+ * experience-capture, and shouldPromotePattern().
+ */
+export const PROMOTION_THRESHOLD = 3;
+
 export interface PromotionCheck {
   meetsUsageCriteria: boolean;
   meetsQualityCriteria: boolean;
@@ -358,7 +365,7 @@ export function shouldPromotePattern(
   coherenceEnergy?: number,
   coherenceThreshold: number = 0.4
 ): PromotionCheck {
-  const meetsUsageCriteria = pattern.tier === 'short-term' && pattern.successfulUses >= 3;
+  const meetsUsageCriteria = pattern.tier === 'short-term' && pattern.successfulUses >= PROMOTION_THRESHOLD;
   const meetsQualityCriteria = pattern.successRate >= 0.7 && pattern.confidence >= 0.6;
 
   // NEW: Coherence criteria - only block if coherence energy is provided and exceeds threshold

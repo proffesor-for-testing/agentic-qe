@@ -58,6 +58,9 @@ export const QE_HOOK_EVENTS = {
   PatternLearned: 'qe:pattern-learned',
   PatternApplied: 'qe:pattern-applied',
   PatternPromoted: 'qe:pattern-promoted',
+
+  // Session lifecycle
+  PreCompaction: 'qe:pre-compaction',
 } as const;
 
 export type QEHookEvent = (typeof QE_HOOK_EVENTS)[keyof typeof QE_HOOK_EVENTS];
@@ -585,6 +588,44 @@ export function createQEHookHandlers(
       return {
         success: true,
         data: { patternId, newTier },
+      };
+    },
+
+    // ========================================================================
+    // Session Lifecycle Hooks
+    // ========================================================================
+
+    [QE_HOOK_EVENTS.PreCompaction]: async (ctx) => {
+      const stats = { experiencesFlushed: 0, patternsPromoted: 0 };
+
+      // Flush pending experiences before context compaction
+      if (ctx.data?.experienceCaptureService) {
+        const service = ctx.data.experienceCaptureService as {
+          getPendingCount?: () => number;
+          flushPending?: () => Promise<number>;
+        };
+        const pendingCount = service.getPendingCount?.() ?? 0;
+        if (pendingCount > 0) {
+          const flushed = await service.flushPending?.();
+          stats.experiencesFlushed = flushed ?? pendingCount;
+        }
+      }
+
+      // Promote eligible patterns before compaction
+      if (ctx.data?.patternLifecycleManager) {
+        const manager = ctx.data.patternLifecycleManager as {
+          runPromotionSweep?: () => { promoted: number; checked: number };
+        };
+        const promotionResult = manager.runPromotionSweep?.();
+        if (promotionResult) {
+          stats.patternsPromoted = promotionResult.promoted ?? 0;
+        }
+      }
+
+      console.log('[QEHooks] Pre-compaction flush:', stats);
+      return {
+        success: true,
+        data: stats,
       };
     },
   };

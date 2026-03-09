@@ -55,6 +55,7 @@ import {
   type QEPattern,
   type QEDomain,
 } from './qe-reasoning-bank.js';
+import { PROMOTION_THRESHOLD } from './qe-patterns.js';
 import type {
   PatternSearchOptions,
   PatternSearchResult,
@@ -116,7 +117,7 @@ export const DEFAULT_ENGINE_CONFIG: Omit<AQELearningEngineConfig, 'projectRoot'>
   enableClaudeFlow: true,
   enableExperienceCapture: true,
   enablePatternPromotion: true,
-  promotionThreshold: 3,
+  promotionThreshold: PROMOTION_THRESHOLD,
 };
 
 /**

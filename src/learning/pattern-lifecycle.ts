@@ -10,7 +10,7 @@
  */
 
 import type { Database as DatabaseType } from 'better-sqlite3';
-import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
+import { PROMOTION_THRESHOLD, type QEPattern, type QEDomain, type QEPatternType } from './qe-patterns.js';
 import { AsymmetricLearningEngine, type AsymmetricLearningConfig } from './asymmetric-learning.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { LoggerFactory } from '../logging/index.js';
@@ -50,6 +50,9 @@ export interface PatternLifecycleConfig {
   /** Maximum age in days before automatic deprecation review */
   maxAgeForActivePatterns: number;
 
+  /** Days of activity window required for pattern promotion (default: 30) */
+  promotionActivityWindowDays: number;
+
   /** ADR-061: Asymmetric learning config */
   asymmetricLearning: Partial<AsymmetricLearningConfig>;
 }
@@ -59,13 +62,14 @@ export interface PatternLifecycleConfig {
  */
 export const DEFAULT_LIFECYCLE_CONFIG: PatternLifecycleConfig = {
   promotionRewardThreshold: 0.7,
-  promotionMinOccurrences: 2,
+  promotionMinOccurrences: PROMOTION_THRESHOLD,
   promotionMinSuccessRate: 0.7,
   deprecationFailureThreshold: 3,
   staleDaysThreshold: 30,
   confidenceDecayRate: 0.01, // 1% per day
   minActiveConfidence: 0.3,
   maxAgeForActivePatterns: 90,
+  promotionActivityWindowDays: 30,
   asymmetricLearning: {},
 };
 
@@ -111,6 +115,7 @@ export interface PromotionCheckResult {
   meetsRewardThreshold: boolean;
   meetsOccurrenceThreshold: boolean;
   meetsSuccessRateThreshold: boolean;
+  meetsActivityWindow: boolean;
   currentReward: number;
   currentOccurrences: number;
   currentSuccessRate: number;
@@ -468,6 +473,7 @@ Pattern extracted from ${exp.count} successful experiences.`;
         meetsRewardThreshold: false,
         meetsOccurrenceThreshold: false,
         meetsSuccessRateThreshold: false,
+        meetsActivityWindow: false,
         currentReward: 0,
         currentOccurrences: 0,
         currentSuccessRate: 0,
@@ -479,11 +485,18 @@ Pattern extracted from ${exp.count} successful experiences.`;
     const meetsOccurrences = pattern.usageCount >= this.config.promotionMinOccurrences;
     const meetsSuccessRate = pattern.successRate >= this.config.promotionMinSuccessRate;
 
+    // Temporal window: require activity within configured window to prevent
+    // promoting stale patterns that haven't been validated recently
+    const PROMOTION_ACTIVITY_WINDOW_MS = this.config.promotionActivityWindowDays * 24 * 60 * 60 * 1000;
+    const lastActivity = pattern.lastUsedAt?.getTime() ?? pattern.createdAt.getTime();
+    const meetsActivityWindow = (Date.now() - lastActivity) < PROMOTION_ACTIVITY_WINDOW_MS;
+
     return {
-      shouldPromote: pattern.tier === 'short-term' && meetsReward && meetsOccurrences && meetsSuccessRate,
+      shouldPromote: pattern.tier === 'short-term' && meetsReward && meetsOccurrences && meetsSuccessRate && meetsActivityWindow,
       meetsRewardThreshold: meetsReward,
       meetsOccurrenceThreshold: meetsOccurrences,
       meetsSuccessRateThreshold: meetsSuccessRate,
+      meetsActivityWindow,
       currentReward: avgReward,
       currentOccurrences: pattern.usageCount,
       currentSuccessRate: pattern.successRate,
@@ -529,6 +542,14 @@ Pattern extracted from ${exp.count} successful experiences.`;
     }
 
     return { promoted, checked: shortTermPatterns.length };
+  }
+
+  /**
+   * Run a promotion sweep — convenience alias for pre-compaction hook.
+   * Iterates short-term patterns, checks promotion criteria, promotes eligible ones.
+   */
+  runPromotionSweep(): { promoted: number; checked: number } {
+    return this.promoteEligiblePatterns();
   }
 
   // ============================================================================
