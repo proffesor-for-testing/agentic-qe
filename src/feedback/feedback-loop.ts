@@ -445,5 +445,20 @@ export async function createInitializedFeedbackLoop(
 ): Promise<QualityFeedbackLoop> {
   const loop = new QualityFeedbackLoop(config);
   await loop.initialize();
+  _feedbackLoopInstance = loop;
   return loop;
+}
+
+// ============================================================================
+// Singleton accessor for cross-module integration
+// ============================================================================
+
+let _feedbackLoopInstance: QualityFeedbackLoop | null = null;
+
+/**
+ * Get the initialized feedback loop singleton.
+ * Returns null if not yet initialized (call createInitializedFeedbackLoop first).
+ */
+export function getQualityFeedbackLoop(): QualityFeedbackLoop | null {
+  return _feedbackLoopInstance;
 }

@@ -1,0 +1,144 @@
+{
+  "collectedAt": "2026-03-10T13:20:00Z",
+  "dbPath": ".agentic-qe/memory.db",
+  "patterns": [
+    {
+      "domain": "coverage-analysis",
+      "count": 2,
+      "avg_quality": 0.40411111111111114,
+      "avg_success": 0.4305555555555556,
+      "total_usage": 78
+    },
+    {
+      "domain": "learning-optimization",
+      "count": 615,
+      "avg_quality": 0,
+      "avg_success": 0,
+      "total_usage": 0
+    },
+    {
+      "domain": "security-compliance",
+      "count": 1,
+      "avg_quality": 0.8140000000000001,
+      "avg_success": 1,
+      "total_usage": 31
+    },
+    {
+      "domain": "test-execution",
+      "count": 7,
+      "avg_quality": 0,
+      "avg_success": 0,
+      "total_usage": 0
+    },
+    {
+      "domain": "test-generation",
+      "count": 15015,
+      "avg_quality": 0.0003833499833499834,
+      "avg_success": 0.00045163170163170166,
+      "total_usage": 340
+    }
+  ],
+  "routing": [
+    {
+      "used_agent": "0",
+      "count": 195,
+      "avg_quality": 0.7692307692307693,
+      "follow_rate": 1,
+      "success_rate": 0.9487179487179487,
+      "avg_duration_ms": 2649.353846153846
+    },
+    {
+      "used_agent": "1",
+      "count": 24,
+      "avg_quality": 0.8000000000000003,
+      "follow_rate": 1,
+      "success_rate": 1,
+      "avg_duration_ms": 436.4166666666667
+    },
+    {
+      "used_agent": "2",
+      "count": 22,
+      "avg_quality": 0.8000000000000003,
+      "follow_rate": 1,
+      "success_rate": 1,
+      "avg_duration_ms": 211.4090909090909
+    },
+    {
+      "used_agent": "qe-test-architect",
+      "count": 278,
+      "avg_quality": 0.3192589928057569,
+      "follow_rate": 1,
+      "success_rate": 1,
+      "avg_duration_ms": 0
+    }
+  ],
+  "experiences": [
+    {
+      "domain": "code-intelligence",
+      "count": 3356,
+      "avg_quality": 0.42279499404051557
+    },
+    {
+      "domain": "test-generation",
+      "count": 342,
+      "avg_quality": 0.7684210526315827
+    },
+    {
+      "domain": "coverage-analysis",
+      "count": 80,
+      "avg_quality": 0.7099999999999992
+    },
+    {
+      "domain": "quality-assessment",
+      "count": 67,
+      "avg_quality": 0.5223880597014925
+    },
+    {
+      "domain": "security-compliance",
+      "count": 31,
+      "avg_quality": 0.8000000000000004
+    },
+    {
+      "domain": "defect-intelligence",
+      "count": 2,
+      "avg_quality": 0.8
+    },
+    {
+      "domain": "chaos-resilience",
+      "count": 1,
+      "avg_quality": 0.8
+    },
+    {
+      "domain": "contract-testing",
+      "count": 1,
+      "avg_quality": 0.8
+    },
+    {
+      "domain": "requirements-validation",
+      "count": 1,
+      "avg_quality": 0.8
+    },
+    {
+      "domain": "test-execution",
+      "count": 1,
+      "avg_quality": 0.8
+    },
+    {
+      "domain": "visual-accessibility",
+      "count": 1,
+      "avg_quality": 0.8
+    }
+  ],
+  "summary": {
+    "totalPatterns": 15640,
+    "embeddingCoverage": 4.29,
+    "patternAdoption": 1.29,
+    "trajectorySuccess": 64.8,
+    "routingSuccess": 98.1,
+    "dreamCompletion": 58.7,
+    "testOutcomes": 3,
+    "coverageSessions": 2,
+    "stalePatterns": 0,
+    "longTermPromotions": 1
+  }
+}

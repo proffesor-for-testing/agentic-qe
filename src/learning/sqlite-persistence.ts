@@ -558,6 +558,7 @@ export class SQLitePatternStore {
     // escaping any internal double quotes to prevent FTS5 syntax injection
     const sanitized = '"' + query.replace(/"/g, '""') + '"';
 
+    const start = performance.now();
     try {
       const rows = this.db.prepare(`
         SELECT p.id, rank AS fts_score
@@ -567,6 +568,12 @@ export class SQLitePatternStore {
         ORDER BY rank
         LIMIT ?
       `).all(sanitized, limit) as Array<{ id: string; fts_score: number }>;
+
+      const elapsed = performance.now() - start;
+      if (elapsed > 50) {
+        console.warn(`[FTS5] searchFTS took ${elapsed.toFixed(1)}ms (results=${rows.length})`);
+      }
+      this._lastFtsLatencyMs = elapsed;
 
       // FTS5 rank is negative (lower = better), normalize to 0..1
       // Use Math.max(maxScore, 1.0) to prevent single-result inflation:
@@ -581,6 +588,10 @@ export class SQLitePatternStore {
       return [];
     }
   }
+
+  /** Last FTS5 search latency in ms, for instrumentation */
+  private _lastFtsLatencyMs = 0;
+  get lastFtsLatencyMs(): number { return this._lastFtsLatencyMs; }
 
   /**
    * Ghost pattern check: find patterns in SQLite that have no embeddings.

@@ -103,6 +103,14 @@ export interface PipelineResult {
 
   /** Total duration in milliseconds */
   totalDurationMs: number;
+
+  /** Per-step latencies in milliseconds (for Tier 3 instrumentation) */
+  stepLatencies?: {
+    selectionMs: number;
+    executionMs: number;
+    analysisMs: number;
+    reportingMs: number;
+  };
 }
 
 // ============================================================================
@@ -207,6 +215,7 @@ export class TestSchedulingPipeline {
     let ranAllTests = this.config.runAllTests ?? false;
 
     // Step 1: Select affected tests (unless running all)
+    const selectionStart = performance.now();
     if (!ranAllTests) {
       const selectionResult = await this.selector.selectAffectedTests();
 
@@ -222,8 +231,10 @@ export class TestSchedulingPipeline {
         console.log(`[TestSchedulingPipeline] Selected ${selectedTests.length} affected tests`);
       }
     }
+    const selectionMs = performance.now() - selectionStart;
 
     // Step 2: Execute tests
+    const executionStart = performance.now();
     let phaseResults: PhaseResult[];
 
     if (ranAllTests) {
@@ -233,19 +244,24 @@ export class TestSchedulingPipeline {
       // Run with selected test files
       phaseResults = await this.runWithSelectedTests(selectedTests);
     }
+    const executionMs = performance.now() - executionStart;
 
     // Step 3: Get flaky analysis (tracker already updated by executor)
+    const analysisStart = performance.now();
     const flakyAnalysis = this.flakyTracker.analyze();
 
     // Step 4: Save flaky history
     if (this.config.flakyHistoryPath) {
       await saveFlakyTracker(this.flakyTracker, this.config.flakyHistoryPath);
     }
+    const analysisMs = performance.now() - analysisStart;
 
     // Step 5: Report to CI/CD
+    const reportingStart = performance.now();
     if (this.ciEnvironment.isCI) {
       await this.reporter.writeOutput(phaseResults);
     }
+    const reportingMs = performance.now() - reportingStart;
 
     const totalDurationMs = Date.now() - startTime;
 
@@ -256,6 +272,7 @@ export class TestSchedulingPipeline {
       flakyAnalysis,
       ciEnvironment: this.ciEnvironment,
       totalDurationMs,
+      stepLatencies: { selectionMs, executionMs, analysisMs, reportingMs },
     };
   }
 

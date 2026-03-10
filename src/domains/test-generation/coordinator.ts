@@ -325,8 +325,9 @@ export class TestGenerationCoordinator
         );
         console.log('[TestGenerationCoordinator] QEFlashAttention initialized for test-similarity');
       } catch (error) {
-        console.error('[TestGenerationCoordinator] Failed to initialize QEFlashAttention:', error);
-        throw new Error(`QEFlashAttention initialization failed: ${toErrorMessage(error)}`);
+        // Graceful degradation: native module may not be available on all platforms
+        console.warn('[TestGenerationCoordinator] QEFlashAttention unavailable (optional native module), continuing without it:', toErrorMessage(error));
+        this.flashAttention = null;
       }
     }
 
@@ -340,8 +341,9 @@ export class TestGenerationCoordinator
         // Note: DecisionTransformer will auto-initialize on first predict() call
         console.log('[TestGenerationCoordinator] DecisionTransformer created for test case selection');
       } catch (error) {
-        console.error('[TestGenerationCoordinator] Failed to create DecisionTransformer:', error);
-        throw new Error(`DecisionTransformer creation failed: ${toErrorMessage(error)}`);
+        // Graceful degradation: native module may not be available on all platforms
+        console.warn('[TestGenerationCoordinator] DecisionTransformer unavailable (optional native module), continuing without it:', toErrorMessage(error));
+        this.decisionTransformer = null;
       }
     }
 

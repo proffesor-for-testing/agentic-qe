@@ -38,6 +38,17 @@ function exportBrain() {
   }
 
   try {
+    // Checkpoint WAL to ensure all pending writes are flushed to main DB
+    try {
+      execSync(`sqlite3 "${DB_PATH}" "PRAGMA wal_checkpoint(TRUNCATE);"`, {
+        timeout: 10000,
+        encoding: 'utf-8',
+      });
+      log('WAL checkpoint completed');
+    } catch (walErr) {
+      log(`WAL checkpoint warning: ${walErr.message}`);
+    }
+
     // Remove existing to avoid LockHeld errors
     if (fs.existsSync(RVF_PATH)) {
       fs.unlinkSync(RVF_PATH);

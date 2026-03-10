@@ -177,12 +177,23 @@ export class RoutingFeedbackCollector {
     if (!this.db) return;
     try {
       const database = this.db.getDatabase();
+
+      // Ensure model_tier column exists (for databases created before this schema addition)
+      try {
+        database.prepare(`ALTER TABLE routing_outcomes ADD COLUMN model_tier TEXT`).run();
+      } catch {
+        // Column already exists — expected
+      }
+
+      // Extract tier from usedAgent name (e.g. "tier-0" → "booster", "qe-test-architect" → "sonnet")
+      const modelTier = this.inferTier(outcome.usedAgent);
+
       database.prepare(`
         INSERT OR REPLACE INTO routing_outcomes (
           id, task_json, decision_json, used_agent,
           followed_recommendation, success, quality_score,
-          duration_ms, error
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          duration_ms, error, model_tier
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         outcome.id,
         JSON.stringify(outcome.task),
@@ -192,7 +203,8 @@ export class RoutingFeedbackCollector {
         outcome.outcome.success ? 1 : 0,
         outcome.outcome.qualityScore,
         outcome.outcome.durationMs,
-        outcome.outcome.error || null
+        outcome.outcome.error || null,
+        modelTier
       );
       this.persistCount++;
       if (this.persistCount % RoutingFeedbackCollector.RETENTION_CLEANUP_INTERVAL === 0) {
@@ -201,6 +213,20 @@ export class RoutingFeedbackCollector {
     } catch (error) {
       console.warn('[RoutingFeedbackCollector] Failed to persist outcome:', toErrorMessage(error));
     }
+  }
+
+  /**
+   * Infer model tier from agent name for analytics.
+   * Maps known agent patterns to ADR-026 tiers.
+   */
+  private inferTier(agentName: string): string {
+    const lower = agentName.toLowerCase();
+    if (lower.includes('booster') || lower === 'tier-0') return 'booster';
+    if (lower === 'tier-1' || lower.includes('haiku')) return 'haiku';
+    if (lower === 'tier-2' || lower.includes('sonnet')) return 'sonnet';
+    if (lower.includes('opus')) return 'opus';
+    // Default: most qe-* agents run at sonnet tier
+    return 'sonnet';
   }
 
   /**

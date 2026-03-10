@@ -106,8 +106,19 @@ export class HnswAdapter implements IHnswIndexProvider {
   }
 
   search(query: Float32Array, k: number): SearchResult[] {
-    return this.backend.search(query, k);
+    const start = performance.now();
+    const results = this.backend.search(query, k);
+    const elapsed = performance.now() - start;
+    if (elapsed > 50) {
+      console.warn(`[HNSW] search took ${elapsed.toFixed(1)}ms (k=${k}, results=${results.length})`);
+    }
+    this._lastSearchLatencyMs = elapsed;
+    return results;
   }
+
+  /** Last search latency in ms, for instrumentation */
+  private _lastSearchLatencyMs = 0;
+  get lastSearchLatencyMs(): number { return this._lastSearchLatencyMs; }
 
   remove(id: number): boolean {
     return this.backend.remove(id);
