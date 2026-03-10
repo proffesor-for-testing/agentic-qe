@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.7.16](v3.7.16.md) | 2026-03-10 | Critical: test DB isolation fix, Tier 3 baselines, MCP persistence pipeline |
 | [v3.7.15](v3.7.15.md) | 2026-03-09 | Six Hats learning improvements, Proof-of-Quality CLI, MCP tool scoping, test stability |
 | [v3.7.14](v3.7.14.md) | 2026-03-08 | Brain export v3.0 (25 tables), witness chain v3, streaming, npm packaging fix |
 | [v3.7.13](v3.7.13.md) | 2026-03-07 | Trigger optimizer, version comparator, skill intent classification |

@@ -59,6 +59,7 @@ export {
   QualityFeedbackLoop,
   createQualityFeedbackLoop,
   createInitializedFeedbackLoop,
+  getQualityFeedbackLoop,
 } from './feedback-loop.js';
 export type {
   FeedbackLoopStats,

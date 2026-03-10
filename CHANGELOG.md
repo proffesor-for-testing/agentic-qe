@@ -5,6 +5,28 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.16] - 2026-03-10
+
+### Added
+
+- **Tier 3 baseline collection and instrumentation** — Collect benchmark baselines for all Tier 3 features and add Priority 2 instrumentation: routing tier tags, HNSW/FTS5 search latency tracking, token tracker auto-save, and pipeline step timers.
+- **MCP persistence pipeline fix** — Wire `recordDomainFeedback` into the feedback loop (handler-factory Step 5d) so `test_outcomes` and `coverage_sessions` receive data from live MCP tool calls.
+- **Quality feedback loop singleton** — `getQualityFeedbackLoop()` provides cross-module access to the feedback loop instance.
+- **Experience embedding on capture** — Embedding computation now runs automatically when experiences are captured.
+- **Routing tier tracking** — New `model_tier` column in `routing_outcomes` with tier inference for cost analysis.
+- **Search latency instrumentation** — `performance.now()` timing added to HNSW search and FTS5 `searchFTS` for benchmarking.
+- **Token metrics auto-persistence** — `TokenMetricsCollector` now saves to DB automatically on initialization.
+- **Pipeline step latencies** — `TestSchedulingPipeline` results now include per-step timing data.
+
+### Fixed
+
+- **Critical: Test DB isolation** — Fixed `goap-planner.test.ts` and `q-value-persistence.test.ts` using relative `.agentic-qe/memory.db` paths that deleted the production database during test cleanup. Tests now use `os.tmpdir()`.
+- **Critical: Project root cache leak** — `resetUnifiedMemory()` now calls `clearProjectRootCache()` to prevent stale path cache from redirecting tests to the production DB.
+- **DB path safety redirect** — `UnifiedMemoryManager._doInitialize()` now detects and redirects when a test process (with `AQE_PROJECT_ROOT` set) tries to open a production `.agentic-qe/memory.db`.
+- **`process.cwd()` DB path bypasses** — `pull-agent.ts` and `brain-handler.ts` now use `findProjectRoot()` instead of `process.cwd()` to resolve the DB path, respecting `AQE_PROJECT_ROOT`.
+- **Optional native module graceful degradation** — FlashAttention and DecisionTransformer now degrade gracefully when native modules are unavailable.
+- **WAL checkpoint before RVF export** — Brain checkpoint now runs a WAL checkpoint before RVF export to ensure data consistency.
+
 ## [3.7.15] - 2026-03-09
 
 ### Added

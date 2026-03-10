@@ -19,7 +19,8 @@ import { getTaskRouter, type TaskRoutingResult, type PatternHint } from '../serv
 import { Priority } from '../../shared/types';
 import type { QEDomain as LearningDomain } from '../../learning/qe-patterns.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
-import { createInitializedFeedbackLoop } from '../../feedback/feedback-loop.js';
+import { createInitializedFeedbackLoop, getQualityFeedbackLoop } from '../../feedback/feedback-loop.js';
+import type { TestOutcome as FeedbackTestOutcome, CoverageSession } from '../../feedback/types.js';
 
 // ============================================================================
 // Types
@@ -255,6 +256,88 @@ async function getLearningEngineForCapture(): Promise<import('../../learning/aqe
 }
 
 /**
+ * Record domain-specific feedback for test_outcomes / coverage_sessions.
+ * ADR-023: Wires domain execution results into the quality feedback loop.
+ */
+async function recordDomainFeedback(
+  domain: string,
+  data: Record<string, unknown>,
+  durationMs: number,
+  params: Record<string, unknown>
+): Promise<void> {
+  // Wait for the feedback loop that was initialized during getTaskExecutor()
+  let loop = getQualityFeedbackLoop();
+  if (!loop && _feedbackLoopPromise) {
+    loop = await _feedbackLoopPromise;
+  }
+  if (!loop) return;
+
+  if (domain === 'test-generation' && data) {
+    // Extract test results from generation output and record as outcomes
+    const tests = (data.tests || data.generatedTests || []) as Array<Record<string, unknown>>;
+    for (const test of tests.slice(0, 20)) { // Cap at 20 per invocation
+      const outcome: FeedbackTestOutcome = {
+        id: String(test.id || randomUUID()),
+        testId: String(test.id || test.name || randomUUID()),
+        testName: String(test.name || test.testName || 'generated-test'),
+        generatedBy: 'qe-test-generation',
+        patternId: test.patternId as string | undefined,
+        framework: (test.framework || params.framework || 'vitest') as import('../../routing/types.js').TestFramework,
+        language: (test.language || params.language || 'typescript') as import('../../routing/types.js').ProgrammingLanguage,
+        domain: 'test-generation',
+        passed: test.passed !== false, // Default to true for generated (not yet executed)
+        coverage: {
+          lines: Number(test.coverageLines || 0),
+          branches: Number(test.coverageBranches || 0),
+          functions: Number(test.coverageFunctions || 0),
+        },
+        executionTimeMs: Number(test.executionTimeMs || durationMs / Math.max(tests.length, 1)),
+        flaky: Boolean(test.flaky),
+        maintainabilityScore: Number(test.qualityScore || test.maintainability || 0.7),
+        timestamp: new Date(),
+      };
+      await loop.recordTestOutcome(outcome);
+    }
+  }
+
+  if (domain === 'coverage-analysis' && data) {
+    // Extract coverage session data and record for learning
+    const session: CoverageSession = {
+      id: randomUUID(),
+      targetPath: String(params.target || params.targetPath || 'src/'),
+      agentId: 'qe-coverage-analysis',
+      technique: (params.technique || 'gap-analysis') as import('../../feedback/types.js').CoverageTechnique,
+      beforeCoverage: {
+        lines: Number((data.beforeCoverage as Record<string, unknown>)?.lines || 0),
+        branches: Number((data.beforeCoverage as Record<string, unknown>)?.branches || 0),
+        functions: Number((data.beforeCoverage as Record<string, unknown>)?.functions || 0),
+      },
+      afterCoverage: {
+        lines: Number(data.lineCoverage || data.lines || 0),
+        branches: Number(data.branchCoverage || data.branches || 0),
+        functions: Number(data.functionCoverage || data.functions || 0),
+      },
+      testsGenerated: Number(data.testsGenerated || 0),
+      testsPassed: Number(data.testsPassed || 0),
+      gapsTargeted: ((data.gaps || []) as Array<Record<string, unknown>>).map((g, i) => ({
+        id: String(g.id || `gap-${randomUUID().slice(0, 8)}-${i}`),
+        type: (['uncovered-line', 'uncovered-branch', 'uncovered-function', 'partial-branch'].includes(String(g.type))
+          ? String(g.type) : 'uncovered-line') as import('../../feedback/types.js').CoverageGap['type'],
+        filePath: String(g.file || g.filePath || ''),
+        startLine: Number(g.line || g.startLine || 0),
+        endLine: g.endLine ? Number(g.endLine) : undefined,
+        riskScore: Number(g.riskScore || 0.5),
+        addressed: Boolean(g.addressed),
+      })),
+      durationMs,
+      startedAt: new Date(Date.now() - durationMs),
+      completedAt: new Date(),
+    };
+    await loop.recordCoverageSession(session);
+  }
+}
+
+/**
  * V2-compatible complexity analysis
  */
 export interface V2Complexity {
@@ -448,6 +531,9 @@ export function detectAntiPatterns(sourceCode: string, language: string): Array<
 // Cached task executor
 let taskExecutor: DomainTaskExecutor | null = null;
 
+// Cached feedback loop promise (resolves once feedback loop is ready)
+let _feedbackLoopPromise: Promise<import('../../feedback/feedback-loop.js').QualityFeedbackLoop | null> | null = null;
+
 // Cached learning engine for pattern search (declared here for use in resetTaskExecutor)
 let cachedLearningEngine: import('../../learning/aqe-learning-engine.js').AQELearningEngine | null = null;
 
@@ -463,15 +549,13 @@ export function getTaskExecutor(): DomainTaskExecutor {
     taskExecutor = createTaskExecutor(kernel);
     // Wire QualityFeedbackLoop for routing outcome persistence
     const executor = taskExecutor;
-    try {
-      createInitializedFeedbackLoop().then(loop => {
-        executor.setQualityFeedbackLoop(loop);
-      }).catch(e => {
-        console.warn('[HandlerFactory] Failed to initialize QualityFeedbackLoop:', e);
-      });
-    } catch (e) {
-      console.warn('[HandlerFactory] Sync error in feedback loop setup:', e);
-    }
+    _feedbackLoopPromise = createInitializedFeedbackLoop().then(loop => {
+      executor.setQualityFeedbackLoop(loop);
+      return loop;
+    }).catch(e => {
+      console.warn('[HandlerFactory] Failed to initialize QualityFeedbackLoop:', e);
+      return null;
+    });
   }
   return taskExecutor;
 }
@@ -794,6 +878,13 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
         data,
         result.duration
       ).catch(() => {}); // Swallow errors — learning is non-critical
+
+      // Step 5d: Record feedback for test_outcomes / coverage_sessions
+      try {
+        await recordDomainFeedback(domain, data, result.duration, params as Record<string, unknown>);
+      } catch {
+        // Non-critical — don't fail handler if feedback recording fails
+      }
 
       return {
         success: true,

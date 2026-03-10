@@ -8,6 +8,7 @@
 import path from 'path';
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { findProjectRoot } from '../../kernel/unified-memory.js';
 import { ICommandHandler, CLIContext } from './interfaces.js';
 import {
   exportBrain,
@@ -339,7 +340,7 @@ interface InfoOptions {
 // ============================================================================
 
 function defaultDbPath(): string {
-  return path.join(process.cwd(), '.agentic-qe', 'memory.db');
+  return path.join(findProjectRoot(), '.agentic-qe', 'memory.db');
 }
 
 function formatBytes(bytes: number): string {

@@ -261,6 +261,10 @@ class TokenMetricsCollectorImpl {
     if (config) {
       this.costConfig = { ...DEFAULT_COST_CONFIG, ...config };
     }
+
+    // Activate DB-backed persistence and auto-save timer
+    this.initializeDb().catch(() => {});
+    this.startAutoSave();
   }
 
   /**
@@ -385,6 +389,7 @@ class TokenMetricsCollectorImpl {
 
     // Mark as dirty for persistence
     this.isDirty = true;
+    this.maybePersistToKv();
   }
 
   /**

@@ -408,8 +408,38 @@ async function persistExperience(
       context.startedAt.toISOString(),
       'middleware'
     );
+
+    // Fire-and-forget: compute and store embedding for this experience
+    computeExperienceEmbedding(db, outcome.id, context.task, context.domain).catch(() => {});
   } catch (error) {
     console.error('[ExperienceCaptureMiddleware] Failed to persist experience:', error);
+  }
+}
+
+/**
+ * Compute and store embedding for a captured experience (async, non-blocking).
+ * Uses the shared ONNX transformer model (all-MiniLM-L6-v2, 384-dim).
+ */
+async function computeExperienceEmbedding(
+  db: ReturnType<import('../kernel/unified-memory.js').UnifiedMemoryManager['getDatabase']>,
+  experienceId: string,
+  task: string,
+  domain: string
+): Promise<void> {
+  try {
+    const { computeRealEmbedding } = await import('./real-embeddings.js');
+    const text = `${domain}: ${task}`.slice(0, 512); // Cap input length
+    const embedding = await computeRealEmbedding(text);
+    if (!embedding || embedding.length === 0) return;
+
+    const buffer = Buffer.from(new Float32Array(embedding).buffer);
+    db.prepare(`
+      UPDATE captured_experiences
+      SET embedding = ?, embedding_dimension = ?
+      WHERE id = ? AND embedding IS NULL
+    `).run(buffer, embedding.length, experienceId);
+  } catch {
+    // Non-critical — embedding will be backfilled later if needed
   }
 }
 

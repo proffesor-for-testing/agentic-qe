@@ -387,7 +387,7 @@ describe('ADR-046 Unified Storage Consistency', () => {
     // Verify HybridMemoryBackend uses same singleton
     const backend = new HybridMemoryBackend({
       sqlite: {
-        path: path.join(process.cwd(), '.agentic-qe', 'memory.db'),
+        path: path.join(process.env.AQE_PROJECT_ROOT || process.cwd(), '.agentic-qe', 'memory.db'),
         walMode: true,
       },
     });

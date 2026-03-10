@@ -567,10 +567,12 @@ export const FEEDBACK_SCHEMA = `
     quality_score REAL NOT NULL,
     duration_ms REAL NOT NULL,
     error TEXT,
+    model_tier TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_routing_outcomes_agent ON routing_outcomes(used_agent);
   CREATE INDEX IF NOT EXISTS idx_routing_outcomes_created ON routing_outcomes(created_at);
+  CREATE INDEX IF NOT EXISTS idx_routing_outcomes_tier ON routing_outcomes(model_tier);
 
   -- Coverage sessions (ADR-023: Coverage Learning)
   CREATE TABLE IF NOT EXISTS coverage_sessions (
