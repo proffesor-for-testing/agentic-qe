@@ -26,6 +26,7 @@ import Database, { type Database as DatabaseType, type Statement } from 'better-
 import { safeJsonParse } from '../shared/safe-json.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { MEMORY_CONSTANTS } from './constants.js';
 import { LoggerFactory } from '../logging/index.js';
@@ -273,6 +274,11 @@ export class UnifiedMemoryManager {
       UnifiedMemoryManager.instance = null;
     }
     UnifiedMemoryManager.instancePromise = null;
+    // CRITICAL: Clear the cached project root so the next getInstance() call
+    // re-reads AQE_PROJECT_ROOT from the environment. Without this, tests that
+    // call resetUnifiedMemory() would still use the stale cached path, potentially
+    // opening the production database instead of the test database.
+    clearProjectRootCache();
   }
 
   async initialize(): Promise<void> {
@@ -289,6 +295,28 @@ export class UnifiedMemoryManager {
     if (this.initialized) return;
 
     try {
+      // SAFETY: Detect test processes trying to open the production DB.
+      // If AQE_PROJECT_ROOT is set to a temp dir (vitest isolation) but the
+      // dbPath resolves to the REAL project's .agentic-qe/memory.db, redirect.
+      // Only redirect production paths — leave explicitly-set temp paths alone.
+      const envRoot = process.env.AQE_PROJECT_ROOT;
+      if (envRoot) {
+        const resolvedPath = path.resolve(this.config.dbPath);
+        const resolvedRoot = path.resolve(envRoot);
+        // Only redirect if path points OUTSIDE the env root AND into a real
+        // .agentic-qe directory (not another temp test dir)
+        if (!resolvedPath.startsWith(resolvedRoot) &&
+            !resolvedPath.startsWith(os.tmpdir()) &&
+            resolvedPath.includes('.agentic-qe')) {
+          console.error(
+            `[UnifiedMemory] WARNING: DB path "${this.config.dbPath}" points to a ` +
+            `production .agentic-qe/ while AQE_PROJECT_ROOT="${envRoot}". ` +
+            `Redirecting to test-safe path.`
+          );
+          this.config.dbPath = path.join(envRoot, '.agentic-qe', 'memory.db');
+        }
+      }
+
       const dir = path.dirname(this.config.dbPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });

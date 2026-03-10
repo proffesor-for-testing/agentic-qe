@@ -7,6 +7,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import {
   GOAPPlanner,
   type V3WorldState,
@@ -15,9 +17,9 @@ import {
 } from '../../../src/planning/index.js';
 import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence.js';
 
-// Unified database path (now using memory.db for true unification)
-const UNIFIED_DB_DIR = '.agentic-qe';
-const UNIFIED_DB_PATH = `${UNIFIED_DB_DIR}/memory.db`;
+// Use system temp directory — NEVER use relative '.agentic-qe' which hits production DB
+const UNIFIED_DB_DIR = path.join(os.tmpdir(), `aqe-test-goap-${process.pid}`);
+const UNIFIED_DB_PATH = path.join(UNIFIED_DB_DIR, 'memory.db');
 
 // Helper to clean up test databases
 function cleanupUnifiedDb(): void {

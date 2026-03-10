@@ -19,11 +19,13 @@ import { QValueStore, createQValueStore } from '../../../src/integrations/rl-sui
 import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence.js';
 import * as fs from 'fs';
 
-// Unified database path (now using memory.db for true unification)
-const UNIFIED_DB_DIR = '.agentic-qe';
-const UNIFIED_DB_PATH = `${UNIFIED_DB_DIR}/memory.db`;
+// Use system temp directory — NEVER use relative '.agentic-qe' which hits production DB
+import * as os from 'os';
+import * as path from 'path';
+const UNIFIED_DB_DIR = path.join(os.tmpdir(), `aqe-test-qvalue-${process.pid}`);
+const UNIFIED_DB_PATH = path.join(UNIFIED_DB_DIR, 'memory.db');
 
-// Helper to clean up unified database
+// Helper to clean up test databases
 function cleanupUnifiedDb(): void {
   if (fs.existsSync(UNIFIED_DB_PATH)) {
     fs.unlinkSync(UNIFIED_DB_PATH);

@@ -22,6 +22,7 @@ import { createConnectionManager } from './cloud/tunnel-manager.js';
 import { createPostgresWriter } from './cloud/postgres-writer.js';
 import { type PostgresReader, createPostgresReader } from './cloud/postgres-reader.js';
 import { type SQLiteWriter, createSQLiteWriter } from './writers/sqlite-writer.js';
+import { findProjectRoot } from '../kernel/unified-memory.js';
 import { toErrorMessage, toError } from '../shared/error-utils.js';
 import { LoggerFactory } from '../logging/index.js';
 
@@ -330,7 +331,7 @@ export class PullSyncAgent {
     if (this.config.targetDb) {
       return path.resolve(this.config.targetDb);
     }
-    return path.resolve(process.cwd(), '.agentic-qe/memory.db');
+    return path.resolve(findProjectRoot(), '.agentic-qe/memory.db');
   }
 
   private backupLocalDb(): void {
