@@ -165,8 +165,8 @@
   },
   "permissions": {
     "allow": [
-      "Bash(npx claude-flow:*)",
-      "Bash(npx @claude-flow/cli:*)",
+      "Bash(npx ruflo:*)",
+      "Bash(npx @ruflo/cli:*)",
       "mcp__claude-flow__:*",
       "mcp__agentic_qe__*"
     ],
