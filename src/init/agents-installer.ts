@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSy
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { loadOverlays, applyOverlayToContent } from '../agents/overlay-loader.js';
 
 // ============================================================================
 // Types
@@ -28,6 +29,10 @@ export interface AgentsInstallResult {
   errors: string[];
   totalCount: number;
   agentsDir: string;
+  /** Agents that had customization overlays applied */
+  overlaysApplied?: string[];
+  /** Warnings from overlay loading */
+  overlayWarnings?: string[];
 }
 
 export interface AgentsInstallerOptions {
@@ -241,6 +246,31 @@ export class AgentsInstaller {
   }
 
   /**
+   * Ensure the agent-overrides directory exists and is preserved during install.
+   * This directory holds user customization overlays that survive `aqe init`.
+   */
+  private preserveOverridesDir(): void {
+    const overridesDir = join(this.projectRoot, '.claude', 'agent-overrides');
+    if (!existsSync(overridesDir)) {
+      mkdirSync(overridesDir, { recursive: true });
+    }
+    // Copy the example overlay template if not already present
+    const exampleDest = join(overridesDir, '_example.yaml');
+    if (!existsSync(exampleDest)) {
+      const templateSources = [
+        join(__dirname, '..', '..', 'assets', 'templates', 'agent-override-example.yaml'),
+        join(__dirname, '..', 'assets', 'templates', 'agent-override-example.yaml'),
+      ];
+      for (const src of templateSources) {
+        if (existsSync(src)) {
+          copyFileSync(src, exampleDest);
+          break;
+        }
+      }
+    }
+  }
+
+  /**
    * Install agents to the project
    */
   async install(): Promise<AgentsInstallResult> {
@@ -250,7 +280,12 @@ export class AgentsInstaller {
       errors: [],
       totalCount: 0,
       agentsDir: join(this.projectRoot, '.claude', 'agents', 'v3'),
+      overlaysApplied: [],
+      overlayWarnings: [],
     };
+
+    // Preserve the agent-overrides directory (survives reinstall)
+    this.preserveOverridesDir();
 
     // Check if source agents exist
     if (!existsSync(this.sourceAgentsDir)) {
@@ -295,6 +330,64 @@ export class AgentsInstaller {
       } catch (error) {
         result.errors.push(`Failed to install ${agentName}: ${toErrorMessage(error)}`);
       }
+    }
+
+    // Load and apply agent customization overlays (BMAD-002)
+    const overlayResult = loadOverlays(this.projectRoot);
+
+    if (overlayResult.warnings.length > 0) {
+      result.overlayWarnings = overlayResult.warnings;
+      for (const warning of overlayResult.warnings) {
+        console.error(`[AgentsInstaller] Overlay warning: ${warning}`);
+      }
+    }
+
+    if (overlayResult.errors.length > 0) {
+      for (const error of overlayResult.errors) {
+        result.errors.push(`Overlay error: ${error}`);
+      }
+    }
+
+    // Apply overlays to installed agent files
+    for (const overlay of overlayResult.overlays) {
+      const agentName = overlay.agent;
+      const isSubagent = V3_SUBAGENTS.includes(agentName);
+      const agentFile = isSubagent
+        ? join(targetSubagentsDir, `${agentName}.md`)
+        : join(targetAgentsDir, `${agentName}.md`);
+
+      if (!existsSync(agentFile)) {
+        result.overlayWarnings!.push(
+          `Overlay for "${agentName}" found but agent file does not exist. Skipping.`
+        );
+        continue;
+      }
+
+      try {
+        const agentContent = readFileSync(agentFile, 'utf-8');
+        const { content: modifiedContent, applied } = applyOverlayToContent(agentContent, overlay);
+        writeFileSync(agentFile, modifiedContent, 'utf-8');
+        result.overlaysApplied!.push(agentName);
+
+        const changes = [
+          ...applied.replacedFields.map(f => `replaced:${f}`),
+          ...applied.appendedFields.map(f => `appended:${f}`),
+          ...applied.configOverrides.map(f => `config:${f}`),
+        ];
+        console.error(
+          `[AgentsInstaller] Applied overlay for ${agentName}: ${changes.join(', ')}`
+        );
+      } catch (error) {
+        result.overlayWarnings!.push(
+          `Failed to apply overlay for "${agentName}": ${toErrorMessage(error)}`
+        );
+      }
+    }
+
+    if (result.overlaysApplied!.length > 0) {
+      console.error(
+        `[AgentsInstaller] Applied ${result.overlaysApplied!.length} agent overlay(s): ${result.overlaysApplied!.join(', ')}`
+      );
     }
 
     // Create agents index file

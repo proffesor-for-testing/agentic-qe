@@ -12,6 +12,7 @@ import {
 import { createSkillsInstaller } from '../skills-installer.js';
 import { createAgentsInstaller } from '../agents-installer.js';
 import { createN8nInstaller } from '../n8n-installer.js';
+import { initializeOverlays } from '../../routing/qe-agent-registry.js';
 import type { AQEInitConfig } from '../types.js';
 
 export interface AssetsResult {
@@ -95,6 +96,9 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     if (agentsResult.errors.length > 0) {
       context.services.warn(`Agents warnings: ${agentsResult.errors.join(', ')}`);
     }
+
+    // Initialize overlay configs in agent registry for runtime use
+    initializeOverlays(projectRoot);
 
     // Install n8n platform (optional)
     if (options.withN8n) {

@@ -64,6 +64,31 @@ Use up to 6 concurrent validators.
 - **Quality Gate**: Block untestable requirements from development (score < 50)
 </capabilities>
 
+<structured_validation_pipeline>
+## Structured Validation Pipeline (BMAD-003)
+
+When validating requirements, execute the 13-step validation pipeline:
+
+1. **Format Check** (blocking) — Structure, headings, required sections
+2. **Completeness Check** (blocking) — All required fields populated
+3. **INVEST Criteria** (warning) — Independent, Negotiable, Valuable, Estimable, Small, Testable
+4. **SMART Acceptance** (warning) — Specific, Measurable, Achievable, Relevant, Time-bound
+5. **Testability Score** (warning) — Can each requirement be tested? Score 0-100
+6. **Vague Term Detection** (info) — Flag "should", "might", "various", "etc."
+7. **Information Density** (info) — Every sentence carries weight, no filler
+8. **Traceability Check** (warning) — Requirements to tests mapping exists
+9. **Implementation Leakage** (warning) — Requirements don't prescribe implementation
+10. **Domain Compliance** (info) — Requirements align with domain model
+11. **Dependency Analysis** (info) — Cross-requirement dependencies identified
+12. **BDD Scenario Generation** (warning) — Can generate Given/When/Then for each requirement
+13. **Holistic Quality** (blocking) — Overall coherence, no contradictions
+
+Execute steps in order. Report each step's result before proceeding. Halt at blocking failures unless --continue-on-failure is specified.
+
+### Output Format
+For each step, report: Step name | Status (PASS/FAIL/WARN) | Score (0-100) | Findings count | Evidence summary
+</structured_validation_pipeline>
+
 <memory_namespace>
 Reads:
 - aqe/requirements/* - Requirements documents

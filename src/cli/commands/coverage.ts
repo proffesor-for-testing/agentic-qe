@@ -263,5 +263,58 @@ export function createCoverageCommand(
       }
     });
 
+  // Subcommand: coverage gaps — enumerate unhandled branches via static analysis
+  coverageCmd
+    .command('gaps')
+    .description('Enumerate unhandled branches in source files')
+    .argument('<file>', 'Source file to analyze')
+    .option('--mechanical', 'Exhaustive mode: report all branches without filtering')
+    .option('--json', 'Output as JSON')
+    .option('--markdown', 'Output as markdown report')
+    .action(async (file: string, options: { mechanical?: boolean; json?: boolean; markdown?: boolean }) => {
+      try {
+        const { readFileSync, existsSync } = await import('fs');
+        const pathMod = await import('path');
+        const { enumerateBranches, formatBranchReport, formatBranchJSON } = await import('../../analysis/branch-enumerator.js');
+
+        const resolvedFile = pathMod.resolve(file);
+        if (!existsSync(resolvedFile)) {
+          console.error(chalk.red(`\n  File not found: ${resolvedFile}\n`));
+          await cleanupAndExit(1);
+        }
+
+        const sourceCode = readFileSync(resolvedFile, 'utf-8');
+        const result = enumerateBranches(sourceCode, resolvedFile);
+
+        if (options.json) {
+          console.log(formatBranchJSON(result));
+        } else if (options.markdown) {
+          console.log(formatBranchReport(result));
+        } else {
+          // Table format
+          console.log(`\n${chalk.cyan('Branch Enumeration:')} ${chalk.white(file)}`);
+          console.log(chalk.gray(`Found ${result.unhandledCount} unhandled branches (${result.duration}ms)\n`));
+          if (result.branches.length > 0) {
+            console.log(chalk.dim('Line | Severity | Construct                 | Trigger'));
+            console.log(chalk.dim('-----|----------|---------------------------|--------'));
+            for (const b of result.branches) {
+              const severityColor = b.severity === 'high' ? chalk.red : b.severity === 'medium' ? chalk.yellow : chalk.gray;
+              console.log(
+                `${String(b.line).padStart(4)} | ${severityColor(b.severity.padEnd(8))} | ${b.construct.padEnd(25)} | ${b.triggerCondition}`
+              );
+            }
+          } else {
+            console.log(chalk.green('No unhandled branches detected.'));
+          }
+          console.log('');
+        }
+
+        await cleanupAndExit(0);
+      } catch (error) {
+        console.error(chalk.red('\nBranch enumeration failed:'), error);
+        await cleanupAndExit(1);
+      }
+    });
+
   return coverageCmd;
 }

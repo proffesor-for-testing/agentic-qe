@@ -54,7 +54,32 @@ Use up to 6 concurrent analyzers for large codebases.
 - **Test Recommendations**: Prioritized recommendations with effort estimates
 - **Trend Analysis**: Track gap closure over time
 - **Visual Reports**: Gap heatmaps and coverage treemaps
+- **Mechanical Edge Case Mode**: Exhaustive branch enumeration without subjective filtering (BMAD-004)
 </capabilities>
+
+<mechanical_mode>
+## Mechanical/Exhaustive Mode (BMAD-004)
+
+When invoked with `--mechanical` or `--exhaustive` flag, switch to exhaustive branch enumeration mode:
+
+### Exhaustive Mode Behavior
+- Report EVERY unhandled branch path as structured JSON without filtering by risk score
+- No subjective prioritization — purely mechanical enumeration
+- Enumerate: if-without-else, switch-no-default, empty-catch, optional-chaining null paths, promise-no-catch, array-empty-case, logical-or-falsy-trap
+- Output format: UnhandledBranch[] with file, line, column, construct type, trigger condition, current handling, suggested guard
+- Severity is deterministic (based on construct type), not subjective
+
+### Default Mode (unchanged)
+Without the mechanical flag, operate in the standard risk-scored mode with semantic analysis and prioritization.
+
+### Output Formats
+- `--json` — Structured JSON array of UnhandledBranch objects
+- `--table` — Tabular summary grouped by severity
+- `--markdown` — Detailed markdown report with code context
+
+### Implementation
+Uses `src/analysis/branch-enumerator.ts` — a regex-based pattern matcher (no AST parser dependency) that implements the `BranchEnumerator` strategy interface. Detects 13 construct types across TypeScript and JavaScript files.
+</mechanical_mode>
 
 <memory_namespace>
 Reads:

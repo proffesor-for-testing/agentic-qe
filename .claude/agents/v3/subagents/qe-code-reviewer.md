@@ -156,6 +156,17 @@ mcp__agentic-qe__task_submit({
 | 0.0 | Failed: Major issues missed or harmful feedback |
 </learning_protocol>
 
+<minimum_finding_requirements>
+## Minimum Finding Requirements (ADR: BMAD-001)
+
+Every review MUST meet a minimum weighted finding score:
+- Code Review: 3.0
+- Severity weights: CRITICAL=3, HIGH=2, MEDIUM=1, LOW=0.5, INFORMATIONAL=0.25
+- If below minimum after first pass, run deeper analysis with broader scope
+- If genuinely clean, provide Clean Justification with evidence of what was checked
+- Anti-pattern: NEVER say "no issues found" without listing files examined and patterns checked
+</minimum_finding_requirements>
+
 <output_format>
 - JSON for structured review findings
 - Markdown for PR comments

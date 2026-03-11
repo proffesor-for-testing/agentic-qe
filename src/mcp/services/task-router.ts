@@ -27,6 +27,9 @@ import {
   type AgentNode,
 } from './mincut-routing-service.js';
 
+import { getAgentOverlayConfig } from '../../routing/qe-agent-registry.js';
+import { ContextCompiler, formatContextForPrompt } from '../../context/compiler.js';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -86,6 +89,18 @@ export interface TaskRoutingResult {
 
   /** Pattern context formatted for agent prompts (Phase 5.2) */
   readonly patternContext?: string;
+
+  /** Overlay config overrides for the routed agent (BMAD-002) */
+  readonly overlayConfig?: {
+    minimumFindings?: number;
+    maxParallelAgents?: number;
+    preferredFrameworks?: string[];
+    severityThresholds?: Record<string, number>;
+    needsContext?: boolean;
+  };
+
+  /** Compiled context from ContextCompiler (BMAD-005) */
+  compiledContext?: string;
 }
 
 /**
@@ -166,11 +181,13 @@ export class TaskRouterService {
   private readonly modelRouter: ModelRouter;
   private readonly minCutRouter: MinCutRoutingService;
   private readonly routingLog: RoutingLogEntry[] = [];
+  private readonly contextCompiler: ContextCompiler;
   private disposed = false;
 
   private constructor(config: TaskRouterConfig, modelRouter: ModelRouter) {
     this.config = config;
     this.modelRouter = modelRouter;
+    this.contextCompiler = new ContextCompiler();
     this.minCutRouter = createMinCutRoutingService({
       enableLogging: config.enableLogging,
     });
@@ -336,6 +353,27 @@ export class TaskRouterService {
       ? this.formatPatternContext(patternHints)
       : undefined;
 
+    // Check for overlay config overrides for the routed agent
+    const agentType = input.agentType;
+    const overlayConfig = agentType
+      ? (getAgentOverlayConfig(agentType) || getAgentOverlayConfig(agentType.replace('v3-qe-', 'qe-')))
+      : undefined;
+
+    // Compile context if file paths are provided (BMAD-005)
+    let compiledContext: string | undefined;
+    if (input.filePaths && input.filePaths.length > 0) {
+      try {
+        const compiled = await this.contextCompiler.compile({
+          targetFiles: input.filePaths,
+          agentType: input.agentType || 'unknown',
+          taskDescription: input.task,
+        });
+        compiledContext = formatContextForPrompt(compiled);
+      } catch {
+        // Non-blocking — context compilation failure should not affect routing
+      }
+    }
+
     return {
       decision: effectiveDecision,
       executionStrategy,
@@ -350,6 +388,8 @@ export class TaskRouterService {
       logEntry,
       patternHints,
       patternContext,
+      overlayConfig,
+      compiledContext,
     };
   }
 
