@@ -1,21 +1,7 @@
 ---
 inclusion: auto
 name: qe-sfdipot-product-factors
-description: AQE skill
----
-
----
-name: sfdipot-product-factors
 description: "James Bach's HTSM Product Factors (SFDIPOT) analysis for comprehensive test strategy generation. Use when analyzing requirements, epics, or user stories to generate prioritized test ideas across Structure, Function, Data, Interfaces, Platform, Operations, and Time dimensions."
-category: requirements-analysis
-priority: high
-tokenEstimate: 1500
-agents: [qe-product-factors-assessor, qe-test-idea-rewriter]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2026-01-17
-dependencies: [brutal-honesty-review]
-quick_reference_card: true
 tags: [sfdipot, htsm, product-factors, test-strategy, requirements, james-bach]
 ---
 

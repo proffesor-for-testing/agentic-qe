@@ -17,11 +17,14 @@ import type {
   ChallengeSeverity,
   ChallengeStrategy,
   ChallengeStrategyType,
+  CleanJustification,
   DevilsAdvocateConfig,
   DevilsAdvocateStats,
+  ReviewOutcome,
 } from './types.js';
 import {
   DEFAULT_DEVILS_ADVOCATE_CONFIG,
+  MINIMUM_FINDING_WEIGHTS,
   SEVERITY_ORDER,
   SEVERITY_WEIGHTS,
 } from './types.js';
@@ -123,11 +126,45 @@ export class DevilsAdvocate {
 
     // 4-5: Filter by confidence and severity
     const minSeverityIndex = SEVERITY_ORDER.indexOf(this.config.minSeverity);
-    const filtered = allChallenges.filter(c => {
+    let filtered = allChallenges.filter(c => {
       if (c.confidence < this.config.minConfidence) return false;
       const severityIndex = SEVERITY_ORDER.indexOf(c.severity);
       return severityIndex <= minSeverityIndex;
     });
+
+    // 5a: Calculate weighted finding score
+    let weightedScore = this.calculateWeightedScore(filtered);
+
+    // 5b: If below minimum, run second pass with all strategies and lower confidence
+    if (weightedScore < this.config.minimumFindings) {
+      const secondPassChallenges = this.runSecondPass(target);
+
+      // Merge new challenges, deduplicating by title
+      const existingTitles = new Set(filtered.map(c => c.title));
+      for (const challenge of secondPassChallenges) {
+        if (!existingTitles.has(challenge.title)) {
+          filtered.push(challenge);
+          existingTitles.add(challenge.title);
+        }
+      }
+
+      // Recalculate weighted score
+      weightedScore = this.calculateWeightedScore(filtered);
+    }
+
+    // 5c: Determine if minimum was met and build clean justification if needed
+    const minimumMet = weightedScore >= this.config.minimumFindings;
+    let cleanJustification: CleanJustification | undefined;
+
+    if (!minimumMet) {
+      cleanJustification = {
+        isClean: true,
+        filesExamined: [],
+        patternsChecked: [],
+        toolsRun: applicable.map(s => s.type),
+        reasoning: 'Review completed under minimum threshold after first and second pass analysis.',
+      };
+    }
 
     // 6: Sort by severity (critical first), then by confidence descending
     const sorted = filtered.sort((a, b) => {
@@ -139,8 +176,12 @@ export class DevilsAdvocate {
     // 7: Limit to max challenges
     const limited = sorted.slice(0, this.config.maxChallengesPerReview);
 
-    // 8: Compute overall score
-    const overallScore = this.computeScore(limited);
+    // 8: Compute overall score (factor in minimum met status)
+    let overallScore = this.computeScore(limited);
+    if (!minimumMet && !cleanJustification) {
+      // Reduce score when minimum not met and no justification provided
+      overallScore = Math.max(0, overallScore * 0.8);
+    }
 
     // 9: Generate summary
     const summary = this.generateSummary(target, limited, overallScore);
@@ -158,6 +199,9 @@ export class DevilsAdvocate {
       summary,
       timestamp: Date.now(),
       reviewDuration,
+      cleanJustification,
+      weightedFindingScore: weightedScore,
+      minimumMet,
     };
   }
 
@@ -204,6 +248,78 @@ export class DevilsAdvocate {
     for (const key of Object.keys(this.categoryCounts)) {
       delete this.categoryCounts[key];
     }
+  }
+
+  /**
+   * Record the outcome of a review for learning feedback.
+   * Captures which challenges were accepted or dismissed.
+   *
+   * @param result - The challenge result from a review
+   * @param accepted - Array of booleans indicating acceptance per challenge
+   * @returns A ReviewOutcome for storage in the learning system
+   */
+  recordOutcome(result: ChallengeResult, accepted: boolean[]): ReviewOutcome {
+    return {
+      targetType: result.targetType,
+      targetAgentId: result.targetAgentId,
+      challengeCount: result.challenges.length,
+      acceptedCount: accepted.filter(Boolean).length,
+      dismissedCount: accepted.filter(a => !a).length,
+      severityBreakdown: result.challenges.reduce((acc, c) => {
+        acc[c.severity] = (acc[c.severity] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      minimumMet: result.minimumMet ?? true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Calculate the weighted finding score based on severity weights.
+   *
+   * @param challenges - The challenges to score
+   * @returns The weighted score sum
+   */
+  private calculateWeightedScore(challenges: readonly Challenge[]): number {
+    if (this.config.minimumFindingsMode === 'count') {
+      return challenges.length;
+    }
+    let score = 0;
+    for (const challenge of challenges) {
+      score += MINIMUM_FINDING_WEIGHTS[challenge.severity] ?? 0.25;
+    }
+    return score;
+  }
+
+  /**
+   * Run a second pass with all strategies and halved minConfidence
+   * to surface additional findings when the first pass falls below minimum.
+   *
+   * @param target - The challenge target to re-analyze
+   * @returns Additional challenges found in the second pass
+   */
+  private runSecondPass(target: ChallengeTarget): Challenge[] {
+    const allStrategies = getApplicableStrategies(this.strategies, target.type);
+    const halvedConfidence = this.config.minConfidence / 2;
+    const minSeverityIndex = SEVERITY_ORDER.indexOf(this.config.minSeverity);
+    const secondPassChallenges: Challenge[] = [];
+
+    for (const strategy of allStrategies) {
+      try {
+        const found = strategy.challenge(target);
+        for (const c of found) {
+          if (c.confidence < halvedConfidence) continue;
+          const severityIndex = SEVERITY_ORDER.indexOf(c.severity);
+          if (severityIndex <= minSeverityIndex) {
+            secondPassChallenges.push(c);
+          }
+        }
+      } catch {
+        // Strategy failure should not abort the second pass.
+      }
+    }
+
+    return secondPassChallenges;
   }
 
   /**

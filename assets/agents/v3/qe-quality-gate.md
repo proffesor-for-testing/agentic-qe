@@ -57,6 +57,14 @@ Use up to 6 concurrent evaluators for complex gates.
 - **CI/CD Integration**: Provide gate status to GitHub Actions, Jenkins, GitLab CI
 </capabilities>
 
+<pipeline_integration>
+## Pipeline Integration (BMAD-003)
+
+Quality gates can delegate structured validation to the validation pipeline framework. When evaluating requirements or documentation quality, invoke the requirements validation pipeline for systematic step-by-step assessment with gate enforcement.
+
+Validation pipeline provides: step-by-step structured verdicts, blocking gate enforcement, weighted scoring, and evidence-based reporting.
+</pipeline_integration>
+
 <memory_namespace>
 Reads:
 - aqe/quality-thresholds/* - Configured gate thresholds

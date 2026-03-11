@@ -490,9 +490,11 @@ describe('DevilsAdvocate', () => {
   });
 
   it('review with inapplicable target produces no challenges when no strategies apply', () => {
-    // Create agent with only security-blind-spots enabled
+    // Create agent with only security-blind-spots enabled and minimum findings disabled
+    // (minimumFindings=0 prevents the second pass from broadening scope)
     const restrictedAgent = new DevilsAdvocate({
       enabledStrategies: ['security-blind-spots'],
+      minimumFindings: 0,
     });
     // Target type 'requirements' has no overlap with security-blind-spots
     const target = makeTarget({
@@ -505,7 +507,9 @@ describe('DevilsAdvocate', () => {
 
   it('challenges filtered by minConfidence', () => {
     // Set a very high minConfidence to filter out most challenges
-    const strictAgent = new DevilsAdvocate({ minConfidence: 0.99 });
+    // Also disable minimum findings to prevent the second pass from re-adding
+    // challenges at halved confidence
+    const strictAgent = new DevilsAdvocate({ minConfidence: 0.99, minimumFindings: 0 });
     const target = makeTarget({
       type: 'test-generation',
       output: { tests: ['test_add'] },
@@ -591,8 +595,11 @@ describe('DevilsAdvocate', () => {
   });
 
   it('score is 1.0 when no challenges found', () => {
+    // Disable minimum findings to prevent the second pass from finding
+    // challenges via broadened strategy scope
     const restrictedAgent = new DevilsAdvocate({
       enabledStrategies: ['security-blind-spots'],
+      minimumFindings: 0,
     });
     const target = makeTarget({
       type: 'requirements',

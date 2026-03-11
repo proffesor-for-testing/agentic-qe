@@ -99,6 +99,19 @@ export const SEVERITY_WEIGHTS: Readonly<Record<ChallengeSeverity, number>> = {
   informational: 0.01,
 } as const;
 
+/**
+ * Weights used for minimum finding threshold calculations.
+ * Maps each severity to a point value for determining whether
+ * a review meets its minimum finding requirements.
+ */
+export const MINIMUM_FINDING_WEIGHTS: Readonly<Record<ChallengeSeverity, number>> = {
+  critical: 3,
+  high: 2,
+  medium: 1,
+  low: 0.5,
+  informational: 0.25,
+} as const;
+
 // ============================================================================
 // Challenge
 // ============================================================================
@@ -128,6 +141,27 @@ export interface Challenge {
 }
 
 // ============================================================================
+// Clean Justification
+// ============================================================================
+
+/**
+ * Justification provided when a review produces fewer findings than the
+ * minimum threshold. Documents what was examined and why no issues were found.
+ */
+export interface CleanJustification {
+  /** Whether the target was deemed genuinely clean */
+  readonly isClean: boolean;
+  /** Specific files that were examined during the review */
+  readonly filesExamined: readonly string[];
+  /** Patterns and anti-patterns that were checked */
+  readonly patternsChecked: readonly string[];
+  /** Tools and strategies that were run */
+  readonly toolsRun: readonly string[];
+  /** Detailed reasoning for why no issues were found */
+  readonly reasoning: string;
+}
+
+// ============================================================================
 // Challenge Result
 // ============================================================================
 
@@ -150,6 +184,39 @@ export interface ChallengeResult {
   readonly timestamp: number;
   /** How long the review took (ms) */
   readonly reviewDuration: number;
+  /** Clean justification when findings are below minimum threshold */
+  readonly cleanJustification?: CleanJustification;
+  /** Weighted finding score based on MINIMUM_FINDING_WEIGHTS */
+  readonly weightedFindingScore?: number;
+  /** Whether the minimum finding threshold was met */
+  readonly minimumMet?: boolean;
+}
+
+// ============================================================================
+// Review Outcome
+// ============================================================================
+
+/**
+ * Outcome of a Devil's Advocate review, used for learning feedback.
+ * Captures which challenges were accepted or dismissed by the user.
+ */
+export interface ReviewOutcome {
+  /** What type of output was reviewed */
+  readonly targetType: ChallengeTargetType;
+  /** ID of the agent whose output was reviewed */
+  readonly targetAgentId: string;
+  /** Total number of challenges raised */
+  readonly challengeCount: number;
+  /** Number of challenges accepted by the user */
+  readonly acceptedCount: number;
+  /** Number of challenges dismissed by the user */
+  readonly dismissedCount: number;
+  /** Breakdown of challenges by severity */
+  readonly severityBreakdown: Readonly<Record<string, number>>;
+  /** Whether the minimum finding threshold was met */
+  readonly minimumMet: boolean;
+  /** ISO timestamp of when the outcome was recorded */
+  readonly timestamp: string;
 }
 
 // ============================================================================
@@ -218,6 +285,10 @@ export interface DevilsAdvocateConfig {
   readonly enabledStrategies: readonly ChallengeStrategyType[];
   /** Only include challenges at or above this severity. @default 'informational' */
   readonly minSeverity: ChallengeSeverity;
+  /** Minimum weighted finding score required for a review. @default 3 */
+  readonly minimumFindings: number;
+  /** How to evaluate minimum findings: 'weighted' uses severity weights, 'count' uses raw count. @default 'weighted' */
+  readonly minimumFindingsMode: 'weighted' | 'count';
 }
 
 /**
@@ -228,6 +299,8 @@ export const DEFAULT_DEVILS_ADVOCATE_CONFIG: DevilsAdvocateConfig = {
   maxChallengesPerReview: 20,
   enabledStrategies: ALL_CHALLENGE_STRATEGY_TYPES,
   minSeverity: 'informational',
+  minimumFindings: 3,
+  minimumFindingsMode: 'weighted',
 } as const;
 
 // ============================================================================

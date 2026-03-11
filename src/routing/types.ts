@@ -214,6 +214,9 @@ export interface QERoutingDecision {
 
   /** Timestamp */
   readonly timestamp: Date;
+
+  /** Compiled context for the recommended agent (if files provided) */
+  compiledContext?: string;
 }
 
 /**

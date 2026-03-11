@@ -19,13 +19,14 @@ import type {
   ComplexityLevel,
 } from './types.js';
 import { DEFAULT_ROUTER_CONFIG } from './types.js';
-import { QE_AGENT_REGISTRY, getAgentById } from './qe-agent-registry.js';
+import { QE_AGENT_REGISTRY, getAgentById, getAgentOverlayConfig, initializeOverlays } from './qe-agent-registry.js';
 import type { QEDomain } from '../learning/qe-patterns.js';
 import {
   computeRealEmbedding,
   cosineSimilarity,
 } from '../learning/real-embeddings.js';
 import type { WitnessChain } from '../audit/witness-chain.js';
+import { ContextCompiler, formatContextForPrompt } from '../context/compiler.js';
 
 // ============================================================================
 // Task Keyword Detection
@@ -150,6 +151,7 @@ export class QETaskRouter {
   private agentEmbeddings: Map<string, number[]> = new Map();
   private initialized = false;
   private embeddingCache: Map<string, number[]> = new Map();
+  private contextCompiler: ContextCompiler | null = null;
 
   /** Optional witness chain for audit trail of routing decisions (ADR-070) */
   private _witnessChain: WitnessChain | null = null;
@@ -165,6 +167,9 @@ export class QETaskRouter {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    // Load overlay configs so routing can apply user customizations
+    initializeOverlays(process.cwd());
+
     // Compute embedding for each agent based on their description and capabilities
     for (const agent of QE_AGENT_REGISTRY) {
       const text = this.buildAgentEmbeddingText(agent);
@@ -172,6 +177,7 @@ export class QETaskRouter {
       this.agentEmbeddings.set(agent.id, embedding);
     }
 
+    this.contextCompiler = new ContextCompiler();
     this.initialized = true;
   }
 
@@ -245,7 +251,23 @@ export class QETaskRouter {
       }, 'qe-task-router');
     } catch { /* best-effort witness */ }
 
-    return {
+    // Compile context for the recommended agent (if files provided)
+    let compiledContext: string | undefined;
+    const filePaths = task.context?.files;
+    if (filePaths && filePaths.length > 0 && this.contextCompiler) {
+      try {
+        const context = await this.contextCompiler.compile({
+          targetFiles: filePaths,
+          agentType: topScore.agent,
+          taskDescription: task.description,
+        });
+        compiledContext = formatContextForPrompt(context);
+      } catch {
+        // Context compilation failure is non-blocking
+      }
+    }
+
+    const decision: QERoutingDecision = {
       recommended: topScore.agent,
       confidence: topScore.combinedScore,
       alternatives,
@@ -259,6 +281,12 @@ export class QETaskRouter {
       latencyMs,
       timestamp: new Date(),
     };
+
+    if (compiledContext) {
+      decision.compiledContext = compiledContext;
+    }
+
+    return decision;
   }
 
   /**
@@ -453,6 +481,14 @@ export class QETaskRouter {
     // Bonus for previous agent (continuity)
     if (task.context?.previousAgent === agent.id) {
       bonus += 0.05;
+    }
+
+    // Bonus from overlay config (user customizations)
+    const overlayConfig = getAgentOverlayConfig(agent.id) || getAgentOverlayConfig(agent.id.replace('v3-qe-', 'qe-'));
+    if (overlayConfig?.preferredFrameworks && task.framework) {
+      if (overlayConfig.preferredFrameworks.includes(task.framework)) {
+        bonus += 0.1;
+      }
     }
 
     // 5. Combined weighted score

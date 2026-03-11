@@ -1,27 +1,8 @@
 ---
 inclusion: auto
 name: qe-enterprise-integration-testing
-description: AQE skill
----
-
----
-name: enterprise-integration-testing
 description: "Orchestration skill for enterprise integration testing across SAP, middleware, WMS, and backend systems. Covers E2E enterprise flows, SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), cross-system data validation, and enterprise quality gates."
-category: enterprise-integration
-priority: high
-tokenEstimate: 2000
-agents: [qe-soap-tester, qe-message-broker-tester, qe-sap-rfc-tester, qe-middleware-validator, qe-sap-idoc-tester, qe-odata-contract-tester, qe-sod-analyzer]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2026-02-04
-dependencies: [api-testing-patterns, contract-testing, chaos-engineering-resilience]
-quick_reference_card: true
 tags: [enterprise, sap, esb, middleware, integration, e2e, order-to-cash]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/enterprise-integration-testing.yaml
 ---
 
 # Enterprise Integration Testing

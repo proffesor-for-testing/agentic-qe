@@ -24,7 +24,7 @@ appendFileSync(logFile, '[' + ts + '] Starting AQE v3 Worker Daemon...\n');
 // Find the best way to run aqe-mcp
 const candidates = [
   join(projectRoot, 'node_modules', '.bin', 'aqe-mcp'),
-  join(projectRoot, 'node_modules', 'agentic-qe', 'v3', 'dist', 'mcp', 'bundle.js'),
+  join(projectRoot, 'node_modules', 'agentic-qe', 'dist', 'mcp', 'bundle.js'),
 ];
 
 let mcpCmd, mcpArgs;
@@ -43,7 +43,7 @@ if (binCandidate && binCandidate.endsWith('bundle.js')) {
 
 appendFileSync(logFile, '[' + ts + '] Using: ' + mcpCmd + ' ' + mcpArgs.join(' ') + '\n');
 
-const env = { ...process.env, AQE_PROJECT_ROOT: projectRoot, AQE_LEARNING_ENABLED: 'true', AQE_WORKERS_ENABLED: 'true', AQE_HTTP_PORT: '0' };
+const env = { ...process.env, AQE_STORAGE_PATH: '.agentic-qe', AQE_LEARNING_ENABLED: 'true', AQE_WORKERS_ENABLED: 'true', AQE_HTTP_PORT: '0' };
 const child = spawn(mcpCmd, mcpArgs, { cwd: projectRoot, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
 child.stdout.on('data', d => appendFileSync(logFile, d));
 child.stderr.on('data', d => appendFileSync(logFile, d));

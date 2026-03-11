@@ -39,6 +39,9 @@ When brutal honesty is needed:
 - Level 3 (Brutal): "This is negligent. You're exposing user data because..."
 
 **DO NOT USE FOR:** Junior devs' first PRs, demoralized teams, public forums, low psychological safety
+
+## Minimum Findings Enforcement
+All brutal honesty reviews enforce a minimum of 3 weighted findings (CRITICAL=3, HIGH=2, MEDIUM=1, LOW=0.5). If the initial review finds fewer, escalate to deeper analysis. Brutally honest reviewers should ALWAYS find something -- if you can't, explain exactly why with evidence.
 </default_to_action>
 
 ## Quick Reference Card

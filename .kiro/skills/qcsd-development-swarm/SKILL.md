@@ -1,60 +1,8 @@
 ---
 inclusion: auto
 name: qcsd-development-swarm
-description: AQE skill
----
-
----
-name: qcsd-development-swarm
 description: "QCSD Development phase swarm for in-sprint code quality assurance using TDD adherence, code complexity analysis, coverage gap detection, and defect prediction. Consumes Refinement outputs (BDD scenarios, SFDIPOT priorities) and produces signals for Verification."
-category: qcsd-phases
-priority: critical
-version: 1.0.0
-tokenEstimate: 3400
-# DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
-domains:
-  primary:
-    - domain: test-generation
-      agents: [qe-tdd-specialist]
-    - domain: coverage-analysis
-      agents: [qe-coverage-specialist]
-    - domain: code-intelligence
-      agents: [qe-code-complexity]
-  conditional:
-    - domain: security-compliance
-      agents: [qe-security-scanner]
-    - domain: chaos-resilience
-      agents: [qe-performance-tester]
-    - domain: test-generation
-      agents: [qe-mutation-tester]
-    - domain: enterprise-integration
-      agents: [qe-message-broker-tester, qe-sap-idoc-tester, qe-sod-analyzer]
-  analysis:
-    - domain: defect-intelligence
-      agents: [qe-defect-predictor]
-# Agent Inventory
-agents:
-  core: [qe-tdd-specialist, qe-code-complexity, qe-coverage-specialist]
-  conditional: [qe-security-scanner, qe-performance-tester, qe-mutation-tester, qe-message-broker-tester, qe-sap-idoc-tester, qe-sod-analyzer]
-  analysis: [qe-defect-predictor]
-  total: 10
-  sub_agents: 0
-skills: [tdd-london-chicago, mutation-testing, performance-testing, security-testing]
-# Execution Models (Task Tool is PRIMARY)
-execution:
-  primary: task-tool
-  alternatives: [mcp-tools, cli]
-swarm_pattern: true
-parallel_batches: 3
-last_updated: 2026-02-03
-enforcement_level: strict
 tags: [qcsd, development, tdd, complexity, coverage, security, performance, mutation, defect-prediction, swarm, parallel, ddd]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/qcsd-development-swarm.yaml
-
 ---
 
 # QCSD Development Swarm v1.0

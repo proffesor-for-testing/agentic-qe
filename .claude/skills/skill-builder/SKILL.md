@@ -806,6 +806,109 @@ Complete API documentation: [API_REFERENCE.md](docs/API_REFERENCE.md)
 
 ---
 
+## Micro-File Step Architecture (BMAD-006)
+
+For complex skills that exceed 1,000 lines, use the micro-file step architecture
+to combat LLM "lost in the middle" context degradation. When a skill's SKILL.md grows
+beyond a certain threshold, the LLM loses critical details in the middle of the file.
+Splitting into step files ensures each step gets full attention.
+
+### When to Apply
+
+| SKILL.md Size | Recommendation |
+|---------------|----------------|
+| Under 1,000 lines | Single file is fine |
+| 1,000 - 1,500 lines | SHOULD split into step files |
+| Over 1,500 lines | MUST split into step files |
+
+### Directory Convention
+
+```
+my-skill/
+  SKILL.md            # Compact orchestrator (200-300 lines)
+  steps/
+    01-first-step.md   # Self-contained step file
+    02-second-step.md
+    03-third-step.md
+    ...
+```
+
+### Step File Format
+
+Each step file MUST be self-contained and include:
+
+1. **Title** with step number
+2. **Prerequisites** listing what data is needed from prior steps
+3. **Instructions** with complete details (no references back to SKILL.md)
+4. **Success Criteria** as a checklist
+5. **Output** describing what this step produces
+6. **Navigation** with explicit Read tool instructions for the next step
+
+Example step file:
+
+```markdown
+# Step 3: Wait for Core Agent Results
+
+## Prerequisites
+- Step 2 completed (all core agents spawned)
+
+## Instructions
+STOP. Do not proceed until all three background tasks from Step 2 return.
+
+When all agents complete, extract these metrics:
+- Metric A from Agent 1
+- Metric B from Agent 2
+- Metric C from Agent 3
+
+## Success Criteria
+- [ ] All core agents completed
+- [ ] All metrics extracted and recorded
+
+## Output
+Metrics summary for use in Step 4.
+
+## Navigation
+- On success: proceed to Step 4 by reading `steps/04-next-step.md`
+- On failure: retry failed agents from Step 2
+```
+
+### Orchestrator Format
+
+The rewritten SKILL.md orchestrator MUST include:
+
+1. **YAML frontmatter** (preserved exactly from original)
+2. **Title and overview** (brief description of the skill)
+3. **Parameters** section
+4. **Enforcement rules** table
+5. **Step Execution Protocol** with:
+   - Numbered step list with file paths
+   - Explicit Read tool instructions (e.g., `Read({ file_path: "..." })`)
+   - Resume support via `--from-step N`
+6. **Agent/component inventory** table
+7. **Quality gate thresholds** (if applicable)
+8. **Key principle** closing statement
+
+The orchestrator should be 200-300 lines. All procedural detail lives in step files.
+
+### Key Rules
+
+- Step files MUST be under 500 lines each
+- Step files MUST NOT reference content in SKILL.md (self-contained)
+- Step files MUST include explicit `Read()` instructions for the next step (Gap 9 fix)
+- ALL original content MUST be preserved across step files -- nothing is deleted
+- The orchestrator is a table of contents and control flow, not a content dump
+
+### Reference Implementation
+
+See the QCSD swarm skills for working examples:
+- `qcsd-production-swarm/` -- 12 agents, 9 steps, feedback loop
+- `qcsd-refinement-swarm/` -- 10 agents, 9 steps, test idea rewriter
+- `qcsd-cicd-swarm/` -- 10 agents, 9 steps, deployment advisor
+- `qcsd-development-swarm/` -- 10 agents, 9 steps, defect predictor
+- `qcsd-ideation-swarm/` -- 9 agents, 8 steps, URL browser cascade
+
+---
+
 ## Examples from the Wild
 
 ### Example 1: Simple Documentation Skill

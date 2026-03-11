@@ -150,6 +150,9 @@ This validation logic appears in 3 places. A `validateEmail()` helper would redu
 - Is this doing too many things?
 - Is there duplication we could reduce?
 
+## Minimum Findings Enforcement
+Reviews must meet a minimum weighted finding score of 3.0 (CRITICAL=3, HIGH=2, MEDIUM=1, LOW=0.5, INFORMATIONAL=0.25). If the initial review falls short, run the qe-devils-advocate agent as a meta-reviewer to find additional observations. Every review should have at least 3 actionable observations.
+
 ---
 
 ## Agent-Assisted Reviews

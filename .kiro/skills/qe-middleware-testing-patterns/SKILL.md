@@ -1,27 +1,8 @@
 ---
 inclusion: auto
 name: qe-middleware-testing-patterns
-description: AQE skill
----
-
----
-name: middleware-testing-patterns
 description: "Enterprise middleware testing patterns for message routing, transformation, DLQ, protocol mediation, ESB error handling, and EIP patterns. Use when testing middleware layers, message brokers, ESBs, or integration buses."
-category: enterprise-integration
-priority: high
-tokenEstimate: 1800
-agents: [qe-middleware-validator, qe-message-broker-tester, qe-soap-tester]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2026-02-04
-dependencies: [api-testing-patterns, contract-testing]
-quick_reference_card: true
 tags: [middleware, esb, soap, messaging, iib, mq, transformation, routing]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/middleware-testing-patterns.yaml
 ---
 
 # Middleware Testing Patterns

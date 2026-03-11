@@ -30,6 +30,8 @@ import type {
   ComplexityLevel,
 } from './types.js';
 import type { QEDomain } from '../learning/qe-patterns.js';
+import type { AgentOverlay } from '../agents/overlay-schema.js';
+import { loadOverlays } from '../agents/overlay-loader.js';
 
 // ============================================================================
 // Helper Functions
@@ -1270,4 +1272,46 @@ export function resetAgentPerformanceMetrics(): void {
     agent.avgDurationMs = 0;
   }
   console.error('[AgentRegistry] Reset all agent performance metrics');
+}
+
+// ============================================================================
+// Agent Customization Overlays (BMAD-002)
+// ============================================================================
+
+/** Module-level cache of overlay configs keyed by agent ID */
+let overlayConfigs: Map<string, AgentOverlay['config']> = new Map();
+
+/**
+ * Initialize overlay configurations from project root.
+ * Loads all .claude/agent-overrides/*.yaml files and caches their config sections.
+ */
+export function initializeOverlays(projectRoot: string): void {
+  overlayConfigs = new Map();
+  const result = loadOverlays(projectRoot);
+
+  for (const overlay of result.overlays) {
+    if (overlay.config) {
+      overlayConfigs.set(overlay.agent, overlay.config);
+    }
+  }
+
+  if (overlayConfigs.size > 0) {
+    console.error(
+      `[AgentRegistry] Loaded overlay configs for ${overlayConfigs.size} agent(s): ${[...overlayConfigs.keys()].join(', ')}`
+    );
+  }
+
+  if (result.warnings.length > 0) {
+    for (const warning of result.warnings) {
+      console.error(`[AgentRegistry] Overlay warning: ${warning}`);
+    }
+  }
+}
+
+/**
+ * Get overlay configuration for a specific agent.
+ * Returns undefined if no overlay exists for the agent.
+ */
+export function getAgentOverlayConfig(agentId: string): AgentOverlay['config'] | undefined {
+  return overlayConfigs.get(agentId);
 }

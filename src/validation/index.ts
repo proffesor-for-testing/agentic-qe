@@ -123,3 +123,47 @@ export type {
   ComparisonStats,
   TestCaseComparison,
 } from './version-comparator.js';
+
+// ============================================================================
+// Structured Validation Pipeline (BMAD-003)
+// ============================================================================
+
+export {
+  runPipeline,
+  formatPipelineReport,
+} from './pipeline.js';
+
+export type {
+  StepCategory,
+  StepSeverity,
+  StepStatus,
+  Finding,
+  ValidationContext,
+  ValidationStep,
+  StepResult,
+  PipelineConfig,
+  PipelineResult,
+} from './pipeline.js';
+
+// ============================================================================
+// Requirements Validation Steps (BMAD-003)
+// ============================================================================
+
+export {
+  REQUIREMENTS_VALIDATION_STEPS,
+  createRequirementsPipeline,
+  // Individual steps
+  formatCheckStep,
+  completenessCheckStep,
+  investCriteriaStep,
+  smartAcceptanceStep,
+  testabilityScoreStep,
+  vagueTermStep,
+  informationDensityStep,
+  traceabilityCheckStep,
+  implementationLeakageStep,
+  domainComplianceStep,
+  dependencyAnalysisStep,
+  bddScenarioStep,
+  holisticQualityStep,
+} from './steps/requirements.js';
