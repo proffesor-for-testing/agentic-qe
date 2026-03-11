@@ -116,7 +116,7 @@ export function generateV3SettingsSections(config: AQEInitConfig): Record<string
     },
     statusLine: {
       type: 'command',
-      command: 'node .claude/helpers/statusline-v3.cjs 2>/dev/null || .claude/statusline-v3.sh 2>/dev/null || echo "▊ Agentic QE v3"',
+      command: 'node .claude/helpers/statusline-v3.cjs 2>/dev/null || echo "▊ Agentic QE v3"',
       refreshMs: 5000,
       enabled: true,
     },
