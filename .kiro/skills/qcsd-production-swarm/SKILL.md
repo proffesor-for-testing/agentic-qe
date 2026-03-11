@@ -1,56 +1,8 @@
 ---
 inclusion: auto
 name: qcsd-production-swarm
-description: AQE skill
----
-
----
-name: qcsd-production-swarm
 description: "QCSD Production Telemetry phase swarm for post-release production health assessment using DORA metrics, root cause analysis, defect prediction, and cross-phase feedback loops. Consumes CI/CD outputs (RELEASE/REMEDIATE/BLOCK decisions, release readiness metrics) and produces feedback signals to Ideation and Refinement."
-category: qcsd-phases
-priority: critical
-version: 1.0.0
-tokenEstimate: 32000
-# DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
-domains:
-  primary:
-    - domain: learning-optimization
-      agents: [qe-metrics-optimizer]
-    - domain: defect-intelligence
-      agents: [qe-defect-predictor, qe-root-cause-analyzer]
-  conditional:
-    - domain: chaos-resilience
-      agents: [qe-chaos-engineer, qe-performance-tester]
-    - domain: defect-intelligence
-      agents: [qe-regression-analyzer, qe-pattern-learner]
-    - domain: enterprise-integration
-      agents: [qe-middleware-validator, qe-sap-rfc-tester, qe-sod-analyzer]
-  feedback:
-    - domain: learning-optimization
-      agents: [qe-learning-coordinator, qe-transfer-specialist]
-# Agent Inventory
-agents:
-  core: [qe-metrics-optimizer, qe-defect-predictor, qe-root-cause-analyzer]
-  conditional: [qe-chaos-engineer, qe-performance-tester, qe-regression-analyzer, qe-pattern-learner, qe-middleware-validator, qe-sap-rfc-tester, qe-sod-analyzer]
-  feedback: [qe-learning-coordinator, qe-transfer-specialist]
-  total: 12
-  sub_agents: 0
-skills: [shift-right-testing, chaos-engineering-resilience, quality-metrics, performance-testing, holistic-testing-pact]
-# Execution Models (Task Tool is PRIMARY)
-execution:
-  primary: task-tool
-  alternatives: [mcp-tools, cli]
-swarm_pattern: true
-parallel_batches: 3
-last_updated: 2026-02-17
-enforcement_level: strict
 tags: [qcsd, production, telemetry, dora, rca, defect-prediction, feedback-loop, learning, swarm, parallel, ddd]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/qcsd-production-swarm.yaml
-
 ---
 
 # QCSD Production Swarm v1.0

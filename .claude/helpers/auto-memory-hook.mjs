@@ -139,17 +139,30 @@ async function loadMemoryPackage() {
     } catch { /* fall through */ }
   }
 
-  // Strategy 2: npm installed @claude-flow/memory
+  // Strategy 2: Use createRequire for CJS-style resolution (handles nested node_modules
+  // when installed as a transitive dependency via npx ruflo / npx claude-flow)
+  try {
+    const { createRequire } = await import('module');
+    const require = createRequire(join(PROJECT_ROOT, 'package.json'));
+    return require('@claude-flow/memory');
+  } catch { /* fall through */ }
+
+  // Strategy 3: ESM import (works when @claude-flow/memory is a direct dependency)
   try {
     return await import('@claude-flow/memory');
   } catch { /* fall through */ }
 
-  // Strategy 3: Installed via @claude-flow/cli which includes memory
-  const cliMemory = join(PROJECT_ROOT, 'node_modules/@claude-flow/memory/dist/index.js');
-  if (existsSync(cliMemory)) {
-    try {
-      return await import(`file://${cliMemory}`);
-    } catch { /* fall through */ }
+  // Strategy 4: Walk up from PROJECT_ROOT looking for @claude-flow/memory in any node_modules
+  let searchDir = PROJECT_ROOT;
+  const { parse } = await import('path');
+  while (searchDir !== parse(searchDir).root) {
+    const candidate = join(searchDir, 'node_modules', '@claude-flow', 'memory', 'dist', 'index.js');
+    if (existsSync(candidate)) {
+      try {
+        return await import(`file://${candidate}`);
+      } catch { /* fall through */ }
+    }
+    searchDir = dirname(searchDir);
   }
 
   return null;
@@ -342,9 +355,11 @@ try {
     case 'status': await doStatus(); break;
     default:
       console.log('Usage: auto-memory-hook.mjs <import|sync|status>');
-      process.exit(1);
+      break;
   }
 } catch (err) {
   // Hooks must never crash Claude Code - fail silently
-  dim(`Error (non-critical): ${err.message}`);
+  try { dim(`Error (non-critical): ${err.message}`); } catch (_) {}
 }
+// Hooks must ALWAYS exit 0
+process.exitCode = 0;

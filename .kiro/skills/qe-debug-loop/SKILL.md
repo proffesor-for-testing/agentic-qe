@@ -1,14 +1,7 @@
 ---
 inclusion: auto
 name: qe-debug-loop
-description: AQE skill
----
-
----
-name: debug-loop
-description: Hypothesis-driven autonomous debugging with real command validation
-trust_tier: 3
-domain: debugging
+description: "Hypothesis-driven autonomous debugging with real command validation"
 ---
 
 # Debug Loop

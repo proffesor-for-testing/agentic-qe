@@ -1,60 +1,8 @@
 ---
 inclusion: auto
 name: qcsd-cicd-swarm
-description: AQE skill
----
-
----
-name: qcsd-cicd-swarm
 description: "QCSD Verification phase swarm for CI/CD pipeline quality gates using regression analysis, flaky test detection, quality gate enforcement, and deployment readiness assessment. Consumes Development outputs (SHIP/CONDITIONAL/HOLD decisions, quality metrics) and produces signals for Production monitoring."
-category: qcsd-phases
-priority: critical
-version: 1.0.0
-tokenEstimate: 3500
-# DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
-domains:
-  primary:
-    - domain: quality-assessment
-      agents: [qe-quality-gate]
-    - domain: test-execution
-      agents: [qe-regression-analyzer]
-    - domain: test-execution
-      agents: [qe-flaky-hunter]
-  conditional:
-    - domain: security-compliance
-      agents: [qe-security-scanner]
-    - domain: chaos-resilience
-      agents: [qe-chaos-engineer]
-    - domain: coverage-analysis
-      agents: [qe-coverage-specialist]
-    - domain: enterprise-integration
-      agents: [qe-middleware-validator, qe-soap-tester, qe-sod-analyzer]
-  analysis:
-    - domain: quality-assessment
-      agents: [qe-deployment-advisor]
-# Agent Inventory
-agents:
-  core: [qe-quality-gate, qe-regression-analyzer, qe-flaky-hunter]
-  conditional: [qe-security-scanner, qe-chaos-engineer, qe-coverage-specialist, qe-middleware-validator, qe-soap-tester, qe-sod-analyzer]
-  analysis: [qe-deployment-advisor]
-  total: 10
-  sub_agents: 0
-skills: [shift-left-testing, shift-right-testing, regression-testing, security-testing]
-# Execution Models (Task Tool is PRIMARY)
-execution:
-  primary: task-tool
-  alternatives: [mcp-tools, cli]
-swarm_pattern: true
-parallel_batches: 3
-last_updated: 2026-02-03
-enforcement_level: strict
 tags: [qcsd, verification, cicd, pipeline, quality-gate, regression, flaky, security, chaos, coverage, deployment, swarm, parallel, ddd]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/qcsd-cicd-swarm.yaml
-
 ---
 
 # QCSD CI/CD Swarm v1.0

@@ -4,16 +4,16 @@ This directory contains Quality Engineering skills managed by Agentic QE.
 
 ## Summary
 
-- **Total QE Skills**: 75
-- **V2 Methodology Skills**: 60
+- **Total QE Skills**: 77
+- **V2 Methodology Skills**: 62
 - **V3 Domain Skills**: 15
-- **Platform Skills**: 35 (Claude Flow managed)
+- **Platform Skills**: 30 (Claude Flow managed)
 - **Validation Infrastructure**: ✅ Installed
 
 > **Note**: Platform skills (agentdb, github, flow-nexus, etc.) are managed by claude-flow.
 > Only QE-specific skills are installed/updated by `aqe init`.
 
-## V2 Methodology Skills (60)
+## V2 Methodology Skills (62)
 
 Version-agnostic quality engineering best practices from the QE community.
 
@@ -21,6 +21,7 @@ Version-agnostic quality engineering best practices from the QE community.
 - **accessibility-testing**: WCAG 2.2 compliance testing, screen reader validation, and inclusive design verification. Use when ensuring legal compliance (ADA, Section 508), testing for disabilities, or building accessible applications for 1 billion disabled users globally.
 - **agentic-quality-engineering**: AI agents as force multipliers for quality work. Core skill for all 19 QE agents using PACT principles.
 - **api-testing-patterns**: Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing. Use when testing APIs or designing API test strategies.
+- **browser**: Web browser automation with AI-optimized snapshots for claude-flow agents
 - **brutal-honesty-review**: Unvarnished technical criticism combining Linus Torvalds
 - **bug-reporting-excellence**: Write high-quality bug reports that get fixed quickly. Use when reporting bugs, training teams on bug reporting, or establishing bug report standards.
 - **chaos-engineering-resilience**: Chaos engineering principles, controlled failure injection, resilience testing, and system recovery validation. Use when testing distributed systems, building confidence in fault tolerance, or validating disaster recovery.
@@ -52,6 +53,7 @@ Version-agnostic quality engineering best practices from the QE community.
 - **qcsd-cicd-swarm**: QCSD Verification phase swarm for CI/CD pipeline quality gates using regression analysis, flaky test detection, quality gate enforcement, and deployment readiness assessment. Consumes Development outputs (SHIP/CONDITIONAL/HOLD decisions, quality metrics) and produces signals for Production monitoring.
 - **qcsd-development-swarm**: QCSD Development phase swarm for in-sprint code quality assurance using TDD adherence, code complexity analysis, coverage gap detection, and defect prediction. Consumes Refinement outputs (BDD scenarios, SFDIPOT priorities) and produces signals for Verification.
 - **qcsd-ideation-swarm**: QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins. Uses 5-tier browser cascade: Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch-fallback.
+- **qcsd-production-swarm**: QCSD Production Telemetry phase swarm for post-release production health assessment using DORA metrics, root cause analysis, defect prediction, and cross-phase feedback loops. Consumes CI/CD outputs (RELEASE/REMEDIATE/BLOCK decisions, release readiness metrics) and produces feedback signals to Ideation and Refinement.
 - **qcsd-refinement-swarm**: QCSD Refinement phase swarm for Sprint Refinement sessions using SFDIPOT product factors, BDD scenario generation, and requirements validation.
 - **quality-metrics**: Measure quality effectively with actionable metrics. Use when establishing quality dashboards, defining KPIs, or evaluating test effectiveness.
 - **refactoring-patterns**: Apply safe refactoring patterns to improve code structure without changing behavior. Use when cleaning up code, reducing technical debt, or improving maintainability.
@@ -98,7 +100,7 @@ V3-specific implementation guides for the 12 DDD bounded contexts.
 - **qe-test-generation**: AI-powered test generation using pattern recognition, code analysis, and intelligent test synthesis for comprehensive test coverage.
 - **qe-visual-accessibility**: Visual regression testing, responsive design validation, and WCAG accessibility compliance testing.
 
-## Platform Skills (35)
+## Platform Skills (30)
 
 Claude Flow platform skills (managed separately).
 
@@ -107,7 +109,6 @@ Claude Flow platform skills (managed separately).
 - agentdb-memory-patterns
 - agentdb-optimization
 - agentdb-vector-search
-- agentic-jujutsu
 - flow-nexus-neural
 - flow-nexus-platform
 - flow-nexus-swarm
@@ -116,13 +117,9 @@ Claude Flow platform skills (managed separately).
 - github-project-management
 - github-release-management
 - github-workflow-automation
-- hive-mind-advanced
 - hooks-automation
-- iterative-loop
-- performance-analysis
 - reasoningbank-agentdb
 - reasoningbank-intelligence
-- release
 - skill-builder
 - sparc-methodology
 - stream-chain
@@ -151,4 +148,4 @@ See `.validation/README.md` for usage instructions.
 
 ---
 
-*Generated by AQE v3 init on 2026-02-16T09:20:23.221Z*
+*Generated by AQE v3 init on 2026-03-11T09:00:19.526Z*

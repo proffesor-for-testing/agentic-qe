@@ -1,27 +1,8 @@
 ---
 inclusion: auto
 name: qe-observability-testing-patterns
-description: AQE skill
----
-
----
-name: observability-testing-patterns
 description: "Observability and monitoring validation patterns for dashboards, alerting, log aggregation, APM traces, and SLA/SLO verification. Use when testing monitoring infrastructure, dashboard accuracy, alert rules, or metric pipelines."
-category: specialized-testing
-priority: high
-tokenEstimate: 1600
-agents: [qe-integration-tester, qe-performance-tester, qe-visual-tester]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2026-02-04
-dependencies: [api-testing-patterns, shift-right-testing]
-quick_reference_card: true
 tags: [observability, monitoring, kibana, elasticsearch, dashboards, alerting, metrics, logging]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/observability-testing-patterns.yaml
 ---
 
 # Observability Testing Patterns
