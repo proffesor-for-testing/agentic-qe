@@ -83,18 +83,22 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     }
 
     // Install agents
-    const agentsInstaller = createAgentsInstaller({
-      projectRoot,
-      installQEAgents: true,
-      installSubagents: true,
-      overwrite: shouldOverwrite,
-    });
+    try {
+      const agentsInstaller = createAgentsInstaller({
+        projectRoot,
+        installQEAgents: true,
+        installSubagents: true,
+        overwrite: shouldOverwrite,
+      });
 
-    const agentsResult = await agentsInstaller.install();
-    agentsInstalled = agentsResult.installed.length;
+      const agentsResult = await agentsInstaller.install();
+      agentsInstalled = agentsResult.installed.length;
 
-    if (agentsResult.errors.length > 0) {
-      context.services.warn(`Agents warnings: ${agentsResult.errors.join(', ')}`);
+      if (agentsResult.errors.length > 0) {
+        context.services.warn(`Agents warnings: ${agentsResult.errors.join(', ')}`);
+      }
+    } catch (error) {
+      context.services.warn(`Agents install error: ${error instanceof Error ? error.message : error}`);
     }
 
     // Initialize overlay configs in agent registry for runtime use

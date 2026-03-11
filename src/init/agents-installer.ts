@@ -257,15 +257,21 @@ export class AgentsInstaller {
     // Copy the example overlay template if not already present
     const exampleDest = join(overridesDir, '_example.yaml');
     if (!existsSync(exampleDest)) {
-      const templateSources = [
-        join(__dirname, '..', '..', 'assets', 'templates', 'agent-override-example.yaml'),
-        join(__dirname, '..', 'assets', 'templates', 'agent-override-example.yaml'),
-      ];
-      for (const src of templateSources) {
-        if (existsSync(src)) {
-          copyFileSync(src, exampleDest);
-          break;
+      try {
+        const moduleDir = dirname(fileURLToPath(import.meta.url));
+        const templateSources = [
+          join(moduleDir, '..', '..', 'assets', 'templates', 'agent-override-example.yaml'),
+          join(moduleDir, '..', 'assets', 'templates', 'agent-override-example.yaml'),
+          join(this.projectRoot, 'node_modules', 'agentic-qe', 'assets', 'templates', 'agent-override-example.yaml'),
+        ];
+        for (const src of templateSources) {
+          if (existsSync(src)) {
+            copyFileSync(src, exampleDest);
+            break;
+          }
         }
+      } catch {
+        // Template copy is non-critical — skip silently
       }
     }
   }
