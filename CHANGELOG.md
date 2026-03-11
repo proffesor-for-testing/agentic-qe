@@ -5,6 +5,28 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.17] - 2026-03-11
+
+### Added
+
+- **Adversarial review with minimum findings** — Review agents now enforce a minimum weighted finding score (CRITICAL=3, HIGH=2, MEDIUM=1, LOW=0.5). When findings fall below threshold, a second-pass review runs with halved confidence. Clean code requires explicit justification documenting files examined, patterns checked, and tools run.
+- **Agent customization overlays** — Users can customize agent behavior via `.claude/agent-overrides/*.yaml` files with replace, append, and config sections. Overlays integrate at init time (agents-installer) and runtime (task router scoring, MCP routing).
+- **Structured validation pipelines** — 13-step requirements validation with blocking gates, weighted category scoring (format, content, quality, traceability, compliance), and markdown report generation.
+- **Mechanical edge case detection** — Regex-based branch enumerator detecting 13 construct types (if-without-else, switch-no-default, try-empty-catch, optional-chaining, nullish-coalescing, promise-no-catch, and more). Available via `aqe coverage gaps <file>` CLI command.
+- **Context compilation for agents** — Parallel source gathering from memory DB, git history, test files, and coverage data with priority-based sorting and token budget management. Integrated into both QETaskRouter and MCP TaskRouterService.
+- **Micro-file step architecture** — 5 QCSD skills (production, refinement, cicd, development, ideation) split into 44 step files under 500 lines each, with compact orchestrator SKILL.md files under 300 lines.
+- **Statusline v3 helper** — New `assets/helpers/statusline-v3.cjs` for improved status display.
+
+### Changed
+
+- **QCSD skills restructured** — Large monolithic QCSD skill files (2000-2700 lines each) replaced with orchestrator + step file architecture for better maintainability.
+- **Agent definitions updated** — qe-devils-advocate, qe-gap-detector, qe-quality-gate, qe-requirements-validator, and 4 reviewer subagents enhanced with minimum finding requirements and mechanical mode support.
+- **Review skills enhanced** — brutal-honesty-review, sherlock-review, and code-review-quality skills now enforce minimum findings.
+- **Hooks phase improvements** — Updated hooks installation for devcontainer compatibility.
+- **Settings merge fix** — Corrected settings merge logic.
+- **Deprecated agents removed** — Cleaned up legacy v2 agents, deprecated subagents, consensus/hive-mind/neural/optimization/reasoning/swarm agent directories, and old slash commands.
+- **DevPod configuration updated** — Refreshed devcontainer settings for new environment.
+
 ## [3.7.16] - 2026-03-10
 
 ### Added
