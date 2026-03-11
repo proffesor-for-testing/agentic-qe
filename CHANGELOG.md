@@ -5,6 +5,13 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.18] - 2026-03-11
+
+### Fixed
+
+- **Critical: `aqe init --auto` not installing agents on upgrade** — `preserveOverridesDir()` used `__dirname` (unavailable in ESM bundles), causing a TypeError that crashed the agents installer. Skills were silently installed but agents were skipped, and the phase reported 0/0. Fixed by using `import.meta.url` path resolution with fallback.
+- **Assets phase error isolation** — Agents installer errors no longer crash the entire assets phase. Skills and agents install independently, so a failure in one doesn't prevent the other from completing and reporting counts.
+
 ## [3.7.17] - 2026-03-11
 
 ### Added

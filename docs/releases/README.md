@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.7.18](v3.7.18.md) | 2026-03-11 | Hotfix: agents not installed on `aqe init --auto` upgrade |
 | [v3.7.17](v3.7.17.md) | 2026-03-11 | BMAD-inspired: adversarial review, agent overlays, validation pipelines, branch enumerator |
 | [v3.7.16](v3.7.16.md) | 2026-03-10 | Critical: test DB isolation fix, Tier 3 baselines, MCP persistence pipeline |
 | [v3.7.15](v3.7.15.md) | 2026-03-09 | Six Hats learning improvements, Proof-of-Quality CLI, MCP tool scoping, test stability |
