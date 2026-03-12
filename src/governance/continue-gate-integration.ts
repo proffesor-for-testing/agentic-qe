@@ -206,7 +206,7 @@ export class ContinueGateIntegration {
           budgetRemaining: {
             tokens: Math.max(0, (flags.maxConsecutiveRetries * 10 * 500) - (history.length * 500)),
             toolCalls: Math.max(0, (flags.maxConsecutiveRetries * 10) - history.length),
-            timeMs: Math.max(0, flags.idleTimeoutMs - (history.length > 0 ? Date.now() - history[0].timestamp : 0)),
+            timeMs: Math.max(0, flags.idleTimeoutMs - (history.length > 0 ? Date.now() - history[history.length - 1].timestamp : 0)),
           },
           recentDecisions: [],
         };

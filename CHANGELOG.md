@@ -5,6 +5,13 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.20] - 2026-03-12
+
+### Fixed
+
+- **Duplicate brain-checkpoint hooks on re-init** — Running `aqe init --auto` multiple times accumulated 4x copies of brain-checkpoint verify/export hooks in settings.json, potentially blocking tool calls for up to 4 minutes. Added `brain-checkpoint.cjs` and `.claude/helpers/` to the AQE hook detection patterns so `mergeHooksSmart()` correctly deduplicates them. (#344)
+- **Governance time budget blocking requirements_validate and coverage_analyze_sublinear** — The continue-gate's `budgetRemaining.timeMs` was measuring total session elapsed time instead of idle time since last action. After 5+ minutes of normal usage, the WASM gate would return "Budget exhausted: time" even when tools were actively running. Fixed the calculation to reference last action timestamp and increased the default idle timeout from 5 to 15 minutes. (#345)
+
 ## [3.7.18] - 2026-03-11
 
 ### Fixed

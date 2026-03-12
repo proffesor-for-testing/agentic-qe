@@ -49,6 +49,20 @@ describe('Settings Merge Utilities', () => {
       expect(isAqeHookEntry(entry)).toBe(false);
     });
 
+    it('should detect brain-checkpoint.cjs commands', () => {
+      const entry = {
+        hooks: [{ type: 'command', command: 'node .claude/helpers/brain-checkpoint.cjs verify --json' }],
+      };
+      expect(isAqeHookEntry(entry)).toBe(true);
+    });
+
+    it('should detect .claude/helpers/ commands', () => {
+      const entry = {
+        hooks: [{ type: 'command', command: 'node .claude/helpers/statusline-v3.cjs 2>/dev/null' }],
+      };
+      expect(isAqeHookEntry(entry)).toBe(true);
+    });
+
     it('should handle entries without hooks array', () => {
       expect(isAqeHookEntry({})).toBe(false);
       expect(isAqeHookEntry(null)).toBe(false);
@@ -164,6 +178,30 @@ describe('Settings Merge Utilities', () => {
       expect(result3.PreToolUse).toHaveLength(1);
       expect(result3.PostToolUse).toHaveLength(1);
       expect(result3.SessionStart).toHaveLength(1);
+    });
+
+    it('should not duplicate brain-checkpoint hooks when run multiple times', () => {
+      const hooksWithBrainCheckpoint: Record<string, unknown[]> = {
+        ...newAqeHooks,
+        SessionStart: [
+          ...newAqeHooks.SessionStart,
+          {
+            hooks: [{ type: 'command', command: 'node .claude/helpers/brain-checkpoint.cjs verify --json', timeout: 5000, continueOnError: true }],
+          },
+        ],
+        Stop: [
+          {
+            hooks: [{ type: 'command', command: 'node .claude/helpers/brain-checkpoint.cjs export --json', timeout: 60000, continueOnError: true }],
+          },
+        ],
+      };
+
+      const result1 = mergeHooksSmart({}, hooksWithBrainCheckpoint);
+      const result2 = mergeHooksSmart(result1, hooksWithBrainCheckpoint);
+      const result3 = mergeHooksSmart(result2, hooksWithBrainCheckpoint);
+
+      expect(result3.SessionStart).toHaveLength(2); // session-start + brain-checkpoint verify
+      expect(result3.Stop).toHaveLength(1); // brain-checkpoint export
     });
 
     it('should handle mixed old aqe + npx agentic-qe commands', () => {

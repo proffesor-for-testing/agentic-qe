@@ -16,6 +16,8 @@ const AQE_COMMAND_PATTERNS = [
   /\bagentic-qe\b/i,
   /\bnpx\s+agentic-qe\b/i,
   /\bnpx\s+@anthropics\/agentic-qe\b/i,
+  /brain-checkpoint\.cjs/i,
+  /\.claude\/helpers\//i,
 ];
 
 type HookEntry = {
