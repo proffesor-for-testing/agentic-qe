@@ -189,7 +189,7 @@ export const DEFAULT_GOVERNANCE_FLAGS: GovernanceFeatureFlags = {
     enabled: true,
     maxConsecutiveRetries: 3,
     reworkRatioThreshold: 0.5,
-    idleTimeoutMs: 5 * 60 * 1000, // 5 minutes
+    idleTimeoutMs: 15 * 60 * 1000, // 15 minutes
     throttleOnExceed: true,
   },
 
@@ -312,7 +312,7 @@ export function loadFlagsFromEnv(): Partial<GovernanceFeatureFlags> {
       enabled: env.GOVERNANCE_CONTINUE_GATE !== 'false',
       maxConsecutiveRetries: parseInt(env.GOVERNANCE_MAX_RETRIES || '3', 10),
       reworkRatioThreshold: parseFloat(env.GOVERNANCE_REWORK_THRESHOLD || '0.5'),
-      idleTimeoutMs: parseInt(env.GOVERNANCE_IDLE_TIMEOUT || '300000', 10),
+      idleTimeoutMs: parseInt(env.GOVERNANCE_IDLE_TIMEOUT || '900000', 10),
       throttleOnExceed: env.GOVERNANCE_THROTTLE !== 'false',
     },
     memoryWriteGate: {
