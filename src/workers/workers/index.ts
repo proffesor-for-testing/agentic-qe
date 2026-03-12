@@ -2,7 +2,7 @@
  * Agentic QE v3 - Worker Exports
  * ADR-014: Background Workers for QE Monitoring
  *
- * Exports all 11 QE-specific background workers.
+ * Exports all 12 QE-specific background workers.
  */
 
 export { TestHealthWorker } from './test-health.js';
@@ -16,3 +16,4 @@ export { RegressionMonitorWorker } from './regression-monitor.js';
 export { PerformanceBaselineWorker } from './performance-baseline.js';
 export { ComplianceCheckerWorker } from './compliance-checker.js';
 export { CloudSyncWorker } from './cloud-sync.js';
+export { HeartbeatSchedulerWorker } from './heartbeat-scheduler.js';

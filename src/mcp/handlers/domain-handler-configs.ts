@@ -189,6 +189,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
     detectAntiPatterns: params.detectAntiPatterns || false,
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
+    compiledContext: routingResult?.compiledContext,
   }),
 
   mapToResult: (taskId, data, duration, savedFiles, params) => {
@@ -286,6 +287,7 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
     reportFormat: params.reportFormat || 'json',
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
+    compiledContext: routingResult?.compiledContext,
   }),
 
   calculateTimeout: (params) => params.timeout || 300000,
@@ -370,6 +372,7 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
     prioritization: params.prioritization || 'complexity',
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
+    compiledContext: routingResult?.compiledContext,
   }),
 
   mapToResult: (taskId, data, duration, savedFiles) => {
@@ -478,6 +481,7 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
     metrics: params.metrics || ['coverage', 'complexity', 'maintainability'],
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
+    compiledContext: routingResult?.compiledContext,
   }),
 
   mapToResult: (taskId, data, duration, savedFiles) => ({
@@ -516,6 +520,7 @@ export const securityScanConfig: DomainHandlerConfig<SecurityScanParams, Securit
     target: params.target || '.',
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
+    compiledContext: routingResult?.compiledContext,
   }),
 
   mapToResult: (taskId, data, duration, savedFiles) => ({
@@ -553,6 +558,7 @@ export const contractValidateConfig: DomainHandlerConfig<ContractValidateParams,
     checkBreakingChanges: params.checkBreakingChanges !== false,
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
+    compiledContext: routingResult?.compiledContext,
   }),
 
   mapToResult: (taskId, data, duration, savedFiles) => ({
@@ -585,6 +591,7 @@ export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParam
     includeScreenReader: params.includeScreenReader || false,
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
+    compiledContext: routingResult?.compiledContext,
   }),
 
   mapToResult: (taskId, data, duration, savedFiles) => ({
@@ -620,6 +627,7 @@ export const chaosTestConfig: DomainHandlerConfig<ChaosTestParams, ChaosTestResu
     dryRun: params.dryRun !== false,
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
+    compiledContext: routingResult?.compiledContext,
   }),
 
   calculateTimeout: (params) => (params.duration || 30000) + 60000,
@@ -657,6 +665,7 @@ export const defectPredictConfig: DomainHandlerConfig<DefectPredictParams, Defec
     minConfidence: params.minConfidence || 0.7,
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
+    compiledContext: routingResult?.compiledContext,
   }),
 
   mapToResult: (taskId, data, duration, savedFiles) => ({
@@ -689,6 +698,7 @@ export const requirementsValidateConfig: DomainHandlerConfig<RequirementsValidat
     generateBDD: params.generateBDD || false,
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
+    compiledContext: routingResult?.compiledContext,
   }),
 
   mapToResult: (taskId, data, duration, savedFiles) => ({
@@ -722,6 +732,7 @@ export const codeIndexConfig: DomainHandlerConfig<CodeIndexParams, CodeIndexResu
     gitSince: params.gitSince,
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
+    compiledContext: routingResult?.compiledContext,
   }),
 
   mapToResult: (taskId, data, duration, savedFiles) => ({

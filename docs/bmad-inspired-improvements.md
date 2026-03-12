@@ -1,7 +1,7 @@
 # BMAD-Inspired AQE Improvements — Implementation Plan
 
 > Inspired by [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD) patterns adapted for AQE's autonomous quality engineering platform.
-> Created: 2026-03-11 | Status: Implemented | Completed: 2026-03-11
+> Created: 2026-03-11 | Status: Mostly Complete | Last Audited: 2026-03-12
 
 ---
 
@@ -11,14 +11,14 @@ Six features to adopt from BMAD-METHOD, adapted to AQE's architecture (agents, l
 
 ### Progress Tracker
 
-| # | Feature | Status | Priority | Effort |
-|---|---------|--------|----------|--------|
-| 1 | [Adversarial Review with Minimum Findings](#1-adversarial-review-with-minimum-findings) | [x] Done | P0 | Low |
-| 2 | [Agent Customization Overlays](#2-agent-customization-overlays) | [x] Done | P0 | Medium |
-| 3 | [Structured Validation Pipelines](#3-structured-validation-pipelines) | [x] Done | P1 | Medium |
-| 4 | [Edge Case Hunter (Mechanical)](#4-edge-case-hunter-mechanical) | [x] Done | P1 | Low |
-| 5 | [Context Compilation for Agents](#5-context-compilation-for-agents) | [x] Done | P2 | Medium |
-| 6 | [Micro-File Step Architecture for Skills](#6-micro-file-step-architecture-for-skills) | [x] Done | P2 | High |
+| # | Feature | Status | Priority | Effort | Remaining |
+|---|---------|--------|----------|--------|-----------|
+| 1 | [Adversarial Review with Minimum Findings](#1-adversarial-review-with-minimum-findings) | ~95% | P0 | Low | pr-review skill missing minimum findings; no unit tests for min-findings enforcement |
+| 2 | [Agent Customization Overlays](#2-agent-customization-overlays) | ~95% | P0 | Medium | No unit tests for overlay-schema/overlay-loader |
+| 3 | [Structured Validation Pipelines](#3-structured-validation-pipelines) | ~90% | P1 | Medium | Missing `validation-pipeline` skill; no unit tests for pipeline/steps |
+| 4 | [Edge Case Hunter (Mechanical)](#4-edge-case-hunter-mechanical) | [x] Done | P1 | Low | No unit tests for branch-enumerator |
+| 5 | [Context Compilation for Agents](#5-context-compilation-for-agents) | ~85% | P2 | Medium | Missing requirements-source & defect-source adapters; no unit tests |
+| 6 | [Micro-File Step Architecture for Skills](#6-micro-file-step-architecture-for-skills) | ~85% | P2 | High | a11y-ally skill not yet refactored to steps |
 
 ---
 
@@ -76,7 +76,14 @@ Six features to adopt from BMAD-METHOD, adapted to AQE's architecture (agents, l
 - [ ] Unit test: Review with 2 LOW (weight 1) does NOT satisfy minimum of 3 → triggers second pass
 - [ ] Unit test: Clean justification requires non-empty `evidenceChecked` array
 - [ ] Integration test: Run devil's advocate against a real small file, verify structured output
-- [ ] Regression: Existing test suite passes with new minimum defaults
+- [x] Regression: Existing test suite passes with new minimum defaults (33 tests in devils-advocate.test.ts pass)
+
+**Audit notes (2026-03-12):**
+- Code: types.ts, agent.ts, 4 subagent .md files all implemented
+- Gap 1: brutal-honesty-review and sherlock-review skills have minimum findings; **pr-review skill still missing**
+- Gap 2: Learning integration exists (recordOutcome method + agent .md learning protocol)
+- Gap 3: Governance allowlist exists (feature flag + overlay schema)
+- Tests: devils-advocate.test.ts exists but only tests with minimumFindings=0 (disabled). **No tests for the enforcement logic itself.**
 
 ---
 
@@ -158,7 +165,13 @@ Six features to adopt from BMAD-METHOD, adapted to AQE's architecture (agents, l
 - [ ] Unit test: Malformed YAML → warning logged, agent loads without overlay
 - [ ] Integration test: `aqe init --auto` preserves existing overrides directory
 - [ ] Integration test: Registry serves overridden config to task router
-- [ ] Regression: All 63 agents load correctly without any overlays present
+- [x] Regression: All 63 agents load correctly without any overlays present (full test suite passes)
+
+**Audit notes (2026-03-12):**
+- Code: overlay-schema.ts (132 LOC), overlay-loader.ts (267 LOC), example template — all implemented
+- Integration: agents-installer.ts, qe-agent-registry.ts, task-router.ts (MCP path) — all wired
+- Gap 4 (MCP dispatch path): Handled in task-router.ts with v3-qe-* name normalization
+- **No unit tests exist for overlay-schema.ts or overlay-loader.ts**
 
 ---
 
@@ -249,7 +262,14 @@ Six features to adopt from BMAD-METHOD, adapted to AQE's architecture (agents, l
 - [ ] Unit test: Overall score is weighted average of step scores
 - [ ] Integration test: Run pipeline against a real requirements document
 - [ ] Integration test: Pipeline produces structured JSON report
-- [ ] Regression: Existing `qe-requirements-validator` behavior preserved
+- [x] Regression: Existing `qe-requirements-validator` behavior preserved (full test suite passes)
+
+**Audit notes (2026-03-12):**
+- Code: pipeline.ts (272 LOC), steps/requirements.ts (677 LOC, all 13 steps) — implemented
+- Agents: qe-requirements-validator.md and qe-quality-gate.md updated with pipeline sections
+- Assets: Shipped copies synced to assets/agents/v3/
+- **Missing: `.claude/skills/validation-pipeline/SKILL.md` orchestration skill not created**
+- **No unit tests for pipeline runner or individual validation steps**
 
 ---
 
@@ -332,7 +352,13 @@ Six features to adopt from BMAD-METHOD, adapted to AQE's architecture (agents, l
 - [ ] Unit test: `language` field is set correctly for TS vs JS files
 - [ ] Integration test: Run against a real source file, verify all branches enumerated
 - [ ] Integration test: `--mechanical` flag on CLI produces exhaustive output
-- [ ] Regression: Existing gap-detector default behavior unchanged (risk-scored mode)
+- [x] Regression: Existing gap-detector default behavior unchanged (full test suite passes)
+
+**Audit notes (2026-03-12):**
+- Code: branch-enumerator.ts (478 LOC, 13 construct types, strategy pattern) — fully implemented
+- Agent: qe-gap-detector.md updated with mechanical mode section; shipped copy synced
+- CLI: `coverage gaps` subcommand with --mechanical, --json, --markdown flags — implemented
+- **No unit tests for branch-enumerator.ts**
 
 ---
 
@@ -406,7 +432,13 @@ Six features to adopt from BMAD-METHOD, adapted to AQE's architecture (agents, l
 - [ ] Integration test: Compile context for a real source file, verify all sources queried
 - [ ] Integration test: Agent receives compiled context in its prompt
 - [ ] Performance test: Context compilation completes in <2 seconds for typical files
-- [ ] Regression: Agents work correctly without compiled context (graceful degradation)
+- [x] Regression: Agents work correctly without compiled context (full test suite passes)
+
+**Audit notes (2026-03-12):**
+- Code: compiler.ts, 4 source adapters (memory, git, test, coverage) — implemented
+- Integration: Both qe-task-router.ts and MCP task-router.ts call compiler.compile()
+- **Missing: `requirements-source.ts` and `defect-source.ts` adapters not implemented**
+- **No unit tests for context compiler or source adapters**
 
 ---
 
@@ -494,11 +526,17 @@ Six features to adopt from BMAD-METHOD, adapted to AQE's architecture (agents, l
 - [ ] Functional test: QCSD production swarm runs end-to-end with step files
 - [ ] Functional test: Resuming from step 3 works correctly
 - [ ] Functional test: Step failure halts at correct point
-- [ ] Functional test: Each step file is self-contained (can be understood without reading others)
-- [ ] Size check: Orchestrator SKILL.md is under 300 lines
-- [ ] Size check: Each step file is under 500 lines
-- [ ] Regression: All QCSD swarm skills produce same outputs as before splitting
+- [x] Functional test: Each step file is self-contained (can be understood without reading others)
+- [x] Size check: Orchestrator SKILL.md is under 300 lines (production-swarm: 206 lines)
+- [x] Size check: Each step file is under 500 lines
+- [x] Regression: All QCSD swarm skills produce same outputs as before splitting (full test suite passes)
 - [ ] Performance: Step-by-step loading doesn't increase total execution time significantly
+
+**Audit notes (2026-03-12):**
+- All 5 QCSD swarms have step files (7-8 steps each): production, development, refinement, ideation, cicd
+- Orchestrator SKILL.md files are ~200 lines (down from 2,000-2,800)
+- skill-builder updated with step file guidance (lines 809-898)
+- **a11y-ally skill NOT yet refactored to step architecture**
 
 ---
 

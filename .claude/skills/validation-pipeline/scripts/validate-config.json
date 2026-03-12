@@ -1,0 +1,34 @@
+{
+  "skillName": "validation-pipeline",
+  "skillVersion": "1.0.0",
+  "requiredTools": [],
+  "optionalTools": ["jq"],
+  "schemaPath": "schemas/output.json",
+  "requiredFields": [
+    "skillName",
+    "status",
+    "output",
+    "output.pipelineId",
+    "output.pipelineName",
+    "output.overall",
+    "output.score",
+    "output.steps"
+  ],
+  "requiredNonEmptyFields": [
+    "output.pipelineName",
+    "output.steps"
+  ],
+  "mustContainTerms": [
+    "pipeline",
+    "validation"
+  ],
+  "mustNotContainTerms": [
+    "TODO",
+    "placeholder",
+    "FIXME"
+  ],
+  "enumValidations": {
+    ".status": ["success", "partial", "failed", "skipped"],
+    ".output.overall": ["pass", "fail", "warn"]
+  }
+}

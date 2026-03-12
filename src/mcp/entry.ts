@@ -37,9 +37,14 @@ async function main(): Promise<void> {
   process.stderr.write(`[agentic-qe-v3] MCP server starting v${version}\n`);
 
   // Handle graceful shutdown
+  const shutdownDaemon = async () => {
+    try { const { getDaemon } = await import('../workers/daemon.js'); await getDaemon().stop(); } catch { /* ignore */ }
+  };
+
   process.on('SIGINT', async () => {
     stopCleanupTimer();
     await shutdownTokenTracking();
+    await shutdownDaemon();
     if (httpServer) {
       await httpServer.stop();
     }
@@ -54,6 +59,7 @@ async function main(): Promise<void> {
   process.on('SIGTERM', async () => {
     stopCleanupTimer();
     await shutdownTokenTracking();
+    await shutdownDaemon();
     if (httpServer) {
       await httpServer.stop();
     }
@@ -173,6 +179,18 @@ async function main(): Promise<void> {
       version,
     });
     originalStderrWrite('[MCP] Ready\n');
+
+    // Imp-10: Start background workers (heartbeat scheduler, etc.)
+    try {
+      const { getDaemon } = await import('../workers/daemon.js');
+      const daemon = getDaemon({ autoStart: false });
+      await daemon.start();
+      const status = daemon.getStatus();
+      originalStderrWrite(`[MCP] Background workers started (${status.workerManager.totalWorkers} workers)\n`);
+    } catch (daemonError) {
+      originalStderrWrite(`[MCP] WARNING: Background workers failed to start: ${daemonError}\n`);
+      // Non-fatal — MCP server continues without background workers
+    }
 
     // Start HTTP server for AG-UI/A2A/A2UI if port is specified
     const httpPort = parseInt(process.env.AQE_HTTP_PORT || '0', 10);

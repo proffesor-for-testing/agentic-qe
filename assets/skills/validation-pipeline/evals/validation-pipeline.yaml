@@ -1,0 +1,544 @@
+# =============================================================================
+# AQE Skill Evaluation Test Suite: Validation Pipeline v1.0.0
+# =============================================================================
+#
+# Comprehensive evaluation suite for the validation-pipeline skill.
+# Tests structured step-by-step validation with gate enforcement,
+# per-step scoring, and report generation.
+#
+# Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
+# Validator: .claude/skills/validation-pipeline/scripts/validate-config.json
+#
+# Coverage:
+# - Full requirements pipeline execution (13 steps)
+# - Blocking gate enforcement (halt on failure)
+# - Continue-on-failure mode
+# - Step filtering (--steps)
+# - Per-step scoring and weighted rollup
+# - Report generation (markdown and JSON)
+#
+# =============================================================================
+
+skill: validation-pipeline
+version: 1.0.0
+description: >
+  Evaluation suite for the validation-pipeline skill. Tests full pipeline
+  execution, gate enforcement, step filtering, scoring, and reporting
+  across the 13-step requirements validation pipeline.
+
+# =============================================================================
+# Multi-Model Configuration
+# =============================================================================
+
+models_to_test:
+  - claude-3.5-sonnet
+  - claude-3-haiku
+
+# =============================================================================
+# MCP Integration Configuration
+# =============================================================================
+
+mcp_integration:
+  enabled: true
+  namespace: skill-validation
+  query_patterns: true
+  track_outcomes: true
+  store_patterns: true
+  share_learning: true
+  update_quality_gate: true
+  target_agents:
+    - qe-requirements-validator
+    - qe-quality-gate
+
+# =============================================================================
+# Learning Configuration
+# =============================================================================
+
+learning:
+  store_success_patterns: true
+  store_failure_patterns: true
+  pattern_ttl_days: 90
+  min_confidence_to_store: 0.7
+  cross_model_comparison: true
+
+# =============================================================================
+# Result Format
+# =============================================================================
+
+result_format:
+  json_output: true
+  markdown_report: true
+  include_raw_output: false
+  include_timing: true
+  include_token_usage: true
+
+# =============================================================================
+# Setup
+# =============================================================================
+
+setup:
+  required_tools: []
+  environment_variables: {}
+  fixtures: []
+
+# =============================================================================
+# TEST CASES
+# =============================================================================
+
+test_cases:
+  # ---------------------------------------------------------------------------
+  # CATEGORY: Full Pipeline Execution
+  # ---------------------------------------------------------------------------
+
+  - id: tc001_full_requirements_pipeline
+    description: "Execute all 13 requirements validation steps on a well-formed document"
+    category: pipeline_execution
+    priority: critical
+
+    input:
+      prompt: |
+        Run the validation pipeline on this requirements document:
+
+        # User Management Requirements
+
+        ## Overview
+        This document specifies the requirements for the user management module.
+
+        ## Requirements
+
+        ### REQ-001: User Registration
+        As a visitor, I want to register an account so I can access the platform.
+
+        **Acceptance Criteria:**
+        - User can register with email and password (8+ chars, 1 uppercase, 1 number)
+        - Duplicate email rejected with clear error message
+        - Verification email sent within 30 seconds
+        - Registration completes in under 2 seconds
+
+        ### REQ-002: User Login
+        As a registered user, I want to log in so I can access my account.
+
+        **Acceptance Criteria:**
+        - User can log in with email and password
+        - Invalid credentials show generic error (no email enumeration)
+        - Account locks after 5 failed attempts for 15 minutes
+        - Session expires after 30 minutes of inactivity
+
+        ## Scope
+        In scope: registration, login, password reset.
+        Out of scope: social login, SSO.
+
+      context:
+        pipeline: "requirements"
+
+    expected_output:
+      must_contain:
+        - "pipeline"
+        - "validation"
+        - "score"
+        - "step"
+        - "finding"
+      must_not_contain:
+        - "error"
+        - "unable"
+      severity_classification: critical
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+      reasoning_quality_min: 0.75
+
+  - id: tc002_blocking_gate_enforcement
+    description: "Pipeline halts at blocking step failure"
+    category: gate_enforcement
+    priority: critical
+
+    input:
+      prompt: |
+        Run the validation pipeline on this minimal document:
+
+        just some text without any structure
+
+        The pipeline should halt at the format-check step (blocking)
+        because there are no headings, required sections, or structure.
+      context:
+        pipeline: "requirements"
+
+    expected_output:
+      must_contain:
+        - "halt"
+        - "block"
+        - "format"
+        - "fail"
+      severity_classification: critical
+      finding_count:
+        min: 1
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.7
+
+  - id: tc003_continue_on_failure
+    description: "Pipeline continues past blocking failures with --continue-on-failure"
+    category: gate_enforcement
+    priority: high
+
+    input:
+      prompt: |
+        Run the validation pipeline with --continue-on-failure on this document:
+
+        just some text without any structure
+
+        Even though format-check will fail (blocking), the pipeline should
+        continue executing remaining steps and report all findings.
+      context:
+        pipeline: "requirements"
+        continue_on_failure: true
+
+    expected_output:
+      must_contain:
+        - "continue"
+        - "format"
+        - "step"
+        - "finding"
+      finding_count:
+        min: 2
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.7
+
+  # ---------------------------------------------------------------------------
+  # CATEGORY: Step Filtering
+  # ---------------------------------------------------------------------------
+
+  - id: tc004_step_filtering
+    description: "Run only specific steps from the pipeline"
+    category: step_filtering
+    priority: high
+
+    input:
+      prompt: |
+        Run only the format-check and vague-term-detection steps on:
+
+        # Requirements Document
+
+        ## Overview
+        The system should handle various types of user input properly.
+
+        ## Requirements
+        Users might want to do several things with the system.
+
+        ## Scope
+        The system should support etc.
+
+      context:
+        pipeline: "requirements"
+        steps: ["format-check", "vague-term-detection"]
+
+    expected_output:
+      must_contain:
+        - "format"
+        - "vague"
+        - "should"
+        - "step"
+      finding_count:
+        min: 1
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.75
+
+  # ---------------------------------------------------------------------------
+  # CATEGORY: Scoring and Reporting
+  # ---------------------------------------------------------------------------
+
+  - id: tc005_weighted_score_calculation
+    description: "Overall score uses category-weighted averages"
+    category: scoring
+    priority: high
+
+    input:
+      prompt: |
+        Run the full requirements pipeline and verify the scoring breakdown:
+
+        # API Gateway Requirements
+
+        ## Overview
+        Requirements for the API gateway service.
+
+        ## Requirements
+
+        ### REQ-001: Rate Limiting
+        Limit API requests to 1000/minute per client.
+
+        **Acceptance Criteria:**
+        - Requests beyond limit return 429 status
+        - Rate limit headers included in all responses
+        - Configurable per-endpoint limits
+
+        ## Scope
+        Rate limiting, authentication proxy, request routing.
+
+        Show the per-step scores and how the overall weighted score is calculated.
+      context:
+        pipeline: "requirements"
+
+    expected_output:
+      must_contain:
+        - "score"
+        - "weight"
+        - "step"
+        - "overall"
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.75
+
+  - id: tc006_markdown_report_format
+    description: "Pipeline produces well-formatted markdown report"
+    category: reporting
+    priority: high
+
+    input:
+      prompt: |
+        Run the requirements pipeline and output a markdown report:
+
+        # Payment Processing
+
+        ## Overview
+        Handle payment transactions securely.
+
+        ## Requirements
+
+        ### REQ-001: Card Payment
+        Process credit/debit card payments via Stripe.
+
+        **Acceptance Criteria:**
+        - Support Visa, Mastercard, Amex
+        - PCI DSS compliant tokenization
+        - Transaction completes in under 5 seconds
+
+        ## Scope
+        Card payments only. Wire transfers out of scope.
+
+      context:
+        pipeline: "requirements"
+        format: "markdown"
+
+    expected_output:
+      must_contain:
+        - "Validation Report"
+        - "Step Results"
+        - "Score"
+        - "Duration"
+        - "Finding"
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+
+  # ---------------------------------------------------------------------------
+  # CATEGORY: Individual Step Validation
+  # ---------------------------------------------------------------------------
+
+  - id: tc007_invest_criteria_check
+    description: "INVEST criteria step evaluates requirement quality"
+    category: individual_steps
+    priority: high
+
+    input:
+      prompt: |
+        Run only the invest-criteria step on:
+
+        # Requirements
+
+        ## Overview
+        System requirements for user management.
+
+        ## Requirements
+
+        ### REQ-001: User CRUD
+        The system shall provide full CRUD operations for user entities including
+        create, read, update, and delete with proper authorization checks,
+        audit logging, soft delete support, batch operations, import/export,
+        admin override, and integration with 5 external systems.
+
+        ## Scope
+        User management module.
+
+        Check: is REQ-001 Independent, Negotiable, Valuable, Estimable, Small, Testable?
+      context:
+        pipeline: "requirements"
+        steps: ["invest-criteria"]
+
+    expected_output:
+      must_contain:
+        - "INVEST"
+        - "small"
+        - "testable"
+        - "independent"
+      finding_count:
+        min: 1
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.7
+
+  - id: tc008_vague_term_detection
+    description: "Detects vague and ambiguous terms"
+    category: individual_steps
+    priority: high
+
+    input:
+      prompt: |
+        Run only the vague-term-detection step on:
+
+        # Requirements
+
+        ## Overview
+        The system should handle various scenarios properly.
+
+        ## Requirements
+        The platform might need to support several user types etc.
+        Performance should be adequate for most use cases.
+        The UI should be user-friendly and intuitive.
+
+        ## Scope
+        Various features and improvements.
+
+      context:
+        pipeline: "requirements"
+        steps: ["vague-term-detection"]
+
+    expected_output:
+      must_contain:
+        - "vague"
+        - "should"
+        - "various"
+        - "etc"
+      finding_count:
+        min: 3
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.75
+
+  # ---------------------------------------------------------------------------
+  # CATEGORY: Negative / Edge Cases
+  # ---------------------------------------------------------------------------
+
+  - id: tc009_empty_document
+    description: "Pipeline handles empty document gracefully"
+    category: negative
+    priority: high
+
+    input:
+      prompt: |
+        Run the requirements pipeline on an empty document (no content).
+      context:
+        pipeline: "requirements"
+        content: ""
+
+    expected_output:
+      must_contain:
+        - "fail"
+        - "empty"
+        - "format"
+      severity_classification: critical
+      finding_count:
+        min: 1
+
+    validation:
+      schema_check: true
+      allow_partial: true
+
+  - id: tc010_high_quality_document
+    description: "High-quality document scores well across all steps"
+    category: positive
+    priority: high
+
+    input:
+      prompt: |
+        Run the full pipeline on this well-structured requirements document:
+
+        # Authentication Service Requirements v2.1
+
+        ## Overview
+        This document specifies authentication requirements for the platform.
+        All requirements have been reviewed by the security team and product owner.
+
+        ## Requirements
+
+        ### REQ-001: OAuth2 Login
+        As a user, I want to authenticate via OAuth2 providers so I can use
+        existing credentials without creating a new password.
+
+        **Acceptance Criteria:**
+        - Given a user clicks "Sign in with Google", when they authorize,
+          then they are redirected to the dashboard within 3 seconds
+        - Given an invalid OAuth token, when login is attempted,
+          then the system returns a 401 with descriptive error
+        - Given a new OAuth user, when they first authenticate,
+          then a local account is created automatically
+
+        **Tests:** TC-001, TC-002, TC-003
+        **Dependencies:** REQ-005 (Session Management)
+
+        ### REQ-002: Password Requirements
+        As a security administrator, I want password complexity rules enforced
+        so that user accounts are protected against brute force attacks.
+
+        **Acceptance Criteria:**
+        - Minimum 12 characters, 1 uppercase, 1 lowercase, 1 number, 1 symbol
+        - Password strength meter shows real-time feedback
+        - Common passwords (top 10,000) are rejected with suggestion
+        - Password history prevents reuse of last 5 passwords
+
+        **Tests:** TC-010, TC-011, TC-012, TC-013
+        **Dependencies:** None
+
+        ## Scope
+        In scope: OAuth2, password management, MFA.
+        Out of scope: Biometric authentication, hardware keys.
+
+      context:
+        pipeline: "requirements"
+
+    expected_output:
+      must_contain:
+        - "pass"
+        - "score"
+        - "step"
+        - "validation"
+      severity_classification: high
+
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+      reasoning_quality_min: 0.8
+
+# =============================================================================
+# SUCCESS CRITERIA
+# =============================================================================
+
+success_criteria:
+  pass_rate: 0.8
+  critical_pass_rate: 1.0
+  avg_reasoning_quality: 0.75
+  max_execution_time_ms: 300000
+  cross_model_variance: 0.15
+
+# =============================================================================
+# METADATA
+# =============================================================================
+
+metadata:
+  author: "qe-requirements-validator"
+  created: "2026-03-12"
+  last_updated: "2026-03-12"
+  coverage_target: >
+    Full 13-step requirements pipeline execution, blocking gate enforcement,
+    continue-on-failure mode, step filtering, weighted score calculation,
+    markdown report generation, INVEST criteria validation, vague term detection,
+    empty document handling, and high-quality document scoring.

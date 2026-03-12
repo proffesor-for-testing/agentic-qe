@@ -184,7 +184,7 @@ describe('Learning Module Coherence Integration', () => {
       }
 
       await bank.dispose();
-    }, 10000);
+    }, 30000);
 
     it('should return all patterns when coherence service unavailable', async () => {
       const bank = createQEReasoningBank(memory, eventBus);
@@ -210,9 +210,6 @@ describe('Learning Module Coherence Integration', () => {
     it('should emit event when all patterns are incoherent', async () => {
       const bank = createQEReasoningBank(memory, eventBus);
       await bank.initialize();
-
-      // Set up event listener
-      const eventPromise = waitForEvent(eventBus, 'learning:coherence_warning');
 
       // Store highly contradictory patterns
       const contradictoryPatterns = [

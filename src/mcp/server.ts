@@ -58,6 +58,13 @@ import {
   handleCrossPhaseStats,
   handleFormatSignals,
   handleCrossPhaseCleanup,
+  // Pipeline handlers (Imp-9: YAML Deterministic Pipelines)
+  handlePipelineLoad,
+  handlePipelineRun,
+  handlePipelineList,
+  handlePipelineValidate,
+  // Validation Pipeline handler (BMAD-003)
+  handleValidationPipeline,
 } from './handlers';
 
 // ============================================================================
@@ -457,6 +464,25 @@ const DOMAIN_TOOLS: ToolEntry[] = [
     },
     handler: handleCodeIndex,
   },
+
+  // Validation Pipeline (BMAD-003)
+  {
+    definition: {
+      name: 'mcp__agentic_qe__validation_pipeline',
+      description: 'Run structured validation pipeline (13-step requirements validation with gate enforcement and scoring)',
+      category: 'domain',
+      domain: 'requirements-validation',
+      parameters: [
+        { name: 'filePath', type: 'string', description: 'Path to the document to validate' },
+        { name: 'content', type: 'string', description: 'Inline content to validate (alternative to filePath)' },
+        { name: 'pipeline', type: 'string', description: 'Pipeline type', default: 'requirements', enum: ['requirements'] },
+        { name: 'steps', type: 'array', description: 'Specific step IDs to run (default: all 13)' },
+        { name: 'continueOnFailure', type: 'boolean', description: 'Continue past blocking failures', default: false },
+        { name: 'format', type: 'string', description: 'Output format', default: 'markdown', enum: ['markdown', 'json'] },
+      ],
+    },
+    handler: handleValidationPipeline,
+  },
 ];
 
 const MEMORY_TOOLS: ToolEntry[] = [
@@ -662,6 +688,58 @@ const CROSS_PHASE_TOOLS: ToolEntry[] = [
 
 // ============================================================================
 // MCP Server Class
+const PIPELINE_TOOLS: ToolEntry[] = [
+  // Pipeline Load
+  {
+    definition: {
+      name: 'mcp__agentic_qe__pipeline_load',
+      description: 'Load and register a YAML pipeline definition',
+      category: 'coordination',
+      parameters: [
+        { name: 'yaml', type: 'string', description: 'YAML pipeline definition string', required: true },
+        { name: 'variables', type: 'object', description: 'Variable substitutions for ${VAR} placeholders' },
+      ],
+    },
+    handler: handlePipelineLoad,
+  },
+  // Pipeline Run
+  {
+    definition: {
+      name: 'mcp__agentic_qe__pipeline_run',
+      description: 'Execute a previously loaded pipeline by ID',
+      category: 'coordination',
+      parameters: [
+        { name: 'pipelineId', type: 'string', description: 'Pipeline ID to execute', required: true },
+        { name: 'input', type: 'object', description: 'Input data for pipeline execution' },
+      ],
+    },
+    handler: handlePipelineRun,
+  },
+  // Pipeline List
+  {
+    definition: {
+      name: 'mcp__agentic_qe__pipeline_list',
+      description: 'List all registered pipelines (built-in and YAML)',
+      category: 'coordination',
+      parameters: [],
+    },
+    handler: handlePipelineList,
+  },
+  // Pipeline Validate
+  {
+    definition: {
+      name: 'mcp__agentic_qe__pipeline_validate',
+      description: 'Validate a YAML pipeline definition without registering it',
+      category: 'coordination',
+      parameters: [
+        { name: 'yaml', type: 'string', description: 'YAML pipeline definition to validate', required: true },
+        { name: 'variables', type: 'object', description: 'Variable substitutions for ${VAR} placeholders' },
+      ],
+    },
+    handler: handlePipelineValidate,
+  },
+];
+
 // ============================================================================
 
 export class MCPServer {
@@ -688,6 +766,7 @@ export class MCPServer {
       ...DOMAIN_TOOLS,
       ...MEMORY_TOOLS,
       ...CROSS_PHASE_TOOLS,
+      ...PIPELINE_TOOLS,
     ];
     this.registry.registerAll(allTools);
 

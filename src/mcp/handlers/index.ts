@@ -83,6 +83,31 @@ export {
   handleMemoryShare,
 } from './memory-handlers';
 
+// Pipeline handlers (Imp-9: YAML Deterministic Pipelines)
+export {
+  handlePipelineLoad,
+  handlePipelineRun,
+  handlePipelineList,
+  handlePipelineValidate,
+  getPipelineRegistry,
+  getPipelineLoader,
+  type PipelineLoadParams,
+  type PipelineLoadResult,
+  type PipelineRunParams,
+  type PipelineRunResult,
+  type PipelineListParams,
+  type PipelineListResult,
+  type PipelineValidateParams,
+  type PipelineValidateResult,
+} from './pipeline-handlers.js';
+
+// Validation pipeline handler (BMAD-003)
+export {
+  handleValidationPipeline,
+  type ValidationPipelineParams,
+  type ValidationPipelineResult,
+} from './validation-pipeline-handler.js';
+
 // Cross-phase handlers
 export {
   handleCrossPhaseStore,

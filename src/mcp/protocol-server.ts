@@ -69,6 +69,27 @@ import {
   handleTeamBroadcast,
   handleTeamScale,
   handleTeamRebalance,
+  // BMAD-003: Validation pipeline handler
+  handleValidationPipeline,
+  // Imp-9: YAML pipeline handlers
+  handlePipelineLoad,
+  handlePipelineRun,
+  handlePipelineList,
+  handlePipelineValidate,
+  // Cross-phase handlers
+  handleCrossPhaseStore,
+  handleCrossPhaseQuery,
+  handleAgentComplete,
+  handlePhaseStart,
+  handlePhaseEnd,
+  handleCrossPhaseStats,
+  handleFormatSignals,
+  handleCrossPhaseCleanup,
+  type StoreSignalParams,
+  type QuerySignalsParams,
+  type AgentCompleteParams,
+  type PhaseEventParams,
+  type FormatSignalsParams,
 } from './handlers';
 
 // ADR-039: Performance optimization imports
@@ -1038,6 +1059,185 @@ export class MCPProtocolServer {
         ],
       },
       handler: (params) => handleInfraHealingRecover(params as { services?: string[]; rerunTests?: boolean }),
+    });
+
+    // =========================================================================
+    // Cross-Phase Handlers (QCSD Feedback Loops)
+    // =========================================================================
+
+    this.registerTool({
+      definition: {
+        name: 'cross_phase_store',
+        description: 'Store a cross-phase signal for QCSD feedback loops (strategic, tactical, operational, quality-criteria)',
+        category: 'cross-phase',
+        parameters: [
+          { name: 'loop', type: 'string', description: 'Feedback loop type', required: true, enum: ['strategic', 'tactical', 'operational', 'quality-criteria'] },
+          { name: 'data', type: 'object', description: 'Signal data (riskWeights, factorWeights, flakyPatterns, etc.)', required: true },
+        ],
+      },
+      handler: (params) => handleCrossPhaseStore(params as unknown as StoreSignalParams),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'cross_phase_query',
+        description: 'Query cross-phase signals by loop type with optional filters',
+        category: 'cross-phase',
+        parameters: [
+          { name: 'loop', type: 'string', description: 'Feedback loop type', required: true, enum: ['strategic', 'tactical', 'operational', 'quality-criteria'] },
+          { name: 'maxAge', type: 'string', description: 'Maximum signal age (e.g., "30d", "24h")' },
+          { name: 'filter', type: 'object', description: 'Additional filters' },
+        ],
+      },
+      handler: (params) => handleCrossPhaseQuery(params as unknown as QuerySignalsParams),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'agent_complete',
+        description: 'Trigger cross-phase hooks when an agent completes (auto-stores relevant signals)',
+        category: 'cross-phase',
+        parameters: [
+          { name: 'agentName', type: 'string', description: 'Name of the completed agent', required: true },
+          { name: 'result', type: 'object', description: 'Agent result data', required: true },
+        ],
+      },
+      handler: (params) => handleAgentComplete(params as unknown as AgentCompleteParams),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'phase_start',
+        description: 'Trigger phase start hooks to get injected cross-phase signals for agents',
+        category: 'cross-phase',
+        parameters: [
+          { name: 'phase', type: 'string', description: 'QCSD phase name', required: true, enum: ['ideation', 'refinement', 'development', 'cicd', 'production'] },
+          { name: 'context', type: 'object', description: 'Phase context data' },
+        ],
+      },
+      handler: (params) => handlePhaseStart(params as unknown as PhaseEventParams),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'phase_end',
+        description: 'Trigger phase end hooks to store accumulated signals',
+        category: 'cross-phase',
+        parameters: [
+          { name: 'phase', type: 'string', description: 'QCSD phase name', required: true, enum: ['ideation', 'refinement', 'development', 'cicd', 'production'] },
+          { name: 'context', type: 'object', description: 'Phase result data' },
+        ],
+      },
+      handler: (params) => handlePhaseEnd(params as unknown as PhaseEventParams),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'cross_phase_stats',
+        description: 'Get cross-phase memory statistics (total signals, by loop, by namespace)',
+        category: 'cross-phase',
+        parameters: [],
+      },
+      handler: () => handleCrossPhaseStats(),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'format_signals',
+        description: 'Format cross-phase signals for injection into agent prompts',
+        category: 'cross-phase',
+        parameters: [
+          { name: 'signals', type: 'array', description: 'Signals to format', required: true },
+        ],
+      },
+      handler: (params) => handleFormatSignals(params as unknown as FormatSignalsParams),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'cross_phase_cleanup',
+        description: 'Clean up expired cross-phase signals',
+        category: 'cross-phase',
+        parameters: [],
+      },
+      handler: () => handleCrossPhaseCleanup(),
+    });
+
+    // =========================================================================
+    // BMAD-003: Validation Pipeline
+    // =========================================================================
+
+    this.registerTool({
+      definition: {
+        name: 'validation_pipeline',
+        description: 'Run structured validation pipeline (13-step requirements validation with gate enforcement and scoring). Example: validation_pipeline({ content: "# Requirements\\n...", pipeline: "requirements" })',
+        category: 'domain',
+        parameters: [
+          { name: 'filePath', type: 'string', description: 'Path to the document to validate' },
+          { name: 'content', type: 'string', description: 'Inline content to validate (alternative to filePath)' },
+          { name: 'pipeline', type: 'string', description: 'Pipeline type (default: requirements)', default: 'requirements' },
+          { name: 'steps', type: 'array', description: 'Specific step IDs to run (default: all 13)' },
+          { name: 'continueOnFailure', type: 'boolean', description: 'Continue past blocking failures', default: false },
+          { name: 'format', type: 'string', description: 'Output format: markdown or json', default: 'json' },
+        ],
+      },
+      handler: (params) => handleValidationPipeline(params as {
+        filePath?: string; content?: string; pipeline?: string;
+        steps?: string[]; continueOnFailure?: boolean; format?: string;
+      }),
+    });
+
+    // =========================================================================
+    // Imp-9: YAML Deterministic Pipelines
+    // =========================================================================
+
+    this.registerTool({
+      definition: {
+        name: 'pipeline_load',
+        description: 'Load and register a YAML pipeline definition. Example: pipeline_load({ yaml: "name: my-pipeline\\nsteps: ..." })',
+        category: 'coordination',
+        parameters: [
+          { name: 'yaml', type: 'string', description: 'YAML pipeline definition', required: true },
+          { name: 'variables', type: 'object', description: 'Variable substitutions for the pipeline' },
+        ],
+      },
+      handler: (params) => handlePipelineLoad(params as { yaml: string; variables?: Record<string, unknown> }),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'pipeline_run',
+        description: 'Execute a previously loaded YAML pipeline. Example: pipeline_run({ pipelineId: "my-pipeline" })',
+        category: 'coordination',
+        parameters: [
+          { name: 'pipelineId', type: 'string', description: 'ID of the loaded pipeline to run', required: true },
+          { name: 'input', type: 'object', description: 'Input data for the pipeline' },
+        ],
+      },
+      handler: (params) => handlePipelineRun(params as { pipelineId: string; input?: Record<string, unknown> }),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'pipeline_list',
+        description: 'List all loaded YAML pipelines. Example: pipeline_list({})',
+        category: 'coordination',
+        parameters: [],
+      },
+      handler: (params) => handlePipelineList(params as Record<string, never>),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'pipeline_validate',
+        description: 'Validate a YAML pipeline definition without loading it. Example: pipeline_validate({ yaml: "name: test\\nsteps: ..." })',
+        category: 'coordination',
+        parameters: [
+          { name: 'yaml', type: 'string', description: 'YAML pipeline definition to validate', required: true },
+          { name: 'variables', type: 'object', description: 'Variable substitutions for validation' },
+        ],
+      },
+      handler: (params) => handlePipelineValidate(params as { yaml: string; variables?: Record<string, unknown> }),
     });
 
     // =========================================================================

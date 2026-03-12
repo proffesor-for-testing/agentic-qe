@@ -76,7 +76,7 @@ describe('QEDaemon', () => {
       const workers = manager.list();
 
       // All workers should have been registered
-      expect(workers.length).toBe(10); // All 10 QE workers
+      expect(workers.length).toBe(11); // All 11 QE workers
     });
 
     it('should not auto-start workers when disabled', async () => {
@@ -179,7 +179,7 @@ describe('QEDaemon', () => {
       await daemon.start();
       const status = daemon.getStatus();
 
-      expect(status.workerManager.totalWorkers).toBe(10);
+      expect(status.workerManager.totalWorkers).toBe(11);
     });
   });
 
@@ -258,10 +258,10 @@ describe('QEDaemon', () => {
 });
 
 describe('WORKER_REGISTRY', () => {
-  it('should export all 10 workers in registry', async () => {
+  it('should export all 11 workers in registry', async () => {
     const { WORKER_REGISTRY } = await import('../../../src/workers');
 
-    expect(Object.keys(WORKER_REGISTRY)).toHaveLength(10);
+    expect(Object.keys(WORKER_REGISTRY)).toHaveLength(11);
     expect(WORKER_REGISTRY['test-health']).toBeDefined();
     expect(WORKER_REGISTRY['coverage-tracker']).toBeDefined();
     expect(WORKER_REGISTRY['flaky-detector']).toBeDefined();
@@ -272,6 +272,7 @@ describe('WORKER_REGISTRY', () => {
     expect(WORKER_REGISTRY['regression-monitor']).toBeDefined();
     expect(WORKER_REGISTRY['performance-baseline']).toBeDefined();
     expect(WORKER_REGISTRY['compliance-checker']).toBeDefined();
+    expect(WORKER_REGISTRY['heartbeat-scheduler']).toBeDefined();
   });
 
   it('should have correct intervals for each worker', async () => {
