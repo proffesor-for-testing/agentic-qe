@@ -25,6 +25,7 @@ import {
   RegressionMonitorWorker,
   PerformanceBaselineWorker,
   ComplianceCheckerWorker,
+  HeartbeatSchedulerWorker,
 } from './workers';
 
 /**
@@ -185,7 +186,7 @@ export class QEDaemon implements IDaemon {
   // ============================================================================
 
   private registerWorkers(): void {
-    // All 10 QE-specific workers per ADR-014
+    // All 11 QE-specific workers per ADR-014
     const allWorkers = [
       new TestHealthWorker(),           // 5 min - Test suite health
       new CoverageTrackerWorker(),      // 10 min - Coverage trends
@@ -197,6 +198,7 @@ export class QEDaemon implements IDaemon {
       new RegressionMonitorWorker(),    // 10 min - Regression watching
       new PerformanceBaselineWorker(),  // 1 hour - Performance tracking
       new ComplianceCheckerWorker(),    // 30 min - ADR/DDD compliance
+      new HeartbeatSchedulerWorker(),  // 30 min - Token-free heartbeat
     ];
 
     for (const worker of allWorkers) {

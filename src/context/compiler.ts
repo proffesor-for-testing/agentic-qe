@@ -10,6 +10,8 @@ import { MemoryContextSource } from './sources/memory-source.js';
 import { GitContextSource } from './sources/git-source.js';
 import { TestContextSource } from './sources/test-source.js';
 import { CoverageContextSource } from './sources/coverage-source.js';
+import { RequirementsContextSource } from './sources/requirements-source.js';
+import { DefectContextSource } from './sources/defect-source.js';
 
 export interface CompiledContext {
   /** One-paragraph overview */
@@ -49,7 +51,9 @@ const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 export function createDefaultSources(): ContextSource[] {
   return [
     new MemoryContextSource(),
+    new RequirementsContextSource(),
     new TestContextSource(),
+    new DefectContextSource(),
     new GitContextSource(),
     new CoverageContextSource(),
   ];

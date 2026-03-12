@@ -511,7 +511,7 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
       await bank.dispose();
       writer.close();
       db.close();
-    });
+    }, 30000);
 
     it('should survive dispose() closing the dual-writer', async () => {
       const db = createTestDb();

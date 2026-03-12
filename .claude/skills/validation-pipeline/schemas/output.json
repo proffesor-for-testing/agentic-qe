@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-qe.dev/schemas/validation-pipeline-output.json",
+  "title": "AQE Validation Pipeline Skill Output Schema",
+  "description": "Schema for validation pipeline skill output. Includes step results, scores, findings, and blockers.",
+  "type": "object",
+  "required": ["skillName", "version", "timestamp", "status", "trustTier", "output"],
+  "properties": {
+    "skillName": {
+      "type": "string",
+      "const": "validation-pipeline",
+      "description": "Must be 'validation-pipeline'"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial", "failed", "skipped"]
+    },
+    "trustTier": {
+      "type": "integer",
+      "const": 3,
+      "description": "Trust tier 3 indicates full validation with eval suite"
+    },
+    "output": {
+      "type": "object",
+      "required": ["pipelineId", "pipelineName", "overall", "score", "steps"],
+      "properties": {
+        "pipelineId": {
+          "type": "string",
+          "description": "Pipeline identifier"
+        },
+        "pipelineName": {
+          "type": "string",
+          "description": "Human-readable pipeline name"
+        },
+        "overall": {
+          "type": "string",
+          "enum": ["pass", "fail", "warn"],
+          "description": "Overall pipeline verdict"
+        },
+        "score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Weighted average score across all steps"
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/stepResult" },
+          "minItems": 1,
+          "description": "Per-step results"
+        },
+        "blockers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/finding" },
+          "description": "Findings from blocking steps that failed"
+        },
+        "halted": {
+          "type": "boolean",
+          "description": "Whether pipeline halted early"
+        },
+        "haltedAt": {
+          "type": "string",
+          "description": "Step ID where pipeline halted"
+        },
+        "totalDuration": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total execution time in ms"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 2000,
+          "description": "Human-readable summary"
+        }
+      }
+    },
+    "metadata": { "$ref": "#/$defs/metadata" },
+    "validation": { "$ref": "#/$defs/validationResult" },
+    "learning": { "$ref": "#/$defs/learningData" }
+  },
+  "$defs": {
+    "stepResult": {
+      "type": "object",
+      "required": ["stepId", "stepName", "status", "score", "findings", "evidence", "duration"],
+      "properties": {
+        "stepId": {
+          "type": "string",
+          "description": "Step identifier"
+        },
+        "stepName": {
+          "type": "string",
+          "description": "Human-readable step name"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail", "warn", "skip"],
+          "description": "Step verdict"
+        },
+        "score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Step score"
+        },
+        "findings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/finding" }
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "What was checked"
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Step duration in ms"
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["id", "stepId", "severity", "title", "description"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "stepId": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "info"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "location": {
+          "type": "string",
+          "description": "File path or document section"
+        },
+        "suggestion": {
+          "type": "string",
+          "description": "Suggested fix"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "executionTimeMs": { "type": "integer", "minimum": 0 },
+        "toolsUsed": { "type": "array", "items": { "type": "string" } },
+        "agentId": { "type": "string" },
+        "pipelineType": { "type": "string" },
+        "targetFile": { "type": "string" },
+        "stepsExecuted": { "type": "integer", "minimum": 0 },
+        "stepsSkipped": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "validationResult": {
+      "type": "object",
+      "properties": {
+        "schemaValid": { "type": "boolean" },
+        "contentValid": { "type": "boolean" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "warnings": { "type": "array", "items": { "type": "string" }, "maxItems": 20 },
+        "errors": { "type": "array", "items": { "type": "string" }, "maxItems": 20 }
+      }
+    },
+    "learningData": {
+      "type": "object",
+      "properties": {
+        "patternsDetected": { "type": "array", "items": { "type": "string" }, "maxItems": 20 },
+        "reward": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

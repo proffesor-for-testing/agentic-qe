@@ -452,11 +452,18 @@ export class DomainTaskExecutor implements TaskHandlerContext {
     const payload = task.payload as Record<string, unknown>;
     const routingTier = (payload?.routingTier as number) ?? 2;
     const useAgentBooster = (payload?.useAgentBooster as boolean) ?? false;
+    const compiledContext = (payload?.compiledContext as string) ?? undefined;
     const modelId = getModelForTier(routingTier);
+
+    // BMAD-005: Attach compiled context to task metadata for domain handlers
+    if (compiledContext && task.payload) {
+      (task.payload as Record<string, unknown>).__compiledContext = compiledContext;
+    }
 
     console.debug(
       `[TaskExecutor] Executing task ${task.id}: type=${task.type}, ` +
-      `tier=${routingTier}, model=${modelId}, useAgentBooster=${useAgentBooster}`
+      `tier=${routingTier}, model=${modelId}, useAgentBooster=${useAgentBooster}` +
+      `${compiledContext ? ', hasContext=true' : ''}`
     );
 
     try {

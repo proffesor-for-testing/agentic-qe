@@ -3,3 +3,5 @@ export { MemoryContextSource } from './memory-source.js';
 export { GitContextSource } from './git-source.js';
 export { TestContextSource } from './test-source.js';
 export { CoverageContextSource } from './coverage-source.js';
+export { RequirementsContextSource } from './requirements-source.js';
+export { DefectContextSource } from './defect-source.js';

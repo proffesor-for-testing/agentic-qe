@@ -114,6 +114,12 @@ export const WORKER_REGISTRY = {
     priority: 'normal',
     description: 'ADR/DDD compliance checking',
   },
+  'heartbeat-scheduler': {
+    name: 'Heartbeat Scheduler',
+    intervalMs: 30 * 60 * 1000,
+    priority: 'normal',
+    description: 'Token-free maintenance: pattern promotion, stale detection, experience buffer monitoring',
+  },
 } as const;
 
 export type WorkerId = keyof typeof WORKER_REGISTRY;

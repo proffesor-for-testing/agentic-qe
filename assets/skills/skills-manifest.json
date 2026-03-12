@@ -1,7 +1,7 @@
 {
   "version": "1.2.0",
   "generated": "2026-01-27T00:00:00.000Z",
-  "totalSkills": 43,
+  "totalSkills": 44,
   "description": "Agentic QE Fleet skills manifest - Quality Engineering focused skills only. Claude Flow platform skills are managed separately.",
   "categories": {
     "qcsd-phases": {
@@ -31,6 +31,7 @@
       "priority": "medium",
       "skills": [
         "security-testing",
+        "validation-pipeline",
         "performance-testing",
         "accessibility-testing",
         "a11y-ally",
@@ -654,6 +655,21 @@
       "tags": ["documentation", "writing", "communication"],
       "dependencies": [],
       "agents": ["qe-quality-analyzer"]
+    },
+    "validation-pipeline": {
+      "id": "validation-pipeline",
+      "name": "Validation Pipeline",
+      "description": "Run structured 13-step requirements validation pipeline with gate enforcement, weighted scoring, and detailed findings.",
+      "category": "specialized-testing",
+      "priority": "high",
+      "file": "validation-pipeline/SKILL.md",
+      "tokenEstimate": 1500,
+      "optimizationStatus": "active",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2026-03-12",
+      "tags": ["validation", "requirements", "pipeline", "gate-enforcement", "scoring", "bmad"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-requirements-validator"]
     },
     "bug-reporting-excellence": {
       "id": "bug-reporting-excellence",
