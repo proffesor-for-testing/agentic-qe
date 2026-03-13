@@ -287,6 +287,22 @@ export class SQLitePatternStore {
         FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
       );
 
+      -- Agent co-execution tracking (Issue #342 Item 3)
+      CREATE TABLE IF NOT EXISTS qe_agent_co_execution (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_a TEXT NOT NULL,
+        agent_b TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        success INTEGER NOT NULL DEFAULT 0,
+        task_description TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_co_exec_agents
+        ON qe_agent_co_execution(agent_a, agent_b);
+      CREATE INDEX IF NOT EXISTS idx_co_exec_domain
+        ON qe_agent_co_execution(domain);
+
       -- Unique constraint to prevent duplicate patterns
       CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_unique_name_domain_type
         ON qe_patterns(name, qe_domain, pattern_type);

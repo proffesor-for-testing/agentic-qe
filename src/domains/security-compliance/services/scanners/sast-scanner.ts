@@ -11,6 +11,7 @@ import type {
   SecurityScannerConfig,
   Vulnerability,
   VulnerabilitySeverity,
+  VulnerabilityCategory,
   VulnerabilityLocation,
   RemediationAdvice,
   ScanSummary,
@@ -27,6 +28,12 @@ import type {
 import { ALL_SECURITY_PATTERNS, BUILT_IN_RULE_SETS } from './security-patterns.js';
 import { toError } from '@shared/error-utils.js';
 import { safeJsonParse } from '@shared/safe-json.js';
+import {
+  isSemgrepAvailable,
+  runSemgrepWithRules,
+  convertSemgrepFindings,
+  mapSemgrepSeverity,
+} from '../semgrep-integration.js';
 
 // ============================================================================
 // SAST Scanner Service
@@ -66,7 +73,9 @@ export class SASTScanner {
   }
 
   /**
-   * Scan with specific rule sets
+   * Scan with specific rule sets.
+   * Runs pattern-based scanning and semgrep (when available) in parallel,
+   * then merges and deduplicates results.
    */
   async scanWithRules(
     files: FilePath[],
@@ -91,15 +100,18 @@ export class SASTScanner {
         return err(new Error(`No valid rule sets found: ${ruleSetIds.join(', ')}`));
       }
 
-      // Perform static analysis on each file
-      const vulnerabilities: Vulnerability[] = [];
-      let linesScanned = 0;
+      // Run pattern-based scanning and semgrep in parallel
+      const [patternResult, semgrepVulns] = await Promise.all([
+        this.runPatternScanning(files, ruleSets),
+        this.runSemgrepScanning(files, ruleSetIds),
+      ]);
 
-      for (const file of files) {
-        const fileVulns = await this.analyzeFile(file, ruleSets);
-        vulnerabilities.push(...fileVulns.vulnerabilities);
-        linesScanned += fileVulns.linesScanned;
-      }
+      // Merge pattern-based and semgrep findings, deduplicating by file+line
+      const vulnerabilities = this.mergeVulnerabilities(
+        patternResult.vulnerabilities,
+        semgrepVulns
+      );
+      const linesScanned = patternResult.linesScanned;
 
       const scanDurationMs = Date.now() - startTime;
 
@@ -110,11 +122,12 @@ export class SASTScanner {
         scanDurationMs
       );
 
-      // Calculate coverage
+      // Calculate coverage — include semgrep rules when they ran
+      const patternRules = ruleSets.reduce((acc, rs) => acc + rs.ruleCount, 0);
       const coverage: SecurityCoverage = {
         filesScanned: files.length,
         linesScanned,
-        rulesApplied: ruleSets.reduce((acc, rs) => acc + rs.ruleCount, 0),
+        rulesApplied: patternRules + (semgrepVulns.length > 0 ? semgrepVulns.length : 0),
       };
 
       // Store scan results in memory
@@ -132,6 +145,156 @@ export class SASTScanner {
       this.activeScans.set(scanId, 'failed');
       return err(toError(error));
     }
+  }
+
+  /**
+   * Run pattern-based scanning on all files
+   */
+  private async runPatternScanning(
+    files: FilePath[],
+    ruleSets: RuleSet[]
+  ): Promise<{ vulnerabilities: Vulnerability[]; linesScanned: number }> {
+    const vulnerabilities: Vulnerability[] = [];
+    let linesScanned = 0;
+
+    for (const file of files) {
+      const fileVulns = await this.analyzeFile(file, ruleSets);
+      vulnerabilities.push(...fileVulns.vulnerabilities);
+      linesScanned += fileVulns.linesScanned;
+    }
+
+    return { vulnerabilities, linesScanned };
+  }
+
+  /**
+   * Run semgrep scanning when enabled and available.
+   * Returns converted vulnerabilities or empty array on failure/unavailability.
+   */
+  private async runSemgrepScanning(
+    files: FilePath[],
+    ruleSetIds: string[]
+  ): Promise<Vulnerability[]> {
+    if (!this.config.enableSemgrep) {
+      return [];
+    }
+
+    try {
+      const available = await isSemgrepAvailable();
+      if (!available) {
+        return [];
+      }
+
+      // Determine target directory from files (use common parent)
+      const targetDir = this.resolveTargetDirectory(files);
+
+      const semgrepResult = await runSemgrepWithRules(targetDir, ruleSetIds);
+      if (!semgrepResult.success || semgrepResult.findings.length === 0) {
+        return [];
+      }
+
+      // Convert semgrep findings to our Vulnerability format
+      const converted = convertSemgrepFindings(semgrepResult.findings);
+      return converted.map(f => ({
+        id: uuidv4(),
+        cveId: undefined,
+        title: f.title,
+        description: `[semgrep] ${f.description}`,
+        severity: f.severity as VulnerabilitySeverity,
+        category: this.mapSemgrepCategory(f.owaspCategory),
+        location: {
+          file: f.file,
+          line: f.line,
+          column: f.column,
+          snippet: f.snippet,
+        },
+        remediation: {
+          description: f.remediation,
+          estimatedEffort: 'moderate' as const,
+          automatable: false,
+        },
+        references: f.references,
+      }));
+    } catch {
+      // Semgrep failure is non-fatal — pattern scanning still covers us
+      return [];
+    }
+  }
+
+  /**
+   * Resolve the common parent directory from a set of file paths
+   */
+  private resolveTargetDirectory(files: FilePath[]): string {
+    if (files.length === 0) return '.';
+    if (files.length === 1) return files[0].directory || '.';
+
+    // Find common prefix of all directories
+    const dirs = files.map(f => f.directory || '.');
+    const first = dirs[0];
+    let commonLen = first.length;
+
+    for (let i = 1; i < dirs.length; i++) {
+      const dir = dirs[i];
+      const maxLen = Math.min(commonLen, dir.length);
+      let j = 0;
+      while (j < maxLen && first[j] === dir[j]) j++;
+      commonLen = j;
+    }
+
+    const common = first.substring(0, commonLen);
+    // Trim to last path separator
+    const lastSep = common.lastIndexOf('/');
+    return lastSep > 0 ? common.substring(0, lastSep) : common || '.';
+  }
+
+  /**
+   * Map semgrep OWASP category string to VulnerabilityCategory
+   */
+  private mapSemgrepCategory(owaspCategory?: string): VulnerabilityCategory {
+    if (!owaspCategory) return 'injection';
+
+    const categoryMap: Record<string, VulnerabilityCategory> = {
+      'A01': 'access-control',
+      'A02': 'sensitive-data',
+      'A03': 'injection',
+      'A04': 'insecure-deserialization',
+      'A05': 'security-misconfiguration',
+      'A06': 'vulnerable-components',
+      'A07': 'broken-auth',
+      'A08': 'insecure-deserialization',
+      'A09': 'insufficient-logging',
+      'A10': 'xxe',
+    };
+
+    // Try exact match or prefix match (e.g. "A03:2021-Injection")
+    for (const [key, value] of Object.entries(categoryMap)) {
+      if (owaspCategory.startsWith(key)) return value;
+    }
+
+    return 'injection';
+  }
+
+  /**
+   * Merge pattern-based and semgrep vulnerabilities, deduplicating
+   * findings that overlap on the same file and line.
+   */
+  private mergeVulnerabilities(
+    patternVulns: Vulnerability[],
+    semgrepVulns: Vulnerability[]
+  ): Vulnerability[] {
+    if (semgrepVulns.length === 0) return patternVulns;
+    if (patternVulns.length === 0) return semgrepVulns;
+
+    // Build a set of file:line keys from pattern results
+    const patternKeys = new Set(
+      patternVulns.map(v => `${v.location.file}:${v.location.line ?? 0}:${v.category}`)
+    );
+
+    // Only add semgrep findings that don't overlap with pattern findings
+    const uniqueSemgrep = semgrepVulns.filter(
+      v => !patternKeys.has(`${v.location.file}:${v.location.line ?? 0}:${v.category}`)
+    );
+
+    return [...patternVulns, ...uniqueSemgrep];
   }
 
   /**

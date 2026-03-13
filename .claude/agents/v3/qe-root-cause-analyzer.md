@@ -5,6 +5,17 @@ updated: "2026-01-10"
 description: Systematic root cause analysis for test failures and incidents with prevention recommendations
 domain: defect-intelligence
 v3_new: true
+dependencies:
+  agents:
+    - name: qe-regression-analyzer
+      type: soft
+      reason: "Provides regression context for root cause investigation"
+    - name: qe-defect-predictor
+      type: soft
+      reason: "Provides defect prediction data"
+  mcp_servers:
+    - name: agentic-qe
+      required: true
 ---
 
 <qe_agent_definition>

@@ -35,6 +35,9 @@ import { randomUUID } from 'crypto';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { createLogger } from '../logging/logger-factory.js';
+
+const ttLogger = createLogger('TokenTracker');
 
 // ============================================================================
 // Token Usage Types (ADR-042 Specification)
@@ -263,7 +266,7 @@ class TokenMetricsCollectorImpl {
     }
 
     // Activate DB-backed persistence and auto-save timer
-    this.initializeDb().catch(() => {});
+    this.initializeDb().catch((e) => { ttLogger.warn('DB initialization failed', { error: e instanceof Error ? e.message : String(e) }); });
     this.startAutoSave();
   }
 
@@ -909,7 +912,7 @@ class TokenMetricsCollectorImpl {
     this.kvPersistCount++;
     if (this.kvPersistCount >= TokenMetricsCollectorImpl.KV_PERSIST_INTERVAL) {
       this.kvPersistCount = 0;
-      this.persistToKv().catch(() => {});
+      this.persistToKv().catch((e) => { ttLogger.warn('KV persist failed', { error: e instanceof Error ? e.message : String(e) }); });
     }
   }
 

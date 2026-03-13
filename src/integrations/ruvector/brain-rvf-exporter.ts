@@ -343,7 +343,12 @@ export function importBrainFromRvf(
       throw new Error('No brain data found in RVF file (missing kernel segment)');
     }
 
-    const brainData: BrainKernelData = JSON.parse(kernel.image.toString('utf-8'));
+    let brainData: BrainKernelData;
+    try {
+      brainData = JSON.parse(kernel.image.toString('utf-8'));
+    } catch (parseErr) {
+      throw new Error(`Failed to parse brain kernel data as JSON: ${parseErr instanceof Error ? parseErr.message : parseErr}`);
+    }
 
     if (options.dryRun) {
       let total = 0;
@@ -450,11 +455,16 @@ export function brainInfoFromRvf(rvfPath: string): RvfBrainManifest {
     }
 
     const brainJson = kernel.image.toString('utf-8');
-    const brainData = JSON.parse(brainJson) as BrainKernelData & {
+    let brainData: BrainKernelData & {
       exportedAt?: string;
       sourceDb?: string;
       domains?: string[];
     };
+    try {
+      brainData = JSON.parse(brainJson);
+    } catch (parseErr) {
+      throw new Error(`Failed to parse brain kernel data as JSON: ${parseErr instanceof Error ? parseErr.message : parseErr}`);
+    }
 
     const status = rvf.status();
     const fileSize = statSync(filePath).size;

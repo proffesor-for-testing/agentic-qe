@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-049 |
-| **Status** | Accepted |
+| **Status** | Implemented |
 | **Date** | 2026-01-17 |
 | **Author** | Architecture Team |
 | **Review Cadence** | 12 months |

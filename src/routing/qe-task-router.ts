@@ -27,6 +27,8 @@ import {
 } from '../learning/real-embeddings.js';
 import type { WitnessChain } from '../audit/witness-chain.js';
 import { ContextCompiler, formatContextForPrompt } from '../context/compiler.js';
+import { type CoExecutionRepository, type CoExecutionStats, getCoExecutionRepository } from './co-execution-repository.js';
+import { type SignalMerger, createSignalMerger } from './signal-merger.js';
 
 // ============================================================================
 // Task Keyword Detection
@@ -152,6 +154,8 @@ export class QETaskRouter {
   private initialized = false;
   private embeddingCache: Map<string, number[]> = new Map();
   private contextCompiler: ContextCompiler | null = null;
+  private coExecutionRepo: CoExecutionRepository | null = null;
+  private signalMerger: SignalMerger;
 
   /** Optional witness chain for audit trail of routing decisions (ADR-070) */
   private _witnessChain: WitnessChain | null = null;
@@ -159,6 +163,7 @@ export class QETaskRouter {
 
   constructor(config: Partial<QERouterConfig> = {}) {
     this.config = { ...DEFAULT_ROUTER_CONFIG, ...config };
+    this.signalMerger = createSignalMerger();
   }
 
   /**
@@ -178,6 +183,19 @@ export class QETaskRouter {
     }
 
     this.contextCompiler = new ContextCompiler();
+
+    // Initialize co-execution repository for behavioral signals (Issue #342 Item 3)
+    try {
+      const { getUnifiedMemory } = await import('../kernel/unified-memory.js');
+      const unifiedMemory = getUnifiedMemory();
+      await unifiedMemory.initialize();
+      this.coExecutionRepo = getCoExecutionRepository();
+      this.coExecutionRepo.initialize(unifiedMemory.getDatabase());
+    } catch {
+      // Non-blocking: behavioral signals unavailable if DB init fails
+      console.debug('[QETaskRouter] Co-execution repository unavailable (behavioral signals disabled)');
+    }
+
     this.initialized = true;
   }
 
@@ -229,7 +247,54 @@ export class QETaskRouter {
       scores.push(score);
     }
 
-    // 4. Sort by combined score
+    // 4. Multi-signal merge (Issue #342 Item 3)
+    // Build static analysis signal map from base scores
+    const staticAnalysisMap = new Map<string, { confidence: number; reason: string }>();
+    for (const score of scores) {
+      staticAnalysisMap.set(score.agent, {
+        confidence: score.combinedScore,
+        reason: score.reason,
+      });
+    }
+
+    // Build behavioral signal map from co-execution data
+    const behavioralMap = new Map<string, CoExecutionStats>();
+    if (this.coExecutionRepo && task.context?.previousAgent) {
+      for (const score of scores) {
+        const stats = this.coExecutionRepo.getCoExecutionStats(
+          task.context.previousAgent,
+          score.agent,
+        );
+        if (stats) {
+          behavioralMap.set(score.agent, stats);
+        }
+      }
+    }
+
+    // Merge signals with precedence: user > static > behavioral
+    const mergedResults = this.signalMerger.merge(
+      scores.map(s => s.agent),
+      {
+        userDeclaration: task.context?.preferredAgent,
+        staticAnalysis: staticAnalysisMap,
+        behavioral: behavioralMap,
+      },
+    );
+
+    // Apply merged scores back
+    for (const merged of mergedResults) {
+      const score = scores.find(s => s.agent === merged.agentId);
+      if (score) {
+        score.combinedScore = merged.mergedConfidence;
+        if (merged.determinedBy === 'user-declaration') {
+          score.reason = 'user-declared agent (confidence: 1.0)';
+        } else if (merged.signals.length > 1) {
+          score.reason += `, ${merged.determinedBy} signal dominant`;
+        }
+      }
+    }
+
+    // 4.5. Sort by combined score
     scores.sort((a, b) => b.combinedScore - a.combinedScore);
 
     // 5. Build routing decision
@@ -579,6 +644,19 @@ export class QETaskRouter {
     // Update average duration
     agent.avgDurationMs =
       (agent.avgDurationMs * prevTotal + durationMs) / agent.tasksCompleted;
+  }
+
+  /**
+   * Record a co-execution outcome for behavioral learning (Issue #342 Item 3).
+   * Call this after a swarm task completes to track which agent combinations work well together.
+   */
+  recordCoExecution(
+    agentIds: string[],
+    domain: string,
+    success: boolean,
+    taskDescription?: string,
+  ): void {
+    this.coExecutionRepo?.recordSwarmCoExecution(agentIds, domain, success, taskDescription);
   }
 
   /**

@@ -5,6 +5,12 @@ updated: "2026-01-30"
 description: V3 QE Queen Coordinator - MCP-powered swarm orchestration with real fleet coordination
 v2_compat: null # New in v3
 domain: coordination
+dependencies:
+  mcp_servers:
+    - name: agentic-qe
+      required: true
+    - name: claude-flow
+      required: false
 ---
 
 <qe_agent_definition>
@@ -161,6 +167,45 @@ Output a summary table:
 └─────────────────────────────────────────────────────────────┘
 ```
 </mandatory_execution_protocol>
+
+<dependency_aware_orchestration>
+## Dependency-Aware Agent Orchestration (Issue #342)
+
+When spawning multiple agents, ALWAYS check and respect agent dependencies:
+
+### Dependency Types
+| Type | Meaning | Action |
+|------|---------|--------|
+| **hard** | Agent requires data from dependency | Spawn dependency FIRST, wait for completion |
+| **soft** | Agent benefits from dependency data | Spawn dependency first if available, proceed without if not |
+| **peer** | Agents work alongside each other | Spawn in parallel |
+
+### Known Agent Dependencies (spawn order matters)
+| Agent | Hard Dependencies | Soft Dependencies |
+|-------|-------------------|-------------------|
+| qe-impact-analyzer | qe-dependency-mapper | qe-kg-builder |
+| qe-security-scanner | qe-dependency-mapper | — |
+| qe-gap-detector | qe-coverage-specialist | — |
+| qe-deployment-advisor | qe-quality-gate | qe-risk-assessor, qe-security-scanner |
+| qe-root-cause-analyzer | — | qe-regression-analyzer, qe-defect-predictor |
+
+### Orchestration Rules
+1. **Before spawning agents**: Check dependencies for all requested agents
+2. **Phase spawning**: Group agents into spawn phases:
+   - Phase 1: Agents with no unsatisfied hard deps (e.g., qe-dependency-mapper, qe-coverage-specialist)
+   - Phase 2: Agents whose hard deps completed in Phase 1 (e.g., qe-impact-analyzer, qe-gap-detector)
+   - Phase 3+: Continue until all agents spawned
+3. **Soft deps**: Spawn soft dependencies in an earlier phase when possible, but never delay for them
+4. **Missing deps**: If a hard dependency agent is not in the task scope, log an advisory warning and proceed
+5. **Parallel within phases**: All agents in the same phase can be spawned in parallel
+
+### Example: Full Release Validation
+```
+Phase 1 (parallel): qe-dependency-mapper, qe-coverage-specialist, qe-quality-gate, qe-risk-assessor
+Phase 2 (parallel): qe-impact-analyzer, qe-security-scanner, qe-gap-detector
+Phase 3 (parallel): qe-deployment-advisor, qe-root-cause-analyzer
+```
+</dependency_aware_orchestration>
 
 <task_type_routing>
 ## Automatic Task-to-Domain Routing

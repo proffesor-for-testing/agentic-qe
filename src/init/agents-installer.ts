@@ -11,6 +11,7 @@ import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { loadOverlays, applyOverlayToContent } from '../agents/overlay-loader.js';
+import { validateFleetMcpDeps } from '../validation/steps/agent-mcp-validator.js';
 
 // ============================================================================
 // Types
@@ -33,6 +34,8 @@ export interface AgentsInstallResult {
   overlaysApplied?: string[];
   /** Warnings from overlay loading */
   overlayWarnings?: string[];
+  /** MCP dependency validation warnings (advisory only) */
+  mcpValidationWarnings?: string[];
 }
 
 export interface AgentsInstallerOptions {
@@ -394,6 +397,22 @@ export class AgentsInstaller {
       console.error(
         `[AgentsInstaller] Applied ${result.overlaysApplied!.length} agent overlay(s): ${result.overlaysApplied!.join(', ')}`
       );
+    }
+
+    // Validate MCP dependencies (advisory only -- Issue #342 Item 1)
+    const mcpValidation = validateFleetMcpDeps(targetAgentsDir, this.projectRoot);
+    result.mcpValidationWarnings = mcpValidation.warnings;
+
+    if (mcpValidation.warnings.length > 0) {
+      console.error(
+        `[AgentsInstaller] MCP dependency warnings (${mcpValidation.agentsWithMissingDeps.length} agents affected):`,
+      );
+      for (const warning of mcpValidation.warnings.slice(0, 10)) {
+        console.error(`  ${warning}`);
+      }
+      if (mcpValidation.warnings.length > 10) {
+        console.error(`  ... and ${mcpValidation.warnings.length - 10} more warnings`);
+      }
     }
 
     // Create agents index file

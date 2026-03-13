@@ -14,9 +14,19 @@ import type { ClaudeFlowAdapter, ClaudeFlowFeatures } from './types.js';
 import { detectClaudeFlow } from '../../adapters/claude-flow/detect.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 
-/** Shared execSync options for cross-platform CLI calls */
-const SHELL = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
-const EXEC_OPTS = { encoding: 'utf-8' as const, shell: SHELL };
+/** Shared execFileSync options */
+const EXEC_OPTS = { encoding: 'utf-8' as const };
+
+/**
+ * Build args array for npx @claude-flow/cli calls.
+ * Using execFileSync with explicit args prevents shell injection.
+ */
+function cfCliArgs(...subcommand: string[]): { bin: string; args: string[] } {
+  return {
+    bin: 'npx',
+    args: ['--no-install', '@claude-flow/cli', ...subcommand],
+  };
+}
 
 /**
  * Claude Flow Adapter Implementation
@@ -98,12 +108,10 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     }
 
     try {
-      const { execSync } = await import('child_process');
-      const agentArg = agent ? `--agent "${agent}"` : '';
-      const result = execSync(
-        `npx --no-install @claude-flow/cli hooks intelligence trajectory-start --task "${task}" ${agentArg}`,
-        { ...EXEC_OPTS, timeout: 10000 }
-      );
+      const { execFileSync } = await import('child_process');
+      const { bin, args } = cfCliArgs('hooks', 'intelligence', 'trajectory-start', '--task', task);
+      if (agent) { args.push('--agent', agent); }
+      const result = execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
 
       // Parse trajectory ID from result
       const match = result.match(/trajectoryId[:\s]+["']?([^"'\s]+)/i);
@@ -125,14 +133,11 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     if (!this.available) return;
 
     try {
-      const { execSync } = await import('child_process');
-      const resultArg = result ? `--result "${result}"` : '';
-      const qualityArg = quality !== undefined ? `--quality ${quality}` : '';
-
-      execSync(
-        `npx --no-install @claude-flow/cli hooks intelligence trajectory-step --trajectory-id "${trajectoryId}" --action "${action}" ${resultArg} ${qualityArg}`,
-        { ...EXEC_OPTS, timeout: 10000 }
-      );
+      const { execFileSync } = await import('child_process');
+      const { bin, args } = cfCliArgs('hooks', 'intelligence', 'trajectory-step', '--trajectory-id', trajectoryId, '--action', action);
+      if (result) { args.push('--result', result); }
+      if (quality !== undefined) { args.push('--quality', String(quality)); }
+      execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
     } catch (error) {
       // Non-critical: trajectory tracking is optional
       console.debug('[ClaudeFlowAdapter] Trajectory step failed:', error instanceof Error ? error.message : error);
@@ -150,13 +155,10 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     if (!this.available) return;
 
     try {
-      const { execSync } = await import('child_process');
-      const feedbackArg = feedback ? `--feedback "${feedback}"` : '';
-
-      execSync(
-        `npx --no-install @claude-flow/cli hooks intelligence trajectory-end --trajectory-id "${trajectoryId}" --success ${success} ${feedbackArg}`,
-        { ...EXEC_OPTS, timeout: 10000 }
-      );
+      const { execFileSync } = await import('child_process');
+      const { bin, args } = cfCliArgs('hooks', 'intelligence', 'trajectory-end', '--trajectory-id', trajectoryId, '--success', String(success));
+      if (feedback) { args.push('--feedback', feedback); }
+      execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
     } catch (error) {
       // Non-critical: trajectory end is optional
       console.debug('[ClaudeFlowAdapter] Trajectory end failed:', error instanceof Error ? error.message : error);
@@ -173,11 +175,9 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     }
 
     try {
-      const { execSync } = await import('child_process');
-      const result = execSync(
-        `npx --no-install @claude-flow/cli hooks model-route --task "${task}"`,
-        { ...EXEC_OPTS, timeout: 10000 }
-      );
+      const { execFileSync } = await import('child_process');
+      const { bin, args } = cfCliArgs('hooks', 'model-route', '--task', task);
+      const result = execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
 
       // Parse result
       const modelMatch = result.match(/model[:\s]+["']?(haiku|sonnet|opus)/i);
@@ -205,11 +205,9 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     if (!this.available) return;
 
     try {
-      const { execSync } = await import('child_process');
-      execSync(
-        `npx --no-install @claude-flow/cli hooks model-outcome --task "${task}" --model ${model} --outcome ${outcome}`,
-        { ...EXEC_OPTS, timeout: 10000 }
-      );
+      const { execFileSync } = await import('child_process');
+      const { bin, args } = cfCliArgs('hooks', 'model-outcome', '--task', task, '--model', model, '--outcome', outcome);
+      execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
     } catch (error) {
       // Non-critical: outcome recording is optional
       console.debug('[ClaudeFlowAdapter] Model outcome recording failed:', error instanceof Error ? error.message : error);
@@ -228,11 +226,9 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     }
 
     try {
-      const { execSync } = await import('child_process');
-      const result = execSync(
-        `npx --no-install @claude-flow/cli hooks pretrain --path "${path}" --depth ${depth}`,
-        { ...EXEC_OPTS, timeout: 60000 }
-      );
+      const { execFileSync } = await import('child_process');
+      const { bin, args } = cfCliArgs('hooks', 'pretrain', '--path', path, '--depth', depth);
+      const result = execFileSync(bin, args, { ...EXEC_OPTS, timeout: 60000 });
 
       // Try to parse JSON result
       try {
@@ -257,13 +253,10 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     if (!this.available) return;
 
     try {
-      const { execSync } = await import('child_process');
-      const metadataArg = metadata ? `--metadata '${JSON.stringify(metadata)}'` : '';
-
-      execSync(
-        `npx --no-install @claude-flow/cli hooks intelligence pattern-store --pattern "${pattern}" --type ${type} --confidence ${confidence} ${metadataArg}`,
-        { ...EXEC_OPTS, timeout: 10000 }
-      );
+      const { execFileSync } = await import('child_process');
+      const { bin, args } = cfCliArgs('hooks', 'intelligence', 'pattern-store', '--pattern', pattern, '--type', type, '--confidence', String(confidence));
+      if (metadata) { args.push('--metadata', JSON.stringify(metadata)); }
+      execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
     } catch (error) {
       // Non-critical: pattern storage is optional
       console.debug('[ClaudeFlowAdapter] Pattern storage failed:', error instanceof Error ? error.message : error);
@@ -282,11 +275,9 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     }
 
     try {
-      const { execSync } = await import('child_process');
-      const result = execSync(
-        `npx --no-install @claude-flow/cli hooks intelligence pattern-search --query "${query}" --top-k ${topK}`,
-        { ...EXEC_OPTS, timeout: 10000 }
-      );
+      const { execFileSync } = await import('child_process');
+      const { bin, args } = cfCliArgs('hooks', 'intelligence', 'pattern-search', '--query', query, '--top-k', String(topK));
+      const result = execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
 
       // Try to parse JSON result
       try {

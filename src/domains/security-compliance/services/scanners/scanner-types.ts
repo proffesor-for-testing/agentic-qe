@@ -42,6 +42,8 @@ export interface SecurityScannerConfig {
   enableLLMAnalysis: boolean;
   /** ADR-051: Model tier for LLM calls (1=Haiku, 2=Sonnet, 4=Opus) */
   llmModelTier: number;
+  /** Enable semgrep integration when semgrep is installed (default: true) */
+  enableSemgrep: boolean;
 }
 
 /**
@@ -62,6 +64,7 @@ export const DEFAULT_CONFIG: SecurityScannerConfig = {
   dastActiveScanning: false,
   enableLLMAnalysis: true, // On by default - opt-out (ADR-051)
   llmModelTier: 4, // Opus for security analysis (needs expert reasoning)
+  enableSemgrep: true, // Use semgrep when installed for real SAST
 };
 
 // ============================================================================

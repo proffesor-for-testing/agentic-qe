@@ -358,7 +358,8 @@ export class MinCutTestOptimizerImpl implements MinCutTestOptimizer {
       criticalTests.add(promotedId);
       skippableTests.delete(promotedId);
 
-      const promotedTest = testMap.get(promotedId)!;
+      const promotedTest = testMap.get(promotedId);
+      if (!promotedTest) continue;
       for (const file of promotedTest.coveredFiles) {
         covered.add(file);
       }

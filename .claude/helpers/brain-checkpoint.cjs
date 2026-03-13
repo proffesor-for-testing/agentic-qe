@@ -6,7 +6,7 @@
  *   node brain-checkpoint.cjs export   # Export brain to aqe.rvf (session-end)
  *   node brain-checkpoint.cjs verify   # Verify aqe.rvf exists (session-start)
  */
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -23,8 +23,8 @@ function exportBrain() {
     if (fs.existsSync(RVF_PATH)) fs.unlinkSync(RVF_PATH);
     const idmap = RVF_PATH + '.idmap.json';
     if (fs.existsSync(idmap)) fs.unlinkSync(idmap);
-    const result = execSync(
-      'npx agentic-qe brain export -o "' + RVF_PATH + '" --format rvf 2>&1',
+    const result = execFileSync(
+      'npx', ['agentic-qe', 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
       { timeout: 60000, encoding: 'utf-8' }
     );
     const m = result.match(/Patterns:\s+(\d+)/);

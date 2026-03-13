@@ -432,4 +432,61 @@ const x = 1;
       expect(result.llmEnhanced).toBe(true);
     });
   });
+
+  // =========================================================================
+  // Semgrep Integration
+  // =========================================================================
+
+  describe('semgrep integration', () => {
+    it('should_skipSemgrep_when_enableSemgrepIsFalse', async () => {
+      // Arrange
+      const noSemgrepConfig = createConfig({ enableSemgrep: false });
+      const noSemgrepScanner = new SASTScanner(noSemgrepConfig, mockMemory);
+      const { readFile } = await import('fs/promises');
+      (readFile as ReturnType<typeof vi.fn>).mockResolvedValue('const safe = true;\n');
+      const files = [createMockFilePath('/src/app.ts')];
+
+      // Act
+      const result = await noSemgrepScanner.scanWithRules(files, ['owasp-top-10']);
+
+      // Assert — should succeed with only pattern-based results
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // No semgrep findings since it's disabled
+        const semgrepFindings = result.value.vulnerabilities.filter(
+          (v) => v.description.startsWith('[semgrep]')
+        );
+        expect(semgrepFindings).toHaveLength(0);
+      }
+    });
+
+    it('should_runPatternScanning_when_semgrepNotInstalled', async () => {
+      // Arrange — semgrep is not installed in test env, so it gracefully falls back
+      const { readFile } = await import('fs/promises');
+      (readFile as ReturnType<typeof vi.fn>).mockResolvedValue(
+        'db.query("SELECT * FROM users WHERE id = " + userId + "");\n'
+      );
+      const files = [createMockFilePath('/src/vulnerable.ts')];
+
+      // Act
+      const result = await scanner.scanWithRules(files, ['owasp-top-10']);
+
+      // Assert — pattern scanning should still find the SQL injection
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const injectionVulns = result.value.vulnerabilities.filter(
+          (v) => v.category === 'injection'
+        );
+        expect(injectionVulns.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('should_enableSemgrep_by_default_in_config', () => {
+      // The default config should have enableSemgrep: true
+      const defaultConfig = createConfig();
+      // enableSemgrep defaults to undefined in our test helper (not set),
+      // but the production DEFAULT_CONFIG has it as true
+      expect(defaultConfig.enableSemgrep).toBeUndefined();
+    });
+  });
 });

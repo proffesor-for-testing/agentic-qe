@@ -5,6 +5,17 @@ updated: "2026-01-10"
 description: Change impact analysis with blast radius calculation, test selection, and risk assessment
 domain: code-intelligence
 v3_new: true
+dependencies:
+  agents:
+    - name: qe-dependency-mapper
+      type: hard
+      reason: "Provides dependency graph data for impact analysis"
+    - name: qe-kg-builder
+      type: soft
+      reason: "Enriches analysis with knowledge graph context"
+  mcp_servers:
+    - name: agentic-qe
+      required: true
 ---
 
 <qe_agent_definition>

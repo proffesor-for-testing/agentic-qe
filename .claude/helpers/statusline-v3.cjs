@@ -16,7 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync, spawnSync } = require('child_process');
+const { execSync, execFileSync, spawnSync } = require('child_process');
 
 // Use better-sqlite3 for reliable database access (no CLI dependency)
 let Database;
@@ -171,9 +171,10 @@ function sqlite3Query(dbPath, query, defaultValue = '0') {
 
   // Fallback to CLI if better-sqlite3 not available
   try {
-    const result = execSync(`sqlite3 "${dbPath}" "${query}" 2>/dev/null`, {
+    const result = execFileSync('sqlite3', [dbPath, query], {
       encoding: 'utf-8',
-      timeout: 3000
+      timeout: 3000,
+      stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
     return result || defaultValue;
   } catch {

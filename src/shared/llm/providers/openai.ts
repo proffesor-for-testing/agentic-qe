@@ -24,6 +24,7 @@ import {
 import { CostTracker } from '../cost-tracker';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toError } from '../../error-utils.js';
+import { backoffDelay } from '../retry.js';
 
 /**
  * Default OpenAI configuration
@@ -595,7 +596,7 @@ export class OpenAIProvider implements LLMProvider {
         // Retry on server errors and rate limiting
         if (response.status >= 500 || response.status === 429) {
           if (attempt < maxRetries - 1) {
-            const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
+            const delay = backoffDelay(attempt);
             await this.sleep(delay);
             continue;
           }
@@ -607,7 +608,7 @@ export class OpenAIProvider implements LLMProvider {
 
         // Only retry on network/timeout errors
         if (attempt < maxRetries - 1) {
-          const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
+          const delay = backoffDelay(attempt);
           await this.sleep(delay);
         }
       }

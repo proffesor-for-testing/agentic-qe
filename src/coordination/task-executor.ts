@@ -19,6 +19,7 @@ import { toError, toErrorMessage } from '../shared/error-utils.js';
 import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
 import { TaskType, QueenTask, TaskExecution } from './queen-coordinator';
 import { ResultSaver, createResultSaver, SaveOptions } from './result-saver';
+import { createLogger } from '../logging/logger-factory.js';
 
 // ADR-051: Agent Booster integration for Tier 0 tasks
 import {
@@ -57,6 +58,8 @@ type CoverageAnalyzerService = import('../domains/coverage-analysis').CoverageAn
 type SecurityScannerService = import('../domains/security-compliance').SecurityScannerService;
 type KnowledgeGraphService = import('../domains/code-intelligence').KnowledgeGraphService;
 type QualityAnalyzerService = import('../domains/quality-assessment').QualityAnalyzerService;
+
+const logger = createLogger('TaskExecutor');
 
 // ============================================================================
 // CQ-005: Domain Service Resolution via Registry (no coordination -> domains imports)
@@ -472,7 +475,7 @@ export class DomainTaskExecutor implements TaskHandlerContext {
         const boosterResult = await this.executeWithAgentBooster(task, startTime, domain);
         if (boosterResult) {
           // Agent Booster succeeded - record outcome and return
-          this.recordOutcome(task, 0, true, Date.now() - startTime).catch(() => {});
+          this.recordOutcome(task, 0, true, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
           await this.publishTaskCompleted(task.id, boosterResult.data, domain);
           return boosterResult;
         }
@@ -490,7 +493,7 @@ export class DomainTaskExecutor implements TaskHandlerContext {
           duration: Date.now() - startTime,
           domain,
         };
-        this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch(() => {});
+        this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
         return result;
       }
 
@@ -504,7 +507,7 @@ export class DomainTaskExecutor implements TaskHandlerContext {
         const errorMsg = 'error' in result ? (result.error as Error).message : 'Unknown error';
         await this.publishTaskFailed(task.id, errorMsg, domain);
         // ADR-051: Record failed outcome
-        this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch(() => {});
+        this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
         return {
           taskId: task.id,
           success: false,
@@ -517,7 +520,7 @@ export class DomainTaskExecutor implements TaskHandlerContext {
       await this.publishTaskCompleted(task.id, result.value, domain);
 
       // ADR-051: Record successful outcome
-      this.recordOutcome(task, routingTier, true, Date.now() - startTime).catch(() => {});
+      this.recordOutcome(task, routingTier, true, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
 
       // Save results to files if enabled
       let savedFiles: string[] | undefined;
@@ -556,7 +559,7 @@ export class DomainTaskExecutor implements TaskHandlerContext {
       const errorMessage = toErrorMessage(error);
       await this.publishTaskFailed(task.id, errorMessage, domain);
       // ADR-051: Record failed outcome
-      this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch(() => {});
+      this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
 
       return {
         taskId: task.id,

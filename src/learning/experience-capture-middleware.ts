@@ -16,6 +16,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import type { QEDomain } from './qe-patterns.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { createLogger } from '../logging/logger-factory.js';
+
+const ecLogger = createLogger('ExperienceCapture');
 
 // ============================================================================
 // Types
@@ -410,7 +413,7 @@ async function persistExperience(
     );
 
     // Fire-and-forget: compute and store embedding for this experience
-    computeExperienceEmbedding(db, outcome.id, context.task, context.domain).catch(() => {});
+    computeExperienceEmbedding(db, outcome.id, context.task, context.domain).catch((e) => { ecLogger.warn('Embedding computation failed', { error: e instanceof Error ? e.message : String(e), experienceId: outcome.id, domain: context.domain }); });
   } catch (error) {
     console.error('[ExperienceCaptureMiddleware] Failed to persist experience:', error);
   }

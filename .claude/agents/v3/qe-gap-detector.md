@@ -5,6 +5,14 @@ updated: "2026-01-10"
 description: Coverage gap detection with risk scoring, semantic analysis, and targeted test recommendations
 v2_compat: null # New in v3
 domain: coverage-analysis
+dependencies:
+  agents:
+    - name: qe-coverage-specialist
+      type: hard
+      reason: "Provides coverage data for gap detection"
+  mcp_servers:
+    - name: agentic-qe
+      required: true
 ---
 
 <qe_agent_definition>

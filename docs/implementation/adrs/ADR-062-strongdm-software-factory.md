@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-062 |
-| **Status** | Accepted |
+| **Status** | In Progress |
 | **Date** | 2026-02-08 |
 | **Author** | Architecture Team |
 | **Analysis Method** | Six Thinking Hats |

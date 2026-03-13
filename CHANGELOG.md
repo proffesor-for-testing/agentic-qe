@@ -5,6 +5,26 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.21] - 2026-03-13
+
+### Added
+
+- **Agent dependency intelligence** — Pre-spawn MCP validation scans agent definitions for tool references and validates availability. Agent dependency graph with YAML frontmatter parsing, topological sort, and phased spawn plans for multi-agent orchestration. Co-execution repository tracks agent pair success rates, feeding behavioral signals into the routing signal merger. (#342)
+
+### Fixed
+
+- **Shell injection prevention across all CLI bridges** — Converted 21 `execSync` template-literal calls to `execFileSync` with argument arrays, eliminating shell metacharacter injection vectors in claude-flow-adapter, trajectory-bridge, pretrain-bridge, model-router-bridge, brain-checkpoint, and statusline helpers.
+- **Semgrep wired into SAST pipeline** — Semgrep integration was only used as a fallback when the regex scanner failed. Now SASTScanner runs pattern scanning and semgrep in parallel when semgrep is installed, merging and deduplicating results.
+- **Security scanner agent overclaims corrected** — Agent documentation that falsely claimed OWASP ZAP, TruffleHog, Gitleaks, ESLint Security, and Snyk integrations updated to reflect actual implementations: regex patterns + semgrep (SAST), OSV API (deps), custom fetch-based scanner (DAST), and regex patterns (secrets).
+- **Swallowed promise handlers replaced with structured logging** — 12 `.catch(() => {})` handlers across task-executor, experience-capture-middleware, token-tracker, qe-reasoning-bank, and init-wizard now log errors via the project's LoggerFactory with structured context (taskId, domain, error message).
+- **Non-null assertion guard in mincut-test-optimizer** — `testMap.get(promotedId)!` replaced with guard clause to prevent potential runtime TypeError.
+- **JSON.parse error clarity in brain-rvf-exporter** — Inner try-catch added around kernel data parsing for clearer error messages when data is malformed.
+
+### Changed
+
+- **LLM provider retry backoff extracted** — 12 duplicate `Math.min(1000 * Math.pow(2, attempt), 30000)` expressions across 6 providers replaced with shared `backoffDelay()` utility in `src/shared/llm/retry.ts`.
+- **Agent router capability presets** — 100-line boolean capability matrix collapsed into 4 named presets (heavyweight, standard, lightweight, minimal) for maintainability.
+
 ## [3.7.20] - 2026-03-12
 
 ### Fixed

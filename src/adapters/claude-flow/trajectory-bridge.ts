@@ -48,10 +48,10 @@ export class TrajectoryBridge {
 
     if (this.claudeFlowAvailable) {
       try {
-        const { execSync } = await import('child_process');
-        const agentArg = agent ? `--agent ${this.escapeArg(agent)}` : '';
-        const result = execSync(
-          `npx --no-install @claude-flow/cli hooks intelligence trajectory-start --task ${this.escapeArg(task)} ${agentArg}`,
+        const { execFileSync } = await import('child_process');
+        const args = ['--no-install', '@claude-flow/cli', 'hooks', 'intelligence', 'trajectory-start', '--task', task];
+        if (agent) { args.push('--agent', agent); }
+        const result = execFileSync('npx', args,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
 
@@ -89,12 +89,11 @@ export class TrajectoryBridge {
   ): Promise<void> {
     if (this.claudeFlowAvailable) {
       try {
-        const { execSync } = await import('child_process');
-        const resultArg = result ? `--result ${this.escapeArg(result)}` : '';
-        const qualityArg = quality !== undefined ? `--quality ${quality}` : '';
-
-        execSync(
-          `npx --no-install @claude-flow/cli hooks intelligence trajectory-step --trajectory-id ${this.escapeArg(trajectoryId)} --action ${this.escapeArg(action)} ${resultArg} ${qualityArg}`,
+        const { execFileSync } = await import('child_process');
+        const args = ['--no-install', '@claude-flow/cli', 'hooks', 'intelligence', 'trajectory-step', '--trajectory-id', trajectoryId, '--action', action];
+        if (result) { args.push('--result', result); }
+        if (quality !== undefined) { args.push('--quality', String(quality)); }
+        execFileSync('npx', args,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
         return;
@@ -127,11 +126,10 @@ export class TrajectoryBridge {
   ): Promise<Trajectory | undefined> {
     if (this.claudeFlowAvailable) {
       try {
-        const { execSync } = await import('child_process');
-        const feedbackArg = feedback ? `--feedback ${this.escapeArg(feedback)}` : '';
-
-        execSync(
-          `npx --no-install @claude-flow/cli hooks intelligence trajectory-end --trajectory-id ${this.escapeArg(trajectoryId)} --success ${success} ${feedbackArg}`,
+        const { execFileSync } = await import('child_process');
+        const args = ['--no-install', '@claude-flow/cli', 'hooks', 'intelligence', 'trajectory-end', '--trajectory-id', trajectoryId, '--success', String(success)];
+        if (feedback) { args.push('--feedback', feedback); }
+        execFileSync('npx', args,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
       } catch {
@@ -228,19 +226,6 @@ export class TrajectoryBridge {
     }
   }
 
-  /**
-   * Escape shell argument using $'...' syntax for complete safety
-   * This ANSI-C quoting handles ALL special characters including backslashes
-   * CodeQL: js/incomplete-sanitization - Fixed by escaping backslashes AND quotes
-   */
-  private escapeArg(arg: string): string {
-    // Escape backslashes first, then single quotes, using ANSI-C quoting
-    // $'...' syntax interprets escape sequences like \\ and \'
-    const escaped = arg
-      .replace(/\\/g, '\\\\')  // Escape backslashes first
-      .replace(/'/g, "\\'");   // Then escape single quotes
-    return "$'" + escaped + "'";
-  }
 }
 
 /**
