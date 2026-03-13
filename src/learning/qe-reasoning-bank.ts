@@ -1352,7 +1352,7 @@ On promotion:
 
     // ADR-070: Record pattern creation in witness chain
     if (result.success) {
-      getWitnessChain().then(wc => wc.append('PATTERN_CREATE', { patternId: result.value.id, domain: result.value.qeDomain, confidence: result.value.confidence, name: result.value.name }, 'reasoning-bank')).catch(() => {});
+      getWitnessChain().then(wc => wc.append('PATTERN_CREATE', { patternId: result.value.id, domain: result.value.qeDomain, confidence: result.value.confidence, name: result.value.name }, 'reasoning-bank')).catch((e) => { logger.warn('Witness chain PATTERN_CREATE failed', { error: toErrorMessage(e) }); });
 
       // Phase 3: Best-effort RVF dual-write for vector replication
       if (this.rvfDualWriter && result.value.embedding && result.value.embedding.length > 0) {
@@ -1452,7 +1452,7 @@ On promotion:
       }
 
       // ADR-070: Record pattern update in witness chain
-      getWitnessChain().then(wc => wc.append('PATTERN_UPDATE', { patternId: outcome.patternId, success: outcome.success }, 'reasoning-bank')).catch(() => {});
+      getWitnessChain().then(wc => wc.append('PATTERN_UPDATE', { patternId: outcome.patternId, success: outcome.success }, 'reasoning-bank')).catch((e) => { logger.warn('Witness chain PATTERN_UPDATE failed', { error: toErrorMessage(e) }); });
 
       // Check if pattern should be promoted (with coherence gate)
       const pattern = await this.getPattern(outcome.patternId);
@@ -1568,7 +1568,7 @@ On promotion:
       }
 
       // ADR-070: Record pattern promotion in witness chain
-      getWitnessChain().then(wc => wc.append('PATTERN_PROMOTE', { patternId }, 'reasoning-bank')).catch(() => {});
+      getWitnessChain().then(wc => wc.append('PATTERN_PROMOTE', { patternId }, 'reasoning-bank')).catch((e) => { logger.warn('Witness chain PATTERN_PROMOTE failed', { error: toErrorMessage(e) }); });
       logger.info('Promoted pattern to long-term', { patternId });
       if (this.eventBus) {
         await this.eventBus.publish({

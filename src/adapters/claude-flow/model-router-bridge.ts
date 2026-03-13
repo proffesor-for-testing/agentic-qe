@@ -59,9 +59,9 @@ export class ModelRouterBridge {
   async routeTask(task: string): Promise<ModelRoutingResult> {
     if (this.claudeFlowAvailable) {
       try {
-        const { execSync } = await import('child_process');
-        const result = execSync(
-          `npx --no-install @claude-flow/cli hooks model-route --task ${this.escapeArg(task)}`,
+        const { execFileSync } = await import('child_process');
+        const result = execFileSync('npx',
+          ['--no-install', '@claude-flow/cli', 'hooks', 'model-route', '--task', task],
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
 
@@ -101,9 +101,9 @@ export class ModelRouterBridge {
 
     if (this.claudeFlowAvailable) {
       try {
-        const { execSync } = await import('child_process');
-        execSync(
-          `npx --no-install @claude-flow/cli hooks model-outcome --task ${this.escapeArg(outcome.task)} --model ${outcome.model} --outcome ${outcome.outcome}`,
+        const { execFileSync } = await import('child_process');
+        execFileSync('npx',
+          ['--no-install', '@claude-flow/cli', 'hooks', 'model-outcome', '--task', outcome.task, '--model', outcome.model, '--outcome', outcome.outcome],
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
       } catch (error) {
@@ -204,19 +204,6 @@ export class ModelRouterBridge {
     };
   }
 
-  /**
-   * Escape shell argument using $'...' syntax for complete safety
-   * This ANSI-C quoting handles ALL special characters including backslashes
-   * CodeQL: js/incomplete-sanitization - Fixed by escaping backslashes AND quotes
-   */
-  private escapeArg(arg: string): string {
-    // Escape backslashes first, then single quotes, using ANSI-C quoting
-    // $'...' syntax interprets escape sequences like \\ and \'
-    const escaped = arg
-      .replace(/\\/g, '\\\\')  // Escape backslashes first
-      .replace(/'/g, "\\'");   // Then escape single quotes
-    return "$'" + escaped + "'";
-  }
 }
 
 /**

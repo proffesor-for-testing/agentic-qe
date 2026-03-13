@@ -363,107 +363,50 @@ export const AGENT_CATEGORY_MAP: Record<string, AgentCategory> = {
 // ============================================================================
 
 /**
- * Default capability requirements for each agent category
+ * Capability presets — 4 distinct profiles that all 9 categories map to.
+ * Avoids repeating the same boolean matrix for categories that share the same needs.
+ */
+const CAPABILITY_PRESETS = {
+  /** Deep reasoning + extended thinking, large context, cost-insensitive */
+  heavyweight: {
+    requiresReasoning: true, requiresTools: true, requiresVision: false,
+    requiresExtendedThinking: true, requiresJsonMode: true,
+    minContextSize: 100000, costSensitivity: 'low' as const, latencySensitivity: 'low' as const,
+  },
+  /** Reasoning + tools, medium context, balanced cost/latency */
+  standard: {
+    requiresReasoning: true, requiresTools: true, requiresVision: false,
+    requiresExtendedThinking: false, requiresJsonMode: true,
+    minContextSize: 50000, costSensitivity: 'medium' as const, latencySensitivity: 'medium' as const,
+  },
+  /** Tools only, small context, latency-sensitive */
+  lightweight: {
+    requiresReasoning: false, requiresTools: true, requiresVision: false,
+    requiresExtendedThinking: false, requiresJsonMode: true,
+    minContextSize: 16000, costSensitivity: 'medium' as const, latencySensitivity: 'high' as const,
+  },
+  /** No special requirements, smallest context, cost-sensitive */
+  minimal: {
+    requiresReasoning: false, requiresTools: false, requiresVision: false,
+    requiresExtendedThinking: false, requiresJsonMode: false,
+    minContextSize: 4000, costSensitivity: 'high' as const, latencySensitivity: 'medium' as const,
+  },
+} as const satisfies Record<string, AgentCapabilityRequirements>;
+
+/**
+ * Default capability requirements for each agent category.
+ * Categories map to one of 4 presets, with per-category overrides where needed.
  */
 export const DEFAULT_CATEGORY_CAPABILITIES: Record<AgentCategory, AgentCapabilityRequirements> = {
-  security: {
-    requiresReasoning: true,
-    requiresTools: true,
-    requiresVision: false,
-    requiresExtendedThinking: true,
-    requiresJsonMode: true,
-    minContextSize: 100000,
-    costSensitivity: 'low',
-    latencySensitivity: 'low',
-  },
-
-  'test-generation': {
-    requiresReasoning: true,
-    requiresTools: true,
-    requiresVision: false,
-    requiresExtendedThinking: false,
-    requiresJsonMode: true,
-    minContextSize: 50000,
-    costSensitivity: 'medium',
-    latencySensitivity: 'medium',
-  },
-
-  'code-analysis': {
-    requiresReasoning: true,
-    requiresTools: true,
-    requiresVision: false,
-    requiresExtendedThinking: false,
-    requiresJsonMode: true,
-    minContextSize: 50000,
-    costSensitivity: 'medium',
-    latencySensitivity: 'medium',
-  },
-
-  performance: {
-    requiresReasoning: false,
-    requiresTools: true,
-    requiresVision: false,
-    requiresExtendedThinking: false,
-    requiresJsonMode: true,
-    minContextSize: 16000,
-    costSensitivity: 'high',
-    latencySensitivity: 'high',
-  },
-
-  documentation: {
-    requiresReasoning: false,
-    requiresTools: false,
-    requiresVision: false,
-    requiresExtendedThinking: false,
-    requiresJsonMode: false,
-    minContextSize: 16000,
-    costSensitivity: 'high',
-    latencySensitivity: 'medium',
-  },
-
-  learning: {
-    requiresReasoning: true,
-    requiresTools: true,
-    requiresVision: false,
-    requiresExtendedThinking: false,
-    requiresJsonMode: true,
-    minContextSize: 50000,
-    costSensitivity: 'medium',
-    latencySensitivity: 'medium',
-  },
-
-  coordination: {
-    requiresReasoning: false,
-    requiresTools: true,
-    requiresVision: false,
-    requiresExtendedThinking: false,
-    requiresJsonMode: true,
-    minContextSize: 16000,
-    costSensitivity: 'medium',
-    latencySensitivity: 'high',
-  },
-
-  simple: {
-    requiresReasoning: false,
-    requiresTools: false,
-    requiresVision: false,
-    requiresExtendedThinking: false,
-    requiresJsonMode: false,
-    minContextSize: 4000,
-    costSensitivity: 'high',
-    latencySensitivity: 'medium',
-  },
-
-  general: {
-    requiresReasoning: false,
-    requiresTools: true,
-    requiresVision: false,
-    requiresExtendedThinking: false,
-    requiresJsonMode: false,
-    minContextSize: 16000,
-    costSensitivity: 'medium',
-    latencySensitivity: 'medium',
-  },
+  security:          CAPABILITY_PRESETS.heavyweight,
+  'test-generation': CAPABILITY_PRESETS.standard,
+  'code-analysis':   CAPABILITY_PRESETS.standard,
+  learning:          CAPABILITY_PRESETS.standard,
+  performance:       { ...CAPABILITY_PRESETS.lightweight, costSensitivity: 'high' },
+  coordination:      CAPABILITY_PRESETS.lightweight,
+  general:           { ...CAPABILITY_PRESETS.lightweight, requiresJsonMode: false, latencySensitivity: 'medium' },
+  documentation:     { ...CAPABILITY_PRESETS.minimal, minContextSize: 16000 },
+  simple:            CAPABILITY_PRESETS.minimal,
 };
 
 // ============================================================================

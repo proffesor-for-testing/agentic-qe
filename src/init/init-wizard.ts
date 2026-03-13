@@ -362,7 +362,7 @@ export class InitOrchestrator {
     if (this.options.autoMigrate) {
       console.log('Auto-migrate mode enabled. Running migration...\n');
       // Fire and forget - the caller will await initialize() which runs migration inline
-      runV2Migration(this.projectRoot, v2Detection).catch(() => {});
+      runV2Migration(this.projectRoot, v2Detection).catch((e) => { console.warn('[InitWizard] V2 migration failed:', e instanceof Error ? e.message : e); });
       return null;
     }
 
