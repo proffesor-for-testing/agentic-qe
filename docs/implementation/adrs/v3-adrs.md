@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 16 — Loki-Mode Adversarial Quality Gates (ADR-074); Multi-Language Test Generation (ADR-075 through ADR-079)
+**Status:** Phase 17 — Agent Dependency Intelligence (ADR-080); Multi-Signal Confidence Merging (ADR-022 Phase 2)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-03-04 (ADR-001-064: 58 Implemented, ADR-065-073: 9 Proposed, ADR-074: Implemented)
+**Last Verified:** 2026-03-13 (70 Implemented, 6 In Progress, 4 Proposed, 4 Rejected)
 
 ---
 
@@ -33,7 +33,7 @@
 | ADR-019 | Phase 1-3 Foundation Implementation | **Implemented** | 2026-01-07 | ✅ 1954 tests passing |
 | ADR-020 | Stub Implementation Replacement | **Implemented** | 2026-01-11 | ✅ Domain services complete, 9 orchestration stubs (acceptable) |
 | ADR-021 | QE ReasoningBank for Pattern Learning | **Implemented** | 2026-01-09 | ✅ REAL impl: transformers + SQLite (114k/s) + 52 tests |
-| ADR-022 | Adaptive QE Agent Routing | **Implemented** | 2026-01-09 | ✅ ML router: 80 agents + 62ms P95 + 83 tasks/sec |
+| ADR-022 | Adaptive QE Agent Routing | **Implemented** | 2026-01-09 | ✅ ML router: 80 agents + 62ms P95 + 83 tasks/sec + multi-signal merge |
 | ADR-023 | Quality Feedback Loop System | **Implemented** | 2026-01-09 | ✅ 101 tests: TestOutcomeTracker + CoverageLearner + PatternPromotion |
 | ADR-024 | Self-Optimization Engine | **Implemented** | 2026-01-09 | ✅ 103 tests: AutoTuner + MetricCollectors + 4 QE Workers + Applicators |
 | ADR-025 | Enhanced Init with Self-Configuration | **Implemented** | 2026-01-10 | ✅ 73 tests: ProjectAnalyzer + SelfConfigurator + InitWizard |
@@ -60,37 +60,38 @@
 | [ADR-046](./ADR-046-v2-feature-integration.md) | V2 Feature Integration (Q-Values, GOAP, Dreams) | **Implemented** | 2026-01-16 | ✅ Q-Values persistence + GOAP planner (52 actions) + Dream cycles (ConceptGraph + InsightGenerator) |
 | [ADR-047](./ADR-047-mincut-self-organizing-qe.md) | MinCut Self-Organizing QE Integration | **Implemented** | 2026-01-17 | ✅ 478 tests, 14 modules: MinCut health + Strange Loop (P1) + Causal Discovery (P2) + Morphogenetic (P3) + Time Crystal (P4) + Neural GOAP (P5) + Dream Integration (P6) + 3 MCP tools |
 | [ADR-048](./ADR-048-v2-v3-agent-migration.md) | V2-to-V3 Agent Migration Upgrade Strategy | **Implemented** | 2026-01-17 | ✅ 5-tier migration: v2_compat fields (6 agents) + agent-compat.ts + 59 tests + v3_new markers (7 agents) |
-| [ADR-049](./ADR-049-V3-MAIN-PUBLISH.md) | V3 Main Package Publication | **Accepted** | 2026-01-17 | ✅ Root package publishes v3 CLI + MCP bundles, version 3.0.0 release strategy |
+| [ADR-049](./ADR-049-V3-MAIN-PUBLISH.md) | V3 Main Package Publication | **Implemented** | 2026-01-17 | ✅ v3.7.20 published, npm-publish.yml workflow, CLI + MCP bundles |
 | [ADR-050](./ADR-050-ruvector-neural-backbone.md) | RuVector as Primary Neural Backbone | **Implemented** | 2026-01-20 | ✅ ML-first architecture, Q-Learning/SONA persistence, hypergraph code intelligence |
 | [ADR-051](./ADR-051-agentic-flow-integration.md) | Agentic-Flow Deep Integration | **Implemented** | 2026-01-21 | ✅ 100% success rate: Agent Booster, ReasoningBank (HNSW), Model Router, ONNX Embeddings |
 | [ADR-052](./ADR-052-coherence-gated-qe.md) | Coherence-Gated Quality Engineering | **Implemented** | 2026-01-24 | ✅ 382+ tests: CoherenceService + 6 engines + ThresholdTuner + WASM Fallback + CI Badge + Test Gen Gate |
-| [ADR-053](./ADR-053-ag-ui-protocol.md) | AG-UI Protocol Adoption | **Proposed** | 2026-01-30 | SSE transport, 19 event types, 100ms p95 latency target |
-| [ADR-054](./ADR-054-a2a-protocol.md) | A2A Protocol Integration | **Proposed** | 2026-01-30 | Agent Cards for 68 agents, JSON-RPC 2.0, discovery endpoint |
-| [ADR-055](./ADR-055-a2ui-declarative-ui.md) | A2UI Declarative UI Strategy | **Proposed** | 2026-01-30 | 15+ components, QE catalog, WCAG 2.2, AG-UI state sync |
+| [ADR-053](./ADR-053-ag-ui-protocol.md) | AG-UI Protocol Adoption | **Implemented** | 2026-01-30 | ✅ SSE transport, 19 event types, 599 tests, AG-UI 1.0 100% compliant |
+| [ADR-054](./ADR-054-a2a-protocol.md) | A2A Protocol Integration | **Implemented** | 2026-01-30 | ✅ Agent Cards, JSON-RPC 2.0, OAuth 2.0, 987 tests, A2A v0.3 100% compliant |
+| [ADR-055](./ADR-055-a2ui-declarative-ui.md) | A2UI Declarative UI Strategy | **Implemented** | 2026-01-30 | ✅ 23 components (15 standard + 8 QE), WCAG 2.2 AA, 608 tests |
 | [ADR-056](./ADR-056-skill-validation-system.md) | Deterministic Skill Validation System | **Implemented** | 2026-02-02 | ✅ 46 Tier 3 skills, 52 validators, CLI commands (`aqe skill`, `aqe eval`) |
 | [ADR-057](./ADR-057-infra-self-healing.md) | Infrastructure Self-Healing Extension | **Implemented** | 2026-02-02 | ✅ Extends Strange Loop to detect and recover infrastructure failures |
 | [ADR-058](./ADR-058-guidance-governance-integration.md) | @claude-flow/guidance Governance Integration | **Implemented** | 2026-02-04 | ✅ 16 governance modules + GovernanceAwareDomainMixin wired to 12 domain coordinators + Queen/ReasoningBank/MCP integration + 657 tests |
 | [ADR-059](./ADR-059-ghost-intent-coverage.md) | Ghost Intent Coverage Analysis | **Proposed** | 2026-02-06 | Phantom test surface detection via HNSW ghost vectors (inspired by AISP ψ_g) |
 | [ADR-060](./ADR-060-semantic-anti-drift.md) | Semantic Anti-Drift Protocol | **Proposed** | 2026-02-06 | HNSW semantic fingerprinting on domain events for drift detection (inspired by AISP anti-drift) |
 | [ADR-061](./ADR-061-asymmetric-learning-rates.md) | Asymmetric Learning Rates for ReasoningBank | **Proposed** | 2026-02-06 | 10:1 Hebbian failure penalty + pattern quarantine (inspired by AISP Hebbian learning) |
-| [ADR-062](./ADR-062-strongdm-software-factory.md) | StrongDM Software Factory Integration | **Accepted** | 2026-02-08 | 6 actions across 3 tiers: loop detection, token dashboard, holdout testing, gate ratcheting, progressive context, meta-learning |
+| [ADR-062](./ADR-062-strongdm-software-factory.md) | StrongDM Software Factory Integration | **In Progress** | 2026-02-08 | ⚙️ Tier 1 complete (loop detection, token dashboard), Tier 2-3 pending |
 | [ADR-063](./ADR-063-enterprise-integration-testing.md) | Enterprise Integration Testing Gap Closure | **Implemented** | 2026-02-04 | ✅ 7 new agents + 4 new skills + enterprise-integration bounded context (13th domain) + QCSD flag extensions |
 | [ADR-064](./ADR-064-agentic-teams-integration.md) | Agent Teams Integration for AQE Fleet | **Implemented** | 2026-02-09 | ✅ All 4 phases: mailbox messaging, fleet tiers, task DAG, circuit breakers, tracing, competing hypotheses, federation, dynamic scaling. 397+ tests. |
-| [ADR-065](./ADR-065-rvf-integration-hybrid-architecture.md) | RVF Integration — Hybrid Architecture | **Proposed** | 2026-02-10 | Umbrella ADR: SQLite+RVF coexistence, vector workload migration path |
-| [ADR-066](./ADR-066-rvf-pattern-store-progressive-hnsw.md) | RVF-Backed PatternStore with Progressive HNSW | **Proposed** | 2026-02-10 | RVF INDEX_SEG for vector workloads, 3-layer progressive HNSW |
-| [ADR-067](./ADR-067-agent-memory-branching-rvf-cow.md) | Agent Memory Branching via RVF COW | **Proposed** | 2026-02-10 | RVCOW copy-on-write branching for agent memory isolation |
-| [ADR-068](./ADR-068-mincut-gated-model-routing.md) | MinCut-Gated Model Routing | **Proposed** | 2026-02-22 | Replace static 3-tier thresholds with mincut lambda-based structural complexity routing |
-| [ADR-069](./ADR-069-rvcow-dream-cycle-branching.md) | RVCOW Dream Cycle Branching | **Proposed** | 2026-02-22 | Safe dream experimentation via RVCOW branches with validation gates |
-| [ADR-070](./ADR-070-witness-chain-audit-compliance.md) | Witness Chain Audit Compliance | **Proposed** | 2026-02-22 | Cryptographic SHAKE-256 witness chain for tamper-evident QE decision audit |
-| [ADR-071](./ADR-071-hnsw-implementation-unification.md) | HNSW Implementation Unification | **Proposed** | 2026-02-22 | Consolidate 3 HNSW implementations behind single HnswIndexProvider + RVF INDEX_SEG |
+| [ADR-065](./ADR-065-rvf-integration-hybrid-architecture.md) | RVF Integration — Hybrid Architecture | **In Progress** | 2026-02-10 | ⚙️ Hybrid SQLite+RVF operational, full migration (ADR-072) not started |
+| [ADR-066](./ADR-066-rvf-pattern-store-progressive-hnsw.md) | RVF-Backed PatternStore with Progressive HNSW | **In Progress** | 2026-02-10 | ⚙️ RVF backend ready, full deployment as default incomplete |
+| [ADR-067](./ADR-067-agent-memory-branching-rvf-cow.md) | Agent Memory Branching via RVF COW | **In Progress** | 2026-02-10 | ⚙️ COW infrastructure exists, merge strategies and witness tracking incomplete |
+| [ADR-068](./ADR-068-mincut-gated-model-routing.md) | MinCut-Gated Model Routing | **Implemented** | 2026-02-22 | ✅ Mincut criticality scoring integrated into routing, structural complexity routing operational |
+| [ADR-069](./ADR-069-rvcow-dream-cycle-branching.md) | RVCOW Dream Cycle Branching | **In Progress** | 2026-02-22 | ⚙️ Dream engine with RVCOW isolation operational, validation gate incomplete |
+| [ADR-070](./ADR-070-witness-chain-audit-compliance.md) | Witness Chain Audit Compliance | **Implemented** | 2026-02-22 | ✅ SHAKE-256 witness chain + Ed25519 signing integrated in RVF persistence + brain export |
+| [ADR-071](./ADR-071-hnsw-implementation-unification.md) | HNSW Implementation Unification | **In Progress** | 2026-02-22 | ⚙️ Provider interface exists, 3 implementations not yet consolidated |
 | [ADR-072](./ADR-072-rvf-primary-persistence-migration.md) | RVF Primary Persistence Migration | **Proposed** | 2026-02-22 | 4-stage migration from SQLite hybrid to RVF primary with go/no-go gates |
-| [ADR-073](./ADR-073-portable-intelligence-containers.md) | Portable Intelligence Containers | **Proposed** | 2026-02-22 | Export/import/version QE intelligence as distributable .rvf files |
+| [ADR-073](./ADR-073-portable-intelligence-containers.md) | Portable Intelligence Containers | **Implemented** | 2026-02-22 | ✅ brain-rvf-exporter + brain-handler, export/import with checksums, Ed25519 signing |
 | [ADR-074](./ADR-074-loki-mode-adversarial-quality-gates.md) | Loki-Mode Adversarial Quality Gates | **Implemented** | 2026-03-04 | ✅ 7 features: sycophancy scorer, test quality gates, blind review, EMA calibration, edge-case injection, complexity composition, auto-escalation. 178 tests, 14 new files, 6 config flags (enabled by default). |
-| [ADR-075](./ADR-075-unified-test-framework-type-system.md) | Unified TestFramework Type System | **Proposed** | 2026-03-04 | Single source-of-truth `TestFramework` + `SupportedLanguage` types at `src/shared/types/test-frameworks.ts`, replacing two divergent definitions |
-| [ADR-076](./ADR-076-tree-sitter-wasm-multi-language-parser.md) | tree-sitter WASM Multi-Language Parser Integration | **Proposed** | 2026-03-04 | `web-tree-sitter` (WASM) as universal parser for Java, C#, Go, Rust, Swift, Kotlin, Dart, Python behind `ILanguageParser` abstraction |
-| [ADR-077](./ADR-077-compilation-validation-loop.md) | Compilation Validation Loop for Generated Tests | **Proposed** | 2026-03-04 | Optional compile-validate-repair loop (up to 3 retries) for type-strict languages; opt-in, graceful degradation |
-| [ADR-078](./ADR-078-backward-compatible-multi-language-api.md) | Backward-Compatible Multi-Language API Extension | **Proposed** | 2026-03-04 | Optional `language`, `projectRoot`, `compileValidation` fields on `IGenerateTestsRequest`; auto-detection from file extensions |
-| [ADR-079](./ADR-079-language-specific-test-file-path-resolution.md) | Language-Specific Test File Path Resolution | **Proposed** | 2026-03-04 | `TestFileResolver` with per-language `TestFileConvention` for correct test output paths (Maven mirror, `*_test.go`, Rust inline, etc.) |
+| [ADR-075](./ADR-075-unified-test-framework-type-system.md) | Unified TestFramework Type System | **Implemented** | 2026-03-04 | ✅ Single source-of-truth types at `src/shared/types/test-frameworks.ts`, 10 languages + 18 frameworks |
+| [ADR-076](./ADR-076-tree-sitter-wasm-multi-language-parser.md) | tree-sitter WASM Multi-Language Parser Integration | **Implemented** | 2026-03-04 | ✅ Amended to enhanced regex parser, 10 languages, ~97-98% accuracy, ILanguageParser abstraction |
+| [ADR-077](./ADR-077-compilation-validation-loop.md) | Compilation Validation Loop for Generated Tests | **Implemented** | 2026-03-04 | ✅ CompilationValidator for 8 languages, opt-in with graceful fallback, 3-retry repair loop |
+| [ADR-078](./ADR-078-backward-compatible-multi-language-api.md) | Backward-Compatible Multi-Language API Extension | **Implemented** | 2026-03-04 | ✅ Optional language/projectRoot/compileValidation fields, auto-detection, zero breaking changes |
+| [ADR-079](./ADR-079-language-specific-test-file-path-resolution.md) | Language-Specific Test File Path Resolution | **Implemented** | 2026-03-04 | ✅ TestFileResolver with per-language conventions, build tool detection, 10 languages |
+| [ADR-080](./ADR-080-agent-dependency-intelligence.md) | Agent Dependency Intelligence | **Implemented** | 2026-03-13 | ✅ Pre-spawn MCP validation + structured frontmatter dependencies + queen coordinator integration (Issue #342 Items 1 & 2) |
 
 ---
 
@@ -1766,6 +1767,45 @@ export const QE_AGENT_REGISTRY: Record<string, QEAgentProfile> = {
 - P95 Latency: 62ms (target: <100ms) ✓
 - Throughput: 83 tasks/sec (target: >5) ✓
 - 74 unit tests passing
+
+### Phase 2: Multi-Signal Confidence Merging (2026-03-13)
+
+**Context:** The original router used single-signal routing based on capability matching only. Issue #342 Item 3 adds multi-signal confidence merging so that the router combines multiple evidence sources when selecting agents, producing more accurate routing decisions.
+
+**Three Signals:**
+
+1. **User Declaration** (confidence 1.0): Sourced from `preferredAgent` in the task context. When a user explicitly declares which agent to use, this signal always wins. Confidence is fixed at 1.0.
+
+2. **Static Analysis** (confidence 0.5-0.9): Sourced from MCP reference scanning of task descriptions and related files. Code block references (e.g., agent names inside backticks or fenced code) receive confidence 0.5. Prose references (agent names mentioned in natural language) receive confidence 0.9, reflecting higher intentionality.
+
+3. **Behavioral Co-Execution** (confidence 0.0-1.0): Sourced from the SQLite `qe_agent_co_execution` table, which records how often pairs of agents have been successfully co-selected for similar tasks. Confidence follows a linear ramp: `min(1.0, success_count / 20)`. A pair with 0 prior co-executions contributes 0.0 confidence; a pair with 20 or more contributes 1.0.
+
+**Signal Precedence:**
+
+User declaration > static analysis > behavioral. When multiple signals agree on the same agent, the highest-confidence signal is kept and duplicates are removed (skillsmith dedup). Specifically, when a user declaration and an inference signal (static or behavioral) both recommend the same agent, only the declaration is retained to avoid double-counting.
+
+**Implementation:**
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `src/routing/signal-merger.ts` | 205 | `SignalMerger` class with `merge()` method that accepts an array of routing signals and produces a unified confidence-ranked list |
+| `src/routing/co-execution-repository.ts` | 255 | `CoExecutionRepository` with SQLite persistence for recording and querying agent co-execution history |
+| `src/routing/qe-task-router.ts` | modified | Step 4 inserted between scoring and sorting to invoke `SignalMerger.merge()` before final ranking |
+| `src/learning/sqlite-persistence.ts` | modified | New `qe_agent_co_execution` table with columns: `agent_a`, `agent_b`, `success_count`, `last_used`, `task_domain` |
+
+**Default Weights:**
+
+- `staticAnalysisWeight`: 0.7
+- `behavioralWeight`: 0.3
+
+These weights control how static analysis and behavioral signals are blended when no user declaration is present. User declarations bypass weighting entirely (confidence 1.0 override).
+
+**Consequences:**
+
+- The router now combines 3 signals for better agent selection instead of relying on capability matching alone.
+- Co-execution data improves over time via the linear ramp, meaning routing accuracy increases as the system accumulates more task execution history.
+- User declarations provide an escape hatch that guarantees deterministic routing when needed.
+- The skillsmith dedup logic prevents confidence inflation when multiple signals agree on the same agent.
 
 ---
 
