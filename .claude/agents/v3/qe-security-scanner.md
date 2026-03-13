@@ -5,6 +5,14 @@ updated: "2026-01-10"
 description: Comprehensive security scanning with SAST, DAST, dependency scanning, and secrets detection
 v2_compat: qe-security-scanner
 domain: security-compliance
+dependencies:
+  agents:
+    - name: qe-dependency-mapper
+      type: hard
+      reason: "Provides dependency data for vulnerability correlation"
+  mcp_servers:
+    - name: agentic-qe
+      required: true
 ---
 
 <qe_agent_definition>
@@ -17,17 +25,18 @@ V2 Compatibility: Maps to qe-security-scanner for backward compatibility.
 
 <implementation_status>
 Working:
-- SAST scanning with OWASP Top 10 and CWE SANS 25 rules
-- Dependency vulnerability scanning (npm audit, Snyk, NVD)
-- Secrets detection with entropy analysis and git history scan
+- SAST scanning with OWASP Top 10 and CWE SANS 25 regex pattern rules
+- Semgrep integration: runs alongside pattern scanning when semgrep is installed (pip install semgrep)
+- Dependency vulnerability scanning via OSV API (real HTTP calls to osv.dev)
+- AI-powered remediation suggestions via LLM router (ADR-051)
 - SARIF output format for IDE and CI/CD integration
-- AI-powered remediation suggestions
 
 Partial:
-- DAST scanning with authenticated crawling
-- Container image vulnerability scanning
+- DAST scanning: custom fetch-based scanner for security headers, cookies, CORS, XSS/SQLi reflection testing (GET params only, no JS execution, no OWASP ZAP)
+- Secrets detection: regex pattern-based (no TruffleHog/Gitleaks integration)
 
-Planned:
+Not Implemented:
+- Container image vulnerability scanning
 - Runtime application security testing (RAST)
 - Supply chain security analysis (SLSA)
 </implementation_status>
@@ -49,12 +58,12 @@ Use up to 8 concurrent scanners for large codebases.
 </parallel_execution>
 
 <capabilities>
-- **SAST Scanning**: Static analysis with ESLint Security, Semgrep, custom rules
-- **Dependency Scanning**: Check npm, pip, maven dependencies against NVD, GitHub Advisories, Snyk
-- **Secrets Detection**: Find API keys, passwords, tokens using TruffleHog, Gitleaks with entropy analysis
-- **DAST Scanning**: Dynamic testing with OWASP ZAP for XSS, SQLi, CSRF, SSRF
+- **SAST Scanning**: Regex pattern rules (OWASP Top 10, CWE SANS 25) + Semgrep when installed
+- **Dependency Scanning**: npm dependency checks via OSV API (osv.dev)
+- **Secrets Detection**: Regex pattern-based detection of API keys, passwords, tokens in source
+- **DAST Scanning**: Custom fetch-based scanner — security headers, cookies, CORS, XSS/SQLi reflection (GET params only, no browser/JS execution)
 - **SARIF Output**: Generate standardized SARIF reports for GitHub Code Scanning
-- **AI Remediation**: Provide intelligent fix suggestions with code examples
+- **AI Remediation**: LLM-powered fix suggestions with code examples (ADR-051)
 </capabilities>
 
 <memory_namespace>
@@ -225,10 +234,10 @@ Use via Claude Code: `Skill("compliance-testing")`
 **Scan Types**:
 | Scan | Target | Tools | Frequency |
 |------|--------|-------|-----------|
-| SAST | Source code | ESLint Security, Semgrep | Per-commit |
-| Dependency | Dependencies | npm audit, Snyk | Per-build |
-| Secrets | Repo history | TruffleHog, Gitleaks | Per-commit |
-| DAST | Running app | OWASP ZAP | Per-release |
+| SAST | Source code | Regex patterns + Semgrep (when installed) | Per-commit |
+| Dependency | Dependencies | OSV API (osv.dev) | Per-build |
+| Secrets | Source files | Regex pattern detection | Per-commit |
+| DAST | Running app | Custom fetch-based scanner | Per-release |
 
 **Cross-Domain Communication**:
 - Reports vulnerabilities to qe-quality-gate for gate evaluation

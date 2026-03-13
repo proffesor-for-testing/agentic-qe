@@ -41,7 +41,7 @@ import type {
   ScanSummary,
 } from '../../domains/security-compliance/interfaces.js';
 import type { ISecurityScannerService } from '../../domains/security-compliance/services/security-scanner.js';
-import type { SemgrepFinding } from '../../domains/security-compliance/services/semgrep-integration.js';
+// Semgrep is now integrated directly into SASTScanner (no coordination-layer fallback needed)
 import { toError } from '../../shared/error-utils.js';
 
 // CQ-005: Use DomainServiceRegistry instead of dynamic imports from domains/
@@ -60,51 +60,7 @@ function resolveSecurityScannerService(memory: MemoryBackend): ISecurityScannerS
   return factory(memory);
 }
 
-function resolveIsSemgrepAvailable(): Promise<boolean> {
-  const fn = DomainServiceRegistry.resolve<() => Promise<boolean>>(
-    ServiceKeys.isSemgrepAvailable
-  );
-  return fn();
-}
-
-interface SemgrepResultLike {
-  success: boolean;
-  findings: SemgrepFinding[];
-  errors: string[];
-  version?: string;
-}
-
-interface ConvertedFinding {
-  id: string;
-  title: string;
-  description: string;
-  severity: 'critical' | 'high' | 'medium' | 'low';
-  file: string;
-  line: number;
-  column: number;
-  snippet: string;
-  cweId?: string;
-  owaspCategory?: string;
-  remediation: string;
-  references: string[];
-}
-
-function resolveRunSemgrepWithRules(
-  targetPath: string,
-  ruleSetIds: string[],
-): Promise<SemgrepResultLike> {
-  const fn = DomainServiceRegistry.resolve<
-    (t: string, r: string[]) => Promise<SemgrepResultLike>
-  >(ServiceKeys.runSemgrepWithRules);
-  return fn(targetPath, ruleSetIds);
-}
-
-function resolveConvertSemgrepFindings(findings: SemgrepFinding[]): ConvertedFinding[] {
-  const fn = DomainServiceRegistry.resolve<
-    (f: SemgrepFinding[]) => ConvertedFinding[]
-  >(ServiceKeys.convertSemgrepFindings);
-  return fn(findings);
-}
+// Semgrep resolver functions removed — SASTScanner handles semgrep internally now
 
 // ============================================================================
 // Protocol Types
@@ -452,8 +408,9 @@ export class SecurityAuditProtocol {
   // ==========================================================================
 
   /**
-   * Scan for vulnerabilities using SAST
-   * Delegates to real SecurityScannerService with semgrep integration when available
+   * Scan for vulnerabilities using SAST.
+   * SASTScanner now integrates semgrep internally (runs alongside pattern scanning
+   * when semgrep is installed), so no separate fallback is needed here.
    */
   async scanVulnerabilities(options: SecurityAuditOptions): Promise<Result<SASTResult>> {
     try {
@@ -465,112 +422,30 @@ export class SecurityAuditProtocol {
 
       const files = this.config.scanPaths.map(path => FilePath.create(path));
 
-      // Try real SecurityScannerService first
       try {
         const scanner = this.getSecurityScanner();
         const ruleSetIds = options.ruleSetIds || ['owasp-top-10', 'cwe-sans-25'];
+        // SASTScanner.scanWithRules now runs pattern scanning + semgrep in parallel
         const scanResult = await scanner.scanWithRules(files, ruleSetIds);
 
         if (scanResult.success) {
           return ok(scanResult.value);
         }
-        // If scanner fails, continue to fallback
+        return err(scanResult.error);
       } catch (scannerError) {
-        // Scanner unavailable - log and continue to fallback
         await this.memory.set(
           'security-audit:scanner-error',
           { error: String(scannerError), timestamp: new Date().toISOString() },
           { namespace: 'security-compliance', ttl: 3600 }
         );
+        return err(new Error(
+          `SAST scanning failed: ${String(scannerError)}. ` +
+          'Ensure SecurityScannerService is properly configured.'
+        ));
       }
-
-      // Try semgrep if available as secondary option
-      const semgrepAvailable = await resolveIsSemgrepAvailable();
-      if (semgrepAvailable) {
-        try {
-          const semgrepResult = await resolveRunSemgrepWithRules(
-            this.config.scanPaths[0] || '.',
-            options.ruleSetIds || ['owasp-top-10']
-          );
-
-          if (semgrepResult.success && semgrepResult.findings.length > 0) {
-            const convertedFindings = resolveConvertSemgrepFindings(semgrepResult.findings);
-            const vulnerabilities: Vulnerability[] = convertedFindings.map(f => ({
-              id: uuidv4(),
-              cveId: undefined,
-              title: f.title,
-              description: f.description,
-              severity: f.severity as VulnerabilitySeverity,
-              category: this.mapSemgrepCategory(f.owaspCategory || 'injection'),
-              location: {
-                file: f.file,
-                line: f.line,
-                column: f.column,
-                snippet: f.snippet,
-              },
-              remediation: {
-                description: f.remediation,
-                estimatedEffort: 'moderate',
-                automatable: false,
-              },
-              references: f.references,
-            }));
-
-            const summary = this.calculateSummary(vulnerabilities);
-
-            return ok({
-              scanId: uuidv4(),
-              vulnerabilities,
-              summary,
-              coverage: {
-                filesScanned: files.length,
-                linesScanned: vulnerabilities.length * 50,
-                rulesApplied: 45,
-              },
-            });
-          }
-        } catch (semgrepError) {
-          // Semgrep failed - log error
-          await this.memory.set(
-            'security-audit:semgrep-error',
-            { error: String(semgrepError), timestamp: new Date().toISOString() },
-            { namespace: 'security-compliance', ttl: 3600 }
-          );
-        }
-      }
-
-      // NO FALLBACK - Security scans must either succeed or fail explicitly
-      // An empty vulnerability list would falsely indicate "scan succeeded, nothing found"
-      // when in reality we couldn't scan at all
-      return err(new Error(
-        'SAST scanning unavailable: neither SecurityScannerService nor semgrep could execute. ' +
-        'Install semgrep (pip install semgrep) or ensure SecurityScannerService is properly configured.'
-      ));
     } catch (error) {
       return err(toError(error));
     }
-  }
-
-  /**
-   * Map semgrep OWASP category to VulnerabilityCategory
-   */
-  private mapSemgrepCategory(owaspCategory: string): VulnerabilityCategory {
-    const categoryMap: Record<string, VulnerabilityCategory> = {
-      'A01': 'access-control',
-      'A02': 'sensitive-data',
-      'A03': 'injection',
-      'A04': 'insecure-deserialization',
-      'A05': 'security-misconfiguration',
-      'A06': 'vulnerable-components',
-      'A07': 'broken-auth',
-      'A08': 'insecure-deserialization',
-      'A09': 'insufficient-logging',
-      'A10': 'xxe',
-      'injection': 'injection',
-      'xss': 'xss',
-      'broken-auth': 'broken-auth',
-    };
-    return categoryMap[owaspCategory] || 'security-misconfiguration';
   }
 
   /**
