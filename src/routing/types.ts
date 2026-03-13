@@ -334,6 +334,12 @@ export interface AgentPerformanceMetrics {
 }
 
 // ============================================================================
+// Agent Dependency Types (Issue #342 Item 2)
+// ============================================================================
+
+export type { DependencyType, AgentDependency, McpServerDependency, ModelRequirement, AgentDependencies } from './agent-dependency-graph.js';
+
+// ============================================================================
 // Router Configuration
 // ============================================================================
 

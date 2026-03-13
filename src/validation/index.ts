@@ -167,3 +167,21 @@ export {
   bddScenarioStep,
   holisticQualityStep,
 } from './steps/requirements.js';
+
+// ============================================================================
+// Agent MCP Dependency Validation (Issue #342 Item 1)
+// ============================================================================
+
+export {
+  scanMcpReferences,
+  deduplicateByServer,
+  getAvailableMcpServers,
+  validateAgentMcpDeps,
+  validateFleetMcpDeps,
+} from './steps/agent-mcp-validator.js';
+
+export type {
+  McpToolReference,
+  AgentMcpValidationResult,
+  FleetMcpValidationResult,
+} from './steps/agent-mcp-validator.js';

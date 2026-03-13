@@ -18,6 +18,7 @@ import type { DomainBreakerRegistry } from './circuit-breaker/index.js';
 import type { DomainTeamManager } from './agent-teams/domain-team-manager.js';
 import type { TierSelector } from './fleet-tiers/index.js';
 import type { TraceCollector } from './agent-teams/tracing.js';
+import type { DependencyGraphResult, SpawnPlan } from '../routing/agent-dependency-graph.js';
 import type { HypothesisManager } from './competing-hypotheses/index.js';
 import type { FederationMailbox } from './federation/index.js';
 import type { DynamicScaler } from './dynamic-scaling/index.js';
@@ -216,6 +217,10 @@ export interface IQueenCoordinator {
   getHypothesisManager(): HypothesisManager | null;
   getFederationMailbox(): FederationMailbox | null;
   getDynamicScaler(): DynamicScaler | null;
+
+  // Issue #342: Dependency Intelligence
+  getSpawnPlan(agentNames: string[]): SpawnPlan;
+  getDependencyGraph(): DependencyGraphResult | null;
 }
 
 export interface TaskFilter {

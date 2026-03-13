@@ -44,6 +44,31 @@ export {
   createQETaskRouter,
 } from './qe-task-router.js';
 
+// Co-Execution Repository (Issue #342 Item 3)
+export {
+  CoExecutionRepository,
+  getCoExecutionRepository,
+} from './co-execution-repository.js';
+
+export type {
+  CoExecutionRecord,
+  CoExecutionStats,
+} from './co-execution-repository.js';
+
+// Signal Merger (Issue #342 Item 3)
+export {
+  SignalMerger,
+  createSignalMerger,
+  DEFAULT_SIGNAL_MERGER_CONFIG,
+} from './signal-merger.js';
+
+export type {
+  SignalSource,
+  RoutingSignal,
+  MergedAgentScore,
+  SignalMergerConfig,
+} from './signal-merger.js';
+
 // Feedback
 export {
   RoutingFeedbackCollector,
@@ -108,6 +133,25 @@ export type {
   FallbackConfig,
   RoutingConfig,
 } from './routing-config.js';
+
+// Agent Dependency Graph (Issue #342 Item 2)
+export {
+  parseDependenciesFromFrontmatter,
+  buildDependencyGraph,
+  createSpawnPlan,
+  getAgentDependencies,
+} from './agent-dependency-graph.js';
+
+export type {
+  DependencyType,
+  AgentDependency,
+  McpServerDependency,
+  ModelRequirement,
+  AgentDependencies,
+  DependencyNode,
+  DependencyGraphResult,
+  SpawnPlan,
+} from './agent-dependency-graph.js';
 
 // EMA Calibration (loki-mode inspired)
 export {

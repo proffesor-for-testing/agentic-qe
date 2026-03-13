@@ -25,6 +25,9 @@ import type { TaskAuditLogger } from './services';
 import type { QueenRouterAdapter, QueenRouteDecision } from '../routing/queen-integration.js';
 import type { ClassifiableTask } from '../routing/task-classifier.js';
 
+// Issue #342: Co-execution behavioral recording
+import type { CoExecutionRepository } from '../routing/co-execution-repository.js';
+
 // ADR-064 subsystems
 import type { DomainBreakerRegistry } from './circuit-breaker/index.js';
 import type { DomainTeamManager } from './agent-teams/domain-team-manager.js';
@@ -79,6 +82,9 @@ export interface QueenTaskContext {
   readonly tierSelector: TierSelector | null;
   readonly traceCollector: TraceCollector | null;
   readonly taskTraceContexts: Map<string, TraceContext>;
+
+  // Issue #342 Item 3: Co-execution behavioral recording
+  readonly coExecutionRepo: CoExecutionRepository | null;
 
   // Callbacks into the coordinator
   requestAgentSpawn(domain: DomainName, type: string, capabilities: string[]): Promise<Result<string, Error>>;
@@ -458,6 +464,21 @@ async function handleTaskCompletionCallback(
 
   // CC-002: Decrement running task counter
   ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
+
+  // Issue #342 Item 3: Record co-execution behavioral data for all agents in this task.
+  // This feeds the behavioral signal into the signal merger for future routing decisions.
+  if (ctx.coExecutionRepo && execution.assignedAgents.length >= 2) {
+    try {
+      ctx.coExecutionRepo.recordSwarmCoExecution(
+        execution.assignedAgents,
+        execution.assignedDomain || 'unknown',
+        result.success,
+        execution.task.type,
+      );
+    } catch {
+      // Non-blocking: behavioral recording failure should not affect task completion
+    }
+  }
 
   // Stop assigned agents
   for (const agentId of execution.assignedAgents) {

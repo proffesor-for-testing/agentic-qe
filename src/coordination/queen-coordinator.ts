@@ -53,6 +53,11 @@ import {
   QueenRouterAdapter,
 } from '../routing/queen-integration.js';
 
+// Issue #342: Dependency intelligence integration
+import { type CoExecutionRepository, getCoExecutionRepository } from '../routing/co-execution-repository.js';
+import { validateAgentMcpDeps, getAvailableMcpServers } from '../validation/steps/agent-mcp-validator.js';
+import { buildDependencyGraph, createSpawnPlan, type DependencyGraphResult } from '../routing/agent-dependency-graph.js';
+
 // V3 Integration: @claude-flow/guidance governance (ADR-058)
 import { queenGovernanceAdapter, type TaskGovernanceContext } from '../governance/index.js';
 
@@ -189,6 +194,11 @@ export class QueenCoordinator implements IQueenCoordinator {
   private federationMailbox: FederationMailbox | null = null;
   private dynamicScaler: DynamicScaler | null = null;
 
+  // Issue #342: Dependency intelligence
+  private coExecutionRepo: CoExecutionRepository | null = null;
+  private dependencyGraph: DependencyGraphResult | null = null;
+  private availableMcpServers: string[] = [];
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly agentCoordinator: AgentCoordinator,
@@ -283,6 +293,34 @@ export class QueenCoordinator implements IQueenCoordinator {
 
     // ADR-064: Initialize subsystems (non-fatal failures)
     this.initializeSubsystems();
+
+    // Issue #342: Initialize dependency intelligence (non-fatal)
+    try {
+      // Build dependency graph from agent definitions
+      const { join } = await import('path');
+      const agentsDir = join(process.cwd(), '.claude', 'agents', 'v3');
+      this.dependencyGraph = buildDependencyGraph(agentsDir);
+      this.availableMcpServers = getAvailableMcpServers(process.cwd());
+
+      // Initialize co-execution repository for behavioral learning
+      const { getUnifiedMemory } = await import('../kernel/unified-memory.js');
+      const unifiedMemory = getUnifiedMemory();
+      await unifiedMemory.initialize();
+      this.coExecutionRepo = getCoExecutionRepository();
+      this.coExecutionRepo.initialize(unifiedMemory.getDatabase());
+
+      if (this.dependencyGraph.warnings.length > 0) {
+        logger.warn(`Dependency graph: ${this.dependencyGraph.warnings.length} warning(s)`, {
+          warnings: this.dependencyGraph.warnings.slice(0, 5),
+        });
+      }
+      logger.info('Dependency intelligence initialized', {
+        agents: this.dependencyGraph.nodes.size,
+        mcpServers: this.availableMcpServers.length,
+      });
+    } catch (depError) {
+      logger.warn('Dependency intelligence initialization failed (continuing)', { error: depError });
+    }
 
     // Publish initialization event
     await this.publishEvent('QueenInitialized', {
@@ -477,6 +515,26 @@ export class QueenCoordinator implements IQueenCoordinator {
   }
 
   // ============================================================================
+  // Issue #342 Item 2: Dependency-Aware Spawn Planning
+  // ============================================================================
+
+  /**
+   * Get a phased spawn plan that respects hard agent dependencies.
+   * Use this when spawning multiple agents for a swarm task.
+   */
+  getSpawnPlan(agentNames: string[]) {
+    if (!this.dependencyGraph) return { phases: [agentNames], warnings: [], unsatisfiedHardDeps: [] };
+    return createSpawnPlan(agentNames, this.dependencyGraph);
+  }
+
+  /**
+   * Get the dependency graph for the agent fleet.
+   */
+  getDependencyGraph(): DependencyGraphResult | null {
+    return this.dependencyGraph;
+  }
+
+  // ============================================================================
   // Work Stealing
   // ============================================================================
 
@@ -517,6 +575,28 @@ export class QueenCoordinator implements IQueenCoordinator {
   ): Promise<Result<string, Error>> {
     if (!this.agentCoordinator.canSpawn()) {
       return err(new Error('Maximum concurrent agents reached (15)'));
+    }
+
+    // Issue #342 Item 1: Pre-spawn MCP validation (advisory only — never blocks).
+    // Check dependency graph nodes in this domain for declared MCP server requirements.
+    if (this.dependencyGraph && this.availableMcpServers.length > 0) {
+      try {
+        // Find agents in this domain that have MCP server declarations
+        for (const [, node] of this.dependencyGraph.nodes) {
+          const mcpDeps = node.dependencies.mcpServers;
+          if (!mcpDeps || mcpDeps.length === 0) continue;
+          const missing = mcpDeps
+            .filter(s => s.required && !this.availableMcpServers.includes(s.name));
+          if (missing.length > 0) {
+            logger.warn(`Pre-spawn MCP advisory: ${node.agentName} needs ${missing.map(m => m.name).join(', ')}`, {
+              agent: node.agentName, domain, missing: missing.map(m => m.name),
+            });
+            break; // Log once per spawn, not per agent
+          }
+        }
+      } catch {
+        // Advisory validation must never block spawning
+      }
     }
 
     const result = await this.agentCoordinator.spawn({
@@ -877,6 +957,7 @@ export class QueenCoordinator implements IQueenCoordinator {
       get tierSelector() { return self.tierSelector; },
       get traceCollector() { return self.traceCollector; },
       taskTraceContexts: self.taskTraceContexts,
+      get coExecutionRepo() { return self.coExecutionRepo; },
       requestAgentSpawn: (d, t, c) => self.requestAgentSpawn(d, t, c),
       publishEvent: (t, p) => self.publishEvent(t, p),
       getDomainLoad: (d) => self.getDomainLoad(d),

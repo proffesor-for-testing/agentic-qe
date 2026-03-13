@@ -5,6 +5,20 @@ updated: "2026-01-10"
 description: Deployment readiness assessment with go/no-go decisions, risk aggregation, and rollback planning
 v2_compat: qe-deployment-readiness
 domain: quality-assessment
+dependencies:
+  agents:
+    - name: qe-quality-gate
+      type: hard
+      reason: "Provides quality gate results for deployment decision"
+    - name: qe-risk-assessor
+      type: soft
+      reason: "Provides risk assessment context"
+    - name: qe-security-scanner
+      type: soft
+      reason: "Provides security scan results"
+  mcp_servers:
+    - name: agentic-qe
+      required: true
 ---
 
 <qe_agent_definition>
