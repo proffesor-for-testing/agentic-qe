@@ -252,21 +252,6 @@ export type {
 } from './qe-unified-memory.js';
 
 // ============================================================================
-// V2 to V3 Migration (ADR-038)
-// ============================================================================
-
-export {
-  V2ToV3Migrator,
-  migrateV2ToV3,
-} from './v2-to-v3-migration.js';
-
-export type {
-  V2MigrationConfig,
-  V2MigrationProgress,
-  V2MigrationResult,
-} from './v2-to-v3-migration.js';
-
-// ============================================================================
 // Token Tracking (ADR-042)
 // ============================================================================
 

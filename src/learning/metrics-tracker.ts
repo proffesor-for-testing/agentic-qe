@@ -176,7 +176,7 @@ export class LearningMetricsTracker {
     // Pattern metrics
     const patternStats = this.getPatternStats(today);
 
-    // Experience metrics (from learning_experiences if exists, or qe_pattern_usage)
+    // Experience metrics (from captured_experiences or qe_pattern_usage)
     const experienceStats = this.getExperienceStats(today);
 
     // Q-value metrics
@@ -292,19 +292,20 @@ export class LearningMetricsTracker {
       return { total: 0, recordedToday: 0, avgReward: 0, successRate: 0 };
     }
 
-    // Try learning_experiences table first (v2 compatible)
-    const learningTableExists = this.db.prepare(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='learning_experiences'`
+    // Use captured_experiences table
+    const capturedTableExists = this.db.prepare(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='captured_experiences'`
     ).get();
 
-    if (learningTableExists) {
+    if (capturedTableExists) {
       const stats = this.db.prepare(`
         SELECT
           COUNT(*) as total,
-          SUM(CASE WHEN date(datetime(created_at, 'unixepoch')) = ? THEN 1 ELSE 0 END) as recorded_today,
-          AVG(reward) as avg_reward,
-          AVG(CASE WHEN reward >= 0.5 THEN 1.0 ELSE 0.0 END) as success_rate
-        FROM learning_experiences
+          SUM(CASE WHEN date(started_at) = ? THEN 1 ELSE 0 END) as recorded_today,
+          AVG(quality) as avg_reward,
+          AVG(CASE WHEN success = 1 THEN 1.0 ELSE 0.0 END) as success_rate
+        FROM captured_experiences
+        WHERE agent != 'cli-hook'
       `).get(today) as {
         total: number;
         recorded_today: number;
@@ -408,16 +409,17 @@ export class LearningMetricsTracker {
   private getHistoricalAvgReward(date: string): number {
     if (!this.db) return 0;
 
-    // Try learning_experiences first
+    // Use captured_experiences
     const tableExists = this.db.prepare(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='learning_experiences'`
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='captured_experiences'`
     ).get();
 
     if (tableExists) {
       const result = this.db.prepare(`
-        SELECT AVG(reward) as avg_reward
-        FROM learning_experiences
-        WHERE datetime(created_at, 'unixepoch') <= datetime(?)
+        SELECT AVG(quality) as avg_reward
+        FROM captured_experiences
+        WHERE started_at <= datetime(?)
+          AND agent != 'cli-hook'
       `).get(date + ' 23:59:59') as { avg_reward: number | null };
 
       return result?.avg_reward || 0;

@@ -261,18 +261,6 @@ aqe init --auto
 
 ---
 
-## V2 to V3 Migration
-
-```bash
-aqe migrate status    # check migration status
-aqe migrate run --backup  # migrate with backup
-aqe migrate verify    # verify migration
-```
-
-All V2 agents map to V3 equivalents automatically. Memory, configuration, and learned patterns are migrated.
-
----
-
 ## Documentation
 
 | Guide | Description |

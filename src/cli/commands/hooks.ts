@@ -468,7 +468,27 @@ async function consolidateExperiencesToPatterns(): Promise<number> {
   }
   const db = um.getDatabase();
 
-  // Aggregate unprocessed experiences by domain+agent with quality thresholds
+  // Ensure consolidation columns exist (may be missing on older DBs)
+  const existingCols = new Set(
+    (db.prepare('PRAGMA table_info(captured_experiences)').all() as Array<{ name: string }>).map(c => c.name)
+  );
+  const migrations: Array<[string, string]> = [
+    ['consolidated_into', 'TEXT DEFAULT NULL'],
+    ['consolidation_count', 'INTEGER DEFAULT 1'],
+    ['quality_updated_at', 'TEXT DEFAULT NULL'],
+    ['reuse_success_count', 'INTEGER DEFAULT 0'],
+    ['reuse_failure_count', 'INTEGER DEFAULT 0'],
+  ];
+  for (const [col, def] of migrations) {
+    if (!existingCols.has(col)) {
+      db.exec(`ALTER TABLE captured_experiences ADD COLUMN ${col} ${def}`);
+    }
+  }
+
+  // Aggregate unprocessed experiences by domain+agent with quality thresholds.
+  // Exclude 'cli-hook' agent — these are low-quality hook telemetry events
+  // (quality ~0.40, success_rate ~0.24) that flood the pipeline and block
+  // real pattern creation. See issue #348.
   const aggregates = db.prepare(`
     SELECT
       domain,
@@ -481,6 +501,7 @@ async function consolidateExperiencesToPatterns(): Promise<number> {
       GROUP_CONCAT(DISTINCT source) as sources
     FROM captured_experiences
     WHERE application_count = 0
+      AND agent != 'cli-hook'
     GROUP BY domain, agent
     HAVING cnt >= 3 AND avg_quality >= 0.5 AND success_rate >= 0.6
     ORDER BY avg_quality DESC
@@ -503,21 +524,27 @@ async function consolidateExperiencesToPatterns(): Promise<number> {
 
   for (const agg of aggregates) {
     try {
-      // Check for existing pattern with same domain+agent to avoid duplicates
+      // Use date-bucketed names so new patterns emerge as usage evolves,
+      // instead of silently reinforcing one static pattern forever.
+      const dateBucket = new Date().toISOString().slice(0, 7); // YYYY-MM
+      const patternName = `${agg.agent}-${agg.domain}-${dateBucket}`;
+
+      // Check for existing pattern with same name this month
       const existing = db.prepare(`
         SELECT id FROM qe_patterns
         WHERE qe_domain = ? AND name = ?
         LIMIT 1
-      `).get(agg.domain, `${agg.agent}-session-pattern`) as { id: string } | undefined;
+      `).get(agg.domain, patternName) as { id: string } | undefined;
 
       if (existing) {
-        // Reinforce existing pattern instead of creating duplicate
+        // Reinforce existing monthly pattern
         db.prepare(`
           UPDATE qe_patterns
           SET usage_count = usage_count + ?,
               successful_uses = successful_uses + ?,
               confidence = MIN(0.99, confidence + 0.01),
-              quality_score = MIN(0.99, quality_score + 0.005)
+              quality_score = MIN(0.99, quality_score + 0.005),
+              updated_at = datetime('now')
           WHERE id = ?
         `).run(agg.cnt, agg.successes, existing.id);
       } else {
@@ -536,7 +563,7 @@ async function consolidateExperiencesToPatterns(): Promise<number> {
           'workflow',
           agg.domain,
           agg.domain,
-          `${agg.agent}-session-pattern`,
+          patternName,
           `Auto-consolidated from ${agg.cnt} experiences. Agent: ${agg.agent}, success rate: ${(agg.success_rate * 100).toFixed(0)}%`,
           confidence,
           agg.cnt,

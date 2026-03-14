@@ -10,7 +10,10 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const AQE_DIR = path.join(process.cwd(), '.agentic-qe');
+// Resolve project root from __dirname (this file lives at <project>/.claude/helpers/)
+// This works regardless of the current working directory
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
+const AQE_DIR = path.join(PROJECT_ROOT, '.agentic-qe');
 const RVF_PATH = path.join(AQE_DIR, 'aqe.rvf');
 const DB_PATH = path.join(AQE_DIR, 'memory.db');
 const MAX_AGE_HOURS = 24;

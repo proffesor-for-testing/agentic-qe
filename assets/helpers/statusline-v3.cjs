@@ -665,7 +665,9 @@ function generateJSON(data) {
 // ═══════════════════════════════════════════════════════════════
 
 function main() {
-  const projectDir = process.cwd();
+  // Resolve project root from __dirname (this file lives at <project>/.claude/helpers/)
+  // This works regardless of the current working directory
+  const projectDir = path.resolve(__dirname, '..', '..');
   const claudeInput = getClaudeCodeInput();
 
   // Collect all data

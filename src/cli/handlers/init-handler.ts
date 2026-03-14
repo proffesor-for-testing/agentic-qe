@@ -88,11 +88,6 @@ export class InitHandler implements ICommandHandler {
         options.withContinuedev = true;
       }
 
-      // --auto-migrate implies --auto (must use orchestrator for migration)
-      if (options.autoMigrate && !options.auto && !options.wizard) {
-        options.auto = true;
-      }
-
       // --upgrade implies --auto (must use modular orchestrator to overwrite files)
       if (options.upgrade && !options.auto && !options.wizard) {
         options.auto = true;
@@ -139,7 +134,6 @@ export class InitHandler implements ICommandHandler {
       withCodex: options.withCodex,
       withWindsurf: options.withWindsurf,
       withContinueDev: options.withContinuedev,
-      autoMigrate: options.autoMigrate,
       noGovernance: options.noGovernance,
     });
 
@@ -220,7 +214,6 @@ export class InitHandler implements ICommandHandler {
       minimal: options.minimal,
       skipPatterns: options.skipPatterns,
       withN8n: options.withN8n,
-      autoMigrate: options.autoMigrate,
     };
 
     const orchestrator = new InitOrchestrator(orchestratorOptions);
@@ -451,7 +444,6 @@ interface InitOptions {
   withWindsurf?: boolean;
   withContinuedev?: boolean;
   withAllPlatforms?: boolean;
-  autoMigrate?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
   noGovernance?: boolean;

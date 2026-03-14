@@ -256,6 +256,29 @@ async function doInitialize(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_captured_exp_agent ON captured_experiences(agent);
         CREATE INDEX IF NOT EXISTS idx_captured_exp_completed ON captured_experiences(completed_at DESC);
       `);
+
+      // Add consolidation columns if missing (needed by ExperienceConsolidator)
+      const colNames = new Set(
+        (db.prepare('PRAGMA table_info(captured_experiences)').all() as Array<{ name: string }>).map(c => c.name)
+      );
+      const consolidationCols: Array<[string, string]> = [
+        ['application_count', 'INTEGER DEFAULT 0'],
+        ['avg_token_savings', 'REAL DEFAULT 0'],
+        ['embedding', 'BLOB'],
+        ['embedding_dimension', 'INTEGER'],
+        ['tags', 'TEXT'],
+        ['last_applied_at', 'TEXT'],
+        ['consolidated_into', 'TEXT DEFAULT NULL'],
+        ['consolidation_count', 'INTEGER DEFAULT 1'],
+        ['quality_updated_at', 'TEXT DEFAULT NULL'],
+        ['reuse_success_count', 'INTEGER DEFAULT 0'],
+        ['reuse_failure_count', 'INTEGER DEFAULT 0'],
+      ];
+      for (const [col, def] of consolidationCols) {
+        if (!colNames.has(col)) {
+          db.exec(`ALTER TABLE captured_experiences ADD COLUMN ${col} ${def}`);
+        }
+      }
     }
 
     // Start periodic cleanup of stale experiences

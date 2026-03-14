@@ -15,7 +15,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
 import { findProjectRoot } from '../../kernel/unified-memory.js';
-import { existsSync, writeFileSync, readFileSync, mkdirSync, copyFileSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync, mkdirSync, copyFileSync, renameSync } from 'node:fs';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { stat, unlink } from 'node:fs/promises';
 import type { QEDomain, QEPatternType, QEPatternTemplate, QEPatternContext } from '../../learning/qe-patterns.js';
@@ -87,6 +87,7 @@ Examples:
   registerExportFullCommand(learning);
   registerImportMergeCommand(learning);
   registerDreamCommand(learning);
+  registerRepairCommand(learning);
 
   return learning;
 }
@@ -407,18 +408,21 @@ function registerExtractCommand(learning: Command): void {
         const db = openDatabase(dbPath, { readonly: true });
 
         const experiences = db.prepare(`
-          SELECT task_type, COUNT(*) as count, AVG(reward) as avg_reward, MAX(reward) as max_reward,
-                 MIN(reward) as min_reward, GROUP_CONCAT(DISTINCT action) as actions
-          FROM learning_experiences WHERE reward >= ? GROUP BY task_type HAVING COUNT(*) >= ? ORDER BY avg_reward DESC
+          SELECT domain as task_type, COUNT(*) as count, AVG(quality) as avg_reward, MAX(quality) as max_reward,
+                 MIN(quality) as min_reward, GROUP_CONCAT(DISTINCT agent) as actions
+          FROM captured_experiences WHERE quality >= ? AND agent != 'cli-hook' GROUP BY domain HAVING COUNT(*) >= ? ORDER BY avg_reward DESC
         `).all(minReward, minCount) as Array<{
           task_type: string; count: number; avg_reward: number; max_reward: number; min_reward: number; actions: string;
         }>;
 
-        const memoryPatterns = db.prepare(`
-          SELECT substr(key, 1, 40) as key_prefix, COUNT(*) as count
-          FROM memory_entries WHERE key LIKE 'phase2/learning/%'
-          GROUP BY substr(key, 1, 40) HAVING COUNT(*) >= ? ORDER BY COUNT(*) DESC LIMIT 20
-        `).all(minCount) as Array<{ key_prefix: string; count: number }>;
+        let memoryPatterns: Array<{ key_prefix: string; count: number }> = [];
+        try {
+          memoryPatterns = db.prepare(`
+            SELECT substr(key, 1, 40) as key_prefix, COUNT(*) as count
+            FROM memory_entries WHERE key LIKE 'phase2/learning/%'
+            GROUP BY substr(key, 1, 40) HAVING COUNT(*) >= ? ORDER BY COUNT(*) DESC LIMIT 20
+          `).all(minCount) as Array<{ key_prefix: string; count: number }>;
+        } catch { /* memory_entries table may not exist */ }
 
         db.close();
 
@@ -738,7 +742,7 @@ function registerVerifyCommand(learning: Command): void {
         let tableCounts: Record<string, number> = {};
         try {
           const db = openDatabase(dbPath, { readonly: true });
-          for (const table of ['qe_patterns', 'qe_trajectories', 'learning_experiences', 'kv_store', 'vectors']) {
+          for (const table of ['qe_patterns', 'qe_trajectories', 'captured_experiences', 'kv_store', 'vectors']) {
             try { const r = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }; tableCounts[table] = r.count; } catch { /* table may not exist */ }
           }
           db.close();
@@ -816,9 +820,9 @@ function registerExportFullCommand(learning: Command): void {
         if (options.includeExperiences) {
           try {
             const db = openDatabase(dbPath, { readonly: true });
-            const experiences = db.prepare(`SELECT task_type, action, AVG(reward) as avg_reward, COUNT(*) as count FROM learning_experiences GROUP BY task_type, action ORDER BY count DESC LIMIT 500`).all() as Array<{ task_type: string; action: string; avg_reward: number; count: number }>;
+            const experiences = db.prepare(`SELECT domain as task_type, agent as action, AVG(quality) as avg_reward, COUNT(*) as count FROM captured_experiences WHERE agent != 'cli-hook' GROUP BY domain, agent ORDER BY count DESC LIMIT 500`).all() as Array<{ task_type: string; action: string; avg_reward: number; count: number }>;
             exportData.experiences = experiences.map(e => ({ taskType: e.task_type, action: e.action, reward: e.avg_reward, count: e.count }));
-            const metaRow = db.prepare(`SELECT COUNT(*) as total, AVG(reward) as avg_reward FROM learning_experiences`).get() as { total: number; avg_reward: number };
+            const metaRow = db.prepare(`SELECT COUNT(*) as total, AVG(quality) as avg_reward FROM captured_experiences WHERE agent != 'cli-hook'`).get() as { total: number; avg_reward: number };
             exportData.metadata = { totalExperiences: metaRow.total, avgReward: metaRow.avg_reward };
             db.close();
           } catch { /* table may not exist */ }
@@ -1130,6 +1134,160 @@ function registerDreamCommand(learning: Command): void {
       } catch (error) {
         printError(`dream failed: ${error instanceof Error ? error.message : 'unknown'}`);
         if (error instanceof Error && error.stack) console.error(chalk.dim(error.stack));
+        process.exit(1);
+      }
+    });
+}
+
+// ============================================================================
+// Subcommand: repair
+// ============================================================================
+
+function registerRepairCommand(learning: Command): void {
+  learning
+    .command('repair')
+    .description('Repair a corrupted learning database (dump + reimport to rebuild indexes)')
+    .option('-f, --file <path>', 'Database file to repair (defaults to current project)')
+    .option('--dry-run', 'Show what would be done without modifying files')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const dbPath = options.file ? path.resolve(options.file) : getDbPath();
+        if (!existsSync(dbPath)) throw new Error(`Database file not found: ${dbPath}`);
+
+        // Step 1: Check integrity first
+        const integrityResult = await verifyDatabaseIntegrity(dbPath);
+
+        if (integrityResult.valid) {
+          if (options.json) {
+            printJson({ status: 'healthy', message: 'Database is already healthy, no repair needed', path: dbPath });
+          } else {
+            printSuccess('Database integrity check passed — no repair needed.');
+          }
+          process.exit(0);
+        }
+
+        printInfo(`Corruption detected: ${integrityResult.message}`);
+
+        // Step 2: Count rows before repair
+        let rowCountsBefore: Record<string, number> = {};
+        try {
+          const db = openDatabase(dbPath, { readonly: true });
+          const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[];
+          for (const t of tables) {
+            try {
+              const r = db.prepare(`SELECT COUNT(*) as count FROM "${t.name}"`).get() as { count: number };
+              rowCountsBefore[t.name] = r.count;
+            } catch { /* corrupted table, count what we can */ }
+          }
+          db.close();
+        } catch { /* ignore count failures */ }
+
+        const totalBefore = Object.values(rowCountsBefore).reduce((a, b) => a + b, 0);
+        printInfo(`Found ${Object.keys(rowCountsBefore).length} tables, ~${totalBefore} total rows`);
+
+        if (options.dryRun) {
+          if (options.json) {
+            printJson({ status: 'dry-run', corruptionDetected: true, message: integrityResult.message, tables: rowCountsBefore, totalRows: totalBefore });
+          } else {
+            console.log(chalk.bold('\nDry run — would perform these steps:'));
+            console.log('  1. Backup corrupted DB');
+            console.log('  2. Dump all data via .dump');
+            console.log('  3. Reimport into fresh DB (rebuilds all indexes)');
+            console.log('  4. Verify integrity of repaired DB');
+            console.log('  5. Verify row counts match');
+            console.log('  6. Swap repaired DB into place');
+            console.log('');
+          }
+          process.exit(0);
+        }
+
+        // Step 3: Backup
+        const backupPath = `${dbPath}.bak-${Date.now()}`;
+        copyFileSync(dbPath, backupPath);
+        printInfo(`Backup created: ${backupPath}`);
+
+        // Step 4: Remove stale WAL/SHM
+        for (const suffix of ['-wal', '-shm']) {
+          const walFile = dbPath + suffix;
+          if (existsSync(walFile)) {
+            await unlink(walFile);
+          }
+        }
+
+        // Step 5: Dump and reimport using sqlite3 CLI
+        const { execSync } = await import('node:child_process');
+        const repairedPath = `${dbPath}.repaired`;
+        const dumpPath = `${dbPath}.dump.sql`;
+
+        try {
+          // Dump all data
+          execSync(`sqlite3 "${dbPath}" ".dump" > "${dumpPath}"`, { stdio: 'pipe', timeout: 120000 });
+
+          // Reimport into fresh DB
+          execSync(`sqlite3 "${repairedPath}" < "${dumpPath}"`, { stdio: 'pipe', timeout: 120000 });
+
+          // Enable WAL on repaired DB
+          execSync(`sqlite3 "${repairedPath}" "PRAGMA journal_mode=WAL;"`, { stdio: 'pipe' });
+        } catch (dumpError) {
+          // Clean up partial files
+          if (existsSync(repairedPath)) await unlink(repairedPath);
+          if (existsSync(dumpPath)) await unlink(dumpPath);
+          throw new Error(`sqlite3 dump/reimport failed: ${dumpError instanceof Error ? dumpError.message : 'unknown'}. Is sqlite3 installed?`);
+        }
+
+        // Step 6: Verify repaired DB
+        const repairedIntegrity = await verifyDatabaseIntegrity(repairedPath);
+        if (!repairedIntegrity.valid) {
+          if (existsSync(dumpPath)) await unlink(dumpPath);
+          throw new Error(`Repaired DB still has integrity issues: ${repairedIntegrity.message}. Backup preserved at ${backupPath}`);
+        }
+
+        // Step 7: Verify row counts
+        let rowCountsAfter: Record<string, number> = {};
+        const repairedDb = openDatabase(repairedPath, { readonly: true });
+        const repairedTables = repairedDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[];
+        for (const t of repairedTables) {
+          try {
+            const r = repairedDb.prepare(`SELECT COUNT(*) as count FROM "${t.name}"`).get() as { count: number };
+            rowCountsAfter[t.name] = r.count;
+          } catch { /* skip */ }
+        }
+        repairedDb.close();
+
+        const totalAfter = Object.values(rowCountsAfter).reduce((a, b) => a + b, 0);
+
+        // Step 8: Swap
+        renameSync(dbPath, `${dbPath}.pre-repair`);
+        renameSync(repairedPath, dbPath);
+
+        // Clean up dump file
+        if (existsSync(dumpPath)) await unlink(dumpPath);
+
+        if (options.json) {
+          printJson({
+            status: 'repaired',
+            backupPath,
+            rowsBefore: totalBefore,
+            rowsAfter: totalAfter,
+            tablesRepaired: Object.keys(rowCountsAfter).length,
+            rowCounts: rowCountsAfter,
+          });
+        } else {
+          printSuccess('Database repaired successfully!');
+          console.log(`  Backup:       ${backupPath}`);
+          console.log(`  Rows before:  ${totalBefore}`);
+          console.log(`  Rows after:   ${totalAfter}`);
+          if (totalAfter < totalBefore) {
+            console.log(chalk.yellow(`  Warning: ${totalBefore - totalAfter} rows may have been lost due to data page corruption`));
+          }
+          console.log(`  Tables:       ${Object.keys(rowCountsAfter).length}`);
+          console.log(`  Integrity:    ${chalk.green('OK')}`);
+          console.log('');
+        }
+        process.exit(0);
+      } catch (error) {
+        printError(`repair failed: ${error instanceof Error ? error.message : 'unknown'}`);
         process.exit(1);
       }
     });

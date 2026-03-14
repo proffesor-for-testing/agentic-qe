@@ -956,7 +956,6 @@ import { createCoverageCommand } from './commands/coverage.js';
 import { createQualityCommand } from './commands/quality.js';
 import { createSecurityCommand } from './commands/security.js';
 import { createCodeCommand } from './commands/code.js';
-import { createMigrateCommand } from './commands/migrate.js';
 import { createCompletionsCommand } from './commands/completions.js';
 import { createFleetCommand } from './commands/fleet.js';
 import { createValidateSwarmCommand } from './commands/validate-swarm.js';
@@ -970,7 +969,6 @@ program.addCommand(createCoverageCommand(context, cleanupAndExit, ensureInitiali
 program.addCommand(createQualityCommand(context, cleanupAndExit, ensureInitialized));
 program.addCommand(createSecurityCommand(context, cleanupAndExit, ensureInitialized));
 program.addCommand(createCodeCommand(context, cleanupAndExit, ensureInitialized));
-program.addCommand(createMigrateCommand(context, cleanupAndExit, ensureInitialized));
 program.addCommand(createCompletionsCommand(cleanupAndExit));
 program.addCommand(createFleetCommand(context, cleanupAndExit, ensureInitialized, registerDomainWorkflowActions));
 program.addCommand(createValidateSwarmCommand(context, cleanupAndExit, ensureInitialized));

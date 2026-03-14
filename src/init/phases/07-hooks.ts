@@ -343,13 +343,14 @@ const { execFileSync } = require('child_process');
 
 function q(bin, args, d) { try { return execFileSync(bin, args, { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'pipe'] }).trim(); } catch { return d || ''; } }
 
-const dir = process.cwd();
+const dir = path.resolve(__dirname, '..', '..');
 const dbPath = path.join(dir, '.agentic-qe', 'memory.db');
 let patterns = 0;
 try {
   if (fs.existsSync(dbPath)) {
     const Database = require('better-sqlite3');
     const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    db.pragma('busy_timeout = 5000');
     patterns = db.prepare('SELECT COUNT(*) AS c FROM qe_patterns').get()?.c || 0;
     db.close();
   }
@@ -380,7 +381,8 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const AQE_DIR = path.join(process.cwd(), '.agentic-qe');
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
+const AQE_DIR = path.join(PROJECT_ROOT, '.agentic-qe');
 const RVF_PATH = path.join(AQE_DIR, 'aqe.rvf');
 const DB_PATH = path.join(AQE_DIR, 'memory.db');
 const MAX_AGE_HOURS = 24;
@@ -556,7 +558,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'node .claude/helpers/brain-checkpoint.cjs verify --json',
+              command: 'node "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/helpers/brain-checkpoint.cjs" verify --json',
               timeout: 5000,
               continueOnError: true,
             },
@@ -579,7 +581,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'node .claude/helpers/brain-checkpoint.cjs export --json',
+              command: 'node "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/helpers/brain-checkpoint.cjs" export --json',
               timeout: 60000,
               continueOnError: true,
             },

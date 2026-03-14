@@ -105,7 +105,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks route --task \"$PROMPT\" --json",
+            "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/dist/cli/bundle.js\" hooks route --task \"$PROMPT\" --json",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -117,7 +117,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks session-start --session-id \"$SESSION_ID\" --json",
+            "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/dist/cli/bundle.js\" hooks session-start --session-id \"$SESSION_ID\" --json",
             "timeout": 10000,
             "continueOnError": true
           }
@@ -127,7 +127,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/brain-checkpoint.cjs verify --json",
+            "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/helpers/brain-checkpoint.cjs\" verify --json",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -139,7 +139,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks session-end --save-state --json",
+            "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/dist/cli/bundle.js\" hooks session-end --save-state --json",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -149,7 +149,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/helpers/brain-checkpoint.cjs export --json",
+            "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/helpers/brain-checkpoint.cjs\" export --json",
             "timeout": 60000,
             "continueOnError": true
           }
@@ -159,7 +159,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "node .claude/helpers/statusline-v3.cjs 2>/dev/null || .claude/statusline-v3.sh 2>/dev/null || echo \"▊ Agentic QE v3\"",
+    "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/helpers/statusline-v3.cjs\" 2>/dev/null || echo \"▊ Agentic QE v3\"",
     "refreshMs": 5000,
     "enabled": true
   },
@@ -176,8 +176,7 @@
   },
   "includeCoAuthoredBy": true,
   "enabledMcpjsonServers": [
-    "agentic-qe",
-    "claude-flow"
+    "agentic-qe"
   ],
   "claudeFlow": {
     "version": "3.0.0",
