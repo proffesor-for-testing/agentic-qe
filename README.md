@@ -159,7 +159,7 @@ Plus **7 TDD subagents** (red, green, refactor, code/integration/performance/sec
 
 ---
 
-## 80 QE Skills
+## 74 QE Skills
 
 Agents automatically apply relevant skills from the skill library. Skills are rated by **trust tier**:
 
@@ -171,7 +171,7 @@ Agents automatically apply relevant skills from the skill library. Skills are ra
 | **Tier 0 — Advisory** | 5 | Guidance only |
 
 <details>
-<summary><b>View all 80 skills</b></summary>
+<summary><b>View all 74 skills</b></summary>
 
 **Core Testing (12):** agentic-quality-engineering, holistic-testing-pact, context-driven-testing, tdd-london-chicago, xp-practices, risk-based-testing, test-automation-strategy, refactoring-patterns, shift-left-testing, shift-right-testing, regression-testing, verification-quality
 
