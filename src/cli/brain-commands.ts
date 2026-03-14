@@ -10,7 +10,7 @@
  *   - 'jsonl' — JSONL directory format (fallback, no native dependency)
  */
 
-import Database from 'better-sqlite3';
+import { openDatabase } from '../shared/safe-db.js';
 import {
   exportBrain as coreExportBrain,
   importBrain as coreImportBrain,
@@ -51,8 +51,7 @@ export async function exportBrain(
   const format = resolveFormat(options.format);
 
   if (format === 'rvf') {
-    const db = new Database(dbPath, { readonly: true });
-    db.pragma('journal_mode = WAL');
+    const db = openDatabase(dbPath, { readonly: true });
     try {
       return exportBrainToRvf(db, {
         outputPath: options.outputPath,
@@ -64,8 +63,7 @@ export async function exportBrain(
   }
 
   // JSONL fallback
-  const db = new Database(dbPath, { readonly: true });
-  db.pragma('journal_mode = WAL');
+  const db = openDatabase(dbPath, { readonly: true });
   try {
     return coreExportBrain(db, options, dbPath);
   } finally {
@@ -88,8 +86,7 @@ export async function importBrain(
   const format = detectImportFormat(containerPath, options.format);
 
   if (format === 'rvf') {
-    const db = new Database(dbPath);
-    db.pragma('journal_mode = WAL');
+    const db = openDatabase(dbPath);
     try {
       return importBrainFromRvf(db, containerPath, {
         mergeStrategy: options.mergeStrategy,
@@ -101,8 +98,7 @@ export async function importBrain(
   }
 
   // JSONL fallback
-  const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
+  const db = openDatabase(dbPath);
   try {
     return coreImportBrain(db, containerPath, options);
   } finally {
@@ -144,7 +140,7 @@ export interface WitnessBackfillResult {
 export async function witnessBackfill(
   dbPath: string,
 ): Promise<WitnessBackfillResult> {
-  const db = new Database(dbPath, { readonly: false });
+  const db = openDatabase(dbPath);
   try {
     const chain = createWitnessChain(db);
     await chain.initialize();

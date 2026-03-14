@@ -350,6 +350,7 @@ try {
   if (fs.existsSync(dbPath)) {
     const Database = require('better-sqlite3');
     const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    db.pragma('busy_timeout = 5000');
     patterns = db.prepare('SELECT COUNT(*) AS c FROM qe_patterns').get()?.c || 0;
     db.close();
   }

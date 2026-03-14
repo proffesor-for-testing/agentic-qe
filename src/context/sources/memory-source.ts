@@ -26,8 +26,8 @@ export class MemoryContextSource implements ContextSource {
       }
 
       // Dynamic import to avoid hard dependency
-      const Database = (await import('better-sqlite3')).default;
-      const db = new Database(dbPath, { readonly: true });
+      const { openDatabase } = await import('../../shared/safe-db.js');
+      const db = openDatabase(dbPath, { readonly: true });
 
       try {
         // Query patterns relevant to the task domain

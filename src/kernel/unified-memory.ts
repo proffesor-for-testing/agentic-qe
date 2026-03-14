@@ -22,7 +22,8 @@
  * - unified-memory.ts: UnifiedMemoryManager class (this file, facade)
  */
 
-import Database, { type Database as DatabaseType, type Statement } from 'better-sqlite3';
+import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
+import { openDatabase as openSafeDatabase } from '../shared/safe-db.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import * as fs from 'fs';
@@ -352,14 +353,12 @@ export class UnifiedMemoryManager {
         }
       }
 
-      this.db = new Database(this.config.dbPath);
-
-      if (this.config.walMode) {
-        this.db.pragma('journal_mode = WAL');
-      }
+      this.db = openSafeDatabase(this.config.dbPath, {
+        walMode: this.config.walMode,
+        busyTimeout: this.config.busyTimeout,
+      });
       this.db.pragma(`mmap_size = ${this.config.mmapSize}`);
       this.db.pragma(`cache_size = ${this.config.cacheSize}`);
-      this.db.pragma(`busy_timeout = ${this.config.busyTimeout}`);
       this.db.pragma('foreign_keys = ON');
 
       await this.runMigrations();
