@@ -408,18 +408,21 @@ function registerExtractCommand(learning: Command): void {
         const db = openDatabase(dbPath, { readonly: true });
 
         const experiences = db.prepare(`
-          SELECT task_type, COUNT(*) as count, AVG(reward) as avg_reward, MAX(reward) as max_reward,
-                 MIN(reward) as min_reward, GROUP_CONCAT(DISTINCT action) as actions
-          FROM learning_experiences WHERE reward >= ? GROUP BY task_type HAVING COUNT(*) >= ? ORDER BY avg_reward DESC
+          SELECT domain as task_type, COUNT(*) as count, AVG(quality) as avg_reward, MAX(quality) as max_reward,
+                 MIN(quality) as min_reward, GROUP_CONCAT(DISTINCT agent) as actions
+          FROM captured_experiences WHERE quality >= ? AND agent != 'cli-hook' GROUP BY domain HAVING COUNT(*) >= ? ORDER BY avg_reward DESC
         `).all(minReward, minCount) as Array<{
           task_type: string; count: number; avg_reward: number; max_reward: number; min_reward: number; actions: string;
         }>;
 
-        const memoryPatterns = db.prepare(`
-          SELECT substr(key, 1, 40) as key_prefix, COUNT(*) as count
-          FROM memory_entries WHERE key LIKE 'phase2/learning/%'
-          GROUP BY substr(key, 1, 40) HAVING COUNT(*) >= ? ORDER BY COUNT(*) DESC LIMIT 20
-        `).all(minCount) as Array<{ key_prefix: string; count: number }>;
+        let memoryPatterns: Array<{ key_prefix: string; count: number }> = [];
+        try {
+          memoryPatterns = db.prepare(`
+            SELECT substr(key, 1, 40) as key_prefix, COUNT(*) as count
+            FROM memory_entries WHERE key LIKE 'phase2/learning/%'
+            GROUP BY substr(key, 1, 40) HAVING COUNT(*) >= ? ORDER BY COUNT(*) DESC LIMIT 20
+          `).all(minCount) as Array<{ key_prefix: string; count: number }>;
+        } catch { /* memory_entries table may not exist */ }
 
         db.close();
 
@@ -739,7 +742,7 @@ function registerVerifyCommand(learning: Command): void {
         let tableCounts: Record<string, number> = {};
         try {
           const db = openDatabase(dbPath, { readonly: true });
-          for (const table of ['qe_patterns', 'qe_trajectories', 'learning_experiences', 'kv_store', 'vectors']) {
+          for (const table of ['qe_patterns', 'qe_trajectories', 'captured_experiences', 'kv_store', 'vectors']) {
             try { const r = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number }; tableCounts[table] = r.count; } catch { /* table may not exist */ }
           }
           db.close();
@@ -817,9 +820,9 @@ function registerExportFullCommand(learning: Command): void {
         if (options.includeExperiences) {
           try {
             const db = openDatabase(dbPath, { readonly: true });
-            const experiences = db.prepare(`SELECT task_type, action, AVG(reward) as avg_reward, COUNT(*) as count FROM learning_experiences GROUP BY task_type, action ORDER BY count DESC LIMIT 500`).all() as Array<{ task_type: string; action: string; avg_reward: number; count: number }>;
+            const experiences = db.prepare(`SELECT domain as task_type, agent as action, AVG(quality) as avg_reward, COUNT(*) as count FROM captured_experiences WHERE agent != 'cli-hook' GROUP BY domain, agent ORDER BY count DESC LIMIT 500`).all() as Array<{ task_type: string; action: string; avg_reward: number; count: number }>;
             exportData.experiences = experiences.map(e => ({ taskType: e.task_type, action: e.action, reward: e.avg_reward, count: e.count }));
-            const metaRow = db.prepare(`SELECT COUNT(*) as total, AVG(reward) as avg_reward FROM learning_experiences`).get() as { total: number; avg_reward: number };
+            const metaRow = db.prepare(`SELECT COUNT(*) as total, AVG(quality) as avg_reward FROM captured_experiences WHERE agent != 'cli-hook'`).get() as { total: number; avg_reward: number };
             exportData.metadata = { totalExperiences: metaRow.total, avgReward: metaRow.avg_reward };
             db.close();
           } catch { /* table may not exist */ }

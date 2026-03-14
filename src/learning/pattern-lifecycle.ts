@@ -225,7 +225,7 @@ export class PatternLifecycleManager {
   // ============================================================================
 
   /**
-   * Get recent experiences from learning_experiences table
+   * Get recent experiences from captured_experiences table.
    */
   getRecentExperiences(options: {
     minReward?: number;
@@ -235,39 +235,41 @@ export class PatternLifecycleManager {
     const minReward = options.minReward ?? this.config.promotionRewardThreshold;
     const limit = options.limit ?? 100;
     const sinceDays = options.sinceDays ?? 7;
-    const sinceTimestamp = Date.now() - (sinceDays * 24 * 60 * 60 * 1000);
 
-    // Check if learning_experiences table exists
-    const tableExists = this.db.prepare(`
-      SELECT name FROM sqlite_master
-      WHERE type='table' AND name='learning_experiences'
-    `).get();
+    const tableExists = this.db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='captured_experiences'"
+    ).get();
 
     if (!tableExists) {
-      console.log('[PatternLifecycle] learning_experiences table not found');
+      logger.debug('captured_experiences table not found');
       return [];
     }
 
+    const sinceDate = new Date(Date.now() - sinceDays * 86400000)
+      .toISOString().replace('T', ' ').slice(0, 19);
+
     const aggregates = this.db.prepare(`
       SELECT
-        task_type,
+        domain as task_type,
         COUNT(*) as count,
-        AVG(reward) as avg_reward,
-        MAX(reward) as max_reward,
-        MIN(reward) as min_reward,
-        SUM(CASE WHEN reward >= ? THEN 1 ELSE 0 END) as success_count,
-        GROUP_CONCAT(DISTINCT action) as actions,
-        MAX(created_at) as latest_at
-      FROM learning_experiences
-      WHERE created_at >= ? AND reward >= ?
-      GROUP BY task_type
+        AVG(quality) as avg_reward,
+        MAX(quality) as max_reward,
+        MIN(quality) as min_reward,
+        SUM(CASE WHEN quality >= ? THEN 1 ELSE 0 END) as success_count,
+        GROUP_CONCAT(DISTINCT agent) as actions,
+        MAX(started_at) as latest_at
+      FROM captured_experiences
+      WHERE started_at >= ?
+        AND quality >= ?
+        AND agent != 'cli-hook'
+      GROUP BY domain
       HAVING COUNT(*) >= ?
       ORDER BY avg_reward DESC
       LIMIT ?
     `).all(
       minReward,
-      sinceTimestamp,
-      minReward * 0.5, // Include experiences above half threshold for context
+      sinceDate,
+      minReward * 0.5,
       this.config.promotionMinOccurrences,
       limit
     ) as Array<{
@@ -278,7 +280,7 @@ export class PatternLifecycleManager {
       min_reward: number;
       success_count: number;
       actions: string | null;
-      latest_at: number;
+      latest_at: string;
     }>;
 
     return aggregates.map(agg => ({
