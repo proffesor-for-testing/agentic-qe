@@ -5,6 +5,20 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.22] - 2026-03-14
+
+### Fixed
+
+- **Hook path resolution** — Helper scripts (`brain-checkpoint.cjs`, `statusline-v3.cjs`) used `process.cwd()` to find the project root, which broke when Claude Code ran hooks from a different working directory. Now uses `path.resolve(__dirname, '..', '..')` for reliable resolution regardless of `cwd`. (#352)
+- **Invalid JSON in settings.json** — Hook commands for `SessionStart`, `Stop`, and `UserPromptSubmit` had unescaped double quotes around `$(git rev-parse ...)` subshells, producing invalid JSON that Claude Code could not parse.
+- **Pattern growth pipeline unblocked** — Pattern promotion and metrics queries referenced the removed `learning_experiences` table. Updated to use `captured_experiences` with correct column mappings (`quality` instead of `reward`, `agent` instead of `action_type`).
+- **SQLite corruption prevention** — All database open calls now use the safe wrapper (`openSafeDatabase`) which sets WAL mode, `busy_timeout=5000`, and `foreign_keys=ON` consistently. (#348)
+
+### Changed
+
+- **V2 migration code removed** — The `aqe migrate` CLI command, V2-to-V3 migration wizard, and all supporting code (~2,400 lines) have been removed. No v2 installations exist in the wild.
+- **README updated** — Removed the V2 to V3 migration section.
+
 ## [3.7.21] - 2026-03-13
 
 ### Added

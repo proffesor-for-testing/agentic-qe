@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.7.22](v3.7.22.md) | 2026-03-14 | Hook path resolution fix, SQLite corruption prevention, v2 migration removal |
 | [v3.7.21](v3.7.21.md) | 2026-03-13 | Agent dependency intelligence, shell injection fixes, semgrep parallel SAST |
 | [v3.7.20](v3.7.20.md) | 2026-03-12 | Fix duplicate brain-checkpoint hooks and governance time budget blocking tools |
 | [v3.7.19](v3.7.19.md) | 2026-03-12 | YAML pipelines, validation pipeline, cross-phase signals, heartbeat scheduler, context sources |
