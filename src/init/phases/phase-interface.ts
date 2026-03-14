@@ -86,7 +86,6 @@ export interface InitOptions {
   /** Minimal configuration (no skills, patterns, workers) */
   minimal?: boolean;
   /** Automatically migrate from v2 if detected */
-  autoMigrate?: boolean;
   /** Install n8n workflow testing platform */
   withN8n?: boolean;
   /** N8n API configuration */

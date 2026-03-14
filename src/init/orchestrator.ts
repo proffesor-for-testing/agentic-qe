@@ -54,7 +54,6 @@ export class ModularInitOrchestrator {
         upgrade: options.upgrade,
         skipPatterns: options.skipPatterns,
         minimal: options.minimal,
-        autoMigrate: options.autoMigrate,
         withN8n: options.withN8n,
         withOpenCode: options.withOpenCode,
         withKiro: options.withKiro,

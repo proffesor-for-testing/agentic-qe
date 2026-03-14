@@ -28,7 +28,6 @@ import type { MemoryBackend, StoreOptions, VectorSearchResult } from '../kernel/
 import type { QEDomain } from './qe-patterns.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
-import { migrateV2ToV3 } from './v2-to-v3-migration.js';
 import { EMBEDDING_CONFIG } from '../shared/embeddings/types.js';
 
 // Import HNSWIndex types - using proper import to avoid re-export issues
@@ -1096,41 +1095,7 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
   // -------------------------------------------------------------------------
 
   private async migrateFromSQLite(config: MigrationConfig): Promise<number> {
-    // Check if this is a V2 to V3 migration (patterns table)
-    const sourcePath = config.sourceConfig?.path || '.agentic-qe/memory.db';
-
-    // For V2 to V3 migration, use the dedicated migrator
-    if (config.domain === 'learning' || config.migrateAll) {
-      logger.info('Starting V2 to V3 migration', { sourcePath });
-
-      const result = await migrateV2ToV3(
-        sourcePath,
-        '.agentic-qe/memory.db',
-        (progress) => {
-          logger.info('Migration progress', {
-            stage: progress.stage,
-            message: progress.message,
-            table: progress.table,
-            current: progress.current,
-            total: progress.total,
-          });
-        }
-      );
-
-      if (result.success) {
-        logger.info('V2 migration completed successfully', {
-          tablesMigrated: result.tablesMigrated,
-          totalRecords: Object.values(result.counts).reduce((a, b) => a + b, 0),
-          durationSeconds: Number((result.duration / 1000).toFixed(2)),
-        });
-      } else {
-        logger.error('V2 migration failed', undefined, { errors: result.errors });
-      }
-
-      return Object.values(result.counts).reduce((a, b) => a + b, 0);
-    }
-
-    // Generic SQLite migration for other domains
+    // Generic SQLite migration
     logger.warn('Generic SQLite migration not yet implemented', { domain: config.domain });
     return 0;
   }

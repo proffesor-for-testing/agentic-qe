@@ -6,11 +6,8 @@
  *
  * This is a facade module. Implementation details are extracted to:
  * - init-wizard-hooks.ts     (hook configuration, MCP, CLAUDE.md generation)
- * - init-wizard-migration.ts (V2 detection, migration, config conversion)
- * - init-wizard-steps.ts     (persistence, learning, workers, skills, agents, config)
+ * - init-wizard-steps.ts     (persistence, learning, workers, skills, agents, config, version)
  */
-
-import { join } from 'path';
 
 import type {
   ProjectAnalysis,
@@ -24,17 +21,7 @@ import { createDefaultConfig } from './types.js';
 import { ProjectAnalyzer, createProjectAnalyzer } from './project-analyzer.js';
 import { SelfConfigurator, createSelfConfigurator } from './self-configurator.js';
 
-// Re-export V2DetectionResult from migration module for backward compatibility
-export type { V2DetectionResult } from './init-wizard-migration.js';
-
 // Import from extracted modules
-import type { V2DetectionResult } from './init-wizard-migration.js';
-import {
-  detectV2Installation,
-  runV2Migration,
-  writeVersionToDb,
-} from './init-wizard-migration.js';
-
 import {
   configureHooks,
   configureMCP,
@@ -53,6 +40,7 @@ import {
   installAgents,
   installN8n,
   saveConfig,
+  writeVersionToDb,
 } from './init-wizard-steps.js';
 
 // ============================================================================
@@ -152,8 +140,6 @@ export interface InitOrchestratorOptions {
     baseUrl?: string;
     apiKey?: string;
   };
-  /** Automatically migrate from v2 if detected */
-  autoMigrate?: boolean;
 }
 
 export class InitOrchestrator {
@@ -177,14 +163,6 @@ export class InitOrchestrator {
     const startTime = Date.now();
 
     try {
-      // Step 0: Check for existing v2 installation
-      const v2Detection = await detectV2Installation(this.projectRoot);
-
-      if (v2Detection.detected) {
-        const earlyResult = this.handleV2Detection(v2Detection, startTime);
-        if (earlyResult) return earlyResult;
-      }
-
       // Step 1: Analyze project
       const analysis = await this.runStep('Project Analysis', async () => {
         return await this.analyzer.analyze();
@@ -338,68 +316,6 @@ export class InitOrchestrator {
    */
   getWizardSteps(): WizardStep[] {
     return WIZARD_STEPS;
-  }
-
-  /**
-   * Handle V2 detection - returns early result if migration not auto, null otherwise.
-   */
-  private handleV2Detection(v2Detection: V2DetectionResult, startTime: number): InitResult | null {
-    console.log('\n' + '='.repeat(60));
-    console.log('  EXISTING V2 INSTALLATION DETECTED');
-    console.log('='.repeat(60) + '\n');
-    console.log('Found v2 installation at:');
-    if (v2Detection.hasMemoryDb) {
-      console.log(`  - Memory DB: .agentic-qe/memory.db`);
-    }
-    if (v2Detection.hasConfig) {
-      console.log(`  - Config: .agentic-qe/config/`);
-    }
-    if (v2Detection.hasAgents) {
-      console.log(`  - Agents: .claude/agents/`);
-    }
-    console.log('');
-
-    if (this.options.autoMigrate) {
-      console.log('Auto-migrate mode enabled. Running migration...\n');
-      // Fire and forget - the caller will await initialize() which runs migration inline
-      runV2Migration(this.projectRoot, v2Detection).catch((e) => { console.warn('[InitWizard] V2 migration failed:', e instanceof Error ? e.message : e); });
-      return null;
-    }
-
-    // Warn and suggest migration
-    console.log('RECOMMENDED: Run migration before init:\n');
-    console.log('   npx aqe migrate status      # Check what needs migration');
-    console.log('   npx aqe migrate run --dry-run  # Preview changes');
-    console.log('   npx aqe migrate run         # Execute migration\n');
-    console.log('Or continue with:');
-    console.log('   aqe init --auto-migrate     # Auto-migrate during init\n');
-    console.log('='.repeat(60) + '\n');
-
-    return {
-      success: false,
-      config: createDefaultConfig('unknown', this.projectRoot),
-      steps: [{
-        step: 'V2 Detection',
-        status: 'error',
-        message: 'Existing v2 installation detected. Run migration first.',
-        durationMs: Date.now() - startTime,
-      }],
-      summary: {
-        projectAnalyzed: false,
-        configGenerated: false,
-        codeIntelligenceIndexed: 0,
-        patternsLoaded: 0,
-        skillsInstalled: 0,
-        agentsInstalled: 0,
-        hooksConfigured: false,
-        mcpConfigured: false,
-        claudeMdGenerated: false,
-        workersStarted: 0,
-      },
-      totalDurationMs: Date.now() - startTime,
-      timestamp: new Date(),
-      v2Detected: true,
-    };
   }
 
   /**

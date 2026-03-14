@@ -7,7 +7,7 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 
 import type { AQEInitConfig, PretrainedLibrary, ProjectAnalysis } from './types.js';
 import { createSkillsInstaller } from './skills-installer.js';
@@ -15,6 +15,7 @@ import { createAgentsInstaller } from './agents-installer.js';
 import { createN8nInstaller } from './n8n-installer.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { openDatabase } from '../shared/safe-db.js';
+import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
 // Internal Types
@@ -29,6 +30,101 @@ interface WorkerRegistration {
   interval: number;
   lastRun: string | null;
   status: 'pending' | 'running' | 'completed' | 'error';
+}
+
+// ============================================================================
+// Version Management
+// ============================================================================
+
+/**
+ * Read AQE version directly from memory.db without full initialization.
+ * Returns undefined if no version is stored.
+ */
+export function readVersionFromDb(dbPath: string): string | undefined {
+  try {
+    const db = openDatabase(dbPath, { readonly: true, fileMustExist: true });
+
+    try {
+      const tableExists = db.prepare(`
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='kv_store'
+      `).get();
+
+      if (!tableExists) {
+        db.close();
+        return undefined;
+      }
+
+      const row = db.prepare(`
+        SELECT value FROM kv_store
+        WHERE key = 'aqe_version' AND namespace = '_system'
+      `).get() as { value: string } | undefined;
+
+      db.close();
+
+      if (row) {
+        return safeJsonParse<string>(row.value);
+      }
+      return undefined;
+    } catch {
+      db.close();
+      return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Write AQE version to memory.db in _system namespace.
+ * Used by init wizard to mark installation version.
+ */
+export async function writeVersionToDb(projectRoot: string, version: string): Promise<boolean> {
+  const memoryDbPath = join(projectRoot, '.agentic-qe', 'memory.db');
+
+  try {
+    const dir = dirname(memoryDbPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+
+    const db = openDatabase(memoryDbPath);
+
+    try {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS kv_store (
+          key TEXT NOT NULL,
+          namespace TEXT NOT NULL,
+          value TEXT NOT NULL,
+          expires_at INTEGER,
+          created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+          PRIMARY KEY (namespace, key)
+        );
+      `);
+
+      const now = Date.now();
+      db.prepare(`
+        INSERT OR REPLACE INTO kv_store (key, namespace, value, created_at)
+        VALUES (?, '_system', ?, ?)
+      `).run('aqe_version', JSON.stringify(version), now);
+
+      db.prepare(`
+        INSERT OR REPLACE INTO kv_store (key, namespace, value, created_at)
+        VALUES (?, '_system', ?, ?)
+      `).run('init_timestamp', JSON.stringify(new Date().toISOString()), now);
+
+      db.close();
+      console.log(`  ✓ Version ${version} written to memory.db`);
+      return true;
+    } catch (err) {
+      db.close();
+      console.warn(`  ⚠ Could not write version: ${toErrorMessage(err)}`);
+      return false;
+    }
+  } catch (err) {
+    console.warn(`  ⚠ Could not open memory.db: ${toErrorMessage(err)}`);
+    return false;
+  }
 }
 
 // ============================================================================

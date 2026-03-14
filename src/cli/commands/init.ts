@@ -37,7 +37,6 @@ export function createInitCommand(): Command {
     .description('Initialize Agentic QE v3 in your project')
     .option('-a, --auto', 'Auto-configure without prompts')
     .option('-u, --upgrade', 'Upgrade existing installation (overwrites skills, agents, validation)')
-    .option('--auto-migrate', 'Automatically migrate from v2 if detected')
     .option('--minimal', 'Minimal installation (no skills, patterns, or workers)')
     .option('--skip-patterns', 'Skip pattern loading')
     .option('--with-n8n', 'Include n8n workflow testing platform')
@@ -69,15 +68,6 @@ export function createInitCommand(): Command {
     });
 
   initCmd
-    .command('migrate')
-    .description('Migrate from v2 to v3')
-    .option('--dry-run', 'Show what would be migrated without making changes')
-    .option('--force', 'Force migration even if v3 already exists')
-    .action(async (migrateOptions) => {
-      await runMigration(migrateOptions);
-    });
-
-  initCmd
     .command('reset')
     .description('Reset AQE configuration (keeps data)')
     .option('--all', 'Reset everything including data')
@@ -96,7 +86,6 @@ export function createInitCommand(): Command {
 interface InitOptions {
   auto?: boolean;
   upgrade?: boolean;
-  autoMigrate?: boolean;
   minimal?: boolean;
   skipPatterns?: boolean;
   withN8n?: boolean;
@@ -132,11 +121,10 @@ async function runInit(options: InitOptions): Promise<void> {
   const aqeDir = path.join(projectRoot, '.agentic-qe');
   const isExisting = existsSync(aqeDir);
 
-  if (isExisting && !options.auto && !options.autoMigrate && !options.upgrade) {
+  if (isExisting && !options.auto && !options.upgrade) {
     console.log(chalk.yellow('  ⚠ AQE directory already exists at:'), aqeDir);
     console.log(chalk.gray('    Use --auto to update configuration (keeps existing skills)'));
     console.log(chalk.gray('    Use --upgrade to update all skills, agents, and validation'));
-    console.log(chalk.gray('    Use --auto-migrate to migrate from v2'));
     console.log('');
   }
 
@@ -157,7 +145,6 @@ async function runInit(options: InitOptions): Promise<void> {
     projectRoot,
     autoMode: options.auto,
     upgrade: options.upgrade,
-    autoMigrate: options.autoMigrate,
     minimal: options.minimal,
     skipPatterns: options.skipPatterns,
     withN8n: options.withN8n,
@@ -281,88 +268,6 @@ async function checkStatus(): Promise<void> {
     console.log(chalk.gray('  ○ Claude Flow not detected'));
   }
 
-  console.log('');
-}
-
-// ============================================================================
-// Migration Action
-// ============================================================================
-
-interface MigrationOptions {
-  dryRun?: boolean;
-  force?: boolean;
-}
-
-/**
- * Run v2 to v3 migration
- */
-async function runMigration(options: MigrationOptions): Promise<void> {
-  const projectRoot = process.cwd();
-  const aqeDir = path.join(projectRoot, '.agentic-qe');
-
-  console.log('');
-  console.log(chalk.bold.blue('  AQE v2 to v3 Migration'));
-  console.log(chalk.gray('  ──────────────────────────'));
-  console.log('');
-
-  // Import migration modules
-  const { createV2Detector, createV2DataMigrator, createV2ConfigMigrator } = await import('../../init/migration/index.js');
-
-  // Detect v2
-  const detector = createV2Detector(projectRoot);
-  const v2Info = await detector.detect();
-
-  if (!v2Info.detected) {
-    console.log(chalk.yellow('  ⚠ No v2 installation detected'));
-    console.log(chalk.gray('    Run "aqe init" to create a new installation'));
-    console.log('');
-    return;
-  }
-
-  console.log(chalk.green('  ✓ Found v2 installation'));
-  console.log(chalk.gray(`    Database: ${v2Info.paths.memoryDb || 'not found'}`));
-  console.log(chalk.gray(`    Config: ${v2Info.paths.configDir || 'not found'}`));
-  console.log(chalk.gray(`    Version: ${v2Info.version || 'unknown'}`));
-  console.log('');
-
-  if (options.dryRun) {
-    console.log(chalk.yellow('  Dry run - no changes will be made'));
-    console.log('');
-    return;
-  }
-
-  // Run migration
-  console.log(chalk.blue('  Migrating data...'));
-
-  if (v2Info.paths.memoryDb) {
-    const dataMigrator = createV2DataMigrator({
-      v2DbPath: v2Info.paths.memoryDb,
-      v3PatternsDbPath: path.join(aqeDir, 'patterns.db'),
-      onProgress: (p) => console.log(chalk.gray(`    ${p.message}`)),
-    });
-
-    const dataResult = await dataMigrator.migrate();
-
-    if (dataResult.success) {
-      console.log(chalk.green(`  ✓ Migrated ${dataResult.counts.patterns || 0} patterns`));
-      console.log(chalk.green(`  ✓ Migrated ${dataResult.counts.experiences || 0} experiences`));
-    } else {
-      console.log(chalk.red(`  ✗ Data migration failed: ${dataResult.errors.join(', ')}`));
-    }
-  }
-
-  const configMigrator = createV2ConfigMigrator(projectRoot);
-  const configResult = await configMigrator.migrate();
-
-  if (configResult.success) {
-    console.log(chalk.green('  ✓ Config migrated'));
-  } else {
-    console.log(chalk.yellow('  ⚠ Config migration skipped (no v2 config found)'));
-  }
-
-  console.log('');
-  console.log(chalk.green('  Migration complete!'));
-  console.log(chalk.gray('    Run "aqe init" to complete setup'));
   console.log('');
 }
 

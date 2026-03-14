@@ -47,35 +47,6 @@ export class DetectionPhase extends BasePhase<DetectionResult> {
     // Store v2 detection in context for other phases
     context.v2Detection = v2Detection;
 
-    if (v2Detected && !context.options.autoMigrate) {
-      context.services.log('');
-      context.services.log('═'.repeat(60));
-      context.services.log('⚠️  EXISTING V2 INSTALLATION DETECTED');
-      context.services.log('═'.repeat(60));
-      context.services.log('');
-      context.services.log('Found v2 installation at:');
-      if (v2Detection.hasMemoryDb) {
-        context.services.log('  • Memory DB: .agentic-qe/memory.db');
-      }
-      if (v2Detection.hasConfig) {
-        context.services.log('  • Config: .agentic-qe/config/');
-      }
-      if (v2Detection.hasAgents) {
-        context.services.log('  • Agents: .claude/agents/');
-      }
-      context.services.log('');
-      context.services.log('📋 RECOMMENDED: Run with --auto-migrate:');
-      context.services.log('   aqe init --auto-migrate');
-      context.services.log('');
-
-      return {
-        v2Detected: true,
-        v3Detected,
-        freshInstall: false,
-        v2Detection,
-      };
-    }
-
     return {
       v2Detected,
       v3Detected,

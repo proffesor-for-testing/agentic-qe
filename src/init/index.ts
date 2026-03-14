@@ -179,16 +179,3 @@ export { WindsurfInstaller, createWindsurfInstaller } from './windsurf-installer
 export type { ContinueDevInstallerOptions, ContinueDevInstallResult } from './continuedev-installer.js';
 export { ContinueDevInstaller, createContinueDevInstaller } from './continuedev-installer.js';
 
-// Migration
-export type {
-  V2DetectionInfo,
-  MigrationResult,
-} from './migration/index.js';
-export {
-  V2Detector,
-  createV2Detector,
-  V2DataMigrator,
-  createV2DataMigrator,
-  V2ConfigMigrator,
-  createV2ConfigMigrator,
-} from './migration/index.js';
