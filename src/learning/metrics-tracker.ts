@@ -10,6 +10,7 @@
  * - Domain coverage metrics
  * - Daily snapshots for trend analysis
  * - Dashboard data generation
+ * - Regret tracking integration (Task 2.4)
  */
 
 import { type Database as DatabaseType } from 'better-sqlite3';
@@ -20,6 +21,7 @@ import type { QEDomain } from './qe-patterns.js';
 import { QE_DOMAIN_LIST } from './qe-patterns.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { LoggerFactory } from '../logging/index.js';
+import type { DomainHealthSummary } from './regret-tracker.js';
 
 const logger = LoggerFactory.create('metrics-tracker');
 
@@ -96,6 +98,9 @@ export interface DashboardData {
 
   /** Top domains by pattern count */
   topDomains: Array<{ domain: QEDomain; count: number }>;
+
+  /** Per-domain learning health from regret tracking (Task 2.4, optional) */
+  regretHealth?: DomainHealthSummary[];
 }
 
 // ============================================================================
@@ -581,6 +586,22 @@ export class LearningMetricsTracker {
       metrics.longTermPatterns,
       JSON.stringify(metrics.domainCoverage)
     );
+  }
+
+  /**
+   * Get dashboard data enriched with regret health information.
+   *
+   * @param regretHealth - Optional per-domain regret health summaries from RegretTracker
+   * @returns Dashboard data with regret health attached
+   */
+  async getDashboardDataWithRegret(
+    regretHealth?: DomainHealthSummary[]
+  ): Promise<DashboardData> {
+    const data = await this.getDashboardData();
+    if (regretHealth && regretHealth.length > 0) {
+      data.regretHealth = regretHealth;
+    }
+    return data;
   }
 
   /**

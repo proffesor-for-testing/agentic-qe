@@ -988,6 +988,8 @@ import { createLearningCommand } from './commands/learning.js';
 import { createMcpCommand } from './commands/mcp.js';
 import { createPlatformCommand } from './commands/platform.js';
 import { createProveCommand } from './commands/prove.js';
+import { createRuVectorCommand } from './commands/ruvector-commands.js';
+import { createAuditCommand } from './commands/audit.js';
 
 program.addCommand(createTokenUsageCommand());
 program.addCommand(createLLMRouterCommand());
@@ -997,6 +999,8 @@ program.addCommand(createLearningCommand());
 program.addCommand(createMcpCommand());
 program.addCommand(createPlatformCommand());
 program.addCommand(createProveCommand(context, cleanupAndExit, ensureInitialized));
+program.addCommand(createRuVectorCommand());
+program.addCommand(createAuditCommand(context, cleanupAndExit, ensureInitialized));
 
 // ============================================================================
 // Shutdown Handlers

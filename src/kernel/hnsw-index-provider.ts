@@ -113,4 +113,10 @@ export interface IHnswIndexProvider {
    * For approximate HNSW this returns an estimate based on configuration.
    */
   recall(): number;
+
+  /**
+   * Clear all vectors from the index.
+   * Optional: implementations that don't support clearing can omit this.
+   */
+  clear?(): void;
 }

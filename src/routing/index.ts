@@ -101,14 +101,31 @@ export type {
 export {
   TinyDancerRouter,
   createTinyDancerRouter,
+  createSmartTinyDancerRouter,
 } from './tiny-dancer-router.js';
 
 export type {
+  ITaskRouter,
   RouteResult,
   TinyDancerConfig,
   RoutingOutcome as TinyDancerRoutingOutcome,
   RouterStats,
 } from './tiny-dancer-router.js';
+
+// Neural TinyDancer Router (ADR-082)
+export {
+  NeuralTinyDancerRouter,
+  SimpleNeuralRouter,
+  createNeuralTinyDancerRouter,
+} from './neural-tiny-dancer-router.js';
+
+export type {
+  NeuralTinyDancerConfig,
+  ShadowDecisionLog,
+  NeuralRouterStats,
+  EmpiricalConfidenceBounds,
+  ConformalBounds,
+} from './neural-tiny-dancer-router.js';
 
 // Routing Configuration (TD-004)
 export {

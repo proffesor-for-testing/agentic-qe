@@ -17,6 +17,9 @@ import type {
 } from './hnsw-index-provider.js';
 import { DEFAULT_HNSW_CONFIG } from './hnsw-index-provider.js';
 import { ProgressiveHnswBackend } from './progressive-hnsw-backend.js';
+import { NativeHnswBackend, NativeHnswUnavailableError } from './native-hnsw-backend.js';
+import { isNativeHNSWEnabled, isHnswHealthMonitorEnabled } from '../integrations/ruvector/feature-flags.js';
+import type { HnswHealthMonitor, HnswHealthReport } from '../integrations/ruvector/hnsw-health-monitor.js';
 
 // ============================================================================
 // Named Index Registry
@@ -72,14 +75,16 @@ const registry: Map<string, IHnswIndexProvider> = new Map();
 // ============================================================================
 
 /**
- * Adapter that wraps ProgressiveHnswBackend and provides backward-compatible
+ * Adapter that wraps ProgressiveHnswBackend (or NativeHnswBackend when
+ * the useNativeHNSW feature flag is enabled) and provides backward-compatible
  * APIs matching the old InMemoryHNSWIndex and RuvectorFlatIndex interfaces.
  *
  * This adapter bridges the gap between the new IHnswIndexProvider interface
  * and existing callers that use string-based IDs and number[] vectors.
  */
 export class HnswAdapter implements IHnswIndexProvider {
-  private readonly backend: ProgressiveHnswBackend;
+  private readonly backend: IHnswIndexProvider;
+  private readonly _isNativeBackend: boolean;
   private readonly indexName: string;
 
   /** Maps string keys to numeric IDs (for backward compat with old APIs) */
@@ -87,10 +92,20 @@ export class HnswAdapter implements IHnswIndexProvider {
   private numericToStringId: Map<number, string> = new Map();
   private nextAutoId = 0;
 
+  /** Health monitor (lazily created when feature flag is enabled) */
+  private healthMonitor: HnswHealthMonitor | null = null;
+  private healthMonitorLoaded: boolean = false;
+  private operationsSinceLastCheck: number = 0;
+  private healthCheckFrequency: number = 100;
+  private lastHealthReport: HnswHealthReport | null = null;
+
   constructor(name: string, config?: Partial<HnswConfig>) {
     this.indexName = name;
     const defaults = INDEX_DEFAULTS[name as HnswIndexName] ?? {};
-    this.backend = new ProgressiveHnswBackend({ ...defaults, ...config });
+    const mergedConfig = { ...defaults, ...config };
+    const { backend, isNative } = HnswAdapter.createBackend(mergedConfig);
+    this.backend = backend;
+    this._isNativeBackend = isNative;
   }
 
   // ============================================================================
@@ -103,6 +118,7 @@ export class HnswAdapter implements IHnswIndexProvider {
     metadata?: Record<string, unknown>
   ): void {
     this.backend.add(id, vector, metadata);
+    this.maybeRunHealthCheck();
   }
 
   search(query: Float32Array, k: number): SearchResult[] {
@@ -195,7 +211,7 @@ export class HnswAdapter implements IHnswIndexProvider {
    * Clear all vectors from the index.
    */
   clear(): void {
-    this.backend.clear();
+    this.backend.clear?.();
     this.stringToNumericId.clear();
     this.numericToStringId.clear();
     this.nextAutoId = 0;
@@ -205,7 +221,21 @@ export class HnswAdapter implements IHnswIndexProvider {
    * Check whether @ruvector/gnn is available.
    */
   isRuvectorAvailable(): boolean {
-    return this.backend.isRuvectorAvailable();
+    if (this.backend instanceof ProgressiveHnswBackend) {
+      return this.backend.isRuvectorAvailable();
+    }
+    // NativeHnswBackend uses @ruvector/router VectorDb
+    if (this.backend instanceof NativeHnswBackend) {
+      return this.backend.isNativeAvailable();
+    }
+    return false;
+  }
+
+  /**
+   * Check whether this adapter is using the native HNSW backend.
+   */
+  isNativeBackend(): boolean {
+    return this._isNativeBackend;
   }
 
   /**
@@ -213,6 +243,129 @@ export class HnswAdapter implements IHnswIndexProvider {
    */
   getName(): string {
     return this.indexName;
+  }
+
+  // ============================================================================
+  // Health Monitoring
+  // ============================================================================
+
+  /**
+   * Set the health check frequency (number of operations between checks).
+   * Only applies when the useHnswHealthMonitor feature flag is enabled.
+   *
+   * @param frequency - Number of add/remove operations between health checks
+   */
+  setHealthCheckFrequency(frequency: number): void {
+    this.healthCheckFrequency = Math.max(1, frequency);
+  }
+
+  /**
+   * Get the health check frequency.
+   */
+  getHealthCheckFrequency(): number {
+    return this.healthCheckFrequency;
+  }
+
+  /**
+   * Get the last health report, or null if no check has run.
+   */
+  getLastHealthReport(): HnswHealthReport | null {
+    return this.lastHealthReport;
+  }
+
+  /**
+   * Get the health monitor instance, or null if not enabled.
+   */
+  getHealthMonitor(): HnswHealthMonitor | null {
+    return this.healthMonitor;
+  }
+
+  /**
+   * Conditionally run a health check based on operation count and feature flag.
+   * Non-blocking: runs asynchronously to avoid slowing operations.
+   */
+  private maybeRunHealthCheck(): void {
+    if (!isHnswHealthMonitorEnabled()) return;
+
+    this.operationsSinceLastCheck++;
+    if (this.operationsSinceLastCheck < this.healthCheckFrequency) return;
+
+    this.operationsSinceLastCheck = 0;
+    this.ensureHealthMonitor();
+
+    if (this.healthMonitor) {
+      try {
+        this.lastHealthReport = this.healthMonitor.checkHealth(this.backend);
+        if (!this.lastHealthReport.healthy) {
+          console.warn(
+            `[HNSW-Health] Index "${this.indexName}" health check failed: ` +
+            `${this.lastHealthReport.alerts.length} alert(s). ` +
+            `Coherence: ${this.lastHealthReport.metrics.coherenceScore.toFixed(3)}`
+          );
+        }
+      } catch (err: unknown) {
+        // Health checks must never break normal operations
+        console.warn(`[HNSW-Health] Health check error for "${this.indexName}":`, err);
+      }
+    }
+  }
+
+  /**
+   * Lazily load and create the health monitor.
+   */
+  private ensureHealthMonitor(): void {
+    if (this.healthMonitorLoaded) return;
+    this.healthMonitorLoaded = true;
+
+    try {
+      // Dynamic import to avoid circular dependencies and keep startup fast
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const mod = require('../integrations/ruvector/hnsw-health-monitor.js');
+      this.healthMonitor = mod.createHnswHealthMonitor();
+    } catch (err) {
+      // Module not available, health monitoring disabled
+      if (process.env.DEBUG) console.debug('[HNSW-Health] Monitor module unavailable:', err instanceof Error ? err.message : err);
+      this.healthMonitor = null;
+    }
+  }
+
+  // ============================================================================
+  // Backend Selection
+  // ============================================================================
+
+  /**
+   * Create the appropriate HNSW backend based on feature flags.
+   *
+   * When useNativeHNSW is enabled, tries to create a NativeHnswBackend.
+   * Falls back to ProgressiveHnswBackend if the native binary is unavailable.
+   *
+   * @param config - HNSW configuration
+   * @returns The backend instance and whether it is native
+   */
+  private static createBackend(
+    config: Partial<HnswConfig>
+  ): { backend: IHnswIndexProvider; isNative: boolean } {
+    if (isNativeHNSWEnabled()) {
+      try {
+        const native = new NativeHnswBackend(config);
+        return { backend: native, isNative: true };
+      } catch (err: unknown) {
+        if (err instanceof NativeHnswUnavailableError) {
+          // Expected: native binary not available, fall back silently
+          console.info(
+            `[HNSW] Native backend unavailable, falling back to JS: ${err.message}`
+          );
+        } else {
+          // Unexpected error, log warning and fall back
+          console.warn(
+            `[HNSW] Unexpected error creating native backend, falling back to JS:`,
+            err
+          );
+        }
+      }
+    }
+
+    return { backend: new ProgressiveHnswBackend(config), isNative: false };
   }
 
   // ============================================================================

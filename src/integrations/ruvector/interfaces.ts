@@ -617,3 +617,63 @@ export class RuVectorConfigError extends RuVectorError {
     this.name = 'RuVectorConfigError';
   }
 }
+
+// ============================================================================
+// Metadata Filtering Types (Task 1.2: ruvector-filter)
+// ============================================================================
+
+/**
+ * Supported filter comparison operators
+ */
+export type FilterOperator =
+  | 'eq'       // Exact equality
+  | 'gt'       // Greater than (numeric)
+  | 'lt'       // Less than (numeric)
+  | 'gte'      // Greater than or equal (numeric)
+  | 'lte'      // Less than or equal (numeric)
+  | 'in'       // Value is in array
+  | 'contains' // Array/string contains value
+  | 'between'; // Value between [lo, hi] (numeric or Date)
+
+/**
+ * A FIELD-level filter expression that tests a single field
+ */
+export interface FieldFilterExpression {
+  type: 'FIELD';
+  /** Dot-separated field path (e.g., "qeDomain", "confidence", "context.tags") */
+  field: string;
+  /** Comparison operator */
+  operator: FilterOperator;
+  /** Value to compare against */
+  value: unknown;
+}
+
+/**
+ * Composable filter expression supporting AND/OR/NOT/FIELD.
+ *
+ * Examples:
+ * - Single field: { type: 'FIELD', field: 'qeDomain', operator: 'eq', value: 'test-generation' }
+ * - AND: { type: 'AND', children: [fieldFilter1, fieldFilter2] }
+ * - OR: { type: 'OR', children: [fieldFilter1, fieldFilter2] }
+ * - NOT: { type: 'NOT', child: fieldFilter }
+ * - Nested: { type: 'AND', children: [{ type: 'OR', children: [...] }, fieldFilter] }
+ */
+export interface FilterExpression {
+  /** Expression type: AND, OR, NOT, or FIELD */
+  type: 'AND' | 'OR' | 'NOT' | 'FIELD';
+
+  /** Child expressions for AND/OR composites */
+  children?: FilterExpression[];
+
+  /** Child expression for NOT */
+  child?: FilterExpression;
+
+  /** Field path for FIELD type (dot-separated, e.g., "context.tags") */
+  field?: string;
+
+  /** Comparison operator for FIELD type */
+  operator?: FilterOperator;
+
+  /** Comparison value for FIELD type */
+  value?: unknown;
+}

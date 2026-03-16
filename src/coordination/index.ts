@@ -500,3 +500,35 @@ export type {
 // ============================================================================
 
 export * from './mixins';
+
+// ============================================================================
+// Behavior Tree Orchestration (Task 4.4: RuVector Integration)
+// ============================================================================
+
+export * from './behavior-tree';
+
+// Re-export BehaviorTreeExecutionResult from workflow-orchestrator
+export type { BehaviorTreeExecutionResult } from './workflow-orchestrator';
+
+// ============================================================================
+// Reasoning QEC (Task 4.5: Quantum Error Correction for AI Reasoning)
+// ============================================================================
+
+export {
+  ReasoningQEC,
+  createReasoningQEC,
+  processReasoning,
+  DEFAULT_QEC_CONFIG,
+} from './reasoning-qec';
+
+export type {
+  ReasoningProblem,
+  ReasoningPath,
+  ReasoningStep,
+  Syndrome,
+  CorrectedReasoning,
+  CorrectionEntry,
+  ValidationResult,
+  ValidationIssue,
+  ReasoningQECConfig,
+} from './reasoning-qec';

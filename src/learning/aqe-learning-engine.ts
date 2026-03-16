@@ -187,6 +187,10 @@ export class AQELearningEngine {
   private coherenceService?: ICoherenceService;
   private initialized = false;
 
+  // Cross-domain transfer (Y-2 wiring)
+  private _domainTransferEngine: unknown = null;
+  private _domainTransferInterval: ReturnType<typeof setInterval> | null = null;
+
   // Task tracking
   private activeTasks: Map<string, TaskExecution> = new Map();
   private completedTasks = 0;
@@ -255,6 +259,57 @@ export class AQELearningEngine {
         }
       );
       await this.experienceCapture.initialize();
+
+      // Wire persistent witness chain when feature flag is on
+      try {
+        const { isWitnessChainFeatureEnabled } = await import('../governance/witness-chain.js');
+        if (isWitnessChainFeatureEnabled()) {
+          const { createPersistentWitnessChain, createWitnessChainSQLitePersistence } = await import('../governance/witness-chain.js');
+          const { getUnifiedPersistence } = await import('../kernel/unified-persistence.js');
+          const persistence = getUnifiedPersistence();
+          if (persistence.isInitialized()) {
+            const db = persistence.getDatabase();
+            const chainPersistence = createWitnessChainSQLitePersistence(db as Parameters<typeof createWitnessChainSQLitePersistence>[0]);
+            const chain = createPersistentWitnessChain(chainPersistence);
+            this.experienceCapture.setWitnessChain(chain);
+          }
+        }
+      } catch (e) {
+        if (process.env.DEBUG) console.debug('[AQELearningEngine] Witness chain wiring skipped:', e instanceof Error ? e.message : e);
+      }
+    }
+
+    // Wire cross-domain transfer with real performance provider (Y-2 fix)
+    try {
+      const { isCrossDomainTransferEnabled } = await import('../integrations/ruvector/feature-flags.js');
+      if (isCrossDomainTransferEnabled() && this.patternStore) {
+        const { createDomainTransferEngine } = await import('../integrations/ruvector/domain-transfer.js');
+        const transferEngine = createDomainTransferEngine();
+        // Pre-fetch stats for the synchronous performance provider callback
+        const store = this.patternStore;
+        let cachedStats = await store.getStats();
+        // Refresh cache periodically in background
+        this._domainTransferInterval = setInterval(async () => {
+          try { cachedStats = await store.getStats(); } catch (e) {
+            if (process.env.DEBUG) console.debug('[AQELearningEngine] Stats refresh failed:', e instanceof Error ? e.message : e);
+          }
+        }, 60_000);
+        this._domainTransferInterval.unref?.();
+        transferEngine.setPerformanceProvider((domain: string) => {
+          const domainPatterns = (cachedStats.byDomain as Record<string, number>)?.[domain] ?? 0;
+          const totalPatterns = cachedStats.totalPatterns ?? 0;
+          return {
+            domain,
+            successRate: totalPatterns > 0 ? domainPatterns / totalPatterns : 0.5,
+            avgConfidence: cachedStats.avgConfidence ?? 0.5,
+            patternCount: domainPatterns,
+            timestamp: Date.now(),
+          };
+        });
+        this._domainTransferEngine = transferEngine;
+      }
+    } catch (e) {
+      if (process.env.DEBUG) console.debug('[AQELearningEngine] Domain transfer wiring skipped:', e instanceof Error ? e.message : e);
     }
 
     // Try to initialize Claude Flow bridge (optional)
@@ -1073,6 +1128,11 @@ export class AQELearningEngine {
    * Dispose the engine
    */
   async dispose(): Promise<void> {
+    if (this._domainTransferInterval) {
+      clearInterval(this._domainTransferInterval);
+      this._domainTransferInterval = null;
+    }
+    this._domainTransferEngine = null;
     if (this.experienceCapture) {
       await this.experienceCapture.dispose();
     }

@@ -31,6 +31,14 @@ import {
 
 // ADR-051: Task Router for outcome recording
 import { getTaskRouter, type TaskRouterService } from '../mcp/services/task-router';
+
+// ADR-083 Task 3.2: Coherence-gated agent actions
+import {
+  evaluateTaskAction,
+  type CoherenceActionGate,
+  type GateEvaluation,
+  createCoherenceActionGate,
+} from './coherence-action-gate';
 import type { QualityFeedbackLoop, RoutingOutcomeInput } from '../feedback/feedback-loop.js';
 
 // CQ-005: Import domain types only (no runtime dependency on domain modules)
@@ -214,6 +222,9 @@ export class DomainTaskExecutor implements TaskHandlerContext {
 
   // ADR-023: Quality Feedback Loop for routing outcome recording
   private qualityFeedbackLoop: QualityFeedbackLoop | null = null;
+
+  // ADR-083 Task 3.2: Coherence action gate (lazy-initialized)
+  private coherenceActionGate: CoherenceActionGate | null = null;
 
   // Instance-level task handler registry
   private readonly taskHandlers: Map<TaskType, InstanceTaskHandler> = new Map();
@@ -469,6 +480,18 @@ export class DomainTaskExecutor implements TaskHandlerContext {
       `${compiledContext ? ', hasContext=true' : ''}`
     );
 
+    // ADR-083 Task 3.2: Coherence-gated action evaluation (advisory by default)
+    const gateEvaluation = this.evaluateCoherenceGate(task, domain);
+    if (gateEvaluation) {
+      console.debug(
+        `[TaskExecutor] Coherence gate: task=${task.id}, decision=${gateEvaluation.decision}, ` +
+        `combined=${gateEvaluation.combinedScore.toFixed(3)}, advisory=${gateEvaluation.advisory}`
+      );
+    }
+
+    // Task 4.5: Multi-path reasoning validation (advisory, never blocks)
+    this.validateWithReasoningQEC(task, domain);
+
     try {
       // ADR-051: Tier 0 - Try Agent Booster for mechanical transforms
       if (routingTier === 0 || useAgentBooster) {
@@ -583,6 +606,9 @@ export class DomainTaskExecutor implements TaskHandlerContext {
     this.knowledgeGraph = null;
     this.qualityAnalyzer = null;
 
+    // ADR-083: Reset coherence action gate
+    this.coherenceActionGate = null;
+
     // ADR-051: Also reset Agent Booster and Task Router
     if (this.agentBooster) {
       try {
@@ -607,6 +633,102 @@ export class DomainTaskExecutor implements TaskHandlerContext {
     this.qualityAnalyzer = null;
     this.agentBooster = null;
     this.taskRouter = null;
+    this.coherenceActionGate = null;
+  }
+
+  // ==========================================================================
+  // ADR-083 Task 3.2: Coherence Gate Integration
+  // ==========================================================================
+
+  /**
+   * Evaluate task action through the coherence gate.
+   * Returns null when the feature flag is off, otherwise returns the evaluation.
+   * Advisory mode by default: logs decision but never blocks execution.
+   */
+  private evaluateCoherenceGate(task: QueenTask, domain: DomainName): GateEvaluation | null {
+    try {
+      if (!this.coherenceActionGate) {
+        this.coherenceActionGate = createCoherenceActionGate({ advisory: true });
+      }
+
+      const payload = task.payload as Record<string, unknown>;
+      const confidence = typeof payload?.confidence === 'number'
+        ? payload.confidence as number
+        : 0.7;
+      const riskLevel = (payload?.riskLevel as 'low' | 'medium' | 'high' | 'critical')
+        ?? 'medium';
+
+      return evaluateTaskAction(
+        task.type,
+        domain,
+        confidence,
+        riskLevel,
+        payload ?? {},
+        this.coherenceActionGate,
+      );
+    } catch (error) {
+      // Coherence gate must never block task execution
+      logger.warn('Coherence gate evaluation error (continuing)', {
+        error: error instanceof Error ? error.message : String(error),
+        taskId: task.id,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Validate task reasoning through multi-path consensus (ReasoningQEC).
+   * Only runs when useReasoningQEC flag is on and task has reasoning steps.
+   * Advisory mode: logs validation result but never blocks execution.
+   */
+  /** Lazily cached ReasoningQEC instance */
+  private _reasoningQEC: { validate: (problem: { type: string; context: Record<string, unknown>; steps: string[] }) => { valid: boolean; confidence: number; issues: unknown[] } } | null = null;
+  private _reasoningQECLoaded = false;
+
+  private validateWithReasoningQEC(task: QueenTask, domain: DomainName): void {
+    try {
+      // Lazy-load once and cache (avoids require() on every task)
+      if (!this._reasoningQECLoaded) {
+        this._reasoningQECLoaded = true;
+        try {
+          const { isReasoningQECEnabled } = require('../integrations/ruvector/feature-flags.js');
+          if (isReasoningQECEnabled()) {
+            const { createReasoningQEC } = require('./reasoning-qec.js');
+            this._reasoningQEC = createReasoningQEC();
+          }
+        } catch (loadErr) {
+          logger.debug('ReasoningQEC module unavailable', {
+            error: loadErr instanceof Error ? loadErr.message : String(loadErr),
+          });
+        }
+      }
+      if (!this._reasoningQEC) return;
+
+      const payload = task.payload as Record<string, unknown>;
+      const steps = payload?.reasoningSteps as string[] | undefined;
+      if (!steps || steps.length < 2) return;
+
+      const result = this._reasoningQEC.validate({
+        type: domain,
+        context: payload,
+        steps,
+      });
+
+      if (!result.valid) {
+        logger.warn('ReasoningQEC validation found issues (advisory)', {
+          taskId: task.id,
+          domain,
+          confidence: result.confidence,
+          issues: result.issues.length,
+        });
+      }
+    } catch (error) {
+      // QEC must never block task execution
+      logger.debug('ReasoningQEC evaluation error', {
+        error: error instanceof Error ? error.message : String(error),
+        taskId: task.id,
+      });
+    }
   }
 
   private getTaskDomain(taskType: TaskType): DomainName {

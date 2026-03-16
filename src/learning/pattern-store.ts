@@ -24,6 +24,8 @@ import {
   mapQEDomainToAQE,
   PROMOTION_THRESHOLD,
 } from './qe-patterns.js';
+import type { FilterExpression } from '../integrations/ruvector/interfaces.js';
+import { applyFilterSync } from '../integrations/ruvector/filter-adapter.js';
 
 // ============================================================================
 // Pattern Store Configuration
@@ -215,6 +217,14 @@ export interface PatternSearchOptions {
 
   /** Include vector similarity search */
   useVectorSearch?: boolean;
+
+  /**
+   * Composable metadata filter expression (Task 1.2: ruvector-filter).
+   * Applied post-search to refine results by domain, severity,
+   * confidence range, tags, date range, etc.
+   * When undefined, no additional filtering is applied (backward compatible).
+   */
+  filter?: FilterExpression;
 }
 
 /**
@@ -840,9 +850,16 @@ export class PatternStore implements IPatternStore {
         result.score = result.score * (0.7 + 0.3 * effectiveDecay);
       }
 
-      // Sort by score and limit
+      // Sort by score
       results.sort((a, b) => b.score - a.score);
-      const finalResults = results.slice(0, limit);
+
+      // Apply metadata filter BEFORE limit so we don't lose matching results (W-3 fix)
+      let filteredResults = results;
+      if (options.filter) {
+        filteredResults = applyFilterSync(results, options.filter);
+      }
+
+      const finalResults = filteredResults.slice(0, limit);
 
       // Record stats
       const latency = performance.now() - startTime;

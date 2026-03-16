@@ -25,6 +25,7 @@ import {
 } from '../kernel/interfaces.js';
 import { createEvent } from '../shared/events/domain-events.js';
 import { toError, toErrorMessage } from '../shared/error-utils.js';
+import type { BehaviorNode } from './behavior-tree/nodes.js';
 
 // Re-export all types for backward compatibility
 export type {
@@ -321,6 +322,55 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
     if (!this.actionRegistry[domain]) this.actionRegistry[domain] = {};
     this.actionRegistry[domain][action] = handler;
+  }
+
+  // ============================================================================
+  // Behavior Tree Execution
+  // ============================================================================
+
+  /**
+   * Execute a workflow from a behavior tree instead of a WorkflowDefinition.
+   *
+   * This provides an alternative execution strategy that uses composable
+   * behavior tree nodes for orchestration. The existing workflow execution
+   * path remains unchanged.
+   *
+   * @param tree - Root node of the behavior tree to execute
+   * @returns ExecutionResult with status and timing information
+   */
+  async executeFromBehaviorTree(
+    tree: BehaviorNode
+  ): Promise<BehaviorTreeExecutionResult> {
+    const startedAt = new Date();
+
+    try {
+      const status = await tree.tick();
+
+      const completedAt = new Date();
+      const duration = completedAt.getTime() - startedAt.getTime();
+
+      return {
+        status: status === 'SUCCESS' ? 'completed' : status === 'RUNNING' ? 'running' : 'failed',
+        startedAt,
+        completedAt,
+        duration,
+        treeStatus: status,
+        treeName: tree.name,
+      };
+    } catch (error) {
+      const completedAt = new Date();
+      const duration = completedAt.getTime() - startedAt.getTime();
+
+      return {
+        status: 'failed',
+        startedAt,
+        completedAt,
+        duration,
+        treeStatus: 'FAILURE',
+        treeName: tree.name,
+        error: toErrorMessage(error),
+      };
+    }
   }
 
   // ============================================================================
@@ -857,4 +907,26 @@ export function createWorkflowOrchestrator(
   config?: Partial<WorkflowOrchestratorConfig>
 ): IWorkflowOrchestrator {
   return new WorkflowOrchestrator(eventBus, memory, agentCoordinator, config);
+}
+
+// ============================================================================
+// Behavior Tree Execution Result
+// ============================================================================
+
+/** Result of executing a behavior tree through the orchestrator */
+export interface BehaviorTreeExecutionResult {
+  /** Overall execution status */
+  status: 'completed' | 'running' | 'failed';
+  /** When execution started */
+  startedAt: Date;
+  /** When execution completed */
+  completedAt: Date;
+  /** Duration in milliseconds */
+  duration: number;
+  /** Raw behavior tree node status */
+  treeStatus: 'SUCCESS' | 'FAILURE' | 'RUNNING';
+  /** Name of the root tree node */
+  treeName: string;
+  /** Error message if failed */
+  error?: string;
 }

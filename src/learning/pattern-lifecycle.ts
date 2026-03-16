@@ -15,6 +15,8 @@ import { AsymmetricLearningEngine, type AsymmetricLearningConfig } from './asymm
 import { safeJsonParse } from '../shared/safe-json.js';
 import { LoggerFactory } from '../logging/index.js';
 import type { WitnessChain } from '../audit/witness-chain.js';
+import type { TemporalCompressionService, CompressedVector } from '../integrations/ruvector/temporal-compression.js';
+import { isTemporalCompressionEnabled } from '../integrations/ruvector/feature-flags.js';
 
 const logger = LoggerFactory.create('pattern-lifecycle');
 
@@ -165,6 +167,10 @@ export class PatternLifecycleManager {
   /** Optional witness chain for audit trail of lifecycle events (ADR-070) */
   private _witnessChain: WitnessChain | null = null;
   set witnessChain(wc: WitnessChain | null) { this._witnessChain = wc; }
+
+  /** Optional temporal compression service for embedding compression (ADR-085) */
+  private _compressionService: TemporalCompressionService | null = null;
+  set compressionService(svc: TemporalCompressionService | null) { this._compressionService = svc; }
 
   constructor(
     private readonly db: DatabaseType,
@@ -852,6 +858,87 @@ Pattern extracted from ${exp.count} successful experiences.`;
    */
   getAsymmetricEngine(): AsymmetricLearningEngine {
     return this.asymmetricEngine;
+  }
+
+  // ============================================================================
+  // ADR-085: Temporal Tensor Compression
+  // ============================================================================
+
+  /**
+   * Compress a pattern's embedding based on its access recency (ADR-085).
+   *
+   * Only operates when the temporal compression feature flag is enabled
+   * and a compression service has been injected. Returns null when
+   * compression is not active, allowing callers to fall back gracefully.
+   */
+  compressPatternEmbedding(patternId: string): CompressedVector | null {
+    if (!isTemporalCompressionEnabled() || !this._compressionService) {
+      return null;
+    }
+
+    const pattern = this.getPattern(patternId);
+    if (!pattern || !pattern.embedding || pattern.embedding.length === 0) {
+      return null;
+    }
+
+    const lastAccess = pattern.lastUsedAt ?? pattern.createdAt;
+    const tier = this._compressionService.classifyTier(lastAccess);
+    const vector = new Float32Array(pattern.embedding);
+    const compressed = this._compressionService.compress(vector, tier);
+
+    logger.debug('Compressed pattern embedding', {
+      patternId,
+      tier,
+      ratio: (compressed.originalByteSize / compressed.compressedByteSize).toFixed(1),
+    });
+
+    return compressed;
+  }
+
+  /**
+   * Decompress a compressed embedding back to Float32Array (ADR-085).
+   *
+   * Returns null when the compression service is not available.
+   * Consumers receive a standard Float32Array transparently.
+   */
+  decompressPatternEmbedding(compressed: CompressedVector): Float32Array | null {
+    if (!this._compressionService) {
+      return null;
+    }
+    return this._compressionService.decompress(compressed);
+  }
+
+  /**
+   * Sweep all active patterns and compress their embeddings (ADR-085).
+   *
+   * Intended to be called periodically (e.g., during maintenance windows)
+   * to apply tier-appropriate compression to pattern embeddings. Only
+   * operates when the feature flag is on and a compression service is set.
+   *
+   * @returns Count of patterns compressed, or 0 if compression is disabled.
+   */
+  compressAllPatternEmbeddings(): number {
+    if (!isTemporalCompressionEnabled() || !this._compressionService) {
+      return 0;
+    }
+
+    const patterns = this.db.prepare(`
+      SELECT id FROM qe_patterns
+      WHERE deprecated_at IS NULL
+    `).all() as Array<{ id: string }>;
+
+    let compressed = 0;
+    for (const { id } of patterns) {
+      const result = this.compressPatternEmbedding(id);
+      if (result) compressed++;
+    }
+
+    logger.info('Bulk pattern embedding compression complete', {
+      total: patterns.length,
+      compressed,
+    });
+
+    return compressed;
   }
 
   // ============================================================================

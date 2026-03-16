@@ -158,3 +158,17 @@ export {
   type PipelineConfig,
   type PipelineResult,
 } from './pipeline';
+
+// ============================================================================
+// DAG Attention Scheduler (Phase 4, Task 4.2)
+// ============================================================================
+
+export {
+  DAGAttentionScheduler,
+  createDAGAttentionScheduler,
+  type TestNode,
+  type TestDAG,
+  type SchedulePhase,
+  type ScheduledExecution,
+  type SchedulerStats as DAGSchedulerStats,
+} from './dag-attention-scheduler';

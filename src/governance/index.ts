@@ -222,3 +222,19 @@ export {
   type Verification,
   type ConstitutionalEnforcerFlags,
 } from './constitutional-enforcer.js';
+
+// Witness Chain - Hash-linked audit trail
+export {
+  WitnessChain,
+  PersistentWitnessChain,
+  createWitnessChain,
+  createPersistentWitnessChain,
+  createWitnessChainSQLitePersistence,
+  isWitnessChainFeatureEnabled,
+  SPRTAccumulator,
+  type IWitnessChainPersistence,
+  type WitnessDecision,
+  type WitnessReceipt,
+  type ChainVerificationResult as WitnessChainVerificationResult,
+  type WitnessChainExport,
+} from './witness-chain.js';

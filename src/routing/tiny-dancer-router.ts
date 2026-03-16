@@ -502,15 +502,56 @@ export class TinyDancerRouter {
 }
 
 // ============================================================================
-// Factory Function
+// Factory Functions
 // ============================================================================
 
 /**
- * Create a new TinyDancer router instance
+ * Create a new TinyDancer router instance (rule-based)
  *
  * @param config - Router configuration
  * @returns Configured TinyDancer router
  */
 export function createTinyDancerRouter(config?: TinyDancerConfig): TinyDancerRouter {
+  return new TinyDancerRouter(config);
+}
+
+/**
+ * Create a TinyDancer router, selecting rule-based or neural based on feature flag.
+ *
+ * When `useNeuralRouting` is enabled in RuVector feature flags, returns a
+ * NeuralTinyDancerRouter that wraps the rule-based router with a neural network.
+ * Otherwise returns the standard rule-based TinyDancerRouter.
+ *
+ * Both implement the same `route()` interface returning `RouteResult`.
+ *
+ * @param config - Router configuration
+ * @returns Either a TinyDancerRouter or NeuralTinyDancerRouter
+ */
+/** Shared router interface for both rule-based and neural routers */
+export interface ITaskRouter {
+  route(task: QETask | ClassifiableTask): Promise<RouteResult>;
+  recordOutcome?(...args: unknown[]): void;
+  reset?(): void;
+}
+
+export function createSmartTinyDancerRouter(
+  config?: TinyDancerConfig
+): ITaskRouter {
+  try {
+    // Dynamically check feature flag to avoid circular imports
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getRuVectorFeatureFlags } = require('../integrations/ruvector/feature-flags.js');
+    const flags = getRuVectorFeatureFlags();
+
+    if (flags.useNeuralRouting) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { NeuralTinyDancerRouter } = require('./neural-tiny-dancer-router.js');
+      return new NeuralTinyDancerRouter(config) as ITaskRouter;
+    }
+  } catch (err) {
+    // Feature flags or neural router not available - use rule-based
+    if (process.env.DEBUG) console.debug('[Router] Neural router unavailable, using rule-based:', err instanceof Error ? err.message : err);
+  }
+
   return new TinyDancerRouter(config);
 }
