@@ -58,9 +58,9 @@ jobs:
           fi
           echo "Build verification passed"
 
-      - name: Run tests (excluding browser E2E - requires real browser)
+      - name: Run tests (unit tests - full CI suite runs on PR checks)
         run: |
-          npm run test:ci 2>&1 | tee /tmp/test-output.txt
+          npm run test:unit 2>&1 | tee /tmp/test-output.txt
           TEST_EXIT=$?
           # Tolerate Vitest worker fork crash if all test files actually passed
           if [ $TEST_EXIT -ne 0 ]; then
