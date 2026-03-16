@@ -176,13 +176,13 @@ describe('NativeHnswBackend', () => {
   // ===========================================================================
 
   describe('Feature Flag: useNativeHNSW', () => {
-    it('should default to false', () => {
+    it('should default to true', () => {
       const flags = getRuVectorFeatureFlags();
-      expect(flags.useNativeHNSW).toBe(false);
+      expect(flags.useNativeHNSW).toBe(true);
     });
 
     it('should be checkable via convenience function', () => {
-      expect(isNativeHNSWEnabled()).toBe(false);
+      expect(isNativeHNSWEnabled()).toBe(true);
     });
 
     it('should be settable via setRuVectorFeatureFlags', () => {
@@ -204,10 +204,10 @@ describe('NativeHnswBackend', () => {
       expect(after.logMigrationMetrics).toBe(before.logMigrationMetrics);
     });
 
-    it('should reset to false on resetRuVectorFeatureFlags', () => {
-      setRuVectorFeatureFlags({ useNativeHNSW: true });
+    it('should reset to true on resetRuVectorFeatureFlags', () => {
+      setRuVectorFeatureFlags({ useNativeHNSW: false });
       resetRuVectorFeatureFlags();
-      expect(isNativeHNSWEnabled()).toBe(false);
+      expect(isNativeHNSWEnabled()).toBe(true);
     });
 
     it('should support environment variable RUVECTOR_USE_NATIVE_HNSW', async () => {

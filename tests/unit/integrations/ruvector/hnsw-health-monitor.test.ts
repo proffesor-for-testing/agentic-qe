@@ -839,9 +839,9 @@ describe('Feature Flag Integration', () => {
     resetRuVectorFeatureFlags();
   });
 
-  it('should have useHnswHealthMonitor flag default to false', () => {
+  it('should have useHnswHealthMonitor flag default to true', () => {
     const flags = getRuVectorFeatureFlags();
-    expect(flags.useHnswHealthMonitor).toBe(false);
+    expect(flags.useHnswHealthMonitor).toBe(true);
   });
 
   it('should allow enabling the flag', () => {
@@ -851,14 +851,14 @@ describe('Feature Flag Integration', () => {
   });
 
   it('should reset flag to default on resetRuVectorFeatureFlags', () => {
-    setRuVectorFeatureFlags({ useHnswHealthMonitor: true });
+    setRuVectorFeatureFlags({ useHnswHealthMonitor: false });
     resetRuVectorFeatureFlags();
     const flags = getRuVectorFeatureFlags();
-    expect(flags.useHnswHealthMonitor).toBe(false);
+    expect(flags.useHnswHealthMonitor).toBe(true);
   });
 
   it('should provide isHnswHealthMonitorEnabled convenience function', () => {
-    expect(isHnswHealthMonitorEnabled()).toBe(false);
+    expect(isHnswHealthMonitorEnabled()).toBe(true);
 
     setRuVectorFeatureFlags({ useHnswHealthMonitor: true });
     expect(isHnswHealthMonitorEnabled()).toBe(true);

@@ -948,14 +948,14 @@ describe('ADR-082 Success Criteria', () => {
     });
   });
 
-  describe('Criterion 6: Feature flag defaults to false', () => {
-    it('should have useNeuralRouting default to false', async () => {
+  describe('Criterion 6: Feature flag defaults to true', () => {
+    it('should have useNeuralRouting default to true', async () => {
       resetRuVectorFeatureFlags();
       const { getRuVectorFeatureFlags } = await import(
         '../../../src/integrations/ruvector/feature-flags.js'
       );
       const current = getRuVectorFeatureFlags();
-      expect(current.useNeuralRouting).toBe(false);
+      expect(current.useNeuralRouting).toBe(true);
     });
   });
 

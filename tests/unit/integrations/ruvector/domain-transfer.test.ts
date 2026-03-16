@@ -327,7 +327,7 @@ describe('DomainTransferEngine', () => {
 
   describe('feature flag toggle', () => {
     it('should return zero-probability candidate when feature is disabled', () => {
-      resetRuVectorFeatureFlags(); // Resets to defaults (useCrossDomainTransfer: false)
+      setRuVectorFeatureFlags({ useCrossDomainTransfer: false });
       expect(isCrossDomainTransferEnabled()).toBe(false);
 
       const candidate = engine.evaluateTransfer('test-generation', 'coverage-analysis');
@@ -793,11 +793,11 @@ describe('Feature Flag: useCrossDomainTransfer', () => {
     resetRuVectorFeatureFlags();
   });
 
-  it('should default to false', () => {
+  it('should default to true', () => {
     resetRuVectorFeatureFlags();
     const flags = getRuVectorFeatureFlags();
-    expect(flags.useCrossDomainTransfer).toBe(false);
-    expect(isCrossDomainTransferEnabled()).toBe(false);
+    expect(flags.useCrossDomainTransfer).toBe(true);
+    expect(isCrossDomainTransferEnabled()).toBe(true);
   });
 
   it('should be togglable at runtime', () => {

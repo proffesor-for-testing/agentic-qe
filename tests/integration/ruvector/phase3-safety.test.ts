@@ -829,16 +829,18 @@ describe('Phase 3: Feature Flag Backward Compatibility', () => {
     resetRuVectorFeatureFlags();
   });
 
-  it('should have all Phase 3 flags off by default', () => {
+  it('should have all Phase 3 flags enabled by default', () => {
     const flags = getRuVectorFeatureFlags();
 
-    expect(flags.useCoherenceGate).toBe(false);
-    expect(flags.useWitnessChain).toBe(false);
-    expect(flags.useCoherenceActionGate).toBe(false);
-    expect(flags.useHnswHealthMonitor).toBe(false);
+    expect(flags.useCoherenceGate).toBe(true);
+    expect(flags.useWitnessChain).toBe(true);
+    expect(flags.useCoherenceActionGate).toBe(true);
+    expect(flags.useHnswHealthMonitor).toBe(true);
   });
 
-  it('should report original behavior with all flags off', () => {
+  it('should report original behavior with all flags explicitly off', () => {
+    // Explicitly disable flags to test disabled behavior
+    setRuVectorFeatureFlags({ useCoherenceGate: false });
     // Coherence gate: validateTransfer should approve everything when flag is off
     const gate = createCoherenceGate();
     const transferResult = gate.validateTransfer(
@@ -851,8 +853,8 @@ describe('Phase 3: Feature Flag Backward Compatibility', () => {
   });
 
   it('should allow independent flag toggling', () => {
-    // Enable only coherence gate
-    setRuVectorFeatureFlags({ useCoherenceGate: true });
+    // Disable witness chain and action gate, keep coherence gate on
+    setRuVectorFeatureFlags({ useCoherenceGate: true, useWitnessChain: false, useCoherenceActionGate: false });
 
     let flags = getRuVectorFeatureFlags();
     expect(flags.useCoherenceGate).toBe(true);
@@ -865,11 +867,11 @@ describe('Phase 3: Feature Flag Backward Compatibility', () => {
     flags = getRuVectorFeatureFlags();
     expect(flags.useCoherenceGate).toBe(true);
     expect(flags.useWitnessChain).toBe(true);
-    expect(flags.useCoherenceActionGate).toBe(false);
+    expect(flags.useCoherenceActionGate).toBe(false); // Explicitly set to false above
   });
 
-  it('should return null from evaluateTaskAction when flag is off', () => {
-    // All flags off by default
+  it('should return null from evaluateTaskAction when flag is explicitly off', () => {
+    setRuVectorFeatureFlags({ useCoherenceActionGate: false });
     const result = evaluateTaskAction(
       'generate-test',
       'test-generation',
@@ -880,8 +882,8 @@ describe('Phase 3: Feature Flag Backward Compatibility', () => {
     expect(result).toBeNull();
   });
 
-  it('should not add witness records when useWitnessChain is off', () => {
-    // Witness chain flag is off by default
+  it('should not add witness records when useWitnessChain is explicitly off', () => {
+    setRuVectorFeatureFlags({ useWitnessChain: false });
     const gate = createCoherenceGate();
 
     gate.validate(createValidArtifact());
@@ -894,19 +896,19 @@ describe('Phase 3: Feature Flag Backward Compatibility', () => {
 
   it('should reset all flags to defaults', () => {
     setRuVectorFeatureFlags({
-      useCoherenceGate: true,
-      useWitnessChain: true,
-      useCoherenceActionGate: true,
-      useHnswHealthMonitor: true,
+      useCoherenceGate: false,
+      useWitnessChain: false,
+      useCoherenceActionGate: false,
+      useHnswHealthMonitor: false,
     });
 
     resetRuVectorFeatureFlags();
 
     const flags = getRuVectorFeatureFlags();
-    expect(flags.useCoherenceGate).toBe(false);
-    expect(flags.useWitnessChain).toBe(false);
-    expect(flags.useCoherenceActionGate).toBe(false);
-    expect(flags.useHnswHealthMonitor).toBe(false);
+    expect(flags.useCoherenceGate).toBe(true);
+    expect(flags.useWitnessChain).toBe(true);
+    expect(flags.useCoherenceActionGate).toBe(true);
+    expect(flags.useHnswHealthMonitor).toBe(true);
   });
 });
 

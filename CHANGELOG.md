@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Reasoning QEC (Quantum Error Correction)** — Majority-vote consensus across multiple reasoning paths for higher confidence agent decisions.
 - **QE dashboard scaffolding** — Browser-based dashboard for exploring learned patterns, cluster visualizations, and WASM-accelerated vector search.
 - **Cognitive container export/import (RVF v2)** — Portable brain snapshots that capture an agent's full learned state for sharing across environments.
-- **15 feature flags** — All new capabilities ship behind feature flags (default off) for safe, incremental adoption via CLI profiles.
+- **15 feature flags** — All new capabilities are enabled by default for immediate value. Disable individually via CLI profiles or `setRuVectorFeatureFlags()` for opt-out.
 - **Regret tracker** — Monitors routing decisions over time with log-log regression to detect and correct degrading performance trends.
 - **HNSW health monitor** — Spectral analysis of index health with automatic rebalancing recommendations.
 - **CLI commands** — New `aqe ruvector`, `aqe audit`, and `aqe learning` commands for managing the new subsystems.

@@ -107,7 +107,7 @@ describe('RuVector CLI Commands', () => {
     });
 
     it('should show modified marker when flag is changed', async () => {
-      setRuVectorFeatureFlags({ useNativeHNSW: true });
+      setRuVectorFeatureFlags({ useNativeHNSW: false });
       await executeCommand(command, ['status']);
 
       const output = getLogOutput();
@@ -126,6 +126,7 @@ describe('RuVector CLI Commands', () => {
     });
 
     it('should not show compression details when temporal compression is disabled', async () => {
+      setRuVectorFeatureFlags({ useTemporalCompression: false });
       await executeCommand(command, ['status']);
 
       const output = getLogOutput();
@@ -187,6 +188,7 @@ describe('RuVector CLI Commands', () => {
 
   describe('flags subcommand - setting', () => {
     it('should set a flag to true', async () => {
+      setRuVectorFeatureFlags({ useNativeHNSW: false });
       expect(getRuVectorFeatureFlags().useNativeHNSW).toBe(false);
 
       await executeCommand(command, ['flags', '--set', 'useNativeHNSW=true']);
@@ -277,7 +279,7 @@ describe('RuVector CLI Commands', () => {
       expect(flags.useQEFlashAttention).toBe(true);
       expect(flags.useQEGNNIndex).toBe(true);
       expect(flags.logMigrationMetrics).toBe(true);
-      // New flags turned off
+      // New flags turned off by safe profile
       expect(flags.useNativeHNSW).toBe(false);
       expect(flags.useTemporalCompression).toBe(false);
       expect(flags.useMetadataFiltering).toBe(false);

@@ -979,7 +979,8 @@ describe('Phase 1: Backward Compatibility (All Flags OFF)', () => {
     HnswAdapter.closeAll();
   });
 
-  it('should use JS backend when useNativeHNSW is off (default)', () => {
+  it('should use JS backend when useNativeHNSW is explicitly disabled', () => {
+    setRuVectorFeatureFlags({ useNativeHNSW: false });
     const flags = getRuVectorFeatureFlags();
     expect(flags.useNativeHNSW).toBe(false);
 
@@ -993,7 +994,8 @@ describe('Phase 1: Backward Compatibility (All Flags OFF)', () => {
     HnswAdapter.close('compat-hnsw');
   });
 
-  it('should not filter when useMetadataFiltering is off (default)', async () => {
+  it('should not filter when useMetadataFiltering is explicitly disabled', async () => {
+    setRuVectorFeatureFlags({ useMetadataFiltering: false });
     const flags = getRuVectorFeatureFlags();
     expect(flags.useMetadataFiltering).toBe(false);
 
@@ -1008,26 +1010,27 @@ describe('Phase 1: Backward Compatibility (All Flags OFF)', () => {
     expect(filtered).toHaveLength(2); // No filtering applied
   });
 
-  it('should report temporal compression disabled when flag is off (default)', () => {
+  it('should report temporal compression disabled when flag is explicitly off', () => {
+    setRuVectorFeatureFlags({ useTemporalCompression: false });
     const service = createTemporalCompressionService();
     const flags = getRuVectorFeatureFlags();
     expect(flags.useTemporalCompression).toBe(false);
     expect(service.isEnabled()).toBe(false);
   });
 
-  it('should report dithering flag off by default', () => {
+  it('should report dithering flag enabled by default', () => {
     const flags = getRuVectorFeatureFlags();
-    expect(flags.useDeterministicDither).toBe(false);
+    expect(flags.useDeterministicDither).toBe(true);
   });
 
-  it('should verify all Phase 1 flags default to false', () => {
+  it('should verify all Phase 1 flags default to true', () => {
     resetRuVectorFeatureFlags();
     const flags = getRuVectorFeatureFlags();
 
-    expect(flags.useNativeHNSW).toBe(false);
-    expect(flags.useTemporalCompression).toBe(false);
-    expect(flags.useMetadataFiltering).toBe(false);
-    expect(flags.useDeterministicDither).toBe(false);
+    expect(flags.useNativeHNSW).toBe(true);
+    expect(flags.useTemporalCompression).toBe(true);
+    expect(flags.useMetadataFiltering).toBe(true);
+    expect(flags.useDeterministicDither).toBe(true);
   });
 
   it('should verify pre-existing flags default to true', () => {
@@ -1056,8 +1059,8 @@ describe('Phase 1: Feature Flag Runtime Toggling', () => {
     setRuVectorFeatureFlags({ useMetadataFiltering: true });
     let flags = getRuVectorFeatureFlags();
     expect(flags.useMetadataFiltering).toBe(true);
-    expect(flags.useNativeHNSW).toBe(false); // Unchanged
-    expect(flags.useTemporalCompression).toBe(false); // Unchanged
+    expect(flags.useNativeHNSW).toBe(true); // Unchanged (default is true)
+    expect(flags.useTemporalCompression).toBe(true); // Unchanged (default is true)
 
     setRuVectorFeatureFlags({ useNativeHNSW: true });
     flags = getRuVectorFeatureFlags();
@@ -1067,20 +1070,20 @@ describe('Phase 1: Feature Flag Runtime Toggling', () => {
 
   it('should reset all flags to defaults', () => {
     setRuVectorFeatureFlags({
-      useNativeHNSW: true,
-      useTemporalCompression: true,
-      useMetadataFiltering: true,
-      useDeterministicDither: true,
+      useNativeHNSW: false,
+      useTemporalCompression: false,
+      useMetadataFiltering: false,
+      useDeterministicDither: false,
       useQESONA: false,
     });
 
     resetRuVectorFeatureFlags();
     const flags = getRuVectorFeatureFlags();
 
-    expect(flags.useNativeHNSW).toBe(false);
-    expect(flags.useTemporalCompression).toBe(false);
-    expect(flags.useMetadataFiltering).toBe(false);
-    expect(flags.useDeterministicDither).toBe(false);
+    expect(flags.useNativeHNSW).toBe(true);
+    expect(flags.useTemporalCompression).toBe(true);
+    expect(flags.useMetadataFiltering).toBe(true);
+    expect(flags.useDeterministicDither).toBe(true);
     expect(flags.useQESONA).toBe(true);
   });
 

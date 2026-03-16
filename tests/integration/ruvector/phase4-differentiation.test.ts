@@ -1474,20 +1474,20 @@ describe('Phase 4: Feature Flag Backward Compatibility', () => {
     resetRuVectorFeatureFlags();
   });
 
-  it('should have all Phase 4 flags off by default', () => {
+  it('should have all Phase 4 flags enabled by default', () => {
     resetRuVectorFeatureFlags();
     const flags = getRuVectorFeatureFlags();
 
-    expect(flags.useCNNVisualRegression).toBe(false);
-    expect(flags.useDAGAttention).toBe(false);
-    expect(flags.useReasoningQEC).toBe(false);
+    expect(flags.useCNNVisualRegression).toBe(true);
+    expect(flags.useDAGAttention).toBe(true);
+    expect(flags.useReasoningQEC).toBe(true);
   });
 
   it('should allow enabling Phase 4 flags individually', () => {
     setRuVectorFeatureFlags({ useCNNVisualRegression: true });
     let flags = getRuVectorFeatureFlags();
     expect(flags.useCNNVisualRegression).toBe(true);
-    expect(flags.useDAGAttention).toBe(false);
+    expect(flags.useDAGAttention).toBe(true);
 
     setRuVectorFeatureFlags({ useDAGAttention: true });
     flags = getRuVectorFeatureFlags();
@@ -1505,9 +1505,9 @@ describe('Phase 4: Feature Flag Backward Compatibility', () => {
     resetRuVectorFeatureFlags();
     const flags = getRuVectorFeatureFlags();
 
-    expect(flags.useCNNVisualRegression).toBe(false);
-    expect(flags.useDAGAttention).toBe(false);
-    expect(flags.useReasoningQEC).toBe(false);
+    expect(flags.useCNNVisualRegression).toBe(true);
+    expect(flags.useDAGAttention).toBe(true);
+    expect(flags.useReasoningQEC).toBe(true);
   });
 
   it('should not affect pre-existing Phase 1-3 flags when setting Phase 4 flags', () => {
@@ -1528,8 +1528,8 @@ describe('Phase 4: Feature Flag Backward Compatibility', () => {
     expect(afterFlags.useQEGNNIndex).toBe(gnnState);
   });
 
-  it('should preserve original behavior with all Phase 4 flags disabled', () => {
-    resetRuVectorFeatureFlags();
+  it('should preserve original behavior with all Phase 4 flags explicitly disabled', () => {
+    setRuVectorFeatureFlags({ useCNNVisualRegression: false, useDAGAttention: false, useReasoningQEC: false });
 
     // With all Phase 4 flags off, core features should still work
     const flags = getRuVectorFeatureFlags();

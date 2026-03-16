@@ -642,22 +642,22 @@ describe('CoherenceValidator', () => {
       expect(result.warnings.length).toBeGreaterThan(0);
     });
 
-    it('should default useCoherenceGate to false', () => {
+    it('should default useCoherenceGate to true', () => {
       resetRuVectorFeatureFlags();
       const flags = getRuVectorFeatureFlags();
-      expect(flags.useCoherenceGate).toBe(false);
+      expect(flags.useCoherenceGate).toBe(true);
     });
 
-    it('should default useWitnessChain to false', () => {
+    it('should default useWitnessChain to true', () => {
       resetRuVectorFeatureFlags();
       const flags = getRuVectorFeatureFlags();
-      expect(flags.useWitnessChain).toBe(false);
+      expect(flags.useWitnessChain).toBe(true);
     });
 
     it('should have convenience functions for new flags', () => {
       resetRuVectorFeatureFlags();
-      expect(isCoherenceGateEnabled()).toBe(false);
-      expect(isWitnessChainEnabled()).toBe(false);
+      expect(isCoherenceGateEnabled()).toBe(true);
+      expect(isWitnessChainEnabled()).toBe(true);
 
       setRuVectorFeatureFlags({ useCoherenceGate: true, useWitnessChain: true });
       expect(isCoherenceGateEnabled()).toBe(true);

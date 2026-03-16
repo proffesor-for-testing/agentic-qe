@@ -514,15 +514,15 @@ describe('CoherenceActionGate', () => {
   // --------------------------------------------------------------------------
 
   describe('feature flag toggle', () => {
-    it('should default useCoherenceActionGate to false', () => {
+    it('should default useCoherenceActionGate to true', () => {
       resetRuVectorFeatureFlags();
       const flags = getRuVectorFeatureFlags();
-      expect(flags.useCoherenceActionGate).toBe(false);
+      expect(flags.useCoherenceActionGate).toBe(true);
     });
 
     it('should have convenience function', () => {
       resetRuVectorFeatureFlags();
-      expect(isCoherenceActionGateEnabled()).toBe(false);
+      expect(isCoherenceActionGateEnabled()).toBe(true);
 
       setRuVectorFeatureFlags({ useCoherenceActionGate: true });
       expect(isCoherenceActionGateEnabled()).toBe(true);

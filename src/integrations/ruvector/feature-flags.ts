@@ -2,8 +2,8 @@
  * RuVector Feature Flags for V3 QE Integration
  *
  * Controls which @ruvector package features are enabled for QE operations.
- * All flags default to true but can be disabled for debugging, testing,
- * or gradual rollout scenarios.
+ * All flags default to true (enabled) and can be disabled for debugging,
+ * testing, or opt-out scenarios.
  *
  * Note: These are enable/disable flags for feature control, NOT error hiding.
  * If a dependency fails, it throws an error - we don't silently fall back.
@@ -66,7 +66,7 @@ export interface RuVectorFeatureFlags {
    * Uses the Rust-based HNSW implementation for higher throughput
    * and lower latency vector search. Falls back to ProgressiveHnswBackend
    * when the native binary is unavailable or the database lock is held.
-   * @default false
+   * @default true
    */
   useNativeHNSW: boolean;
 
@@ -75,7 +75,7 @@ export interface RuVectorFeatureFlags {
    * Compresses pattern embeddings based on access frequency using tiered
    * quantization (8-bit hot, 5-bit warm, 3-bit cold). Reduces memory
    * usage for infrequently accessed patterns.
-   * @default false
+   * @default true
    */
   useTemporalCompression: boolean;
 
@@ -84,7 +84,7 @@ export interface RuVectorFeatureFlags {
    * Uses TypeScript in-memory filtering (no native package exists).
    * Filtering is applied post-search to refine results by domain,
    * severity, confidence range, tags, date range, etc.
-   * @default false
+   * @default true
    */
   useMetadataFiltering: boolean;
 
@@ -95,7 +95,7 @@ export interface RuVectorFeatureFlags {
    * applies dithering as a post-processing step, improving reconstruction
    * quality at low bit depths while guaranteeing identical outputs on
    * x86, ARM, and WASM platforms.
-   * @default false
+   * @default true
    */
   useDeterministicDither: boolean;
 
@@ -109,7 +109,7 @@ export interface RuVectorFeatureFlags {
    * Note: `@ruvector/tiny-dancer` NAPI binary is missing from ARM64 package;
    * the TS SimpleNeuralRouter is production-ready (4→32→3 network is too
    * small to benefit from native acceleration).
-   * @default false
+   * @default true
    */
   useNeuralRouting: boolean;
 
@@ -120,7 +120,7 @@ export interface RuVectorFeatureFlags {
    * - Background loop: periodic EWC++ consolidation
    * - Coordination loop: cross-agent state synchronization
    * When disabled, SONA operates without the three-loop enhancement.
-   * @default false
+   * @default true
    */
   useSONAThreeLoop: boolean;
 
@@ -131,7 +131,7 @@ export interface RuVectorFeatureFlags {
    * overly aggressive transfers, and a double verification gate (source must
    * not regress, target must improve). Coherence gate integration uses a
    * pass-through stub until Task 3.1 implements the real gate.
-   * @default false
+   * @default true
    */
   useCrossDomainTransfer: boolean;
 
@@ -142,7 +142,7 @@ export interface RuVectorFeatureFlags {
    * Generates alerts when thresholds are exceeded (FragileIndex, PoorExpansion,
    * HighResistance, LowCoherence). Uses TypeScript power iteration
    * approximations (no native package exists for spectral computation).
-   * @default false
+   * @default true
    */
   useHnswHealthMonitor: boolean;
 
@@ -151,7 +151,7 @@ export interface RuVectorFeatureFlags {
    * Tracks cumulative regret per domain to assess whether QE agents are
    * learning over time. Classifies regret growth as sublinear (learning),
    * linear (stagnating), or superlinear (degrading). Alerts on transitions.
-   * @default false
+   * @default true
    */
   useRegretTracking: boolean;
 
@@ -161,7 +161,7 @@ export interface RuVectorFeatureFlags {
    * energy computation. Detects hallucinated or inconsistent test outputs.
    * Uses a two-tier compute ladder (reflex <1ms, retrieval ~10ms).
    * Implements ITransferCoherenceGate replacing the stub.
-   * @default false
+   * @default true
    */
   useCoherenceGate: boolean;
 
@@ -170,7 +170,7 @@ export interface RuVectorFeatureFlags {
    * Creates a tamper-evident audit trail of all coherence gate decisions.
    * Each witness record is hash-chained to the previous one.
    * Falls back to SHA-256 when Blake3 is unavailable.
-   * @default false
+   * @default true
    */
   useWitnessChain: boolean;
 
@@ -179,7 +179,7 @@ export interface RuVectorFeatureFlags {
    * Uses spatial pooling embeddings for visual regression testing
    * instead of pixel-level diffing. TypeScript implementation with
    * 8x8 grid spatial pooling (no native CNN package exists).
-   * @default false
+   * @default true
    */
   useCNNVisualRegression: boolean;
 
@@ -188,7 +188,7 @@ export interface RuVectorFeatureFlags {
    * Uses DAG-based attention mechanisms for intelligent test execution ordering:
    * critical path attention, parallel branch attention, and MinCut-gated pruning.
    * TypeScript implementation (no native package exists for DAG attention).
-   * @default false
+   * @default true
    */
   useDAGAttention: boolean;
 
@@ -198,7 +198,7 @@ export interface RuVectorFeatureFlags {
    * evidence) before execution. Produces PERMIT/DEFER/DENY decisions.
    * Advisory mode by default: logs decisions but does not block execution.
    * TypeScript implementation (no native package exists).
-   * @default false
+   * @default true
    */
   useCoherenceActionGate: boolean;
 
@@ -209,7 +209,7 @@ export interface RuVectorFeatureFlags {
    * correction produces a high-confidence corrected reasoning chain.
    * Applicable to test generation validation, security audit consensus,
    * and defect triage. TypeScript implementation (no native package exists).
-   * @default false
+   * @default true
    */
   useReasoningQEC: boolean;
 }
@@ -226,21 +226,21 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   useQEFlashAttention: true,
   useQEGNNIndex: true,
   logMigrationMetrics: true,
-  useNativeHNSW: false,
-  useTemporalCompression: false,
-  useMetadataFiltering: false,
-  useDeterministicDither: false,
-  useNeuralRouting: false,
-  useSONAThreeLoop: false,
-  useCrossDomainTransfer: false,
-  useHnswHealthMonitor: false,
-  useRegretTracking: false,
-  useCoherenceGate: false,
-  useWitnessChain: false,
-  useCNNVisualRegression: false,
-  useDAGAttention: false,
-  useCoherenceActionGate: false,
-  useReasoningQEC: false,
+  useNativeHNSW: true,
+  useTemporalCompression: true,
+  useMetadataFiltering: true,
+  useDeterministicDither: true,
+  useNeuralRouting: true,
+  useSONAThreeLoop: true,
+  useCrossDomainTransfer: true,
+  useHnswHealthMonitor: true,
+  useRegretTracking: true,
+  useCoherenceGate: true,
+  useWitnessChain: true,
+  useCNNVisualRegression: true,
+  useDAGAttention: true,
+  useCoherenceActionGate: true,
+  useReasoningQEC: true,
 };
 
 // ============================================================================

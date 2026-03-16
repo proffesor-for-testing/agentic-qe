@@ -747,14 +747,14 @@ describe('Phase 2: Feature Flag Backward Compatibility', () => {
     resetRuVectorFeatureFlags();
   });
 
-  it('should default all Phase 2 flags to false', () => {
+  it('should default all Phase 2 flags to true', () => {
     resetRuVectorFeatureFlags();
     const flags = getRuVectorFeatureFlags();
 
-    expect(flags.useNeuralRouting).toBe(false);
-    expect(flags.useSONAThreeLoop).toBe(false);
-    expect(flags.useCrossDomainTransfer).toBe(false);
-    expect(flags.useRegretTracking).toBe(false);
+    expect(flags.useNeuralRouting).toBe(true);
+    expect(flags.useSONAThreeLoop).toBe(true);
+    expect(flags.useCrossDomainTransfer).toBe(true);
+    expect(flags.useRegretTracking).toBe(true);
   });
 
   it('should keep Phase 1 flags at their defaults when Phase 2 flags are set', () => {
@@ -780,8 +780,8 @@ describe('Phase 2: Feature Flag Backward Compatibility', () => {
     expect(flags.logMigrationMetrics).toBe(true);
   });
 
-  it('should not alter routing behavior when useNeuralRouting is off', async () => {
-    resetRuVectorFeatureFlags();
+  it('should not alter routing behavior when useNeuralRouting is explicitly off', async () => {
+    setRuVectorFeatureFlags({ useNeuralRouting: false });
     expect(getRuVectorFeatureFlags().useNeuralRouting).toBe(false);
 
     // The NeuralTinyDancerRouter itself always runs (it is a code construct),
@@ -791,8 +791,8 @@ describe('Phase 2: Feature Flag Backward Compatibility', () => {
     expect(flags.useNeuralRouting).toBe(false);
   });
 
-  it('should reject cross-domain transfers when useCrossDomainTransfer is off', () => {
-    resetRuVectorFeatureFlags();
+  it('should reject cross-domain transfers when useCrossDomainTransfer is explicitly off', () => {
+    setRuVectorFeatureFlags({ useCrossDomainTransfer: false });
     const engine = createDomainTransferEngine();
     const candidate = engine.evaluateTransfer('test-generation', 'coverage-analysis');
 
@@ -803,19 +803,19 @@ describe('Phase 2: Feature Flag Backward Compatibility', () => {
 
   it('should reset Phase 2 flags correctly', () => {
     setRuVectorFeatureFlags({
-      useNeuralRouting: true,
-      useSONAThreeLoop: true,
-      useCrossDomainTransfer: true,
-      useRegretTracking: true,
+      useNeuralRouting: false,
+      useSONAThreeLoop: false,
+      useCrossDomainTransfer: false,
+      useRegretTracking: false,
     });
 
     resetRuVectorFeatureFlags();
     const flags = getRuVectorFeatureFlags();
 
-    expect(flags.useNeuralRouting).toBe(false);
-    expect(flags.useSONAThreeLoop).toBe(false);
-    expect(flags.useCrossDomainTransfer).toBe(false);
-    expect(flags.useRegretTracking).toBe(false);
+    expect(flags.useNeuralRouting).toBe(true);
+    expect(flags.useSONAThreeLoop).toBe(true);
+    expect(flags.useCrossDomainTransfer).toBe(true);
+    expect(flags.useRegretTracking).toBe(true);
   });
 });
 
@@ -897,7 +897,12 @@ describe('Phase 2: End-to-End Component Integration', () => {
 
   it('should work correctly with all Phase 2 flags toggled at runtime', async () => {
     // Start with all Phase 2 flags OFF
-    resetRuVectorFeatureFlags();
+    setRuVectorFeatureFlags({
+      useNeuralRouting: false,
+      useSONAThreeLoop: false,
+      useCrossDomainTransfer: false,
+      useRegretTracking: false,
+    });
 
     // Verify transfer is disabled
     const engine = createDomainTransferEngine();
