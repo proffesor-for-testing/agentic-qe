@@ -30,6 +30,9 @@ import {
 import { createMockMemory } from '../../mocks';
 import type { MemoryBackend } from '../../../src/kernel/interfaces';
 import { checkRuvectorPackagesAvailable } from '../../../src/integrations/ruvector/wrappers';
+import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence';
+import { queenGovernanceAdapter } from '../../../src/governance/queen-governance-adapter';
+import { resetSharedMinCutState } from '../../../src/coordination/mincut/shared-singleton';
 
 // Check if @ruvector/gnn native operations work (required for semantic search)
 const canTest = checkRuvectorPackagesAvailable();
@@ -39,6 +42,11 @@ describe.runIf(canTest.gnn)('QE ReasoningBank', () => {
   let reasoningBank: QEReasoningBank;
 
   beforeEach(async () => {
+    // Reset shared singletons to prevent cross-test contamination
+    resetUnifiedPersistence();
+    queenGovernanceAdapter.reset();
+    resetSharedMinCutState();
+
     memory = createMockMemory();
     reasoningBank = createQEReasoningBank(memory);
     await reasoningBank.initialize();
@@ -47,6 +55,9 @@ describe.runIf(canTest.gnn)('QE ReasoningBank', () => {
   afterEach(async () => {
     await reasoningBank.dispose();
     vi.clearAllMocks();
+
+    // Clean up singletons after test
+    resetUnifiedPersistence();
   });
 
   describe('Initialization', () => {

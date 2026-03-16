@@ -24,6 +24,9 @@ import {
 import { BaseDomainPlugin, TaskHandler } from '../../src/domains/domain-interface';
 import { CrossDomainEventRouter } from '../../src/coordination/cross-domain-router';
 import { QueenCoordinator } from '../../src/coordination/queen-coordinator';
+import { queenGovernanceAdapter } from '../../src/governance/queen-governance-adapter';
+import { resetSharedMinCutState } from '../../src/coordination/mincut/shared-singleton';
+import { resetUnifiedPersistence } from '../../src/kernel/unified-persistence';
 
 // ============================================================================
 // Test Domain Plugin
@@ -141,6 +144,11 @@ describe('Queen-Domain Coordinator Integration', () => {
   let domainPlugins: Map<DomainName, DomainPlugin>;
 
   beforeEach(async () => {
+    // Reset shared singletons to prevent cross-test contamination
+    resetUnifiedPersistence();
+    queenGovernanceAdapter.reset();
+    resetSharedMinCutState();
+
     // Create infrastructure
     eventBus = new InMemoryEventBus();
     memory = new InMemoryBackend();
@@ -183,6 +191,11 @@ describe('Queen-Domain Coordinator Integration', () => {
     await router.dispose();
     await memory.dispose();
     await eventBus.dispose();
+
+    // Reset shared singletons to prevent leaking state to subsequent tests
+    resetUnifiedPersistence();
+    queenGovernanceAdapter.reset();
+    resetSharedMinCutState();
   });
 
   describe('Direct Task Execution', () => {

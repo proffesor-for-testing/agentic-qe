@@ -10,6 +10,9 @@ import { CrossDomainEventRouter } from '../../../src/coordination/cross-domain-r
 import { DefaultProtocolExecutor } from '../../../src/coordination/protocol-executor';
 import { WorkflowOrchestrator } from '../../../src/coordination/workflow-orchestrator';
 import { DomainName, ALL_DOMAINS } from '../../../src/shared/types';
+import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence';
+import { queenGovernanceAdapter } from '../../../src/governance/queen-governance-adapter';
+import { resetSharedMinCutState } from '../../../src/coordination/mincut/shared-singleton';
 
 describe('CLI Components', () => {
   let kernel: QEKernelImpl;
@@ -17,6 +20,11 @@ describe('CLI Components', () => {
   let queen: QueenCoordinator;
 
   beforeEach(async () => {
+    // Reset shared singletons to prevent cross-test contamination
+    resetUnifiedPersistence();
+    queenGovernanceAdapter.reset();
+    resetSharedMinCutState();
+
     kernel = new QEKernelImpl({
       maxConcurrentAgents: 5,
       memoryBackend: 'hybrid',
@@ -52,6 +60,11 @@ describe('CLI Components', () => {
     await queen.dispose();
     await router.dispose();
     await kernel.dispose();
+
+    // Clean up singletons
+    resetUnifiedPersistence();
+    queenGovernanceAdapter.reset();
+    resetSharedMinCutState();
   });
 
   describe('Kernel Initialization', () => {
