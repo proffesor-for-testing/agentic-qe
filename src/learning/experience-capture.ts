@@ -19,6 +19,8 @@ import type { Result } from '../shared/types/index.js';
 import type { DomainName } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { LoggerFactory } from '../logging/index.js';
+import type { WitnessChain } from '../governance/witness-chain.js';
+import { getRuVectorFeatureFlags } from '../integrations/ruvector/feature-flags.js';
 
 const logger = LoggerFactory.create('experience-capture');
 
@@ -140,6 +142,9 @@ export interface TaskExperience {
 
   /** Additional metadata */
   metadata?: Record<string, unknown>;
+
+  /** Witness receipt hash from witness chain audit trail (when useWitnessChain enabled) */
+  witnessHash?: string;
 }
 
 /**
@@ -274,6 +279,9 @@ export class ExperienceCaptureService {
   // Session-level counter (not persisted, tracks only this session)
   private sessionCaptureCount = 0;
 
+  /** Optional witness chain for attaching audit receipts to experiences */
+  private witnessChain?: WitnessChain;
+
   constructor(
     private readonly memory: MemoryBackend,
     private readonly patternStore?: PatternStore,
@@ -281,6 +289,14 @@ export class ExperienceCaptureService {
     config: Partial<ExperienceCaptureConfig> = {}
   ) {
     this.config = { ...DEFAULT_EXPERIENCE_CONFIG, ...config };
+  }
+
+  /**
+   * Set the witness chain for attaching audit receipts to captured experiences.
+   * Only creates witness records when the useWitnessChain feature flag is enabled.
+   */
+  setWitnessChain(chain: WitnessChain): void {
+    this.witnessChain = chain;
   }
 
   /**
@@ -395,6 +411,30 @@ export class ExperienceCaptureService {
     if (rawOutcome && isValidTestOutcome(rawOutcome)) {
       experience.testOutcome = rawOutcome;
       experience.reward = computeBinaryReward(rawOutcome);
+    }
+
+    // Attach witness receipt when witness chain is available and feature flag enabled
+    if (this.witnessChain && getRuVectorFeatureFlags().useWitnessChain) {
+      try {
+        const receipt = this.witnessChain.appendWitness({
+          type: 'experience-capture',
+          decision: experience.success ? 'PASS' : 'FAIL',
+          context: {
+            experienceId: experience.id,
+            task: experience.task,
+            quality: experience.quality,
+            domain: experience.domain,
+            reward: experience.reward,
+          },
+          evidence: experience.reward,
+        });
+        experience.witnessHash = receipt.hash;
+      } catch (witnessError) {
+        logger.warn('Failed to create witness receipt for experience', {
+          experienceId: experience.id,
+          error: witnessError instanceof Error ? witnessError.message : String(witnessError),
+        });
+      }
     }
 
     // Remove from active

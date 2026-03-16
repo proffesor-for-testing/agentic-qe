@@ -60,6 +60,158 @@ export interface RuVectorFeatureFlags {
    * @default true
    */
   logMigrationMetrics: boolean;
+
+  /**
+   * Enable Native HNSW backend via @ruvector/router VectorDb
+   * Uses the Rust-based HNSW implementation for higher throughput
+   * and lower latency vector search. Falls back to ProgressiveHnswBackend
+   * when the native binary is unavailable or the database lock is held.
+   * @default false
+   */
+  useNativeHNSW: boolean;
+
+  /**
+   * Enable Temporal Tensor Compression (ADR-085)
+   * Compresses pattern embeddings based on access frequency using tiered
+   * quantization (8-bit hot, 5-bit warm, 3-bit cold). Reduces memory
+   * usage for infrequently accessed patterns.
+   * @default false
+   */
+  useTemporalCompression: boolean;
+
+  /**
+   * Enable metadata filtering on pattern search results (Task 1.2)
+   * Uses TypeScript in-memory filtering (no native package exists).
+   * Filtering is applied post-search to refine results by domain,
+   * severity, confidence range, tags, date range, etc.
+   * @default false
+   */
+  useMetadataFiltering: boolean;
+
+  /**
+   * Enable deterministic dithering for embedding quantization (Task 1.4)
+   * Uses golden-ratio quasi-random dithering to produce cross-platform
+   * reproducible quantization results. When enabled, tensor compression
+   * applies dithering as a post-processing step, improving reconstruction
+   * quality at low bit depths while guaranteeing identical outputs on
+   * x86, ARM, and WASM platforms.
+   * @default false
+   */
+  useDeterministicDither: boolean;
+
+  /**
+   * Enable Neural Model Routing via SimpleNeuralRouter (ADR-082, Task 2.1)
+   * Replaces rule-based TinyDancer complexity thresholds with a lightweight
+   * TypeScript neural network (Input(4)→Dense(32)→Dense(3)→Softmax).
+   * Starts in shadow mode (runs alongside rule-based for first 1000 decisions),
+   * then transitions to neural-primary when disagreement rate falls below 10%.
+   * Circuit breaker falls back to rule-based if error rate exceeds 20%.
+   * Note: `@ruvector/tiny-dancer` NAPI binary is missing from ARM64 package;
+   * the TS SimpleNeuralRouter is production-ready (4→32→3 network is too
+   * small to benefit from native acceleration).
+   * @default false
+   */
+  useNeuralRouting: boolean;
+
+  /**
+   * Enable SONA Three-Loop Engine (Task 2.2: EWC++ & MicroLoRA)
+   * Adds three-loop coordination to SONA:
+   * - Instant loop: per-request MicroLoRA adaptation (<100us)
+   * - Background loop: periodic EWC++ consolidation
+   * - Coordination loop: cross-agent state synchronization
+   * When disabled, SONA operates without the three-loop enhancement.
+   * @default false
+   */
+  useSONAThreeLoop: boolean;
+
+  /**
+   * Enable Cross-Domain Transfer Learning (ADR-084, Task 2.3)
+   * Enables knowledge transfer between QE domains using Thompson Sampling
+   * with Beta priors for exploration/exploitation, sqrt-dampening to prevent
+   * overly aggressive transfers, and a double verification gate (source must
+   * not regress, target must improve). Coherence gate integration uses a
+   * pass-through stub until Task 3.1 implements the real gate.
+   * @default false
+   */
+  useCrossDomainTransfer: boolean;
+
+  /**
+   * Enable HNSW Health Monitor (Task 3.4)
+   * Performs periodic spectral health checks on HNSW indexes computing
+   * Fiedler value, spectral gap, effective resistance, and coherence score.
+   * Generates alerts when thresholds are exceeded (FragileIndex, PoorExpansion,
+   * HighResistance, LowCoherence). Uses TypeScript power iteration
+   * approximations (no native package exists for spectral computation).
+   * @default false
+   */
+  useHnswHealthMonitor: boolean;
+
+  /**
+   * Enable Regret Tracking (Task 2.4: Regret Tracking & Learning Health)
+   * Tracks cumulative regret per domain to assess whether QE agents are
+   * learning over time. Classifies regret growth as sublinear (learning),
+   * linear (stagnating), or superlinear (degrading). Alerts on transitions.
+   * @default false
+   */
+  useRegretTracking: boolean;
+
+  /**
+   * Enable Sheaf-Gated Coherence Gate (ADR-083, Task 3.1)
+   * Validates AI-generated test artifacts using sheaf Laplacian coherence
+   * energy computation. Detects hallucinated or inconsistent test outputs.
+   * Uses a two-tier compute ladder (reflex <1ms, retrieval ~10ms).
+   * Implements ITransferCoherenceGate replacing the stub.
+   * @default false
+   */
+  useCoherenceGate: boolean;
+
+  /**
+   * Enable Blake3 hash-chained witness records (Task 3.1)
+   * Creates a tamper-evident audit trail of all coherence gate decisions.
+   * Each witness record is hash-chained to the previous one.
+   * Falls back to SHA-256 when Blake3 is unavailable.
+   * @default false
+   */
+  useWitnessChain: boolean;
+
+  /**
+   * Enable CNN Visual Regression (Task 4.3)
+   * Uses spatial pooling embeddings for visual regression testing
+   * instead of pixel-level diffing. TypeScript implementation with
+   * 8x8 grid spatial pooling (no native CNN package exists).
+   * @default false
+   */
+  useCNNVisualRegression: boolean;
+
+  /**
+   * Enable DAG Attention for Test Scheduling (Phase 4, Task 4.2)
+   * Uses DAG-based attention mechanisms for intelligent test execution ordering:
+   * critical path attention, parallel branch attention, and MinCut-gated pruning.
+   * TypeScript implementation (no native package exists for DAG attention).
+   * @default false
+   */
+  useDAGAttention: boolean;
+
+  /**
+   * Enable Coherence-Gated Agent Actions (ADR-083, Task 3.2)
+   * Evaluates agent actions through three stacked filters (structural, shift,
+   * evidence) before execution. Produces PERMIT/DEFER/DENY decisions.
+   * Advisory mode by default: logs decisions but does not block execution.
+   * TypeScript implementation (no native package exists).
+   * @default false
+   */
+  useCoherenceActionGate: boolean;
+
+  /**
+   * Enable Reasoning QEC (Task 4.5: Multi-Path Consensus)
+   * Applies error correction to AI reasoning using three independent paths.
+   * Syndrome extraction identifies disagreements between paths; majority-vote
+   * correction produces a high-confidence corrected reasoning chain.
+   * Applicable to test generation validation, security audit consensus,
+   * and defect triage. TypeScript implementation (no native package exists).
+   * @default false
+   */
+  useReasoningQEC: boolean;
 }
 
 // ============================================================================
@@ -74,6 +226,21 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   useQEFlashAttention: true,
   useQEGNNIndex: true,
   logMigrationMetrics: true,
+  useNativeHNSW: false,
+  useTemporalCompression: false,
+  useMetadataFiltering: false,
+  useDeterministicDither: false,
+  useNeuralRouting: false,
+  useSONAThreeLoop: false,
+  useCrossDomainTransfer: false,
+  useHnswHealthMonitor: false,
+  useRegretTracking: false,
+  useCoherenceGate: false,
+  useWitnessChain: false,
+  useCNNVisualRegression: false,
+  useDAGAttention: false,
+  useCoherenceActionGate: false,
+  useReasoningQEC: false,
 };
 
 // ============================================================================
@@ -191,6 +358,126 @@ export function shouldLogMigrationMetrics(): boolean {
   return currentFeatureFlags.logMigrationMetrics;
 }
 
+/**
+ * Check if Native HNSW backend is enabled
+ * @returns true if useNativeHNSW flag is set
+ */
+export function isNativeHNSWEnabled(): boolean {
+  return currentFeatureFlags.useNativeHNSW;
+}
+
+/**
+ * Check if Temporal Tensor Compression is enabled (ADR-085)
+ * @returns true if useTemporalCompression flag is set
+ */
+export function isTemporalCompressionEnabled(): boolean {
+  return currentFeatureFlags.useTemporalCompression;
+}
+
+/**
+ * Check if metadata filtering is enabled (Task 1.2)
+ * @returns true if useMetadataFiltering flag is set
+ */
+export function isMetadataFilteringEnabled(): boolean {
+  return currentFeatureFlags.useMetadataFiltering;
+}
+
+/**
+ * Check if deterministic dithering is enabled (Task 1.4)
+ * @returns true if useDeterministicDither flag is set
+ */
+export function isDeterministicDitherEnabled(): boolean {
+  return currentFeatureFlags.useDeterministicDither;
+}
+
+/**
+ * Check if Neural Model Routing is enabled (ADR-082, Task 2.1)
+ * @returns true if useNeuralRouting flag is set
+ */
+export function isNeuralRoutingEnabled(): boolean {
+  return currentFeatureFlags.useNeuralRouting;
+}
+
+/**
+ * Check if SONA Three-Loop Engine is enabled (Task 2.2)
+ * @returns true if useSONAThreeLoop flag is set
+ */
+export function isSONAThreeLoopEnabled(): boolean {
+  return currentFeatureFlags.useSONAThreeLoop;
+}
+
+/**
+ * Check if Cross-Domain Transfer Learning is enabled (ADR-084, Task 2.3)
+ * @returns true if useCrossDomainTransfer flag is set
+ */
+export function isCrossDomainTransferEnabled(): boolean {
+  return currentFeatureFlags.useCrossDomainTransfer;
+}
+
+/**
+ * Check if HNSW Health Monitor is enabled (Task 3.4)
+ * @returns true if useHnswHealthMonitor flag is set
+ */
+export function isHnswHealthMonitorEnabled(): boolean {
+  return currentFeatureFlags.useHnswHealthMonitor;
+}
+
+/**
+ * Check if Regret Tracking is enabled (Task 2.4)
+ * @returns true if useRegretTracking flag is set
+ */
+export function isRegretTrackingEnabled(): boolean {
+  return currentFeatureFlags.useRegretTracking;
+}
+
+/**
+ * Check if Coherence Gate is enabled (ADR-083, Task 3.1)
+ * @returns true if useCoherenceGate flag is set
+ */
+export function isCoherenceGateEnabled(): boolean {
+  return currentFeatureFlags.useCoherenceGate;
+}
+
+/**
+ * Check if Witness Chain is enabled (Task 3.1)
+ * @returns true if useWitnessChain flag is set
+ */
+export function isWitnessChainEnabled(): boolean {
+  return currentFeatureFlags.useWitnessChain;
+}
+
+/**
+ * Check if CNN Visual Regression is enabled (Task 4.3)
+ * @returns true if useCNNVisualRegression flag is set
+ */
+export function isCNNVisualRegressionEnabled(): boolean {
+  return currentFeatureFlags.useCNNVisualRegression;
+}
+
+/**
+ * Check if DAG Attention for Test Scheduling is enabled (Phase 4, Task 4.2)
+ * @returns true if useDAGAttention flag is set
+ */
+export function isDAGAttentionEnabled(): boolean {
+  return currentFeatureFlags.useDAGAttention;
+}
+
+/**
+ * Check if Coherence-Gated Agent Actions is enabled (ADR-083, Task 3.2)
+ * @returns true if useCoherenceActionGate flag is set
+ */
+export function isCoherenceActionGateEnabled(): boolean {
+  return currentFeatureFlags.useCoherenceActionGate;
+}
+
+/**
+ * Check if Reasoning QEC is enabled (Task 4.5)
+ * @returns true if useReasoningQEC flag is set
+ */
+export function isReasoningQECEnabled(): boolean {
+  return currentFeatureFlags.useReasoningQEC;
+}
+
 // ============================================================================
 // Environment Variable Support
 // ============================================================================
@@ -227,6 +514,66 @@ export function initFeatureFlagsFromEnv(): void {
 
   if (process.env.RUVECTOR_LOG_MIGRATION_METRICS !== undefined) {
     envFlags.logMigrationMetrics = process.env.RUVECTOR_LOG_MIGRATION_METRICS === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_NATIVE_HNSW !== undefined) {
+    envFlags.useNativeHNSW = process.env.RUVECTOR_USE_NATIVE_HNSW === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_TEMPORAL_COMPRESSION !== undefined) {
+    envFlags.useTemporalCompression = process.env.RUVECTOR_USE_TEMPORAL_COMPRESSION === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_METADATA_FILTERING !== undefined) {
+    envFlags.useMetadataFiltering = process.env.RUVECTOR_USE_METADATA_FILTERING === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_DETERMINISTIC_DITHER !== undefined) {
+    envFlags.useDeterministicDither = process.env.RUVECTOR_USE_DETERMINISTIC_DITHER === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_NEURAL_ROUTING !== undefined) {
+    envFlags.useNeuralRouting = process.env.RUVECTOR_USE_NEURAL_ROUTING === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_SONA_THREE_LOOP !== undefined) {
+    envFlags.useSONAThreeLoop = process.env.RUVECTOR_USE_SONA_THREE_LOOP === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_CROSS_DOMAIN_TRANSFER !== undefined) {
+    envFlags.useCrossDomainTransfer = process.env.RUVECTOR_USE_CROSS_DOMAIN_TRANSFER === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_HNSW_HEALTH_MONITOR !== undefined) {
+    envFlags.useHnswHealthMonitor = process.env.RUVECTOR_USE_HNSW_HEALTH_MONITOR === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_REGRET_TRACKING !== undefined) {
+    envFlags.useRegretTracking = process.env.RUVECTOR_USE_REGRET_TRACKING === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_COHERENCE_GATE !== undefined) {
+    envFlags.useCoherenceGate = process.env.RUVECTOR_USE_COHERENCE_GATE === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_WITNESS_CHAIN !== undefined) {
+    envFlags.useWitnessChain = process.env.RUVECTOR_USE_WITNESS_CHAIN === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_CNN_VISUAL_REGRESSION !== undefined) {
+    envFlags.useCNNVisualRegression = process.env.RUVECTOR_USE_CNN_VISUAL_REGRESSION === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_DAG_ATTENTION !== undefined) {
+    envFlags.useDAGAttention = process.env.RUVECTOR_USE_DAG_ATTENTION === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_COHERENCE_ACTION_GATE !== undefined) {
+    envFlags.useCoherenceActionGate = process.env.RUVECTOR_USE_COHERENCE_ACTION_GATE === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_REASONING_QEC !== undefined) {
+    envFlags.useReasoningQEC = process.env.RUVECTOR_USE_REASONING_QEC === 'true';
   }
 
   setRuVectorFeatureFlags(envFlags);

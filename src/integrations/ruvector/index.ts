@@ -133,8 +133,23 @@ export {
   PersistentSONAEngine,
   DEFAULT_PERSISTENT_SONA_CONFIG,
   SONA_PATTERNS_SCHEMA,
+  SONA_FISHER_SCHEMA,
   type PersistentSONAConfig,
 } from './sona-persistence';
+
+// SONA Three-Loop Engine (Task 2.2: EWC++ & MicroLoRA)
+export {
+  SONAThreeLoopEngine,
+  MicroLoRA,
+  EWCPlusPlus,
+  createSONAThreeLoopEngine,
+  DEFAULT_THREE_LOOP_CONFIG,
+  type AdaptationResult,
+  type ConsolidationResult,
+  type PeerState,
+  type EWCMetrics,
+  type ThreeLoopConfig,
+} from './sona-three-loop';
 
 // Fallback implementations
 export {
@@ -443,11 +458,66 @@ export {
   isSONAEnabled,
   isFlashAttentionEnabled,
   isGNNIndexEnabled,
+  isTemporalCompressionEnabled,
+  isCrossDomainTransferEnabled,
   shouldLogMigrationMetrics,
   initFeatureFlagsFromEnv,
   DEFAULT_FEATURE_FLAGS,
   type RuVectorFeatureFlags,
 } from './feature-flags';
+
+// ============================================================================
+// Cross-Domain Transfer Learning (ADR-084, Task 2.3)
+// ============================================================================
+
+export {
+  DomainTransferEngine,
+  ThompsonSampler,
+  createDomainTransferEngine,
+  DEFAULT_DOMAIN_TRANSFER_CONFIG,
+  type TransferCandidate,
+  type TransferResult,
+  type TransferRecord,
+  type DomainTransferConfig,
+} from './domain-transfer';
+
+export {
+  TransferCoherenceStub,
+  createTransferCoherenceGate,
+  type ITransferCoherenceGate,
+  type CoherenceValidation,
+} from './transfer-coherence-stub';
+
+export {
+  TransferVerifier,
+  createTransferVerifier,
+  DEFAULT_VERIFICATION_CONFIG,
+  type DomainPerformanceSnapshot,
+  type TransferResultForVerification,
+  type VerificationResult,
+  type TransferVerificationConfig,
+} from './transfer-verification';
+
+// ============================================================================
+// Temporal Tensor Compression (ADR-085)
+// ============================================================================
+
+export {
+  TemporalCompressionService,
+  getTemporalCompressionService,
+  createTemporalCompressionService,
+  resetTemporalCompressionService,
+  cosineSimilarity,
+  TIER_CONFIG,
+  THEORETICAL_COMPRESSION_RATIOS,
+  ACTUAL_FALLBACK_RATIO,
+  EXPECTED_COMPRESSION_RATIOS,
+  HOT_THRESHOLD_DAYS,
+  WARM_THRESHOLD_DAYS,
+  type CompressionTier,
+  type CompressedVector,
+  type CompressionStats,
+} from './temporal-compression';
 
 // ============================================================================
 // Hypergraph Schema (Neural Backbone)
@@ -539,6 +609,24 @@ export {
   getSharedRvfDualWriterSync,
   resetSharedRvfDualWriter,
 } from './shared-rvf-dual-writer.js';
+
+// ============================================================================
+// Cognitive Container Export/Import (Task 4.1: RVF v2)
+// ============================================================================
+
+export {
+  CognitiveContainer,
+  createCognitiveContainer,
+  generateSigningKeyPair,
+  type ContainerSegment,
+  type ContainerManifest,
+  type ExportOptions,
+  type ImportOptions,
+  type ImportResult,
+  type VerificationResult as CognitiveContainerVerificationResult,
+  type ContainerInfo,
+  type Ed25519KeyPair,
+} from './cognitive-container';
 
 // ============================================================================
 // Shared Memory Integration (Fleet Integration)

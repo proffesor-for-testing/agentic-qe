@@ -8,7 +8,7 @@
  */
 
 import { performance } from 'perf_hooks';
-import { TinyDancerRouter, type TinyDancerConfig, type RouteResult } from './tiny-dancer-router.js';
+import { type ITaskRouter, createSmartTinyDancerRouter, type TinyDancerConfig, type RouteResult } from './tiny-dancer-router.js';
 import {
   classifyTask,
   type ClassifiableTask,
@@ -142,7 +142,7 @@ export interface QueenRouterConfig {
  * ```
  */
 export class QueenRouterAdapter {
-  private readonly tinyDancer: TinyDancerRouter;
+  private readonly tinyDancer: ITaskRouter;
   private readonly routingConfig: RoutingConfig;
   private readonly enableCostTracking: boolean;
   private readonly avgInputTokens: number;
@@ -160,8 +160,8 @@ export class QueenRouterAdapter {
   private readonly maxOutcomes = 1000;
 
   constructor(config: QueenRouterConfig = {}) {
-    // Initialize TinyDancer router
-    this.tinyDancer = new TinyDancerRouter(config.tinyDancer);
+    // Initialize TinyDancer router (uses neural if useNeuralRouting flag is on)
+    this.tinyDancer = createSmartTinyDancerRouter(config.tinyDancer);
 
     // Deep merge partial routing config with defaults, then apply env overrides
     const mergedConfig = this.mergeRoutingConfig(config.routing);
@@ -296,7 +296,7 @@ export class QueenRouterAdapter {
     }
 
     // Also record outcome in TinyDancer for its learning
-    this.tinyDancer.recordOutcome(
+    this.tinyDancer.recordOutcome?.(
       task,
       decision.tinyDancerResult,
       success,
@@ -410,7 +410,7 @@ export class QueenRouterAdapter {
     this.dailyCost = 0;
     this.lastCostReset = new Date();
     this.outcomes = [];
-    this.tinyDancer.reset();
+    this.tinyDancer.reset?.();
   }
 
   // ============================================================================

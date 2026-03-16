@@ -78,6 +78,26 @@ export const SONA_PATTERNS_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_sona_patterns_updated ON sona_patterns(updated_at DESC);
 `;
 
+/**
+ * SONA Fisher matrices table schema - stores EWC++ state per domain
+ */
+export const SONA_FISHER_SCHEMA = `
+  -- SONA Fisher Information Matrices (Task 2.2: EWC++ Persistence)
+  CREATE TABLE IF NOT EXISTS sona_fisher_matrices (
+    domain TEXT PRIMARY KEY,
+    fisher_diagonal BLOB NOT NULL,
+    optimal_params BLOB NOT NULL,
+    base_weights BLOB,
+    dimension INTEGER NOT NULL,
+    task_boundaries INTEGER NOT NULL DEFAULT 0,
+    consolidation_cycles INTEGER NOT NULL DEFAULT 0,
+    request_count INTEGER NOT NULL DEFAULT 0,
+    ewc_lambda REAL NOT NULL DEFAULT 1000.0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+`;
+
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -128,6 +148,20 @@ export const DEFAULT_PERSISTENT_SONA_CONFIG: Omit<PersistentSONAConfig, 'domain'
 // ============================================================================
 // Database Row Types
 // ============================================================================
+
+interface SONAFisherRow {
+  domain: string;
+  fisher_diagonal: Buffer;
+  optimal_params: Buffer;
+  base_weights: Buffer | null;
+  dimension: number;
+  task_boundaries: number;
+  consolidation_cycles: number;
+  request_count: number;
+  ewc_lambda: number;
+  created_at: string;
+  updated_at: string;
+}
 
 interface SONAPatternRow {
   id: string;
@@ -230,6 +264,43 @@ export class PersistentSONAEngine {
         await this.loadPatterns();
       }
 
+      // Wire three-loop engine with Fisher persistence when feature flag is on
+      const { isSONAThreeLoopEnabled } = await import('./feature-flags.js');
+      if (isSONAThreeLoopEnabled()) {
+        this.baseEngine.initThreeLoopEngine();
+
+        // Wire Fisher persistence: consolidation auto-saves to SQLite
+        this.baseEngine.setFisherPersistence(
+          (domain, fisher, optimal, base, meta) => {
+            this.saveFisherMatrix(domain, fisher, optimal, base, meta);
+          },
+          this.config.domain,
+        );
+
+        // Restore Fisher state from SQLite if available
+        const saved = this.loadFisherMatrix(this.config.domain);
+        if (saved) {
+          const engine = this.baseEngine.getThreeLoopEngine();
+          if (engine) {
+            engine.restoreFisher({
+              fisherDiagonal: saved.fisherDiagonal,
+              optimalParams: saved.optimalParams,
+              baseWeights: saved.baseWeights,
+              requestCount: saved.requestCount,
+            });
+            logger.info('Three-loop engine restored Fisher state from SQLite', {
+              domain: this.config.domain,
+              requestCount: saved.requestCount,
+              taskBoundaries: saved.taskBoundaries,
+            });
+          }
+        }
+
+        logger.info('Three-loop engine initialized with Fisher persistence', {
+          domain: this.config.domain,
+        });
+      }
+
       this.initialized = true;
       console.log(`[PersistentSONAEngine] Initialized: domain=${this.config.domain}`);
     } catch (error) {
@@ -254,6 +325,16 @@ export class PersistentSONAEngine {
     if (!tableExists) {
       console.log('[PersistentSONAEngine] Creating sona_patterns table');
       this.db.exec(SONA_PATTERNS_SCHEMA);
+    }
+
+    // Check if Fisher matrices table exists
+    const fisherTableExists = this.db.prepare(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='sona_fisher_matrices'`
+    ).get();
+
+    if (!fisherTableExists) {
+      console.log('[PersistentSONAEngine] Creating sona_fisher_matrices table');
+      this.db.exec(SONA_FISHER_SCHEMA);
     }
   }
 
@@ -395,6 +476,38 @@ export class PersistentSONAEngine {
         DELETE FROM sona_patterns
         WHERE updated_at < datetime('now', '-' || ? || ' days')
       `)
+    );
+
+    // Fisher matrix statements (Task 2.2: EWC++ Persistence)
+    this.prepared.set(
+      'upsertFisher',
+      this.db.prepare(`
+        INSERT INTO sona_fisher_matrices (
+          domain, fisher_diagonal, optimal_params, base_weights,
+          dimension, task_boundaries, consolidation_cycles,
+          request_count, ewc_lambda, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        ON CONFLICT(domain) DO UPDATE SET
+          fisher_diagonal = excluded.fisher_diagonal,
+          optimal_params = excluded.optimal_params,
+          base_weights = excluded.base_weights,
+          dimension = excluded.dimension,
+          task_boundaries = excluded.task_boundaries,
+          consolidation_cycles = excluded.consolidation_cycles,
+          request_count = excluded.request_count,
+          ewc_lambda = excluded.ewc_lambda,
+          updated_at = datetime('now')
+      `)
+    );
+
+    this.prepared.set(
+      'getFisher',
+      this.db.prepare(`SELECT * FROM sona_fisher_matrices WHERE domain = ?`)
+    );
+
+    this.prepared.set(
+      'deleteFisher',
+      this.db.prepare(`DELETE FROM sona_fisher_matrices WHERE domain = ?`)
     );
   }
 
@@ -925,6 +1038,111 @@ export class PersistentSONAEngine {
   }
 
   // ==========================================================================
+  // Fisher Matrix Persistence (Task 2.2: EWC++)
+  // ==========================================================================
+
+  /**
+   * Save Fisher Information Matrix and optimal parameters to SQLite.
+   *
+   * Persists the EWC++ state for a domain so it survives across sessions.
+   * This includes the Fisher diagonal, optimal parameters, base weights,
+   * and metadata about task boundaries and consolidation cycles.
+   *
+   * @param domain - Domain identifier for the Fisher state
+   * @param fisherDiagonal - Fisher Information Matrix diagonal
+   * @param optimalParams - Optimal parameters at last task boundary
+   * @param baseWeights - Current base weights (optional)
+   * @param metadata - Additional metadata (task boundaries, cycles, etc.)
+   */
+  saveFisherMatrix(
+    domain: string,
+    fisherDiagonal: Float32Array,
+    optimalParams: Float32Array,
+    baseWeights?: Float32Array,
+    metadata?: {
+      taskBoundaries?: number;
+      consolidationCycles?: number;
+      requestCount?: number;
+      ewcLambda?: number;
+    }
+  ): void {
+    this.ensureInitialized();
+
+    const stmt = this.prepared.get('upsertFisher');
+    if (!stmt) throw new Error('Fisher upsert statement not prepared');
+
+    const fisherBuf = this.float32ToBuffer(fisherDiagonal);
+    const optimalBuf = this.float32ToBuffer(optimalParams);
+    const baseBuf = baseWeights ? this.float32ToBuffer(baseWeights) : null;
+
+    stmt.run(
+      domain,
+      fisherBuf,
+      optimalBuf,
+      baseBuf,
+      fisherDiagonal.length,
+      metadata?.taskBoundaries ?? 0,
+      metadata?.consolidationCycles ?? 0,
+      metadata?.requestCount ?? 0,
+      metadata?.ewcLambda ?? 1000.0,
+    );
+
+    logger.info('Fisher matrix saved', { domain, dimension: fisherDiagonal.length });
+  }
+
+  /**
+   * Load Fisher Information Matrix and optimal parameters from SQLite.
+   *
+   * @param domain - Domain identifier to load Fisher state for
+   * @returns Fisher state or null if not found
+   */
+  loadFisherMatrix(domain: string): {
+    fisherDiagonal: Float32Array;
+    optimalParams: Float32Array;
+    baseWeights: Float32Array | null;
+    dimension: number;
+    taskBoundaries: number;
+    consolidationCycles: number;
+    requestCount: number;
+    ewcLambda: number;
+  } | null {
+    this.ensureInitialized();
+
+    const stmt = this.prepared.get('getFisher');
+    if (!stmt) throw new Error('Fisher get statement not prepared');
+
+    const row = stmt.get(domain) as SONAFisherRow | undefined;
+    if (!row) return null;
+
+    return {
+      fisherDiagonal: this.bufferToFloat32(row.fisher_diagonal),
+      optimalParams: this.bufferToFloat32(row.optimal_params),
+      baseWeights: row.base_weights ? this.bufferToFloat32(row.base_weights) : null,
+      dimension: row.dimension,
+      taskBoundaries: row.task_boundaries,
+      consolidationCycles: row.consolidation_cycles,
+      requestCount: row.request_count,
+      ewcLambda: row.ewc_lambda,
+    };
+  }
+
+  /**
+   * Delete Fisher matrix for a domain.
+   *
+   * @param domain - Domain identifier
+   * @returns true if a row was deleted
+   */
+  deleteFisherMatrix(domain: string): boolean {
+    this.ensureInitialized();
+
+    const stmt = this.prepared.get('deleteFisher');
+    if (!stmt) throw new Error('Fisher delete statement not prepared');
+
+    const result = stmt.run(domain);
+    return result.changes > 0;
+  }
+
+  // ==========================================================================
   // Server Integration
   // ==========================================================================
 
@@ -1177,6 +1395,29 @@ export class PersistentSONAEngine {
     const count = buffer.length / 4;
     for (let i = 0; i < count; i++) {
       arr.push(buffer.readFloatLE(i * 4));
+    }
+    return arr;
+  }
+
+  /**
+   * Convert Float32Array to Buffer (for Fisher matrix persistence)
+   */
+  private float32ToBuffer(arr: Float32Array): Buffer {
+    const buffer = Buffer.alloc(arr.length * 4);
+    for (let i = 0; i < arr.length; i++) {
+      buffer.writeFloatLE(arr[i], i * 4);
+    }
+    return buffer;
+  }
+
+  /**
+   * Convert Buffer to Float32Array (for Fisher matrix loading)
+   */
+  private bufferToFloat32(buffer: Buffer): Float32Array {
+    const count = buffer.length / 4;
+    const arr = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      arr[i] = buffer.readFloatLE(i * 4);
     }
     return arr;
   }

@@ -94,6 +94,20 @@ export {
 } from './services/eu-compliance.js';
 
 // ============================================================================
+// CNN Visual Regression (Task 4.3)
+// ============================================================================
+
+export {
+  CNNVisualRegression,
+  cosineSimilarity,
+  type ComparisonResult,
+  type LabeledPair,
+  type RegionOfInterest,
+  type EmbeddingOptions,
+  type CNNVisualRegressionConfig,
+} from './cnn-visual-regression.js';
+
+// ============================================================================
 // Interfaces (Types Only)
 // ============================================================================
 

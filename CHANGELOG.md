@@ -5,6 +5,37 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.0] - 2026-03-16
+
+### Added
+
+- **RuVector native HNSW backend** — 150x faster vector search via native HNSW index with metadata filtering, replacing the pure-JS implementation. Searches that took seconds now complete in single-digit milliseconds. (ADR-081)
+- **Neural model routing (TinyDancer)** — Intelligent router learns which model tier handles each task best, using REINFORCE policy gradient to minimize cost while maintaining quality. Routes simple tasks to fast/cheap tiers automatically. (ADR-082)
+- **Coherence-gated agent actions** — 3-filter safety pipeline validates agent outputs before they execute, catching hallucinated tool calls and incoherent reasoning chains. Includes witness chain audit trail with SHA-256 hash linking for full traceability. (ADR-083)
+- **Cross-domain transfer learning** — Agents share learned patterns across test domains (e.g., API testing insights improve UI testing) via Thompson Sampling, accelerating learning on new projects. (ADR-084)
+- **Temporal tensor compression** — 4x memory reduction for stored embeddings using Int8Array quantization with deterministic golden-ratio dithering for cross-platform reproducibility. (ADR-085)
+- **DAG attention scheduler** — Dependency-aware test ordering that runs independent tests in parallel while respecting execution order constraints, reducing overall suite time.
+- **CNN visual regression** — Spatial pooling embeddings for visual diff detection, enabling image-based regression testing without pixel-exact matching.
+- **Behavior tree orchestration** — Sequence/Selector/Parallel node types for composing complex agent workflows with built-in retry and fallback logic.
+- **Reasoning QEC (Quantum Error Correction)** — Majority-vote consensus across multiple reasoning paths for higher confidence agent decisions.
+- **QE dashboard scaffolding** — Browser-based dashboard for exploring learned patterns, cluster visualizations, and WASM-accelerated vector search.
+- **Cognitive container export/import (RVF v2)** — Portable brain snapshots that capture an agent's full learned state for sharing across environments.
+- **15 feature flags** — All new capabilities ship behind feature flags (default off) for safe, incremental adoption via CLI profiles.
+- **Regret tracker** — Monitors routing decisions over time with log-log regression to detect and correct degrading performance trends.
+- **HNSW health monitor** — Spectral analysis of index health with automatic rebalancing recommendations.
+- **CLI commands** — New `aqe ruvector`, `aqe audit`, and `aqe learning` commands for managing the new subsystems.
+
+### Fixed
+
+- **4 flaky tests stabilized** — Reset shared singletons (queenGovernanceAdapter, sharedMinCutGraph, UnifiedPersistence) between tests to prevent cross-test state contamination under full-suite contention.
+- **ARM64 install failure** — Moved `@ruvector/tiny-dancer-linux-arm64-gnu` from `dependencies` to `optionalDependencies` so `npm install` succeeds on non-ARM64 platforms.
+
+### Changed
+
+- **26 new regression tests** — Covering task-executor coherence gates, learning engine wiring, experience capture witness integration, pattern store filter compatibility, and metrics dashboard regret methods.
+- **Removed obsolete v2-to-v3-migration test** — Source code was removed in v3.7.22; test file now removed as well.
+- **file-type dependency bumped** to 21.3.2 (security patch).
+
 ## [3.7.22] - 2026-03-14
 
 ### Fixed

@@ -23,6 +23,11 @@ import { QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
 import {
   createLearningMetricsTracker,
 } from '../../learning/metrics-tracker.js';
+import {
+  createRegretTracker,
+  type DomainHealthSummary,
+  type GrowthRate,
+} from '../../learning/regret-tracker.js';
 import { openDatabase } from '../../shared/safe-db.js';
 
 // Extracted helpers
@@ -38,6 +43,7 @@ import {
   decompressFile,
   verifyDatabaseIntegrity,
   getSchemaVersion,
+  padRight,
   EXPORT_FORMAT_VERSION,
   DOMAIN_MAPPING,
   PATTERN_TYPE_MAPPING,
@@ -88,6 +94,7 @@ Examples:
   registerImportMergeCommand(learning);
   registerDreamCommand(learning);
   registerRepairCommand(learning);
+  registerHealthCommand(learning);
 
   return learning;
 }
@@ -1288,6 +1295,137 @@ function registerRepairCommand(learning: Command): void {
         process.exit(0);
       } catch (error) {
         printError(`repair failed: ${error instanceof Error ? error.message : 'unknown'}`);
+        process.exit(1);
+      }
+    });
+}
+
+// ============================================================================
+// Subcommand: health (Task 2.4 - Regret Tracking & Learning Health)
+// ============================================================================
+
+/**
+ * Get trend arrow and label for a growth rate classification
+ */
+function growthRateDisplay(rate: GrowthRate): { arrow: string; label: string; color: (s: string) => string } {
+  switch (rate) {
+    case 'sublinear':
+      return { arrow: '\u25B2', label: 'Sublinear (learning)', color: chalk.green };
+    case 'linear':
+      return { arrow: '\u2192', label: 'Linear (stagnating)', color: chalk.yellow };
+    case 'superlinear':
+      return { arrow: '\u25BC', label: 'Superlinear (degrading)', color: chalk.red };
+    case 'insufficient_data':
+    default:
+      return { arrow: '?', label: 'Insufficient data', color: chalk.dim };
+  }
+}
+
+function registerHealthCommand(learning: Command): void {
+  learning
+    .command('health')
+    .description('Display per-domain learning health based on regret tracking')
+    .option('--json', 'Output as JSON')
+    .option('--domain <domain>', 'Filter to a specific domain')
+    .action(async (options) => {
+      try {
+        const projectRoot = findProjectRoot();
+        const dbPath = path.join(projectRoot, '.agentic-qe', 'memory.db');
+
+        if (!existsSync(dbPath)) {
+          printError('Database not found. Run "aqe init --auto" first.');
+          process.exit(1);
+        }
+
+        // Build regret data from captured experiences per domain
+        const tracker = createRegretTracker();
+        const db = openDatabase(dbPath, { readonly: true });
+
+        // Check for captured_experiences table
+        const tableExists = db.prepare(
+          `SELECT name FROM sqlite_master WHERE type='table' AND name='captured_experiences'`
+        ).get();
+
+        if (tableExists) {
+          // Query experiences grouped by domain, ordered by time
+          const domainFilter = options.domain
+            ? `AND domain = ?` : '';
+          const params: unknown[] = [];
+          if (options.domain) params.push(options.domain);
+
+          const rows = db.prepare(`
+            SELECT domain, quality, success, started_at
+            FROM captured_experiences
+            WHERE agent != 'cli-hook'
+              AND domain IS NOT NULL
+              AND domain != ''
+              ${domainFilter}
+            ORDER BY started_at ASC
+          `).all(...params) as Array<{
+            domain: string;
+            quality: number;
+            success: number;
+            started_at: string;
+          }>;
+
+          for (const row of rows) {
+            const reward = row.quality ?? (row.success ? 1.0 : 0.0);
+            const optimalReward = 1.0;
+            tracker.recordDecision(row.domain, reward, optimalReward);
+          }
+        }
+
+        db.close();
+
+        const healthSummary = tracker.getHealthSummary();
+
+        if (options.json) {
+          printJson(healthSummary);
+          process.exit(0);
+        }
+
+        // Display health dashboard
+        console.log('');
+        console.log(chalk.bold('Learning Health Dashboard:'));
+
+        if (healthSummary.length === 0) {
+          console.log(chalk.dim('  No domain data available. Run some QE tasks to generate learning data.'));
+          console.log('');
+          process.exit(0);
+        }
+
+        // Find the longest domain name for alignment
+        const maxDomainLen = Math.max(...healthSummary.map(s => s.domain.length), 20);
+
+        for (const summary of healthSummary) {
+          const { arrow, label, color } = growthRateDisplay(summary.growthRate);
+          const domainName = padRight(summary.domain + ':', maxDomainLen + 1);
+          const statusStr = color(`${arrow} ${padRight(label, 26)}`);
+          const regretStr = `regret: ${summary.cumulativeRegret.toFixed(1)}`;
+          const decisionsStr = `decisions: ${summary.totalDecisions}`;
+          console.log(`  ${domainName} ${statusStr} ${regretStr}   ${decisionsStr}`);
+        }
+
+        // Show summary line
+        const stagnating = healthSummary.filter(s => s.stagnating);
+        if (stagnating.length > 0) {
+          console.log('');
+          console.log(chalk.yellow(
+            `  Warning: ${stagnating.length} domain(s) showing stagnation: ${stagnating.map(s => s.domain).join(', ')}`
+          ));
+        }
+
+        const learning = healthSummary.filter(s => s.growthRate === 'sublinear');
+        if (learning.length > 0) {
+          console.log(chalk.green(
+            `  ${learning.length} domain(s) actively learning`
+          ));
+        }
+
+        console.log('');
+        process.exit(0);
+      } catch (error) {
+        printError(`health check failed: ${error instanceof Error ? error.message : 'unknown'}`);
         process.exit(1);
       }
     });

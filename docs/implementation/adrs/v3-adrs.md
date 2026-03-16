@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 17 — Agent Dependency Intelligence (ADR-080); Multi-Signal Confidence Merging (ADR-022 Phase 2)
+**Status:** Phase 18 — RuVector Deep Integration (ADR-081–085); Multi-Signal Confidence Merging (ADR-022 Phase 2)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-03-13 (70 Implemented, 6 In Progress, 4 Proposed, 4 Rejected)
+**Last Verified:** 2026-03-16 (72 Implemented, 7 In Progress, 6 Proposed, 4 Rejected)
 
 ---
 
@@ -92,6 +92,11 @@
 | [ADR-078](./ADR-078-backward-compatible-multi-language-api.md) | Backward-Compatible Multi-Language API Extension | **Implemented** | 2026-03-04 | ✅ Optional language/projectRoot/compileValidation fields, auto-detection, zero breaking changes |
 | [ADR-079](./ADR-079-language-specific-test-file-path-resolution.md) | Language-Specific Test File Path Resolution | **Implemented** | 2026-03-04 | ✅ TestFileResolver with per-language conventions, build tool detection, 10 languages |
 | [ADR-080](./ADR-080-agent-dependency-intelligence.md) | Agent Dependency Intelligence | **Implemented** | 2026-03-13 | ✅ Pre-spawn MCP validation + structured frontmatter dependencies + queen coordinator integration (Issue #342 Items 1 & 2) |
+| [ADR-081](./ADR-081-native-hnsw-napi-integration.md) | Native HNSW Integration via NAPI | **In Progress** | 2026-03-15 | ✅ @ruvector/router VectorDb integrated as native backend, feature flag gated, JS fallback on lock contention |
+| [ADR-082](./ADR-082-neural-model-routing-tiny-dancer.md) | Neural Model Routing with Tiny Dancer | **Implemented** | 2026-03-15 | ✅ TypeScript SimpleNeuralRouter (4→32→3 feedforward) with shadow mode, circuit breaker, REINFORCE learning; native NAPI not needed (network too small) |
+| [ADR-083](./ADR-083-coherence-gated-agent-actions.md) | Coherence-Gated Agent Actions | **In Progress** | 2026-03-15 | ✅ CohomologyEngine (prime-radiant-advanced-wasm) integrated for sheaf Laplacian coherence; action gate is TS heuristic |
+| [ADR-084](./ADR-084-cross-domain-transfer-learning.md) | Cross-Domain Transfer Learning | **In Progress** | 2026-03-15 | ✅ Thompson Sampling + verification gate + real CoherenceGate wired via feature flag |
+| [ADR-085](./ADR-085-temporal-tensor-pattern-compression.md) | Temporal Tensor Pattern Compression | **Implemented** | 2026-03-15 | ✅ TypeScript tiered quantization (4x compression); no native package exists, TS IS production |
 
 ---
 

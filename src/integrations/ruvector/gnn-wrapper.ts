@@ -15,6 +15,9 @@ import type {
   ISearchOptions,
 } from '../embeddings/base/types';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { isDeterministicDitherEnabled } from './feature-flags.js';
+import { applyDither } from './dither-adapter.js';
+import type { DitheredResult, DitherOptions } from './dither-adapter.js';
 
 // Lazy-load @ruvector/gnn native bindings (may not be available on all platforms)
 // Follows the pattern in kernel/unified-memory-hnsw.ts (lines 22-35)
@@ -700,6 +703,56 @@ export class TensorCompressionFactory {
   static getLevel(accessFreq: number): QECompressionLevel {
     requireGNN();
     return _getCompressionLevel(accessFreq) as QECompressionLevel;
+  }
+
+  /**
+   * Compress tensor with optional deterministic dithering (Task 1.4)
+   *
+   * When the `useDeterministicDither` feature flag is enabled, applies
+   * golden-ratio dithered quantization as a post-processing step before
+   * passing to the native compressor. This improves reconstruction quality
+   * at low bit depths while guaranteeing cross-platform reproducibility.
+   *
+   * When the flag is disabled, behaves identically to `compressWithLevel`.
+   *
+   * @param embedding - Raw embedding vector
+   * @param level - Compression level
+   * @param ditherOptions - Optional dither configuration (seed, bitDepth override)
+   * @returns Compressed data string, optionally with dither metadata
+   */
+  static compressWithDither(
+    embedding: number[] | Float32Array,
+    level: QECompressionLevel,
+    ditherOptions?: Partial<DitherOptions>
+  ): { compressed: string; ditherResult?: DitheredResult } {
+    const embeddingFloat32 = embedding instanceof Float32Array
+      ? embedding
+      : new Float32Array(embedding);
+
+    // Apply dithering if feature flag is enabled
+    let ditherResult: DitheredResult | undefined;
+    if (isDeterministicDitherEnabled()) {
+      // Map compression level to a default bit depth
+      const bitDepthMap: Record<QECompressionLevel, number> = {
+        'none': 32,
+        'half': 16,
+        'pq8': 8,
+        'pq4': 4,
+        'binary': 1,
+      };
+      const bitDepth = ditherOptions?.bitDepth ?? bitDepthMap[level] ?? 8;
+      const seed = ditherOptions?.seed ?? 0;
+
+      ditherResult = applyDither(embeddingFloat32, bitDepth, seed);
+    }
+
+    // Compress using the standard path (native compressor)
+    const compressed = this.compressWithLevel(
+      ditherResult ? ditherResult.dequantized : embedding,
+      level
+    );
+
+    return { compressed, ditherResult };
   }
 }
 

@@ -16,6 +16,14 @@ import type {
   RLAction,
   DomainName
 } from '../rl-suite/interfaces.js';
+import {
+  SONAThreeLoopEngine,
+  type ThreeLoopConfig,
+  type AdaptationResult,
+  type ConsolidationResult,
+  type PeerState,
+  type EWCMetrics,
+} from './sona-three-loop.js';
 
 // ============================================================================
 // QE-Specific SONA Types
@@ -293,6 +301,9 @@ export class QESONA {
   private adaptationTimes: number[] = [];
   private cacheHits: number = 0;
   private totalAdaptations: number = 0;
+  private threeLoopEngine: SONAThreeLoopEngine | null = null;
+  private fisherPersistFn: ((domain: string, fisher: Float32Array, optimal: Float32Array, base: Float32Array, meta: { taskBoundaries: number; consolidationCycles: number; requestCount: number; ewcLambda: number }) => void) | null = null;
+  private fisherDomain: string = 'default';
 
   constructor(config: Partial<QESONAConfig> = {}) {
     this.config = { ...DEFAULT_QE_SONA_CONFIG, ...config };
@@ -823,6 +834,158 @@ export class QESONA {
     return Math.max(...this.adaptationTimes);
   }
 
+  // ========================================================================
+  // Three-Loop Engine (MicroLoRA + EWC++ + Coordination)
+  // ========================================================================
+
+  /**
+   * Initialize the three-loop coordination engine.
+   *
+   * The three-loop engine adds:
+   * - Instant MicroLoRA adaptation per request (<100us)
+   * - Background EWC++ consolidation to prevent forgetting
+   * - Cross-agent state synchronization
+   *
+   * When available, delegates MicroLoRA and background learning to the
+   * native @ruvector/sona engine for true rank-1 LoRA operations.
+   *
+   * This is an additive enhancement; all existing QESONA methods continue
+   * to work the same way with or without the three-loop engine.
+   *
+   * @param config - Optional three-loop configuration overrides
+   */
+  initThreeLoopEngine(config?: Partial<ThreeLoopConfig>): void {
+    this.threeLoopEngine = new SONAThreeLoopEngine({
+      dimension: this.config.embeddingDim ?? 384,
+      microLoraLr: this.config.microLoraLr ?? 0.001,
+      ewcLambda: this.config.ewcLambda ?? 1000.0,
+      ...config,
+    }, this.engine);
+  }
+
+  /**
+   * Get the three-loop engine instance.
+   * Returns null if not initialized via initThreeLoopEngine().
+   */
+  getThreeLoopEngine(): SONAThreeLoopEngine | null {
+    return this.threeLoopEngine;
+  }
+
+  /**
+   * Perform instant MicroLoRA adaptation for a request.
+   * Delegates to the three-loop engine's instant loop.
+   *
+   * @param requestFeatures - Feature vector for the current request
+   * @returns Adaptation result, or null if three-loop engine not initialized
+   */
+  instantAdapt(requestFeatures: number[]): AdaptationResult | null {
+    if (!this.threeLoopEngine) return null;
+    return this.threeLoopEngine.instantAdapt(requestFeatures);
+  }
+
+  /**
+   * Record the outcome of a request for REINFORCE-style gradient estimation.
+   * Delegates to the three-loop engine's recordOutcome().
+   *
+   * Must be called after instantAdapt() with the reward signal.
+   *
+   * @param reward - Scalar reward (e.g., 1.0 for success, -1.0 for failure, 0.0 for neutral)
+   * @param requestIndex - Optional requestIndex from AdaptationResult for matching
+   */
+  recordOutcome(reward: number, requestIndex?: number): void {
+    if (!this.threeLoopEngine) return;
+    this.threeLoopEngine.recordOutcome(reward, requestIndex);
+  }
+
+  /**
+   * Run background consolidation cycle.
+   * Delegates to the three-loop engine's background loop.
+   *
+   * **Important**: This method performs synchronous SQLite writes (Fisher matrix
+   * persistence via better-sqlite3) when the persistence callback is set.
+   * Call from a background timer or idle callback, NOT from the request hot path.
+   *
+   * @returns Consolidation result, or null if three-loop engine not initialized
+   */
+  backgroundConsolidate(): ConsolidationResult | null {
+    if (!this.threeLoopEngine) return null;
+    const result = this.threeLoopEngine.backgroundConsolidate();
+
+    // Persist Fisher matrix after consolidation when a persistence callback is set
+    if (result && (result.consolidated || result.taskBoundaryDetected) && this.fisherPersistFn) {
+      try {
+        this.threeLoopEngine.persistFisher(this.fisherPersistFn, this.fisherDomain);
+      } catch (err) {
+        // Persistence failures must not break the consolidation path
+        console.warn('[QESONA] Fisher persistence failed:', err instanceof Error ? err.message : err);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Set the Fisher matrix persistence callback and domain.
+   *
+   * When set, `backgroundConsolidate()` automatically persists Fisher state
+   * to SQLite after each consolidation or task boundary detection.
+   *
+   * @param persistFn - Callback that writes Fisher data to SQLite
+   *   (typically PersistentSONAEngine.saveFisherMatrix.bind(engine))
+   * @param domain - Domain identifier for the Fisher state
+   */
+  setFisherPersistence(
+    persistFn: (domain: string, fisher: Float32Array, optimal: Float32Array, base: Float32Array, meta: { taskBoundaries: number; consolidationCycles: number; requestCount: number; ewcLambda: number }) => void,
+    domain: string,
+  ): void {
+    this.fisherPersistFn = persistFn;
+    this.fisherDomain = domain;
+  }
+
+  /**
+   * Synchronize with peer agents.
+   * Delegates to the three-loop engine's coordination loop.
+   *
+   * @param peerStates - Peer states to synchronize with
+   */
+  syncWithPeers(peerStates: PeerState[]): void {
+    if (!this.threeLoopEngine) return;
+    this.threeLoopEngine.syncWithPeers(peerStates);
+  }
+
+  /**
+   * Get EWC++ metrics for monitoring.
+   *
+   * @returns EWC metrics, or null if three-loop engine not initialized
+   */
+  getEWCMetrics(): EWCMetrics | null {
+    if (!this.threeLoopEngine) return null;
+    return this.threeLoopEngine.getEWCMetrics();
+  }
+
+  /**
+   * Check if background consolidation is due.
+   */
+  shouldConsolidate(): boolean {
+    if (!this.threeLoopEngine) return false;
+    return this.threeLoopEngine.shouldConsolidate();
+  }
+
+  /**
+   * Get local peer state for sharing with other agents.
+   */
+  getLocalPeerState(peerId: string, domain: string): PeerState | null {
+    if (!this.threeLoopEngine) return null;
+    return this.threeLoopEngine.getLocalPeerState(peerId, domain);
+  }
+
+  /**
+   * Check if the three-loop engine is initialized.
+   */
+  isThreeLoopEnabled(): boolean {
+    return this.threeLoopEngine !== null;
+  }
+
   /**
    * Verify performance target
    */
@@ -869,6 +1032,15 @@ export class QESONA {
 // ============================================================================
 // Factory Functions
 // ============================================================================
+
+// Re-export three-loop types for convenience
+export type {
+  AdaptationResult,
+  ConsolidationResult,
+  PeerState,
+  EWCMetrics,
+  ThreeLoopConfig,
+} from './sona-three-loop.js';
 
 /**
  * Create a QE SONA instance with default configuration

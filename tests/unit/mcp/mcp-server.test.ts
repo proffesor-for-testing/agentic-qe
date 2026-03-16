@@ -7,17 +7,30 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MCPServer, createMCPServer } from '../../../src/mcp/server';
 import { ToolRegistry, createToolRegistry } from '../../../src/mcp/tool-registry';
 import { ALL_DOMAINS } from '../../../src/shared/types';
+import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence';
+import { queenGovernanceAdapter } from '../../../src/governance/queen-governance-adapter';
+import { resetSharedMinCutState } from '../../../src/coordination/mincut/shared-singleton';
 
 describe('MCP Server', () => {
   let server: MCPServer;
 
   beforeEach(async () => {
+    // Reset shared singletons to prevent cross-test contamination
+    resetUnifiedPersistence();
+    queenGovernanceAdapter.reset();
+    resetSharedMinCutState();
+
     server = createMCPServer();
     await server.initialize();
   });
 
   afterEach(async () => {
     await server.dispose();
+
+    // Clean up singletons after test
+    resetUnifiedPersistence();
+    queenGovernanceAdapter.reset();
+    resetSharedMinCutState();
   });
 
   describe('initialization', () => {

@@ -38,6 +38,10 @@ declare module 'prime-radiant-advanced-wasm' {
   export default module;
 }
 
+// Note: ruqu-exotic and ruvector-cnn-wasm do not exist as npm packages.
+// The TypeScript implementations in reasoning-qec.ts and cnn-visual-regression.ts
+// are the production implementations.
+
 declare module 'ws' {
   import { EventEmitter } from 'events';
   import type { IncomingMessage, Server as HttpServer } from 'http';

@@ -83,6 +83,15 @@ export interface PipelineConfig {
 
   /** Run all tests (skip git-aware selection) */
   runAllTests?: boolean;
+
+  /**
+   * Enable DAG attention scheduling for dependency-aware test ordering.
+   * When enabled and test dependencies are available, uses DAGAttentionScheduler
+   * to optimize execution order via critical path and parallel branch detection.
+   * Requires feature flag useDAGAttention to also be on.
+   * @default false
+   */
+  useDAGAttention?: boolean;
 }
 
 export interface PipelineResult {
@@ -232,6 +241,33 @@ export class TestSchedulingPipeline {
       }
     }
     const selectionMs = performance.now() - selectionStart;
+
+    // Step 1b: DAG attention-based ordering (when enabled and tests selected)
+    if (this.config.useDAGAttention && selectedTests.length > 0) {
+      try {
+        const { isDAGAttentionEnabled } = await import('../integrations/ruvector/feature-flags.js');
+        if (isDAGAttentionEnabled()) {
+          const { createDAGAttentionScheduler } = await import('./dag-attention-scheduler.js');
+          const dagScheduler = createDAGAttentionScheduler();
+          const nodes = selectedTests.map(t => ({
+            id: t, name: t, estimatedDuration: 1000,
+            dependencies: [], priority: 1, tags: [],
+          }));
+          const schedule = dagScheduler.schedule(nodes);
+          // Flatten scheduled phases into ordered test list
+          const orderedTests: string[] = [];
+          for (const phase of schedule.phases) {
+            orderedTests.push(...phase.tests.map(t => t.id));
+          }
+          if (orderedTests.length > 0) {
+            selectedTests = orderedTests;
+          }
+        }
+      } catch (err) {
+        // DAG scheduling is best-effort; fall through to default ordering
+        if (process.env.DEBUG) console.debug('[Pipeline] DAG attention scheduling skipped:', err instanceof Error ? err.message : err);
+      }
+    }
 
     // Step 2: Execute tests
     const executionStart = performance.now();

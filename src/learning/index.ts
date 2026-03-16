@@ -463,6 +463,24 @@ export type {
 } from './metrics-tracker.js';
 
 // ============================================================================
+// Regret Tracker (Task 2.4: Regret Tracking & Learning Health)
+// ============================================================================
+
+export {
+  RegretTracker,
+  createRegretTracker,
+  linearRegressionSlope,
+} from './regret-tracker.js';
+
+export type {
+  RegretPoint,
+  GrowthRate,
+  DomainHealthSummary,
+  RegretAlert,
+  RegretAlertCallback,
+} from './regret-tracker.js';
+
+// ============================================================================
 // Daily Log Tier (OpenClaw Daily Log Pattern)
 // ============================================================================
 

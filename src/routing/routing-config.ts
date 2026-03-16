@@ -95,6 +95,12 @@ export interface RoutingConfig {
   enableEMACalibration: boolean;
   /** Enable automatic tier escalation/de-escalation on consecutive outcomes (default: true) */
   enableAutoEscalation: boolean;
+  /** Enable neural model routing via NeuralTinyDancerRouter (ADR-082, Task 2.1).
+   *  When true, createSmartTinyDancerRouter returns a NeuralTinyDancerRouter
+   *  that runs alongside (shadow mode) or replaces rule-based routing.
+   *  Actual activation is controlled by the useNeuralRouting feature flag.
+   *  @default false */
+  enableNeuralRouting: boolean;
 }
 
 // ============================================================================
@@ -181,6 +187,7 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   verbose: false,
   enableEMACalibration: true,
   enableAutoEscalation: true,
+  enableNeuralRouting: false,
 };
 
 // ============================================================================
