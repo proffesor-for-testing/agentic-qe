@@ -92,7 +92,7 @@ Coordination:
 ### Query Known SAP RFC Patterns BEFORE Testing
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "sap-rfc/patterns",
   namespace: "learning"
 })
@@ -102,7 +102,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store SAP RFC Testing Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "sap-rfc-tester/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -150,7 +150,7 @@ mcp__agentic-qe__memory_store({
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "sap-rfc-testing-complete",
   priority: "p1",
   payload: {

@@ -5,6 +5,17 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.1] - 2026-03-17
+
+### Fixed
+
+- **MCP tool prefix mismatch** — 8 agent definition files referenced tools using `mcp__agentic_qe_v3__` prefix instead of the correct `mcp__agentic-qe__` matching the registered MCP server name. This caused agent subagents to fail tool invocations and `claude -p` to hang waiting for permission approval. ([#357](https://github.com/proffesor-for-testing/agentic-qe/issues/357))
+- **Permission pattern mismatch** — `.claude/settings.json` and `settings-merge.ts` used underscore variant `mcp__agentic_qe__*` instead of the hyphenated `mcp__agentic-qe__*`, preventing automatic permission matching for MCP tool calls.
+
+### Changed
+
+- **v3.8.0 release notes** — Added real benchmark data collected during RuVector integration development (150x HNSW speedup, 9.2x MicroLoRA WASM acceleration, 4x memory reduction).
+
 ## [3.8.0] - 2026-03-16
 
 ### Added

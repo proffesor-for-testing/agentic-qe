@@ -127,7 +127,7 @@ export function generateV3SettingsSections(config: AQEInitConfig): Record<string
         'Bash(npx claude-flow:*)',
         'Bash(npx @claude-flow/cli:*)',
         'mcp__claude-flow__:*',
-        'mcp__agentic_qe__*',
+        'mcp__agentic-qe__*',
       ],
       deny: [
         'Bash(rm -rf /)',

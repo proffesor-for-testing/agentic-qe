@@ -96,7 +96,7 @@ Coordination:
 ### Query Known IDoc Patterns BEFORE Validation
 
 ```typescript
-mcp__agentic_qe_v3__memory_retrieve({
+mcp__agentic-qe__memory_retrieve({
   key: "sap-idoc/known-patterns",
   namespace: "learning"
 })
@@ -106,7 +106,7 @@ mcp__agentic_qe_v3__memory_retrieve({
 
 **1. Store IDoc Validation Experience:**
 ```typescript
-mcp__agentic_qe_v3__memory_store({
+mcp__agentic-qe__memory_store({
   key: "sap-idoc-tester/outcome-{timestamp}",
   namespace: "learning",
   value: {
@@ -156,7 +156,7 @@ mcp__agentic-qe__memory_store({
 
 **3. Submit Results to Queen:**
 ```typescript
-mcp__agentic_qe_v3__task_submit({
+mcp__agentic-qe__task_submit({
   type: "idoc-validation-complete",
   priority: "p1",
   payload: {
