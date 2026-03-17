@@ -2,6 +2,7 @@
  * MemoryWriteGate Integration for Agentic QE Fleet
  *
  * Wires @claude-flow/guidance MemoryWriteGate to ReasoningBank.
+ * TODO(ruflo-rebrand): Replace @claude-flow/guidance with @ruflo/guidance when published
  * Provides contradiction detection, temporal decay, and domain namespacing.
  *
  * @module governance/memory-write-gate-integration

@@ -124,8 +124,11 @@ export function generateV3SettingsSections(config: AQEInitConfig): Record<string
     },
     permissions: {
       allow: [
+        'Bash(npx ruflo:*)',
+        'Bash(npx @ruflo/cli:*)',
         'Bash(npx claude-flow:*)',
         'Bash(npx @claude-flow/cli:*)',
+        'mcp__ruflo__:*',
         'mcp__claude-flow__:*',
         'mcp__agentic-qe__*',
       ],

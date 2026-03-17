@@ -2,6 +2,7 @@
  * Evolution Pipeline Integration for Agentic QE Fleet
  *
  * Wires @claude-flow/guidance Evolution Pipeline to AQE's ReasoningBank learning system.
+ * TODO(ruflo-rebrand): Replace @claude-flow/guidance with @ruflo/guidance when published
  * Provides rule effectiveness tracking, pattern promotion/demotion, A/B testing for
  * rule variants, and learning from agent task outcomes.
  *

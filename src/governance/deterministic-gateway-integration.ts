@@ -2,6 +2,7 @@
  * DeterministicToolGateway Integration for Agentic QE Fleet
  *
  * Wires tool idempotency enforcement to the AQE agent coordination.
+ * TODO(ruflo-rebrand): Replace @claude-flow/guidance with @ruflo/guidance when published
  * Provides idempotency key generation, request deduplication, schema validation,
  * and response caching for idempotent operations.
  *

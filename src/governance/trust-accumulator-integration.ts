@@ -2,6 +2,7 @@
  * TrustAccumulator Integration for Agentic QE Fleet
  *
  * Wires @claude-flow/guidance TrustAccumulator to AQE's agent routing system.
+ * TODO(ruflo-rebrand): Replace @claude-flow/guidance with @ruflo/guidance when published
  * Provides trust scoring, tier assignment, and intelligent agent selection.
  *
  * Trust tiers:

@@ -546,7 +546,7 @@ Task({ prompt: "Run security audit", subagent_type: "qe-security-scanner", run_i
 
 \`\`\`javascript
 // STEP 1: Initialize Claude Flow swarm for coordination
-Bash("npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 15")
+Bash("npx ruflo swarm init --topology hierarchical --max-agents 15")
 
 // STEP 2: Initialize AQE Fleet for QE-specific work
 mcp__agentic-qe__fleet_init({
@@ -559,7 +559,7 @@ Task({ prompt: "Analyze coverage gaps", subagent_type: "qe-coverage-specialist",
 
 // STEP 4: Store learnings in both systems
 mcp__agentic-qe__memory_store({ key: "pattern-1", value: "...", namespace: "qe-patterns", persist: true })
-Bash("npx @claude-flow/cli@latest memory store --key 'qe-pattern-1' --value '...' --namespace patterns")
+Bash("npx ruflo memory store --key 'qe-pattern-1' --value '...' --namespace patterns")
 \`\`\`
 
 ### Data Storage

@@ -135,7 +135,7 @@ store_pattern_fallback() {
     local key="$2"
     local value="$3"
 
-    npx @claude-flow/cli@latest memory store \
+    npx --no-install ruflo memory store \
         --namespace "$namespace" \
         --key "$key" \
         --value "$value" 2>/dev/null || true

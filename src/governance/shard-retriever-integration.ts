@@ -2,6 +2,7 @@
  * ShardRetriever Integration for Agentic QE Fleet
  *
  * Provides semantic shard retrieval from the @claude-flow/guidance system.
+ * TODO(ruflo-rebrand): Replace @claude-flow/guidance with @ruflo/guidance when published
  * Loads, parses, and matches domain shards to tasks based on intent and context.
  *
  * Features:

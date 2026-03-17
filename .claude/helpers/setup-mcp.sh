@@ -11,8 +11,8 @@ if ! command -v claude &> /dev/null; then
 fi
 
 # Add MCP server
-echo "📦 Adding Claude Flow MCP server..."
-claude mcp add claude-flow npx claude-flow mcp start
+echo "📦 Adding ruflo MCP server..."
+claude mcp add ruflo npx ruflo mcp start
 
 echo "✅ MCP server setup complete!"
-echo "🎯 You can now use mcp__claude-flow__ tools in Claude Code"
+echo "🎯 You can now use mcp__ruflo__ tools in Claude Code"

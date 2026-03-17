@@ -24,7 +24,7 @@ const EXEC_OPTS = { encoding: 'utf-8' as const };
 function cfCliArgs(...subcommand: string[]): { bin: string; args: string[] } {
   return {
     bin: 'npx',
-    args: ['--no-install', '@claude-flow/cli', ...subcommand],
+    args: ['--no-install', 'ruflo', ...subcommand],
   };
 }
 

@@ -75,26 +75,42 @@ export class OpenCodeInstaller {
   // ==========================================================================
 
   /**
-   * Find the source .opencode/ directory
+   * Find the source .opencode/ directory containing agents/skills/tools to install.
+   * Validates that the directory has actual source content (agents/ or skills/ subdir)
+   * to avoid using the user's target directory as the source.
    */
   private findSourceDir(): string {
     const possiblePaths = [
       // Development: src/init/ or dist/init/ -> project root
       join(__dirname, '../../.opencode'),
-      // From project root (CWD)
-      join(process.cwd(), '.opencode'),
       // NPM package location
       join(__dirname, '../../assets/opencode'),
     ];
 
     for (const path of possiblePaths) {
-      if (existsSync(path)) {
+      if (this.isValidSourceDir(path)) {
         return path;
       }
     }
 
-    // Default to CWD location
-    return join(process.cwd(), '.opencode');
+    // Fallback: CWD .opencode — but only if it has source content
+    // (avoids using the target directory as the source)
+    const cwdPath = join(process.cwd(), '.opencode');
+    if (this.isValidSourceDir(cwdPath)) {
+      return cwdPath;
+    }
+
+    // Return the package path even if not found — install() will report the error
+    return possiblePaths[0];
+  }
+
+  /**
+   * Check if a directory is a valid source for OpenCode assets
+   * (must exist and contain at least an agents/ or skills/ subdirectory)
+   */
+  private isValidSourceDir(dir: string): boolean {
+    if (!existsSync(dir)) return false;
+    return existsSync(join(dir, 'agents')) || existsSync(join(dir, 'skills'));
   }
 
   // ==========================================================================

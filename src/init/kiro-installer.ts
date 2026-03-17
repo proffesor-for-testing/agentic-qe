@@ -99,18 +99,25 @@ export class KiroInstaller {
 
   private findOpenCodeDir(): string {
     const possiblePaths = [
+      // Development: src/init/ or dist/init/ -> project root
       join(__dirname, '../../.opencode'),
-      join(process.cwd(), '.opencode'),
-      join(process.cwd(), '.opencode'),
+      // NPM package location
+      join(__dirname, '../../assets/opencode'),
     ];
 
     for (const p of possiblePaths) {
-      if (existsSync(p)) {
+      if (existsSync(p) && (existsSync(join(p, 'agents')) || existsSync(join(p, 'skills')))) {
         return p;
       }
     }
 
-    return join(process.cwd(), '.opencode');
+    // Fallback: CWD .opencode — but only if it has actual source content
+    const cwdPath = join(process.cwd(), '.opencode');
+    if (existsSync(cwdPath) && (existsSync(join(cwdPath, 'agents')) || existsSync(join(cwdPath, 'skills')))) {
+      return cwdPath;
+    }
+
+    return possiblePaths[0];
   }
 
   // ==========================================================================

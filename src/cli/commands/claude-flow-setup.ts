@@ -197,10 +197,10 @@ function updateMCPConfig(projectRoot: string): void {
 
   // Add claude-flow server if not present
   const servers = settings.mcpServers as Record<string, unknown>;
-  if (!servers['claude-flow']) {
-    servers['claude-flow'] = {
+  if (!servers['ruflo'] && !servers['claude-flow']) {
+    servers['ruflo'] = {
       command: 'npx',
-      args: ['@anthropic/claude-flow', 'mcp'],
+      args: ['ruflo@3.5.18', 'mcp'],
       env: {},
     };
   }
@@ -217,7 +217,7 @@ async function runPretrainAnalysis(projectRoot: string, debug?: boolean): Promis
   try {
     if (debug) console.log('[ClaudeFlow] Running pretrain analysis...');
 
-    execSync('npx --no-install @claude-flow/cli hooks pretrain --depth medium', {
+    execSync('npx --no-install ruflo hooks pretrain --depth medium', {
       encoding: 'utf-8',
       timeout: 120000, // 2 minutes
       cwd: projectRoot,
