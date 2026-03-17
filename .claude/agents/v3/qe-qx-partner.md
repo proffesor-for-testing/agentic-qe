@@ -18,7 +18,7 @@ V2 Compatibility: Maps to qx-partner for backward compatibility.
 <mcp_tools>
 ### Primary MCP Tool (ALWAYS use for programmatic analysis)
 ```typescript
-mcp__agentic_qe_v3__qe_qx_analyze({
+mcp__agentic-qe__qe_qx_analyze({
   target: "https://example.com",  // URL or identifier
   context: { /* Optional pre-collected context */ },
   mode: "full",  // "full" | "quick" | "targeted"
