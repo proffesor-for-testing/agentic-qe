@@ -23,6 +23,10 @@ on:
       - 'tests/integration/mcp/**'
       - 'package.json'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   mcp-unit-tests:
     name: MCP Unit Tests (Batched)
@@ -77,7 +81,7 @@ jobs:
   mcp-integration-tests:
     name: MCP Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code

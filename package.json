@@ -74,6 +74,7 @@
     "test:coverage": "vitest run --coverage --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/integration/browser/**' --exclude='**/browser-swarm-coordinator.test.ts' --exclude='**/mcp/handlers/domain-handlers.test.ts'",
     "test:perf": "vitest bench tests/performance/",
     "test:journeys": "npm test -- --run tests/integration/",
+    "test:journeys:ci": "vitest run tests/integration/ --exclude='**/browser/**' --exclude='**/browser-integration/**' --exclude='**/integration/mcp/**' --exclude='**/integration/sync/**' --exclude='**/integration/learning/**' --exclude='**/integration/domains/**' --exclude='**/integration/llm/**' --exclude='**/integration/n8n/**' --exclude='**/*.e2e.test.ts'",
     "test:watch": "vitest",
     "performance:gate": "npx tsx src/performance/run-gates.ts",
     "test:integration:browser": "VIBIUM_REAL_TESTS=true vitest run tests/integrations/vibium/vibium-real.test.ts",
