@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.8.2](v3.8.2.md) | 2026-03-17 | 8 bug fixes from user testing, validation pipeline helper, ruflo rebrand |
 | [v3.8.1](v3.8.1.md) | 2026-03-17 | Fix MCP tool prefix mismatch in 8 agent files, permission pattern fix |
 | [v3.8.0](v3.8.0.md) | 2026-03-16 | RuVector: native HNSW (150x faster), neural routing, coherence safety gates |
 | [v3.7.22](v3.7.22.md) | 2026-03-14 | Hook path resolution fix, SQLite corruption prevention, v2 migration removal |
