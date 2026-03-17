@@ -12,7 +12,7 @@ validation:
 
 ## Purpose
 
-Run structured validation pipelines that execute steps sequentially, enforce gates at blocking failures, and produce scored reports. Uses the `src/validation/pipeline.ts` framework with 13 requirements validation steps (BMAD-003).
+Run structured validation pipelines that execute steps sequentially, enforce gates at blocking failures, and produce scored reports. Uses `.claude/helpers/validation-pipeline.cjs` with 13 requirements validation steps (BMAD-003).
 
 ## Activation
 
@@ -56,11 +56,11 @@ Choose the appropriate pipeline based on the user's request:
 |----------|-------|----------|
 | `requirements` | 13 | Requirements documents, PRDs, user stories |
 
-Additional pipelines can be created by defining new step sets in `src/validation/steps/`.
+Additional pipelines can be added to `.claude/helpers/validation-pipeline.cjs`.
 
 ### Step 3: Execute Pipeline
 
-The pipeline framework (`src/validation/pipeline.ts`) handles execution:
+The pipeline helper (`.claude/helpers/validation-pipeline.cjs`) handles execution:
 
 1. **Sequential execution** — steps run in order, each receiving results from prior steps
 2. **Gate enforcement** — blocking steps that fail halt the pipeline (unless `--continue-on-failure`)
@@ -125,7 +125,7 @@ memory store --namespace validation-pipeline --key "req-validation-{timestamp}" 
 |-----------|------|---------|-------------|
 | `pipeline` | string | `requirements` | Pipeline type to run |
 | `file` | string | required | Path to document to validate |
-| `--steps` | string[] | all | Specific step IDs to run |
+| `--steps` | string | all | Comma-separated step IDs to run (e.g., `format-check,completeness-check`) |
 | `--continue-on-failure` | boolean | false | Skip blocking gates |
 | `--json` | boolean | false | Output as JSON instead of markdown |
 | `--metadata` | object | {} | Additional context for steps |

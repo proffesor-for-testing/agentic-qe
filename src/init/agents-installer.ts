@@ -14,6 +14,32 @@ import { loadOverlays, applyOverlayToContent } from '../agents/overlay-loader.js
 import { validateFleetMcpDeps } from '../validation/steps/agent-mcp-validator.js';
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Bump the `updated:` field in YAML frontmatter to today's date.
+ * If no `updated:` field exists, one is added after `created:` (or at end of frontmatter).
+ */
+function bumpUpdatedDate(content: string): string {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!fmMatch) return content;
+
+  const fm = fmMatch[1];
+  let newFm: string;
+  if (/^updated:/m.test(fm)) {
+    newFm = fm.replace(/^updated:.*$/m, `updated: ${today}`);
+  } else if (/^created:/m.test(fm)) {
+    newFm = fm.replace(/^(created:.*$)/m, `$1\nupdated: ${today}`);
+  } else {
+    newFm = fm + `\nupdated: ${today}`;
+  }
+
+  return content.replace(/^---\n[\s\S]*?\n---/, `---\n${newFm}\n---`);
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -375,7 +401,9 @@ export class AgentsInstaller {
       try {
         const agentContent = readFileSync(agentFile, 'utf-8');
         const { content: modifiedContent, applied } = applyOverlayToContent(agentContent, overlay);
-        writeFileSync(agentFile, modifiedContent, 'utf-8');
+        // Bump the `updated` date in frontmatter when content is modified (#365)
+        const finalContent = bumpUpdatedDate(modifiedContent);
+        writeFileSync(agentFile, finalContent, 'utf-8');
         result.overlaysApplied!.push(agentName);
 
         const changes = [

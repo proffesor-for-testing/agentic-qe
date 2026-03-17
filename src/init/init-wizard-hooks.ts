@@ -189,7 +189,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
   };
 
   // Apply v3 settings sections
-  const v3Sections = generateV3SettingsSections(config);
+  const v3Sections = generateV3SettingsSections(config, projectRoot);
   for (const [key, value] of Object.entries(v3Sections)) {
     settings[key] = value;
   }

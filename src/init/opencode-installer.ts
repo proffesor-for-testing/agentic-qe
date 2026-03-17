@@ -76,30 +76,54 @@ export class OpenCodeInstaller {
 
   /**
    * Find the source .opencode/ directory containing agents/skills/tools to install.
-   * Validates that the directory has actual source content (agents/ or skills/ subdir)
-   * to avoid using the user's target directory as the source.
+   * Resolves relative to the package installation directory (not CWD) so that
+   * globally-installed and bundled CLI paths all work correctly (#361).
    */
   private findSourceDir(): string {
+    const targetDir = join(this.projectRoot, '.opencode');
     const possiblePaths = [
-      // NPM package / development: dist/init/ or src/init/ -> package root .opencode/
+      // From dist/init/ or src/init/ → package root .opencode/
       join(__dirname, '../../.opencode'),
-    ];
+      // From dist/cli/ (bundle) → package root .opencode/
+      join(__dirname, '../.opencode'),
+      // require.resolve fallback: find the package root via its package.json
+      this.resolveViaPackageJson(),
+    ].filter((p): p is string => p !== null);
 
     for (const path of possiblePaths) {
+      // Never use the target directory as the source
+      if (path === targetDir) continue;
       if (this.isValidSourceDir(path)) {
         return path;
       }
     }
 
-    // Fallback: CWD .opencode — but only if it has source content
-    // (avoids using the target directory as the source)
-    const cwdPath = join(process.cwd(), '.opencode');
-    if (this.isValidSourceDir(cwdPath)) {
-      return cwdPath;
-    }
+    // Return the first package path even if not found — install() will report the error
+    return possiblePaths[0] ?? join(__dirname, '../../.opencode');
+  }
 
-    // Return the package path even if not found — install() will report the error
-    return possiblePaths[0];
+  /**
+   * Try to find the package root via require.resolve on our own package.json,
+   * then return <root>/.opencode. Returns null if resolution fails.
+   */
+  private resolveViaPackageJson(): string | null {
+    try {
+      // Walk up from __dirname to find the nearest package.json with our name
+      let dir = __dirname;
+      for (let i = 0; i < 5; i++) {
+        const pkgPath = join(dir, 'package.json');
+        if (existsSync(pkgPath)) {
+          const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+          if (pkg.name === 'agentic-qe') {
+            return join(dir, '.opencode');
+          }
+        }
+        dir = dirname(dir);
+      }
+    } catch {
+      // resolution failed
+    }
+    return null;
   }
 
   /**
