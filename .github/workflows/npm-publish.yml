@@ -58,22 +58,18 @@ jobs:
           fi
           echo "Build verification passed"
 
-      - name: Run smoke tests (full suite validated in PR CI before merge)
+      - name: Verify package imports cleanly
         run: |
-          npm run test:unit:fast 2>&1 | tee /tmp/test-output.txt
-          TEST_EXIT=$?
-          # Tolerate Vitest worker fork crash if all test files actually passed
-          if [ $TEST_EXIT -ne 0 ]; then
-            if grep -q "Test Files.*passed" /tmp/test-output.txt && ! grep -q "failed" /tmp/test-output.txt; then
-              echo "::warning::Vitest worker crashed at exit but all tests passed — continuing"
-            else
-              exit $TEST_EXIT
-            fi
-          fi
-        env:
-          NODE_OPTIONS: '--max-old-space-size=2048'
-          CI: 'true'
-        timeout-minutes: 15
+          # Smoke test: verify the built package can be imported without errors
+          node -e "
+            const pkg = require('./dist/index.js');
+            console.log('Package exports:', Object.keys(pkg).length, 'items');
+            console.log('Package import: OK');
+          "
+          # Verify CLI bundle executes
+          node dist/cli/bundle.js --version
+          echo "CLI smoke test: OK"
+        timeout-minutes: 2
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
