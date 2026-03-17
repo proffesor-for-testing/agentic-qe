@@ -13,7 +13,6 @@ quick_reference_card: true
 tags: [thinking, methodology, decision-making, collaboration, analysis]
 trust_tier: 0
 validation:
-
 ---
 
 # Six Thinking Hats for Testing

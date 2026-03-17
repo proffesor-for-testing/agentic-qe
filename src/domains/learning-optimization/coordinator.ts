@@ -178,8 +178,9 @@ export class LearningOptimizationCoordinator
    * QESONA (Self-Optimizing Neural Architecture) for pattern learning
    * Provides <0.05ms pattern adaptation via @ruvector/sona
    * Now uses PersistentSONAEngine to survive restarts
+   * Nullable: init may fail (e.g. during `aqe init`) — coordinator degrades gracefully
    */
-  private sona!: PersistentSONAEngine;
+  private sona: PersistentSONAEngine | null = null;
 
   /**
    * DreamScheduler for offline pattern consolidation and insight generation
@@ -212,7 +213,7 @@ export class LearningOptimizationCoordinator
   /**
    * Initialize the coordinator.
    * CQ-002: Domain-specific initialization
-   * Throws if QESONA fails to initialize.
+   * SONA init failure is non-fatal — coordinator degrades gracefully (#359).
    */
   protected async onInitialize(): Promise<void> {
     // Initialize QESONA for neural pattern learning (persistent patterns)
@@ -226,8 +227,10 @@ export class LearningOptimizationCoordinator
       });
       console.log('[LearningOptimizationCoordinator] PersistentSONAEngine initialized for pattern learning');
     } catch (error) {
+      // SONA is an enhancement, not a hard requirement — degrade gracefully (#359)
       console.error('[LearningOptimizationCoordinator] Failed to initialize PersistentSONAEngine:', error);
-      throw error; // Learning optimization requires SONA
+      console.warn('[LearningOptimizationCoordinator] Continuing without SONA pattern persistence');
+      this.sona = null;
     }
 
     // Initialize DreamScheduler if enabled
@@ -738,7 +741,8 @@ export class LearningOptimizationCoordinator
     metadata?: Record<string, unknown>
   ): QESONAPattern {
     this.ensureInitialized();
-    return this.sona.createPattern(state, action, outcome, patternType, domain, metadata);
+    this.ensureSONAAvailable();
+    return this.sona!.createPattern(state, action, outcome, patternType, domain, metadata);
   }
 
   /**
@@ -748,6 +752,17 @@ export class LearningOptimizationCoordinator
     if (!this.initialized) {
       throw new Error(
         '[LearningOptimizationCoordinator] Not initialized. Call initialize() first.'
+      );
+    }
+  }
+
+  /**
+   * Ensure SONA engine is available (may be null if init failed gracefully).
+   */
+  private ensureSONAAvailable(): void {
+    if (!this.sona) {
+      throw new Error(
+        '[LearningOptimizationCoordinator] SONA engine is not available. Pattern persistence failed during initialization.'
       );
     }
   }
@@ -768,7 +783,8 @@ export class LearningOptimizationCoordinator
     domain: DomainName
   ): Promise<QESONAAdaptationResult> {
     this.ensureInitialized();
-    return this.sona.adaptPattern(state, patternType, domain);
+    this.ensureSONAAvailable();
+    return this.sona!.adaptPattern(state, patternType, domain);
   }
 
   /**
@@ -779,7 +795,8 @@ export class LearningOptimizationCoordinator
    */
   getSONAStats(): QESONAStats {
     this.ensureInitialized();
-    return this.sona.getStats();
+    this.ensureSONAAvailable();
+    return this.sona!.getStats();
   }
 
   /**
@@ -790,7 +807,8 @@ export class LearningOptimizationCoordinator
    */
   getSONAPatterns(): QESONAPattern[] {
     this.ensureInitialized();
-    return this.sona.getAllPatterns();
+    this.ensureSONAAvailable();
+    return this.sona!.getAllPatterns();
   }
 
   /**
@@ -802,7 +820,8 @@ export class LearningOptimizationCoordinator
    */
   getSONAPatternsByType(type: QEPatternType): QESONAPattern[] {
     this.ensureInitialized();
-    return this.sona.getPatternsByType(type);
+    this.ensureSONAAvailable();
+    return this.sona!.getPatternsByType(type);
   }
 
   /**
@@ -814,7 +833,8 @@ export class LearningOptimizationCoordinator
    */
   getSONAPatternsByDomain(domain: DomainName): QESONAPattern[] {
     this.ensureInitialized();
-    return this.sona.getPatternsByDomain(domain);
+    this.ensureSONAAvailable();
+    return this.sona!.getPatternsByDomain(domain);
   }
 
   /**
@@ -829,7 +849,8 @@ export class LearningOptimizationCoordinator
    */
   updateSONAPattern(patternId: string, success: boolean, quality: number): boolean {
     this.ensureInitialized();
-    return this.sona.updatePattern(patternId, success, quality);
+    this.ensureSONAAvailable();
+    return this.sona!.updatePattern(patternId, success, quality);
   }
 
   /**
@@ -841,7 +862,8 @@ export class LearningOptimizationCoordinator
    */
   forceSONALearning(): string {
     this.ensureInitialized();
-    return this.sona.forceLearn();
+    this.ensureSONAAvailable();
+    return this.sona!.forceLearn();
   }
 
   /**
@@ -850,7 +872,7 @@ export class LearningOptimizationCoordinator
    * @returns True if SONA is available
    */
   isSONAAvailable(): boolean {
-    return this.initialized;
+    return this.initialized && this.sona !== null;
   }
 
   /**
@@ -861,7 +883,8 @@ export class LearningOptimizationCoordinator
    */
   exportSONAPatterns(): QESONAPattern[] {
     this.ensureInitialized();
-    return this.sona.exportPatterns();
+    this.ensureSONAAvailable();
+    return this.sona!.exportPatterns();
   }
 
   /**
@@ -873,7 +896,8 @@ export class LearningOptimizationCoordinator
    */
   importSONAPatterns(patterns: QESONAPattern[]): void {
     this.ensureInitialized();
-    this.sona.importPatterns(patterns);
+    this.ensureSONAAvailable();
+    this.sona!.importPatterns(patterns);
   }
 
   /**
@@ -891,7 +915,8 @@ export class LearningOptimizationCoordinator
     details: Array<{ iteration: number; timeMs: number }>;
   }> {
     this.ensureInitialized();
-    return this.sona.verifyPerformance(iterations);
+    this.ensureSONAAvailable();
+    return this.sona!.verifyPerformance(iterations);
   }
 
   // ============================================================================

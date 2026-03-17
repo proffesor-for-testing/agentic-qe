@@ -13,7 +13,6 @@ quick_reference_card: true
 tags: [holistic, pact, quality, whole-team, proactive, autonomous, collaborative, targeted]
 trust_tier: 0
 validation:
-
 ---
 
 # Holistic Testing Model with PACT Principles

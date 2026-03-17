@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.8.1",
+  "version": "3.8.2",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 13 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 60 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -74,6 +74,7 @@
     "test:coverage": "vitest run --coverage --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/integration/browser/**' --exclude='**/browser-swarm-coordinator.test.ts' --exclude='**/mcp/handlers/domain-handlers.test.ts'",
     "test:perf": "vitest bench tests/performance/",
     "test:journeys": "npm test -- --run tests/integration/",
+    "test:journeys:ci": "vitest run tests/integration/ --exclude='**/browser/**' --exclude='**/browser-integration/**' --exclude='**/integration/mcp/**' --exclude='**/integration/sync/**' --exclude='**/integration/learning/**' --exclude='**/integration/domains/**' --exclude='**/integration/llm/**' --exclude='**/integration/n8n/**' --exclude='**/*.e2e.test.ts'",
     "test:watch": "vitest",
     "performance:gate": "npx tsx src/performance/run-gates.ts",
     "test:integration:browser": "VIBIUM_REAL_TESTS=true vitest run tests/integrations/vibium/vibium-real.test.ts",
@@ -127,7 +128,7 @@
   "author": "AQE Development Team",
   "license": "MIT",
   "dependencies": {
-    "@claude-flow/guidance": "^3.0.0-alpha.1",
+    "@claude-flow/guidance": "3.0.0-alpha.1",
     "@faker-js/faker": "^10.2.0",
     "@ruvector/attention": "0.1.3",
     "@ruvector/gnn": "0.1.19",
@@ -154,7 +155,7 @@
     "yaml": "^2.8.2"
   },
   "optionalDependencies": {
-    "@claude-flow/browser": "^3.0.0-alpha.1",
+    "@claude-flow/browser": "3.0.0-alpha.1",
     "@ruvector/attention-darwin-arm64": "0.1.3",
     "@ruvector/attention-darwin-x64": "0.1.3",
     "@ruvector/attention-linux-arm64-gnu": "0.1.3",
@@ -230,6 +231,10 @@
     ".claude/skills",
     ".claude/commands",
     ".claude/helpers",
+    ".opencode/agents",
+    ".opencode/skills",
+    ".opencode/tools",
+    ".opencode/permissions.yaml",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"

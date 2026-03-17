@@ -3,6 +3,7 @@ import { safeJsonParse } from '../shared/safe-json.js';
 
 /**
  * Proof Envelope Integration for Agentic QE Fleet
+ * TODO(ruflo-rebrand): Replace @claude-flow/guidance with @ruflo/guidance when published
  *
  * Provides hash-chained audit trails with cryptographic proof generation,
  * tamper detection, and action attestation for governance compliance.

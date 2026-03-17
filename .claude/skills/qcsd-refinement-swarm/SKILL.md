@@ -42,7 +42,6 @@ validation:
   schema_path: schemas/output.json
   validator_path: scripts/validate-config.json
   eval_path: evals/qcsd-refinement-swarm.yaml
-
 ---
 
 # QCSD Refinement Swarm v1.0

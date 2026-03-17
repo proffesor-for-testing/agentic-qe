@@ -156,7 +156,7 @@ fi
 # If no cache or expired, try to get fresh data (but don't block on it)
 if [ "$CVE_TOTAL" -eq 0 ]; then
   # Quick check - parse from npx output if available
-  CVE_OUTPUT=$(timeout 2 npx @claude-flow/cli@latest security cve --list 2>/dev/null || echo "")
+  CVE_OUTPUT=$(timeout 2 npx --no-install ruflo security cve --list 2>/dev/null || echo "")
   if [ -n "$CVE_OUTPUT" ]; then
     CVE_TOTAL=$(echo "$CVE_OUTPUT" | grep -c "CVE-" || echo "0")
     CVE_FIXED=$(echo "$CVE_OUTPUT" | grep -c "Fixed" || echo "0")

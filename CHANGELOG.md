@@ -5,6 +5,27 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.2] - 2026-03-17
+
+### Fixed
+
+- **YAML frontmatter validation** — Removed blank lines inside frontmatter delimiters across 114 SKILL.md files that caused parsers to fail. ([#360](https://github.com/proffesor-for-testing/agentic-qe/issues/360))
+- **OpenCode installer path resolution** — `aqe init --with-opencode` now resolves source paths relative to the package installation directory instead of CWD, fixing 0-agent installs for global npm users. ([#361](https://github.com/proffesor-for-testing/agentic-qe/issues/361))
+- **Settings permissions overwrite** — `aqe init --upgrade` now union-merges AQE permissions into existing `settings.json` instead of replacing the entire permissions array, preserving user-added entries. ([#362](https://github.com/proffesor-for-testing/agentic-qe/issues/362))
+- **Hook path fallback** — Brain-checkpoint and statusline hook commands now use a hardcoded absolute path fallback (resolved at install time) instead of `pwd`, which could resolve incorrectly outside the project root. ([#363](https://github.com/proffesor-for-testing/agentic-qe/issues/363))
+- **Agent updated date** — `aqe init --upgrade` now bumps the `updated:` field in agent frontmatter when overlays modify content. ([#365](https://github.com/proffesor-for-testing/agentic-qe/issues/365))
+- **Validation pipeline docs** — Fixed `--steps` parameter documentation to consistently describe comma-separated format. ([#367](https://github.com/proffesor-for-testing/agentic-qe/issues/367))
+
+### Added
+
+- **Validation pipeline helper** — New `.claude/helpers/validation-pipeline.cjs` implements the 13-step requirements validation pipeline with sequential execution, gate enforcement, per-step scoring, and weighted category rollup. ([#364](https://github.com/proffesor-for-testing/agentic-qe/issues/364))
+
+### Changed
+
+- **Security scanner dependency** — `qe-security-scanner` dependency on `qe-dependency-mapper` changed from `hard` to `soft`, allowing security scans to start immediately without waiting for the full dependency graph. ([#366](https://github.com/proffesor-for-testing/agentic-qe/issues/366))
+- **Ruflo rebrand** — Completed `claude-flow` to `ruflo` rename across all remaining skills, helpers, and TypeScript bridge modules with `resolveCliPackage()` for consistent CLI resolution.
+- **CI stability** — Resolved CI timeouts, cancellations, and test failures from PR #350.
+
 ## [3.8.1] - 2026-03-17
 
 ### Fixed

@@ -83,7 +83,7 @@ export class HooksPhase extends BasePhase<HooksResult> {
     }
 
     // Generate new AQE hooks
-    const aqeHooks = this.generateHooksConfig(config);
+    const aqeHooks = this.generateHooksConfig(config, projectRoot);
     const hookTypes = Object.keys(aqeHooks);
 
     // Detect if there are existing AQE hooks
@@ -104,10 +104,23 @@ export class HooksPhase extends BasePhase<HooksResult> {
       ...generateAqeEnvVars(config),
     };
 
-    // Apply v3 settings sections (statusLine, permissions, v3Configuration, v3Learning, etc.)
-    const v3Sections = generateV3SettingsSections(config);
+    // Apply v3 settings sections (statusLine, v3Configuration, v3Learning, etc.)
+    // Permissions are union-merged to preserve user entries (#362)
+    const v3Sections = generateV3SettingsSections(config, projectRoot);
     for (const [key, value] of Object.entries(v3Sections)) {
-      settings[key] = value;
+      if (key === '_aqePermissions') {
+        // Union-merge: add AQE entries without removing user-added permissions
+        const existingPerms = (settings.permissions as { allow?: string[]; deny?: string[] }) || {};
+        const existingAllow = existingPerms.allow || [];
+        const aqeEntries = value as string[];
+        const merged = [...new Set([...existingAllow, ...aqeEntries])];
+        settings.permissions = {
+          ...existingPerms,
+          allow: merged,
+        };
+      } else {
+        settings[key] = value;
+      }
     }
 
     // Enable MCP servers (deduplicate, replace old 'aqe' with 'agentic-qe')
@@ -434,7 +447,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
    * Uses `npx agentic-qe` for portability - works without global installation.
    * All hooks use --json output for structured data and fail silently with continueOnError.
    */
-  private generateHooksConfig(_config: AQEInitConfig): Record<string, unknown[]> {
+  private generateHooksConfig(_config: AQEInitConfig, projectRoot: string): Record<string, unknown[]> {
     // Shell injection safety: env vars like $TOOL_INPUT_file_path are set by
     // Claude Code as environment variables before invoking the hook command.
     // We pass them via --file "$TOOL_INPUT_file_path" which is safe because
@@ -558,7 +571,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'node "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/helpers/brain-checkpoint.cjs" verify --json',
+              command: `node "$(git rev-parse --show-toplevel 2>/dev/null || echo ${JSON.stringify(projectRoot)})/.claude/helpers/brain-checkpoint.cjs" verify --json`,
               timeout: 5000,
               continueOnError: true,
             },
@@ -581,7 +594,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'node "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/helpers/brain-checkpoint.cjs" export --json',
+              command: `node "$(git rev-parse --show-toplevel 2>/dev/null || echo ${JSON.stringify(projectRoot)})/.claude/helpers/brain-checkpoint.cjs" export --json`,
               timeout: 60000,
               continueOnError: true,
             },

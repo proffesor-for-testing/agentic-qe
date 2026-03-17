@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
  * Adversarial Defense Integration for Agentic QE Fleet
  *
  * Wires @claude-flow/guidance adversarial defense capabilities to AQE's agent system.
+ * TODO(ruflo-rebrand): Replace @claude-flow/guidance with @ruflo/guidance when published
  * Provides prompt injection detection, input sanitization, threat scoring,
  * automatic blocking, and trust integration.
  *

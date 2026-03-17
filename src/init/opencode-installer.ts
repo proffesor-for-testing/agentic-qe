@@ -75,26 +75,64 @@ export class OpenCodeInstaller {
   // ==========================================================================
 
   /**
-   * Find the source .opencode/ directory
+   * Find the source .opencode/ directory containing agents/skills/tools to install.
+   * Resolves relative to the package installation directory (not CWD) so that
+   * globally-installed and bundled CLI paths all work correctly (#361).
    */
   private findSourceDir(): string {
+    const targetDir = join(this.projectRoot, '.opencode');
     const possiblePaths = [
-      // Development: src/init/ or dist/init/ -> project root
+      // From dist/init/ or src/init/ → package root .opencode/
       join(__dirname, '../../.opencode'),
-      // From project root (CWD)
-      join(process.cwd(), '.opencode'),
-      // NPM package location
-      join(__dirname, '../../assets/opencode'),
-    ];
+      // From dist/cli/ (bundle) → package root .opencode/
+      join(__dirname, '../.opencode'),
+      // require.resolve fallback: find the package root via its package.json
+      this.resolveViaPackageJson(),
+    ].filter((p): p is string => p !== null);
 
     for (const path of possiblePaths) {
-      if (existsSync(path)) {
+      // Never use the target directory as the source
+      if (path === targetDir) continue;
+      if (this.isValidSourceDir(path)) {
         return path;
       }
     }
 
-    // Default to CWD location
-    return join(process.cwd(), '.opencode');
+    // Return the first package path even if not found — install() will report the error
+    return possiblePaths[0] ?? join(__dirname, '../../.opencode');
+  }
+
+  /**
+   * Try to find the package root via require.resolve on our own package.json,
+   * then return <root>/.opencode. Returns null if resolution fails.
+   */
+  private resolveViaPackageJson(): string | null {
+    try {
+      // Walk up from __dirname to find the nearest package.json with our name
+      let dir = __dirname;
+      for (let i = 0; i < 5; i++) {
+        const pkgPath = join(dir, 'package.json');
+        if (existsSync(pkgPath)) {
+          const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+          if (pkg.name === 'agentic-qe') {
+            return join(dir, '.opencode');
+          }
+        }
+        dir = dirname(dir);
+      }
+    } catch {
+      // resolution failed
+    }
+    return null;
+  }
+
+  /**
+   * Check if a directory is a valid source for OpenCode assets
+   * (must exist and contain at least an agents/ or skills/ subdirectory)
+   */
+  private isValidSourceDir(dir: string): boolean {
+    if (!existsSync(dir)) return false;
+    return existsSync(join(dir, 'agents')) || existsSync(join(dir, 'skills'));
   }
 
   // ==========================================================================

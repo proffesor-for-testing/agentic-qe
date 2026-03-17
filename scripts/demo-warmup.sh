@@ -24,7 +24,7 @@ npm test -- --run tests/integration/cross-phase-integration.test.ts 2>&1 | tail 
 
 echo ""
 echo "[4/4] Initializing swarm..."
-npx @claude-flow/cli@latest swarm init \
+npx ruflo swarm init \
   --topology hierarchical \
   --max-agents 6 \
   --strategy specialized 2>/dev/null || echo "Swarm ready"

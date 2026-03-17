@@ -321,18 +321,18 @@ fi
 echo "### 🌊 Claude Flow Installation" >> "$REPORT_FILE"
 if command_exists npm; then
     # Check if claude-flow is already installed
-    if npm list -g claude-flow 2>/dev/null | grep -q "claude-flow@"; then
-        FLOW_VERSION=$(npm list -g claude-flow 2>/dev/null | grep "claude-flow@" | grep -oE '@[0-9a-z.-]+' || echo 'unknown')
+    if npm list -g ruflo 2>/dev/null | grep -q "ruflo@"; then
+        FLOW_VERSION=$(npm list -g ruflo 2>/dev/null | grep "ruflo@" | grep -oE '@[0-9a-z.-]+' || echo 'unknown')
         record_status "claude-flow" "✅ Already Installed" "Version: $FLOW_VERSION"
-        echo "claude-flow is already installed"
+        echo "ruflo is already installed"
     else
-        echo "Installing claude-flow@alpha via npm..."
-        if npm install -g claude-flow@alpha 2>/dev/null; then
-            record_status "claude-flow" "✅ Success" "Installed via npm (alpha)"
+        echo "Installing ruflo via npm..."
+        if npm install -g ruflo@3.5.18 2>/dev/null; then
+            record_status "claude-flow" "✅ Success" "Installed via npm (ruflo@3.5.18)"
         elif command_exists sudo; then
-            echo "Retrying claude-flow installation with sudo..."
-            if sudo npm install -g claude-flow@alpha 2>/dev/null; then
-                record_status "claude-flow" "✅ Success" "Installed via npm with sudo (alpha)"
+            echo "Retrying ruflo installation with sudo..."
+            if sudo npm install -g ruflo@3.5.18 2>/dev/null; then
+                record_status "claude-flow" "✅ Success" "Installed via npm with sudo (ruflo@3.5.18)"
             else
                 record_status "claude-flow" "❌ Failed" "npm installation failed"
             fi
@@ -554,15 +554,15 @@ if [ $FAILED_ITEMS -gt 0 ]; then
         echo "" >> "$REPORT_FILE"
         echo "**Install Claude Flow (alpha version):**" >> "$REPORT_FILE"
         echo '```bash' >> "$REPORT_FILE"
-        echo "npm install -g claude-flow@alpha" >> "$REPORT_FILE"
+        echo "npm install -g ruflo@3.5.18" >> "$REPORT_FILE"
         echo '```' >> "$REPORT_FILE"
         echo "" >> "$REPORT_FILE"
         echo "**If you get permission errors, try:**" >> "$REPORT_FILE"
         echo '```bash' >> "$REPORT_FILE"
-        echo "sudo npm install -g claude-flow@alpha" >> "$REPORT_FILE"
+        echo "sudo npm install -g ruflo@3.5.18" >> "$REPORT_FILE"
         echo '```' >> "$REPORT_FILE"
         echo "" >> "$REPORT_FILE"
-        echo "**For more information, visit:** https://github.com/ruvnet/claude-flow" >> "$REPORT_FILE"
+        echo "**For more information, visit:** https://github.com/ruvnet/ruflo" >> "$REPORT_FILE"
         echo "" >> "$REPORT_FILE"
     fi
     

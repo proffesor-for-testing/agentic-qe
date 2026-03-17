@@ -14,7 +14,6 @@ tags: [writing, documentation, communication, blogs, tutorials]
 trust_tier: 1
 validation:
   schema_path: schemas/output.json
-
 ---
 
 # Technical Writing

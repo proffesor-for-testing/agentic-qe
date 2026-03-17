@@ -13,7 +13,6 @@ quick_reference_card: true
 tags: [xp, agile, pair-programming, tdd, continuous-integration, collaboration]
 trust_tier: 0
 validation:
-
 ---
 
 # Extreme Programming (XP) Practices

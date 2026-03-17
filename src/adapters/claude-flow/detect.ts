@@ -96,7 +96,7 @@ function checkMCPConfig(projectRoot: string): ClaudeFlowDetection | null {
   if (existsSync(mcpJsonPath)) {
     try {
       const config = safeJsonParse<{ mcpServers?: Record<string, unknown> }>(readFileSync(mcpJsonPath, 'utf-8'));
-      if (config.mcpServers?.['claude-flow']) {
+      if (config.mcpServers?.['ruflo'] || config.mcpServers?.['claude-flow']) {
         return { available: true, method: 'mcp-config' };
       }
     } catch {
@@ -110,7 +110,7 @@ function checkMCPConfig(projectRoot: string): ClaudeFlowDetection | null {
     try {
       const settings = safeJsonParse<{ mcpServers?: Record<string, unknown>; mcp?: { servers?: Record<string, unknown> } }>(readFileSync(settingsPath, 'utf-8'));
       const servers = settings.mcpServers || settings.mcp?.servers || {};
-      if (servers['claude-flow'] || servers['@anthropic/claude-flow']) {
+      if (servers['ruflo'] || servers['claude-flow'] || servers['@anthropic/claude-flow']) {
         return { available: true, method: 'mcp-config' };
       }
     } catch {
@@ -129,7 +129,7 @@ function checkPackageJson(projectRoot: string): ClaudeFlowDetection | null {
     const pkg = safeJsonParse<{ dependencies?: Record<string, string>; devDependencies?: Record<string, string> }>(readFileSync(packageJsonPath, 'utf-8'));
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
-    if (deps['@claude-flow/cli'] || deps['claude-flow']) {
+    if (deps['ruflo'] || deps['@claude-flow/cli'] || deps['claude-flow']) {
       return { available: true, method: 'npm-dependency' };
     }
   } catch {
@@ -140,18 +140,21 @@ function checkPackageJson(projectRoot: string): ClaudeFlowDetection | null {
 }
 
 function checkLocalBinary(projectRoot: string): ClaudeFlowDetection | null {
-  try {
-    // --no-install prevents npx from downloading the package
-    const result = execSync('npx --no-install @claude-flow/cli --version', {
-      encoding: 'utf-8',
-      timeout: 5000,
-      cwd: projectRoot,
-      stdio: ['pipe', 'pipe', 'pipe'], // suppress stderr noise
-    });
-    const version = result.trim().match(/\d+\.\d+\.\d+[\w.-]*/)?.[0];
-    return { available: true, method: 'npx-cached', version };
-  } catch {
-    // Not in npx cache — that's fine, don't try to install it
+  // Try ruflo first, then fall back to @claude-flow/cli
+  for (const pkg of ['ruflo', '@claude-flow/cli']) {
+    try {
+      // --no-install prevents npx from downloading the package
+      const result = execSync(`npx --no-install ${pkg} --version`, {
+        encoding: 'utf-8',
+        timeout: 5000,
+        cwd: projectRoot,
+        stdio: ['pipe', 'pipe', 'pipe'], // suppress stderr noise
+      });
+      const version = result.trim().match(/\d+\.\d+\.\d+[\w.-]*/)?.[0];
+      return { available: true, method: 'npx-cached', version };
+    } catch {
+      // Not in npx cache — that's fine, try next
+    }
   }
 
   return null;
@@ -165,6 +168,23 @@ function checkLocalBinary(projectRoot: string): ClaudeFlowDetection | null {
  * Return a user-friendly message when Claude Flow is not found.
  * Suitable for printing during `aqe init`.
  */
+/**
+ * Resolve the CLI package name: ruflo (preferred) or @claude-flow/cli (fallback).
+ * Used by all bridge modules to build npx args consistently.
+ */
+export function resolveCliPackage(): string {
+  for (const pkg of ['ruflo', '@claude-flow/cli']) {
+    try {
+      require.resolve(`${pkg}/package.json`);
+      return pkg;
+    } catch {
+      // not installed, try next
+    }
+  }
+  // Default to ruflo — npx --no-install will fail gracefully if neither is available
+  return 'ruflo';
+}
+
 export function getClaudeFlowNotFoundMessage(): string {
   return [
     '  Claude Flow not found — running in standalone mode.',
@@ -175,8 +195,8 @@ export function getClaudeFlowNotFoundMessage(): string {
     '    - Codebase pretrain analysis',
     '',
     '  To install later:',
-    '    npm install -g @claude-flow/cli',
-    '    claude mcp add claude-flow -- npx -y @claude-flow/cli@latest',
+    '    npm install -g ruflo',
+    '    claude mcp add ruflo -- npx -y ruflo@3.5.18',
     '    aqe init --auto --with-claude-flow',
   ].join('\n');
 }

@@ -8,7 +8,7 @@ COMMIT_MSG=$(git log -1 --pretty=%B)
 echo "📊 Recording commit metrics..."
 
 # Notify claude-flow of commit
-npx @claude-flow/cli hooks notify \
+npx --no-install ruflo hooks notify \
   --message "Commit: $COMMIT_MSG" \
   --level info \
   --metadata '{"hash": "'$COMMIT_HASH'"}' 2>/dev/null || true

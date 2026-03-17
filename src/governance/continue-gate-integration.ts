@@ -2,6 +2,7 @@
  * ContinueGate Integration for Agentic QE Fleet
  *
  * Wires @claude-flow/guidance ContinueGate to the AQE agent coordination loop.
+ * TODO(ruflo-rebrand): Replace @claude-flow/guidance with @ruflo/guidance when published
  * Provides loop detection, throttling, and automatic escalation.
  *
  * @module governance/continue-gate-integration

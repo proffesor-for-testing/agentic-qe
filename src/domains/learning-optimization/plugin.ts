@@ -63,6 +63,10 @@ export interface LearningOptimizationPluginConfig {
  * Public API for the learning-optimization domain
  */
 export interface LearningOptimizationAPI {
+  // Availability check
+  /** Check if SONA pattern engine is available (may be false if init failed) */
+  isSONAAvailable(): boolean;
+
   // Coordinator methods
   runLearningCycle(domain: DomainName): Promise<Result<LearningCycleReport>>;
   optimizeAllStrategies(): Promise<Result<OptimizationReport>>;
@@ -176,6 +180,9 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
    */
   getAPI<T>(): T {
     const api: LearningOptimizationExtendedAPI = {
+      // Availability check
+      isSONAAvailable: () => this.coordinator?.isSONAAvailable() ?? false,
+
       // Coordinator methods
       runLearningCycle: this.runLearningCycle.bind(this),
       optimizeAllStrategies: this.optimizeAllStrategies.bind(this),

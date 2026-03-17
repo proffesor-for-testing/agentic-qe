@@ -13,7 +13,9 @@
  */
 
 import type { PretrainResult } from './types.js';
-import { detectClaudeFlow } from './detect.js';
+import { detectClaudeFlow, resolveCliPackage } from './detect.js';
+
+const cliPkg = resolveCliPackage();
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 
@@ -60,7 +62,7 @@ export class PretrainBridge {
       try {
         const { execFileSync } = await import('child_process');
         const result = execFileSync('npx',
-          ['--no-install', '@claude-flow/cli', 'hooks', 'pretrain', '--path', targetPath, '--depth', depth],
+          ['--no-install', cliPkg, 'hooks', 'pretrain', '--path', targetPath, '--depth', depth],
           { encoding: 'utf-8', timeout: 120000, cwd: this.options.projectRoot }
         );
 
@@ -105,7 +107,7 @@ export class PretrainBridge {
       try {
         const { execFileSync } = await import('child_process');
         const result = execFileSync('npx',
-          ['--no-install', '@claude-flow/cli', 'hooks', 'build-agents', '--format', format],
+          ['--no-install', cliPkg, 'hooks', 'build-agents', '--format', format],
           { encoding: 'utf-8', timeout: 60000, cwd: this.options.projectRoot }
         );
 
@@ -136,7 +138,7 @@ export class PretrainBridge {
       try {
         const { execFileSync } = await import('child_process');
         const result = execFileSync('npx',
-          ['--no-install', '@claude-flow/cli', 'hooks', 'transfer', '--source-path', sourcePath, '--min-confidence', String(minConfidence)],
+          ['--no-install', cliPkg, 'hooks', 'transfer', '--source-path', sourcePath, '--min-confidence', String(minConfidence)],
           { encoding: 'utf-8', timeout: 60000, cwd: this.options.projectRoot }
         );
 

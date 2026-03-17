@@ -18,15 +18,24 @@ import { safeJsonParse } from '../../shared/safe-json.js';
 const EXEC_OPTS = { encoding: 'utf-8' as const };
 
 /**
- * Build args array for npx @claude-flow/cli calls.
+ * Build args array for npx ruflo / @claude-flow/cli calls.
+ * Uses ruflo first with @claude-flow/cli fallback (matching detect.ts).
  * Using execFileSync with explicit args prevents shell injection.
  */
 function cfCliArgs(...subcommand: string[]): { bin: string; args: string[] } {
+  // Lazy-resolve: ruflo preferred, @claude-flow/cli as fallback
+  const pkg = cfCliArgs._resolvedPkg ??= (() => {
+    for (const candidate of ['ruflo', '@claude-flow/cli']) {
+      try { require.resolve(`${candidate}/package.json`); return candidate; } catch { /* next */ }
+    }
+    return 'ruflo';
+  })();
   return {
     bin: 'npx',
-    args: ['--no-install', '@claude-flow/cli', ...subcommand],
+    args: ['--no-install', pkg, ...subcommand],
   };
 }
+cfCliArgs._resolvedPkg = undefined as string | undefined;
 
 /**
  * Claude Flow Adapter Implementation

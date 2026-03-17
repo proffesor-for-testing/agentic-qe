@@ -5,7 +5,6 @@ trust_tier: 2
 validation:
   schema_path: schemas/output.json
   validator_path: scripts/validate-config.json
-
 ---
 
 # QE Iterative Loop

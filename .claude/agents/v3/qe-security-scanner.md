@@ -8,8 +8,8 @@ domain: security-compliance
 dependencies:
   agents:
     - name: qe-dependency-mapper
-      type: hard
-      reason: "Provides dependency data for vulnerability correlation"
+      type: soft
+      reason: "Enhances vulnerability correlation with dependency data when available"
   mcp_servers:
     - name: agentic-qe
       required: true
