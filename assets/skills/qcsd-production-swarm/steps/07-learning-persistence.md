@@ -131,12 +131,12 @@ Save a JSON record to `${OUTPUT_FOLDER}/09-learning-persistence.json`:
 If MCP memory_store tool is unavailable, use CLI instead (STILL MANDATORY):
 
 ```bash
-npx @claude-flow/cli@latest memory store \
+npx --no-install ruflo memory store \
   --key "qcsd-production-${RELEASE_ID}-$(date +%s)" \
   --value '{"recommendation":"[VALUE]","doraScore":[N],"slaCompliance":[N],"incidentSeverity":"[P_]","defectTrend":"[VALUE]"}' \
   --namespace qcsd-production
 
-npx @claude-flow/cli@latest hooks post-task \
+npx --no-install ruflo hooks post-task \
   --task-id "qcsd-production-${RELEASE_ID}" \
   --success true
 ```

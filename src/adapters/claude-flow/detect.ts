@@ -168,6 +168,23 @@ function checkLocalBinary(projectRoot: string): ClaudeFlowDetection | null {
  * Return a user-friendly message when Claude Flow is not found.
  * Suitable for printing during `aqe init`.
  */
+/**
+ * Resolve the CLI package name: ruflo (preferred) or @claude-flow/cli (fallback).
+ * Used by all bridge modules to build npx args consistently.
+ */
+export function resolveCliPackage(): string {
+  for (const pkg of ['ruflo', '@claude-flow/cli']) {
+    try {
+      require.resolve(`${pkg}/package.json`);
+      return pkg;
+    } catch {
+      // not installed, try next
+    }
+  }
+  // Default to ruflo — npx --no-install will fail gracefully if neither is available
+  return 'ruflo';
+}
+
 export function getClaudeFlowNotFoundMessage(): string {
   return [
     '  Claude Flow not found — running in standalone mode.',

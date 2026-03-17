@@ -213,7 +213,7 @@ export class LearningOptimizationCoordinator
   /**
    * Initialize the coordinator.
    * CQ-002: Domain-specific initialization
-   * Throws if QESONA fails to initialize.
+   * SONA init failure is non-fatal — coordinator degrades gracefully (#359).
    */
   protected async onInitialize(): Promise<void> {
     // Initialize QESONA for neural pattern learning (persistent patterns)

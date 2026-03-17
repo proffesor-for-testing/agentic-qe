@@ -81,10 +81,8 @@ export class OpenCodeInstaller {
    */
   private findSourceDir(): string {
     const possiblePaths = [
-      // Development: src/init/ or dist/init/ -> project root
+      // NPM package / development: dist/init/ or src/init/ -> package root .opencode/
       join(__dirname, '../../.opencode'),
-      // NPM package location
-      join(__dirname, '../../assets/opencode'),
     ];
 
     for (const path of possiblePaths) {

@@ -13,7 +13,9 @@
  */
 
 import type { ModelRoutingResult, ModelRoutingOutcome } from './types.js';
-import { detectClaudeFlow } from './detect.js';
+import { detectClaudeFlow, resolveCliPackage } from './detect.js';
+
+const cliPkg = resolveCliPackage();
 
 /**
  * Task complexity indicators
@@ -61,7 +63,7 @@ export class ModelRouterBridge {
       try {
         const { execFileSync } = await import('child_process');
         const result = execFileSync('npx',
-          ['--no-install', '@claude-flow/cli', 'hooks', 'model-route', '--task', task],
+          ['--no-install', cliPkg, 'hooks', 'model-route', '--task', task],
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
 
@@ -103,7 +105,7 @@ export class ModelRouterBridge {
       try {
         const { execFileSync } = await import('child_process');
         execFileSync('npx',
-          ['--no-install', '@claude-flow/cli', 'hooks', 'model-outcome', '--task', outcome.task, '--model', outcome.model, '--outcome', outcome.outcome],
+          ['--no-install', cliPkg, 'hooks', 'model-outcome', '--task', outcome.task, '--model', outcome.model, '--outcome', outcome.outcome],
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
         );
       } catch (error) {

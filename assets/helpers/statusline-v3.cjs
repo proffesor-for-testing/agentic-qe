@@ -391,7 +391,7 @@ function getCveStatus(projectDir) {
 
   // Fetch fresh CVE data (with timeout)
   try {
-    const output = execQuiet('timeout 2 npx @claude-flow/cli@latest security cve --list 2>/dev/null');
+    const output = execQuiet('timeout 2 npx --no-install ruflo security cve --list 2>/dev/null');
     if (output) {
       total = (output.match(/CVE-/g) || []).length;
       fixed = (output.match(/Fixed/g) || []).length;

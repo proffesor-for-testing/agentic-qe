@@ -15,7 +15,9 @@ import { randomUUID } from 'node:crypto';
  */
 
 import type { Trajectory, TrajectoryStep } from './types.js';
-import { detectClaudeFlow } from './detect.js';
+import { detectClaudeFlow, resolveCliPackage } from './detect.js';
+
+const cliPkg = resolveCliPackage();
 
 /**
  * Trajectory Bridge for SONA integration
@@ -49,7 +51,7 @@ export class TrajectoryBridge {
     if (this.claudeFlowAvailable) {
       try {
         const { execFileSync } = await import('child_process');
-        const args = ['--no-install', '@claude-flow/cli', 'hooks', 'intelligence', 'trajectory-start', '--task', task];
+        const args = ['--no-install', cliPkg, 'hooks', 'intelligence', 'trajectory-start', '--task', task];
         if (agent) { args.push('--agent', agent); }
         const result = execFileSync('npx', args,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
@@ -90,7 +92,7 @@ export class TrajectoryBridge {
     if (this.claudeFlowAvailable) {
       try {
         const { execFileSync } = await import('child_process');
-        const args = ['--no-install', '@claude-flow/cli', 'hooks', 'intelligence', 'trajectory-step', '--trajectory-id', trajectoryId, '--action', action];
+        const args = ['--no-install', cliPkg, 'hooks', 'intelligence', 'trajectory-step', '--trajectory-id', trajectoryId, '--action', action];
         if (result) { args.push('--result', result); }
         if (quality !== undefined) { args.push('--quality', String(quality)); }
         execFileSync('npx', args,
@@ -127,7 +129,7 @@ export class TrajectoryBridge {
     if (this.claudeFlowAvailable) {
       try {
         const { execFileSync } = await import('child_process');
-        const args = ['--no-install', '@claude-flow/cli', 'hooks', 'intelligence', 'trajectory-end', '--trajectory-id', trajectoryId, '--success', String(success)];
+        const args = ['--no-install', cliPkg, 'hooks', 'intelligence', 'trajectory-end', '--trajectory-id', trajectoryId, '--success', String(success)];
         if (feedback) { args.push('--feedback', feedback); }
         execFileSync('npx', args,
           { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }

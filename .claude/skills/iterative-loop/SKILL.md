@@ -49,10 +49,10 @@ done
 
 ```bash
 # Using claude-flow hooks for iterative task
-npx @claude-flow/cli@latest hooks pre-task --description "Implement auth with iteration" --taskId "auth-impl"
+npx --no-install ruflo hooks pre-task --description "Implement auth with iteration" --taskId "auth-impl"
 
 # Store iteration state in memory
-npx @claude-flow/cli@latest memory store \
+npx --no-install ruflo memory store \
   --key "iteration-auth" \
   --value '{"iteration": 1, "maxIterations": 20, "criteria": "all tests pass"}' \
   --namespace iterations
@@ -232,18 +232,18 @@ Record metrics each iteration for trend analysis
 
 ```bash
 # Store iteration state
-npx @claude-flow/cli@latest memory store \
+npx --no-install ruflo memory store \
   --key "current-iteration" \
   --value '{"task": "auth", "iteration": 5, "lastResult": "2 tests failing"}' \
   --namespace iterations
 
 # Search for similar past iterations
-npx @claude-flow/cli@latest memory search \
+npx --no-install ruflo memory search \
   --query "auth implementation" \
   --namespace iterations
 
 # Learn from successful completions
-npx @claude-flow/cli@latest hooks post-task \
+npx --no-install ruflo hooks post-task \
   --taskId "auth-impl" \
   --success true \
   --quality 0.9
@@ -255,7 +255,7 @@ For complex tasks, use multiple agents iterating in parallel:
 
 ```bash
 # Initialize swarm for parallel iteration
-npx @claude-flow/cli@latest swarm init --topology mesh --max-agents 5
+npx --no-install ruflo swarm init --topology mesh --max-agents 5
 
 # Spawn specialized iterators
 Task("Iterate on unit tests", "Fix failing unit tests until all pass", "tester")

@@ -26,7 +26,7 @@ mcp__agentic-qe__memory_query({
 **CLI Fallback:**
 
 ```bash
-npx @claude-flow/cli@latest memory search --query "qcsd-ideation" --namespace qcsd-ideation --limit 1
+npx --no-install ruflo memory search --query "qcsd-ideation" --namespace qcsd-ideation --limit 1
 ```
 
 ### Step 1: Scan Story Content and Detect Flags
