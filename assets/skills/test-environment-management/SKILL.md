@@ -14,7 +14,6 @@ tags: [environment, docker, kubernetes, infrastructure, parity, cost-optimizatio
 trust_tier: 1
 validation:
   schema_path: schemas/output.json
-
 ---
 
 # Test Environment Management

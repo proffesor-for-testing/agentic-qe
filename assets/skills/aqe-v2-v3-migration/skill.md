@@ -16,7 +16,6 @@ trigger:
 trust_tier: 1
 validation:
   schema_path: schemas/output.json
-
 ---
 
 # AQE v2 to v3 Migration Skill

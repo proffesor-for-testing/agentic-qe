@@ -6,7 +6,6 @@ validation:
   schema_path: schemas/output.json
   validator_path: scripts/validate-config.json
   eval_path: evals/qe-test-execution.yaml
-
 ---
 
 # QE Test Execution

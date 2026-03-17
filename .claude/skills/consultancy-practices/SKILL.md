@@ -14,7 +14,6 @@ tags: [consulting, advisory, client-engagement, quality-assessment, transformati
 trust_tier: 1
 validation:
   schema_path: schemas/output.json
-
 ---
 
 # Consultancy Practices

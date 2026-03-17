@@ -16,7 +16,6 @@ validation:
   schema_path: schemas/output.json
   validator_path: scripts/validate-config.json
   eval_path: evals/n8n-trigger-testing-strategies.yaml
-
 ---
 
 # n8n Trigger Testing Strategies

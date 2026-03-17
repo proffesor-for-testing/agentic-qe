@@ -11,7 +11,6 @@ last_optimized: 2025-12-02
 dependencies: []
 quick_reference_card: true
 tags: [mutation, stryker, test-quality, kill-rate, assertions, effectiveness]
-
 # ADR-056 Trust Tier 3 Validation
 trust_tier: 3
 validation:
