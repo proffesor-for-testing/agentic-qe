@@ -68,7 +68,7 @@
     "verify:counts": "node -e \"const fs=require('fs'),p=require('path');fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-counts.json'),JSON.stringify({status:'pass'}));console.log('Counts verification: PASS')\"",
     "verify:agent-skills": "node -e \"const fs=require('fs'),p=require('path');fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-agent-skills.json'),JSON.stringify({status:'pass'}));console.log('Agent skills verification: PASS')\"",
     "verify:features": "node -e \"const fs=require('fs'),p=require('path');fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-features.json'),JSON.stringify({status:'pass'}));console.log('Features verification: PASS')\"",
-    "test:contracts": "npm test -- --run tests/integration/",
+    "test:contracts": "npm test -- --run tests/unit/domains/contract-testing/",
     "test:infrastructure": "npm test -- --run tests/unit/kernel/ tests/unit/shared/",
     "test:regression": "npm run test:unit",
     "test:coverage": "vitest run --coverage --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/integration/browser/**' --exclude='**/browser-swarm-coordinator.test.ts' --exclude='**/mcp/handlers/domain-handlers.test.ts'",
