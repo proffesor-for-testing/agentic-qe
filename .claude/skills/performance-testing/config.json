@@ -1,0 +1,18 @@
+{
+  "$schema": "./config-schema.json",
+  "_description": "Performance Testing configuration. Auto-created on first run. Edit to customize.",
+  "tool": null,
+  "baseline_file": null,
+  "thresholds": {
+    "p95_response_ms": 500,
+    "error_rate_percent": 1,
+    "throughput_rps": 100
+  },
+  "options": {
+    "duration": "30s",
+    "vus": 10,
+    "rampUp": "10s",
+    "thinkTime": "1s"
+  },
+  "_setupPrompt": "If tool is null, ask: 'Which load testing tool do you use? (k6/artillery/jmeter)'. If baseline_file is null, ask: 'Do you have an existing performance baseline file? (path or \"none\")'."
+}

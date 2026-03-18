@@ -65,51 +65,6 @@ When testing mobile applications:
 | **Tier 2** | 30% users | iPhone 14/13, Pixel 8 |
 | **Tier 3** | 10% users | Older devices, other manufacturers |
 
-### Mobile Performance Goals
-| Metric | Target |
-|--------|--------|
-| App launch | < 2 seconds |
-| Screen transition | < 300ms |
-| Frame rate | 60 FPS |
-| Battery drain | < 5%/hour background |
-
----
-
-## Touch Gesture Testing
-
-```javascript
-// Appium gesture examples
-// Tap
-await driver.touchAction({ action: 'tap', x: 100, y: 200 });
-
-// Swipe (scroll down)
-await driver.touchAction([
-  { action: 'press', x: 200, y: 400 },
-  { action: 'moveTo', x: 200, y: 100 },
-  { action: 'release' }
-]);
-
-// Pinch to zoom
-const finger1 = [
-  { action: 'press', x: 100, y: 200 },
-  { action: 'moveTo', x: 50, y: 150 },
-  { action: 'release' }
-];
-const finger2 = [
-  { action: 'press', x: 200, y: 200 },
-  { action: 'moveTo', x: 250, y: 250 },
-  { action: 'release' }
-];
-await driver.multiTouchAction([finger1, finger2]);
-
-// Long press
-await driver.touchAction({
-  action: 'longPress',
-  x: 100, y: 200,
-  duration: 2000
-});
-```
-
 ---
 
 ## Mobile-Specific Scenarios
@@ -217,8 +172,6 @@ const mobileFleet = await FleetManager.coordinate({
 
 ## Remember
 
-**Mobile is not a smaller desktop - it's a different platform.** 60%+ of web traffic is mobile. Device fragmentation (1000+ Android devices), touch gestures, sensors, permissions, offline scenarios - all require specific testing.
+**Test on real devices for critical flows.** Emulators catch 80% of bugs but real devices are needed for actual performance, sensor behavior, and platform quirks.
 
-**Test on real devices for critical flows.** Emulators catch 80% of bugs but real devices needed for actual performance, sensor behavior, and platform quirks.
-
-**With Agents:** `qe-test-executor` orchestrates testing across device farms, manages platform differences, and tests 10+ devices in parallel. Reduces mobile testing from days to hours.
+**With Agents:** `qe-test-executor` orchestrates testing across device farms, manages platform differences, and tests 10+ devices in parallel.

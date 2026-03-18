@@ -1,6 +1,6 @@
 ---
 name: "QE Coverage Analysis"
-description: "O(log n) sublinear coverage gap detection with risk-weighted analysis and intelligent test prioritization."
+description: "Use when analyzing test coverage, identifying coverage gaps, prioritizing testing effort, or comparing coverage between branches."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
@@ -184,6 +184,33 @@ quality_gates:
       - track_trends: true
       - alert_on_decline: 3  # consecutive PRs
 ```
+
+## Run History
+
+After each coverage analysis, append results to `run-history.json` in this skill directory:
+```bash
+# Read current history, append new entry, write back
+node -e "
+const fs = require('fs');
+const h = JSON.parse(fs.readFileSync('.claude/skills/qe-coverage-analysis/run-history.json'));
+h.runs.push({date: new Date().toISOString().split('T')[0], statements_pct: STATEMENTS, branches_pct: BRANCHES, gaps_found: GAPS});
+fs.writeFileSync('.claude/skills/qe-coverage-analysis/run-history.json', JSON.stringify(h, null, 2));
+"
+```
+Read `run-history.json` before each run to detect trends (e.g., "coverage dropped 3 consecutive times").
+
+## Skill Composition
+
+- **Coverage dropped?** → Use `/coverage-drop-investigator` to trace the cause
+- **Need more tests** → Use `/qe-test-generation` to fill gaps
+- **Validate quality** → Use `/mutation-testing` to ensure coverage means quality
+- **Ship decision** → Feed into `/qe-quality-assessment` for deployment readiness
+
+## Gotchas
+
+- High line coverage does NOT mean good tests — 100% coverage with 0% assertions is common agent output. Use mutation testing to verify
+- coverage-analysis domain has 86% success rate — 14% of runs fail on initialization. Always verify results and have fallback plan (e.g. manual coverage tools)
+- Self-learning pipeline may silently stop learning (statusline frozen for days) — only human inspection catches this
 
 ## Coordination
 

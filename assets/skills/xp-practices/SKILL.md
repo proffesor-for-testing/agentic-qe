@@ -50,31 +50,6 @@ A: Make test pass + refactor
 
 ## Quick Reference Card
 
-### The Five XP Values
-
-| Value | Meaning | Practice |
-|-------|---------|----------|
-| **Communication** | Everyone knows what everyone does | Daily standups, pairing |
-| **Simplicity** | Simplest thing that works | YAGNI, small design |
-| **Feedback** | Get feedback early and often | TDD, CI, short iterations |
-| **Courage** | Tell truth, adapt | Refactor, admit mistakes |
-| **Respect** | Everyone contributes value | Sustainable pace, pairing |
-
-### Core Practices
-
-| Practice | Description | Benefit |
-|----------|-------------|---------|
-| **Pair Programming** | Two devs, one workstation | Quality + knowledge sharing |
-| **TDD** | Red-Green-Refactor | Confidence + design |
-| **CI** | Integrate multiple times/day | Fast feedback |
-| **Collective Ownership** | Anyone can change anything | No bottlenecks |
-| **Sustainable Pace** | 40-hour weeks | Long-term productivity |
-| **Small Releases** | Ship frequently | Risk reduction |
-
----
-
-## Pair Programming
-
 ### When to Pair
 
 | Context | Pair? | Why |
@@ -85,73 +60,6 @@ A: Make test pass + refactor
 | Critical bugs | ✅ Always | Two heads better |
 | Simple tasks | ❌ Skip | Not worth overhead |
 | Research spikes | ❌ Skip | Pair to discuss findings |
-
-### Pairing Dos and Don'ts
-
-**Do:**
-- ✅ Switch roles every 20-30 min
-- ✅ Take breaks together
-- ✅ Think out loud
-- ✅ Ask questions
-- ✅ Keep sessions 2-4 hours max
-
-**Don't:**
-- ❌ Grab keyboard without asking
-- ❌ Check phone while pairing
-- ❌ Dominate conversation
-- ❌ Pair all day (exhausting)
-
----
-
-## Ensemble (Mob) Programming
-
-**Setup:** 3+ developers, one screen, rotating driver
-
-```
-[Screen]
-   ↓
-[Driver] ← Directions from navigators
-   ↑
-[Navigator 1] [Navigator 2] [Navigator 3]
-```
-
-**Rotation:** Driver switches every 5-10 min
-
-**Best for:**
-- Complex problem solving
-- Architectural decisions
-- Learning new frameworks
-- Resolving blockers
-
----
-
-## Continuous Integration
-
-**CI Workflow:**
-```
-1. Pull latest from main
-2. Make small change (<2 hrs work)
-3. Run tests locally (all pass)
-4. Commit and push
-5. CI runs tests automatically
-6. If fail → fix immediately
-```
-
-**Best Practices:**
-- Commit frequently (small changes)
-- Keep build fast (<10 min)
-- Fix broken builds immediately
-- Never commit to broken build
-
----
-
-## Four Rules of Simple Design
-
-(In priority order)
-1. **Passes all tests** - Works correctly
-2. **Reveals intention** - Clear, expressive code
-3. **No duplication** - DRY principle
-4. **Fewest elements** - No speculative code
 
 ---
 
@@ -202,17 +110,6 @@ const xpFleet = await FleetManager.coordinate({
 
 ---
 
-## Common Objections
-
-| Objection | Response |
-|-----------|----------|
-| "Pairing is 2x slower" | 15% slower writing, 15% fewer bugs, net positive |
-| "No time for TDD" | Debugging takes longer than testing |
-| "CI is hard to setup" | Start simple: one action, one test |
-| "Collective ownership = chaos" | Only without tests + CI |
-
----
-
 ## Related Skills
 - [tdd-london-chicago](../tdd-london-chicago/) - TDD deep dive
 - [refactoring-patterns](../refactoring-patterns/) - Safe refactoring
@@ -222,10 +119,6 @@ const xpFleet = await FleetManager.coordinate({
 
 ## Remember
 
-**XP practices work as a system.** Don't cherry-pick randomly:
-- TDD enables collective ownership
-- CI enables small releases
-- Pairing enables collective ownership
-- Sustainable pace enables everything
+**XP practices work as a system** - TDD enables collective ownership, CI enables small releases, pairing enables collective ownership. Don't cherry-pick randomly.
 
-**With Agents:** Agents amplify XP. Pair humans with agents. Agents handle repetitive work, humans provide judgment and creativity.
+**With Agents:** Pair humans with agents. Agents handle repetitive work (regression, data generation, coverage analysis), humans provide judgment and creativity.

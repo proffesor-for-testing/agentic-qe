@@ -232,3 +232,17 @@ const reviewFleet = await FleetManager.coordinate({
 **Prioritize feedback:** 🔴 Blocker → 🟡 Major → 🟢 Minor → 💡 Suggestion. Focus on bugs and security, not style. Ask questions, don't command. Review < 400 lines at a time. Fast feedback (< 24h) beats thorough feedback.
 
 **With Agents:** Agents automate security, performance, and coverage checks, freeing human reviewers to focus on logic and design. Use agents for consistent, fast initial review.
+
+## Skill Composition
+
+- **Security concerns** → Compose with `/security-testing` for security-focused review
+- **Coverage check** → Run `/qe-coverage-analysis` on changed files
+- **Ship decision** → Feed review results into `/qe-quality-assessment`
+
+## Gotchas
+
+- Agent reviews >400 lines at once and misses issues — chunk reviews to 200-400 lines maximum
+- Nitpicking style while missing logic bugs is the #1 agent review failure — prioritize correctness over formatting
+- Agent approves code that compiles but has subtle race conditions — always check shared state and async patterns
+- Review comments without suggested fixes are unhelpful — always include a proposed alternative
+- Agent doesn't check if the PR actually solves the linked issue — verify the stated problem is actually fixed

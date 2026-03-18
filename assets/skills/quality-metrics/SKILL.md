@@ -23,21 +23,9 @@ validation:
 <default_to_action>
 When measuring quality or building dashboards:
 1. MEASURE outcomes (bug escape rate, MTTD) not activities (test count)
-2. FOCUS on DORA metrics: Deployment frequency, Lead time, MTTD, MTTR, Change failure rate
-3. AVOID vanity metrics: 100% coverage means nothing if tests don't catch bugs
-4. SET thresholds that drive behavior (quality gates block bad code)
-5. TREND over time: Direction matters more than absolute numbers
-
-**Quick Metric Selection:**
-- Speed: Deployment frequency, lead time for changes
-- Stability: Change failure rate, MTTR
-- Quality: Bug escape rate, defect density, test effectiveness
-- Process: Code review time, flaky test rate
-
-**Critical Success Factors:**
-- Metrics without action are theater
-- What you measure is what you optimize
-- Trends matter more than snapshots
+2. AVOID vanity metrics: 100% coverage means nothing if tests don't catch bugs
+3. SET thresholds that drive behavior (quality gates block bad code)
+4. TREND over time: Direction matters more than absolute numbers
 </default_to_action>
 
 ## Quick Reference Card
@@ -48,23 +36,6 @@ When measuring quality or building dashboards:
 - Evaluating testing effectiveness
 - Justifying quality investments
 
-### Meaningful vs Vanity Metrics
-| ✅ Meaningful | ❌ Vanity |
-|--------------|-----------|
-| Bug escape rate | Test case count |
-| MTTD (detection) | Lines of test code |
-| MTTR (recovery) | Test executions |
-| Change failure rate | Coverage % (alone) |
-| Lead time for changes | Requirements traced |
-
-### DORA Metrics
-| Metric | Elite | High | Medium | Low |
-|--------|-------|------|--------|-----|
-| Deploy Frequency | On-demand | Weekly | Monthly | Yearly |
-| Lead Time | < 1 hour | < 1 week | < 1 month | > 6 months |
-| Change Failure Rate | < 5% | < 15% | < 30% | > 45% |
-| MTTR | < 1 hour | < 1 day | < 1 week | > 1 month |
-
 ### Quality Gate Thresholds
 | Metric | Blocking Threshold | Warning |
 |--------|-------------------|---------|
@@ -73,38 +44,6 @@ When measuring quality or building dashboards:
 | Security critical | 0 | - |
 | Performance p95 | < 200ms | < 500ms |
 | Flaky tests | < 2% | < 5% |
-
----
-
-## Core Metrics
-
-### Bug Escape Rate
-```
-Bug Escape Rate = (Production Bugs / Total Bugs Found) × 100
-
-Target: < 10% (90% caught before production)
-```
-
-### Test Effectiveness
-```
-Test Effectiveness = (Bugs Found by Tests / Total Bugs) × 100
-
-Target: > 70%
-```
-
-### Defect Density
-```
-Defect Density = Defects / KLOC
-
-Good: < 1 defect per KLOC
-```
-
-### Mean Time to Detect (MTTD)
-```
-MTTD = Time(Bug Reported) - Time(Bug Introduced)
-
-Target: < 1 day for critical, < 1 week for others
-```
 
 ---
 
@@ -204,17 +143,6 @@ const metricsFleet = await FleetManager.coordinate({
 
 ---
 
-## Common Traps
-
-| Trap | Problem | Solution |
-|------|---------|----------|
-| Coverage worship | 100% coverage, bugs still escape | Measure bug escape rate instead |
-| Test count focus | Many tests, slow feedback | Measure execution time |
-| Activity metrics | Busy work, no outcomes | Measure outcomes (MTTD, MTTR) |
-| Point-in-time | Snapshot without context | Track trends over time |
-
----
-
 ## Related Skills
 - [agentic-quality-engineering](../agentic-quality-engineering/) - Agent coordination
 - [cicd-pipeline-qe-orchestrator](../cicd-pipeline-qe-orchestrator/) - Quality gates
@@ -224,7 +152,5 @@ const metricsFleet = await FleetManager.coordinate({
 ---
 
 ## Remember
-
-**Measure outcomes, not activities.** Bug escape rate > test count. MTTD/MTTR > coverage %. Trends > snapshots. Set gates that block bad code. What you measure is what you optimize.
 
 **With Agents:** Agents track metrics automatically, analyze trends, trigger alerts, and make gate decisions. Use agents to maintain continuous quality visibility.

@@ -22,21 +22,10 @@ validation:
 
 <default_to_action>
 When planning tests or allocating testing resources:
-1. IDENTIFY risks: What can go wrong? What's the impact? What's the likelihood?
-2. CALCULATE risk: Risk = Probability × Impact (use 1-5 scale for each)
-3. PRIORITIZE: Critical (20+) → High (12-19) → Medium (6-11) → Low (1-5)
-4. ALLOCATE effort: 60% critical, 25% high, 10% medium, 5% low
-5. REASSESS continuously: New info, changes, production incidents
-
-**Quick Risk Assessment:**
-- Probability factors: Complexity, change frequency, developer experience, technical debt
-- Impact factors: User count, revenue, safety, reputation, regulatory
-- Dynamic adjustment: Production bugs increase risk; stable code decreases
-
-**Critical Success Factors:**
-- Test where bugs hurt most, not everywhere equally
-- Risk is dynamic - reassess with new information
-- Production data informs risk (shift-right feeds shift-left)
+1. IDENTIFY risks per component (use 1-5 scale for probability and impact)
+2. PRIORITIZE: Critical (20+) → High (12-19) → Medium (6-11) → Low (1-5)
+3. ALLOCATE effort: 60% critical, 25% high, 10% medium, 5% low
+4. REASSESS continuously: Production incidents raise risk; stable code lowers it
 </default_to_action>
 
 ## Quick Reference Card
@@ -47,11 +36,7 @@ When planning tests or allocating testing resources:
 - Allocating limited testing time
 - Justifying test coverage decisions
 
-### Risk Calculation
-```
-Risk Score = Probability (1-5) × Impact (1-5)
-```
-
+### Effort Allocation by Risk Score
 | Score | Priority | Effort | Action |
 |-------|----------|--------|--------|
 | 20-25 | Critical | 60% | Comprehensive testing, multiple techniques |
@@ -59,37 +44,9 @@ Risk Score = Probability (1-5) × Impact (1-5)
 | 6-11 | Medium | 10% | Standard testing, basic automation |
 | 1-5 | Low | 5% | Smoke test, exploratory only |
 
-### Probability Factors
-| Factor | Low (1) | Medium (3) | High (5) |
-|--------|---------|------------|----------|
-| Complexity | Simple CRUD | Business logic | Algorithms, integrations |
-| Change Rate | Stable 6+ months | Monthly changes | Weekly/daily changes |
-| Developer Experience | Senior, domain expert | Mid-level | Junior, new to codebase |
-| Technical Debt | Clean code | Some debt | Legacy, no tests |
-
-### Impact Factors
-| Factor | Low (1) | Medium (3) | High (5) |
-|--------|---------|------------|----------|
-| Users Affected | Admin only | Department | All users |
-| Revenue | None | Indirect | Direct (checkout) |
-| Safety | Convenience | Data loss | Physical harm |
-| Reputation | Internal | Industry | Public scandal |
-
 ---
 
-## Risk Assessment Workflow
-
-### Step 1: List Features/Components
-```
-Feature | Probability | Impact | Risk | Priority
---------|-------------|--------|------|----------
-Checkout | 4 | 5 | 20 | Critical
-User Auth | 3 | 5 | 15 | High
-Admin Panel | 2 | 2 | 4 | Low
-Search | 3 | 3 | 9 | Medium
-```
-
-### Step 2: Apply Test Depth
+## Apply Test Depth by Risk
 ```typescript
 await Task("Risk-Based Test Generation", {
   critical: {
@@ -205,7 +162,5 @@ const riskFleet = await FleetManager.coordinate({
 ---
 
 ## Remember
-
-**Risk = Probability × Impact.** Test where bugs hurt most. Critical gets 60%, low gets 5%. Risk is dynamic - reassess with new info. Production incidents raise risk scores.
 
 **With Agents:** Agents calculate risk using ML on historical data, select risk-appropriate tests, and adjust scores from production feedback. Use agents to maintain dynamic risk profiles at scale.

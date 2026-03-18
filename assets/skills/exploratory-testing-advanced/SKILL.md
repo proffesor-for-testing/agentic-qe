@@ -201,3 +201,11 @@ const exploratoryFleet = await FleetManager.coordinate({
 Not random clicking. Structured, skilled investigation guided by heuristics and oracles. Document discoveries in real-time. Pair testing amplifies findings.
 
 **With Agents:** Agents generate variations, recognize patterns, and maintain session notes while humans apply judgment and intuition. Combine agent thoroughness with human insight.
+
+## Gotchas
+
+- Agent treats exploratory testing as scripted test execution — remind it: exploration means learning + adapting in real-time
+- Session notes from agents lack the "why I tried this" reasoning — explicitly ask for decision rationale
+- 90-minute sessions cause context overflow — cap at 45 minutes with explicit debrief
+- Agent defaults to happy-path exploration — explicitly assign "Bad Neighborhood" or "Saboteur" tours for negative testing
+- SFDIPOT heuristics are misapplied when agent doesn't understand the domain — provide domain context upfront

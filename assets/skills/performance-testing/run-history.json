@@ -1,0 +1,6 @@
+{
+  "_description": "Performance testing run history. Append after each test run. Claude reads this to detect performance regressions.",
+  "_format": "Each entry: {date, scenario, p50_ms, p95_ms, p99_ms, throughput_rps, error_rate_pct, baseline_comparison}",
+  "_instructions": "After running performance tests, append results here. Compare with baselines. Alert if p95 increases >20% from baseline.",
+  "runs": []
+}

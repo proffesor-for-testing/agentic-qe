@@ -1,6 +1,6 @@
 ---
 name: qcsd-refinement-swarm
-description: "QCSD Refinement phase swarm for Sprint Refinement sessions using SFDIPOT product factors, BDD scenario generation, and requirements validation."
+description: "Use when running Sprint Refinement sessions with SFDIPOT product factors, generating BDD scenarios, or validating requirements in the QCSD Refinement phase."
 category: qcsd-phases
 priority: critical
 version: 1.0.0

@@ -21,6 +21,8 @@ validation:
 
 # Accessibility Testing
 
+> **Consolidated**: For comprehensive WCAG auditing with multi-tool testing (axe-core + pa11y + Lighthouse), video accessibility, and remediation, prefer [`/a11y-ally`](../a11y-ally/). This skill provides a quick reference card for basic accessibility testing patterns.
+
 <default_to_action>
 When testing accessibility or ensuring compliance:
 1. APPLY POUR principles: Perceivable, Operable, Understandable, Robust

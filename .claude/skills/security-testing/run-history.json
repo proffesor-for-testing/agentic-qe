@@ -1,0 +1,6 @@
+{
+  "_description": "Security testing run history. Append after each scan. Claude reads this to track finding severity trends.",
+  "_format": "Each entry: {date, scope, scan_types, findings: {critical, high, medium, low, info}, new_since_last, fixed_since_last}",
+  "_instructions": "After running security scan, append results here. Track finding count by severity over time. Alert if critical findings increase.",
+  "runs": []
+}

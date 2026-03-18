@@ -177,11 +177,15 @@ Agents automatically apply relevant skills from the skill library. Skills are ra
 
 **Specialized Testing (13):** accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, visual-testing-advanced, security-visual-testing, compliance-testing, compatibility-testing, localization-testing, mutation-testing, performance-testing, security-testing
 
-**Domain Skills (14):** qe-test-generation, qe-test-execution, qe-coverage-analysis, qe-quality-assessment, qe-defect-intelligence, qe-requirements-validation, qe-code-intelligence, qe-security-compliance, qe-contract-testing, qe-visual-accessibility, qe-chaos-resilience, qe-learning-optimization, qe-iterative-loop, aqe-v2-v3-migration
+**Domain Skills (11):** qe-test-generation, qe-test-execution, qe-coverage-analysis, qe-quality-assessment, qe-defect-intelligence, qe-requirements-validation, qe-code-intelligence, qe-visual-accessibility, qe-chaos-resilience, qe-learning-optimization, qe-iterative-loop
 
 **Strategic (8):** six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator, bug-reporting-excellence, consultancy-practices, quality-metrics, pair-programming
 
 **Testing Techniques (9):** exploratory-testing-advanced, test-design-techniques, test-data-management, test-environment-management, test-reporting-analytics, testability-scoring, technical-writing, code-review-quality, api-testing-patterns
+
+**On-Demand Hooks (5):** strict-tdd, no-skip, coverage-guard, freeze-tests, security-watch
+
+**Runbooks & Analysis (5):** test-failure-investigator, coverage-drop-investigator, e2e-flow-verifier, test-metrics-dashboard, skill-stats
 
 **n8n Workflow Testing (5):** n8n-workflow-testing-fundamentals, n8n-expression-testing, n8n-security-testing, n8n-trigger-testing-strategies, n8n-integration-testing-patterns
 

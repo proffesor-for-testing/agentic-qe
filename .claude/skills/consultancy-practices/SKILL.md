@@ -40,28 +40,9 @@ When consulting on quality:
 
 ## Quick Reference Card
 
-### The Consulting Process
-
-| Phase | Duration | Goal | Deliverable |
-|-------|----------|------|-------------|
-| **Discovery** | Week 1-2 | Understand context | Interview notes, observations |
-| **Analysis** | Week 2-3 | Identify root causes | Impact/effort matrix |
-| **Recommendations** | Week 3-4 | Present findings | Report with roadmap |
-| **Implementation** | Month 2-6+ | Execute changes | Working system, trained team |
-| **Transition** | Final month | Ensure self-sufficiency | Handover docs |
-
-### Impact/Effort Matrix
-
-| Priority | What | Action |
-|----------|------|--------|
-| High Impact, Low Effort | Quick wins | Do first |
-| High Impact, High Effort | Major initiatives | Plan carefully |
-| Low Impact, Low Effort | Nice-to-haves | If time permits |
-| Low Impact, High Effort | Distractions | Skip |
-
 ---
 
-## Common Patterns
+## Common Patterns (What Clients Say vs. What They Mean)
 
 ### "We Need Test Automation"
 
@@ -107,18 +88,6 @@ When consulting on quality:
 2. Developers own test automation
 3. QA focuses on exploratory, risk analysis
 4. Use agentic approaches for scale
-
----
-
-## Anti-Patterns
-
-| Anti-Pattern | Problem | Better |
-|--------------|---------|--------|
-| **Cookie-Cutter** | Same solution everywhere | Context-specific recommendations |
-| **Tool Pusher** | Recommend expensive tools | Tools that solve actual problems |
-| **Process Nazi** | Impose rigid process | Lightweight, fits their culture |
-| **Permanent Fixture** | Never leave, create dependency | Work toward them not needing you |
-| **Blame Game** | Point fingers at people | Fix systems, not blame people |
 
 ---
 

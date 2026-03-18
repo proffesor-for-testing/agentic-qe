@@ -1,0 +1,6 @@
+{
+  "_description": "Mutation testing run history. Append after each run. Claude reads this to track mutation score trends.",
+  "_format": "Each entry: {date, scope, mutation_score_pct, killed, survived, timeout, no_coverage, improvement_areas}",
+  "_instructions": "After running mutation testing, append results here. Track score improvements over time. Flag if score drops below threshold.",
+  "runs": []
+}

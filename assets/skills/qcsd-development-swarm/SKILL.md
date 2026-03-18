@@ -1,6 +1,6 @@
 ---
 name: qcsd-development-swarm
-description: "QCSD Development phase swarm for in-sprint code quality assurance using TDD adherence, code complexity analysis, coverage gap detection, and defect prediction. Consumes Refinement outputs (BDD scenarios, SFDIPOT priorities) and produces signals for Verification."
+description: "Use when monitoring in-sprint code quality with TDD adherence checks, complexity analysis, coverage gap detection, or defect prediction in the QCSD Development phase."
 category: qcsd-phases
 priority: critical
 version: 1.0.0

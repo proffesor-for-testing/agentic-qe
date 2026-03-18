@@ -295,6 +295,10 @@ API keys in code → **Environment variables, secret management**
 
 ---
 
+## Compliance & Agent CLI
+
+For v3 agent-specific commands (`aqe security ...`), SAST/DAST scanning code, compliance audits (SOC2/GDPR/HIPAA), secret detection, and security gates, see [references/compliance-agent-commands.md](references/compliance-agent-commands.md).
+
 ## Related Skills
 - [agentic-quality-engineering](../agentic-quality-engineering/) - Security with agents
 - [api-testing-patterns](../api-testing-patterns/) - API security testing
@@ -309,3 +313,29 @@ API keys in code → **Environment variables, secret management**
 **Test continuously:** Security testing is ongoing, not one-time.
 
 **With Agents:** Agents automate vulnerability scanning, track remediation, and validate fixes. Use agents to maintain security posture at scale.
+
+## Run History
+
+After each security scan, append results to `run-history.json` in this skill directory:
+```bash
+node -e "
+const fs = require('fs');
+const h = JSON.parse(fs.readFileSync('.claude/skills/security-testing/run-history.json'));
+h.runs.push({date: new Date().toISOString().split('T')[0], scan_types: ['sast','deps'], findings: {critical: 0, high: 0, medium: 0, low: 0}});
+fs.writeFileSync('.claude/skills/security-testing/run-history.json', JSON.stringify(h, null, 2));
+"
+```
+Read `run-history.json` before each scan — track finding count by severity over time. Alert if critical findings increase.
+
+## Skill Composition
+
+- **During code review** → Use with `/code-review-quality` for combined quality + security review
+- **Validate findings** → Use `/pentest-validation` to prove exploitability
+- **Compliance** → Use `/compliance-testing` for regulatory requirements
+
+## Gotchas
+
+- `npm audit` may report false positives for dev dependencies — filter with `--omit=dev` for production-relevant results
+- Agent may skip DAST in favor of faster SAST-only scans — explicitly request both if needed
+- security-compliance domain has 100% success rate — use as model for other skill reliability
+- When scanning dependencies, check both direct and transitive — `npm audit --all` catches nested vulnerabilities

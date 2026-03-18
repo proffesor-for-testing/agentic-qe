@@ -233,3 +233,29 @@ const mutationFleet = await FleetManager.coordinate({
 **Focus on critical paths first.** Don't mutation test everything - prioritize payment, authentication, data integrity code.
 
 **With Agents:** Agents run mutation analysis, identify surviving mutants, and generate missing test cases to kill them. Automated improvement of test quality.
+
+## Run History
+
+After each mutation test run, append results to `run-history.json` in this skill directory:
+```bash
+node -e "
+const fs = require('fs');
+const h = JSON.parse(fs.readFileSync('.claude/skills/mutation-testing/run-history.json'));
+h.runs.push({date: new Date().toISOString().split('T')[0], mutation_score_pct: SCORE, killed: KILLED, survived: SURVIVED});
+fs.writeFileSync('.claude/skills/mutation-testing/run-history.json', JSON.stringify(h, null, 2));
+"
+```
+Read `run-history.json` before each run to track score improvements over time.
+
+## Skill Composition
+
+- **Before mutation testing** → Run `/qe-test-generation` to ensure tests exist
+- **After mutation results** → Use `/qe-coverage-analysis` to prioritize improvement areas
+- **Quality gate** → Feed results into `/qe-quality-assessment` for ship/no-ship decision
+
+## Gotchas
+
+- Stryker requires `--testRunner jest` explicitly if both jest and vitest are installed
+- Mutating `>=` to `>` in date comparisons rarely gets killed — add boundary tests
+- Running on files >500 LOC will timeout; use `--mutate` to target specific functions
+- `--concurrency` defaults to CPU count which OOMs in containers — set to 2

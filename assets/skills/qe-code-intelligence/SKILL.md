@@ -1,6 +1,6 @@
 ---
 name: "QE Code Intelligence"
-description: "Knowledge graph-based code understanding with semantic search and 80% token reduction through intelligent context retrieval."
+description: "Use when understanding unfamiliar code, searching semantically across a codebase, mapping dependencies, or reducing context window usage through intelligent retrieval."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
@@ -206,6 +206,14 @@ aqe kg export --format dot --output codebase.dot
 # Statistics
 aqe kg stats
 ```
+
+## Gotchas
+
+- WARNING: code-intelligence domain has 18% success rate — prefer direct grep/glob over agent-based code search for simple queries
+- Knowledge graph construction fails on repos >50K LOC — scope to specific modules
+- Semantic search returns irrelevant results without domain-specific embeddings — always verify search results manually
+- Agent claims "80% token reduction" but may skip critical context — verify key files are included in results
+- Fleet must be initialized before using: run `npx ruflo doctor --fix` if you get initialization errors
 
 ## Coordination
 

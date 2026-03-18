@@ -227,3 +227,17 @@ const bugFleet = await FleetManager.coordinate({
 Your bug report is the starting point for someone else's work. Make it **complete** (all info needed), **clear** (anyone can follow), **concise** (no noise), and **actionable** (developer knows next step).
 
 **Good bug reports = Faster fixes = Better product = Happier users**
+
+## Skill Composition
+
+- **After finding bug** → Start with `/test-failure-investigator` for root cause
+- **Prevent regression** → Use `/regression-testing` to add test preventing recurrence
+- **Track quality** → Feed into `/test-metrics-dashboard` for trend analysis
+
+## Gotchas
+
+- Agent omits environment details (OS, browser version, node version) — these are critical for reproduction
+- "Steps to reproduce" that start with "1. Open the app" are useless — specify exact URL, user role, and state
+- Agent combines multiple bugs into one report — enforce ONE BUG = ONE REPORT strictly
+- Screenshots without annotations don't help — always highlight the actual error area
+- Severity assessment is often wrong — agent marks everything as "critical" or everything as "low"

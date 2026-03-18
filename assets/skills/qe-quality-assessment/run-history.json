@@ -1,0 +1,6 @@
+{
+  "_description": "Quality assessment run history. Append after each run. Claude reads this to track quality gate pass/fail trends.",
+  "_format": "Each entry: {date, scope, gate_result, scores, failed_checks, recommendation}",
+  "_instructions": "After running quality assessment, append results here. Alert if quality gate fails 3 of last 5 runs. Track which checks fail most often.",
+  "runs": []
+}

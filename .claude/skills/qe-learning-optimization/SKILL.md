@@ -1,6 +1,6 @@
 ---
 name: "QE Learning Optimization"
-description: "Transfer learning, metrics optimization, and continuous improvement for AI-powered QE agents."
+description: "Use when optimizing QE agent performance, applying transfer learning across test domains, tuning quality metrics, or implementing continuous improvement loops for AI-powered testing."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

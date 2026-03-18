@@ -1,6 +1,6 @@
 ---
 name: a11y-ally
-description: "Comprehensive WCAG accessibility auditing with multi-tool testing (axe-core + pa11y + Lighthouse), TRUE PARALLEL execution with Promise.allSettled, graceful degradation, retry with backoff, context-aware remediation, learning integration, and video accessibility. Uses 3-tier browser cascade: Vibium → agent-browser → Playwright+Stealth."
+description: "Use when running comprehensive WCAG accessibility audits with axe-core + pa11y + Lighthouse, generating context-aware remediation, or testing video accessibility. Supports 3-tier browser cascade with graceful degradation."
 category: specialized-testing
 priority: critical
 tokenEstimate: 10000
@@ -1661,3 +1661,12 @@ ROI = (Impact × Users%) / Effort_Hours
 11. **NEVER** skip video pipeline if videos detected
 12. **NEVER** complete without remediation.md
 13. **NEVER** fail audit just because 1-2 tools failed (use graceful degradation)
+
+## Gotchas
+
+- axe-core catches ~30% of WCAG issues — automated tools miss keyboard navigation, reading order, and cognitive issues
+- Agent runs Lighthouse only and reports "accessible" — Lighthouse alone is insufficient, always run axe-core + pa11y too
+- Screen reader testing requires actual screen reader interaction, not just ARIA attribute checks
+- Video accessibility (captions, audio descriptions) is frequently skipped — check every `<video>` element
+- Color contrast tools disagree on gradients and transparency — test with actual low-vision simulation
+- Playwright+Stealth may be blocked by some sites — fall back gracefully, don't skip the audit
