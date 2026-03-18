@@ -447,7 +447,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
    * Uses `npx agentic-qe` for portability - works without global installation.
    * All hooks use --json output for structured data and fail silently with continueOnError.
    */
-  private generateHooksConfig(_config: AQEInitConfig, projectRoot: string): Record<string, unknown[]> {
+  private generateHooksConfig(_config: AQEInitConfig, _projectRoot: string): Record<string, unknown[]> {
     // Shell injection safety: env vars like $TOOL_INPUT_file_path are set by
     // Claude Code as environment variables before invoking the hook command.
     // We pass them via --file "$TOOL_INPUT_file_path" which is safe because
@@ -571,7 +571,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: `node "$(git rev-parse --show-toplevel 2>/dev/null || echo ${JSON.stringify(projectRoot)})/.claude/helpers/brain-checkpoint.cjs" verify --json`,
+              command: 'node .claude/helpers/brain-checkpoint.cjs verify --json',
               timeout: 5000,
               continueOnError: true,
             },
@@ -594,7 +594,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: `node "$(git rev-parse --show-toplevel 2>/dev/null || echo ${JSON.stringify(projectRoot)})/.claude/helpers/brain-checkpoint.cjs" export --json`,
+              command: 'node .claude/helpers/brain-checkpoint.cjs export --json',
               timeout: 60000,
               continueOnError: true,
             },
