@@ -5,6 +5,35 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.3] - 2026-03-18
+
+### Fixed
+
+- **Portable hook commands** — `aqe init` no longer embeds the host machine's absolute path into `.claude/settings.json` hook commands. Commands now use simple relative paths (`node .claude/helpers/brain-checkpoint.cjs`), making settings fully portable across machines. ([#369](https://github.com/proffesor-for-testing/agentic-qe/issues/369))
+- **SONA persistence initialization** — Fixed circular `ensureInitialized()` call during `PersistentSONAEngine._doInitialize()` that caused all 31 sona-persistence tests to fail when `useSONAThreeLoop` flag was enabled by default.
+- **RuVector feature flag test compatibility** — Updated compressed-hnsw and temporal-compression tests to explicitly set flag state instead of assuming defaults, fixing 9 test failures introduced when v3.8.0 enabled all flags by default.
+- **CI timeout and contract test path** — Resolved CI workflow timeouts and broken contract test path. ([#350](https://github.com/proffesor-for-testing/agentic-qe/issues/350))
+- **OpenCode config schema** — `aqe init --with-opencode` now generates valid `opencode.json` matching OpenCode's `McpLocal.strict()` zod schema (`command` as string array, `environment` instead of `env`, no extra `args` field). ([#370](https://github.com/proffesor-for-testing/agentic-qe/issues/370))
+- **Infra-healing fallback playbook** — Fixed field name mismatches (`check` → `healthCheck`, added `verify`) in the hardcoded fallback playbook that caused a TypeError on every MCP startup. ([#371](https://github.com/proffesor-for-testing/agentic-qe/issues/371))
+- **Fleet init crash** — `LearningOptimizationCoordinator` now gracefully degrades when SONA init fails, matching the other 6 coordinators. Combined with the circular init fix, fleet initialization succeeds on MCP startup. ([#372](https://github.com/proffesor-for-testing/agentic-qe/issues/372))
+
+### Added
+
+- **ADR-086 skill design standards** — Major overhaul of all 84 QE skills based on Anthropic's "Lessons from Building Claude Code" skill design guidance. Skills are now folder-based systems with progressive disclosure, gotchas, composition, config, and run history.
+- **5 new skills** — `test-failure-investigator`, `coverage-drop-investigator`, `e2e-flow-verifier`, `test-metrics-dashboard`, and `skill-stats` fill previously missing categories.
+- **5 on-demand hook skills** — `strict-tdd`, `no-skip`, `coverage-guard`, `freeze-tests`, and `security-watch` with executable scripts that activate via slash commands.
+- **Gotchas sections** — 30 skills now include battle-tested failure data from production learning records.
+- **Reference and template files** — 10 reference/template files across 7 skills (OWASP top 10, k6 configs, mutation operators, security report templates, etc.).
+- **Skill composition** — Cross-references added to 10 key skills showing how to chain skills together for complex workflows.
+- **Config and run-history** — `config.json` with `_setupPrompt` added to 7 skills; `run-history.json` with write instructions added to 5 metric-producing skills.
+
+### Changed
+
+- **Skill descriptions rewritten** — All 84 skill descriptions now use "Use when..." trigger conditions for better auto-detection.
+- **Textbook knowledge stripped** — 892 lines of generic content removed from 15 skills (26% size reduction) to focus on actionable guidance.
+- **3 redundant skills removed** — `qe-contract-testing` (→ `contract-testing`), `qe-security-compliance` (→ `security-testing`), `aqe-v2-v3-migration` (obsolete). `aqe init --upgrade` auto-cleans these.
+- **Removed tracked generated file** — `aqe.rvf.manifest.json` is now gitignored as it changes every session.
+
 ## [3.8.2] - 2026-03-17
 
 ### Fixed
