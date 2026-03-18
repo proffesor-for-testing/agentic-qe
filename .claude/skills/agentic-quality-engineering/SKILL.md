@@ -1,6 +1,6 @@
 ---
 name: agentic-quality-engineering
-description: "AI agents as force multipliers for quality work. Core skill for all 19 QE agents using PACT principles."
+description: "Use when orchestrating QE agents, understanding PACT principles, configuring the AQE v3 fleet, or leveraging AI agents as force multipliers for quality work."
 category: qe-core
 priority: critical
 tokenEstimate: 1400

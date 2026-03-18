@@ -1,6 +1,6 @@
 ---
 name: enterprise-integration-testing
-description: "Orchestration skill for enterprise integration testing across SAP, middleware, WMS, and backend systems. Covers E2E enterprise flows, SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), cross-system data validation, and enterprise quality gates."
+description: "Use when testing enterprise integrations across SAP, middleware, WMS, or backend systems, validating E2E enterprise flows, testing SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), or enforcing cross-system quality gates."
 category: enterprise-integration
 priority: high
 tokenEstimate: 2000

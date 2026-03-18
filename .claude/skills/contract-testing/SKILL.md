@@ -213,6 +213,10 @@ const contractFleet = await FleetManager.coordinate({
 
 ---
 
+## Agent CLI & Advanced Patterns
+
+For v3 agent-specific commands (`aqe contract ...`), GraphQL contracts, event contracts, and Pact Broker integration, see [references/agent-commands.md](references/agent-commands.md).
+
 ## Related Skills
 - [api-testing-patterns](../api-testing-patterns/) - API testing strategies
 - [shift-left-testing](../shift-left-testing/) - Early contract validation
@@ -225,3 +229,11 @@ const contractFleet = await FleetManager.coordinate({
 **Consumers own the contract.** They define what they need; providers must fulfill it. Breaking changes require major version bumps and coordination. CI/CD blocks deploys that break contracts. Use Pact for consumer-driven, OpenAPI for API-first.
 
 **With Agents:** Agents validate contracts, detect breaking changes with semver recommendations, and generate migration guides. Use agents to maintain contract compliance at scale.
+
+## Gotchas
+
+- Pact broker URL must be configured before running — agent will generate tests that silently skip verification without it
+- Consumer tests pass locally but fail in CI when provider states aren't set up — always verify both sides
+- Adding a required field to a response is a BREAKING change even though provider tests pass — consumer didn't expect it
+- Agent may generate contracts from API docs instead of actual consumer usage — contracts must reflect real consumer needs
+- GraphQL contract testing requires schema stitching awareness — fragments may reference types from other services

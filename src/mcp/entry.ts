@@ -124,17 +124,17 @@ async function main(): Promise<void> {
         playbookContent = [
           'services:',
           '  postgres:',
-          '    check: "pg_isready -h localhost -p 5432"',
+          '    healthCheck: "pg_isready -h localhost -p 5432"',
           '    recover: "echo postgres-recovery-placeholder"',
-          '    patterns: ["ECONNREFUSED.*5432", "connection.*refused.*postgres"]',
+          '    verify: "pg_isready -h localhost -p 5432"',
           '  redis:',
-          '    check: "redis-cli ping"',
+          '    healthCheck: "redis-cli ping"',
           '    recover: "echo redis-recovery-placeholder"',
-          '    patterns: ["ECONNREFUSED.*6379", "connection.*refused.*redis"]',
+          '    verify: "redis-cli ping"',
           '  node:',
-          '    check: "node --version"',
+          '    healthCheck: "node --version"',
           '    recover: "echo node-recovery-placeholder"',
-          '    patterns: ["MODULE_NOT_FOUND", "Cannot find module"]',
+          '    verify: "node --version"',
         ].join('\n');
       }
 

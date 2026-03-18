@@ -1,6 +1,6 @@
 ---
 name: debug-loop
-description: Hypothesis-driven autonomous debugging with real command validation
+description: "Use when debugging a failing test or runtime error with hypothesis-driven investigation, autonomous command validation, and systematic root cause elimination."
 trust_tier: 0
 domain: debugging
 ---

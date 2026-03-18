@@ -55,84 +55,6 @@ When creating or managing test data:
 | **Volume** | Performance | 10k+ records |
 | **Edge cases** | Boundary testing | Targeted |
 
-### Privacy Techniques
-| Technique | Use Case |
-|-----------|----------|
-| **Synthetic** | Generate fake data (preferred) |
-| **Masking** | j***@example.com |
-| **Hashing** | Irreversible pseudonymization |
-| **Tokenization** | Reversible with key |
-
----
-
-## Synthetic Data Generation
-
-```javascript
-import { faker } from '@faker-js/faker';
-
-// Seed for reproducibility
-faker.seed(123);
-
-function generateUser() {
-  return {
-    id: faker.string.uuid(),
-    email: faker.internet.email(),
-    firstName: faker.person.firstName(),
-    lastName: faker.person.lastName(),
-    phone: faker.phone.number(),
-    address: {
-      street: faker.location.streetAddress(),
-      city: faker.location.city(),
-      zip: faker.location.zipCode()
-    },
-    createdAt: faker.date.past()
-  };
-}
-
-// Generate 1000 users
-const users = Array.from({ length: 1000 }, generateUser);
-```
-
----
-
-## Test Data Builder Pattern
-
-```typescript
-class UserBuilder {
-  private user: Partial<User> = {};
-
-  asAdmin() {
-    this.user.role = 'admin';
-    this.user.permissions = ['read', 'write', 'delete'];
-    return this;
-  }
-
-  asCustomer() {
-    this.user.role = 'customer';
-    this.user.permissions = ['read'];
-    return this;
-  }
-
-  withEmail(email: string) {
-    this.user.email = email;
-    return this;
-  }
-
-  build(): User {
-    return {
-      id: this.user.id ?? faker.string.uuid(),
-      email: this.user.email ?? faker.internet.email(),
-      role: this.user.role ?? 'customer',
-      ...this.user
-    } as User;
-  }
-}
-
-// Usage
-const admin = new UserBuilder().asAdmin().withEmail('admin@test.com').build();
-const customer = new UserBuilder().asCustomer().build();
-```
-
 ---
 
 ## Data Anonymization
@@ -181,29 +103,6 @@ test('user registration', async () => {
   expect(user.id).toBeDefined();
   // Automatic rollback after test - no cleanup needed
 });
-```
-
----
-
-## Volume Data Generation
-
-```javascript
-// Generate 10,000 users efficiently
-async function generateLargeDataset(count = 10000) {
-  const batchSize = 1000;
-  const batches = Math.ceil(count / batchSize);
-
-  for (let i = 0; i < batches; i++) {
-    const users = Array.from({ length: batchSize }, (_, index) => ({
-      id: i * batchSize + index,
-      email: `user${i * batchSize + index}@example.com`,
-      firstName: faker.person.firstName()
-    }));
-
-    await db.users.insertMany(users); // Batch insert
-    console.log(`Batch ${i + 1}/${batches}`);
-  }
-}
 ```
 
 ---
@@ -268,8 +167,6 @@ const dataFleet = await FleetManager.coordinate({
 
 ## Remember
 
-**Test data is infrastructure, not an afterthought.** 40% of test failures are caused by inadequate test data. Poor data = poor tests.
-
-**Never use production PII directly.** GDPR fines up to €20M or 4% of revenue. Always use synthetic data or properly anonymized production snapshots.
+**Never use production PII directly.** Always use synthetic data or properly anonymized production snapshots.
 
 **With Agents:** `qe-test-data-architect` generates 10k+ records/sec with realistic patterns, relationships, and constraints. Agents ensure GDPR/CCPA compliance automatically and eliminate test data bottlenecks.

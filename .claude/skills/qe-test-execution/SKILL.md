@@ -1,6 +1,6 @@
 ---
 name: "QE Test Execution"
-description: "Parallel test execution orchestration with intelligent scheduling, retry logic, and comprehensive result aggregation."
+description: "Use when running test suites, optimizing test execution time, handling flaky tests, or setting up CI/CD test pipelines."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
@@ -179,6 +179,14 @@ interface ExecutionResults {
   timing: TimingAnalysis;
 }
 ```
+
+## Gotchas
+
+- Full test suites may OOM in containers — the rule "don't run full suite" was violated 20x despite being in CLAUDE.md. Fix: make suite lightweight, don't just add more rules
+- Fewer focused agents (3-4) outperform many vague ones (6-8) — always include verification command in each agent prompt
+- New model releases can shift agent behavior mid-sprint — rules followed yesterday may be ignored today after model update
+- Running all tests in parallel can mask flaky tests — use `--workers=1` for initial diagnosis
+- Session crashes lose all context — save intermediate results to disk, not just memory
 
 ## Coordination
 

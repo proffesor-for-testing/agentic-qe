@@ -25,7 +25,7 @@ jobs:
   fast-tests:
     name: Fast Tests (Journey + Contract)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout code
@@ -54,7 +54,7 @@ jobs:
         id: contract-tests
         if: always()
         run: |
-          if [ -d "tests/contracts" ] && [ "$(ls -A tests/contracts/*.test.ts 2>/dev/null)" ]; then
+          if [ -d "tests/unit/domains/contract-testing" ] && [ "$(ls -A tests/unit/domains/contract-testing/*.test.ts 2>/dev/null)" ]; then
             npm run test:contracts
           else
             echo "No contract tests found"

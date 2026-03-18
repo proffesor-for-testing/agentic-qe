@@ -97,6 +97,7 @@
 | [ADR-083](./ADR-083-coherence-gated-agent-actions.md) | Coherence-Gated Agent Actions | **In Progress** | 2026-03-15 | ✅ CohomologyEngine (prime-radiant-advanced-wasm) integrated for sheaf Laplacian coherence; action gate is TS heuristic |
 | [ADR-084](./ADR-084-cross-domain-transfer-learning.md) | Cross-Domain Transfer Learning | **In Progress** | 2026-03-15 | ✅ Thompson Sampling + verification gate + real CoherenceGate wired via feature flag |
 | [ADR-085](./ADR-085-temporal-tensor-pattern-compression.md) | Temporal Tensor Pattern Compression | **Implemented** | 2026-03-15 | ✅ TypeScript tiered quantization (4x compression); no native package exists, TS IS production |
+| [ADR-086](./ADR-086-skill-design-standards.md) | Skill Design Standards — Anthropic Best Practices | **Proposed** | 2026-03-18 | 9 design standards from Anthropic's internal skill practices: gotchas sections, trigger descriptions, progressive disclosure, composable scripts, config.json setup, on-demand hooks. Builds on ADR-056. Seeded from Nagual + local DB failure data. |
 
 ---
 

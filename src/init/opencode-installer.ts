@@ -356,9 +356,8 @@ export class OpenCodeInstaller {
       mcp: {
         'agentic-qe': {
           type: 'local',
-          command: 'npx',
-          args: ['agentic-qe', 'mcp'],
-          env: {
+          command: ['npx', 'agentic-qe', 'mcp'],
+          environment: {
             AQE_MEMORY_PATH: '.agentic-qe/memory.db',
             AQE_V3_MODE: 'true',
           },

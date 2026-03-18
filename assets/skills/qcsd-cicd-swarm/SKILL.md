@@ -1,6 +1,6 @@
 ---
 name: qcsd-cicd-swarm
-description: "QCSD Verification phase swarm for CI/CD pipeline quality gates using regression analysis, flaky test detection, quality gate enforcement, and deployment readiness assessment. Consumes Development outputs (SHIP/CONDITIONAL/HOLD decisions, quality metrics) and produces signals for Production monitoring."
+description: "Use when enforcing CI/CD quality gates before release, running regression analysis, detecting flaky tests, or assessing deployment readiness in the QCSD Verification phase."
 category: qcsd-phases
 priority: critical
 version: 1.0.0

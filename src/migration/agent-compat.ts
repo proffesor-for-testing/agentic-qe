@@ -108,9 +108,9 @@ export const v2AgentMappingWithDomain: Record<string, AgentMappingEntry> = {
     notes: 'Unified contract validation',
   },
   'qe-api-contract-validator': {
-    v3Name: 'qe-contract-testing',
+    v3Name: 'contract-testing',
     domain: 'contract-testing',
-    notes: 'Renamed for broader contract testing scope',
+    notes: 'Consolidated into contract-testing (qe-contract-testing removed)',
   },
 };
 

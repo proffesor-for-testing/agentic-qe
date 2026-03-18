@@ -22,23 +22,16 @@ validation:
 
 <default_to_action>
 When designing or improving test automation:
-1. FOLLOW test pyramid: 70% unit, 20% integration, 10% E2E
-2. APPLY F.I.R.S.T. principles: Fast, Isolated, Repeatable, Self-validating, Timely
-3. USE patterns: Page Object Model, Builder pattern, Factory pattern
-4. INTEGRATE in CI/CD: Every commit runs tests, fail fast, clear feedback
-5. MANAGE flaky tests: Quarantine, fix, or delete - never ignore
+1. DETECT anti-patterns: Ice cream cone? Slow suite? Flaky tests?
+2. USE patterns: Page Object Model, Builder pattern, Factory pattern
+3. INTEGRATE in CI/CD: Every commit runs tests, fail fast
+4. MANAGE flaky tests: Quarantine, fix, or delete - never ignore
 
 **Quick Anti-Pattern Detection:**
 - Ice cream cone (many E2E, few unit) → Invert to pyramid
 - Slow tests (> 10 min suite) → Parallelize, mock external deps
 - Flaky tests → Fix timing, isolate data, or quarantine
-- Test duplication → Share fixtures, use page objects
 - Brittle selectors → Use data-testid, semantic locators
-
-**Critical Success Factors:**
-- Fast feedback is the goal (< 10 min full suite)
-- Automation supports testing, doesn't replace judgment
-- Invest in test infrastructure like production code
 </default_to_action>
 
 ## Quick Reference Card
@@ -49,23 +42,7 @@ When designing or improving test automation:
 - Reducing flaky test burden
 - Optimizing CI/CD pipeline speed
 
-### Test Pyramid
-| Layer | % | Speed | Isolation | Examples |
-|-------|---|-------|-----------|----------|
-| **Unit** | 70% | < 1ms | Complete | Pure functions, logic |
-| **Integration** | 20% | < 1s | Partial | API, database |
-| **E2E** | 10% | < 30s | None | User journeys |
-
-### F.I.R.S.T. Principles
-| Principle | Meaning | How |
-|-----------|---------|-----|
-| **F**ast | Quick execution | Mock external deps |
-| **I**solated | No shared state | Fresh fixtures per test |
-| **R**epeatable | Same result every time | No random data |
-| **S**elf-validating | Clear pass/fail | Assert, don't print |
-| **T**imely | Written with code | TDD, not after |
-
-### Anti-Patterns
+### Anti-Patterns to Detect
 | Problem | Symptom | Fix |
 |---------|---------|-----|
 | Ice cream cone | 80% E2E, 10% unit | Invert pyramid |
@@ -73,40 +50,6 @@ When designing or improving test automation:
 | Flaky tests | Random failures | Quarantine, fix timing |
 | Coupled tests | Order-dependent | Isolate data |
 | Brittle selectors | Break on CSS change | Use data-testid |
-
----
-
-## Page Object Model
-
-```javascript
-// pages/LoginPage.js
-class LoginPage {
-  constructor(page) {
-    this.page = page;
-    this.emailInput = '[data-testid="email"]';
-    this.passwordInput = '[data-testid="password"]';
-    this.submitButton = '[data-testid="submit"]';
-    this.errorMessage = '[data-testid="error"]';
-  }
-
-  async login(email, password) {
-    await this.page.fill(this.emailInput, email);
-    await this.page.fill(this.passwordInput, password);
-    await this.page.click(this.submitButton);
-  }
-
-  async getError() {
-    return this.page.textContent(this.errorMessage);
-  }
-}
-
-// Test uses page object
-test('shows error for invalid credentials', async ({ page }) => {
-  const loginPage = new LoginPage(page);
-  await loginPage.login('bad@email.com', 'wrong');
-  expect(await loginPage.getError()).toBe('Invalid credentials');
-});
-```
 
 ---
 
@@ -230,6 +173,12 @@ const automationFleet = await FleetManager.coordinate({
 
 ## Remember
 
-**Pyramid: 70% unit, 20% integration, 10% E2E.** F.I.R.S.T. principles for every test. Page Object Model for E2E. Parallelize for speed. Quarantine flaky tests - never ignore them. Treat test code like production code.
-
 **With Agents:** Agents generate pyramid-compliant tests, detect flaky patterns, optimize execution time, and maintain test infrastructure. Use agents to scale automation quality.
+
+## Gotchas
+
+- Agent generates 80% E2E tests and 20% unit tests (inverted pyramid) — explicitly enforce 70/20/10 ratio
+- Page Object Model tests become brittle when selectors change — prefer data-testid attributes over CSS selectors
+- Flaky tests quarantined but never fixed is technical debt — set a 2-week SLA to fix or delete
+- Agent treats test code as second-class — test code needs the same review standards as production code
+- Parallel test execution requires test isolation — shared state between tests causes non-deterministic failures

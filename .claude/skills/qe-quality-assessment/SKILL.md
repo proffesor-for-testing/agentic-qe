@@ -1,6 +1,6 @@
 ---
 name: "QE Quality Assessment"
-description: "Comprehensive quality gates, metrics analysis, and deployment readiness assessment for continuous quality assurance."
+description: "Use when evaluating code quality, setting up quality gates, assessing deployment readiness, or generating quality reports."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
@@ -211,8 +211,35 @@ quality_check:
       - 1  # Warnings only
 ```
 
+## Run History
+
+After each quality assessment, append results to `run-history.json` in this skill directory:
+```bash
+node -e "
+const fs = require('fs');
+const h = JSON.parse(fs.readFileSync('.claude/skills/qe-quality-assessment/run-history.json'));
+h.runs.push({date: new Date().toISOString().split('T')[0], gate_result: 'PASS_OR_FAIL', failed_checks: []});
+fs.writeFileSync('.claude/skills/qe-quality-assessment/run-history.json', JSON.stringify(h, null, 2));
+"
+```
+Read `run-history.json` before each run — alert if quality gate failed 3 of last 5 runs.
+
+## Skill Composition
+
+- **Before assessment** → Run `/qe-coverage-analysis` and `/mutation-testing` first
+- **If issues found** → Use `/test-failure-investigator` to diagnose failures
+- **For PR review** → Combine with `/code-review-quality` for comprehensive review
+
+## Gotchas
+
+- NEVER trust agent-reported pass/fail status — 12 test failures were caught that agents claimed were passing (Nagual pattern, reward 0.92)
+- Completion theater: agent hardcoded version '3.0.0' instead of reading from package.json — verify actual values in output
+- Fix issues in priority waves (P0 → P1 → P2) with verification between each wave — don't fix everything in parallel
+- quality-assessment domain has 53.7% success rate — expect failures and have fallback
+- If HybridMemoryBackend initialization fails, run `npx ruflo doctor --fix` first
+
 ## Coordination
 
 **Primary Agents**: qe-quality-analyzer, qe-deployment-advisor, qe-metrics-collector
 **Coordinator**: qe-quality-coordinator
-**Related Skills**: qe-coverage-analysis, qe-security-compliance
+**Related Skills**: qe-coverage-analysis, security-testing

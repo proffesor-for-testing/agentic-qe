@@ -45,23 +45,6 @@ When making testing decisions or adapting approaches:
 - Adapting approach to specific constraints
 - Exploratory testing sessions
 
-### Seven Context-Driven Principles
-1. Value of any practice depends on its context
-2. Good practices in context, no universal best practices
-3. People working together are most important
-4. Projects unfold in unpredictable ways
-5. Product is a solution - if problem not solved, product fails
-6. Good testing is challenging intellectual work
-7. Judgment and skill determine right things at right times
-
-### Context Factors
-| Factor | Questions |
-|--------|-----------|
-| **Project** | Business goal? User needs? Failure impact? |
-| **Constraints** | Timeline? Budget? Team skills? Legacy? |
-| **Risk** | Safety-critical? Regulated? High volume? |
-| **Technical** | Stack quirks? Integrations? Observability? |
-
 ### RST Heuristics
 | Heuristic | Application |
 |-----------|-------------|
@@ -94,26 +77,6 @@ When making testing decisions or adapting approaches:
 **Fast-paced startup:**
 - **Decision:** Lightweight session notes, risk logs
 - **Rationale:** Bureaucracy slows more than it helps
-
----
-
-## Investigation vs. Checking
-
-| Checking | Testing (Investigation) |
-|----------|------------------------|
-| Did API return 200? | Does API meet user needs? |
-| Does button work? | What happens under load? |
-| Match the spec? | Does it solve the problem? |
-
----
-
-## Red Flags: Not Context-Driven
-
-- Follow process "because that's how it's done"
-- Can't explain *why* you're doing something
-- Measure test cases executed, not problems found
-- Test plan could apply to any project
-- Stop thinking once you have a script
 
 ---
 
@@ -190,9 +153,5 @@ const contextFleet = await FleetManager.coordinate({
 ---
 
 ## Remember
-
-**Context drives decisions.** No universal best practices. Skilled testers make informed decisions based on specific goals, constraints, and risks.
-
-You're not a test script executor. You're a skilled investigator helping teams build better products.
 
 **With Agents:** Agents analyze context, adapt strategies, and learn what works in your situation. Use agents to scale context-driven thinking while maintaining human judgment for critical decisions.

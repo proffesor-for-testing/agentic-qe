@@ -297,3 +297,11 @@ await apiFleet.execute({
 API testing = verifying contracts and behavior, not implementation. Focus on what matters to consumers: correct responses, proper error handling, acceptable performance.
 
 **With Agents:** Agents automate contract validation, generate comprehensive test suites from specs, and monitor production APIs for drift. Use agents to maintain API quality at scale.
+
+## Gotchas
+
+- Agent generates tests against documented API, not actual API — always validate against running service first
+- Auth tokens expire between test runs — use fixtures with long-lived tokens or refresh before each suite
+- Rate limiting in CI causes intermittent failures — add retry with exponential backoff for 429 responses
+- GraphQL introspection may be disabled in production — test against staging schema, not production endpoint
+- Idempotency tests need unique request IDs per run — hardcoded IDs cause false passes on retry

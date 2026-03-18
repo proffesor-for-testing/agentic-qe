@@ -1,6 +1,6 @@
 ---
 name: qcsd-ideation-swarm
-description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins. Uses 5-tier browser cascade: Vibium -> agent-browser -> Playwright+Stealth -> WebFetch -> WebSearch-fallback."
+description: "Use when running Quality Criteria sessions during PI/Sprint planning with HTSM v6.3, Risk Storming, or Testability analysis in the QCSD Ideation phase."
 category: qcsd-phases
 priority: critical
 version: 7.5.1

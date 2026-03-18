@@ -1,6 +1,6 @@
 ---
 name: qcsd-production-swarm
-description: "QCSD Production Telemetry phase swarm for post-release production health assessment using DORA metrics, root cause analysis, defect prediction, and cross-phase feedback loops. Consumes CI/CD outputs (RELEASE/REMEDIATE/BLOCK decisions, release readiness metrics) and produces feedback signals to Ideation and Refinement."
+description: "Use when assessing post-release production health with DORA metrics, root cause analysis, defect prediction, or cross-phase feedback loops in the QCSD Production phase."
 category: qcsd-phases
 priority: critical
 version: 1.0.0

@@ -47,23 +47,6 @@ When managing test environments:
 - Reducing test infrastructure costs
 - Ensuring dev/prod parity
 
-### Environment Types
-| Type | Purpose | Lifetime |
-|------|---------|----------|
-| **Local** | Fast feedback | Developer session |
-| **CI** | Automated tests | Per build (ephemeral) |
-| **Staging** | Pre-prod validation | Persistent |
-| **Production** | Canary/synthetic | Continuous |
-
-### Dev/Prod Parity Checklist
-| Item | Must Match |
-|------|------------|
-| OS | Same version |
-| Database | Same type + version |
-| Dependencies | Same versions |
-| Config | Same structure |
-| Env vars | Same names |
-
 ---
 
 ## Docker for Test Environments
@@ -99,32 +82,6 @@ services:
 docker-compose -f docker-compose.test.yml up -d
 docker-compose -f docker-compose.test.yml exec app npm test
 docker-compose -f docker-compose.test.yml down
-```
-
----
-
-## Infrastructure as Code
-
-```hcl
-# test-environment.tf
-resource "aws_instance" "test_server" {
-  ami           = "ami-0c55b159cbfafe1f0"
-  instance_type = "t3.medium"
-
-  tags = {
-    Name         = "test-environment"
-    Environment  = "test"
-    AutoShutdown = "20:00" # Cost optimization
-  }
-}
-
-resource "aws_rds_instance" "test_db" {
-  engine                  = "postgres"
-  engine_version          = "15"
-  instance_class          = "db.t3.micro"
-  backup_retention_period = 0 # No backups needed for test
-  skip_final_snapshot     = true
-}
 ```
 
 ---
@@ -238,9 +195,5 @@ const envFleet = await FleetManager.coordinate({
 ---
 
 ## Remember
-
-**Environment inconsistency = flaky tests.** "Works on my machine" problems come from: different OS/versions, missing dependencies, configuration differences, data differences.
-
-**Infrastructure as Code ensures repeatability.** Version control your environment configurations. Spin up identical environments on demand.
 
 **With Agents:** Agents automatically provision test environments matching production, ensure parity, mock external services, and optimize costs with auto-scaling and auto-shutdown.

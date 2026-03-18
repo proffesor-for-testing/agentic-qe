@@ -1,6 +1,6 @@
 ---
 name: "QE Defect Intelligence"
-description: "AI-powered defect prediction, pattern learning, and root cause analysis for proactive quality management."
+description: "Use when predicting defects before they escape, analyzing root causes of failures, learning defect patterns, or implementing proactive quality management with AI."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

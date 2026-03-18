@@ -1,0 +1,13 @@
+{
+  "$schema": "./config-schema.json",
+  "_description": "Contract Testing configuration. Auto-created on first run. Edit to customize.",
+  "broker_url": null,
+  "consumer_name": null,
+  "provider_name": null,
+  "options": {
+    "publishVerificationResults": true,
+    "enablePending": true,
+    "includeWipPactsSince": null
+  },
+  "_setupPrompt": "If broker_url is null, ask: 'What is your Pact Broker URL? (or \"local\" for file-based)'. If consumer_name is null, ask: 'What is the consumer service name?'. If provider_name is null, ask: 'What is the provider service name?'"
+}

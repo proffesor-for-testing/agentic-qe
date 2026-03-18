@@ -246,3 +246,11 @@ const tddFleet = await FleetManager.coordinate({
 Neither is "right." Choose based on context. Mix as needed. Goal: well-designed, tested code.
 
 **With Agents:** Agents excel at generating tests, validating green phase, and suggesting refactorings. Use agents to maintain TDD discipline while humans focus on design decisions.
+
+## Gotchas
+
+- Agent skips Red phase and writes test + implementation together — enforce "test must fail first" by running test before writing code
+- London school over-mocking creates brittle tests that break on any refactor — mock at architectural boundaries, not every function
+- Chicago school tests become slow as integration scope grows — keep test boundaries tight
+- Agent defaults to jest.mock() for everything — prefer dependency injection for testability
+- Refactor phase is where agent cuts corners most — verify no behavior changes by checking test output is identical

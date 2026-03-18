@@ -100,6 +100,8 @@ describe('CompressedHnswIntegration', () => {
 
   beforeEach(() => {
     resetRuVectorFeatureFlags();
+    // Start with compression off — tests that need it enable it explicitly
+    setRuVectorFeatureFlags({ useTemporalCompression: false });
     backend = new MockHnswBackend(DIM);
     integration = new CompressedHnswIntegration(backend);
   });

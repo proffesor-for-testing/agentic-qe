@@ -1,0 +1,6 @@
+{
+  "_description": "Coverage analysis run history. Append after each run. Claude reads this to detect trends.",
+  "_format": "Each entry: {date, scope, statements_pct, branches_pct, functions_pct, gaps_found, recommendation}",
+  "_instructions": "After running coverage analysis, append results here. Compare with previous entries to detect trends. Alert if coverage declines 3 consecutive times.",
+  "runs": []
+}

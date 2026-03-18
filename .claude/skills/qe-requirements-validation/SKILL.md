@@ -1,6 +1,6 @@
 ---
 name: "QE Requirements Validation"
-description: "Requirements traceability, acceptance criteria validation, and BDD scenario management for complete requirements coverage."
+description: "Use when validating acceptance criteria, tracing requirements to tests, managing BDD scenarios, or ensuring complete requirements coverage before development."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

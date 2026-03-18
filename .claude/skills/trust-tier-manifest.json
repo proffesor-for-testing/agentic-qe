@@ -5,17 +5,17 @@
   "generator": "scripts/update-skill-manifest.ts",
   "trustTierPolicy": "ADR-056",
   "summary": {
-    "tier0": 41,
+    "tier0": 51,
     "tier1": 5,
     "tier2": 7,
-    "tier3": 51,
-    "total": 104
+    "tier3": 49,
+    "total": 112
   },
   "validationStatus": {
-    "passing": 51,
+    "passing": 49,
     "failing": 0,
     "unknown": 12,
-    "skipped": 41
+    "skipped": 51
   },
   "skillsByTier": {
     "tier3": [
@@ -315,16 +315,6 @@
         "file": "qe-code-intelligence/SKILL.md"
       },
       {
-        "name": "qe-contract-testing",
-        "validation": {
-          "status": "passing",
-          "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate-config.json",
-          "evalPath": "evals/qe-contract-testing.yaml"
-        },
-        "file": "qe-contract-testing/SKILL.md"
-      },
-      {
         "name": "qe-coverage-analysis",
         "validation": {
           "status": "passing",
@@ -373,16 +363,6 @@
           "evalPath": "evals/qe-requirements-validation.yaml"
         },
         "file": "qe-requirements-validation/SKILL.md"
-      },
-      {
-        "name": "qe-security-compliance",
-        "validation": {
-          "status": "passing",
-          "schemaPath": "schemas/output.json",
-          "validatorPath": "scripts/validate-config.json",
-          "evalPath": "evals/qe-security-compliance.yaml"
-        },
-        "file": "qe-security-compliance/SKILL.md"
       },
       {
         "name": "qe-test-execution",
@@ -651,14 +631,6 @@
         "file": "agentic-quality-engineering/SKILL.md"
       },
       {
-        "name": "aqe-v2-v3-migration",
-        "validation": {
-          "status": "unknown",
-          "schemaPath": "schemas/output.json"
-        },
-        "file": "aqe-v2-v3-migration/SKILL.md"
-      },
-      {
         "name": "consultancy-practices",
         "category": "professional-practice",
         "validation": {
@@ -717,12 +689,27 @@
         "file": "context-driven-testing/SKILL.md"
       },
       {
+        "name": "coverage-drop-investigator",
+        "category": "investigation",
+        "file": "coverage-drop-investigator/SKILL.md"
+      },
+      {
+        "name": "coverage-guard",
+        "category": "on-demand-hooks",
+        "file": "coverage-guard/SKILL.md"
+      },
+      {
         "name": "debug-loop",
         "category": "debugging",
         "validation": {
           "status": "skipped"
         },
         "file": "debug-loop/SKILL.md"
+      },
+      {
+        "name": "e2e-flow-verifier",
+        "category": "product-verification",
+        "file": "e2e-flow-verifier/SKILL.md"
       },
       {
         "name": "exploratory-testing-advanced",
@@ -743,6 +730,11 @@
         "name": "flow-nexus-swarm",
         "category": "orchestration",
         "file": "flow-nexus-swarm/SKILL.md"
+      },
+      {
+        "name": "freeze-tests",
+        "category": "on-demand-hooks",
+        "file": "freeze-tests/SKILL.md"
       },
       {
         "name": "github-code-review",
@@ -788,6 +780,11 @@
         "file": "iterative-loop/SKILL.md"
       },
       {
+        "name": "no-skip",
+        "category": "on-demand-hooks",
+        "file": "no-skip/SKILL.md"
+      },
+      {
         "name": "pair-programming",
         "file": "pair-programming/SKILL.md"
       },
@@ -808,6 +805,11 @@
         "file": "reasoningbank-intelligence/SKILL.md"
       },
       {
+        "name": "security-watch",
+        "category": "on-demand-hooks",
+        "file": "security-watch/SKILL.md"
+      },
+      {
         "name": "six-thinking-hats",
         "category": "methodology",
         "file": "six-thinking-hats/SKILL.md"
@@ -817,9 +819,19 @@
         "file": "skill-builder/SKILL.md"
       },
       {
+        "name": "skill-stats",
+        "category": "measurement",
+        "file": "skill-stats/SKILL.md"
+      },
+      {
         "name": "sparc-methodology",
         "category": "development",
         "file": "sparc-methodology/SKILL.md"
+      },
+      {
+        "name": "strict-tdd",
+        "category": "on-demand-hooks",
+        "file": "strict-tdd/SKILL.md"
       },
       {
         "name": "stream-chain",
@@ -834,6 +846,16 @@
       {
         "name": "swarm-orchestration",
         "file": "swarm-orchestration/SKILL.md"
+      },
+      {
+        "name": "test-failure-investigator",
+        "category": "investigation",
+        "file": "test-failure-investigator/SKILL.md"
+      },
+      {
+        "name": "test-metrics-dashboard",
+        "category": "analytics",
+        "file": "test-metrics-dashboard/SKILL.md"
       },
       {
         "name": "v3-cli-modernization",
@@ -1361,16 +1383,6 @@
       },
       "file": "qe-code-intelligence/SKILL.md"
     },
-    "qe-contract-testing": {
-      "trustTier": 3,
-      "validation": {
-        "status": "passing",
-        "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate-config.json",
-        "evalPath": "evals/qe-contract-testing.yaml"
-      },
-      "file": "qe-contract-testing/SKILL.md"
-    },
     "qe-coverage-analysis": {
       "trustTier": 3,
       "validation": {
@@ -1420,16 +1432,6 @@
         "evalPath": "evals/qe-requirements-validation.yaml"
       },
       "file": "qe-requirements-validation/SKILL.md"
-    },
-    "qe-security-compliance": {
-      "trustTier": 3,
-      "validation": {
-        "status": "passing",
-        "schemaPath": "schemas/output.json",
-        "validatorPath": "scripts/validate-config.json",
-        "evalPath": "evals/qe-security-compliance.yaml"
-      },
-      "file": "qe-security-compliance/SKILL.md"
     },
     "qe-test-execution": {
       "trustTier": 3,
@@ -1923,14 +1925,6 @@
       ],
       "lastUpdated": "2025-12-02"
     },
-    "aqe-v2-v3-migration": {
-      "trustTier": 1,
-      "validation": {
-        "status": "unknown",
-        "schemaPath": "schemas/output.json"
-      },
-      "file": "aqe-v2-v3-migration/SKILL.md"
-    },
     "consultancy-practices": {
       "trustTier": 1,
       "category": "professional-practice",
@@ -2050,6 +2044,30 @@
       ],
       "lastUpdated": "2025-12-02"
     },
+    "coverage-drop-investigator": {
+      "trustTier": 0,
+      "category": "investigation",
+      "validation": {
+        "status": "skipped"
+      },
+      "file": "coverage-drop-investigator/SKILL.md"
+    },
+    "coverage-guard": {
+      "trustTier": 0,
+      "category": "on-demand-hooks",
+      "validation": {
+        "status": "skipped"
+      },
+      "file": "coverage-guard/SKILL.md"
+    },
+    "e2e-flow-verifier": {
+      "trustTier": 0,
+      "category": "product-verification",
+      "validation": {
+        "status": "skipped"
+      },
+      "file": "e2e-flow-verifier/SKILL.md"
+    },
     "exploratory-testing-advanced": {
       "trustTier": 0,
       "category": "testing-methodologies",
@@ -2108,6 +2126,14 @@
         "automation",
         "message-queue"
       ]
+    },
+    "freeze-tests": {
+      "trustTier": 0,
+      "category": "on-demand-hooks",
+      "validation": {
+        "status": "skipped"
+      },
+      "file": "freeze-tests/SKILL.md"
     },
     "github-code-review": {
       "trustTier": 0,
@@ -2225,6 +2251,14 @@
       },
       "file": "iterative-loop/SKILL.md"
     },
+    "no-skip": {
+      "trustTier": 0,
+      "category": "on-demand-hooks",
+      "validation": {
+        "status": "skipped"
+      },
+      "file": "no-skip/SKILL.md"
+    },
     "pair-programming": {
       "trustTier": 0,
       "validation": {
@@ -2245,6 +2279,14 @@
         "status": "skipped"
       },
       "file": "reasoningbank-intelligence/SKILL.md"
+    },
+    "security-watch": {
+      "trustTier": 0,
+      "category": "on-demand-hooks",
+      "validation": {
+        "status": "skipped"
+      },
+      "file": "security-watch/SKILL.md"
     },
     "six-thinking-hats": {
       "trustTier": 0,
@@ -2271,6 +2313,14 @@
       },
       "file": "skill-builder/SKILL.md"
     },
+    "skill-stats": {
+      "trustTier": 0,
+      "category": "measurement",
+      "validation": {
+        "status": "skipped"
+      },
+      "file": "skill-stats/SKILL.md"
+    },
     "sparc-methodology": {
       "trustTier": 0,
       "category": "development",
@@ -2278,6 +2328,14 @@
         "status": "skipped"
       },
       "file": "sparc-methodology/SKILL.md"
+    },
+    "strict-tdd": {
+      "trustTier": 0,
+      "category": "on-demand-hooks",
+      "validation": {
+        "status": "skipped"
+      },
+      "file": "strict-tdd/SKILL.md"
     },
     "stream-chain": {
       "trustTier": 0,
@@ -2317,6 +2375,22 @@
         "status": "skipped"
       },
       "file": "swarm-orchestration/SKILL.md"
+    },
+    "test-failure-investigator": {
+      "trustTier": 0,
+      "category": "investigation",
+      "validation": {
+        "status": "skipped"
+      },
+      "file": "test-failure-investigator/SKILL.md"
+    },
+    "test-metrics-dashboard": {
+      "trustTier": 0,
+      "category": "analytics",
+      "validation": {
+        "status": "skipped"
+      },
+      "file": "test-metrics-dashboard/SKILL.md"
     },
     "v3-cli-modernization": {
       "trustTier": 0,

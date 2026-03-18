@@ -58,14 +58,6 @@ When testing database operations:
 | **Transaction** | ACID properties | Concurrent access |
 | **Performance** | Query speed | Optimization |
 
-### ACID Properties
-| Property | Test Focus |
-|----------|------------|
-| **Atomicity** | All or nothing (rollback on error) |
-| **Consistency** | Constraints always valid |
-| **Isolation** | Concurrent transactions don't interfere |
-| **Durability** | Committed data persists |
-
 ---
 
 ## Schema Testing
@@ -241,8 +233,6 @@ const dbFleet = await FleetManager.coordinate({
 ---
 
 ## Remember
-
-**Database bugs are catastrophic.** Data loss is unrecoverable. Corruption spreads silently. Performance issues compound.
 
 **Test migrations before production:** Forward works, rollback works, data preserved, performance acceptable. Never deploy untested migrations.
 

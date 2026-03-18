@@ -1,6 +1,6 @@
 ---
 name: "QE Visual Accessibility"
-description: "Visual regression testing, responsive design validation, and WCAG accessibility compliance testing."
+description: "Use when detecting visual regressions, validating responsive design across viewports, testing WCAG accessibility compliance, or ensuring UI consistency after changes."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

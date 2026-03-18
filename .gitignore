@@ -129,6 +129,7 @@ coordination/orchestration/*
 # Claude Flow runtime (but not source adapters)
 /claude-flow
 !src/adapters/claude-flow/
+.agentic-qe/aqe.rvf.manifest.json
 .agentic-qe/memory/
 .agentic-qe/data/learning/state.json
 .agentic-qe/data/improvement/state.json

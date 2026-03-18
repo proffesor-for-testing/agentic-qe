@@ -257,7 +257,7 @@ describe('Settings Merge Utilities', () => {
   });
 
   describe('generateV3SettingsSections', () => {
-    it('should generate statusLine, permissions, v3Configuration, v3Learning', () => {
+    it('should generate statusLine, _aqePermissions, v3Configuration, v3Learning', () => {
       const config = {
         learning: { enabled: true, hnswConfig: { M: 8 }, promotionThreshold: 3, qualityThreshold: 0.7 },
         domains: { enabled: ['test-generation'] },
@@ -269,8 +269,8 @@ describe('Settings Merge Utilities', () => {
       expect(sections.statusLine).toBeDefined();
       expect((sections.statusLine as any).enabled).toBe(true);
 
-      expect(sections.permissions).toBeDefined();
-      expect((sections.permissions as any).deny).toContain('Bash(rm -rf /)');
+      expect(sections._aqePermissions).toBeDefined();
+      expect(sections._aqePermissions).toContain('Bash(npx ruflo:*)');
 
       expect(sections.v3Configuration).toBeDefined();
       expect((sections.v3Configuration as any).domains.total).toBe(1);

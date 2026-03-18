@@ -6,7 +6,7 @@
  * Skills are copied from the bundled skills directory to the project's .claude/skills/.
  */
 
-import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, copyFileSync, unlinkSync, rmdirSync } from 'fs';
 import { join, dirname, basename, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
@@ -25,6 +25,7 @@ export interface SkillInfo {
 export interface SkillsInstallResult {
   installed: SkillInfo[];
   skipped: string[];
+  removed: string[];
   errors: string[];
   totalCount: number;
   skillsDir: string;
@@ -51,11 +52,11 @@ export interface SkillsInstallerOptions {
 // ============================================================================
 
 /**
- * V3 QE domain skills - 13 bounded contexts + migration/iteration utilities
+ * V3 QE domain skills - 10 bounded contexts + utilities + new ADR-086 skills
  * These are QE-specific skills for v3's DDD architecture
  */
 const V3_DOMAIN_SKILLS = [
-  // 12 DDD bounded context skills
+  // 10 DDD bounded context skills (qe-security-compliance merged into security-testing, qe-contract-testing merged into contract-testing)
   'qe-test-generation',         // AI-powered test synthesis
   'qe-test-execution',          // Parallel execution, retry logic
   'qe-coverage-analysis',       // O(log n) sublinear coverage
@@ -63,15 +64,23 @@ const V3_DOMAIN_SKILLS = [
   'qe-defect-intelligence',     // ML defect prediction, root cause
   'qe-requirements-validation', // BDD scenarios, acceptance criteria
   'qe-code-intelligence',       // Knowledge graphs, 80% token reduction
-  'qe-security-compliance',     // OWASP, CVE detection
   'pentest-validation',         // Graduated exploit validation (Shannon-inspired)
-  'qe-contract-testing',        // Pact, schema validation
   'qe-visual-accessibility',    // Visual regression, WCAG
   'qe-chaos-resilience',        // Fault injection, resilience
   'qe-learning-optimization',   // Transfer learning, self-improvement
   // V3 utilities
-  'aqe-v2-v3-migration',        // Migration guide from v2 to v3
   'qe-iterative-loop',          // QE iteration patterns
+  // New skills (ADR-086 skill design standards)
+  'strict-tdd',                 // On-demand hook: TDD enforcement
+  'no-skip',                    // On-demand hook: prevent test skips
+  'coverage-guard',             // On-demand hook: coverage regression prevention
+  'freeze-tests',               // On-demand hook: block test edits during refactoring
+  'security-watch',             // On-demand hook: real-time security scanning
+  'skill-stats',                // Skill usage measurement
+  'test-failure-investigator',  // Runbook: test failure root cause
+  'coverage-drop-investigator', // Runbook: coverage regression tracing
+  'e2e-flow-verifier',          // Product verification with Playwright
+  'test-metrics-dashboard',     // Test history and trend analysis
 ];
 
 /**
@@ -133,6 +142,17 @@ const EXCLUDED_SKILLS = [
   'qe-agentic-flow-integration',
   // Internal release workflow skill
   'release',
+];
+
+/**
+ * Deprecated/removed skills that should be cleaned up from existing installations.
+ * These were merged into other skills or removed entirely.
+ * On --upgrade, these directories are deleted from the user's .claude/skills/.
+ */
+const DEPRECATED_SKILLS = [
+  'qe-contract-testing',     // Merged into contract-testing (ADR-086)
+  'qe-security-compliance',  // Merged into security-testing (ADR-086)
+  'aqe-v2-v3-migration',     // No longer needed
 ];
 
 // ============================================================================
@@ -228,6 +248,7 @@ export class SkillsInstaller {
     const result: SkillsInstallResult = {
       installed: [],
       skipped: [],
+      removed: [],
       errors: [],
       totalCount: 0,
       skillsDir: join(this.projectRoot, '.claude', 'skills'),
@@ -265,6 +286,11 @@ export class SkillsInstaller {
       } catch (error) {
         result.errors.push(`Failed to install ${skillName}: ${toErrorMessage(error)}`);
       }
+    }
+
+    // Remove deprecated skills from existing installations
+    if (this.options.overwrite) {
+      result.removed = this.removeDeprecatedSkills(targetSkillsDir);
     }
 
     // Install validation infrastructure (ADR-056)
@@ -311,6 +337,46 @@ export class SkillsInstaller {
         error instanceof Error ? error.message : error);
       return false;
     }
+  }
+
+  /**
+   * Remove deprecated/merged skills from an existing installation.
+   * Only runs during --upgrade to clean up stale skill directories.
+   */
+  private removeDeprecatedSkills(targetSkillsDir: string): string[] {
+    const removed: string[] = [];
+    for (const skillName of DEPRECATED_SKILLS) {
+      const skillDir = join(targetSkillsDir, skillName);
+      if (existsSync(skillDir)) {
+        try {
+          this.removeDirectoryRecursive(skillDir);
+          removed.push(skillName);
+        } catch (error) {
+          console.error(`[SkillsInstaller] Failed to remove deprecated skill ${skillName}:`,
+            error instanceof Error ? error.message : error);
+        }
+      }
+    }
+    if (removed.length > 0) {
+      console.debug(`[SkillsInstaller] Removed ${removed.length} deprecated skills: ${removed.join(', ')}`);
+    }
+    return removed;
+  }
+
+  /**
+   * Remove a directory and all its contents recursively
+   */
+  private removeDirectoryRecursive(dirPath: string): void {
+    const entries = readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        this.removeDirectoryRecursive(fullPath);
+      } else {
+        unlinkSync(fullPath);
+      }
+    }
+    rmdirSync(dirPath);
   }
 
   /**

@@ -1,0 +1,14 @@
+{
+  "$schema": "./config-schema.json",
+  "_description": "Mutation Testing configuration. Auto-created on first run. Edit to customize.",
+  "mutator": "stryker",
+  "concurrency": 2,
+  "score_threshold": 80,
+  "options": {
+    "testRunner": null,
+    "mutateGlob": "src/**/*.{ts,js}",
+    "excludeGlob": "src/**/*.test.{ts,js}",
+    "timeoutMs": 60000
+  },
+  "_setupPrompt": "If testRunner is null, ask: 'Which test runner does this project use? (jest/vitest/mocha)'. Warn: concurrency defaults to 2 to avoid OOM in containers."
+}
