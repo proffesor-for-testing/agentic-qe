@@ -348,7 +348,8 @@ describe('TemporalCompressionService', () => {
   // --------------------------------------------------------------------------
 
   describe('feature flag integration', () => {
-    it('should report disabled when flag is off (default)', () => {
+    it('should report disabled when flag is explicitly off', () => {
+      setRuVectorFeatureFlags({ useTemporalCompression: false });
       expect(service.isEnabled()).toBe(false);
     });
 
@@ -358,6 +359,7 @@ describe('TemporalCompressionService', () => {
     });
 
     it('should toggle based on flag changes', () => {
+      setRuVectorFeatureFlags({ useTemporalCompression: false });
       expect(service.isEnabled()).toBe(false);
 
       setRuVectorFeatureFlags({ useTemporalCompression: true });

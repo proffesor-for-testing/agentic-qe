@@ -278,7 +278,9 @@ export class PersistentSONAEngine {
         );
 
         // Restore Fisher state from SQLite if available
-        const saved = this.loadFisherMatrix(this.config.domain);
+        // Use prepared statement directly — ensureInitialized() would throw
+        // because this.initialized is not yet set during _doInitialize()
+        const saved = this._loadFisherMatrixUnsafe(this.config.domain);
         if (saved) {
           const engine = this.baseEngine.getThreeLoopEngine();
           if (engine) {
@@ -1110,6 +1112,30 @@ export class PersistentSONAEngine {
 
     const stmt = this.prepared.get('getFisher');
     if (!stmt) throw new Error('Fisher get statement not prepared');
+
+    const row = stmt.get(domain) as SONAFisherRow | undefined;
+    if (!row) return null;
+
+    return {
+      fisherDiagonal: this.bufferToFloat32(row.fisher_diagonal),
+      optimalParams: this.bufferToFloat32(row.optimal_params),
+      baseWeights: row.base_weights ? this.bufferToFloat32(row.base_weights) : null,
+      dimension: row.dimension,
+      taskBoundaries: row.task_boundaries,
+      consolidationCycles: row.consolidation_cycles,
+      requestCount: row.request_count,
+      ewcLambda: row.ewc_lambda,
+    };
+  }
+
+  /**
+   * Internal variant of loadFisherMatrix that skips ensureInitialized().
+   * Used only during _doInitialize() when DB and statements are ready
+   * but this.initialized has not been set yet.
+   */
+  private _loadFisherMatrixUnsafe(domain: string): ReturnType<typeof this.loadFisherMatrix> {
+    const stmt = this.prepared.get('getFisher');
+    if (!stmt) return null;
 
     const row = stmt.get(domain) as SONAFisherRow | undefined;
     if (!row) return null;
