@@ -5,6 +5,32 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.4] - 2026-03-19
+
+### Fixed
+
+- **Command injection vulnerability (P0)** — Replaced `exec()` with `execFile()` + allowlist in test-verifier.ts to eliminate CWE-78 shell injection risk.
+- **SQL injection surface (P0)** — Unified SQL table allowlists across sql-safety.ts, unified-memory.ts, and ruvector/brain-shared.ts; added `validateTableName()` to all 7 SQL interpolation sites.
+- **70 unguarded process.exit() calls (P1)** — Replaced with return/throw in learning.ts (45) and hooks.ts (25) so cleanup handlers execute properly.
+- **Database corruption** — Rebuilt corrupted memory.db (82 corrupt pages causing 43% dream cycle failures).
+- **15K junk learning patterns** — Purged benchmark/test artifacts (bench-*, dream novel_association, test patterns) that inflated pattern counts and degraded quality scoring.
+- **Benchmark test isolation** — Added `useUnified: false` to prevent benchmark runs from polluting the production learning database.
+- **Statusline pattern inflation** — Fixed statusline to count only meaningful patterns instead of including junk and cross-table sums.
+- **CI timeouts** — Split monolithic CI jobs into parallel shards: Optimized CI into 6 jobs, MCP tests into 4 shards, cutting wall-clock from 25+ min to ~15 min.
+- **CI concurrency groups** — PRs now cancel stale runs; main branch runs no longer cancel each other on rapid pushes.
+
+### Changed
+
+- **Bundle size reduced** — Enabled minification: CLI 9.8→6.9 MB (-30%), MCP 12→7.2 MB (-40%).
+- **@faker-js/faker moved to devDependencies** — ~8 MB savings from production install.
+- **Verification scripts hardened** — `verify:counts`, `verify:agent-skills`, and `verify:features` now perform real checks with non-zero exit codes on failure.
+- **4 perma-failing scheduled workflows disabled** — n8n-workflow-ci, sauce-demo-e2e, qcsd-production-trigger, and benchmark schedules disabled (manual dispatch still available).
+- **Quality scoring improved** — CLI-hook learning now uses context-aware scoring (source/speed) instead of hardcoded 0.7/0.3.
+
+### Added
+
+- **12 QE swarm analysis reports** — Comprehensive v3.8.3 quality audit covering code complexity, security, performance, test quality, SFDIPOT, dependencies, API contracts, architecture/DDD, accessibility, and brutal honesty.
+
 ## [3.8.3] - 2026-03-18
 
 ### Fixed
